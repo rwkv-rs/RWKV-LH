@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rwkv-lh"
+version = "0.1.0"
+description = "Persistent, verifiable Long-Horizon Agent runtime for RWKV"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "requests>=2.32,<3",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10"]
+
+[project.scripts]
+rwkv-lh = "scripts.run_long_horizon:main"
+rwkv-lh-control = "scripts.run_lh_control_benchmark:main"
+rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
+
+[tool.setuptools.packages.find]
+include = ["rwkv_lh*", "scripts*", "benchmarks*"]
+
+[tool.setuptools.package-data]
+rwkv_lh = ["data/*.txt"]
+"benchmarks.architecture_regression.lh_control_30" = ["tasks.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
