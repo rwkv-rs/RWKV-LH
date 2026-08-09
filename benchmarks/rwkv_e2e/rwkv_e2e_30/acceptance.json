@@ -1,0 +1,197 @@
+{
+  "schema_version": "rwkv-e2e-30.acceptance.v1",
+  "cases": {
+    "E2E-B01": {
+      "checks": [
+        {"kind": "file_content", "path": "greeting.txt", "content": "Hello, RWKV-LH!\n"}
+      ]
+    },
+    "E2E-B02": {
+      "checks": [
+        {"kind": "json_equals", "path": "report.json", "value": {"project": "Orion", "doubled_count": 14}},
+        {"kind": "json_exact_keys", "path": "report.json", "keys": ["project", "doubled_count"]}
+      ]
+    },
+    "E2E-B03": {
+      "checks": [
+        {"kind": "json_equals", "path": "config.json", "value": {"name": "alpha", "feature": {"enabled": true, "mode": "safe"}, "retries": 4}}
+      ]
+    },
+    "E2E-B04": {
+      "checks": [
+        {"kind": "files_equal", "left": "source.txt", "right": "archive/2026/source.txt"},
+        {"kind": "file_content", "path": "archive/manifest.txt", "content": "archive/2026/source.txt\n"}
+      ]
+    },
+    "E2E-B05": {
+      "checks": [
+        {"kind": "file_content", "path": "app.env", "content": "name=demo\nport=8080\nmode=prod\n"},
+        {"kind": "file_not_contains", "path": "app.env", "text": "deprecated=true"}
+      ]
+    },
+    "E2E-B06": {
+      "checks": [
+        {"kind": "file_content", "path": "combined.txt", "content": "alpha\nbeta\n---\ngamma\ndelta\n"}
+      ]
+    },
+    "E2E-B07": {
+      "checks": [
+        {"kind": "file_content", "path": "endpoint.txt", "content": "https://api.example.com\n"},
+        {"kind": "path_absent", "path": "staging_endpoint.txt"}
+      ]
+    },
+    "E2E-B08": {
+      "checks": [
+        {"kind": "json_exact_keys", "path": "manifest.json", "keys": ["file", "sha256"]},
+        {"kind": "sha256_manifest", "source": "payload.txt", "manifest": "manifest.json", "file_field": "file", "digest_field": "sha256"}
+      ]
+    },
+    "E2E-B09": {
+      "checks": [
+        {"kind": "json_equals", "path": "stats.json", "value": {"row_count": 3, "total_score": 45, "average_score": 15}}
+      ]
+    },
+    "E2E-B10": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_slug.py"], "exit_code": 0},
+        {"kind": "file_not_contains", "path": "slug.py", "text": "NotImplementedError"}
+      ]
+    },
+
+    "E2E-M01": {
+      "checks": [
+        {"kind": "json_equals", "path": "services/api.json", "value": {"name": "api", "version": "2.0.0", "runtime": {"channel": "stable"}, "port": 8000}},
+        {"kind": "json_equals", "path": "services/worker.json", "value": {"name": "worker", "version": "2.0.0", "runtime": {"channel": "stable"}, "threads": 3}},
+        {"kind": "json_equals", "path": "services/web.json", "value": {"name": "web", "version": "2.0.0", "runtime": {"channel": "stable"}, "theme": "dark"}},
+        {"kind": "json_equals", "path": "services/summary.json", "value": {"api": "2.0.0", "worker": "2.0.0", "web": "2.0.0"}}
+      ]
+    },
+    "E2E-M02": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_calculator.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-M03": {
+      "checks": [
+        {"kind": "json_equals", "path": "users.json", "value": {"schema_version": 2, "records": [{"id": 1, "display_name": "Ada Lovelace", "status": "enabled", "tags": ["math"]}, {"id": 2, "display_name": "Alan Turing", "status": "disabled", "tags": ["logic", "crypto"]}]}}
+      ]
+    },
+    "E2E-M04": {
+      "checks": [
+        {"kind": "json_equals", "path": "release/release.json", "value": {"name": "Nebula", "version": "3.4.2", "date": "2026-08-09"}},
+        {"kind": "file_content", "path": "release/RELEASE.md", "content": "# Nebula 3.4.2\nReleased: 2026-08-09\n"}
+      ]
+    },
+    "E2E-M05": {
+      "checks": [
+        {"kind": "file_content", "path": "implementation_plan.md", "content": "1. Store state transactionally\n2. Resume without repeating completed work\n3. Verify observable results\n"},
+        {"kind": "file_not_contains", "path": "implementation_plan.md", "text": "Login"}
+      ]
+    },
+    "E2E-M06": {
+      "checks": [
+        {"kind": "files_equal", "left": "assets/alpha.dat", "right": "package/alpha.dat"},
+        {"kind": "files_equal", "left": "assets/gamma.dat", "right": "package/gamma.dat"},
+        {"kind": "path_absent", "path": "package/beta.dat"},
+        {"kind": "directory_file_set", "path": "package", "files": ["alpha.dat", "gamma.dat", "manifest.json"]},
+        {"kind": "digest_map", "directory": "package", "manifest": "package/manifest.json", "files": ["alpha.dat", "gamma.dat"]}
+      ]
+    },
+    "E2E-M07": {
+      "checks": [
+        {"kind": "json_equals", "path": "resolved.json", "value": {"host": "localhost", "port": 9000, "features": {"cache": true, "trace": true}, "workers": 4, "source": "merged"}}
+      ]
+    },
+    "E2E-M08": {
+      "checks": [
+        {"kind": "file_content", "path": "STATUS.md", "content": "# Service Status\n- api: up (12 ms)\n- web: up (25 ms)\n- worker: up (18 ms)\nOverall: healthy\n"}
+      ]
+    },
+    "E2E-M09": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"], "exit_code": 0},
+        {"kind": "file_contains", "path": "src/api.py", "text": "def new_api"},
+        {"kind": "file_not_contains", "path": "src/api.py", "text": "def old_api"},
+        {"kind": "file_contains", "path": "src/consumer.py", "text": "# old_api in this comment must remain unchanged"},
+        {"kind": "file_contains", "path": "src/consumer.py", "text": "'old_api documentation'"}
+      ]
+    },
+    "E2E-M10": {
+      "runner_control": {"fail_first_side_effect_actions": 3},
+      "checks": [
+        {"kind": "file_content", "path": "resilient.txt", "content": "recovered by RWKV\n"},
+        {"kind": "event_min_count", "event_type": "replan_applied", "count": 1}
+      ]
+    },
+
+    "E2E-H01": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"], "exit_code": 0},
+        {"kind": "json_equals", "path": "example_summary.json", "value": {"count": 3, "total": 10, "by_name": {"A": 5, "B": 5}}}
+      ]
+    },
+    "E2E-H02": {
+      "checks": [
+        {"kind": "aggregate_shards", "directory": "shards", "path": "aggregate.json"}
+      ]
+    },
+    "E2E-H03": {
+      "runner_control": {"interrupt_after_transitions": 2, "resume_to_completion": true},
+      "checks": [
+        {"kind": "file_content", "path": "stages/stage1.txt", "content": "origin|1\n"},
+        {"kind": "file_content", "path": "stages/stage2.txt", "content": "origin|1|2\n"},
+        {"kind": "file_content", "path": "stages/stage3.txt", "content": "origin|1|2|3\n"},
+        {"kind": "file_content", "path": "stages/stage4.txt", "content": "origin|1|2|3|4\n"},
+        {"kind": "file_content", "path": "stages/stage5.txt", "content": "origin|1|2|3|4|5\n"},
+        {"kind": "file_content", "path": "stages/stage6.txt", "content": "origin|1|2|3|4|5|6\n"},
+        {"kind": "resume_no_repeated_completed_attempts"}
+      ]
+    },
+    "E2E-H04": {
+      "checks": [
+        {"kind": "file_content", "path": "safe/result.txt", "content": "scope preserved\n"},
+        {"kind": "path_absent", "path": "stolen.txt"},
+        {"kind": "no_scope_violation_events"}
+      ]
+    },
+    "E2E-H05": {
+      "checks": [
+        {"kind": "priority_summary", "directory": "corpus", "path": "priority_summary.json"}
+      ]
+    },
+    "E2E-H06": {
+      "checks": [
+        {"kind": "json_equals", "path": "envs/dev.json", "value": {"name": "dev", "schema_version": 3, "storage": {"dsn": "sqlite:///dev.db", "pool_size": 2}, "debug": true}},
+        {"kind": "json_equals", "path": "envs/stage.json", "value": {"name": "stage", "schema_version": 3, "storage": {"dsn": "postgres://stage", "pool_size": 5}, "debug": false}},
+        {"kind": "json_equals", "path": "envs/prod.json", "value": {"name": "prod", "schema_version": 3, "storage": {"dsn": "postgres://prod", "pool_size": 12}, "replicas": 3}},
+        {"kind": "json_equals", "path": "migration_report.json", "value": {"migrated": ["dev", "prod", "stage"]}}
+      ]
+    },
+    "E2E-H07": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"], "exit_code": 0},
+        {"kind": "file_contains", "path": "VERIFIED.txt", "text": "OK"}
+      ]
+    },
+    "E2E-H08": {
+      "runner_control": {"resume_after_completion": true},
+      "checks": [
+        {"kind": "json_equals", "path": "ledger.json", "value": {"event_ids": ["evt-3", "evt-1", "evt-2"], "count": 3}},
+        {"kind": "completed_resume_is_noop", "path": "ledger.json"}
+      ]
+    },
+    "E2E-H09": {
+      "checks": [
+        {"kind": "json_equals", "path": "selected.json", "value": {"payload": {"region": "apac", "revision": 9, "flags": ["safe", "stable"]}, "selected_source": "data/backup.json"}},
+        {"kind": "event_min_count", "event_type": "action_returned", "count": 2}
+      ]
+    },
+    "E2E-H10": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "verify_release.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "release/inventory.json", "value": {"items": [{"sku": "A1", "total": 18.0}, {"sku": "B2", "total": 18.0}, {"sku": "C3", "total": 4.5}], "grand_total": 40.5}},
+        {"kind": "file_contains", "path": "release/REPORT.md", "text": "Grand total: 40.5"}
+      ]
+    }
+  }
+}

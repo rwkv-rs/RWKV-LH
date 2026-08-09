@@ -75,7 +75,7 @@ RWKV 官方 tokenizer 随包提供，用于真实 token 计数。默认总输入
 
 核心 Harness 提供文件与 JSON 写入、精确替换、追加、复制、删除、目录创建、文件读取、带行号 evidence binding、`shell=False` 的 argv 命令以及显式 noop。
 
-所有路径必须位于 Goal workspace root。命令使用 argv 数组，不经过 shell。
+所有路径必须位于 Goal workspace root。命令使用 argv 数组，不经过 shell。在 Linux/WSL 检测到 bubblewrap 时，命令只看到只读系统和唯一可写 workspace；审计事件记录实际 sandbox backend。无 bubblewrap 的平台会明确记录为 unsandboxed compatibility mode。
 
 第三方能力使用 `ActionHarness.register_action()` 或构造参数 `actions` 注入。每个扩展必须通过 `ActionDefinition` 明确：
 

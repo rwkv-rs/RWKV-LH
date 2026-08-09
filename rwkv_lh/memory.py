@@ -113,6 +113,7 @@ class WorkingMemoryBuilder:
             + json.dumps(
                 {
                     "objective": state.goal.objective,
+                    "original_request": state.goal.original_request,
                     "constraints": list(state.goal.constraints),
                     "success_criteria": criteria,
                     "workspace_root": state.goal.workspace_root,

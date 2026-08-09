@@ -19,25 +19,136 @@ class ValidationSummary:
     results: tuple[ValidationResult, ...]
 
 
+@dataclass(frozen=True)
+class VerifierDefinition:
+    description: str
+    required_parameters: tuple[str, ...] = ()
+    one_of_parameters: tuple[tuple[str, ...], ...] = ()
+    optional_parameters: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "description": self.description,
+            "required_parameters": list(self.required_parameters),
+            "one_of_parameters": [list(group) for group in self.one_of_parameters],
+            "optional_parameters": list(self.optional_parameters),
+        }
+
+
 class ValidationEngine:
-    supported_kinds = {
-        "action_succeeded",
-        "file_exists",
-        "file_absent",
-        "file_contains",
-        "file_not_contains",
-        "file_content",
-        "json_field_equals",
-        "json_schema",
-        "command_exit_code",
-        "hash_changed",
-        "hash_equals",
-        "http_status",
-        "response_field",
-        "evidence_bound",
-        "memory_ref_exists",
-        "model_cross_check",
+    definitions = {
+        "action_succeeded": VerifierDefinition(
+            "The selected harness action returned success=true."
+        ),
+        "file_exists": VerifierDefinition(
+            "A scoped file or directory exists.", ("path",)
+        ),
+        "file_absent": VerifierDefinition(
+            "A scoped file or directory does not exist.", ("path",)
+        ),
+        "file_contains": VerifierDefinition(
+            "A UTF-8 file contains the expected text.",
+            ("path",),
+            (("text", "value"),),
+        ),
+        "file_not_contains": VerifierDefinition(
+            "A UTF-8 file does not contain the forbidden text.",
+            ("path",),
+            (("text", "value"),),
+        ),
+        "file_content": VerifierDefinition(
+            "A UTF-8 file exactly equals, or contains, expected content.",
+            ("path",),
+            (("expected_content", "expected"),),
+            ("exact_match",),
+        ),
+        "json_field_equals": VerifierDefinition(
+            "A field read from a JSON file equals the expected JSON value.",
+            ("path", "expected"),
+            (("field", "field_path"),),
+        ),
+        "json_schema": VerifierDefinition(
+            "A JSON file has the expected top-level type and required keys.",
+            ("path",),
+            (),
+            ("type", "required"),
+        ),
+        "command_exit_code": VerifierDefinition(
+            "The selected command action returned the expected process exit code.",
+            (),
+            (),
+            ("expected",),
+        ),
+        "hash_changed": VerifierDefinition(
+            "A scoped artifact SHA256 differs from a supplied prior SHA256.",
+            ("path", "before_sha256"),
+        ),
+        "hash_equals": VerifierDefinition(
+            "A scoped artifact SHA256 equals the supplied SHA256.",
+            ("path", "sha256"),
+        ),
+        "http_status": VerifierDefinition(
+            "An HTTP action result has the expected status code.",
+            (),
+            (),
+            ("expected",),
+        ),
+        "response_field": VerifierDefinition(
+            "A field in a structured action response equals the expected value.",
+            ("field", "expected"),
+        ),
+        "evidence_bound": VerifierDefinition(
+            "The action returned evidence with a source locator or exact span."
+        ),
+        "memory_ref_exists": VerifierDefinition(
+            "A specified structured working-memory entry exists.", ("memory_id",)
+        ),
+        "model_cross_check": VerifierDefinition(
+            "RWKV independently cross-checks the action result and bound evidence.",
+            (),
+            (),
+            ("instruction", "question"),
+        ),
     }
+    supported_kinds = frozenset(definitions)
+
+    @classmethod
+    def verifier_contract(
+        cls,
+        kinds: set[str] | tuple[str, ...] | list[str] | None = None,
+    ) -> dict[str, Any]:
+        selected = set(kinds) if kinds is not None else set(cls.definitions)
+        return {
+            "verifiers": {
+                name: definition.to_dict()
+                for name, definition in cls.definitions.items()
+                if name in selected
+            }
+        }
+
+    @classmethod
+    def validate_spec_contract(cls, spec: ValidationSpec) -> None:
+        definition = cls.definitions.get(str(spec.kind or "").strip())
+        if definition is None:
+            raise ValueError(f"unsupported validation kind: {spec.kind}")
+        parameters = spec.parameters
+        if not isinstance(parameters, Mapping):
+            raise ValueError(f"verifier {spec.kind} parameters must be an object")
+        missing = [
+            name for name in definition.required_parameters if name not in parameters
+        ]
+        for group in definition.one_of_parameters:
+            if not any(name in parameters for name in group):
+                missing.append("one of " + "/".join(group))
+        if missing:
+            raise ValueError(
+                f"verifier {spec.kind} is missing required parameters: {missing}"
+            )
+        if "path" in parameters and (
+            not isinstance(parameters["path"], str)
+            or not parameters["path"].strip()
+        ):
+            raise ValueError(f"verifier {spec.kind} path must be a non-empty string")
 
     def __init__(
         self,

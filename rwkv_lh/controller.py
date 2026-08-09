@@ -11,7 +11,13 @@ from typing import Any, Mapping, Protocol
 
 from rwkv_lh.harness import ActionHarness, ActionResult
 from rwkv_lh.memory import WorkingMemoryBuilder
-from rwkv_lh.model import LongHorizonModel, PersistCallback, ReplanProposal
+from rwkv_lh.model import (
+    ActionProposal,
+    FailureAnalysisProposal,
+    LongHorizonModel,
+    PersistCallback,
+    ReplanProposal,
+)
 from rwkv_lh.schema import (
     ArtifactRecord,
     Attempt,
@@ -20,6 +26,7 @@ from rwkv_lh.schema import (
     RunState,
     RunStatus,
     TaskStatus,
+    TaskAction,
     ValidationResult,
     ValidationSpec,
     action_fingerprint,
@@ -36,6 +43,8 @@ class PlannerModel(Protocol):
     def propose_action(self, state, task, context, action_contract, persist): ...
 
     def replan(self, state, failed_task, context, persist, *, same_failure_count: int) -> ReplanProposal: ...
+
+    def analyze_failure(self, state, failed_task, context, persist, *, same_failure_count: int) -> FailureAnalysisProposal: ...
 
     def final_answer(self, state: RunState, context: str, persist: PersistCallback) -> str: ...
 
@@ -149,13 +158,41 @@ class LongHorizonController:
         if not task.action.action_type or task.action.action_type == "model_action":
             if self.model is None:
                 raise RuntimeError(f"task {task_id} requires a model-proposed action")
-            context = self.memory.build(state, task, action_contract=self.harness.action_contract())
-            task.action = self.model.propose_action(
+            context = self.memory.build(state, task)
+            proposal = self.model.propose_action(
                 state,
                 task,
                 context,
                 self.harness.action_contract(),
                 self._persist_callback(),
+            )
+            if isinstance(proposal, ActionProposal):
+                task.action = proposal.action
+                task.completion_criteria = list(proposal.completion_criteria)
+            elif isinstance(proposal, TaskAction):
+                # Compatibility for deterministic architecture fixtures.
+                task.action = proposal
+            else:
+                raise TypeError("model returned an unsupported action proposal")
+            if not task.completion_criteria:
+                raise ValueError(f"task {task_id} action proposal has no completion criteria")
+            self._persist(
+                state,
+                "action_selected",
+                {
+                    "task_id": task_id,
+                    "action": task.action.action_type,
+                    "arguments": task.action.arguments,
+                    "completion_criteria": [
+                        {
+                            "kind": criterion.kind,
+                            "parameters": criterion.parameters,
+                            "required": criterion.required,
+                        }
+                        for criterion in task.completion_criteria
+                    ],
+                    "source": "rwkv",
+                },
             )
         definition = self.harness.definition(task.action.action_type)
         missing_postconditions = self.harness.missing_required_postconditions(
@@ -230,8 +267,24 @@ class LongHorizonController:
             state,
             cross_check=self._model_cross_check(state),
         )
-        attempt.validation_results = list(validation.results)
-        if validation.required_passed:
+        validation_results = list(validation.results)
+        required_passed = validation.required_passed
+        explicit_cross_check = any(
+            item.kind == "model_cross_check" and item.required
+            for item in validation_results
+        )
+        if required_passed and not explicit_cross_check:
+            semantic_result = self._mandatory_semantic_check(
+                state,
+                task,
+                result,
+                validation_results,
+            )
+            if semantic_result is not None:
+                validation_results.append(semantic_result)
+                required_passed = required_passed and semantic_result.passed
+        attempt.validation_results = validation_results
+        if required_passed:
             attempt.status = AttemptStatus.SUCCEEDED
             attempt.ended_at = utc_now()
             graph.transition(task_id, TaskStatus.COMPLETED)
@@ -244,7 +297,7 @@ class LongHorizonController:
                 {
                     "task_id": task_id,
                     "attempt_id": attempt_id,
-                    "validation": [vars(item) for item in validation.results],
+                    "validation": [vars(item) for item in validation_results],
                 },
             )
             return
@@ -255,34 +308,140 @@ class LongHorizonController:
         task.error = {
             "type": "ValidationFailed",
             "attempt_id": attempt_id,
-            "results": [vars(item) for item in validation.results],
+            "results": [vars(item) for item in validation_results],
         }
         state.errors.append({"task_id": task_id, **task.error, "at": utc_now()})
         self._persist(
             state,
             "task_failed",
-            {"task_id": task_id, "attempt_id": attempt_id, "validation": [vars(item) for item in validation.results]},
+            {"task_id": task_id, "attempt_id": attempt_id, "validation": [vars(item) for item in validation_results]},
         )
         self._retry_or_replan(state, graph, task_id)
 
-    def _retry_or_replan(self, state: RunState, graph: TaskGraph, task_id: str) -> None:
+    def _retry_or_replan(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        task_id: str,
+        *,
+        recovery: bool = False,
+    ) -> None:
         task = state.tasks[task_id]
         attempt_count = len(task.attempt_ids)
-        if (
-            self.model is not None
-            and attempt_count >= task.retry_policy.replan_after
-        ):
-            context = self.memory.build(state, task, action_contract=self.harness.action_contract())
+        analyzer = (
+            getattr(self.model, "analyze_failure", None)
+            if self.model is not None
+            else None
+        )
+        if callable(analyzer):
+            same_failure_count = self._same_failure_count(state, task)
+            context = self.memory.build(state, task)
             state.status = RunStatus.REPLANNING
-            self._persist(state, "replan_started", {"task_id": task_id, "attempt_count": attempt_count})
-            proposal = self.model.replan(
+            self._persist(
+                state,
+                "failure_analysis_started",
+                {
+                    "task_id": task_id,
+                    "attempt_count": attempt_count,
+                    "same_failure_count": same_failure_count,
+                    "recovery": recovery,
+                },
+            )
+            analysis = analyzer(
                 state,
                 task,
                 context,
                 self._persist_callback(),
-                same_failure_count=max(0, attempt_count - 1),
+                same_failure_count=same_failure_count,
             )
-            self._apply_replan(state, graph, task_id, proposal)
+            decision = str(analysis.decision or "").strip().casefold()
+            if decision not in {"retry_same", "reselect_action", "replan"}:
+                raise ValueError(f"unsupported failure-analysis decision: {decision}")
+            self._persist(
+                state,
+                "failure_analysis_returned",
+                {
+                    "task_id": task_id,
+                    "decision": decision,
+                    "reason": analysis.reason,
+                    "recovery": recovery,
+                },
+            )
+            definition = self.harness.definition(task.action.action_type)
+            if decision == "retry_same" and not (
+                definition.idempotent or definition.read_only
+            ):
+                decision = "reselect_action"
+                self._persist(
+                    state,
+                    "failure_decision_safety_adjusted",
+                    {
+                        "task_id": task_id,
+                        "from": "retry_same",
+                        "to": "reselect_action",
+                        "reason": "non_idempotent_action_cannot_be_blindly_retried",
+                    },
+                )
+            if decision in {"retry_same", "reselect_action"} and attempt_count >= task.retry_policy.max_attempts:
+                decision = "replan"
+                self._persist(
+                    state,
+                    "failure_decision_budget_adjusted",
+                    {
+                        "task_id": task_id,
+                        "to": "replan",
+                        "reason": "task_attempt_budget_exhausted",
+                    },
+                )
+            if decision == "retry_same":
+                graph.transition(task_id, TaskStatus.PENDING)
+                state.active_task_id = None
+                state.status = RunStatus.RUNNING
+                self._persist(
+                    state,
+                    "retry_scheduled",
+                    {
+                        "task_id": task_id,
+                        "next_attempt": attempt_count + 1,
+                        "source": "rwkv_failure_analysis",
+                    },
+                )
+                return
+            if decision == "reselect_action":
+                task.action = TaskAction("model_action", {})
+                task.completion_criteria = []
+                graph.transition(task_id, TaskStatus.PENDING)
+                state.active_task_id = None
+                state.status = RunStatus.RUNNING
+                self._persist(
+                    state,
+                    "action_reselection_scheduled",
+                    {
+                        "task_id": task_id,
+                        "next_attempt": attempt_count + 1,
+                        "source": "rwkv_failure_analysis",
+                    },
+                )
+                return
+            self._start_replan(
+                state,
+                graph,
+                task,
+                same_failure_count=same_failure_count,
+                recovery=recovery,
+            )
+            return
+        if (
+            self.model is not None
+            and attempt_count >= task.retry_policy.replan_after
+        ):
+            self._start_replan(
+                state,
+                graph,
+                task,
+                same_failure_count=self._same_failure_count(state, task),
+                recovery=recovery,
+            )
             return
         if attempt_count < task.retry_policy.max_attempts:
             graph.transition(task_id, TaskStatus.PENDING)
@@ -303,6 +462,56 @@ class LongHorizonController:
             "run_blocked",
             {"reason": "task_retry_exhausted", "task_id": task_id, "attempts": attempt_count},
         )
+
+    def _start_replan(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        task,
+        *,
+        same_failure_count: int,
+        recovery: bool,
+    ) -> None:
+        if self.model is None:
+            raise RuntimeError("replan requires a model")
+        context = self.memory.build(state, task)
+        state.status = RunStatus.REPLANNING
+        event_type = "replan_recovery_started" if recovery else "replan_started"
+        self._persist(
+            state,
+            event_type,
+            {
+                "task_id": task.task_id,
+                "attempt_count": len(task.attempt_ids),
+                "same_failure_count": same_failure_count,
+            },
+        )
+        proposal = self.model.replan(
+            state,
+            task,
+            context,
+            self._persist_callback(),
+            same_failure_count=same_failure_count,
+        )
+        self._apply_replan(state, graph, task.task_id, proposal)
+
+    @staticmethod
+    def _same_failure_count(state: RunState, task) -> int:
+        fingerprints = [
+            state.attempts[attempt_id].action_fingerprint
+            for attempt_id in task.attempt_ids
+            if attempt_id in state.attempts
+            and state.attempts[attempt_id].status == AttemptStatus.FAILED
+        ]
+        if not fingerprints:
+            return 0
+        latest = fingerprints[-1]
+        trailing = 0
+        for fingerprint in reversed(fingerprints):
+            if fingerprint != latest:
+                break
+            trailing += 1
+        return max(0, trailing - 1)
 
     def _apply_replan(
         self,
@@ -423,29 +632,30 @@ class LongHorizonController:
         for task in state.tasks.values():
             if not task.active or task.status != TaskStatus.FAILED:
                 continue
+            analyzer = (
+                getattr(self.model, "analyze_failure", None)
+                if self.model is not None
+                else None
+            )
+            if callable(analyzer):
+                self._retry_or_replan(
+                    state,
+                    graph,
+                    task.task_id,
+                    recovery=True,
+                )
+                return
             if (
                 self.model is not None
                 and len(task.attempt_ids) >= task.retry_policy.replan_after
             ):
-                context = self.memory.build(
+                self._start_replan(
                     state,
+                    graph,
                     task,
-                    action_contract=self.harness.action_contract(),
+                    same_failure_count=self._same_failure_count(state, task),
+                    recovery=True,
                 )
-                state.status = RunStatus.REPLANNING
-                self._persist(
-                    state,
-                    "replan_recovery_started",
-                    {"task_id": task.task_id, "attempt_count": len(task.attempt_ids)},
-                )
-                proposal = self.model.replan(
-                    state,
-                    task,
-                    context,
-                    self._persist_callback(),
-                    same_failure_count=max(0, len(task.attempt_ids) - 1),
-                )
-                self._apply_replan(state, graph, task.task_id, proposal)
                 return
             definition = self.harness.definition(task.action.action_type)
             if (
@@ -639,16 +849,14 @@ class LongHorizonController:
             return None
 
         def check(task, action_result, spec):
-            context = self.memory.build(
-                state,
-                task,
-                action_contract=self.harness.action_contract(),
-            )
+            context = self.memory.build(state, task)
             passed, reason = method(
                 state,
                 task,
                 context,
                 self._persist_callback(),
+                action_result=action_result.to_dict(),
+                validation_results=[],
             )
             return ValidationResult(
                 kind="model_cross_check",
@@ -659,6 +867,41 @@ class LongHorizonController:
             )
 
         return check
+
+    def _mandatory_semantic_check(
+        self,
+        state: RunState,
+        task,
+        action_result: ActionResult,
+        validation_results: list[ValidationResult],
+    ) -> ValidationResult | None:
+        method = (
+            getattr(self.model, "cross_validate", None)
+            if self.model is not None
+            else None
+        )
+        if not callable(method) or not task.required:
+            return None
+        context = self.memory.build(state, task)
+        passed, reason = method(
+            state,
+            task,
+            context,
+            self._persist_callback(),
+            action_result=action_result.to_dict(),
+            validation_results=[vars(item) for item in validation_results],
+        )
+        return ValidationResult(
+            kind="goal_cross_check",
+            passed=bool(passed),
+            required=True,
+            message=str(reason),
+            evidence={
+                "owner": "rwkv",
+                "goal_digest": state.goal.digest,
+                "goal_criteria": list(task.goal_criteria),
+            },
+        )
 
     @staticmethod
     def _goal_criteria_covered(state: RunState) -> bool:

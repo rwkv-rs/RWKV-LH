@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import threading
@@ -9,7 +10,14 @@ from rwkv_lh.runtime.sampling import get_llm_seed, get_llm_temperature
 from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.memory import WorkingMemoryBuilder
-from rwkv_lh.model import LongHorizonModel, ModelInvoker, ReplanProposal
+from rwkv_lh.model import (
+    ActionProposal,
+    FailureAnalysisProposal,
+    LongHorizonModel,
+    ModelInvoker,
+    ModelProtocolError,
+    ReplanProposal,
+)
 from rwkv_lh.schema import (
     Attempt,
     AttemptStatus,
@@ -221,6 +229,50 @@ def test_controller_replan_supersedes_failed_path():
         assert model.same_failure_counts == [0]
 
 
+class DelayedActionModel:
+    def plan(self, state, persist):
+        raise AssertionError("existing graph should be used")
+
+    def propose_action(self, state, task, context, action_contract, persist):
+        assert task.action.action_type == "model_action"
+        return TaskAction("write_file", {"path": "selected.txt", "content": "selected"})
+
+    def replan(self, state, failed_task, context, persist, *, same_failure_count):
+        raise AssertionError("delayed action should pass")
+
+    def final_answer(self, state, context, persist):
+        return "selected and verified"
+
+
+def test_controller_asks_model_for_delayed_action_and_audits_selection():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-DELAYED-ACTION")
+        task = TaskNode(
+            "T1",
+            "Select action",
+            "Choose a concrete action at execution time",
+            action=TaskAction("model_action", {}),
+            completion_criteria=[
+                ValidationSpec(
+                    "file_contains",
+                    {"path": "selected.txt", "text": "selected"},
+                )
+            ],
+        )
+        state = save_tasks(store, state, [task])
+        result = LongHorizonController(store, model=DelayedActionModel()).run(state.run_id)
+        assert result.state.status == RunStatus.COMPLETED
+        assert result.state.tasks["T1"].action.action_type == "write_file"
+        assert (root / "workspace" / "selected.txt").read_text() == "selected"
+        selected = [
+            event for event in store.event_records(state.run_id)
+            if event["type"] == "action_selected"
+        ]
+        assert selected[0]["data"]["source"] == "rwkv"
+
+
 def test_resume_continues_replan_after_interrupted_failed_state():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -390,6 +442,24 @@ def test_request_temperature_context_is_isolated_between_threads():
     assert get_llm_seed() is None
 
 
+def test_model_invoker_out_of_run_audit_captures_goal_exchange():
+    trace = []
+    client = RecordingClient()
+    ModelInvoker(client=client, audit_hook=trace.append).invoke_json(
+        "goal prompt",
+        request_type="goal_parse",
+        task_id="GOAL",
+        seed=91,
+    )
+    assert [item["type"] for item in trace] == [
+        "model_request_started",
+        "model_request_returned",
+    ]
+    assert trace[0]["prompt"] == "goal prompt"
+    assert trace[0]["seed"] == 91
+    assert trace[1]["output"] == '"schema_version":"test.v1"}'
+
+
 class SequencePlanClient:
     def __init__(self):
         self.calls = []
@@ -406,6 +476,56 @@ class SequencePlanClient:
     def text_completion(self, prompt, max_tokens=768, stop=None):
         self.calls.append((get_llm_temperature(), prompt))
         return type("Response", (), {"content": self.outputs.pop(0)})()
+
+
+class SequenceGoalClient:
+    def __init__(self):
+        six = [
+            {"id": f"C{index}", "description": f"criterion {index}", "required": True}
+            for index in range(1, 7)
+        ]
+        self.outputs = [
+            json.dumps(
+                {
+                    "schema_version": "long-horizon.goal-proposal.v1",
+                    "objective": "too granular",
+                    "constraints": [],
+                    "success_criteria": six,
+                }
+            ),
+            json.dumps(
+                {
+                    "schema_version": "long-horizon.goal-proposal.v1",
+                    "objective": "compact",
+                    "constraints": [],
+                    "success_criteria": [
+                        {
+                            "id": "C1",
+                            "description": "one observable outcome",
+                            "required": True,
+                        }
+                    ],
+                }
+            ),
+        ]
+        self.calls = []
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.calls.append((get_llm_temperature(), prompt))
+        return type("Response", (), {"content": self.outputs.pop(0)})()
+
+
+def test_goal_parser_repairs_over_granular_criteria_at_same_temperature():
+    with tempfile.TemporaryDirectory() as directory:
+        client = SequenceGoalClient()
+        goal, decision = LongHorizonModel(
+            ModelInvoker(client=client)
+        ).parse_goal("Create one verified artifact", directory)
+        assert goal.objective == "compact"
+        assert [item.criterion_id for item in goal.success_criteria] == ["GC1"]
+        assert [temperature for temperature, _ in client.calls] == [0.03, 0.03]
+        assert "PROTOCOL CORRECTION" in client.calls[1][1]
+        assert decision.attempt == 2
 
 
 def test_model_plan_repairs_contract_once_without_raising_temperature():
@@ -425,3 +545,188 @@ def test_model_plan_repairs_contract_once_without_raising_temperature():
         assert [temperature for temperature, _ in client.calls] == [0.18, 0.18]
         assert "PROTOCOL CORRECTION" in client.calls[1][1]
         assert [item.outcome for item in state.temp_decisions] == ["contract_error", "ok"]
+
+
+class SequenceActionClient:
+    def __init__(self):
+        self.calls = []
+        self.outputs = [
+            '"schema_version":"long-horizon.action-choice.v1",'
+            '"task_id":"T1","action_type":"write_file"}',
+            '"schema_version":"long-horizon.action.v1",'
+            '"action":{"type":"write_file","arguments":{'
+            '"path":"result.txt","content":"verified"}}}',
+            '"schema_version":"long-horizon.verification-design.v1",'
+            '"completion_criteria":[{"kind":"file_content","parameters":{'
+            '"path":"result.txt","expected_content":"verified"},"required":true}]}',
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.calls.append((get_llm_temperature(), prompt))
+        return type("Response", (), {"content": self.outputs.pop(0)})()
+
+
+def test_model_action_pipeline_separates_choice_arguments_and_verification():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-ACTION-PIPELINE")
+        task = TaskNode(
+            "T1",
+            "Write result",
+            "Write verified text to result.txt",
+            goal_criteria=["GC1"],
+            action=TaskAction("model_action", {}),
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = SequenceActionClient()
+        harness = ActionHarness()
+        model = LongHorizonModel(ModelInvoker(client=client), harness=harness)
+        context = WorkingMemoryBuilder().build(state, task)
+        proposal = model.propose_action(
+            state,
+            task,
+            context,
+            harness.action_contract(),
+            persist,
+        )
+
+        assert proposal.action == TaskAction(
+            "write_file", {"path": "result.txt", "content": "verified"}
+        )
+        assert [item.kind for item in proposal.completion_criteria] == ["file_content"]
+        assert [temperature for temperature, _ in client.calls] == [0.05, 0.05, 0.03]
+        assert "ACTION TYPE CATALOG" in client.calls[0][1]
+        assert "SELECTED ACTION CONTRACT" in client.calls[1][1]
+        assert "ALLOWED VERIFIER CONTRACT" in client.calls[2][1]
+
+
+class ReselectingFailureModel:
+    def __init__(self):
+        self.analysis_calls = 0
+        self.cross_checks = 0
+
+    def plan(self, state, persist):
+        raise AssertionError("existing plan should be used")
+
+    def propose_action(self, state, task, context, action_contract, persist):
+        return ActionProposal(
+            TaskAction(
+                "write_file",
+                {"path": "result.txt", "content": "correct"},
+            ),
+            [
+                ValidationSpec(
+                    "file_content",
+                    {"path": "result.txt", "expected_content": "correct"},
+                )
+            ],
+        )
+
+    def analyze_failure(
+        self,
+        state,
+        failed_task,
+        context,
+        persist,
+        *,
+        same_failure_count,
+    ):
+        self.analysis_calls += 1
+        return FailureAnalysisProposal("reselect_action", "the concrete value is wrong")
+
+    def replan(self, state, failed_task, context, persist, *, same_failure_count):
+        raise AssertionError("action reselection should recover without graph replan")
+
+    def cross_validate(
+        self,
+        state,
+        task,
+        context,
+        persist,
+        *,
+        action_result=None,
+        validation_results=None,
+    ):
+        self.cross_checks += 1
+        return task.action.arguments.get("content") == "correct", "checked against Goal"
+
+    def final_answer(self, state, context, persist):
+        return "corrected and verified"
+
+
+def test_rwkv_failure_analysis_reselects_action_instead_of_blind_retry():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-RESELECT")
+        task = TaskNode(
+            "T1",
+            "Write exact result",
+            "Write the correct value",
+            goal_criteria=["GC1"],
+            action=TaskAction(
+                "write_file",
+                {"path": "result.txt", "content": "wrong"},
+            ),
+            completion_criteria=[
+                ValidationSpec(
+                    "file_content",
+                    {"path": "result.txt", "expected_content": "wrong"},
+                )
+            ],
+        )
+        state = save_tasks(store, state, [task])
+        model = ReselectingFailureModel()
+        result = LongHorizonController(store, model=model).run(state.run_id)
+        assert result.state.status == RunStatus.COMPLETED
+        assert (root / "workspace" / "result.txt").read_text() == "correct"
+        assert len(result.state.tasks["T1"].attempt_ids) == 2
+        assert model.analysis_calls == 1
+        assert model.cross_checks == 2
+        assert any(
+            event["type"] == "action_reselection_scheduled"
+            for event in store.event_records(state.run_id)
+        )
+
+
+def test_replan_candidate_rejects_reused_ids_and_replacement_self_dependency():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState(
+            "LH-REPLAN-CONTRACT",
+            make_goal(Path(directory) / "workspace"),
+        )
+        state.tasks = {
+            "T1": TaskNode(
+                "T1",
+                "Failed",
+                "Failed task",
+                status=TaskStatus.FAILED,
+            )
+        }
+        with pytest.raises(ModelProtocolError, match="reuses existing task ids"):
+            LongHorizonModel._validate_replan_candidate(
+                state,
+                "T1",
+                [TaskNode("T1", "Reuse", "Invalid reuse")],
+                {"T1": "T1"},
+            )
+        with pytest.raises(TaskGraphError, match="replacement"):
+            LongHorizonModel._validate_replan_candidate(
+                state,
+                "T1",
+                [
+                    TaskNode(
+                        "T2",
+                        "Replacement",
+                        "Invalid self dependency through supersede",
+                        dependencies=["T1"],
+                    )
+                ],
+                {"T1": "T2"},
+            )

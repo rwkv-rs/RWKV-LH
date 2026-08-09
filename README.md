@@ -105,6 +105,14 @@ uv run rwkv-lh-control
 
 `LH-Control-30` 是确定性的架构回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不证明 RWKV 独立完成了 30 个长程任务。真实模型能力必须由单独的 RWKV E2E 套件测试：只提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
 
+真实 E2E 套件可先校验题库边界：
+
+```bash
+uv run rwkv-lh-e2e --validate-only
+```
+
+2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过；当前版本不能据此标记为生产可用。完整判读见 `docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`。
+
 ## 恢复保证
 
 每次副作用前先持久化 Attempt；每次执行后保存结果、artifact hash、验证结果和 checkpoint。恢复时根据动作的 `read_only`、`side_effect` 与 `idempotent` 元数据决定安全重试或阻塞，避免静默重复非幂等操作。Goal digest 用于检测长期执行中的目标漂移。

@@ -34,6 +34,7 @@ from rwkv_lh.runtime import (
 
 
 PersistCallback = Callable[[RunState, str, Mapping[str, Any]], None]
+ModelAuditHook = Callable[[Mapping[str, Any]], None]
 
 
 class CompletionClient(Protocol):
@@ -63,14 +64,36 @@ class ReplanProposal:
     reason: str
 
 
+@dataclass
+class ActionProposal:
+    action: TaskAction
+    completion_criteria: list[ValidationSpec]
+
+
+@dataclass(frozen=True)
+class FailureAnalysisProposal:
+    decision: str
+    reason: str
+
+
 class ModelInvoker:
     def __init__(
         self,
         client: CompletionClient | None = None,
         policy: TemperaturePolicy | None = None,
+        audit_hook: ModelAuditHook | None = None,
     ):
         self.client = client or OpenAICompatibleRWKVClient()
         self.policy = policy or TemperaturePolicy()
+        self.audit_hook = audit_hook
+
+    def _audit(self, event: Mapping[str, Any]) -> None:
+        if self.audit_hook is None:
+            return
+        try:
+            self.audit_hook(dict(event))
+        except Exception:
+            return
 
     def invoke_json(
         self,
@@ -172,6 +195,17 @@ class ModelInvoker:
                         "prompt": prompt,
                     },
                 )
+        self._audit(
+            {
+                "type": "model_request_started",
+                "request_id": decision.request_id,
+                "task_id": decision.task_id,
+                "request_type": decision.request_type,
+                "temperature": decision.temperature,
+                "seed": seed,
+                "prompt": prompt,
+            }
+        )
         task_token = current_task_id.set(state.run_id if state is not None else task_id)
         lane_token = current_model_lane.set("control")
         try:
@@ -198,6 +232,17 @@ class ModelInvoker:
                         "output": visible_model_text(text),
                     },
                 )
+            self._audit(
+                {
+                    "type": "model_request_returned",
+                    "request_id": decision.request_id,
+                    "task_id": decision.task_id,
+                    "request_type": decision.request_type,
+                    "temperature": decision.temperature,
+                    "seed": seed,
+                    "output": visible_model_text(text),
+                }
+            )
             return ModelCallResult(text=text, decision=decision)
         except Exception as exc:
             decision.ended_at = utc_now()
@@ -216,6 +261,17 @@ class ModelInvoker:
                         "error": decision.error,
                     },
                 )
+            self._audit(
+                {
+                    "type": "model_request_failed",
+                    "request_id": decision.request_id,
+                    "task_id": decision.task_id,
+                    "request_type": decision.request_type,
+                    "temperature": decision.temperature,
+                    "seed": seed,
+                    "error": decision.error,
+                }
+            )
             raise
         finally:
             current_model_lane.reset(lane_token)
@@ -242,42 +298,82 @@ class LongHorizonModel:
         constraints: list[str] | None = None,
         seed: int | None = None,
     ) -> tuple[GoalState, TempDecision]:
-        prompt = self._json_prompt(
+        body = (
             "Normalize the user's long-running task into an immutable goal. Preserve every hard constraint. "
             "Do not invent requirements. Return one JSON object with schema_version=long-horizon.goal-proposal.v1, "
             "objective, constraints (array), and success_criteria (array of objects with id, description, required). "
-            "Every criterion must describe an externally verifiable outcome, not the model saying done.\n\n"
+            "Return between one and five compact, non-overlapping success criteria. Do not split prerequisites, "
+            "container objects, implied facts, or multiple views of the same observable outcome into separate "
+            "criteria. Every criterion must describe an externally verifiable outcome, not the model saying done.\n\n"
             f"USER REQUEST:\n{request}\n\n"
             f"CALLER CONSTRAINTS:\n{json.dumps(constraints or [], ensure_ascii=False)}\n\n"
             f"SCOPED WORKSPACE:\n{workspace_root}"
         )
-        call = self.invoker.invoke_json(
-            prompt,
-            request_type="goal_parse",
-            task_id="GOAL",
-            seed=seed,
-            max_tokens=1600,
-        )
-        payload = call.payload or {}
-        if str(payload.get("schema_version") or "") != "long-horizon.goal-proposal.v1":
-            raise ModelProtocolError("invalid goal proposal schema")
-        criteria = [
-            GoalCriterion.from_dict(item)
-            for item in payload.get("success_criteria") or []
-            if isinstance(item, Mapping)
-        ]
-        if not criteria:
-            raise ModelProtocolError("goal proposal has no success criteria")
-        merged_constraints = list(constraints or [])
-        merged_constraints.extend(str(item) for item in payload.get("constraints") or [])
-        goal = GoalState.create(
-            objective=str(payload.get("objective") or request),
-            original_request=request,
-            constraints=list(dict.fromkeys(item.strip() for item in merged_constraints if item.strip())),
-            success_criteria=criteria,
-            workspace_root=workspace_root,
-        )
-        return goal, call.decision
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous Goal proposal was rejected. "
+                    f"Error: {last_error}. Return only one corrected long-horizon.goal-proposal.v1 object with "
+                    "one to five compact, nonredundant success criteria. "
+                    f"Previous rejected output:\n{last_output[:4000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="goal_parse",
+                task_id="GOAL",
+                seed=seed,
+                attempt=attempt,
+                max_tokens=1600 if attempt == 1 else 1100,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.goal-proposal.v1":
+                    raise ModelProtocolError("invalid goal proposal schema")
+                raw_criteria = payload.get("success_criteria")
+                if not isinstance(raw_criteria, list):
+                    raise ModelProtocolError("goal proposal has no success_criteria array")
+                criteria = [
+                    GoalCriterion(
+                        criterion_id=f"GC{index}",
+                        description=str(item.get("description") or "").strip(),
+                        required=bool(item.get("required", True)),
+                    )
+                    for index, item in enumerate(raw_criteria, start=1)
+                    if isinstance(item, Mapping)
+                    and str(item.get("description") or "").strip()
+                ]
+                if not criteria:
+                    raise ModelProtocolError("goal proposal has no success criteria")
+                if len(criteria) > 5:
+                    raise ModelProtocolError(
+                        f"goal proposal has {len(criteria)} criteria; maximum is 5"
+                    )
+                merged_constraints = list(constraints or [])
+                merged_constraints.extend(
+                    str(item) for item in payload.get("constraints") or []
+                )
+                goal = GoalState.create(
+                    objective=str(payload.get("objective") or request),
+                    original_request=request,
+                    constraints=list(
+                        dict.fromkeys(
+                            item.strip() for item in merged_constraints if item.strip()
+                        )
+                    ),
+                    success_criteria=criteria,
+                    workspace_root=workspace_root,
+                )
+                return goal, call.decision
+            except ModelProtocolError as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+        raise ModelProtocolError(last_error or "goal proposal contract validation failed")
 
     def plan(self, state: RunState, persist: PersistCallback) -> list[TaskNode]:
         criterion_ids = [
@@ -286,18 +382,22 @@ class LongHorizonModel:
         body = (
             "Decompose the immutable goal into a compact acyclic task graph. Return one JSON object with "
             "schema_version=long-horizon.plan.v1 and tasks. Each task requires task_id, title, description, "
-            "dependencies, required, priority, action {type, arguments}, completion_criteria, and retry_policy. "
+            "dependencies, required, priority, goal_criteria, and retry_policy. "
             "Each task must include goal_criteria containing the immutable criterion ids it advances. "
-            "Use only actions from the supplied contract. Completion criteria must verify observable state. "
-            "Do not repeat or rewrite GoalState fields. Do not put required_postconditions inside action. "
-            "Every completion_criteria item must use exactly {kind, parameters, required}; it is a verifier, "
-            "not a copy of a textual Goal criterion. Example task shape: "
+            "Do not output action or completion_criteria: action selection and executable verification are a "
+            "separate RWKV request made only when that task becomes ready and its dependency outputs are visible. "
+            "Each task node must be achievable by exactly one future Harness action. If later work needs content "
+            "from two files, create one read task per file and make the transforming task depend on both. Do not "
+            "create standalone verification-only tasks when the action's observable postconditions and the "
+            "Controller's independent semantic cross-check can verify the same outcome. "
+            "Use the capability contract only to choose a feasible decomposition. Do not repeat or rewrite "
+            "GoalState fields. Example task shape: "
             '{"task_id":"T1","title":"...","description":"...","dependencies":[],"goal_criteria":["GC1"],'
-            '"required":true,"priority":50,"action":{"type":"write_file","arguments":{"path":"x.txt","content":"x"}},'
-            '"completion_criteria":[{"kind":"file_contains","parameters":{"path":"x.txt","text":"x"},"required":true}],'
-            '"retry_policy":{"max_attempts":3,"backoff_seconds":0.2,"replan_after":2}}. '
+            '"required":true,"priority":50,"retry_policy":{"max_attempts":3,"backoff_seconds":0.2,"replan_after":2}}. '
             "Do not alter the goal, create benchmark-specific shortcuts, or claim completion.\n\n"
             f"GOAL:\n{json.dumps(state.goal.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            f"INITIAL WORKSPACE MANIFEST (metadata only):\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
             f"ACTION CONTRACT:\n{self.action_contract}\n\n"
             "FINAL STRUCTURAL CHECK:\n"
             f"- The only valid goal_criteria ids are: {json.dumps(criterion_ids, ensure_ascii=False)}.\n"
@@ -314,7 +414,7 @@ class LongHorizonModel:
                     "\n\nPROTOCOL CORRECTION: The previous plan was rejected by the deterministic parser. "
                     f"Error: {last_error}. Return a new compact long-horizon.plan.v1 object only. "
                     "Do not repeat schema_version=long-horizon.goal.v1, objective, original_request, constraints, "
-                    "success_criteria, workspace_root, created_at, or digest. Use executable verifier kinds and parameters. "
+                    "success_criteria, workspace_root, created_at, or digest. Keep this a structure-only task graph. "
                     f"Every task must include goal_criteria copied from this exact allowed list: "
                     f"{json.dumps(criterion_ids, ensure_ascii=False)}. The complete plan must cover every required id. "
                     f"Previous rejected output for correction:\n{last_output[:8000]}"
@@ -335,8 +435,9 @@ class LongHorizonModel:
                 if str(payload.get("schema_version") or "") != "long-horizon.plan.v1":
                     raise ModelProtocolError("invalid plan schema")
                 tasks = self._task_nodes(payload.get("tasks"))
-                self._validate_task_contracts(tasks)
                 TaskGraph({task.task_id: task for task in tasks})
+                self._ensure_goal_bindings(state, tasks, persist)
+                self._validate_task_contracts(tasks)
                 self._validate_goal_bindings(state, tasks, require_coverage=True)
                 return tasks
             except (ModelProtocolError, TaskGraphError) as exc:
@@ -357,6 +458,95 @@ class LongHorizonModel:
                 )
         raise ModelProtocolError(last_error or "task plan contract validation failed")
 
+    def _choose_action_type(
+        self,
+        state: RunState,
+        task: TaskNode,
+        context: ContextBundle,
+        persist: PersistCallback,
+    ) -> str:
+        criterion_descriptions = [
+            criterion.description
+            for criterion in state.goal.success_criteria
+            if criterion.criterion_id in task.goal_criteria
+        ]
+        task_view = {
+            "task_id": task.task_id,
+            "title": task.title,
+            "description": task.description,
+            "dependencies": task.dependencies,
+            "goal_criteria": task.goal_criteria,
+            "criterion_descriptions": criterion_descriptions,
+        }
+        relevant_context = {
+            "dependency_outputs": context.dependencies,
+            "last_material_failure": context.failure,
+        }
+        body = (
+            "Choose exactly one Harness action type for the active task, not for a later task or the final goal. "
+            "This request chooses only the action type; a separate request will fill its arguments and verifier. "
+            "Return one JSON object with schema_version=long-horizon.action-choice.v1, task_id, and action_type. "
+            "The task_id must exactly match the supplied active task and action_type must be one catalog key. "
+            "Do not output arguments, completion criteria, a task graph, or prose.\n\n"
+            f"ACTIVE TASK:\n{json.dumps(task_view, ensure_ascii=False, indent=2)}\n\n"
+            "CURRENT WORKSPACE MANIFEST (metadata only):\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
+            f"RELEVANT CONTEXT:\n{json.dumps(relevant_context, ensure_ascii=False, indent=2)}\n\n"
+            "ACTION TYPE CATALOG:\n"
+            f"{json.dumps(self.harness.action_catalog(), ensure_ascii=False, indent=2)}\n\n"
+            "FINAL CHECK: choose the single immediate action for this exact active task:\n"
+            f"{json.dumps(task_view, ensure_ascii=False, indent=2)}"
+        )
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous action-type choice was rejected. "
+                    f"Error: {last_error}. Return only one corrected "
+                    "long-horizon.action-choice.v1 object for the same active task. "
+                    f"Previous rejected output:\n{last_output[:2000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="tool_choice",
+                task_id=task.task_id,
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                max_tokens=700 if attempt == 1 else 500,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.action-choice.v1":
+                    raise ModelProtocolError("invalid action-choice schema")
+                if str(payload.get("task_id") or "") != task.task_id:
+                    raise ModelProtocolError("action choice did not echo the active task_id")
+                action_type = str(payload.get("action_type") or "").strip()
+                if not action_type or action_type == "model_action":
+                    raise ModelProtocolError("action choice did not select a concrete Harness action")
+                self.harness.definition(action_type)
+                return action_type
+            except Exception as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "tool_choice",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        raise ModelProtocolError(last_error or "action choice contract validation failed")
+
     def propose_action(
         self,
         state: RunState,
@@ -364,26 +554,200 @@ class LongHorizonModel:
         context: ContextBundle,
         action_contract: str,
         persist: PersistCallback,
-    ) -> TaskAction:
-        prompt = self._json_prompt(
-            "Select one concrete harness action for the active task. Return one JSON object with "
-            "schema_version=long-horizon.action.v1 and action {type, arguments}. Stay inside the scoped workspace. "
-            "Do not mark the task complete; the Controller will execute and verify it.\n\n"
-            f"CONTEXT:\n{context.to_prompt()}\n\nACTION CONTRACT:\n{action_contract}"
+    ) -> ActionProposal:
+        del action_contract  # The selected-action contract below is narrower and authoritative.
+        selected_action_type = self._choose_action_type(
+            state,
+            task,
+            context,
+            persist,
         )
-        call = self.invoker.invoke_json(
-            prompt,
-            request_type="tool_action",
-            task_id=task.task_id,
-            state=state,
-            persist=persist,
-            attempt=len(task.attempt_ids) + 1,
-            max_tokens=1800,
+        task_view = {
+            "task_id": task.task_id,
+            "title": task.title,
+            "description": task.description,
+            "dependencies": task.dependencies,
+        }
+        body = (
+            "Fill only the arguments for the already-selected Harness action. Return one JSON object with "
+            "schema_version=long-horizon.action.v1 and action {type, arguments}. The action type is fixed by the "
+            "previous RWKV choice and must not be changed. Do not output completion criteria, another task, or "
+            "prose. Use dependency outputs for derived values and never invent a value that has not been observed. "
+            "Stay inside the scoped workspace. The Controller will request verification separately.\n\n"
+            f"ACTIVE TASK:\n{json.dumps(task_view, ensure_ascii=False, indent=2)}\n\n"
+            f"SELECTED ACTION TYPE (fixed):\n{selected_action_type}\n\n"
+            "SELECTED ACTION CONTRACT:\n"
+            f"{json.dumps(self.harness.action_definition_contract(selected_action_type), ensure_ascii=False, indent=2)}\n\n"
+            f"WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            "CURRENT WORKSPACE MANIFEST:\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
+            f"FINAL CHECK: action.type must be {selected_action_type!r} and must execute only task {task.task_id}."
         )
-        payload = call.payload or {}
-        if str(payload.get("schema_version") or "") != "long-horizon.action.v1":
-            raise ModelProtocolError("invalid action schema")
-        return TaskAction.from_dict(payload.get("action"))
+        last_error = ""
+        last_output = ""
+        selected_action: TaskAction | None = None
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous action was rejected. "
+                    f"Error: {last_error}. Return one corrected long-horizon.action.v1 object only. "
+                    f"Previous rejected output:\n{last_output[:4000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="tool_action",
+                task_id=task.task_id,
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                max_tokens=1800 if attempt == 1 else 1200,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.action.v1":
+                    raise ModelProtocolError("invalid action schema")
+                action = TaskAction.from_dict(payload.get("action"))
+                if action.action_type != selected_action_type:
+                    raise ModelProtocolError(
+                        f"action type changed after selection: expected {selected_action_type}"
+                    )
+                self.harness.validate_action_contract(action)
+                selected_action = action
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "tool_action",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        if selected_action is None:
+            raise ModelProtocolError(last_error or "action contract validation failed")
+        criteria = self._design_verification(
+            state,
+            task,
+            context,
+            selected_action,
+            persist,
+        )
+        return ActionProposal(selected_action, criteria)
+
+    def _design_verification(
+        self,
+        state: RunState,
+        task: TaskNode,
+        context: ContextBundle,
+        action: TaskAction,
+        persist: PersistCallback,
+    ) -> list[ValidationSpec]:
+        candidates = self.harness.verifier_candidates(action.action_type)
+        required_postconditions = self.harness.definition(
+            action.action_type
+        ).required_postconditions
+        body = (
+            "Design executable postconditions for one fixed Harness action. Return one JSON object with "
+            "schema_version=long-horizon.verification-design.v1 and completion_criteria, an array of exactly "
+            "{kind, parameters, required} objects. Use only verifier kinds from the supplied contract and exact "
+            "parameter names. Include every required postcondition. Verify the immediate action's observable "
+            "result; do not change the action, invent an unobserved expected value, or claim task completion. "
+            "Use the smallest sufficient set. Never include a verifier unless every required parameter shown in "
+            "its contract can be filled from the fixed action or observed dependency output.\n\n"
+            f"ACTIVE TASK:\n{json.dumps({'task_id': task.task_id, 'title': task.title, 'description': task.description}, ensure_ascii=False, indent=2)}\n\n"
+            f"FIXED ACTION:\n{json.dumps({'type': action.action_type, 'arguments': action.arguments}, ensure_ascii=False, indent=2)}\n\n"
+            f"REQUIRED POSTCONDITIONS:\n{json.dumps(list(required_postconditions), ensure_ascii=False)}\n\n"
+            "ALLOWED VERIFIER CONTRACT:\n"
+            f"{json.dumps(ValidationEngine.verifier_contract(candidates), ensure_ascii=False, indent=2)}\n\n"
+            f"DEPENDENCY OUTPUTS:\n{json.dumps(context.dependencies, ensure_ascii=False, indent=2)}"
+        )
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous verifier design was rejected. "
+                    f"Error: {last_error}. Return only one corrected "
+                    "long-horizon.verification-design.v1 object for the same fixed action. "
+                    f"Previous rejected output:\n{last_output[:3000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="verification_design",
+                task_id=task.task_id,
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                max_tokens=1400 if attempt == 1 else 1000,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.verification-design.v1":
+                    raise ModelProtocolError("invalid verification-design schema")
+                criteria_payload = payload.get("completion_criteria")
+                if not isinstance(criteria_payload, list):
+                    raise ModelProtocolError(
+                        "verification design has no completion_criteria array"
+                    )
+                criteria = [
+                    ValidationSpec.from_dict(item)
+                    for item in criteria_payload
+                    if isinstance(item, Mapping)
+                ]
+                if not criteria:
+                    raise ModelProtocolError(
+                        "verification design has no executable completion criteria"
+                    )
+                invalid = [
+                    criterion.kind
+                    for criterion in criteria
+                    if criterion.kind not in candidates
+                ]
+                if invalid:
+                    raise ModelProtocolError(
+                        f"verification design uses unavailable verifier kinds: {invalid}"
+                    )
+                for criterion in criteria:
+                    ValidationEngine.validate_spec_contract(criterion)
+                missing = self.harness.missing_required_postconditions(
+                    action.action_type,
+                    [criterion.kind for criterion in criteria],
+                )
+                if missing:
+                    raise ModelProtocolError(
+                        f"verification design is missing required postconditions: {missing}"
+                    )
+                return criteria
+            except Exception as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "verification_design",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        raise ModelProtocolError(
+            last_error or "verification design contract validation failed"
+        )
 
     def replan(
         self,
@@ -394,23 +758,44 @@ class LongHorizonModel:
         *,
         same_failure_count: int,
     ) -> ReplanProposal:
+        latest_attempt = (
+            state.attempts.get(failed_task.attempt_ids[-1])
+            if failed_task.attempt_ids
+            else None
+        )
+        failed_view = {
+            "task_id": failed_task.task_id,
+            "title": failed_task.title,
+            "description": failed_task.description,
+            "dependencies": failed_task.dependencies,
+            "goal_criteria": failed_task.goal_criteria,
+            "error": failed_task.error,
+            "last_action": {
+                "type": failed_task.action.action_type,
+                "arguments": failed_task.action.arguments,
+            },
+            "last_attempt": latest_attempt.to_dict() if latest_attempt is not None else None,
+        }
         body = (
             "Replan only the unresolved part of the task graph after a material verified failure. Preserve every "
             "completed task. Return one JSON object with schema_version=long-horizon.replan.v1, reason, new_tasks, "
             "and supersede (array of {old_task_id,new_task_id}). New task ids must not reuse existing ids. "
-            "Change the failed strategy instead of restating it. Do not emit reasoning, plan prose, commands, "
-            "keystrokes, shell snippets, or task_complete. Each new task uses the same exact task schema as the "
-            "initial plan, including goal_criteria and executable completion_criteria {kind,parameters,required}. "
+            "Every replacement must use a fresh id, must not depend on the task it supersedes, and must not create "
+            "a direct, transitive, or replacement-induced cycle. Change the failed strategy instead of restating "
+            "it. Each new task must be achievable by exactly one future Harness action. Do not emit reasoning, plan prose, commands, "
+            "keystrokes, shell snippets, action, completion_criteria, or task_complete. Each new task uses the same "
+            "structure-only task schema as the initial plan, including goal_criteria. Concrete actions and verifiers "
+            "will be selected later when each replacement task becomes ready. "
             "Example envelope: "
             '{"schema_version":"long-horizon.replan.v1","reason":"material verifier gap",'
             '"new_tasks":[{"task_id":"T9","title":"...","description":"...","dependencies":[],'
             '"goal_criteria":["GC1"],"required":true,"priority":50,'
-            '"action":{"type":"write_file","arguments":{"path":"x.txt","content":"x"}},'
-            '"completion_criteria":[{"kind":"file_content","parameters":{"path":"x.txt","expected_content":"x","exact_match":true},"required":true}],'
             '"retry_policy":{"max_attempts":3,"backoff_seconds":0.2,"replan_after":2}}],'
             '"supersede":[{"old_task_id":"T1","new_task_id":"T9"}]}.\n\n'
-            f"FAILED TASK:\n{json.dumps(failed_task.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            f"FAILED TASK AND OBSERVED FAILURE:\n{json.dumps(failed_view, ensure_ascii=False, indent=2)}\n\n"
             f"CURRENT CONTEXT:\n{context.to_prompt()}\n\n"
+            f"CURRENT WORKSPACE MANIFEST:\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
             f"EXISTING TASK IDS:\n{json.dumps(sorted(state.tasks), ensure_ascii=False)}"
         )
         last_error = ""
@@ -437,9 +822,16 @@ class LongHorizonModel:
             )
             payload = call.payload or {}
             try:
-                if str(payload.get("schema_version") or "") != "long-horizon.replan.v1":
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.replan.v1":
                     raise ModelProtocolError("invalid replan schema")
                 tasks = self._task_nodes(payload.get("new_tasks"))
+                self._ensure_goal_bindings(
+                    state,
+                    tasks,
+                    persist,
+                    required_ids=list(failed_task.goal_criteria),
+                )
                 self._validate_task_contracts(tasks)
                 self._validate_goal_bindings(state, tasks, require_coverage=False)
                 supersede = {
@@ -453,8 +845,14 @@ class LongHorizonModel:
                     raise ModelProtocolError("replan does not supersede the failed task")
                 if supersede[failed_task.task_id] not in {task.task_id for task in tasks}:
                     raise ModelProtocolError("replan replacement task is missing")
+                self._validate_replan_candidate(
+                    state,
+                    failed_task.task_id,
+                    tasks,
+                    supersede,
+                )
                 return ReplanProposal(tasks, supersede, str(payload.get("reason") or ""))
-            except ModelProtocolError as exc:
+            except (ModelProtocolError, TaskGraphError) as exc:
                 last_error = str(exc)
                 last_output = visible_model_text(call.text)
                 call.decision.outcome = "contract_error"
@@ -472,31 +870,215 @@ class LongHorizonModel:
                 )
         raise ModelProtocolError(last_error or "replan contract validation failed")
 
+    @staticmethod
+    def _validate_replan_candidate(
+        state: RunState,
+        failed_task_id: str,
+        tasks: list[TaskNode],
+        supersede: Mapping[str, str],
+    ) -> None:
+        existing_ids = set(state.tasks)
+        new_ids = {task.task_id for task in tasks}
+        overlap = sorted(existing_ids & new_ids)
+        if overlap:
+            raise ModelProtocolError(f"replan reuses existing task ids: {overlap}")
+        unknown_old = sorted(set(supersede) - existing_ids)
+        if unknown_old:
+            raise ModelProtocolError(
+                f"replan supersedes unknown task ids: {unknown_old}"
+            )
+        missing_replacements = sorted(set(supersede.values()) - new_ids)
+        if missing_replacements:
+            raise ModelProtocolError(
+                f"replan references missing replacement ids: {missing_replacements}"
+            )
+        if failed_task_id not in supersede:
+            raise ModelProtocolError(
+                f"replan does not supersede failed task {failed_task_id}"
+            )
+        trial_tasks = {
+            task_id: TaskNode.from_dict(task.to_dict())
+            for task_id, task in state.tasks.items()
+        }
+        trial = TaskGraph(trial_tasks)
+        trial.add_tasks([TaskNode.from_dict(task.to_dict()) for task in tasks])
+        for old_task_id, replacement_id in supersede.items():
+            trial.supersede(old_task_id, replacement_id)
+        trial.validate()
+
+    def analyze_failure(
+        self,
+        state: RunState,
+        failed_task: TaskNode,
+        context: ContextBundle,
+        persist: PersistCallback,
+        *,
+        same_failure_count: int,
+    ) -> FailureAnalysisProposal:
+        latest_attempt = (
+            state.attempts.get(failed_task.attempt_ids[-1])
+            if failed_task.attempt_ids
+            else None
+        )
+        body = (
+            "Analyze one observed task failure and choose the next control action. This is failure diagnosis, not "
+            "task execution. Return one JSON object with schema_version=long-horizon.failure-analysis.v1, "
+            "decision=retry_same|reselect_action|replan, and reason. Choose retry_same only when the action and "
+            "arguments remain correct and the failure is plausibly transient. Choose reselect_action when the "
+            "task is still valid but the action type, arguments, or verifier strategy was wrong. Choose replan "
+            "when the task decomposition, dependency structure, or overall strategy is wrong. Do not propose a "
+            "new action, edit files, emit a task graph, or claim completion. Base the decision only on the "
+            "immutable Goal and the observed attempt/validation evidence.\n\n"
+            f"IMMUTABLE GOAL:\n{json.dumps(state.goal.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            f"FAILED TASK:\n{json.dumps(failed_task.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            "LATEST OBSERVED ATTEMPT:\n"
+            f"{json.dumps(latest_attempt.to_dict() if latest_attempt is not None else None, ensure_ascii=False, indent=2)}\n\n"
+            f"BOUNDED WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            "CURRENT WORKSPACE MANIFEST (metadata only):\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}"
+        )
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous failure analysis was rejected. "
+                    f"Error: {last_error}. Return only one corrected "
+                    "long-horizon.failure-analysis.v1 object. "
+                    f"Previous rejected output:\n{last_output[:3000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="failure_analysis",
+                task_id=failed_task.task_id,
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                same_failure_count=same_failure_count,
+                max_tokens=1000 if attempt == 1 else 700,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.failure-analysis.v1":
+                    raise ModelProtocolError("invalid failure-analysis schema")
+                decision = str(payload.get("decision") or "").strip().casefold()
+                if decision not in {"retry_same", "reselect_action", "replan"}:
+                    raise ModelProtocolError(
+                        "failure analysis decision must be retry_same, reselect_action, or replan"
+                    )
+                reason = str(payload.get("reason") or "").strip()
+                if not reason:
+                    raise ModelProtocolError("failure analysis requires a reason")
+                return FailureAnalysisProposal(decision, reason)
+            except ModelProtocolError as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "failure_analysis",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        raise ModelProtocolError(
+            last_error or "failure-analysis contract validation failed"
+        )
+
     def cross_validate(
         self,
         state: RunState,
         task: TaskNode,
         context: ContextBundle,
         persist: PersistCallback,
+        *,
+        action_result: Mapping[str, Any] | None = None,
+        validation_results: list[Mapping[str, Any]] | None = None,
     ) -> tuple[bool, str]:
-        prompt = self._json_prompt(
-            "Independently check whether the observable evidence satisfies the active task criteria. "
-            "Return one JSON object with schema_version=long-horizon.validation.v1, decision=pass|replan, and reason. "
-            "Do not rewrite files, modify evidence, or generate the final answer.\n\n"
-            f"CONTEXT:\n{context.to_prompt()}"
+        bound_criteria = [
+            {
+                "criterion_id": criterion.criterion_id,
+                "description": criterion.description,
+                "required": criterion.required,
+            }
+            for criterion in state.goal.success_criteria
+            if criterion.criterion_id in task.goal_criteria
+        ]
+        body = (
+            "Independently cross-check whether the observable action and verifier evidence really satisfies this "
+            "active task and remains consistent with the user's immutable request. Do not merely confirm that a "
+            "model-generated expected value matches the same model-generated action. Compare exact names, values, "
+            "paths, formats, and dependency-derived facts against the original request and dependency outputs. "
+            "Pass an observation/read task when it correctly obtains the evidence needed by its stated task; do "
+            "not require it to finish the entire Goal. Return one JSON object with "
+            "schema_version=long-horizon.validation.v1, decision=pass|replan, and reason. Choose replan when the "
+            "evidence is missing, contradictory, self-referential, invented, or demonstrates the wrong outcome. "
+            "Do not rewrite files, alter evidence, propose an action, or generate the final answer.\n\n"
+            f"ORIGINAL USER REQUEST:\n{state.goal.original_request}\n\n"
+            f"IMMUTABLE GOAL:\n{json.dumps(state.goal.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            f"ACTIVE TASK:\n{json.dumps(task.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+            f"BOUND GOAL CRITERIA:\n{json.dumps(bound_criteria, ensure_ascii=False, indent=2)}\n\n"
+            f"OBSERVED ACTION RESULT:\n{json.dumps(dict(action_result or {}), ensure_ascii=False, indent=2)}\n\n"
+            f"DETERMINISTIC VERIFIER RESULTS:\n{json.dumps(validation_results or [], ensure_ascii=False, indent=2)}\n\n"
+            f"BOUNDED WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            "CURRENT WORKSPACE MANIFEST (metadata only):\n"
+            f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}"
         )
-        call = self.invoker.invoke_json(
-            prompt,
-            request_type="validation_cross_check",
-            task_id=task.task_id,
-            state=state,
-            persist=persist,
-            max_tokens=1000,
-        )
-        payload = call.payload or {}
-        if str(payload.get("schema_version") or "") != "long-horizon.validation.v1":
-            raise ModelProtocolError("invalid validation schema")
-        return str(payload.get("decision") or "").casefold() == "pass", str(payload.get("reason") or "")
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous cross-validation response was rejected. "
+                    f"Error: {last_error}. Return only one corrected long-horizon.validation.v1 object. "
+                    f"Previous rejected output:\n{last_output[:3000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="validation_cross_check",
+                task_id=task.task_id,
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                max_tokens=1100 if attempt == 1 else 700,
+            )
+            payload = call.payload or {}
+            try:
+                schema = str(payload.get("schema_version") or "")
+                if schema and schema != "long-horizon.validation.v1":
+                    raise ModelProtocolError("invalid validation schema")
+                decision = str(payload.get("decision") or "").strip().casefold()
+                if decision not in {"pass", "replan"}:
+                    raise ModelProtocolError(
+                        "validation decision must be pass or replan"
+                    )
+                reason = str(payload.get("reason") or "").strip()
+                return decision == "pass", reason
+            except ModelProtocolError as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "validation_cross_check",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        raise ModelProtocolError(last_error or "validation contract failed")
 
     def final_answer(
         self,
@@ -539,7 +1121,7 @@ class LongHorizonModel:
         for index, item in enumerate(raw_tasks):
             if not isinstance(item, Mapping):
                 raise ModelProtocolError("task must be an object")
-            action = TaskAction.from_dict(item.get("action"))
+            action = TaskAction("model_action", {})
             task = TaskNode(
                 task_id=str(item.get("task_id") or item.get("id") or "").strip(),
                 title=str(item.get("title") or "").strip(),
@@ -550,11 +1132,7 @@ class LongHorizonModel:
                 priority=int(item.get("priority", 50) or 50),
                 inputs=[dict(value) for value in item.get("inputs") or [] if isinstance(value, Mapping)],
                 action=action,
-                completion_criteria=[
-                    ValidationSpec.from_dict(value)
-                    for value in item.get("completion_criteria") or []
-                    if isinstance(value, Mapping)
-                ],
+                completion_criteria=[],
                 retry_policy=RetryPolicy.from_dict(item.get("retry_policy")),
                 insertion_order=index,
             )
@@ -587,16 +1165,131 @@ class LongHorizonModel:
             if missing:
                 raise ModelProtocolError(f"plan does not cover required goal criteria: {missing}")
 
+    def _ensure_goal_bindings(
+        self,
+        state: RunState,
+        tasks: list[TaskNode],
+        persist: PersistCallback,
+        *,
+        required_ids: list[str] | None = None,
+    ) -> None:
+        required = set(
+            required_ids
+            if required_ids is not None
+            else [
+                criterion.criterion_id
+                for criterion in state.goal.success_criteria
+                if criterion.required
+            ]
+        )
+        bound = {item for task in tasks for item in task.goal_criteria}
+        if required and required <= bound:
+            return
+        task_view = [
+            {
+                "task_id": task.task_id,
+                "title": task.title,
+                "description": task.description,
+                "dependencies": task.dependencies,
+                "required": task.required,
+            }
+            for task in tasks
+        ]
+        criteria_view = [
+            {
+                "criterion_id": criterion.criterion_id,
+                "description": criterion.description,
+                "required": criterion.required,
+            }
+            for criterion in state.goal.success_criteria
+            if not required or criterion.criterion_id in required
+        ]
+        body = (
+            "Bind the proposed tasks to the immutable Goal criteria. Return one JSON object with "
+            "schema_version=long-horizon.goal-bindings.v1 and bindings, an array of objects containing task_id "
+            "and goal_criteria. Use only the exact ids supplied below. Every required criterion must be assigned "
+            "to at least one task that materially advances it. Do not add tasks, actions, verifiers, or prose.\n\n"
+            f"TASKS:\n{json.dumps(task_view, ensure_ascii=False, indent=2)}\n\n"
+            f"GOAL CRITERIA:\n{json.dumps(criteria_view, ensure_ascii=False, indent=2)}"
+        )
+        last_error = ""
+        last_output = ""
+        for attempt in range(1, 3):
+            request_body = body
+            if attempt > 1:
+                request_body += (
+                    "\n\nPROTOCOL CORRECTION: The previous binding was rejected. "
+                    f"Error: {last_error}. Return only the corrected goal-bindings object. "
+                    f"Previous rejected output:\n{last_output[:4000]}"
+                )
+            call = self.invoker.invoke_json(
+                self._json_prompt(request_body),
+                request_type="goal_binding",
+                task_id="GOAL-BINDING",
+                state=state,
+                persist=persist,
+                attempt=attempt,
+                max_tokens=1800 if attempt == 1 else 1200,
+            )
+            payload = call.payload or {}
+            try:
+                if str(payload.get("schema_version") or "") != "long-horizon.goal-bindings.v1":
+                    raise ModelProtocolError("invalid goal binding schema")
+                known_tasks = {task.task_id for task in tasks}
+                known_criteria = {
+                    criterion.criterion_id for criterion in state.goal.success_criteria
+                }
+                proposed: dict[str, list[str]] = {}
+                for item in payload.get("bindings") or []:
+                    if not isinstance(item, Mapping):
+                        continue
+                    task_id = str(item.get("task_id") or "")
+                    ids = [str(value) for value in item.get("goal_criteria") or []]
+                    if task_id not in known_tasks or any(value not in known_criteria for value in ids):
+                        raise ModelProtocolError("goal binding references unknown task or criterion")
+                    proposed[task_id] = list(dict.fromkeys(ids))
+                covered = {value for values in proposed.values() for value in values}
+                missing = sorted(required - covered)
+                if missing:
+                    raise ModelProtocolError(f"goal binding misses required criteria: {missing}")
+                for task in tasks:
+                    task.goal_criteria = proposed.get(task.task_id, [])
+                return
+            except ModelProtocolError as exc:
+                last_error = str(exc)
+                last_output = visible_model_text(call.text)
+                call.decision.outcome = "contract_error"
+                call.decision.error = last_error[:1000]
+                persist(
+                    state,
+                    "model_contract_error",
+                    {
+                        "request_id": call.decision.request_id,
+                        "request_type": "goal_binding",
+                        "temperature": call.decision.temperature,
+                        "error": last_error,
+                        "output": last_output,
+                    },
+                )
+        raise ModelProtocolError(last_error or "goal binding contract validation failed")
+
     def _validate_task_contracts(self, tasks: list[TaskNode]) -> None:
         harness = self.harness
         for task in tasks:
+            if not task.action.action_type:
+                raise ModelProtocolError(f"task {task.task_id} has no action type")
+            delayed_action = task.action.action_type == "model_action"
             try:
-                definition = harness.definition(task.action.action_type)
+                definition = (
+                    None
+                    if delayed_action
+                    else harness.definition(task.action.action_type)
+                )
             except Exception as exc:
                 raise ModelProtocolError(
                     f"task {task.task_id} uses unsupported action: {task.action.action_type}"
                 ) from exc
-            if not task.completion_criteria:
+            if not delayed_action and not task.completion_criteria:
                 raise ModelProtocolError(
                     f"task {task.task_id} has no executable completion criteria"
                 )
@@ -609,14 +1302,15 @@ class LongHorizonModel:
                 raise ModelProtocolError(
                     f"task {task.task_id} uses unsupported verifier kinds: {invalid}"
                 )
-            missing = harness.missing_required_postconditions(
-                definition.name,
-                [criterion.kind for criterion in task.completion_criteria],
-            )
-            if missing:
-                raise ModelProtocolError(
-                    f"task {task.task_id} is missing required postconditions: {missing}"
+            if definition is not None:
+                missing = harness.missing_required_postconditions(
+                    definition.name,
+                    [criterion.kind for criterion in task.completion_criteria],
                 )
+                if missing:
+                    raise ModelProtocolError(
+                        f"task {task.task_id} is missing required postconditions: {missing}"
+                    )
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -624,7 +1318,7 @@ def extract_json_object(text: str) -> dict[str, Any]:
     cleaned = re.sub(r"^```json\s*", "", cleaned, flags=re.IGNORECASE)
     decoder = json.JSONDecoder()
     candidates = [cleaned]
-    if re.match(r'^"(?:schema_version|tasks|new_tasks|action|decision|objective)"\s*:', cleaned):
+    if re.match(r'^"[^"\\]+"\s*:', cleaned):
         candidates.insert(0, "{" + cleaned)
     for candidate in candidates:
         for index, character in enumerate(candidate):
@@ -640,6 +1334,8 @@ def extract_json_object(text: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "ActionProposal",
+    "FailureAnalysisProposal",
     "LongHorizonModel",
     "ModelCallResult",
     "ModelInvoker",

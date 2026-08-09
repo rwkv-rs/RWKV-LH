@@ -1,10 +1,19 @@
 import json
+import shutil
 import sys
 import tempfile
 from pathlib import Path
 
-from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
+import pytest
+
+from rwkv_lh.harness import (
+    ActionDefinition,
+    ActionHarness,
+    ActionResult,
+    HarnessError,
+)
 from rwkv_lh.memory import MemoryBudgets, WorkingMemoryBuilder
+from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.schema import (
     GoalCriterion,
     GoalState,
@@ -78,6 +87,67 @@ def test_harness_rejects_workspace_escape():
         assert not (Path(directory) / "escaped.txt").exists()
 
 
+def test_workspace_manifest_is_metadata_only_and_skips_local_caches():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "workspace"
+        goal = make_goal(root)
+        (root / "input.txt").write_text("visible content", encoding="utf-8")
+        (root / ".git").mkdir()
+        (root / ".git" / "secret.txt").write_text("ignored", encoding="utf-8")
+        manifest = ActionHarness().workspace_manifest(goal)
+        assert [item["path"] for item in manifest["entries"]] == ["input.txt"]
+        assert "content" not in manifest["entries"][0]
+        assert len(manifest["entries"][0]["sha256"]) == 64
+
+
+def test_structured_action_contract_rejects_missing_and_unknown_arguments():
+    harness = ActionHarness()
+    with pytest.raises(HarnessError, match="missing required arguments"):
+        harness.validate_action_contract(
+            TaskAction("write_file", {"path": "result.txt"})
+        )
+    with pytest.raises(HarnessError, match="unknown arguments"):
+        harness.validate_action_contract(
+            TaskAction(
+                "write_file",
+                {"path": "result.txt", "content": "ok", "body": "wrong"},
+            )
+        )
+
+
+def test_structured_verifier_contract_rejects_parameter_alias_hallucination():
+    with pytest.raises(ValueError, match="missing required parameters"):
+        ValidationEngine.validate_spec_contract(
+            ValidationSpec(
+                "file_contains",
+                {"path": "result.txt", "content": "verified"},
+            )
+        )
+    ValidationEngine.validate_spec_contract(
+        ValidationSpec(
+            "file_contains",
+            {"path": "result.txt", "text": "verified"},
+        )
+    )
+    # Extra verifier metadata is read-only and cannot alter verifier semantics.
+    ValidationEngine.validate_spec_contract(
+        ValidationSpec("action_succeeded", {"action_id": "T1"})
+    )
+
+
+def test_plan_contract_accepts_delayed_model_action():
+    task = TaskNode(
+        "T1",
+        "Modify after inspection",
+        "Select the concrete edit only after a dependency is read",
+        action=TaskAction("model_action", {}),
+        completion_criteria=[
+            ValidationSpec("file_contains", {"path": "result.txt", "text": "verified"})
+        ],
+    )
+    LongHorizonModel(action_contract="{}")._validate_task_contracts([task])
+
+
 def test_command_uses_argv_and_validator_exit_code():
     with tempfile.TemporaryDirectory() as directory:
         goal = make_goal(Path(directory) / "workspace")
@@ -95,6 +165,53 @@ def test_command_uses_argv_and_validator_exit_code():
         summary = ValidationEngine().validate(task, result, goal)
         assert result.output.strip() == "ok"
         assert summary.passed is True
+
+
+@pytest.mark.skipif(shutil.which("bwrap") is None, reason="bubblewrap is unavailable")
+def test_command_sandbox_prevents_writes_outside_workspace():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        goal = make_goal(root / "workspace")
+        result = ActionHarness().execute(
+            TaskAction(
+                "run_command",
+                {
+                    "argv": [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; Path('../escape.txt').write_text('bad')",
+                    ]
+                },
+            ),
+            goal,
+        )
+        assert result.success is False
+        assert result.metadata["sandboxed"] is True
+        assert not (root / "escape.txt").exists()
+
+
+@pytest.mark.skipif(shutil.which("bwrap") is None, reason="bubblewrap is unavailable")
+def test_command_sandbox_cannot_read_hidden_files_outside_workspace():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        goal = make_goal(root / "workspace")
+        hidden = root / "hidden_acceptance.json"
+        hidden.write_text('{"answer":"must stay hidden"}', encoding="utf-8")
+        result = ActionHarness().execute(
+            TaskAction(
+                "check_command",
+                {
+                    "argv": [
+                        sys.executable,
+                        "-c",
+                        f"from pathlib import Path; print(Path({str(hidden)!r}).read_text())",
+                    ]
+                },
+            ),
+            goal,
+        )
+        assert result.success is False
+        assert "must stay hidden" not in result.output
 
 
 def test_json_field_validation_reads_disk_state():
@@ -115,6 +232,41 @@ def test_json_field_validation_reads_disk_state():
         result = ActionHarness().execute(task.action, goal)
         assert ValidationEngine().validate(task, result, goal).passed is True
         assert json.loads((Path(goal.workspace_root) / "config.json").read_text())["feature"]["enabled"] is True
+
+
+def test_read_json_is_a_real_structured_observation_action():
+    with tempfile.TemporaryDirectory() as directory:
+        goal = make_goal(Path(directory) / "workspace")
+        path = Path(goal.workspace_root) / "value.json"
+        path.write_text('{"z": 2, "a": 1}\n', encoding="utf-8")
+        harness = ActionHarness()
+        action = TaskAction("read_json", {"path": "value.json"})
+        harness.validate_action_contract(action)
+        result = harness.execute(action, goal)
+        assert result.success is True
+        assert json.loads(result.output) == {"a": 1, "z": 2}
+        assert result.metadata["json_type"] == "dict"
+
+
+def test_remove_line_is_idempotent_and_replace_text_requires_only_file_survival():
+    with tempfile.TemporaryDirectory() as directory:
+        goal = make_goal(Path(directory) / "workspace")
+        path = Path(goal.workspace_root) / "settings.txt"
+        path.write_text("enabled=true\ndeprecated=true\nmode=safe\n", encoding="utf-8")
+        harness = ActionHarness()
+        assert harness.definition("replace_text").required_postconditions == (
+            "file_exists",
+        )
+        action = TaskAction(
+            "remove_line",
+            {"path": "settings.txt", "text": "deprecated=true"},
+        )
+        first = harness.execute(action, goal)
+        second = harness.execute(action, goal)
+        assert first.success is True
+        assert second.success is True
+        assert path.read_text(encoding="utf-8") == "enabled=true\nmode=safe\n"
+        assert second.output == "line already absent"
 
 
 def test_working_memory_selects_dependencies_and_excludes_noise():
@@ -147,7 +299,9 @@ def test_temperature_policy_only_escalates_exploration():
     first_replan = policy.decide("replan", generation=1)
     repeated_replan = policy.decide("replan", generation=4, same_failure_count=3)
     reset_replan = policy.decide("replan", generation=4, same_failure_count=3, new_evidence=True)
+    failure_analysis = policy.decide("failure_analysis", same_failure_count=4)
     assert strict.temperature == 0.02
     assert first_replan.temperature == 0.28
     assert repeated_replan.temperature == 0.52
-    assert reset_replan.temperature == 0.52
+    assert reset_replan.temperature == 0.28
+    assert failure_analysis.temperature == 0.10
