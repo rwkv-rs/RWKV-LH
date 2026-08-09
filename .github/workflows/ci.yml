@@ -1,11 +1,12 @@
-name: architecture-regression
+name: rwkv-lh-validation
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  test:
+  runtime-regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +14,34 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.13
+      - name: Install verifier sandbox
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - run: uv sync --frozen --dev
       - run: uv run pytest -q
+      - run: uv run rwkv-lh-e2e --suite all --validate-only
       - run: uv run rwkv-lh-control --output /tmp/lh-control-30
+      - run: uv build
+
+  real-rwkv-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, linux, x64, rwkv]
+    timeout-minutes: 1440
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - name: Fail closed unless bubblewrap is present
+        run: command -v bwrap
+      - name: Exercise isolated verifier before model spend
+        run: uv run pytest tests/test_rwkv_e2e_suite.py -q
+      - name: Check RWKV endpoint
+        run: uv run rwkv-lh-runtime-smoke
+      - name: Run long-horizon suite
+        run: uv run rwkv-lh-e2e --suite lh12 --output outputs/ci-lh12
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rwkv-e2e-lh12-${{ github.run_id }}
+          path: outputs/ci-lh12

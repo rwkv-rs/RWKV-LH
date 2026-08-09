@@ -4,6 +4,8 @@ RWKV-LH 是一个面向 RWKV 的持久化 Long-Horizon Agent 运行时。它把�
 
 这个仓库只包含长程 Agent。它不包含网页检索 Agent、答案质量 Judge、检索评测流水线、前端或历史 HTML 报告。检索能力如有需要，应作为显式工具扩展接入，而不是成为 Controller 的隐式依赖。
 
+RWKV-LH 专门为 RWKV 模型的长程执行而建立。LongHorizon-Harness、LangGraph、Temporal 与 Harbor 只用于研究设计思想和可靠执行语义，不是本项目的运行时、后端或兼容目标；所有语义规划与决策仍由 RWKV 完成。
+
 ## 架构
 
 ```mermaid
@@ -103,13 +105,21 @@ uv run pytest
 uv run rwkv-lh-control
 ```
 
-`LH-Control-30` 是确定性的架构回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不证明 RWKV 独立完成了 30 个长程任务。真实模型能力必须由单独的 RWKV E2E 套件测试：只提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
+`LH-Control-30` 是 RWKV-LH 的确定性运行时回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不调用其他 Agent，也不替代 RWKV 模型能力测试；真实模型能力由单独的 RWKV E2E 套件验证：只向 RWKV 提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
 
 真实 E2E 套件可先校验题库边界：
 
 ```bash
-uv run rwkv-lh-e2e --validate-only
+uv run rwkv-lh-e2e --suite core30 --validate-only
+uv run rwkv-lh-e2e --suite lh12 --validate-only
+uv run rwkv-lh-e2e --suite all --validate-only
 ```
+
+`core30` 是原有基础/中等/困难套件；`lh12` 是新增的长程压力套件，覆盖 repeated replan、goal retention、动态发现、crash recovery、fan-out/fan-in、prompt injection、异构迁移、compensation、外部状态、tool-call budget、working memory 和 capstone。
+
+隐藏 acceptance 由独立 bubblewrap worker 验证：仓库、`/tests`、verifier 日志和 scorecard 不会挂载；工作区是拒绝 symlink 的只读快照；PID 与网络 namespace 独立；Agent 进程必须先退出。Linux 真实 E2E 因而要求系统安装 `bwrap`，缺失时 fail closed。
+
+RWKV 的职责定义、现有 10 阶段提示词、12 道新题、隔离威胁模型，以及 LongHorizon-Harness、LangGraph、Temporal、Harbor 的借鉴边界见 [`docs/RWKV_LONG_HORIZON_PHASE1.zh-CN.md`](docs/RWKV_LONG_HORIZON_PHASE1.zh-CN.md)。
 
 2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过；当前版本不能据此标记为生产可用。完整判读见 `docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`。
 
