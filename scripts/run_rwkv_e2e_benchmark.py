@@ -6,8 +6,10 @@ import argparse
 import hashlib
 import importlib.resources
 import json
+import multiprocessing
 import os
 import shutil
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -850,6 +852,7 @@ def _write_report(
     results: list[dict[str, Any]],
     *,
     suite_title: str = "RWKV-E2E-30",
+    concurrency: int = 1,
 ) -> None:
     passed = sum(1 for item in results if item["passed"])
     completed = sum(1 for item in results if item["agent_completed"])
@@ -860,6 +863,7 @@ def _write_report(
         "This suite gives RWKV only a user goal, an isolated workspace, generic constraints, and the Harness contract. Task Graphs, actions, replan paths, and external acceptance are not provided to the model.",
         "",
         f"- Cases run: {len(results)}",
+        f"- Case concurrency: {concurrency}",
         f"- Agent completed: {completed}",
         f"- External acceptance passed: {external}",
         f"- Strict E2E passed: {passed}",
@@ -896,6 +900,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--max-cases", type=int, default=None)
     parser.add_argument("--max-transitions", type=int, default=200)
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="isolated case worker processes (default: 1)",
+    )
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
@@ -903,6 +913,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     arguments = parse_args()
+    if arguments.concurrency < 1:
+        raise ValueError("concurrency must be at least 1")
     if arguments.suite == "all":
         tasks = []
         acceptance = {}
@@ -942,18 +954,17 @@ def main() -> int:
         raise RuntimeError(f"RWKV endpoint is unavailable: {health.error}")
     output = Path(arguments.output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=False)
-    results: list[dict[str, Any]] = []
-    for index, task in enumerate(selected):
-        print(f"[{index + 1}/{len(selected)}] {task['task_id']} starting", flush=True)
-        result = run_case(
-            task,
-            acceptance[task["task_id"]],
-            output,
-            max_transitions=arguments.max_transitions,
-        )
-        results.append(result)
+    results_by_id: dict[str, dict[str, Any]] = {}
+
+    def record_result(result: dict[str, Any]) -> None:
+        results_by_id[result["task_id"]] = result
+        results = [
+            results_by_id[task["task_id"]]
+            for task in selected
+            if task["task_id"] in results_by_id
+        ]
         print(
-            f"{task['task_id']}: {'PASS' if result['passed'] else 'FAIL'} "
+            f"{result['task_id']}: {'PASS' if result['passed'] else 'FAIL'} "
             f"status={result['status']} external={result['external_passed']}",
             flush=True,
         )
@@ -963,6 +974,7 @@ def main() -> int:
                     "schema_version": "rwkv-e2e.results.v1",
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                     "suite": suite_title,
+                    "concurrency": arguments.concurrency,
                     "results": results,
                 },
                 ensure_ascii=False,
@@ -971,7 +983,49 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        _write_report(output, results, suite_title=suite_title)
+        _write_report(
+            output,
+            results,
+            suite_title=suite_title,
+            concurrency=arguments.concurrency,
+        )
+
+    if arguments.concurrency == 1 or len(selected) <= 1:
+        for index, task in enumerate(selected):
+            print(f"[{index + 1}/{len(selected)}] {task['task_id']} starting", flush=True)
+            record_result(
+                run_case(
+                    task,
+                    acceptance[task["task_id"]],
+                    output,
+                    max_transitions=arguments.max_transitions,
+                )
+            )
+    else:
+        worker_count = min(arguments.concurrency, len(selected))
+        process_context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=worker_count,
+            mp_context=process_context,
+        ) as executor:
+            futures = {}
+            for index, task in enumerate(selected):
+                print(
+                    f"[{index + 1}/{len(selected)}] {task['task_id']} queued",
+                    flush=True,
+                )
+                future = executor.submit(
+                    run_case,
+                    task,
+                    acceptance[task["task_id"]],
+                    output,
+                    max_transitions=arguments.max_transitions,
+                )
+                futures[future] = task["task_id"]
+            for future in as_completed(futures):
+                record_result(future.result())
+
+    results = [results_by_id[task["task_id"]] for task in selected]
     passed = sum(1 for item in results if item["passed"])
     print(json.dumps({"total": len(results), "passed": passed, "failed": len(results) - passed}))
     return 0 if passed == len(results) else 2

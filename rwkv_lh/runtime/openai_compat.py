@@ -202,6 +202,16 @@ class OpenAICompatibleRWKVClient:
                 if attempt >= attempts:
                     raise last_error from exc
                 self._backoff(attempt, None)
+            except requests.RequestException as exc:
+                if generation:
+                    raise RWKVOutcomeUnknownError(
+                        "generation outcome is unknown after transport failure: "
+                        f"{type(exc).__name__}: {exc}"
+                    ) from exc
+                last_error = RWKVTransportError(f"{type(exc).__name__}: {exc}")
+                if attempt >= attempts:
+                    raise last_error from exc
+                self._backoff(attempt, None)
         raise last_error or RWKVTransportError("model request failed")
 
     def _backoff(self, attempt: int, retry_after: str | None) -> None:

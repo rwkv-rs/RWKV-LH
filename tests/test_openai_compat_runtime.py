@@ -226,6 +226,20 @@ def test_generation_read_timeout_is_unknown_and_not_retried(monkeypatch):
     assert len(fake.calls) == 1
 
 
+def test_generation_chunked_response_loss_is_unknown_and_not_retried(monkeypatch):
+    fake = FakeSession(
+        [
+            requests.exceptions.ChunkedEncodingError("response ended prematurely"),
+            FakeResponse({"choices": [{"text": "must not be requested"}]}),
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings(retry_attempts=3))
+    with pytest.raises(RWKVOutcomeUnknownError, match="ChunkedEncodingError"):
+        client.text_completion("unknown chunked outcome")
+    assert len(fake.calls) == 1
+
+
 def test_malformed_completion_is_protocol_error(monkeypatch):
     fake = FakeSession([FakeResponse({"choices": []})])
     monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)

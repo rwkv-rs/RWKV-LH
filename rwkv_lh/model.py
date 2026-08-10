@@ -509,7 +509,10 @@ class LongHorizonModel:
                 max_tokens=5000 if attempt == 1 else 3600,
             )
             payload = call.payload or {}
-            recovered_plan_envelope = self._recover_bare_plan_task(payload)
+            recovered_plan_envelope = self._recover_bare_plan_task(
+                payload,
+                criterion_ids=criterion_ids,
+            )
             if recovered_plan_envelope is not None:
                 payload = recovered_plan_envelope
             try:
@@ -1270,10 +1273,16 @@ class LongHorizonModel:
         raise ValueError("bounded context could not be fitted into the final prompt")
 
     @staticmethod
-    def _recover_bare_plan_task(payload: Mapping[str, Any]) -> dict[str, Any] | None:
-        """Recover only a complete single task node missing the plan envelope."""
+    def _recover_bare_plan_task(
+        payload: Mapping[str, Any],
+        *,
+        criterion_ids: Sequence[str],
+    ) -> dict[str, Any] | None:
+        """Recover a structure-only one-task plan for a one-criterion goal."""
 
         if "schema_version" in payload or "tasks" in payload:
+            return None
+        if len(criterion_ids) != 1:
             return None
         required = {
             "task_id",
@@ -1287,8 +1296,9 @@ class LongHorizonModel:
         }
         if not required.issubset(payload):
             return None
-        allowed = required | {"arguments", "postconditions"}
-        if set(payload) - allowed:
+        if set(payload) != required:
+            return None
+        if list(payload.get("goal_criteria") or []) != list(criterion_ids):
             return None
         return {
             "schema_version": "long-horizon.plan.v1",

@@ -652,8 +652,6 @@ class BareTaskPlanClient:
                             "backoff_seconds": 0.2,
                             "replan_after": 2,
                         },
-                        "arguments": {"path": "input.txt"},
-                        "postconditions": ["file_contents"],
                     }
                 )
             },
@@ -690,7 +688,7 @@ def test_model_plan_safely_recovers_complete_bare_task_envelope():
             "request_type": "task_decomposition",
             "field": "plan_envelope",
             "reason": "single_complete_task_node",
-            "ignored_fields": ["arguments", "postconditions"],
+            "ignored_fields": [],
         }
 
 
@@ -705,12 +703,24 @@ def test_bare_plan_recovery_rejects_partial_or_unknown_task_objects():
         "goal_criteria": ["GC1"],
         "retry_policy": {"max_attempts": 3},
     }
-    assert LongHorizonModel._recover_bare_plan_task(base) is not None
     assert LongHorizonModel._recover_bare_plan_task(
-        {key: value for key, value in base.items() if key != "goal_criteria"}
+        base, criterion_ids=["GC1"]
+    ) is not None
+    assert LongHorizonModel._recover_bare_plan_task(
+        {key: value for key, value in base.items() if key != "goal_criteria"},
+        criterion_ids=["GC1"],
     ) is None
     assert LongHorizonModel._recover_bare_plan_task(
-        {**base, "untrusted_extension": True}
+        {**base, "untrusted_extension": True},
+        criterion_ids=["GC1"],
+    ) is None
+    assert LongHorizonModel._recover_bare_plan_task(
+        {**base, "arguments": {"path": "input.txt"}},
+        criterion_ids=["GC1"],
+    ) is None
+    assert LongHorizonModel._recover_bare_plan_task(
+        base,
+        criterion_ids=["GC1", "GC2"],
     ) is None
 
 

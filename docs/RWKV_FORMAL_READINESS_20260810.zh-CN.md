@@ -6,14 +6,14 @@ RWKV-LH 已达到 **RWKV canary ready**，但还没有达到 beta，更不能标
 
 当前状态必须如实表述为：
 
-- 确定性运行时：可用，74 项测试通过。
+- 确定性运行时：可用，75 项测试通过。
 - E2E 题库：42 题 schema/checker 校验通过。
 - verifier 隔离：Linux bubblewrap 可用，缺失时 fail closed。
 - Python 包：sdist 与 wheel 构建通过。
 - RWKV 推理端：实时 `/models` 返回 `owned_by=rwkv_lightning`；原生 `/chat/completions` generation 已执行。
 - WSL 网络边界：项目与测试只在 `UbuntuRecovered` WSL 运行；Windows 只提供 FlClash，WSL 使用 `http://172.31.80.1:7890`。
 - 真实最小 canary：`E2E-B01` 严格 Agent 完成且外部验收通过。
-- 小型基础队列：本轮 0/4，通过失败样本定位并修复两个安全协议兼容点；修复后未重复消耗远端题目。
+- 八并发基础复测：B01～B08 严格结果 0/8，外部产物 2/8；共 144 次 RWKV 调用，verifier 隔离 8/8 通过。
 - 正式级别：canary，不是 production。
 
 ## 2026-08-10 WSL 正式链路复核
@@ -28,17 +28,31 @@ RWKV-LH 已达到 **RWKV canary ready**，但还没有达到 beta，更不能标
 - `frequency_penalty` → `alpha_frequency`
 - `penalty_decay` → `alpha_decay`
 
-WSL 经 FlClash 的短请求并发探测结果：并发 1 为 4/4；并发 2 和并发 4 均为 3/4，失败表现为连接或 TLS/proxy 错误。因此当前正式运行并发必须固定为 **1**。生成阶段发生连接丢失时继续按 outcome unknown 中断，禁止盲目重试。
+第一次 WSL 经 FlClash 的短请求探测中，并发 1 为 4/4，并发 2 和并发 4 均为 3/4。清场后的第二次阶梯探测为：并发 2 为 4/4、并发 4 为 8/8、并发 8 为 16/16；并发 8 的中位延迟约 4.05 秒，最大约 7.16 秒。短请求证明 8 路连接可建立，但不能代表长程 Agent 容量。
 
 正式 `E2E-B01` 结果为 **PASS**：Agent 状态 `completed`，独立 verifier `external=True`。这证明最小 canary 门槛已经达到，但不能外推为基础队列或长程套件稳定。
 
 随后只运行一次 B02/B05/B08/B10 小型基础队列，结果 0/4：
 
 - B02：RWKV 对纯文本选择了 `read_json`，失败后 replan 又复用了既有任务 id；严格合同正确中断。
-- B05、B10：RWKV 返回完整单任务节点，但漏掉 `long-horizon.plan.v1 + tasks[]` 外壳。已加入窄范围、可审计恢复；只有完整必需字段且无未知扩展时才补外壳，之后仍执行全部 DAG、目标绑定和任务合同校验。
+- B05、B10：RWKV 返回完整单任务节点，但漏掉 `long-horizon.plan.v1 + tasks[]` 外壳。第一版加入了窄范围、可审计恢复；后续八并发复测证明仅检查结构仍不够安全，见下一节。
 - B08：首次 goal parse 经代理出现 SSL EOF，属于 outcome unknown；没有创建运行或产生工作区副作用。
 
-这些结论不通过重复跑题掩盖。下一次远端运行应只在新增了对应材料修复后执行：先验证 B05 或 B10 单题，再决定是否恢复小型基础队列。
+这些结论不通过其他模型或自动重试掩盖。
+
+## 2026-08-10 八并发基础复测
+
+E2E runner 已增加 `--concurrency 8`。并发单位是独立 case 进程，不是线程：每题使用独立工作区、SQLite、RWKV 客户端和 verifier 私有目录，父进程只汇总结果。B01～B08 在 WSL 中同时运行，累计 144 次 RWKV 调用，耗时约 717 秒。
+
+严格结果为 0/8，外部产物通过 2/8：
+
+- B01、B03、B04、B07：长程过程中代理连接被远端关闭，generation 按 outcome unknown 中断；B03、B04 的外部产物已经正确。
+- B02：HTTP 分块响应提前结束。客户端已修复为把 `ChunkedEncodingError` 统一归入 outcome unknown，并禁止盲目重试。
+- B06：模型输出没有完整 JSON 对象。
+- B08：两次规划结果均不满足 Plan schema。
+- B05：Agent 错误地把一个读取任务当成完整计划，工作区没有删除目标行，却生成了“已经删除”的最终报告；隐藏 verifier 正确拒绝。裸单任务 Plan 恢复现已收紧：只允许单一成功标准、无 action/arguments/postconditions 泄漏、字段集合精确匹配且绑定唯一 criterion 的结构型节点。多目标 B05/B10 不再允许此恢复。
+
+隔离没有因并发退化：8/8 case 均记录 `agent_process_tree_closed_before_verifier=true`，8/8 verifier backend 为 bubblewrap。当前证据说明“短 generation 支持 8 并发”与“8 个长程 Agent 稳定运行”是两件事；在解决长连接中断和协议失败前，不能宣称八并发已达到 production 容量。
 
 ## 不可变原则：只为 RWKV 服务
 

@@ -142,6 +142,18 @@ uv run rwkv-lh-e2e --suite lh12 --validate-only
 uv run rwkv-lh-e2e --suite all --validate-only
 ```
 
+正式题目可以使用隔离的 case 进程并发，例如：
+
+```bash
+uv run rwkv-lh-e2e --suite core30 \
+  --case E2E-B01 --case E2E-B02 --case E2E-B03 --case E2E-B04 \
+  --case E2E-B05 --case E2E-B06 --case E2E-B07 --case E2E-B08 \
+  --concurrency 8 \
+  --output outputs/basic8-c8
+```
+
+`--concurrency` 是 case worker 进程数，不是单题内部模型调用并发。runner 使用独立 spawn 进程而不是线程；每题仍拥有独立工作区、SQLite、模型客户端和 verifier 私有目录，父进程只汇总公开结果。每个子进程必须先关闭 Agent 进程树，再启动该题的 bubblewrap verifier。
+
 `core30` 是原有基础/中等/困难套件；`lh12` 是新增的长程压力套件，覆盖 repeated replan、goal retention、动态发现、crash recovery、fan-out/fan-in、prompt injection、异构迁移、compensation、外部状态、tool-call budget、working memory 和 capstone。
 
 隐藏 acceptance 由独立 bubblewrap worker 验证：仓库、`/tests`、verifier 日志和 scorecard 不会挂载；工作区是拒绝 symlink 的只读快照；PID 与网络 namespace 独立；Agent 进程必须先退出。Linux 真实 E2E 因而要求系统安装 `bwrap`，缺失时 fail closed。
