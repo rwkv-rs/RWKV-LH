@@ -14,6 +14,10 @@ class RWKVTransportError(RWKVRuntimeError):
     """The server could not be reached or timed out."""
 
 
+class RWKVOutcomeUnknownError(RWKVTransportError):
+    """A generation may have completed, but its response was not received."""
+
+
 class RWKVHTTPError(RWKVRuntimeError):
     """The server returned a non-success HTTP response."""
 
@@ -55,27 +59,46 @@ class TextCompletionRequest:
     prompt: str
     max_tokens: int = 768
     temperature: float = 0.1
-    seed: int | None = None
+    top_p: float = 1.0
+    top_k: int = 0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    penalty_decay: float = 0.996
+    min_tokens: int = 0
     stop: tuple[str, ...] = ()
+    stop_token_ids: tuple[int, ...] = ()
+    request_id: str = ""
+    add_special_tokens: bool = True
+    return_token_ids: bool = False
 
     def payload(self, model: str) -> dict[str, Any]:
         if not self.prompt:
             raise ValueError("prompt must not be empty")
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
-        if not 0 <= self.temperature <= 2:
-            raise ValueError("temperature must be between 0 and 2")
+        _validate_rapid_sampling(self)
         payload: dict[str, Any] = {
             "model": model,
             "prompt": self.prompt,
             "max_tokens": int(self.max_tokens),
             "temperature": float(self.temperature),
+            "top_p": float(self.top_p),
+            "top_k": int(self.top_k),
+            "presence_penalty": float(self.presence_penalty),
+            "frequency_penalty": float(self.frequency_penalty),
+            "penalty_decay": float(self.penalty_decay),
+            "min_tokens": int(self.min_tokens),
+            "add_special_tokens": bool(self.add_special_tokens),
             "stream": False,
         }
-        if self.seed is not None:
-            payload["seed"] = int(self.seed)
         if self.stop:
             payload["stop"] = list(self.stop)
+        if self.stop_token_ids:
+            payload["stop_token_ids"] = list(self.stop_token_ids)
+        if self.request_id:
+            payload["request_id"] = self.request_id
+        if self.return_token_ids:
+            payload["return_token_ids"] = True
         return payload
 
 
@@ -84,26 +107,68 @@ class ChatCompletionRequest:
     messages: tuple[dict[str, Any], ...]
     max_tokens: int = 768
     temperature: float = 0.1
-    seed: int | None = None
+    top_p: float = 1.0
+    top_k: int = 0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    penalty_decay: float = 0.996
+    min_tokens: int = 0
     stop: tuple[str, ...] = ()
+    stop_token_ids: tuple[int, ...] = ()
+    request_id: str = ""
+    add_special_tokens: bool = False
+    return_token_ids: bool = False
 
     def payload(self, model: str) -> dict[str, Any]:
         if not self.messages:
             raise ValueError("messages must not be empty")
-        if not 0 <= self.temperature <= 2:
-            raise ValueError("temperature must be between 0 and 2")
+        if self.max_tokens < 1:
+            raise ValueError("max_tokens must be positive")
+        _validate_rapid_sampling(self)
         payload: dict[str, Any] = {
             "model": model,
             "messages": [dict(item) for item in self.messages],
-            "max_tokens": max(1, int(self.max_tokens)),
+            "max_tokens": int(self.max_tokens),
             "temperature": float(self.temperature),
+            "top_p": float(self.top_p),
+            "top_k": int(self.top_k),
+            "presence_penalty": float(self.presence_penalty),
+            "frequency_penalty": float(self.frequency_penalty),
+            "penalty_decay": float(self.penalty_decay),
+            "min_tokens": int(self.min_tokens),
+            "add_special_tokens": bool(self.add_special_tokens),
             "stream": False,
         }
-        if self.seed is not None:
-            payload["seed"] = int(self.seed)
         if self.stop:
             payload["stop"] = list(self.stop)
+        if self.stop_token_ids:
+            payload["stop_token_ids"] = list(self.stop_token_ids)
+        if self.request_id:
+            payload["request_id"] = self.request_id
+        if self.return_token_ids:
+            payload["return_token_ids"] = True
         return payload
+
+
+def _validate_rapid_sampling(request: TextCompletionRequest | ChatCompletionRequest) -> None:
+    if not 1e-5 <= request.temperature <= 2:
+        raise ValueError(
+            "temperature must be between 1e-5 and 2 for vllm-rwkv rapid-sampling"
+        )
+    if not 0 < request.top_p <= 1:
+        raise ValueError("top_p must be in (0, 1]")
+    if not isinstance(request.top_k, int) or request.top_k < 0:
+        raise ValueError("top_k must be 0 (disabled) or a positive integer")
+    if not -2 <= request.presence_penalty <= 2:
+        raise ValueError("presence_penalty must be in [-2, 2]")
+    if not -2 <= request.frequency_penalty <= 2:
+        raise ValueError("frequency_penalty must be in [-2, 2]")
+    if not 0 <= request.penalty_decay <= 1:
+        raise ValueError("penalty_decay must be in [0, 1]")
+    if request.min_tokens < 0 or request.min_tokens > request.max_tokens:
+        raise ValueError("min_tokens must be between 0 and max_tokens")
+    if any(not isinstance(token_id, int) or token_id < 0 for token_id in request.stop_token_ids):
+        raise ValueError("stop_token_ids must contain non-negative integers")
 
 
 @dataclass
@@ -144,15 +209,26 @@ def normalize_stop(value: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(str(item) for item in value if str(item))
 
 
+def normalize_stop_token_ids(value: Sequence[int] | None) -> tuple[int, ...]:
+    if not value:
+        return ()
+    normalized = tuple(value)
+    if any(not isinstance(token_id, int) or token_id < 0 for token_id in normalized):
+        raise ValueError("stop_token_ids must contain non-negative integers")
+    return normalized
+
+
 __all__ = [
     "ChatCompletionRequest",
     "CompletionResponse",
     "HealthStatus",
     "RWKVHTTPError",
+    "RWKVOutcomeUnknownError",
     "RWKVProtocolError",
     "RWKVRuntimeError",
     "RWKVTransportError",
     "TextCompletionRequest",
     "TokenUsage",
     "normalize_stop",
+    "normalize_stop_token_ids",
 ]

@@ -388,6 +388,14 @@ class TempDecision:
     policy_reason: str
     attempt: int
     started_at: str
+    top_p: float = 1.0
+    top_k: int = 0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    penalty_decay: float = 0.996
+    max_tokens: int = 0
+    backend_profile: str = "vllm-rwkv-rapid"
+    seed_supported: bool = False
     ended_at: str | None = None
     outcome: str = "running"
     result_summary: str = ""

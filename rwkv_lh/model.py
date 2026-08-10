@@ -27,14 +27,18 @@ from rwkv_lh.validation import ValidationEngine
 from rwkv_lh.prompting import JSON_CALL_STOP_SUFFIXES, assistant_json_prefix, visible_model_text
 from rwkv_lh.runtime import (
     OpenAICompatibleRWKVClient,
+    RWKVOutcomeUnknownError,
     current_model_lane,
     current_task_id,
+    get_runtime_settings,
     sampling_parameters,
 )
+from rwkv_lh.token_budget import get_token_count
 
 
 PersistCallback = Callable[[RunState, str, Mapping[str, Any]], None]
 ModelAuditHook = Callable[[Mapping[str, Any]], None]
+_CONTEXT_SLOT = "__RWKV_LH_BOUNDED_CONTEXT__"
 
 
 class CompletionClient(Protocol):
@@ -108,7 +112,6 @@ class ModelInvoker:
         same_failure_count: int = 0,
         complex_task: bool = False,
         new_evidence: bool = False,
-        seed: int | None = None,
         max_tokens: int = 4096,
     ) -> ModelCallResult:
         result = self.invoke_text(
@@ -122,7 +125,6 @@ class ModelInvoker:
             same_failure_count=same_failure_count,
             complex_task=complex_task,
             new_evidence=new_evidence,
-            seed=seed,
             max_tokens=max_tokens,
             json_output=True,
         )
@@ -159,10 +161,11 @@ class ModelInvoker:
         same_failure_count: int = 0,
         complex_task: bool = False,
         new_evidence: bool = False,
-        seed: int | None = None,
         max_tokens: int = 4096,
         json_output: bool = False,
     ) -> ModelCallResult:
+        output_limit = max(1, int(max_tokens))
+        runtime = get_runtime_settings()
         selection = self.policy.decide(
             request_type,
             generation=generation,
@@ -178,7 +181,24 @@ class ModelInvoker:
             policy_reason=selection.reason,
             attempt=max(1, int(attempt)),
             started_at=utc_now(),
+            top_p=runtime.default_top_p,
+            top_k=runtime.default_top_k,
+            presence_penalty=runtime.default_presence_penalty,
+            frequency_penalty=runtime.default_frequency_penalty,
+            penalty_decay=runtime.default_penalty_decay,
+            max_tokens=output_limit,
         )
+        sampling_event = {
+            "temperature": decision.temperature,
+            "top_p": decision.top_p,
+            "top_k": decision.top_k,
+            "presence_penalty": decision.presence_penalty,
+            "frequency_penalty": decision.frequency_penalty,
+            "penalty_decay": decision.penalty_decay,
+            "max_tokens": decision.max_tokens,
+            "backend_profile": decision.backend_profile,
+            "seed_supported": decision.seed_supported,
+        }
         if state is not None:
             state.temp_decisions.append(decision)
             if persist is not None:
@@ -189,9 +209,8 @@ class ModelInvoker:
                         "request_id": decision.request_id,
                         "task_id": decision.task_id,
                         "request_type": decision.request_type,
-                        "temperature": decision.temperature,
+                        **sampling_event,
                         "policy_reason": decision.policy_reason,
-                        "seed": seed,
                         "prompt": prompt,
                     },
                 )
@@ -201,18 +220,33 @@ class ModelInvoker:
                 "request_id": decision.request_id,
                 "task_id": decision.task_id,
                 "request_type": decision.request_type,
-                "temperature": decision.temperature,
-                "seed": seed,
+                **sampling_event,
                 "prompt": prompt,
             }
         )
-        task_token = current_task_id.set(state.run_id if state is not None else task_id)
-        lane_token = current_model_lane.set("control")
+        task_token = current_task_id.set(str(task_id or "RUN"))
+        lane_token = current_model_lane.set(decision.request_type)
         try:
-            with sampling_parameters(decision.temperature, seed=seed):
+            prompt_tokens = get_token_count(prompt)
+            prompt_limit = runtime.max_prompt_tokens(output_limit)
+            if prompt_tokens > prompt_limit:
+                raise ModelProtocolError(
+                    f"final prompt uses {prompt_tokens} local tokens but only "
+                    f"{prompt_limit} are safe with max_tokens={output_limit}, "
+                    f"max_model_len={runtime.max_model_len}, BOS and safety reserves"
+                )
+            with sampling_parameters(
+                decision.temperature,
+                request_id=decision.request_id,
+                top_p=decision.top_p,
+                top_k=decision.top_k,
+                presence_penalty=decision.presence_penalty,
+                frequency_penalty=decision.frequency_penalty,
+                penalty_decay=decision.penalty_decay,
+            ):
                 response = self.client.text_completion(
                     prompt,
-                    max_tokens=max(1, int(max_tokens)),
+                    max_tokens=output_limit,
                     stop=JSON_CALL_STOP_SUFFIXES if json_output else None,
                 )
             text = str(getattr(response, "content", response) or "")
@@ -227,8 +261,8 @@ class ModelInvoker:
                         "request_id": decision.request_id,
                         "task_id": decision.task_id,
                         "request_type": decision.request_type,
-                        "temperature": decision.temperature,
-                        "seed": seed,
+                        **sampling_event,
+                        "prompt_tokens_local": prompt_tokens,
                         "output": visible_model_text(text),
                     },
                 )
@@ -238,12 +272,27 @@ class ModelInvoker:
                     "request_id": decision.request_id,
                     "task_id": decision.task_id,
                     "request_type": decision.request_type,
-                    "temperature": decision.temperature,
-                    "seed": seed,
+                    **sampling_event,
+                    "prompt_tokens_local": prompt_tokens,
                     "output": visible_model_text(text),
                 }
             )
             return ModelCallResult(text=text, decision=decision)
+        except RWKVOutcomeUnknownError as exc:
+            decision.ended_at = utc_now()
+            decision.outcome = "unknown"
+            decision.error = f"{type(exc).__name__}: {exc}"[:1000]
+            event = {
+                "request_id": decision.request_id,
+                "task_id": decision.task_id,
+                "request_type": decision.request_type,
+                **sampling_event,
+                "error": decision.error,
+            }
+            if state is not None and persist is not None:
+                persist(state, "model_request_unknown", event)
+            self._audit({"type": "model_request_unknown", **event})
+            raise
         except Exception as exc:
             decision.ended_at = utc_now()
             decision.outcome = "error"
@@ -256,8 +305,7 @@ class ModelInvoker:
                         "request_id": decision.request_id,
                         "task_id": decision.task_id,
                         "request_type": decision.request_type,
-                        "temperature": decision.temperature,
-                        "seed": seed,
+                        **sampling_event,
                         "error": decision.error,
                     },
                 )
@@ -267,8 +315,7 @@ class ModelInvoker:
                     "request_id": decision.request_id,
                     "task_id": decision.task_id,
                     "request_type": decision.request_type,
-                    "temperature": decision.temperature,
-                    "seed": seed,
+                    **sampling_event,
                     "error": decision.error,
                 }
             )
@@ -296,7 +343,6 @@ class LongHorizonModel:
         workspace_root: str,
         *,
         constraints: list[str] | None = None,
-        seed: int | None = None,
     ) -> tuple[GoalState, TempDecision]:
         body = (
             "Normalize the user's long-running task into an immutable goal. Preserve every hard constraint. "
@@ -324,7 +370,6 @@ class LongHorizonModel:
                 self._json_prompt(request_body),
                 request_type="goal_parse",
                 task_id="GOAL",
-                seed=seed,
                 attempt=attempt,
                 max_tokens=1600 if attempt == 1 else 1100,
             )
@@ -586,7 +631,7 @@ class LongHorizonModel:
             f"SELECTED ACTION TYPE (fixed):\n{selected_action_type}\n\n"
             "SELECTED ACTION CONTRACT:\n"
             f"{json.dumps(self.harness.action_definition_contract(selected_action_type), ensure_ascii=False, indent=2)}\n\n"
-            f"WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            f"WORKING MEMORY:\n{_CONTEXT_SLOT}\n\n"
             "CURRENT WORKSPACE MANIFEST:\n"
             f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
             f"FINAL CHECK: action.type must be {selected_action_type!r} and must execute only task {task.task_id}."
@@ -602,14 +647,15 @@ class LongHorizonModel:
                     f"Error: {last_error}. Return one corrected long-horizon.action.v1 object only. "
                     f"Previous rejected output:\n{last_output[:4000]}"
                 )
+            output_limit = 1800 if attempt == 1 else 1200
             call = self.invoker.invoke_json(
-                self._json_prompt(request_body),
+                self._json_prompt_with_context(request_body, context, output_limit),
                 request_type="tool_action",
                 task_id=task.task_id,
                 state=state,
                 persist=persist,
                 attempt=attempt,
-                max_tokens=1800 if attempt == 1 else 1200,
+                max_tokens=output_limit,
             )
             payload = call.payload or {}
             try:
@@ -803,7 +849,7 @@ class LongHorizonModel:
             '"retry_policy":{"max_attempts":3,"backoff_seconds":0.2,"replan_after":2}}],'
             '"supersede":[{"old_task_id":"T1","new_task_id":"T9"}]}.\n\n'
             f"FAILED TASK AND OBSERVED FAILURE:\n{json.dumps(failed_view, ensure_ascii=False, indent=2)}\n\n"
-            f"CURRENT CONTEXT:\n{context.to_prompt()}\n\n"
+            f"CURRENT CONTEXT:\n{_CONTEXT_SLOT}\n\n"
             f"CURRENT WORKSPACE MANIFEST:\n"
             f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}\n\n"
             f"EXISTING TASK IDS:\n{json.dumps(sorted(state.tasks), ensure_ascii=False)}"
@@ -819,8 +865,9 @@ class LongHorizonModel:
                     "Do not return reasoning/plan/commands/keystrokes/task_complete. "
                     f"Previous rejected output:\n{last_output[:6000]}"
                 )
+            output_limit = 4200 if attempt == 1 else 3200
             call = self.invoker.invoke_json(
-                self._json_prompt(request_body),
+                self._json_prompt_with_context(request_body, context, output_limit),
                 request_type="replan",
                 task_id=failed_task.task_id,
                 state=state,
@@ -828,7 +875,7 @@ class LongHorizonModel:
                 generation=max(1, state.plan_generation + 1),
                 attempt=attempt,
                 same_failure_count=same_failure_count,
-                max_tokens=4200 if attempt == 1 else 3200,
+                max_tokens=output_limit,
             )
             payload = call.payload or {}
             try:
@@ -947,7 +994,7 @@ class LongHorizonModel:
             f"FAILED TASK:\n{json.dumps(failed_task.to_dict(), ensure_ascii=False, indent=2)}\n\n"
             "LATEST OBSERVED ATTEMPT:\n"
             f"{json.dumps(latest_attempt.to_dict() if latest_attempt is not None else None, ensure_ascii=False, indent=2)}\n\n"
-            f"BOUNDED WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            f"BOUNDED WORKING MEMORY:\n{_CONTEXT_SLOT}\n\n"
             "CURRENT WORKSPACE MANIFEST (metadata only):\n"
             f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}"
         )
@@ -962,15 +1009,16 @@ class LongHorizonModel:
                     "long-horizon.failure-analysis.v1 object. "
                     f"Previous rejected output:\n{last_output[:3000]}"
                 )
+            output_limit = 1000 if attempt == 1 else 700
             call = self.invoker.invoke_json(
-                self._json_prompt(request_body),
+                self._json_prompt_with_context(request_body, context, output_limit),
                 request_type="failure_analysis",
                 task_id=failed_task.task_id,
                 state=state,
                 persist=persist,
                 attempt=attempt,
                 same_failure_count=same_failure_count,
-                max_tokens=1000 if attempt == 1 else 700,
+                max_tokens=output_limit,
             )
             payload = call.payload or {}
             try:
@@ -1041,7 +1089,7 @@ class LongHorizonModel:
             f"BOUND GOAL CRITERIA:\n{json.dumps(bound_criteria, ensure_ascii=False, indent=2)}\n\n"
             f"OBSERVED ACTION RESULT:\n{json.dumps(dict(action_result or {}), ensure_ascii=False, indent=2)}\n\n"
             f"DETERMINISTIC VERIFIER RESULTS:\n{json.dumps(validation_results or [], ensure_ascii=False, indent=2)}\n\n"
-            f"BOUNDED WORKING MEMORY:\n{context.to_prompt()}\n\n"
+            f"BOUNDED WORKING MEMORY:\n{_CONTEXT_SLOT}\n\n"
             "CURRENT WORKSPACE MANIFEST (metadata only):\n"
             f"{json.dumps(self.harness.workspace_manifest(state.goal), ensure_ascii=False, indent=2)}"
         )
@@ -1055,14 +1103,15 @@ class LongHorizonModel:
                     f"Error: {last_error}. Return only one corrected long-horizon.validation.v1 object. "
                     f"Previous rejected output:\n{last_output[:3000]}"
                 )
+            output_limit = 1100 if attempt == 1 else 700
             call = self.invoker.invoke_json(
-                self._json_prompt(request_body),
+                self._json_prompt_with_context(request_body, context, output_limit),
                 request_type="validation_cross_check",
                 task_id=task.task_id,
                 state=state,
                 persist=persist,
                 attempt=attempt,
-                max_tokens=1100 if attempt == 1 else 700,
+                max_tokens=output_limit,
             )
             payload = call.payload or {}
             try:
@@ -1124,6 +1173,36 @@ class LongHorizonModel:
     @staticmethod
     def _json_prompt(body: str) -> str:
         return f"### User\n{body.strip()}\n{assistant_json_prefix(prefill_object=True)}"
+
+    @classmethod
+    def _json_prompt_with_context(
+        cls,
+        body: str,
+        context: ContextBundle,
+        max_output_tokens: int,
+    ) -> str:
+        """Fit only bounded memory while preserving every prompt-template byte."""
+
+        if _CONTEXT_SLOT not in body:
+            raise ValueError("contextual prompt has no bounded-context slot")
+        runtime = get_runtime_settings()
+        prompt_limit = runtime.max_prompt_tokens(max_output_tokens)
+        fixed_prompt = cls._json_prompt(body.replace(_CONTEXT_SLOT, ""))
+        context_budget = prompt_limit - get_token_count(fixed_prompt)
+        if context_budget < 1:
+            raise ValueError("fixed prompt exceeds the request-specific context budget")
+        # Tokenization is not perfectly additive across the slot boundaries.
+        # Recheck the final prompt and trim only projected memory if necessary.
+        for _ in range(3):
+            projected = context.projected(context_budget)
+            prompt = cls._json_prompt(body.replace(_CONTEXT_SLOT, projected.to_prompt()))
+            excess = get_token_count(prompt) - prompt_limit
+            if excess <= 0:
+                return prompt
+            context_budget -= excess + 4
+            if context_budget < 1:
+                break
+        raise ValueError("bounded context could not be fitted into the final prompt")
 
     @staticmethod
     def _task_nodes(raw_tasks: Any) -> list[TaskNode]:

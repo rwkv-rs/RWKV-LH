@@ -4,7 +4,7 @@ import pytest
 import requests
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
-from rwkv_lh.runtime.protocol import RWKVProtocolError
+from rwkv_lh.runtime.protocol import RWKVOutcomeUnknownError, RWKVProtocolError
 from rwkv_lh.runtime.sampling import (
     get_request_seed,
     get_request_temperature,
@@ -55,7 +55,7 @@ def settings(**overrides):
     return RuntimeSettings(**values)
 
 
-def test_request_level_temperature_and_seed_reach_wire(monkeypatch):
+def test_request_level_rapid_sampling_profile_reaches_wire(monkeypatch):
     fake = FakeSession(
         [
             FakeResponse(
@@ -71,8 +71,14 @@ def test_request_level_temperature_and_seed_reach_wire(monkeypatch):
     monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
     client = OpenAICompatibleRWKVClient(settings())
 
-    with sampling_parameters(0.36, seed=77):
-        response = client.text_completion("规划", max_tokens=20, stop=["### User"])
+    with sampling_parameters(0.36, request_id="MR-test-wire"):
+        response = client.text_completion(
+            "规划",
+            max_tokens=20,
+            min_tokens=3,
+            stop=["### User"],
+            stop_token_ids=[123],
+        )
 
     payload = fake.calls[0][2]["json"]
     assert payload == {
@@ -80,9 +86,17 @@ def test_request_level_temperature_and_seed_reach_wire(monkeypatch):
         "prompt": "规划",
         "max_tokens": 20,
         "temperature": 0.36,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "min_tokens": 3,
+        "add_special_tokens": True,
         "stream": False,
-        "seed": 77,
         "stop": ["### User"],
+        "stop_token_ids": [123],
+        "request_id": "MR-test-wire",
     }
     assert response.content == "完成"
     assert response.usage == {
@@ -94,10 +108,34 @@ def test_request_level_temperature_and_seed_reach_wire(monkeypatch):
     assert get_request_temperature() == 0.1
 
 
-def test_transport_timeout_is_retried(monkeypatch):
+def test_seed_is_rejected_before_a_request_is_sent(monkeypatch):
+    fake = FakeSession([])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+    with pytest.raises(ValueError, match="seed is unsupported"):
+        client.text_completion("no seed", seed=77)
+    assert fake.calls == []
+
+
+def test_runtime_context_budget_reserves_output_bos_and_margin():
+    runtime = settings(
+        max_model_len=100,
+        context_safety_margin=10,
+        bos_token_count=1,
+    )
+    assert runtime.max_prompt_tokens(20) == 69
+
+
+def test_rapid_sampler_rejects_greedy_temperature_locally():
+    with pytest.raises(ValueError, match="between 1e-5 and 2"):
+        with sampling_parameters(0.0):
+            pass
+
+
+def test_connect_timeout_is_retried(monkeypatch):
     fake = FakeSession(
         [
-            requests.Timeout("first timeout"),
+            requests.ConnectTimeout("first connect timeout"),
             FakeResponse({"choices": [{"text": "ok", "finish_reason": "stop"}]}),
         ]
     )
@@ -105,6 +143,20 @@ def test_transport_timeout_is_retried(monkeypatch):
     client = OpenAICompatibleRWKVClient(settings())
     assert client.text_completion("retry").content == "ok"
     assert len(fake.calls) == 2
+
+
+def test_generation_read_timeout_is_unknown_and_not_retried(monkeypatch):
+    fake = FakeSession(
+        [
+            requests.ReadTimeout("response lost"),
+            FakeResponse({"choices": [{"text": "must not be requested"}]}),
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+    with pytest.raises(RWKVOutcomeUnknownError):
+        client.text_completion("unknown outcome")
+    assert len(fake.calls) == 1
 
 
 def test_malformed_completion_is_protocol_error(monkeypatch):

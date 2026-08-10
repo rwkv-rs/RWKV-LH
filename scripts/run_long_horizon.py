@@ -28,7 +28,6 @@ def _parser() -> argparse.ArgumentParser:
     request.add_argument("--request-file", help="UTF-8 file containing the request")
     start.add_argument("--workspace", required=True, help="Scoped task workspace")
     start.add_argument("--constraint", action="append", default=[])
-    start.add_argument("--seed", type=int, default=None, help="Optional reproducible goal-parse seed")
     start.add_argument("--run-id", default=None)
 
     resume = subparsers.add_parser("resume", help="Resume an existing run")
@@ -90,7 +89,6 @@ def main() -> int:
         _request_text(arguments),
         str(workspace),
         constraints=list(arguments.constraint or []),
-        seed=arguments.seed,
     )
     state = store.create_run(goal, arguments.run_id)
     state.temp_decisions.append(goal_decision)
@@ -100,7 +98,13 @@ def main() -> int:
         event={
             "request_id": goal_decision.request_id,
             "temperature": goal_decision.temperature,
-            "seed": arguments.seed,
+            "top_p": goal_decision.top_p,
+            "top_k": goal_decision.top_k,
+            "presence_penalty": goal_decision.presence_penalty,
+            "frequency_penalty": goal_decision.frequency_penalty,
+            "penalty_decay": goal_decision.penalty_decay,
+            "backend_profile": goal_decision.backend_profile,
+            "seed_supported": goal_decision.seed_supported,
             "outcome": goal_decision.outcome,
         },
     )

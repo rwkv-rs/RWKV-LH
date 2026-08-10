@@ -15,18 +15,20 @@ from rwkv_lh.runtime.protocol import (
     CompletionResponse,
     HealthStatus,
     RWKVHTTPError,
+    RWKVOutcomeUnknownError,
     RWKVProtocolError,
     RWKVTransportError,
     TextCompletionRequest,
     TokenUsage,
     normalize_stop,
+    normalize_stop_token_ids,
 )
-from rwkv_lh.runtime.sampling import get_request_seed, get_request_temperature
+from rwkv_lh.runtime.sampling import get_request_sampling
 from rwkv_lh.runtime.settings import RuntimeSettings, get_runtime_settings
 
 
 AuditHook = Callable[[Mapping[str, Any]], None]
-_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
+_RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
 
 
 class OpenAICompatibleRWKVClient:
@@ -88,6 +90,7 @@ class OpenAICompatibleRWKVClient:
         path: str,
         *,
         payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
     ) -> tuple[dict[str, Any], float, int]:
         endpoint = self.settings.base_url + path
         attempts = self.settings.retry_attempts
@@ -128,7 +131,27 @@ class OpenAICompatibleRWKVClient:
                 if not isinstance(data, dict):
                     raise RWKVProtocolError("server returned a non-object JSON response")
                 return data, latency_ms, attempt
-            except (requests.ConnectionError, requests.Timeout) as exc:
+            except requests.ConnectTimeout as exc:
+                last_error = RWKVTransportError(f"{type(exc).__name__}: {exc}")
+                if attempt >= attempts:
+                    raise last_error from exc
+                self._backoff(attempt, None)
+            except (requests.ReadTimeout, requests.ConnectionError) as exc:
+                if generation:
+                    raise RWKVOutcomeUnknownError(
+                        "generation may have completed before the connection "
+                        f"failed: {type(exc).__name__}: {exc}"
+                    ) from exc
+                last_error = RWKVTransportError(f"{type(exc).__name__}: {exc}")
+                if attempt >= attempts:
+                    raise last_error from exc
+                self._backoff(attempt, None)
+            except requests.Timeout as exc:
+                if generation:
+                    raise RWKVOutcomeUnknownError(
+                        "generation outcome is unknown after timeout: "
+                        f"{type(exc).__name__}: {exc}"
+                    ) from exc
                 last_error = RWKVTransportError(f"{type(exc).__name__}: {exc}")
                 if attempt >= attempts:
                     raise last_error from exc
@@ -159,6 +182,11 @@ class OpenAICompatibleRWKVClient:
         if content is None:
             content = ""
         usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
+        metadata: dict[str, Any] = {"http_attempts": attempts}
+        if isinstance(data.get("prompt_token_ids"), list):
+            metadata["prompt_token_ids"] = list(data["prompt_token_ids"])
+        if isinstance(choice.get("token_ids"), list):
+            metadata["token_ids"] = list(choice["token_ids"])
         return CompletionResponse(
             content=str(content),
             role=str(message.get("role") or "assistant"),
@@ -167,7 +195,7 @@ class OpenAICompatibleRWKVClient:
             response_id=str(data.get("id") or ""),
             model=str(data.get("model") or ""),
             latency_ms=latency_ms,
-            metadata={"http_attempts": attempts},
+            metadata=metadata,
         )
 
     def text_completion(
@@ -178,15 +206,29 @@ class OpenAICompatibleRWKVClient:
         *,
         temperature: float | None = None,
         seed: int | None = None,
+        min_tokens: int = 0,
+        stop_token_ids: Sequence[int] | None = None,
     ) -> CompletionResponse:
+        if seed is not None:
+            raise ValueError("seed is unsupported by vllm-rwkv rapid-sampling")
+        sampling = get_request_sampling()
         request = TextCompletionRequest(
             prompt=str(prompt),
             max_tokens=max(1, int(max_tokens)),
             temperature=(
-                get_request_temperature() if temperature is None else float(temperature)
+                sampling.temperature if temperature is None else float(temperature)
             ),
-            seed=get_request_seed() if seed is None else int(seed),
+            top_p=sampling.top_p,
+            top_k=sampling.top_k,
+            presence_penalty=sampling.presence_penalty,
+            frequency_penalty=sampling.frequency_penalty,
+            penalty_decay=sampling.penalty_decay,
+            min_tokens=int(min_tokens),
             stop=normalize_stop(stop),
+            stop_token_ids=normalize_stop_token_ids(stop_token_ids),
+            request_id=sampling.request_id,
+            add_special_tokens=True,
+            return_token_ids=self.settings.return_token_ids,
         )
         payload = request.payload(self.model_name)
         started = time.perf_counter()
@@ -196,13 +238,20 @@ class OpenAICompatibleRWKVClient:
                 "endpoint": "/completions",
                 "model": self.model_name,
                 "temperature": request.temperature,
-                "seed": request.seed,
+                "top_p": request.top_p,
+                "top_k": request.top_k,
+                "presence_penalty": request.presence_penalty,
+                "frequency_penalty": request.frequency_penalty,
+                "penalty_decay": request.penalty_decay,
+                "min_tokens": request.min_tokens,
+                "stop_token_ids": list(request.stop_token_ids),
+                "request_id": request.request_id,
                 "max_tokens": request.max_tokens,
             }
         )
         try:
             data, latency_ms, attempts = self._request_json(
-                "POST", "/completions", payload=payload
+                "POST", "/completions", payload=payload, generation=True
             )
             response = self._completion_response(data, latency_ms, attempts)
             self._emit(
@@ -211,7 +260,7 @@ class OpenAICompatibleRWKVClient:
                     "endpoint": "/completions",
                     "model": self.model_name,
                     "temperature": request.temperature,
-                    "seed": request.seed,
+                    "request_id": request.request_id,
                     "latency_ms": response.latency_ms,
                     "finish_reason": response.finish_reason,
                     "usage": response.usage,
@@ -219,6 +268,19 @@ class OpenAICompatibleRWKVClient:
                 }
             )
             return response
+        except RWKVOutcomeUnknownError as exc:
+            self._emit(
+                {
+                    "type": "runtime_request_unknown",
+                    "endpoint": "/completions",
+                    "model": self.model_name,
+                    "temperature": request.temperature,
+                    "request_id": request.request_id,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                    "error": f"{type(exc).__name__}: {exc}"[:1000],
+                }
+            )
+            raise
         except Exception as exc:
             self._emit(
                 {
@@ -226,7 +288,7 @@ class OpenAICompatibleRWKVClient:
                     "endpoint": "/completions",
                     "model": self.model_name,
                     "temperature": request.temperature,
-                    "seed": request.seed,
+                    "request_id": request.request_id,
                     "duration_ms": round((time.perf_counter() - started) * 1000, 1),
                     "error": f"{type(exc).__name__}: {exc}"[:1000],
                 }
@@ -241,18 +303,35 @@ class OpenAICompatibleRWKVClient:
         stop: Sequence[str] | None = None,
         temperature: float | None = None,
         seed: int | None = None,
+        min_tokens: int = 0,
+        stop_token_ids: Sequence[int] | None = None,
     ) -> CompletionResponse:
+        if seed is not None:
+            raise ValueError("seed is unsupported by vllm-rwkv rapid-sampling")
+        sampling = get_request_sampling()
         request = ChatCompletionRequest(
             messages=tuple(dict(item) for item in messages),
             max_tokens=max(1, int(max_tokens)),
             temperature=(
-                get_request_temperature() if temperature is None else float(temperature)
+                sampling.temperature if temperature is None else float(temperature)
             ),
-            seed=get_request_seed() if seed is None else int(seed),
+            top_p=sampling.top_p,
+            top_k=sampling.top_k,
+            presence_penalty=sampling.presence_penalty,
+            frequency_penalty=sampling.frequency_penalty,
+            penalty_decay=sampling.penalty_decay,
+            min_tokens=int(min_tokens),
             stop=normalize_stop(stop),
+            stop_token_ids=normalize_stop_token_ids(stop_token_ids),
+            request_id=sampling.request_id,
+            add_special_tokens=False,
+            return_token_ids=self.settings.return_token_ids,
         )
         data, latency_ms, attempts = self._request_json(
-            "POST", "/chat/completions", payload=request.payload(self.model_name)
+            "POST",
+            "/chat/completions",
+            payload=request.payload(self.model_name),
+            generation=True,
         )
         return self._completion_response(data, latency_ms, attempts)
 

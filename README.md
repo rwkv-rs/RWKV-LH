@@ -42,18 +42,20 @@ flowchart TD
 runtime 不是散落的 HTTP 调用，而是四层稳定接口：
 
 - `settings.py`：类型化部署配置和 `.env.local` 加载。
-- `sampling.py`：通过 `ContextVar` 隔离每个请求的 temperature、seed、task id 与 lane。
+- `sampling.py`：通过 `ContextVar` 隔离每个请求的 rapid-sampling 参数、request id、task id 与 lane。
 - `protocol.py`：请求、响应、usage、health 以及 Transport/HTTP/Protocol 错误类型。
 - `openai_compat.py`：线程隔离连接池、UTF-8 JSON 解析、超时、有限重试、`/completions`、`/chat/completions` 与 `/models`。
 
-请求级 temperature 的目标不是简单增加随机性，而是按推理阶段选择行为：事实提取、工具动作、验证和最终回答使用低温；任务拆解与 replan 可以使用稍高温度。每次请求都会在 SQLite 事件中记录 request type、temperature、seed、输入、输出和结果。
+请求级 temperature 的目标不是简单增加随机性，而是按推理阶段选择行为：事实提取、工具动作、验证和最终回答使用低温；任务拆解与 replan 可以使用稍高温度。每次请求都会在 SQLite 事件中记录 request id/type、完整采样配置、输入、输出和结果。
+
+当前运行时按已部署的 vllm-rwkv rapid-sampling 实现收敛参数：支持 `temperature`、`top_p`、`top_k`、`presence_penalty`、`frequency_penalty`、`penalty_decay`、`min_tokens`、停止字符串和附加 `stop_token_ids`；不发送 `seed`、`min_p`、`repetition_penalty`、`ignore_eos` 或 thinking budget。`temperature=0` 会在本地拒绝。模型端当前最大上下文是 16,384 tokens，输入预算会按每次请求的 `max_tokens`、BOS 和安全余量动态计算。
 
 当前策略定义在 `rwkv_lh/temp_policy.py`。模型调用链为：
 
 ```text
 Controller / Model role
 → TemperaturePolicy.decide(request_type)
-→ sampling_parameters(temp, seed)
+→ sampling_parameters(rapid-sampling profile + request id)
 → OpenAICompatibleRWKVClient
 → POST /v1/completions
 ```
@@ -77,7 +79,7 @@ cp .env.example .env.local
 
 ```bash
 uv run rwkv-lh-runtime-smoke
-uv run rwkv-lh-runtime-smoke --completion --temperature 0.03 --seed 1
+uv run rwkv-lh-runtime-smoke --completion --temperature 0.03 --top-p 1.0
 ```
 
 启动新任务：

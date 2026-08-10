@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from rwkv_lh.runtime.sampling import get_llm_seed, get_llm_temperature
+from rwkv_lh.runtime import RWKVOutcomeUnknownError
+from rwkv_lh.runtime.sampling import get_request_sampling, get_request_temperature
 from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.memory import WorkingMemoryBuilder
@@ -385,11 +386,11 @@ class RecordingClient:
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
         with self.lock:
-            self.calls.append((get_llm_temperature(), get_llm_seed(), prompt))
+            self.calls.append((get_request_sampling(), prompt))
         return type("Response", (), {"content": '"schema_version":"test.v1"}'})()
 
 
-def test_model_invoker_persists_request_temperature_and_seed():
+def test_model_invoker_persists_request_sampling_profile():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -408,12 +409,18 @@ def test_model_invoker_persists_request_temperature_and_seed():
             state=state,
             persist=persist,
             generation=2,
-            seed=17,
         )
         assert result.payload == {"schema_version": "test.v1"}
-        assert client.calls[0][:2] == (0.36, 17)
+        observed = client.calls[0][0]
+        assert observed.temperature == 0.36
+        assert observed.request_id == result.decision.request_id
+        assert observed.task_id == "T1"
+        assert observed.lane == "replan"
         loaded = store.load(state.run_id)
         assert loaded.temp_decisions[-1].temperature == 0.36
+        assert loaded.temp_decisions[-1].top_p == 1.0
+        assert loaded.temp_decisions[-1].top_k == 0
+        assert loaded.temp_decisions[-1].seed_supported is False
         assert loaded.temp_decisions[-1].outcome == "ok"
         assert [event["type"] for event in store.event_records(state.run_id)][-2:] == [
             "model_request_started",
@@ -421,25 +428,65 @@ def test_model_invoker_persists_request_temperature_and_seed():
         ]
 
 
-def test_request_temperature_context_is_isolated_between_threads():
+def test_request_sampling_and_correlation_context_is_isolated_between_threads():
     client = RecordingClient()
     invoker = ModelInvoker(client=client)
     threads = [
         threading.Thread(
             target=invoker.invoke_json,
-            kwargs={"prompt": "strict", "request_type": "evidence_extract", "task_id": "A", "seed": 1},
+            kwargs={"prompt": "strict", "request_type": "evidence_extract", "task_id": "A"},
         ),
         threading.Thread(
             target=invoker.invoke_json,
-            kwargs={"prompt": "explore", "request_type": "alternative_generation", "task_id": "B", "seed": 2},
+            kwargs={"prompt": "explore", "request_type": "alternative_generation", "task_id": "B"},
         ),
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    assert sorted((temperature, seed) for temperature, seed, _ in client.calls) == [(0.02, 1), (0.32, 2)]
-    assert get_llm_seed() is None
+    observed = sorted(
+        (snapshot.temperature, snapshot.task_id, snapshot.lane)
+        for snapshot, _ in client.calls
+    )
+    assert observed == [
+        (0.02, "A", "evidence_extract"),
+        (0.32, "B", "alternative_generation"),
+    ]
+    assert len({snapshot.request_id for snapshot, _ in client.calls}) == 2
+    assert get_request_sampling().request_id == ""
+
+
+def test_model_invoker_persists_unknown_generation_outcome():
+    class UnknownClient:
+        def text_completion(self, prompt, max_tokens=768, stop=None):
+            raise RWKVOutcomeUnknownError("response connection was lost")
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-UNKNOWN")
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        with pytest.raises(RWKVOutcomeUnknownError):
+            ModelInvoker(client=UnknownClient()).invoke_text(
+                "prompt",
+                request_type="tool_action",
+                task_id="T1",
+                state=state,
+                persist=persist,
+            )
+
+        loaded = store.load(state.run_id)
+        assert loaded.temp_decisions[-1].outcome == "unknown"
+        assert [event["type"] for event in store.event_records(state.run_id)][-2:] == [
+            "model_request_started",
+            "model_request_unknown",
+        ]
 
 
 def test_model_invoker_out_of_run_audit_captures_goal_exchange():
@@ -449,14 +496,14 @@ def test_model_invoker_out_of_run_audit_captures_goal_exchange():
         "goal prompt",
         request_type="goal_parse",
         task_id="GOAL",
-        seed=91,
     )
     assert [item["type"] for item in trace] == [
         "model_request_started",
         "model_request_returned",
     ]
     assert trace[0]["prompt"] == "goal prompt"
-    assert trace[0]["seed"] == 91
+    assert trace[0]["seed_supported"] is False
+    assert trace[0]["top_p"] == 1.0
     assert trace[1]["output"] == '"schema_version":"test.v1"}'
 
 
@@ -474,7 +521,7 @@ class SequencePlanClient:
         ]
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
-        self.calls.append((get_llm_temperature(), prompt))
+        self.calls.append((get_request_temperature(), prompt))
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 
@@ -511,7 +558,7 @@ class SequenceGoalClient:
         self.calls = []
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
-        self.calls.append((get_llm_temperature(), prompt))
+        self.calls.append((get_request_temperature(), prompt))
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 
@@ -562,7 +609,7 @@ class SequenceActionClient:
         ]
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
-        self.calls.append((get_llm_temperature(), prompt))
+        self.calls.append((get_request_temperature(), prompt))
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 

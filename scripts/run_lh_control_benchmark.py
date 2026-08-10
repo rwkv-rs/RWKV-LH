@@ -38,7 +38,7 @@ from rwkv_lh.schema import (
 )
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.task_graph import TaskGraph, TaskGraphError
-from rwkv_lh.runtime.sampling import get_llm_seed, get_llm_temperature
+from rwkv_lh.runtime.sampling import get_request_sampling
 
 
 CATALOG_PATH = importlib.resources.files(
@@ -95,8 +95,7 @@ class SequenceClient:
             output = self.outputs.pop(0)
             self.calls.append(
                 {
-                    "temperature": get_llm_temperature(),
-                    "seed": get_llm_seed(),
+                    "sampling": asdict(get_request_sampling()),
                     "prompt": prompt,
                     "max_tokens": max_tokens,
                 }
@@ -336,11 +335,23 @@ def case_b10(context: CaseContext) -> CaseExecution:
     state = context.store.create_run(make_goal(context), context.run_id)
     client = SequenceClient(['"schema_version":"tool.v1"}', '"schema_version":"replan.v1"}'])
     invoker = ModelInvoker(client=client)
-    invoker.invoke_json("tool", request_type="tool_action", task_id="T1", state=state, persist=persist_callback(context.store), seed=11)
-    invoker.invoke_json("replan", request_type="replan", task_id="T1", state=state, persist=persist_callback(context.store), generation=2, seed=12)
+    invoker.invoke_json("tool", request_type="tool_action", task_id="T1", state=state, persist=persist_callback(context.store))
+    invoker.invoke_json("replan", request_type="replan", task_id="T1", state=state, persist=persist_callback(context.store), generation=2)
     temperatures = [item.temperature for item in state.temp_decisions]
-    passed = temperatures == [0.05, 0.36] and [item["seed"] for item in client.calls] == [11, 12] and get_llm_seed() is None
-    return execution(passed, "model_requests_recorded", {"temperatures": temperatures, "seeds": [item["seed"] for item in client.calls]}, state)
+    profiles = [item["sampling"] for item in client.calls]
+    passed = (
+        temperatures == [0.05, 0.36]
+        and [item["temperature"] for item in profiles] == temperatures
+        and all(item["top_p"] == 1.0 and item["top_k"] == 0 for item in profiles)
+        and len({item["request_id"] for item in profiles}) == 2
+        and get_request_sampling().request_id == ""
+    )
+    return execution(
+        passed,
+        "model_requests_recorded",
+        {"temperatures": temperatures, "sampling_profiles": profiles},
+        state,
+    )
 
 
 def case_m01(context: CaseContext) -> CaseExecution:
@@ -587,19 +598,40 @@ def case_h08(context: CaseContext) -> CaseExecution:
     invoker = ModelInvoker(client=client)
     errors: list[str] = []
 
-    def invoke(request_type: str, seed: int):
+    def invoke(request_type: str):
         try:
-            invoker.invoke_json(request_type, request_type=request_type, task_id=request_type, seed=seed)
+            invoker.invoke_json(request_type, request_type=request_type, task_id=request_type)
         except Exception as exc:
             errors.append(str(exc))
 
-    workers = [threading.Thread(target=invoke, args=("evidence_extract", 101)), threading.Thread(target=invoke, args=("alternative_generation", 202))]
+    workers = [
+        threading.Thread(target=invoke, args=("evidence_extract",)),
+        threading.Thread(target=invoke, args=("alternative_generation",)),
+    ]
     for worker in workers:
         worker.start()
     for worker in workers:
         worker.join()
-    observed = sorted((item["temperature"], item["seed"]) for item in client.calls)
-    passed = not errors and observed == [(0.02, 101), (0.32, 202)] and get_llm_seed() is None
+    observed = sorted(
+        (
+            item["sampling"]["temperature"],
+            item["sampling"]["task_id"],
+            item["sampling"]["lane"],
+        )
+        for item in client.calls
+    )
+    request_ids = {item["sampling"]["request_id"] for item in client.calls}
+    passed = (
+        not errors
+        and observed
+        == [
+            (0.02, "evidence_extract", "evidence_extract"),
+            (0.32, "alternative_generation", "alternative_generation"),
+        ]
+        and len(request_ids) == 2
+        and "" not in request_ids
+        and get_request_sampling().request_id == ""
+    )
     return execution(passed, "concurrent_model_requests", {"observed": observed, "errors": errors})
 
 

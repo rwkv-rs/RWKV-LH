@@ -30,7 +30,7 @@
     {"task_id": "LH-H05", "level": "hard", "description": "50 个 artifact/memory 下重建 16K 上下文。", "expected_result": "相关引用保留，总输入不超过预算。", "capabilities": ["large_memory", "context_compression"]},
     {"task_id": "LH-H06", "level": "hard", "description": "Planner 动作尝试写出 workspace 后 replan。", "expected_result": "越界动作无副作用，替代路径在 workspace 内完成。", "capabilities": ["scope_guard", "goal_drift", "replan"]},
     {"task_id": "LH-H07", "level": "hard", "description": "两个 required validator 对同一状态给出冲突。", "expected_result": "任务不被错误完成，冲突记录后通过新路径解决。", "capabilities": ["validator_conflict", "replan"]},
-    {"task_id": "LH-H08", "level": "hard", "description": "并发模型请求使用不同 temp 与 seed。", "expected_result": "每个请求只观察自己的采样参数，主线程无泄漏。", "capabilities": ["contextvar_isolation", "temperature"]},
+    {"task_id": "LH-H08", "level": "hard", "description": "并发模型请求使用不同 temp、request id、task id 与 lane。", "expected_result": "每个请求只观察自己的真实采样参数和关联元数据，主线程无泄漏。", "capabilities": ["contextvar_isolation", "sampling_profile", "request_correlation"]},
     {"task_id": "LH-H09", "level": "hard", "description": "20 节点链在第 11 节点后中断并恢复。", "expected_result": "前 11 节点不重做，剩余 9 节点继续并完成。", "capabilities": ["long_chain", "resume", "deduplication"]},
     {"task_id": "LH-H10", "level": "hard", "description": "多文件配置、失败检查、修复、复测和最终清单。", "expected_result": "完整 DAG 经一次 replan 后通过所有真实检查并生成清单。", "capabilities": ["end_to_end", "multi_file", "repair", "final_verification"]}
   ]

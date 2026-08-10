@@ -12,7 +12,7 @@ from rwkv_lh.harness import (
     ActionResult,
     HarnessError,
 )
-from rwkv_lh.memory import MemoryBudgets, WorkingMemoryBuilder
+from rwkv_lh.memory import ContextBundle, MemoryBudgets, WorkingMemoryBuilder
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.schema import (
     GoalCriterion,
@@ -24,6 +24,8 @@ from rwkv_lh.schema import (
     ValidationSpec,
 )
 from rwkv_lh.temp_policy import TemperaturePolicy
+from rwkv_lh.runtime.settings import get_runtime_settings
+from rwkv_lh.token_budget import get_token_count
 from rwkv_lh.validation import ValidationEngine
 
 
@@ -291,6 +293,26 @@ def test_working_memory_selects_dependencies_and_excludes_noise():
         assert "M-EVIDENCE" in bundle.selected_memory_ids
         assert "M-NOISE" in bundle.excluded_memory_ids
         assert bundle.total_tokens <= 1200
+
+
+def test_request_specific_context_projection_preserves_goal_and_prompt_template():
+    context = ContextBundle(
+        goal="IMMUTABLE GOAL\nkeep-this-goal",
+        task="ACTIVE TASK\nkeep-this-task",
+        dependencies=["dependency observation" * 100],
+        evidence=["general evidence" * 20_000],
+        failure="latest failure",
+    )
+    prompt = LongHorizonModel._json_prompt_with_context(
+        "FIXED PREFIX\n__RWKV_LH_BOUNDED_CONTEXT__\nFIXED SUFFIX",
+        context,
+        5000,
+    )
+    runtime = get_runtime_settings()
+    assert "FIXED PREFIX" in prompt and "FIXED SUFFIX" in prompt
+    assert "keep-this-goal" in prompt and "keep-this-task" in prompt
+    assert get_token_count(prompt) <= runtime.max_prompt_tokens(5000)
+    assert "general evidence" not in prompt
 
 
 def test_temperature_policy_only_escalates_exploration():

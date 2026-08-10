@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
 from rwkv_lh.schema import MemoryEntry, RunState, TaskNode
+from rwkv_lh.runtime.settings import get_runtime_settings
 from rwkv_lh.token_budget import get_token_count, smart_truncate
 
 
@@ -49,6 +50,48 @@ class ContextBundle:
             sections.append("ALLOWED ACTION CONTRACT\n" + self.action_contract)
         return "\n\n".join(section for section in sections if section.strip())
 
+    def projected(self, total_input: int) -> "ContextBundle":
+        """Return a smaller prompt projection without truncating Goal or task."""
+
+        limit = max(1, int(total_input))
+        bundle = ContextBundle(
+            goal=self.goal,
+            task=self.task,
+            dependencies=list(self.dependencies),
+            evidence=list(self.evidence),
+            failure=self.failure,
+            action_contract=self.action_contract,
+            selected_memory_ids=list(self.selected_memory_ids),
+            excluded_memory_ids=list(self.excluded_memory_ids),
+        )
+        # General evidence is least authoritative. Dependency observations and
+        # the latest material failure remain available for as long as possible.
+        while bundle.evidence and get_token_count(bundle.to_prompt()) > limit:
+            bundle.evidence.pop()
+        while bundle.dependencies and get_token_count(bundle.to_prompt()) > limit:
+            bundle.dependencies.pop()
+        if get_token_count(bundle.to_prompt()) > limit:
+            bundle.action_contract = ""
+        if get_token_count(bundle.to_prompt()) > limit:
+            bundle.failure = ""
+        if get_token_count(bundle.to_prompt()) > limit:
+            raise ValueError(
+                "immutable goal and active task exceed the request-specific prompt budget"
+            )
+        bundle.refresh_token_counts()
+        return bundle
+
+    def refresh_token_counts(self) -> None:
+        self.token_counts = {
+            "goal": get_token_count(self.goal),
+            "task": get_token_count(self.task),
+            "dependencies": get_token_count("\n\n".join(self.dependencies)),
+            "evidence": get_token_count("\n\n".join(self.evidence)),
+            "failure": get_token_count(self.failure),
+            "action_contract": get_token_count(self.action_contract),
+            "total": get_token_count(self.to_prompt()),
+        }
+
 
 class WorkingMemoryBuilder:
     def __init__(self, budgets: MemoryBudgets | None = None):
@@ -60,6 +103,8 @@ class WorkingMemoryBuilder:
         task: TaskNode,
         *,
         action_contract: str = "",
+        max_output_tokens: int | None = None,
+        prompt_overhead_tokens: int = 0,
     ) -> ContextBundle:
         goal = self._bounded(self._goal_text(state), self.budgets.goal)
         task_text = self._bounded(self._task_text(task), self.budgets.task)
@@ -93,17 +138,16 @@ class WorkingMemoryBuilder:
             selected_memory_ids=selected,
             excluded_memory_ids=excluded,
         )
-        self._enforce_total_budget(bundle)
-        bundle.token_counts = {
-            "goal": get_token_count(bundle.goal),
-            "task": get_token_count(bundle.task),
-            "dependencies": get_token_count("\n\n".join(bundle.dependencies)),
-            "evidence": get_token_count("\n\n".join(bundle.evidence)),
-            "failure": get_token_count(bundle.failure),
-            "action_contract": get_token_count(bundle.action_contract),
-            "total": get_token_count(bundle.to_prompt()),
-        }
-        return bundle
+        total_limit = self.budgets.total_input
+        if max_output_tokens is not None:
+            request_limit = (
+                get_runtime_settings().max_prompt_tokens(max_output_tokens)
+                - max(0, int(prompt_overhead_tokens))
+            )
+            if request_limit < 1:
+                raise ValueError("prompt overhead leaves no working-memory budget")
+            total_limit = min(total_limit, request_limit)
+        return bundle.projected(total_limit)
 
     @staticmethod
     def _goal_text(state: RunState) -> str:
@@ -258,23 +302,5 @@ class WorkingMemoryBuilder:
             return value
         prefix, _ = smart_truncate(value, max_tokens=max(1, budget))
         return prefix.strip()
-
-    def _enforce_total_budget(self, bundle: ContextBundle) -> None:
-        fixed = get_token_count("\n\n".join([bundle.goal, bundle.task]))
-        remaining = max(0, self.budgets.total_input - fixed)
-        mutable = [
-            ("dependencies", bundle.dependencies),
-            ("evidence", bundle.evidence),
-        ]
-        for _, values in mutable:
-            while values and get_token_count(bundle.to_prompt()) > self.budgets.total_input:
-                values.pop()
-        if get_token_count(bundle.to_prompt()) > self.budgets.total_input:
-            bundle.failure = ""
-        if get_token_count(bundle.to_prompt()) > self.budgets.total_input:
-            bundle.action_contract = self._bounded(bundle.action_contract, max(0, remaining // 2))
-        if get_token_count(bundle.to_prompt()) > self.budgets.total_input:
-            raise ValueError("goal and active task exceed working-memory input budget")
-
 
 __all__ = ["ContextBundle", "MemoryBudgets", "WorkingMemoryBuilder"]

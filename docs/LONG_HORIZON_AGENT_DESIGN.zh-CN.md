@@ -11,7 +11,7 @@ RWKV-LH 解决的是“模型需要在较长时间内完成多个互相依赖的
 - 副作用、验证结果、失败和恢复动作可以审计；
 - 模型说 `done` 不等于任务完成；
 - 中断后从持久状态继续，而不是重新执行全部任务；
-- temperature 和 seed 是每个模型请求的属性，而不是进程级固定参数。
+- rapid-sampling 参数和请求关联元数据按每个模型请求隔离，而不是进程级固定参数。
 
 仓库不包含网页检索流程、答案 Judge、检索 benchmark 或前端。外部能力通过显式 Harness Action 注入。
 
@@ -69,7 +69,7 @@ SQLite 是默认状态存储，`StateStore` Protocol 保留替换数据库实现
 
 完整历史不进入每次 prompt。`WorkingMemoryBuilder` 只选择不可变 Goal、当前 Task、依赖输出、显式 memory reference、相关 evidence、最近一次材料性失败和 Action Contract。
 
-RWKV 官方 tokenizer 随包提供，用于真实 token 计数。默认总输入预算为 13,600 tokens，为 16K 模型保留输出空间。
+RWKV 官方 tokenizer 随包提供，用于真实 token 计数。工作记忆先按 13,600 tokens 上限选择内容，再根据当前请求的 `max_tokens`、16,384 上下文上限、服务端 BOS 和安全余量做最终投影。不可变 Goal 和当前 Task 不会被静默截断；放不下时请求在发送前失败。
 
 ## 6. Harness 与扩展能力
 
@@ -106,11 +106,11 @@ flowchart LR
 模块边界：
 
 - `runtime/settings.py`：环境配置、URL、模型、超时、重试、TLS 和 proxy policy；
-- `runtime/sampling.py`：ContextVar 隔离的 temperature、seed、task id 与 lane；
+- `runtime/sampling.py`：ContextVar 隔离的 rapid-sampling 参数、request id、task id 与 lane；
 - `runtime/protocol.py`：请求、响应、usage、health 数据结构和错误分类；
 - `runtime/openai_compat.py`：线程隔离 Session、连接池、UTF-8 JSON、有限重试和 OpenAI-compatible endpoint。
 
-可重试错误仅限连接错误、超时以及明确的 408/425/429/5xx。协议错误和普通 4xx 不会用重复请求掩盖。
+生成请求只自动重试确定尚未提交的连接超时，以及明确返回的 425/429/500/502/503/504。发送后发生读取超时或连接中断时，副作用结果记为 `unknown`，禁止自动重复生成。协议错误和普通 4xx 不会用重复请求掩盖。
 
 ## 8. Request-level temperature
 
@@ -124,6 +124,8 @@ flowchart LR
 | final_answer | 0.05 | 忠实表达已验证结果 |
 
 同一协议输出失败最多做一次同温度格式纠正。只有重复策略失败才提高 replan 温度；出现新证据时重新从基础 replan 温度开始。采样参数通过 ContextVar 进入 HTTP payload，并在请求返回后恢复。
+
+vllm-rwkv 当前强制使用 rapid-sampling。RWKV-LH 只开放源码实际支持且语义明确的 `temperature`、`top_p`、`top_k`、`presence_penalty`、`frequency_penalty`、`penalty_decay`、`min_tokens`、停止字符串和附加 `stop_token_ids`。当前路径不支持显式 `seed`、greedy (`temperature < 1e-5`)、`min_p`、非 1 的 `repetition_penalty`、`ignore_eos` 或 thinking budget；这些能力不会出现在运行入口中，兼容层收到显式 seed 时会本地拒绝。
 
 ## 9. Completion 与 Validation
 

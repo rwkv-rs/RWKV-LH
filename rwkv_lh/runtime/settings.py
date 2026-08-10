@@ -67,6 +67,15 @@ class RuntimeSettings:
     retry_attempts: int = 2
     retry_backoff_seconds: float = 0.5
     default_temperature: float = 0.1
+    default_top_p: float = 1.0
+    default_top_k: int = 0
+    default_presence_penalty: float = 0.0
+    default_frequency_penalty: float = 0.0
+    default_penalty_decay: float = 0.996
+    max_model_len: int = 16384
+    context_safety_margin: int = 32
+    bos_token_count: int = 1
+    return_token_ids: bool = False
     trust_environment_proxies: bool = False
     verify_tls: bool = True
 
@@ -85,6 +94,15 @@ class RuntimeSettings:
             retry_attempts=_int("RWKV_RETRY_ATTEMPTS", 2),
             retry_backoff_seconds=_float("RWKV_RETRY_BACKOFF", 0.5),
             default_temperature=_float("RWKV_DEFAULT_TEMPERATURE", 0.1),
+            default_top_p=_float("RWKV_DEFAULT_TOP_P", 1.0),
+            default_top_k=_int("RWKV_DEFAULT_TOP_K", 0),
+            default_presence_penalty=_float("RWKV_DEFAULT_PRESENCE_PENALTY", 0.0),
+            default_frequency_penalty=_float("RWKV_DEFAULT_FREQUENCY_PENALTY", 0.0),
+            default_penalty_decay=_float("RWKV_DEFAULT_PENALTY_DECAY", 0.996),
+            max_model_len=_int("RWKV_MAX_MODEL_LEN", 16384),
+            context_safety_margin=_int("RWKV_CONTEXT_SAFETY_MARGIN", 32),
+            bos_token_count=_int("RWKV_BOS_TOKEN_COUNT", 1),
+            return_token_ids=_bool("RWKV_RETURN_TOKEN_IDS", False),
             trust_environment_proxies=_bool("RWKV_TRUST_ENV", False),
             verify_tls=_bool("RWKV_VERIFY_TLS", True),
         )
@@ -101,8 +119,44 @@ class RuntimeSettings:
             raise ValueError("RWKV timeouts must be positive")
         if self.retry_attempts < 1:
             raise ValueError("RWKV_RETRY_ATTEMPTS must be at least 1")
-        if not 0 <= self.default_temperature <= 2:
-            raise ValueError("RWKV_DEFAULT_TEMPERATURE must be between 0 and 2")
+        if not 1e-5 <= self.default_temperature <= 2:
+            raise ValueError(
+                "RWKV_DEFAULT_TEMPERATURE must be between 1e-5 and 2 for "
+                "vllm-rwkv rapid-sampling"
+            )
+        if not 0 < self.default_top_p <= 1:
+            raise ValueError("RWKV_DEFAULT_TOP_P must be in (0, 1]")
+        if self.default_top_k < 0:
+            raise ValueError("RWKV_DEFAULT_TOP_K must be 0 (disabled) or positive")
+        if not -2 <= self.default_presence_penalty <= 2:
+            raise ValueError("RWKV_DEFAULT_PRESENCE_PENALTY must be in [-2, 2]")
+        if not -2 <= self.default_frequency_penalty <= 2:
+            raise ValueError("RWKV_DEFAULT_FREQUENCY_PENALTY must be in [-2, 2]")
+        if not 0 <= self.default_penalty_decay <= 1:
+            raise ValueError("RWKV_DEFAULT_PENALTY_DECAY must be in [0, 1]")
+        if self.max_model_len < 2:
+            raise ValueError("RWKV_MAX_MODEL_LEN must be at least 2")
+        if self.context_safety_margin < 0 or self.bos_token_count < 0:
+            raise ValueError("RWKV context reserves must not be negative")
+        if self.context_safety_margin + self.bos_token_count >= self.max_model_len:
+            raise ValueError("RWKV context reserves leave no usable model context")
+
+    def max_prompt_tokens(self, max_output_tokens: int) -> int:
+        """Return the largest safe locally-counted prompt for one request."""
+
+        output = max(1, int(max_output_tokens))
+        available = (
+            self.max_model_len
+            - output
+            - self.context_safety_margin
+            - self.bos_token_count
+        )
+        if available < 1:
+            raise ValueError(
+                f"max_output_tokens={output} leaves no prompt space in "
+                f"max_model_len={self.max_model_len}"
+            )
+        return available
 
 
 @lru_cache(maxsize=1)
