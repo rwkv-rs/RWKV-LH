@@ -165,7 +165,11 @@ class ValidationEngine:
         action_result: ActionResult,
         goal: GoalState,
         state: RunState | None = None,
-        cross_check: Callable[[TaskNode, ActionResult, ValidationSpec], ValidationResult] | None = None,
+        cross_check: Callable[
+            [TaskNode, ActionResult, ValidationSpec, tuple[ValidationResult, ...]],
+            ValidationResult,
+        ]
+        | None = None,
     ) -> ValidationSummary:
         specs = list(task.completion_criteria)
         if not specs:
@@ -179,10 +183,23 @@ class ValidationEngine:
                 ),
             )
             return ValidationSummary(action_result.success, action_result.success, results)
-        results = tuple(
-            self._validate_spec(spec, task, action_result, goal, state, cross_check)
-            for spec in specs
-        )
+        ordered_specs = [
+            spec for spec in specs if spec.kind != "model_cross_check"
+        ] + [spec for spec in specs if spec.kind == "model_cross_check"]
+        observed_results: list[ValidationResult] = []
+        for spec in ordered_specs:
+            observed_results.append(
+                self._validate_spec(
+                    spec,
+                    task,
+                    action_result,
+                    goal,
+                    state,
+                    cross_check,
+                    tuple(observed_results),
+                )
+            )
+        results = tuple(observed_results)
         required_passed = all(result.passed for result in results if result.required)
         return ValidationSummary(
             passed=required_passed and all(result.passed or not result.required for result in results),
@@ -197,12 +214,17 @@ class ValidationEngine:
         action_result: ActionResult,
         goal: GoalState,
         state: RunState | None,
-        cross_check: Callable[[TaskNode, ActionResult, ValidationSpec], ValidationResult] | None,
+        cross_check: Callable[
+            [TaskNode, ActionResult, ValidationSpec, tuple[ValidationResult, ...]],
+            ValidationResult,
+        ]
+        | None,
+        observed_results: tuple[ValidationResult, ...],
     ) -> ValidationResult:
         kind = str(spec.kind or "").strip()
         try:
             if kind == "model_cross_check" and cross_check is not None:
-                return cross_check(task, action_result, spec)
+                return cross_check(task, action_result, spec, observed_results)
             passed, message, evidence = self._run(kind, spec.parameters, action_result, goal, state)
             return ValidationResult(kind, passed, spec.required, message, evidence)
         except Exception as exc:

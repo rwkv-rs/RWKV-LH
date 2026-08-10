@@ -848,7 +848,7 @@ class LongHorizonController:
         if not callable(method):
             return None
 
-        def check(task, action_result, spec):
+        def check(task, action_result, spec, validation_results):
             context = self.memory.build(state, task)
             passed, reason = method(
                 state,
@@ -856,7 +856,7 @@ class LongHorizonController:
                 context,
                 self._persist_callback(),
                 action_result=action_result.to_dict(),
-                validation_results=[],
+                validation_results=[vars(item) for item in validation_results],
             )
             return ValidationResult(
                 kind="model_cross_check",

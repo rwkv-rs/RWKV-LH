@@ -207,6 +207,7 @@ class ModelInvoker:
             frequency_penalty=runtime.default_frequency_penalty,
             penalty_decay=runtime.default_penalty_decay,
             max_tokens=output_limit,
+            backend_profile=runtime.backend_profile,
         )
         sampling_event = {
             "temperature": decision.temperature,
@@ -508,6 +509,9 @@ class LongHorizonModel:
                 max_tokens=5000 if attempt == 1 else 3600,
             )
             payload = call.payload or {}
+            recovered_plan_envelope = self._recover_bare_plan_task(payload)
+            if recovered_plan_envelope is not None:
+                payload = recovered_plan_envelope
             try:
                 if str(payload.get("schema_version") or "") != "long-horizon.plan.v1":
                     raise ModelProtocolError("invalid plan schema")
@@ -516,6 +520,22 @@ class LongHorizonModel:
                 self._ensure_goal_bindings(state, tasks, persist)
                 self._validate_task_contracts(tasks)
                 self._validate_goal_bindings(state, tasks, require_coverage=True)
+                if recovered_plan_envelope is not None:
+                    call.decision.outcome = "protocol_recovered"
+                    ignored_fields = sorted(
+                        set((call.payload or {})) - self._BARE_PLAN_TASK_FIELDS
+                    )
+                    persist(
+                        state,
+                        "model_protocol_recovered",
+                        {
+                            "request_id": call.decision.request_id,
+                            "request_type": "task_decomposition",
+                            "field": "plan_envelope",
+                            "reason": "single_complete_task_node",
+                            "ignored_fields": ignored_fields,
+                        },
+                    )
                 return tasks
             except (ModelProtocolError, TaskGraphError) as exc:
                 last_error = str(exc)
@@ -599,12 +619,26 @@ class LongHorizonModel:
                 schema = str(payload.get("schema_version") or "")
                 if schema and schema != "long-horizon.action-choice.v1":
                     raise ModelProtocolError("invalid action-choice schema")
-                if str(payload.get("task_id") or "") != task.task_id:
+                returned_task_id = str(payload.get("task_id") or "")
+                if returned_task_id and returned_task_id != task.task_id:
                     raise ModelProtocolError("action choice did not echo the active task_id")
                 action_type = str(payload.get("action_type") or "").strip()
                 if not action_type or action_type == "model_action":
                     raise ModelProtocolError("action choice did not select a concrete Harness action")
                 self.harness.definition(action_type)
+                if not returned_task_id:
+                    call.decision.outcome = "protocol_recovered"
+                    persist(
+                        state,
+                        "model_protocol_recovered",
+                        {
+                            "request_id": call.decision.request_id,
+                            "request_type": "tool_choice",
+                            "field": "task_id",
+                            "recovered_value": task.task_id,
+                            "reason": "single_active_task_scope",
+                        },
+                    )
                 return action_type
             except Exception as exc:
                 last_error = str(exc)
@@ -1234,6 +1268,43 @@ class LongHorizonModel:
             if context_budget < 1:
                 break
         raise ValueError("bounded context could not be fitted into the final prompt")
+
+    @staticmethod
+    def _recover_bare_plan_task(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+        """Recover only a complete single task node missing the plan envelope."""
+
+        if "schema_version" in payload or "tasks" in payload:
+            return None
+        required = {
+            "task_id",
+            "title",
+            "description",
+            "dependencies",
+            "required",
+            "priority",
+            "goal_criteria",
+            "retry_policy",
+        }
+        if not required.issubset(payload):
+            return None
+        allowed = required | {"arguments", "postconditions"}
+        if set(payload) - allowed:
+            return None
+        return {
+            "schema_version": "long-horizon.plan.v1",
+            "tasks": [dict(payload)],
+        }
+
+    _BARE_PLAN_TASK_FIELDS = {
+        "task_id",
+        "title",
+        "description",
+        "dependencies",
+        "required",
+        "priority",
+        "goal_criteria",
+        "retry_policy",
+    }
 
     @staticmethod
     def _task_nodes(raw_tasks: Any) -> list[TaskNode]:

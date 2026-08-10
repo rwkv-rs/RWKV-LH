@@ -108,6 +108,73 @@ def test_request_level_rapid_sampling_profile_reaches_wire(monkeypatch):
     assert get_request_temperature() == 0.1
 
 
+def test_rwkv_lightning_native_profile_maps_prompt_and_alpha_sampling(monkeypatch):
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "id": "rwkv-lightning-1",
+                    "model": "rwkv-test",
+                    "choices": [{"text": "OK", "finish_reason": "stop"}],
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(
+        settings(
+            backend_profile="rwkv-lightning-native",
+            cf_access_client_id="client-id",
+            cf_access_client_secret="client-secret",
+        )
+    )
+
+    with sampling_parameters(
+        0.2,
+        top_p=0.9,
+        top_k=32,
+        presence_penalty=0.4,
+        frequency_penalty=0.1,
+        penalty_decay=0.99,
+        request_id="MR-native",
+    ):
+        response = client.text_completion(
+            "### User\nReturn OK.\n### Assistant\n",
+            max_tokens=8,
+            stop=["### User"],
+        )
+
+    method, endpoint, arguments = fake.calls[0]
+    assert method == "POST"
+    assert endpoint == "http://127.0.0.1:29613/v1/chat/completions"
+    assert arguments["json"] == {
+        "contents": ["### User\nReturn OK.\n### Assistant\n"],
+        "max_tokens": 8,
+        "stop_tokens": ["### User"],
+        "temperature": 0.2,
+        "top_k": 32,
+        "top_p": 0.9,
+        "alpha_presence": 0.4,
+        "alpha_frequency": 0.1,
+        "alpha_decay": 0.99,
+        "stream": False,
+    }
+    assert arguments["headers"]["CF-Access-Client-Id"] == "client-id"
+    assert arguments["headers"]["CF-Access-Client-Secret"] == "client-secret"
+    assert response.content == "OK"
+
+
+def test_rwkv_lightning_native_rejects_vllm_only_options(monkeypatch):
+    fake = FakeSession([])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(
+        settings(backend_profile="rwkv-lightning-native")
+    )
+    with pytest.raises(ValueError, match="min_tokens"):
+        client.text_completion("prompt", min_tokens=1)
+    assert fake.calls == []
+
+
 def test_seed_is_rejected_before_a_request_is_sent(monkeypatch):
     fake = FakeSession([])
     monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)

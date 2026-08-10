@@ -41,6 +41,29 @@ flowchart TD
 
 ## OpenAI-compatible RWKV runtime
 
+### WSL-only 运行边界
+
+RWKV-LH 的项目进程、Python、测试与 E2E benchmark 只在 WSL 中运行。Windows 不承载项目服务或代理中转脚本；允许 WSL 直接使用 Windows 上的 FlClash，例如 `RWKV_PROXY_URL=http://172.31.80.1:7890`。代理只改变网络出口，不改变执行环境，正式报告必须记录 WSL 发行版、代理地址和并发度。
+
+### RWKV 推理后端 profile
+
+运行时只面向 RWKV，但支持两个已经由真实 RWKV 服务实现的线协议：
+
+- `vllm-rwkv-rapid`：使用 `/completions`，发送 vllm-rwkv rapid-sampling 已实现的参数。
+- `rwkv-lightning-native`：使用 `/chat/completions`，把 prompt 映射为 `contents`，停止串映射为 `stop_tokens`，重复惩罚映射为 `alpha_presence`、`alpha_frequency` 和 `alpha_decay`。该 profile 不发送服务端没有实现的 `min_tokens`、`stop_token_ids` 或 token-id 返回选项。
+
+远端位于 Cloudflare Access 后时，可通过 `RWKV_CF_ACCESS_CLIENT_ID` 和 `RWKV_CF_ACCESS_CLIENT_SECRET` 注入访问头；凭证只写入被 Git 忽略的 `.env.local` 或当前 WSL 进程环境，禁止写入命令记录、报告和仓库。
+
+```dotenv
+RWKV_BASE_URL=https://your-rwkv-endpoint.example/v1
+RWKV_MODEL=your-rwkv-model-id
+RWKV_BACKEND_PROFILE=rwkv-lightning-native
+RWKV_API_KEY=
+RWKV_CF_ACCESS_CLIENT_ID=
+RWKV_CF_ACCESS_CLIENT_SECRET=
+RWKV_PROXY_URL=http://172.31.80.1:7890
+```
+
 runtime 不是散落的 HTTP 调用，而是四层稳定接口：
 
 - `settings.py`：类型化部署配置和 `.env.local` 加载。

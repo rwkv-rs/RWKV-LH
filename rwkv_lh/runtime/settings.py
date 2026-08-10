@@ -62,6 +62,10 @@ class RuntimeSettings:
     base_url: str
     api_key: str
     model: str
+    backend_profile: str = "vllm-rwkv-rapid"
+    cf_access_client_id: str = ""
+    cf_access_client_secret: str = ""
+    proxy_url: str = ""
     connect_timeout_seconds: float = 10.0
     read_timeout_seconds: float = 300.0
     retry_attempts: int = 2
@@ -89,6 +93,19 @@ class RuntimeSettings:
                 "RWKV_MODEL",
                 "rwkv7-g1i-13.3b-20260805-ctx16384",
             ).strip(),
+            backend_profile=os.environ.get(
+                "RWKV_BACKEND_PROFILE",
+                "vllm-rwkv-rapid",
+            ).strip(),
+            cf_access_client_id=os.environ.get(
+                "RWKV_CF_ACCESS_CLIENT_ID",
+                "",
+            ).strip(),
+            cf_access_client_secret=os.environ.get(
+                "RWKV_CF_ACCESS_CLIENT_SECRET",
+                "",
+            ).strip(),
+            proxy_url=os.environ.get("RWKV_PROXY_URL", "").strip(),
             connect_timeout_seconds=_float("RWKV_CONNECT_TIMEOUT", 10.0),
             read_timeout_seconds=_float("RWKV_READ_TIMEOUT", 300.0),
             retry_attempts=_int("RWKV_RETRY_ATTEMPTS", 2),
@@ -115,6 +132,23 @@ class RuntimeSettings:
             raise ValueError("RWKV_BASE_URL must be an absolute HTTP(S) URL")
         if not self.model:
             raise ValueError("RWKV_MODEL must not be empty")
+        if self.backend_profile not in {
+            "vllm-rwkv-rapid",
+            "rwkv-lightning-native",
+        }:
+            raise ValueError(
+                "RWKV_BACKEND_PROFILE must be vllm-rwkv-rapid or "
+                "rwkv-lightning-native"
+            )
+        if bool(self.cf_access_client_id) != bool(self.cf_access_client_secret):
+            raise ValueError(
+                "RWKV_CF_ACCESS_CLIENT_ID and RWKV_CF_ACCESS_CLIENT_SECRET "
+                "must be configured together"
+            )
+        if self.proxy_url:
+            proxy = urlparse(self.proxy_url)
+            if proxy.scheme not in {"http", "https"} or not proxy.netloc:
+                raise ValueError("RWKV_PROXY_URL must be an absolute HTTP(S) URL")
         if self.connect_timeout_seconds <= 0 or self.read_timeout_seconds <= 0:
             raise ValueError("RWKV timeouts must be positive")
         if self.retry_attempts < 1:

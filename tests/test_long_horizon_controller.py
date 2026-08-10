@@ -628,6 +628,92 @@ def test_model_plan_repairs_contract_once_without_raising_temperature():
         assert [item.outcome for item in state.temp_decisions] == ["contract_error", "ok"]
 
 
+class BareTaskPlanClient:
+    def __init__(self):
+        self.calls = []
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.calls.append((get_request_temperature(), prompt))
+        return type(
+            "Response",
+            (),
+            {
+                "content": json.dumps(
+                    {
+                        "task_id": "T1",
+                        "title": "Inspect input",
+                        "description": "Read the scoped input before deriving the result",
+                        "dependencies": [],
+                        "required": True,
+                        "priority": 50,
+                        "goal_criteria": ["GC1"],
+                        "retry_policy": {
+                            "max_attempts": 3,
+                            "backoff_seconds": 0.2,
+                            "replan_after": 2,
+                        },
+                        "arguments": {"path": "input.txt"},
+                        "postconditions": ["file_contents"],
+                    }
+                )
+            },
+        )()
+
+
+def test_model_plan_safely_recovers_complete_bare_task_envelope():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-PLAN-ENVELOPE")
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = BareTaskPlanClient()
+        tasks = LongHorizonModel(ModelInvoker(client=client), action_contract="{}").plan(
+            state, persist
+        )
+
+        assert [task.task_id for task in tasks] == ["T1"]
+        assert tasks[0].action.action_type == "model_action"
+        assert len(client.calls) == 1
+        assert state.temp_decisions[-1].outcome == "protocol_recovered"
+        recoveries = [
+            event
+            for event in store.event_records(state.run_id)
+            if event["type"] == "model_protocol_recovered"
+        ]
+        assert recoveries[-1]["data"] == {
+            "request_id": state.temp_decisions[-1].request_id,
+            "request_type": "task_decomposition",
+            "field": "plan_envelope",
+            "reason": "single_complete_task_node",
+            "ignored_fields": ["arguments", "postconditions"],
+        }
+
+
+def test_bare_plan_recovery_rejects_partial_or_unknown_task_objects():
+    base = {
+        "task_id": "T1",
+        "title": "Inspect",
+        "description": "Inspect input",
+        "dependencies": [],
+        "required": True,
+        "priority": 50,
+        "goal_criteria": ["GC1"],
+        "retry_policy": {"max_attempts": 3},
+    }
+    assert LongHorizonModel._recover_bare_plan_task(base) is not None
+    assert LongHorizonModel._recover_bare_plan_task(
+        {key: value for key, value in base.items() if key != "goal_criteria"}
+    ) is None
+    assert LongHorizonModel._recover_bare_plan_task(
+        {**base, "untrusted_extension": True}
+    ) is None
+
+
 class SequenceActionClient:
     def __init__(self):
         self.calls = []
@@ -645,6 +731,15 @@ class SequenceActionClient:
     def text_completion(self, prompt, max_tokens=768, stop=None):
         self.calls.append((get_request_temperature(), prompt))
         return type("Response", (), {"content": self.outputs.pop(0)})()
+
+
+class MissingTaskIdActionClient(SequenceActionClient):
+    def __init__(self):
+        super().__init__()
+        self.outputs[0] = (
+            '"schema_version":"long-horizon.action-choice.v1",'
+            '"action_type":"write_file"}'
+        )
 
 
 def test_model_action_pipeline_separates_choice_arguments_and_verification():
@@ -685,6 +780,46 @@ def test_model_action_pipeline_separates_choice_arguments_and_verification():
         assert "ACTION TYPE CATALOG" in client.calls[0][1]
         assert "SELECTED ACTION CONTRACT" in client.calls[1][1]
         assert "ALLOWED VERIFIER CONTRACT" in client.calls[2][1]
+
+
+def test_model_action_safely_recovers_missing_active_task_echo():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-ACTION-ECHO")
+        task = TaskNode(
+            "T1",
+            "Write result",
+            "Write verified text to result.txt",
+            goal_criteria=["GC1"],
+            action=TaskAction("model_action", {}),
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = MissingTaskIdActionClient()
+        harness = ActionHarness()
+        model = LongHorizonModel(ModelInvoker(client=client), harness=harness)
+        context = WorkingMemoryBuilder().build(state, task)
+        proposal = model.propose_action(
+            state,
+            task,
+            context,
+            harness.action_contract(),
+            persist,
+        )
+
+        assert proposal.action.action_type == "write_file"
+        recoveries = [
+            event
+            for event in store.event_records(state.run_id)
+            if event["type"] == "model_protocol_recovered"
+        ]
+        assert recoveries[-1]["data"]["field"] == "task_id"
+        assert recoveries[-1]["data"]["recovered_value"] == "T1"
 
 
 class ReselectingFailureModel:

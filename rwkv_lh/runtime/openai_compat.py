@@ -54,6 +54,13 @@ class OpenAICompatibleRWKVClient:
     def _new_session(self) -> requests.Session:
         session = requests.Session()
         session.trust_env = self.settings.trust_environment_proxies
+        if self.settings.proxy_url:
+            session.proxies.update(
+                {
+                    "http": self.settings.proxy_url,
+                    "https": self.settings.proxy_url,
+                }
+            )
         return session
 
     def _session(self) -> requests.Session:
@@ -68,12 +75,51 @@ class OpenAICompatibleRWKVClient:
         return session
 
     def _headers(self) -> dict[str, str]:
-        token = self.settings.api_key or "local"
-        return {
-            "Authorization": f"Bearer {token}",
+        headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        if self.settings.api_key:
+            headers["Authorization"] = f"Bearer {self.settings.api_key}"
+        if self.settings.cf_access_client_id:
+            headers["CF-Access-Client-Id"] = self.settings.cf_access_client_id
+            headers["CF-Access-Client-Secret"] = (
+                self.settings.cf_access_client_secret
+            )
+        return headers
+
+    def _text_payload(self, request: TextCompletionRequest) -> dict[str, Any]:
+        if self.settings.backend_profile == "vllm-rwkv-rapid":
+            return request.payload(self.model_name)
+        unsupported: list[str] = []
+        if request.min_tokens:
+            unsupported.append("min_tokens")
+        if request.stop_token_ids:
+            unsupported.append("stop_token_ids")
+        if request.return_token_ids:
+            unsupported.append("return_token_ids")
+        if unsupported:
+            raise ValueError(
+                "rwkv-lightning-native does not support: "
+                + ", ".join(unsupported)
+            )
+        return {
+            "contents": [request.prompt],
+            "max_tokens": int(request.max_tokens),
+            "stop_tokens": list(request.stop),
+            "temperature": float(request.temperature),
+            "top_k": int(request.top_k),
+            "top_p": float(request.top_p),
+            "alpha_presence": float(request.presence_penalty),
+            "alpha_frequency": float(request.frequency_penalty),
+            "alpha_decay": float(request.penalty_decay),
+            "stream": False,
+        }
+
+    def _generation_path(self) -> str:
+        if self.settings.backend_profile == "rwkv-lightning-native":
+            return "/chat/completions"
+        return "/completions"
 
     def _emit(self, event: Mapping[str, Any]) -> None:
         if self.audit_hook is None:
@@ -230,12 +276,14 @@ class OpenAICompatibleRWKVClient:
             add_special_tokens=True,
             return_token_ids=self.settings.return_token_ids,
         )
-        payload = request.payload(self.model_name)
+        payload = self._text_payload(request)
+        generation_path = self._generation_path()
         started = time.perf_counter()
         self._emit(
             {
                 "type": "runtime_request_started",
-                "endpoint": "/completions",
+                "endpoint": generation_path,
+                "backend_profile": self.settings.backend_profile,
                 "model": self.model_name,
                 "temperature": request.temperature,
                 "top_p": request.top_p,
@@ -251,13 +299,14 @@ class OpenAICompatibleRWKVClient:
         )
         try:
             data, latency_ms, attempts = self._request_json(
-                "POST", "/completions", payload=payload, generation=True
+                "POST", generation_path, payload=payload, generation=True
             )
             response = self._completion_response(data, latency_ms, attempts)
             self._emit(
                 {
                     "type": "runtime_request_returned",
-                    "endpoint": "/completions",
+                    "endpoint": generation_path,
+                    "backend_profile": self.settings.backend_profile,
                     "model": self.model_name,
                     "temperature": request.temperature,
                     "request_id": request.request_id,
@@ -272,7 +321,8 @@ class OpenAICompatibleRWKVClient:
             self._emit(
                 {
                     "type": "runtime_request_unknown",
-                    "endpoint": "/completions",
+                    "endpoint": generation_path,
+                    "backend_profile": self.settings.backend_profile,
                     "model": self.model_name,
                     "temperature": request.temperature,
                     "request_id": request.request_id,
@@ -285,7 +335,8 @@ class OpenAICompatibleRWKVClient:
             self._emit(
                 {
                     "type": "runtime_request_failed",
-                    "endpoint": "/completions",
+                    "endpoint": generation_path,
+                    "backend_profile": self.settings.backend_profile,
                     "model": self.model_name,
                     "temperature": request.temperature,
                     "request_id": request.request_id,
@@ -327,11 +378,32 @@ class OpenAICompatibleRWKVClient:
             add_special_tokens=False,
             return_token_ids=self.settings.return_token_ids,
         )
+        if self.settings.backend_profile == "rwkv-lightning-native":
+            rendered = "".join(
+                f"{str(item.get('role') or 'user').title()}: "
+                f"{str(item.get('content') or '')}\n"
+                for item in request.messages
+            )
+            native_request = TextCompletionRequest(
+                prompt=rendered,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                top_k=request.top_k,
+                presence_penalty=request.presence_penalty,
+                frequency_penalty=request.frequency_penalty,
+                penalty_decay=request.penalty_decay,
+                min_tokens=request.min_tokens,
+                stop=request.stop,
+                stop_token_ids=request.stop_token_ids,
+                request_id=request.request_id,
+                return_token_ids=request.return_token_ids,
+            )
+            payload = self._text_payload(native_request)
+        else:
+            payload = request.payload(self.model_name)
         data, latency_ms, attempts = self._request_json(
-            "POST",
-            "/chat/completions",
-            payload=request.payload(self.model_name),
-            generation=True,
+            "POST", "/chat/completions", payload=payload, generation=True
         )
         return self._completion_response(data, latency_ms, attempts)
 

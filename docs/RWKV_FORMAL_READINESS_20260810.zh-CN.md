@@ -2,17 +2,43 @@
 
 ## 结论
 
-RWKV-LH 已经具备进入 **RWKV 正式 canary 阶段** 的工程基础，但还不能标记为生产可用。确定性运行时、题库、构建、隔离 verifier 和真实 vllm-rwkv 链路均已运行；最小真实任务的目标产物通过了独立外部验收，但 Agent 尚未稳定到达严格完成态。
+RWKV-LH 已达到 **RWKV canary ready**，但还没有达到 beta，更不能标记为生产可用。确定性运行时、题库、构建、隔离 verifier 和真实 RWKV 链路均已运行；`E2E-B01` 已同时达到 Agent completed 与独立外部验收通过。小型基础队列仍暴露出规划协议、动作选择、replan 和 WSL 代理链路稳定性问题。
 
 当前状态必须如实表述为：
 
-- 确定性运行时：可用，68 项测试通过。
+- 确定性运行时：可用，74 项测试通过。
 - E2E 题库：42 题 schema/checker 校验通过。
 - verifier 隔离：Linux bubblewrap 可用，缺失时 fail closed。
 - Python 包：sdist 与 wheel 构建通过。
-- vllm-rwkv：`/models` 健康检查和真实 generation 均已执行。
-- 真实最小 canary：外部产物验收通过，严格 Agent 完成失败。
+- RWKV 推理端：实时 `/models` 返回 `owned_by=rwkv_lightning`；原生 `/chat/completions` generation 已执行。
+- WSL 网络边界：项目与测试只在 `UbuntuRecovered` WSL 运行；Windows 只提供 FlClash，WSL 使用 `http://172.31.80.1:7890`。
+- 真实最小 canary：`E2E-B01` 严格 Agent 完成且外部验收通过。
+- 小型基础队列：本轮 0/4，通过失败样本定位并修复两个安全协议兼容点；修复后未重复消耗远端题目。
 - 正式级别：canary，不是 production。
+
+## 2026-08-10 WSL 正式链路复核
+
+本节是本文后续历史 canary 记录之上的最新结论。所有 curl、Python、测试和 benchmark 进程均在 WSL 内执行；未运行 Windows relay。Cloudflare Access 凭证仅通过 WSL 进程环境传入，没有写入仓库或报告。
+
+实时模型发现结果为 `rwkv7-g1i-13.3b-20260805-ctx16384`，服务所有者为 `rwkv_lightning`。该部署不是 vllm-rwkv 的 `/v1/completions` 线协议，因此运行时新增 `rwkv-lightning-native` profile，真实映射如下：
+
+- `prompt` → `contents: [prompt]`
+- `stop` → `stop_tokens`
+- `presence_penalty` → `alpha_presence`
+- `frequency_penalty` → `alpha_frequency`
+- `penalty_decay` → `alpha_decay`
+
+WSL 经 FlClash 的短请求并发探测结果：并发 1 为 4/4；并发 2 和并发 4 均为 3/4，失败表现为连接或 TLS/proxy 错误。因此当前正式运行并发必须固定为 **1**。生成阶段发生连接丢失时继续按 outcome unknown 中断，禁止盲目重试。
+
+正式 `E2E-B01` 结果为 **PASS**：Agent 状态 `completed`，独立 verifier `external=True`。这证明最小 canary 门槛已经达到，但不能外推为基础队列或长程套件稳定。
+
+随后只运行一次 B02/B05/B08/B10 小型基础队列，结果 0/4：
+
+- B02：RWKV 对纯文本选择了 `read_json`，失败后 replan 又复用了既有任务 id；严格合同正确中断。
+- B05、B10：RWKV 返回完整单任务节点，但漏掉 `long-horizon.plan.v1 + tasks[]` 外壳。已加入窄范围、可审计恢复；只有完整必需字段且无未知扩展时才补外壳，之后仍执行全部 DAG、目标绑定和任务合同校验。
+- B08：首次 goal parse 经代理出现 SSL EOF，属于 outcome unknown；没有创建运行或产生工作区副作用。
+
+这些结论不通过重复跑题掩盖。下一次远端运行应只在新增了对应材料修复后执行：先验证 B05 或 B10 单题，再决定是否恢复小型基础队列。
 
 ## 不可变原则：只为 RWKV 服务
 

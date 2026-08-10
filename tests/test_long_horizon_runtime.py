@@ -25,6 +25,7 @@ from rwkv_lh.schema import (
     RunState,
     TaskAction,
     TaskNode,
+    ValidationResult,
     ValidationSpec,
 )
 from rwkv_lh.temp_policy import TemperaturePolicy
@@ -333,6 +334,44 @@ def test_rwkv_write_file_verification_design_requires_exact_content():
         "write_file",
         ["file_content"],
     ) == []
+
+
+def test_model_cross_check_receives_all_deterministic_verifier_results():
+    with tempfile.TemporaryDirectory() as directory:
+        goal = make_goal(Path(directory) / "workspace")
+        task = TaskNode(
+            "T1",
+            "Observe workspace",
+            "List the workspace",
+            completion_criteria=[
+                ValidationSpec("model_cross_check", {}, True),
+                ValidationSpec("action_succeeded", {}, True),
+            ],
+        )
+        observed = []
+
+        def cross_check(active_task, action_result, spec, prior_results):
+            observed.extend(prior_results)
+            return ValidationResult(
+                "model_cross_check",
+                True,
+                spec.required,
+                "deterministic evidence supplied",
+                {},
+            )
+
+        summary = ValidationEngine().validate(
+            task,
+            ActionResult("list_directory", True, output="{}"),
+            goal,
+            cross_check=cross_check,
+        )
+        assert summary.passed is True
+        assert [item.kind for item in observed] == ["action_succeeded"]
+        assert [item.kind for item in summary.results] == [
+            "action_succeeded",
+            "model_cross_check",
+        ]
 
 
 def test_working_memory_selects_dependencies_and_excludes_noise():
