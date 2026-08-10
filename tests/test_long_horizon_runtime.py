@@ -13,7 +13,11 @@ from rwkv_lh.harness import (
     HarnessError,
 )
 from rwkv_lh.memory import ContextBundle, MemoryBudgets, WorkingMemoryBuilder
-from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model import (
+    LongHorizonModel,
+    ModelProtocolError,
+    extract_truncated_decision_object,
+)
 from rwkv_lh.schema import (
     GoalCriterion,
     GoalState,
@@ -100,6 +104,50 @@ def test_workspace_manifest_is_metadata_only_and_skips_local_caches():
         assert [item["path"] for item in manifest["entries"]] == ["input.txt"]
         assert "content" not in manifest["entries"][0]
         assert len(manifest["entries"][0]["sha256"]) == 64
+
+
+def test_list_directory_observes_empty_and_recursive_workspace_metadata():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "workspace"
+        goal = make_goal(root)
+        harness = ActionHarness()
+
+        empty = harness.execute(TaskAction("list_directory", {}), goal)
+        assert empty.success is True
+        assert json.loads(empty.output)["entries"] == []
+
+        (root / "nested").mkdir()
+        (root / "nested" / "input.txt").write_text("visible", encoding="utf-8")
+        recursive = harness.execute(
+            TaskAction(
+                "list_directory",
+                {"path": ".", "recursive": True, "max_entries": 10},
+            ),
+            goal,
+        )
+        assert recursive.success is True
+        assert json.loads(recursive.output)["entries"] == [
+            {"path": "nested", "type": "directory"},
+            {"path": "nested/input.txt", "size_bytes": 7, "type": "file"},
+        ]
+        assert harness.definition("list_directory").read_only is True
+
+
+def test_only_length_truncated_terminal_decision_reason_is_recoverable():
+    recovered = extract_truncated_decision_object(
+        '"schema_version":"long-horizon.failure-analysis.v1",'
+        '"decision":"replan","reason":"Repeated but already decisive'
+    )
+    assert recovered == {
+        "schema_version": "long-horizon.failure-analysis.v1",
+        "decision": "replan",
+        "reason": "Repeated but already decisive",
+    }
+    with pytest.raises(ModelProtocolError, match="reason is complete"):
+        extract_truncated_decision_object(
+            '"schema_version":"long-horizon.failure-analysis.v1",'
+            '"decision":"replan","reason":"complete" trailing'
+        )
 
 
 def test_structured_action_contract_rejects_missing_and_unknown_arguments():
@@ -269,6 +317,22 @@ def test_remove_line_is_idempotent_and_replace_text_requires_only_file_survival(
         assert second.success is True
         assert path.read_text(encoding="utf-8") == "enabled=true\nmode=safe\n"
         assert second.output == "line already absent"
+
+
+def test_rwkv_write_file_verification_design_requires_exact_content():
+    harness = ActionHarness()
+    assert harness.verification_design_required_postconditions("write_file") == (
+        "file_exists",
+        "file_content",
+    )
+    assert harness.missing_verification_design_postconditions(
+        "write_file",
+        ["file_exists"],
+    ) == ["file_content"]
+    assert harness.missing_verification_design_postconditions(
+        "write_file",
+        ["file_content"],
+    ) == []
 
 
 def test_working_memory_selects_dependencies_and_excludes_noise():

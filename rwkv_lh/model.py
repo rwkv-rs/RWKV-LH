@@ -59,6 +59,7 @@ class ModelCallResult:
     text: str
     decision: TempDecision
     payload: dict[str, Any] | None = None
+    finish_reason: str = ""
 
 
 @dataclass
@@ -113,6 +114,7 @@ class ModelInvoker:
         complex_task: bool = False,
         new_evidence: bool = False,
         max_tokens: int = 4096,
+        recover_truncated_decision: bool = False,
     ) -> ModelCallResult:
         result = self.invoke_text(
             prompt,
@@ -132,6 +134,24 @@ class ModelInvoker:
             result.payload = extract_json_object(result.text)
             return result
         except Exception as exc:
+            if recover_truncated_decision and result.finish_reason == "length":
+                try:
+                    result.payload = extract_truncated_decision_object(result.text)
+                except ModelProtocolError:
+                    pass
+                else:
+                    result.decision.outcome = "protocol_recovered"
+                    event = {
+                        "request_id": result.decision.request_id,
+                        "request_type": request_type,
+                        "temperature": result.decision.temperature,
+                        "finish_reason": result.finish_reason,
+                        "recovered_fields": sorted(result.payload),
+                    }
+                    if state is not None and persist is not None:
+                        persist(state, "model_protocol_recovered", event)
+                    self._audit({"type": "model_protocol_recovered", **event})
+                    return result
             result.decision.outcome = "protocol_error"
             result.decision.error = f"{type(exc).__name__}: {exc}"[:1000]
             if state is not None and persist is not None:
@@ -250,6 +270,7 @@ class ModelInvoker:
                     stop=JSON_CALL_STOP_SUFFIXES if json_output else None,
                 )
             text = str(getattr(response, "content", response) or "")
+            finish_reason = str(getattr(response, "finish_reason", "") or "")
             decision.ended_at = utc_now()
             decision.outcome = "ok"
             decision.result_summary = visible_model_text(text)[:1000]
@@ -263,6 +284,7 @@ class ModelInvoker:
                         "request_type": decision.request_type,
                         **sampling_event,
                         "prompt_tokens_local": prompt_tokens,
+                        "finish_reason": finish_reason,
                         "output": visible_model_text(text),
                     },
                 )
@@ -274,10 +296,15 @@ class ModelInvoker:
                     "request_type": decision.request_type,
                     **sampling_event,
                     "prompt_tokens_local": prompt_tokens,
+                    "finish_reason": finish_reason,
                     "output": visible_model_text(text),
                 }
             )
-            return ModelCallResult(text=text, decision=decision)
+            return ModelCallResult(
+                text=text,
+                decision=decision,
+                finish_reason=finish_reason,
+            )
         except RWKVOutcomeUnknownError as exc:
             decision.ended_at = utc_now()
             decision.outcome = "unknown"
@@ -706,9 +733,11 @@ class LongHorizonModel:
         persist: PersistCallback,
     ) -> list[ValidationSpec]:
         candidates = self.harness.verifier_candidates(action.action_type)
-        required_postconditions = self.harness.definition(
-            action.action_type
-        ).required_postconditions
+        required_postconditions = (
+            self.harness.verification_design_required_postconditions(
+                action.action_type
+            )
+        )
         body = (
             "Design executable postconditions for one fixed Harness action. Return one JSON object with "
             "schema_version=long-horizon.verification-design.v1 and completion_criteria, an array of exactly "
@@ -776,7 +805,7 @@ class LongHorizonModel:
                     )
                 for criterion in criteria:
                     ValidationEngine.validate_spec_contract(criterion)
-                missing = self.harness.missing_required_postconditions(
+                missing = self.harness.missing_verification_design_postconditions(
                     action.action_type,
                     [criterion.kind for criterion in criteria],
                 )
@@ -1019,6 +1048,7 @@ class LongHorizonModel:
                 attempt=attempt,
                 same_failure_count=same_failure_count,
                 max_tokens=output_limit,
+                recover_truncated_decision=True,
             )
             payload = call.payload or {}
             try:
@@ -1112,6 +1142,7 @@ class LongHorizonModel:
                 persist=persist,
                 attempt=attempt,
                 max_tokens=output_limit,
+                recover_truncated_decision=True,
             )
             payload = call.payload or {}
             try:
@@ -1426,6 +1457,66 @@ def extract_json_object(text: str) -> dict[str, Any]:
     raise ModelProtocolError("model output does not contain a complete JSON object")
 
 
+_COMPLETE_JSON_STRING = r'"(?:\\.|[^"\\])*"'
+
+
+def extract_truncated_decision_object(text: str) -> dict[str, Any]:
+    """Recover a length-truncated, terminal reason string after safe enum fields."""
+
+    cleaned = visible_model_text(text).strip()
+    cleaned = re.sub(r"^```json\s*", "", cleaned, flags=re.IGNORECASE)
+    if re.match(r'^"[^"\\]+"\s*:', cleaned):
+        cleaned = "{" + cleaned
+
+    def complete_string(name: str) -> str:
+        match = re.search(
+            rf'"{re.escape(name)}"\s*:\s*({_COMPLETE_JSON_STRING})',
+            cleaned,
+        )
+        if match is None:
+            raise ModelProtocolError(
+                f"truncated decision envelope has no complete {name} field"
+            )
+        try:
+            value = json.loads(match.group(1))
+        except json.JSONDecodeError as exc:
+            raise ModelProtocolError(
+                f"truncated decision envelope has invalid {name}"
+            ) from exc
+        return str(value)
+
+    schema_version = complete_string("schema_version")
+    decision = complete_string("decision")
+    reason_start = re.search(r'"reason"\s*:\s*"', cleaned)
+    if reason_start is None:
+        raise ModelProtocolError("truncated decision envelope has no reason field")
+    fragment = cleaned[reason_start.end() :]
+    escaped = False
+    for character in fragment:
+        if character == '"' and not escaped:
+            raise ModelProtocolError(
+                "decision reason is complete; refusing truncated-envelope recovery"
+            )
+        if character == "\\":
+            escaped = not escaped
+        else:
+            escaped = False
+    if escaped:
+        fragment = fragment[:-1]
+    try:
+        reason = json.loads('"' + fragment + '"')
+    except json.JSONDecodeError as exc:
+        raise ModelProtocolError("truncated decision reason is not recoverable") from exc
+    reason = str(reason).strip()[:2000]
+    if not reason:
+        raise ModelProtocolError("truncated decision reason is empty")
+    return {
+        "schema_version": schema_version,
+        "decision": decision,
+        "reason": reason,
+    }
+
+
 __all__ = [
     "ActionProposal",
     "FailureAnalysisProposal",
@@ -1435,4 +1526,5 @@ __all__ = [
     "ModelProtocolError",
     "ReplanProposal",
     "extract_json_object",
+    "extract_truncated_decision_object",
 ]

@@ -98,6 +98,7 @@ class ActionHarness:
         "delete_file": ("path",),
         "make_directory": ("path",),
         "copy_file": ("source", "destination"),
+        "list_directory": (),
         "read_file": ("path",),
         "read_json": ("path",),
         "bind_evidence": ("path", "start_line", "end_line"),
@@ -131,6 +132,7 @@ class ActionHarness:
         "copy_file": (
             "action_succeeded", "file_exists", "model_cross_check",
         ),
+        "list_directory": ("action_succeeded", "model_cross_check"),
         "read_file": (
             "action_succeeded", "file_exists", "model_cross_check",
         ),
@@ -179,6 +181,19 @@ class ActionHarness:
         "copy_file": ActionDefinition(
             "copy_file", "Copy one scoped file to another scoped path.", False, True, True, 30.0,
             {"source": "relative path", "destination": "relative path"}, ("file_exists",),
+        ),
+        "list_directory": ActionDefinition(
+            "list_directory",
+            "List bounded file and directory metadata inside the workspace without reading file contents.",
+            True,
+            False,
+            True,
+            30.0,
+            {
+                "path": "relative directory; defaults to workspace root",
+                "recursive": "boolean",
+                "max_entries": "positive integer up to 1024",
+            },
         ),
         "read_file": ActionDefinition(
             "read_file", "Read a UTF-8 file without modifying it.", True, False, True, 30.0,
@@ -238,6 +253,7 @@ class ActionHarness:
             "delete_file": self._delete_file,
             "make_directory": self._make_directory,
             "copy_file": self._copy_file,
+            "list_directory": self._list_directory,
             "read_file": self._read_file,
             "read_json": self._read_json,
             "bind_evidence": self._bind_evidence,
@@ -424,6 +440,26 @@ class ActionHarness:
             available.add("file_contains")
         return sorted(set(definition.required_postconditions) - available)
 
+    def verification_design_required_postconditions(
+        self,
+        action_type: str,
+    ) -> tuple[str, ...]:
+        required = list(self.definition(action_type).required_postconditions)
+        if action_type == "write_file" and "file_content" not in required:
+            required.append("file_content")
+        return tuple(required)
+
+    def missing_verification_design_postconditions(
+        self,
+        action_type: str,
+        validation_kinds: list[str] | tuple[str, ...] | set[str],
+    ) -> list[str]:
+        available = {str(item or "").strip() for item in validation_kinds}
+        missing = self.missing_required_postconditions(action_type, available)
+        if action_type == "write_file" and "file_content" not in available:
+            missing.append("file_content")
+        return sorted(set(missing))
+
     def execute(self, action: TaskAction, goal: GoalState) -> ActionResult:
         normalized = str(action.action_type or "").strip()
         self.definition(normalized)
@@ -554,6 +590,92 @@ class ActionHarness:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
         return self._file_result("copy_file", goal, destination, output="file copied")
+
+    def _list_directory(
+        self,
+        goal: GoalState,
+        arguments: dict[str, Any],
+    ) -> ActionResult:
+        root = Path(goal.workspace_root).resolve(strict=True)
+        directory = self.resolve_path(
+            goal,
+            arguments.get("path", "."),
+            must_exist=True,
+        )
+        if not directory.is_dir():
+            raise HarnessError("list_directory requires a directory")
+        recursive = bool(arguments.get("recursive", False))
+        max_entries = max(1, min(1024, int(arguments.get("max_entries", 256))))
+        excluded_directories = {".git", ".venv", "node_modules", "__pycache__"}
+        candidates: list[Path] = []
+        if recursive:
+            for current, directory_names, file_names in os.walk(directory):
+                directory_names[:] = sorted(
+                    name
+                    for name in directory_names
+                    if name not in excluded_directories
+                )
+                current_path = Path(current)
+                candidates.extend(current_path / name for name in directory_names)
+                candidates.extend(current_path / name for name in sorted(file_names))
+        else:
+            candidates = sorted(
+                (
+                    path
+                    for path in directory.iterdir()
+                    if path.name not in excluded_directories
+                ),
+                key=lambda path: path.name,
+            )
+
+        entries: list[dict[str, Any]] = []
+        truncated = False
+        for path in candidates:
+            if len(entries) >= max_entries:
+                truncated = True
+                break
+            try:
+                if path.is_symlink():
+                    continue
+                resolved = path.resolve(strict=True)
+                resolved.relative_to(root)
+                stat = resolved.stat()
+            except (FileNotFoundError, OSError, ValueError):
+                continue
+            if resolved.is_dir():
+                kind = "directory"
+            elif resolved.is_file():
+                kind = "file"
+            else:
+                continue
+            entry: dict[str, Any] = {
+                "path": resolved.relative_to(root).as_posix(),
+                "type": kind,
+            }
+            if kind == "file":
+                entry["size_bytes"] = stat.st_size
+            entries.append(entry)
+
+        relative_directory = directory.relative_to(root).as_posix() or "."
+        payload: dict[str, Any] = {
+            "path": relative_directory,
+            "recursive": recursive,
+            "entries": entries,
+            "entry_count": len(entries),
+            "truncated": truncated,
+        }
+        output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        while entries and len(output) > self.output_limit_chars:
+            entries.pop()
+            payload["entry_count"] = len(entries)
+            payload["truncated"] = True
+            output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        return ActionResult(
+            "list_directory",
+            True,
+            output=output,
+            metadata=dict(payload),
+        )
 
     def _read_file(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)

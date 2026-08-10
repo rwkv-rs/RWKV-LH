@@ -507,6 +507,40 @@ def test_model_invoker_out_of_run_audit_captures_goal_exchange():
     assert trace[1]["output"] == '"schema_version":"test.v1"}'
 
 
+def test_model_invoker_recovers_only_opted_in_length_truncated_decision():
+    class TruncatedDecisionClient:
+        def text_completion(self, prompt, max_tokens=768, stop=None):
+            return type(
+                "Response",
+                (),
+                {
+                    "content": (
+                        '"schema_version":"long-horizon.failure-analysis.v1",'
+                        '"decision":"replan","reason":"Repeated diagnosis'
+                    ),
+                    "finish_reason": "length",
+                },
+            )()
+
+    trace = []
+    result = ModelInvoker(
+        client=TruncatedDecisionClient(),
+        audit_hook=trace.append,
+    ).invoke_json(
+        "failure prompt",
+        request_type="failure_analysis",
+        task_id="T1",
+        recover_truncated_decision=True,
+    )
+    assert result.payload["decision"] == "replan"
+    assert result.decision.outcome == "protocol_recovered"
+    assert [item["type"] for item in trace] == [
+        "model_request_started",
+        "model_request_returned",
+        "model_protocol_recovered",
+    ]
+
+
 class SequencePlanClient:
     def __init__(self):
         self.calls = []
