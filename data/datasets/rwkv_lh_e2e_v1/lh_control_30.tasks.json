@@ -1,0 +1,37 @@
+{
+  "schema_version": "lh-control-30.v1",
+  "tasks": [
+    {"task_id": "LH-B01", "level": "basic", "description": "创建 UTF-8 文件并验证精确正文。", "expected_result": "文件存在且正文与请求一致。", "capabilities": ["task_execution", "file_validation"]},
+    {"task_id": "LH-B02", "level": "basic", "description": "修改嵌套 JSON 字段并保留其他字段。", "expected_result": "目标字段更新，未请求字段保持不变。", "capabilities": ["structured_edit", "json_validation"]},
+    {"task_id": "LH-B03", "level": "basic", "description": "按依赖顺序生成两个文件。", "expected_result": "依赖任务先完成，下游文件随后生成。", "capabilities": ["dependency", "task_graph"]},
+    {"task_id": "LH-B04", "level": "basic", "description": "计算输入文件 SHA256 并写入清单。", "expected_result": "清单中的哈希与实际文件完全一致。", "capabilities": ["command", "artifact_binding"]},
+    {"task_id": "LH-B05", "level": "basic", "description": "工具第一次临时失败，第二次成功。", "expected_result": "记录一次失败和一次重试，最终验证通过。", "capabilities": ["retry", "attempt_ledger"]},
+    {"task_id": "LH-B06", "level": "basic", "description": "完成后 resume，禁止重复 append。", "expected_result": "二次恢复不创建新 attempt，也不重复副作用。", "capabilities": ["resume", "idempotency"]},
+    {"task_id": "LH-B07", "level": "basic", "description": "动作返回但要求的文件不存在。", "expected_result": "Verifier 拒绝完成并在重试耗尽后阻断。", "capabilities": ["completion_truth", "blocked"]},
+    {"task_id": "LH-B08", "level": "basic", "description": "根据工作区条件选择正确分支输出。", "expected_result": "只生成条件对应的分支结果。", "capabilities": ["conditional_branch", "command"]},
+    {"task_id": "LH-B09", "level": "basic", "description": "存在大量无关 memory 时构造当前任务上下文。", "expected_result": "依赖和证据被选中，无关大文本被排除且不超预算。", "capabilities": ["working_memory", "context_budget"]},
+    {"task_id": "LH-B10", "level": "basic", "description": "tool action 与 replan 使用不同 request-level temp。", "expected_result": "两个请求记录独立温度且 ContextVar 恢复。", "capabilities": ["temperature", "model_audit"]},
+
+    {"task_id": "LH-M01", "level": "medium", "description": "更新三个配置文件后运行统一检查。", "expected_result": "三个文件均更新且检查命令退出码为 0。", "capabilities": ["multi_file", "fan_in", "command_validation"]},
+    {"task_id": "LH-M02", "level": "medium", "description": "测试失败后 replan 修复实现并重新检查。", "expected_result": "失败路径保留，替代节点完成，后续检查通过。", "capabilities": ["validation_driven_repair", "replan"]},
+    {"task_id": "LH-M03", "level": "medium", "description": "三个前置任务汇合生成报告。", "expected_result": "报告仅在三个依赖都完成后生成。", "capabilities": ["fan_in_dag", "report"]},
+    {"task_id": "LH-M04", "level": "medium", "description": "读取检索 fixture 的精确 span，绑定证据并由 RWKV 接口交叉验证。", "expected_result": "证据包含 source/locator/quote，交叉验证请求被记录。", "capabilities": ["evidence_binding", "cross_validation", "temperature"]},
+    {"task_id": "LH-M05", "level": "medium", "description": "中断一个 running 的只读任务后恢复。", "expected_result": "旧 attempt 标为 interrupted，安全重试后完成。", "capabilities": ["interruption", "safe_retry"]},
+    {"task_id": "LH-M06", "level": "medium", "description": "模型计划包含依赖环。", "expected_result": "TaskGraph 在执行任何副作用前拒绝计划。", "capabilities": ["cycle_detection", "plan_validation"]},
+    {"task_id": "LH-M07", "level": "medium", "description": "缺少必要子任务时 replan 新增替代节点。", "expected_result": "原节点被 supersede，新节点产生所需产物。", "capabilities": ["missing_subtask", "replan"]},
+    {"task_id": "LH-M08", "level": "medium", "description": "上游失败时阻止下游执行。", "expected_result": "上游和依赖它的下游均 blocked，下游无 attempt。", "capabilities": ["failure_propagation", "dependency_block"]},
+    {"task_id": "LH-M09", "level": "medium", "description": "completed 节点在二次 resume 中不执行。", "expected_result": "revision、attempt 和文件内容均保持不变。", "capabilities": ["completed_immutability", "resume"]},
+    {"task_id": "LH-M10", "level": "medium", "description": "两个 run 并发执行且 state 不串。", "expected_result": "各自只产生自己的文件、事件和最终状态。", "capabilities": ["concurrency", "run_isolation"]},
+
+    {"task_id": "LH-H01", "level": "hard", "description": "文件写入成功但 attempt 结果落库前中断。", "expected_result": "恢复通过 postcondition 认定完成，不重复写入。", "capabilities": ["side_effect_recovery", "postcondition"]},
+    {"task_id": "LH-H02", "level": "hard", "description": "非幂等动作中断且没有可验证结果。", "expected_result": "恢复进入 blocked，禁止盲目重试。", "capabilities": ["unsafe_retry_prevention", "recovery"]},
+    {"task_id": "LH-H03", "level": "hard", "description": "破坏 runs.state_json 后加载。", "expected_result": "从最新有效 checkpoint 恢复并自修复当前快照。", "capabilities": ["database_recovery", "checkpoint"]},
+    {"task_id": "LH-H04", "level": "hard", "description": "两个 Controller 竞争同一 run lease。", "expected_result": "同一时刻只有一个 owner，竞争者超时。", "capabilities": ["lease", "double_execution_prevention"]},
+    {"task_id": "LH-H05", "level": "hard", "description": "50 个 artifact/memory 下重建 16K 上下文。", "expected_result": "相关引用保留，总输入不超过预算。", "capabilities": ["large_memory", "context_compression"]},
+    {"task_id": "LH-H06", "level": "hard", "description": "Planner 动作尝试写出 workspace 后 replan。", "expected_result": "越界动作无副作用，替代路径在 workspace 内完成。", "capabilities": ["scope_guard", "goal_drift", "replan"]},
+    {"task_id": "LH-H07", "level": "hard", "description": "两个 required validator 对同一状态给出冲突。", "expected_result": "任务不被错误完成，冲突记录后通过新路径解决。", "capabilities": ["validator_conflict", "replan"]},
+    {"task_id": "LH-H08", "level": "hard", "description": "并发模型请求使用不同 temp、request id、task id 与 lane。", "expected_result": "每个请求只观察自己的真实采样参数和关联元数据，主线程无泄漏。", "capabilities": ["contextvar_isolation", "sampling_profile", "request_correlation"]},
+    {"task_id": "LH-H09", "level": "hard", "description": "20 节点链在第 11 节点后中断并恢复。", "expected_result": "前 11 节点不重做，剩余 9 节点继续并完成。", "capabilities": ["long_chain", "resume", "deduplication"]},
+    {"task_id": "LH-H10", "level": "hard", "description": "多文件配置、失败检查、修复、复测和最终清单。", "expected_result": "完整 DAG 经一次 replan 后通过所有真实检查并生成清单。", "capabilities": ["end_to_end", "multi_file", "repair", "final_verification"]}
+  ]
+}

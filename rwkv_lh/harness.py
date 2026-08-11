@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from rwkv_lh.schema import GoalState, TaskAction
+from rwkv_lh.schema import GoalState, TaskAction, ValidationSpec
 
 
 class HarnessError(RuntimeError):
@@ -106,6 +106,9 @@ class ActionHarness:
         "run_command": ("argv",),
         "noop": (),
     }
+    _g1i_required_arguments = {
+        "write_file": ("path", "content", "overwrite", "create_parents"),
+    }
     _verifier_candidates = {
         "write_file": (
             "action_succeeded", "file_exists", "file_contains", "file_content",
@@ -149,7 +152,16 @@ class ActionHarness:
     _definitions = {
         "write_file": ActionDefinition(
             "write_file", "Atomically write UTF-8 text inside the workspace.", False, True, True, 30.0,
-            {"path": "relative path", "content": "text", "overwrite": "boolean", "create_parents": "boolean"},
+            {
+                "path": "relative path",
+                "content": "text",
+                "overwrite": {
+                    "type": "boolean",
+                    "const": True,
+                    "description": "must be true to preserve idempotent retry",
+                },
+                "create_parents": "boolean",
+            },
             ("file_exists",),
         ),
         "write_json": ActionDefinition(
@@ -315,6 +327,135 @@ class ActionHarness:
             for name, definition in self._definitions.items()
         }
 
+    @staticmethod
+    def _json_schema_property(specification: Any) -> dict[str, Any]:
+        """Convert the authoritative argument description into JSON Schema."""
+
+        if isinstance(specification, Mapping):
+            return dict(specification)
+        description = str(specification or "").strip()
+        lowered = description.casefold()
+        schema: dict[str, Any] = {"description": description}
+        if "any json value" in lowered:
+            return schema
+        if "boolean" in lowered:
+            schema["type"] = "boolean"
+        elif "array" in lowered:
+            schema.update({"type": "array", "items": {"type": "string"}})
+        elif "integer" in lowered:
+            schema["type"] = "integer"
+        elif "seconds" in lowered:
+            schema["type"] = "number"
+        elif "object" in lowered:
+            schema["type"] = "object"
+        else:
+            schema["type"] = "string"
+        return schema
+
+    def g1i_tool_definitions(
+        self,
+        action_types: tuple[str, ...] | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return the single authoritative tool list for G1i prompting."""
+
+        selected = (
+            list(self._definitions)
+            if action_types is None
+            else [str(item or "").strip() for item in action_types]
+        )
+        definitions: list[dict[str, Any]] = []
+        for name in selected:
+            definition = self.definition(name)
+            definitions.append(
+                {
+                    "name": name,
+                    "description": definition.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            argument: self._json_schema_property(specification)
+                            for argument, specification in definition.argument_schema.items()
+                        },
+                        "required": list(
+                            self._g1i_required_arguments.get(
+                                name,
+                                self._required_arguments.get(name, ()),
+                            )
+                        ),
+                        "additionalProperties": False,
+                    },
+                }
+            )
+        return definitions
+
+    def deterministic_verification_specs(
+        self,
+        action: TaskAction,
+    ) -> list[ValidationSpec] | None:
+        """Build observable postconditions for built-in actions without a model call."""
+
+        name = str(action.action_type or "").strip()
+        if name not in type(self)._definitions:
+            return None
+        arguments = action.arguments
+        specs = [ValidationSpec("action_succeeded", {}, True)]
+        path = str(arguments.get("path") or "")
+        if name == "write_file":
+            specs.append(
+                ValidationSpec(
+                    "file_content",
+                    {
+                        "path": path,
+                        "expected_content": str(arguments.get("content") or ""),
+                        "exact_match": True,
+                    },
+                    True,
+                )
+            )
+        elif name == "write_json":
+            specs.append(
+                ValidationSpec(
+                    "json_field_equals",
+                    {
+                        "path": path,
+                        "field_path": [],
+                        "expected": arguments.get("value"),
+                    },
+                    True,
+                )
+            )
+        elif name in {"replace_text", "remove_line"}:
+            specs.append(ValidationSpec("file_exists", {"path": path}, True))
+        elif name == "append_file":
+            specs.append(
+                ValidationSpec(
+                    "file_contains",
+                    {"path": path, "text": str(arguments.get("content") or "")},
+                    True,
+                )
+            )
+        elif name == "delete_file":
+            specs.append(ValidationSpec("file_absent", {"path": path}, True))
+        elif name == "make_directory":
+            specs.append(ValidationSpec("file_exists", {"path": path}, True))
+        elif name == "copy_file":
+            specs.append(
+                ValidationSpec(
+                    "file_exists",
+                    {"path": str(arguments.get("destination") or "")},
+                    True,
+                )
+            )
+        elif name in {"read_file", "read_json"}:
+            specs.append(ValidationSpec("file_exists", {"path": path}, True))
+        elif name == "bind_evidence":
+            specs.append(ValidationSpec("evidence_bound", {}, True))
+        elif name in {"check_command", "run_command"}:
+            specs.append(
+                ValidationSpec("command_exit_code", {"expected": 0}, True)
+            )
+        return specs
+
     def action_definition_contract(self, action_type: str) -> dict[str, Any]:
         """Return the exact argument and recovery contract for one selected action."""
 
@@ -367,6 +508,10 @@ class ActionHarness:
                 raise HarnessError(
                     f"action {definition.name} argument {name} must be a non-empty string"
                 )
+            if name in arguments and Path(arguments[name]).is_absolute():
+                raise HarnessError(
+                    f"action {definition.name} argument {name} must be workspace-relative"
+                )
         if definition.name in {"run_command", "check_command"}:
             argv = arguments.get("argv")
             if not isinstance(argv, list) or not argv or not all(
@@ -375,6 +520,10 @@ class ActionHarness:
                 raise HarnessError(
                     f"action {definition.name} argument argv must be a non-empty string array"
                 )
+        if definition.name == "write_file" and arguments.get("overwrite", True) is not True:
+            raise HarnessError(
+                "action write_file argument overwrite must be true to preserve idempotent retry"
+            )
 
     def workspace_manifest(
         self,

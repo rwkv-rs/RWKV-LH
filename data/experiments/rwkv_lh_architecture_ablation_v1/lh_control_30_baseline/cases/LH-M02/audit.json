@@ -1,0 +1,299 @@
+{
+  "task_id": "LH-M02",
+  "level": "medium",
+  "task_description": "测试失败后 replan 修复实现并重新检查。",
+  "expected_result": "失败路径保留，替代节点完成，后续检查通过。",
+  "actual_result": "completed",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "6f9faec9db0deb810f3f89ddf53b72bff099f3d55e25f8ff6a78b24bd75a004d"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1",
+          "T2"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "check_command",
+        "arguments": {
+          "argv": [
+            "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+            "-c",
+            "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+          ]
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": {
+          "message": "exit code 1",
+          "type": "CommandFailed"
+        },
+        "exit_code": 1,
+        "output": "",
+        "success": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_failed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:51.955+00:00",
+            "evidence": {
+              "expected": 0
+            },
+            "kind": "command_exit_code",
+            "message": "exit_code=1",
+            "passed": false,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "replan_started",
+      "data": {
+        "attempt_count": 1,
+        "same_failure_count": 0,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 6,
+      "type": "replan_saved",
+      "data": {
+        "new_task_ids": [
+          "T1R"
+        ],
+        "plan_generation": 1,
+        "reason": "material strategy change",
+        "supersede": {
+          "T1": "T1R"
+        }
+      }
+    },
+    {
+      "revision": 7,
+      "type": "attempt_started",
+      "data": {
+        "action": "replace_text",
+        "arguments": {
+          "new": "VALUE = 2",
+          "old": "VALUE = 1",
+          "path": "app.py"
+        },
+        "attempt_id": "T1R-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T1R"
+      }
+    },
+    {
+      "revision": 8,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1R-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "replaced 1 occurrence(s)",
+        "success": true,
+        "task_id": "T1R"
+      }
+    },
+    {
+      "revision": 9,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T1R-A1",
+        "task_id": "T1R",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:52.000+00:00",
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-M02/workspace/app.py",
+              "text": "VALUE = 2"
+            },
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 10,
+      "type": "attempt_started",
+      "data": {
+        "action": "check_command",
+        "arguments": {
+          "argv": [
+            "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+            "-c",
+            "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+          ]
+        },
+        "attempt_id": "T2-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 11,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T2-A1",
+        "error": null,
+        "exit_code": 0,
+        "output": "",
+        "success": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 12,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T2-A1",
+        "task_id": "T2",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:52.077+00:00",
+            "evidence": {
+              "expected": 0
+            },
+            "kind": "command_exit_code",
+            "message": "exit_code=0",
+            "passed": true,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 13,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 1,
+        "final_output": "replanned and verified",
+        "task_count": 3
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "check_command",
+      "arguments": {
+        "argv": [
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+          "-c",
+          "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+        ]
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T1"
+    },
+    {
+      "action": "replace_text",
+      "arguments": {
+        "new": "VALUE = 2",
+        "old": "VALUE = 1",
+        "path": "app.py"
+      },
+      "attempt_id": "T1R-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T1R"
+    },
+    {
+      "action": "check_command",
+      "arguments": {
+        "argv": [
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+          "-c",
+          "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+        ]
+      },
+      "attempt_id": "T2-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T2"
+    }
+  ],
+  "retries": [
+    {
+      "attempt_count": 1,
+      "same_failure_count": 0,
+      "task_id": "T1"
+    },
+    {
+      "new_task_ids": [
+        "T1R"
+      ],
+      "plan_generation": 1,
+      "reason": "material strategy change",
+      "supersede": {
+        "T1": "T1R"
+      }
+    }
+  ],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [
+    {
+      "task_id": "T1",
+      "type": "ValidationFailed",
+      "attempt_id": "T1-A1",
+      "results": [
+        {
+          "kind": "command_exit_code",
+          "passed": false,
+          "required": true,
+          "message": "exit_code=1",
+          "evidence": {
+            "expected": 0
+          },
+          "checked_at": "2026-08-10T15:39:51.955+00:00"
+        }
+      ],
+      "at": "2026-08-10T15:39:51.955+00:00"
+    }
+  ],
+  "recovery": [],
+  "final_verification": {
+    "app": "VALUE = 2\n",
+    "superseded_by": "T1R"
+  },
+  "extra": {}
+}

@@ -1,0 +1,297 @@
+{
+  "schema_version": "rwkv-e2e-lh12.acceptance.v1",
+  "suite": "RWKV-E2E-LH12",
+  "cases": {
+    "E2E-LH01": {
+      "checks": [
+        {
+          "kind": "command_exit_stages",
+          "argv": ["python", "verify_release.py"],
+          "stages": ["layer A", "layer B", "layer C", "layer D"],
+          "require_success": true
+        },
+        {"kind": "command_exit", "argv": ["python", "verify_release.py"], "exit_code": 0},
+        {
+          "kind": "json_equals",
+          "path": "release/release.json",
+          "value": {
+            "items": [
+              {"name": "alpha", "total": 6},
+              {"name": "beta", "total": 5}
+            ],
+            "grand_total": 11
+          }
+        }
+      ]
+    },
+    "E2E-LH02": {
+      "checks": [
+        {"kind": "event_min_count", "event_type": "attempt_started", "count": 16},
+        {
+          "kind": "checkpoint_constraints",
+          "path": "checkpoints",
+          "count": 15,
+          "constraints": {
+            "region": "cn-east",
+            "replicas": 3,
+            "tls": true,
+            "retention_days": 30,
+            "feature_mode": "strict"
+          }
+        },
+        {
+          "kind": "json_equals",
+          "path": "final/config.json",
+          "value": {
+            "region": "cn-east",
+            "replicas": 3,
+            "tls": true,
+            "retention_days": 30,
+            "feature_mode": "strict",
+            "generated_by": "RWKV-LH"
+          }
+        }
+      ]
+    },
+    "E2E-LH03": {
+      "runner_control": {
+        "manifest_entrypoints": ["catalog/root_manifest.json"]
+      },
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "catalog/global_index.json",
+          "value": {
+            "datasets": [
+              {
+                "name": "east",
+                "manifest": "regions/east/deep/manifest.json",
+                "depends_on": ["north", "south"],
+                "files": [
+                  "regions/east/deep/data/e1.json",
+                  "regions/east/deep/data/e2.json"
+                ],
+                "record_count": 4
+              },
+              {
+                "name": "north",
+                "manifest": "regions/north/manifest.json",
+                "depends_on": [],
+                "files": [
+                  "regions/north/data/n1.json",
+                  "regions/north/data/n2.json"
+                ],
+                "record_count": 3
+              },
+              {
+                "name": "south",
+                "manifest": "regions/south/manifest.json",
+                "depends_on": ["north"],
+                "files": ["regions/south/data/s1.json"],
+                "record_count": 3
+              }
+            ],
+            "total_records": 10
+          }
+        }
+      ]
+    },
+    "E2E-LH04": {
+      "runner_control": {
+        "crash_after_first_applied_side_effect": true,
+        "resume_after_completion": true
+      },
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "events/ledger.json",
+          "value": {
+            "events": [
+              {"id": "E1", "amount": 4},
+              {"id": "E2", "amount": 7},
+              {"id": "E3", "amount": 2}
+            ],
+            "count": 3,
+            "total_amount": 13
+          }
+        },
+        {"kind": "post_effect_crash_resumed"},
+        {"kind": "completed_resume_is_noop", "path": "events/ledger.json"}
+      ]
+    },
+    "E2E-LH05": {
+      "checks": [
+        {
+          "kind": "resilient_shards",
+          "directory": "shards",
+          "fallback_directory": "fallback",
+          "path": "reports/shard_summary.json",
+          "count": 20
+        },
+        {"kind": "file_contains", "path": "reports/REPORT.md", "text": "20"},
+        {"kind": "file_contains", "path": "reports/REPORT.md", "text": "630"}
+      ]
+    },
+    "E2E-LH06": {
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "resolved_requirements.json",
+          "value": {
+            "source": "requirements/approved.json",
+            "requirements": [
+              "tls_required=true",
+              "region=cn-east",
+              "audit_log=append_only",
+              "retention_days=90"
+            ]
+          }
+        },
+        {"kind": "file_contains", "path": "EVIDENCE.md", "text": "requirements/approved.json"},
+        {"kind": "file_not_contains", "path": "EVIDENCE.md", "text": "acceptance.json"},
+        {"kind": "no_scope_violation_events"}
+      ]
+    },
+    "E2E-LH07": {
+      "checks": [
+        {"kind": "service_migration", "directory": "services", "count": 8},
+        {
+          "kind": "json_equals",
+          "path": "migration_report.json",
+          "value": {
+            "migrated": [
+              "service-01",
+              "service-02",
+              "service-03",
+              "service-04",
+              "service-05",
+              "service-06",
+              "service-07",
+              "service-08"
+            ]
+          }
+        },
+        {"kind": "command_exit", "argv": ["python", "verify_compatibility.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-LH08": {
+      "checks": [
+        {
+          "kind": "command_exit_stages",
+          "argv": ["python", "check_invariants.py"],
+          "stages": ["capacity invariant violated"],
+          "require_success": true
+        },
+        {"kind": "json_equals", "path": "configs/a.json", "value": {"limit": 10, "owner": "alpha"}},
+        {"kind": "json_equals", "path": "configs/b.json", "value": {"reserve": 70, "owner": "beta"}},
+        {"kind": "json_equals", "path": "configs/c.json", "value": {"mode": "safe", "owner": "gamma"}},
+        {
+          "kind": "json_equals",
+          "path": "compensation.json",
+          "value": {
+            "kept": ["b.reserve"],
+            "rolled_back": ["a.limit", "c.mode"]
+          }
+        },
+        {"kind": "command_exit", "argv": ["python", "check_invariants.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-LH09": {
+      "runner_control": {"enable_mock_api": true},
+      "checks": [
+        {"kind": "mock_api_finalized"},
+        {
+          "kind": "mock_api_state",
+          "value": {
+            "resource": {"id": "R-001", "name": "ready", "version": 2},
+            "finalized": true,
+            "transient_create_failures": 1,
+            "duplicate_conflicts": 1
+          }
+        },
+        {
+          "kind": "json_equals",
+          "path": "api_result.json",
+          "value": {
+            "resource": {"id": "R-001", "name": "ready", "version": 2},
+            "finalized": true
+          }
+        }
+      ]
+    },
+    "E2E-LH10": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python", "-m", "unittest", "discover", "-s", "tests"], "exit_code": 0},
+        {"kind": "file_contains", "path": "README.md", "text": "mean"},
+        {"kind": "file_contains", "path": "README.md", "text": "clamp"},
+        {
+          "kind": "digest_map",
+          "directory": ".",
+          "manifest": "release_manifest.json",
+          "files": ["src/math_ops.py", "README.md"]
+        },
+        {"kind": "event_max_count", "event_type": "attempt_started", "count": 35}
+      ]
+    },
+    "E2E-LH11": {
+      "checks": [
+        {"kind": "event_min_count", "event_type": "attempt_started", "count": 6},
+        {
+          "kind": "artifact_phase_checkpoints",
+          "path": "checkpoints",
+          "count": 5,
+          "facts_per_phase": 2
+        },
+        {
+          "kind": "directory_file_set",
+          "path": "checkpoints",
+          "files": ["phase01.json", "phase02.json", "phase03.json", "phase04.json", "phase05.json"]
+        },
+        {
+          "kind": "json_equals",
+          "path": "memory_summary.json",
+          "value": {
+            "requirements_source": "early_requirements.txt",
+            "facts": [
+              {"fact_id": "F01", "value": "value-01", "artifact": "artifacts/artifact_003.txt"},
+              {"fact_id": "F02", "value": "value-02", "artifact": "artifacts/artifact_007.txt"},
+              {"fact_id": "F03", "value": "value-03", "artifact": "artifacts/artifact_011.txt"},
+              {"fact_id": "F04", "value": "value-04", "artifact": "artifacts/artifact_015.txt"},
+              {"fact_id": "F05", "value": "value-05", "artifact": "artifacts/artifact_019.txt"},
+              {"fact_id": "F06", "value": "value-06", "artifact": "artifacts/artifact_023.txt"},
+              {"fact_id": "F07", "value": "value-07", "artifact": "artifacts/artifact_027.txt"},
+              {"fact_id": "F08", "value": "value-08", "artifact": "artifacts/artifact_031.txt"},
+              {"fact_id": "F09", "value": "value-09", "artifact": "artifacts/artifact_035.txt"},
+              {"fact_id": "F10", "value": "value-10", "artifact": "artifacts/artifact_039.txt"}
+            ]
+          }
+        }
+      ]
+    },
+    "E2E-LH12": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python", "-m", "unittest", "discover", "-s", "tests"], "exit_code": 0},
+        {
+          "kind": "json_equals",
+          "path": "dist/example_report.json",
+          "value": {"count": 3, "unique_count": 2, "longest": "alpha"}
+        },
+        {"kind": "file_contains", "path": "DESIGN.md", "text": "parser"},
+        {"kind": "file_contains", "path": "README.md", "text": "unittest"},
+        {
+          "kind": "digest_map",
+          "directory": ".",
+          "manifest": "release_manifest.json",
+          "files": [
+            "mini_project/parser.py",
+            "mini_project/analyzer.py",
+            "mini_project/reporter.py",
+            "DESIGN.md",
+            "README.md",
+            "dist/example_report.json"
+          ]
+        }
+      ]
+    }
+  }
+}

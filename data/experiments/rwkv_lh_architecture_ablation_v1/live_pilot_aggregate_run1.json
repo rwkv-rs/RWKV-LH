@@ -1,0 +1,1956 @@
+{
+  "schema_version": "rwkv-lh.architecture-history-analysis.v1",
+  "target": {
+    "runtime": "vllm-rwkv",
+    "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+    "core": "RWKV recurrent architecture"
+  },
+  "metric": {
+    "version": "utf8-byte-ngram-cosine.v1",
+    "n": 5,
+    "near_duplicate_threshold": 0.95,
+    "exact_artifact_threshold": 1.0
+  },
+  "dataset_manifest": {
+    "schema_version": "rwkv-lh.dataset-manifest.v1",
+    "dataset_version": "rwkv-lh-evaluation.v1",
+    "purpose": "G1i-13.3B vllm-rwkv architecture ablation and full regression",
+    "expected_e2e_cases": 42,
+    "expected_control_cases": 30,
+    "files": [
+      {
+        "target": "data/datasets/rwkv_lh_e2e_v1/core30.tasks.json",
+        "source": "benchmarks/rwkv_e2e/rwkv_e2e_30/tasks.json",
+        "source_sha256": "0bf73c9a86bd014f5a94e5686ffe744bbef6c560f4227e37d0b753b900481c4c",
+        "target_sha256": "0bf73c9a86bd014f5a94e5686ffe744bbef6c560f4227e37d0b753b900481c4c",
+        "bytes": 21363
+      },
+      {
+        "target": "data/datasets/rwkv_lh_e2e_v1/core30.acceptance.json",
+        "source": "benchmarks/rwkv_e2e/rwkv_e2e_30/acceptance.json",
+        "source_sha256": "c4953c556a9ba2e080493f34bb2261db349080542376c4e94f08d5227e0f74cd",
+        "target_sha256": "c4953c556a9ba2e080493f34bb2261db349080542376c4e94f08d5227e0f74cd",
+        "bytes": 9365
+      },
+      {
+        "target": "data/datasets/rwkv_lh_e2e_v1/lh12.tasks.json",
+        "source": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/tasks.json",
+        "source_sha256": "d813a7bc3a42e27ee3573ea342a918bd7ee5347ca8b0e893c04fded262457a5e",
+        "target_sha256": "d813a7bc3a42e27ee3573ea342a918bd7ee5347ca8b0e893c04fded262457a5e",
+        "bytes": 16839
+      },
+      {
+        "target": "data/datasets/rwkv_lh_e2e_v1/lh12.acceptance.json",
+        "source": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/acceptance.json",
+        "source_sha256": "976e075bcc81780ed38ce7b9fe8c6c19c1b239bb72595ce176308f2760a0cd9f",
+        "target_sha256": "976e075bcc81780ed38ce7b9fe8c6c19c1b239bb72595ce176308f2760a0cd9f",
+        "bytes": 9748
+      },
+      {
+        "target": "data/datasets/rwkv_lh_e2e_v1/lh_control_30.tasks.json",
+        "source": "benchmarks/architecture_regression/lh_control_30/tasks.json",
+        "source_sha256": "0606877c66360aefbf243b848a19fb349927e7a32e86565dbdc58e41ddcfbe80",
+        "target_sha256": "0606877c66360aefbf243b848a19fb349927e7a32e86565dbdc58e41ddcfbe80",
+        "bytes": 7492
+      }
+    ]
+  },
+  "coverage": {
+    "expected_e2e_cases": 42,
+    "historical_e2e_cases_observed": 1,
+    "historical_e2e_case_ids": [
+      "E2E-B01"
+    ],
+    "missing_historical_e2e_case_ids": [
+      "E2E-B02",
+      "E2E-B03",
+      "E2E-B04",
+      "E2E-B05",
+      "E2E-B06",
+      "E2E-B07",
+      "E2E-B08",
+      "E2E-B09",
+      "E2E-B10",
+      "E2E-H01",
+      "E2E-H02",
+      "E2E-H03",
+      "E2E-H04",
+      "E2E-H05",
+      "E2E-H06",
+      "E2E-H07",
+      "E2E-H08",
+      "E2E-H09",
+      "E2E-H10",
+      "E2E-LH01",
+      "E2E-LH02",
+      "E2E-LH03",
+      "E2E-LH04",
+      "E2E-LH05",
+      "E2E-LH06",
+      "E2E-LH07",
+      "E2E-LH08",
+      "E2E-LH09",
+      "E2E-LH10",
+      "E2E-LH11",
+      "E2E-LH12",
+      "E2E-M01",
+      "E2E-M02",
+      "E2E-M03",
+      "E2E-M04",
+      "E2E-M05",
+      "E2E-M06",
+      "E2E-M07",
+      "E2E-M08",
+      "E2E-M09",
+      "E2E-M10"
+    ],
+    "historical_audits": 33,
+    "historical_task_ids": 31
+  },
+  "aggregate": {
+    "agent_completed": 2,
+    "external_passed": 2,
+    "fully_passed": 2,
+    "external_passed_agent_incomplete": 0,
+    "agent_completed_external_failed": 0,
+    "transport_failure_runs": 0,
+    "semantic_conflict_runs": 3,
+    "semantic_conflict_attempts": 4,
+    "read_only_semantic_conflict_attempts": 4,
+    "repeated_attempt_runs": 1,
+    "near_duplicate_attempt_pairs": 1,
+    "model_requests": 50,
+    "request_types": {
+      "failure_analysis": 2,
+      "final_answer": 2,
+      "goal_binding": 1,
+      "goal_parse": 3,
+      "replan": 4,
+      "task_decomposition": 3,
+      "tool_action": 9,
+      "tool_choice": 9,
+      "validation_cross_check": 8,
+      "verification_design": 9
+    },
+    "action_types": {
+      "list_directory": 4,
+      "read_file": 2,
+      "write_file": 4
+    },
+    "near_duplicate_version_pairs": 2,
+    "clean_e2e_runs": 3,
+    "clean_e2e_external_passed": 2,
+    "clean_e2e_agent_completed": 2,
+    "clean_e2e_semantic_conflict_runs": 3,
+    "clean_e2e_repeated_attempt_runs": 1
+  },
+  "cohorts": {
+    "lh_control_30_baseline": {
+      "audits": 30,
+      "agent_completed": 0,
+      "external_passed": 0,
+      "fully_passed": 0,
+      "transport_failure_runs": 0,
+      "semantic_conflict_runs": 0,
+      "repeated_attempt_runs": 0,
+      "model_requests": 0,
+      "request_types": {}
+    },
+    "live_20260811_baseline_b01_run1": {
+      "audits": 1,
+      "agent_completed": 0,
+      "external_passed": 0,
+      "fully_passed": 0,
+      "transport_failure_runs": 0,
+      "semantic_conflict_runs": 1,
+      "repeated_attempt_runs": 0,
+      "model_requests": 9,
+      "request_types": {
+        "failure_analysis": 1,
+        "goal_parse": 1,
+        "replan": 2,
+        "task_decomposition": 1,
+        "tool_action": 1,
+        "tool_choice": 1,
+        "validation_cross_check": 1,
+        "verification_design": 1
+      }
+    },
+    "live_20260811_no_failure_analysis_b01_run1": {
+      "audits": 1,
+      "agent_completed": 1,
+      "external_passed": 1,
+      "fully_passed": 1,
+      "transport_failure_runs": 0,
+      "semantic_conflict_runs": 1,
+      "repeated_attempt_runs": 1,
+      "model_requests": 21,
+      "request_types": {
+        "final_answer": 1,
+        "goal_parse": 1,
+        "replan": 1,
+        "task_decomposition": 1,
+        "tool_action": 4,
+        "tool_choice": 4,
+        "validation_cross_check": 5,
+        "verification_design": 4
+      }
+    },
+    "live_20260811_no_mandatory_b01_run1": {
+      "audits": 1,
+      "agent_completed": 1,
+      "external_passed": 1,
+      "fully_passed": 1,
+      "transport_failure_runs": 0,
+      "semantic_conflict_runs": 1,
+      "repeated_attempt_runs": 0,
+      "model_requests": 20,
+      "request_types": {
+        "failure_analysis": 1,
+        "final_answer": 1,
+        "goal_binding": 1,
+        "goal_parse": 1,
+        "replan": 1,
+        "task_decomposition": 1,
+        "tool_action": 4,
+        "tool_choice": 4,
+        "validation_cross_check": 2,
+        "verification_design": 4
+      }
+    }
+  },
+  "impact_scope": {
+    "semantic_conflict_task_ids": [
+      "E2E-B01"
+    ],
+    "repeated_attempt_task_ids": [
+      "E2E-B01"
+    ],
+    "transport_failure_task_ids": []
+  },
+  "version_similarity": [
+    {
+      "task_id": "E2E-B01",
+      "previous": "live_20260811_baseline_b01_run1/cases/E2E-B01/audit.json",
+      "current": "live_20260811_no_failure_analysis_b01_run1/cases/E2E-B01/audit.json",
+      "trajectory_similarity": 0.958766,
+      "near_duplicate": true
+    },
+    {
+      "task_id": "E2E-B01",
+      "previous": "live_20260811_no_failure_analysis_b01_run1/cases/E2E-B01/audit.json",
+      "current": "live_20260811_no_mandatory_b01_run1/cases/E2E-B01/audit.json",
+      "trajectory_similarity": 0.995889,
+      "near_duplicate": true
+    }
+  ],
+  "audits": [
+    {
+      "source": "lh_control_30_baseline/cases/LH-B01/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "c383f12d8ad9af2dca5040d27ade4447ebd3c0cdef6c120e65062293c06cbb57",
+      "source_bytes": 2481,
+      "task_id": "LH-B01",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B02/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "aea33b6a19c00c3870fe1cab32eab7351ce6664f598fd0672ff4df19bbe6d755",
+      "source_bytes": 2681,
+      "task_id": "LH-B02",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B03/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "83faff7c2f392dcba890cb45890b330c6b489bfd4477d785c9b3ebf2143f7267",
+      "source_bytes": 3883,
+      "task_id": "LH-B03",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B04/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "a879f20444974f1cb9351cf41007c917143d1fa71d85dee703e76c7af402caf7",
+      "source_bytes": 3350,
+      "task_id": "LH-B04",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B05/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "f56f12fde54c805b7bc2331f89a33f7c6a28c040dea40589fb0f30db56a3ceb9",
+      "source_bytes": 5194,
+      "task_id": "LH-B05",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B06/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "58caaea9965be3030483f105cbc53916c70d335d60a1a781f931ab1809ff815f",
+      "source_bytes": 2519,
+      "task_id": "LH-B06",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B07/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "61ad4e3834cb2bee2a378d99c18266fc6dc100cb8a0696e6192751f704c9b397",
+      "source_bytes": 2923,
+      "task_id": "LH-B07",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B08/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "c4470eb504b1f0985b43246c39191c1505b78d288cbbb8fce47d82f0bc2f6fac",
+      "source_bytes": 3121,
+      "task_id": "LH-B08",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B09/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "cc887f89476dc46948de1fcdcf204f14f77e3a361524f5a5d74c1b4cd7fffdd1",
+      "source_bytes": 989,
+      "task_id": "LH-B09",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-B10/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "a07483f703f043a3b761f5963f9cef8a44cf9eb8fda753463a86fd04291d20d5",
+      "source_bytes": 6707,
+      "task_id": "LH-B10",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H01/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "479d650cd835c8cfd5e79617fddb3783f0ed20a9de7e2787aedc38a2ab155e1c",
+      "source_bytes": 1220,
+      "task_id": "LH-H01",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H02/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "4e438c4429959c955813e5f9a811495633f4089833f227283c40d9006a1aadfa",
+      "source_bytes": 1080,
+      "task_id": "LH-H02",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H03/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "8c1be50b351d12b7d6272e8bd4d5eaf4debbc61983294ea2a4989245aaf47d00",
+      "source_bytes": 746,
+      "task_id": "LH-H03",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H04/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "45a66be350d3cf68de850d0e352586f1d63c5edc22cc2f48b4e3a06e0f7bfa24",
+      "source_bytes": 691,
+      "task_id": "LH-H04",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H05/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "20bf97d6fa462532d97254248e789e6697b21b2cbe63595c1dcfd79be4b531d7",
+      "source_bytes": 850,
+      "task_id": "LH-H05",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H06/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "b8cf8d097e4a9936d7c8d4365b1557ae778e8ac13c9e5e214899bffbcf852f04",
+      "source_bytes": 5301,
+      "task_id": "LH-H06",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H07/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "9d83b28e85def20cb7ad5f0e00cfd8325d1f670b4d2b7d1b0cabdfc522e78b91",
+      "source_bytes": 6991,
+      "task_id": "LH-H07",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H08/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "2c716a2ea96a94acefbf9cc5b89b11404ec7f1446d6bcf72a925357345917b77",
+      "source_bytes": 734,
+      "task_id": "LH-H08",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H09/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "57ae4b98854e99a814129fc8c590a1794d60134a1200a80f99dc7972faca4fe4",
+      "source_bytes": 31000,
+      "task_id": "LH-H09",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-H10/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "7877801ec5b171f94f34f452fffca91662d429eebd885e8ed83c5f4d54e94503",
+      "source_bytes": 10222,
+      "task_id": "LH-H10",
+      "level": "hard",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M01/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "291e015d361df4b61486ec3ccb3adaf739329088ddc20f74123adfa79d17e83c",
+      "source_bytes": 7627,
+      "task_id": "LH-M01",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M02/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "9adc9f785a92ce33b4a03f1d84aa8142737cba98af0a3a57d62929ec629c758f",
+      "source_bytes": 7021,
+      "task_id": "LH-M02",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M03/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "ebda486622299dfc97c2283d4d573a4a7b5b1666a27af26f4e34dd5343c2ef27",
+      "source_bytes": 6683,
+      "task_id": "LH-M03",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M04/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "c896436fa8b9fd47b36d09701b73f17d9e0216215bed94d6a7802688f8b6942b",
+      "source_bytes": 34929,
+      "task_id": "LH-M04",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M05/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "5d11b6511ff785835f6831b0b6165ca21f3eeeedcb646f7960c18b325bf3fe2d",
+      "source_bytes": 2453,
+      "task_id": "LH-M05",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M06/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "bb841fb1793970d48fca73a7981d3d8d7fd2b2cacfe09586b9d944c952ccad6f",
+      "source_bytes": 504,
+      "task_id": "LH-M06",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M07/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "7fbd6f5bb12e3e031945a14fc990b2616e89ddffb84093ac7b0bdb8aaa40be68",
+      "source_bytes": 5059,
+      "task_id": "LH-M07",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M08/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "ca265c5d0af9aef3a2289d3049902f62ae15da8ebcb6cf96e2cc574aa727cad1",
+      "source_bytes": 2863,
+      "task_id": "LH-M08",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M09/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "0bf6e89942e333924dfc80450a89738794fc20fae8b06431a0c226b85ea72c61",
+      "source_bytes": 1160,
+      "task_id": "LH-M09",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "lh_control_30_baseline/cases/LH-M10/audit.json",
+      "cohort": "lh_control_30_baseline",
+      "source_sha256": "d94cc7b92498c73878938c1e1b008c728f46fee18fb2cb2699bb2e7c06d82371",
+      "source_bytes": 2487,
+      "task_id": "LH-M10",
+      "level": "medium",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 0,
+      "request_types": {},
+      "event_types": {},
+      "action_types": {},
+      "attempt_count": 0,
+      "semantic_conflicts": [],
+      "repeated_attempts": [],
+      "trajectory": [],
+      "trajectory_canonical": "[]"
+    },
+    {
+      "source": "live_20260811_baseline_b01_run1/cases/E2E-B01/audit.json",
+      "cohort": "live_20260811_baseline_b01_run1",
+      "source_sha256": "56b2969b0c628152c751e4f152a8b21c2c2196b36e0922926748ca206404e772",
+      "source_bytes": 190693,
+      "task_id": "E2E-B01",
+      "level": "basic",
+      "agent_completed": false,
+      "external_passed": false,
+      "passed": false,
+      "failure": "ModelProtocolError: task T4 depends on itself through a replacement",
+      "transport_failure": false,
+      "model_requests": 9,
+      "request_types": {
+        "failure_analysis": 1,
+        "goal_parse": 1,
+        "replan": 2,
+        "task_decomposition": 1,
+        "tool_action": 1,
+        "tool_choice": 1,
+        "validation_cross_check": 1,
+        "verification_design": 1
+      },
+      "event_types": {
+        "action_returned": 1,
+        "action_selected": 1,
+        "attempt_started": 1,
+        "failure_analysis_returned": 1,
+        "failure_analysis_started": 1,
+        "failure_decision_budget_adjusted": 1,
+        "goal_parsed": 1,
+        "model_contract_error": 2,
+        "model_request_returned": 8,
+        "model_request_started": 8,
+        "plan_saved": 1,
+        "planning_started": 1,
+        "replan_started": 1,
+        "run_created": 1,
+        "run_interrupted": 1,
+        "task_failed": 1
+      },
+      "action_types": {
+        "list_directory": 1
+      },
+      "attempt_count": 1,
+      "semantic_conflicts": [
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "action_type": "list_directory",
+          "read_only_action": true,
+          "deterministic_checks": [
+            "action_succeeded"
+          ],
+          "failed_semantic_checks": [
+            "goal_cross_check"
+          ]
+        }
+      ],
+      "repeated_attempts": [],
+      "trajectory": [
+        {
+          "type": "run_created"
+        },
+        {
+          "source": "rwkv",
+          "type": "goal_parsed"
+        },
+        {
+          "type": "planning_started"
+        },
+        {
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "plan_saved"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "list_directory",
+          "source": "rwkv",
+          "task_id": "T1",
+          "type": "action_selected"
+        },
+        {
+          "action": "list_directory",
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "task_failed"
+        },
+        {
+          "task_id": "T1",
+          "type": "failure_analysis_started"
+        },
+        {
+          "request_type": "failure_analysis",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "failure_analysis",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "decision": "reselect_action",
+          "task_id": "T1",
+          "type": "failure_analysis_returned"
+        },
+        {
+          "task_id": "T1",
+          "type": "failure_decision_budget_adjusted"
+        },
+        {
+          "task_id": "T1",
+          "type": "replan_started"
+        },
+        {
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "replan",
+          "type": "model_contract_error"
+        },
+        {
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "replan",
+          "type": "model_contract_error"
+        },
+        {
+          "type": "run_interrupted"
+        }
+      ],
+      "trajectory_canonical": "[{\"type\":\"run_created\"},{\"source\":\"rwkv\",\"type\":\"goal_parsed\"},{\"type\":\"planning_started\"},{\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_returned\"},{\"type\":\"plan_saved\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"action\":\"list_directory\",\"source\":\"rwkv\",\"task_id\":\"T1\",\"type\":\"action_selected\"},{\"action\":\"list_directory\",\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"task_failed\"},{\"task_id\":\"T1\",\"type\":\"failure_analysis_started\"},{\"request_type\":\"failure_analysis\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"failure_analysis\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"decision\":\"reselect_action\",\"task_id\":\"T1\",\"type\":\"failure_analysis_returned\"},{\"task_id\":\"T1\",\"type\":\"failure_decision_budget_adjusted\"},{\"task_id\":\"T1\",\"type\":\"replan_started\"},{\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"replan\",\"type\":\"model_contract_error\"},{\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"replan\",\"type\":\"model_contract_error\"},{\"type\":\"run_interrupted\"}]"
+    },
+    {
+      "source": "live_20260811_no_failure_analysis_b01_run1/cases/E2E-B01/audit.json",
+      "cohort": "live_20260811_no_failure_analysis_b01_run1",
+      "source_sha256": "cf21c3cabe579e1ae51315b6a8442e378492f903b792434bf6d7091a81393266",
+      "source_bytes": 375908,
+      "task_id": "E2E-B01",
+      "level": "basic",
+      "agent_completed": true,
+      "external_passed": true,
+      "passed": true,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 21,
+      "request_types": {
+        "final_answer": 1,
+        "goal_parse": 1,
+        "replan": 1,
+        "task_decomposition": 1,
+        "tool_action": 4,
+        "tool_choice": 4,
+        "validation_cross_check": 5,
+        "verification_design": 4
+      },
+      "event_types": {
+        "action_returned": 5,
+        "action_selected": 4,
+        "attempt_started": 5,
+        "goal_parsed": 1,
+        "model_request_returned": 20,
+        "model_request_started": 20,
+        "plan_saved": 1,
+        "planning_started": 1,
+        "replan_saved": 1,
+        "replan_started": 1,
+        "retry_scheduled": 1,
+        "run_completed": 1,
+        "run_created": 1,
+        "task_completed": 3,
+        "task_failed": 2
+      },
+      "action_types": {
+        "list_directory": 2,
+        "read_file": 1,
+        "write_file": 2
+      },
+      "attempt_count": 5,
+      "semantic_conflicts": [
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "action_type": "list_directory",
+          "read_only_action": true,
+          "deterministic_checks": [
+            "action_succeeded"
+          ],
+          "failed_semantic_checks": [
+            "goal_cross_check"
+          ]
+        },
+        {
+          "attempt_id": "T1-A2",
+          "task_id": "T1",
+          "action_type": "list_directory",
+          "read_only_action": true,
+          "deterministic_checks": [
+            "action_succeeded"
+          ],
+          "failed_semantic_checks": [
+            "goal_cross_check"
+          ]
+        }
+      ],
+      "repeated_attempts": [
+        {
+          "task_id": "T1",
+          "left_attempt": "T1-A1",
+          "right_attempt": "T1-A2",
+          "similarity": 1.0
+        }
+      ],
+      "trajectory": [
+        {
+          "type": "run_created"
+        },
+        {
+          "source": "rwkv",
+          "type": "goal_parsed"
+        },
+        {
+          "type": "planning_started"
+        },
+        {
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "plan_saved"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "list_directory",
+          "source": "rwkv",
+          "task_id": "T1",
+          "type": "action_selected"
+        },
+        {
+          "action": "list_directory",
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "task_failed"
+        },
+        {
+          "task_id": "T1",
+          "type": "retry_scheduled"
+        },
+        {
+          "action": "list_directory",
+          "attempt_id": "T1-A2",
+          "task_id": "T1",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T1-A2",
+          "task_id": "T1",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T1-A2",
+          "task_id": "T1",
+          "type": "task_failed"
+        },
+        {
+          "task_id": "T1",
+          "type": "replan_started"
+        },
+        {
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "replan_saved"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "write_file",
+          "source": "rwkv",
+          "task_id": "T4",
+          "type": "action_selected"
+        },
+        {
+          "action": "write_file",
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "write_file",
+          "source": "rwkv",
+          "task_id": "T2",
+          "type": "action_selected"
+        },
+        {
+          "action": "write_file",
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "read_file",
+          "source": "rwkv",
+          "task_id": "T3",
+          "type": "action_selected"
+        },
+        {
+          "action": "read_file",
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "final_answer",
+          "task_id": "FINAL",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "final_answer",
+          "task_id": "FINAL",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "run_completed"
+        }
+      ],
+      "trajectory_canonical": "[{\"type\":\"run_created\"},{\"source\":\"rwkv\",\"type\":\"goal_parsed\"},{\"type\":\"planning_started\"},{\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_returned\"},{\"type\":\"plan_saved\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"action\":\"list_directory\",\"source\":\"rwkv\",\"task_id\":\"T1\",\"type\":\"action_selected\"},{\"action\":\"list_directory\",\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"task_failed\"},{\"task_id\":\"T1\",\"type\":\"retry_scheduled\"},{\"action\":\"list_directory\",\"attempt_id\":\"T1-A2\",\"task_id\":\"T1\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T1-A2\",\"task_id\":\"T1\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T1-A2\",\"task_id\":\"T1\",\"type\":\"task_failed\"},{\"task_id\":\"T1\",\"type\":\"replan_started\"},{\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"type\":\"replan_saved\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"action\":\"write_file\",\"source\":\"rwkv\",\"task_id\":\"T4\",\"type\":\"action_selected\"},{\"action\":\"write_file\",\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"task_completed\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"action\":\"write_file\",\"source\":\"rwkv\",\"task_id\":\"T2\",\"type\":\"action_selected\"},{\"action\":\"write_file\",\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"task_completed\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"action\":\"read_file\",\"source\":\"rwkv\",\"task_id\":\"T3\",\"type\":\"action_selected\"},{\"action\":\"read_file\",\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"task_completed\"},{\"request_type\":\"final_answer\",\"task_id\":\"FINAL\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"final_answer\",\"task_id\":\"FINAL\",\"type\":\"model_request_returned\"},{\"type\":\"run_completed\"}]"
+    },
+    {
+      "source": "live_20260811_no_mandatory_b01_run1/cases/E2E-B01/audit.json",
+      "cohort": "live_20260811_no_mandatory_b01_run1",
+      "source_sha256": "66244e0846e15f3e3b6240d1596e29e5a03995c1791acbf25520be7cd8b8ef7e",
+      "source_bytes": 328180,
+      "task_id": "E2E-B01",
+      "level": "basic",
+      "agent_completed": true,
+      "external_passed": true,
+      "passed": true,
+      "failure": "",
+      "transport_failure": false,
+      "model_requests": 20,
+      "request_types": {
+        "failure_analysis": 1,
+        "final_answer": 1,
+        "goal_binding": 1,
+        "goal_parse": 1,
+        "replan": 1,
+        "task_decomposition": 1,
+        "tool_action": 4,
+        "tool_choice": 4,
+        "validation_cross_check": 2,
+        "verification_design": 4
+      },
+      "event_types": {
+        "action_returned": 4,
+        "action_selected": 4,
+        "attempt_started": 4,
+        "failure_analysis_returned": 1,
+        "failure_analysis_started": 1,
+        "goal_parsed": 1,
+        "model_request_returned": 19,
+        "model_request_started": 19,
+        "plan_saved": 1,
+        "planning_started": 1,
+        "replan_saved": 1,
+        "replan_started": 1,
+        "run_completed": 1,
+        "run_created": 1,
+        "task_completed": 3,
+        "task_failed": 1
+      },
+      "action_types": {
+        "list_directory": 1,
+        "read_file": 1,
+        "write_file": 2
+      },
+      "attempt_count": 4,
+      "semantic_conflicts": [
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "action_type": "list_directory",
+          "read_only_action": true,
+          "deterministic_checks": [
+            "action_succeeded"
+          ],
+          "failed_semantic_checks": [
+            "model_cross_check"
+          ]
+        }
+      ],
+      "repeated_attempts": [],
+      "trajectory": [
+        {
+          "type": "run_created"
+        },
+        {
+          "source": "rwkv",
+          "type": "goal_parsed"
+        },
+        {
+          "type": "planning_started"
+        },
+        {
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "task_decomposition",
+          "task_id": "PLAN",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "plan_saved"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "list_directory",
+          "source": "rwkv",
+          "task_id": "T1",
+          "type": "action_selected"
+        },
+        {
+          "action": "list_directory",
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1",
+          "type": "task_failed"
+        },
+        {
+          "task_id": "T1",
+          "type": "failure_analysis_started"
+        },
+        {
+          "request_type": "failure_analysis",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "failure_analysis",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "decision": "replan",
+          "task_id": "T1",
+          "type": "failure_analysis_returned"
+        },
+        {
+          "task_id": "T1",
+          "type": "replan_started"
+        },
+        {
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "replan",
+          "task_id": "T1",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "goal_binding",
+          "task_id": "GOAL-BINDING",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "goal_binding",
+          "task_id": "GOAL-BINDING",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "replan_saved"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T4",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T4",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "write_file",
+          "source": "rwkv",
+          "task_id": "T4",
+          "type": "action_selected"
+        },
+        {
+          "action": "write_file",
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "action_returned"
+        },
+        {
+          "attempt_id": "T4-A1",
+          "task_id": "T4",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T2",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T2",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "write_file",
+          "source": "rwkv",
+          "task_id": "T2",
+          "type": "action_selected"
+        },
+        {
+          "action": "write_file",
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "action_returned"
+        },
+        {
+          "attempt_id": "T2-A1",
+          "task_id": "T2",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "tool_choice",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_choice",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "tool_action",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "tool_action",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "request_type": "verification_design",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "verification_design",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "action": "read_file",
+          "source": "rwkv",
+          "task_id": "T3",
+          "type": "action_selected"
+        },
+        {
+          "action": "read_file",
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "attempt_started"
+        },
+        {
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "action_returned"
+        },
+        {
+          "request_type": "validation_cross_check",
+          "task_id": "T3",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "validation_cross_check",
+          "task_id": "T3",
+          "type": "model_request_returned"
+        },
+        {
+          "attempt_id": "T3-A1",
+          "task_id": "T3",
+          "type": "task_completed"
+        },
+        {
+          "request_type": "final_answer",
+          "task_id": "FINAL",
+          "type": "model_request_started"
+        },
+        {
+          "finish_reason": "stop",
+          "request_type": "final_answer",
+          "task_id": "FINAL",
+          "type": "model_request_returned"
+        },
+        {
+          "type": "run_completed"
+        }
+      ],
+      "trajectory_canonical": "[{\"type\":\"run_created\"},{\"source\":\"rwkv\",\"type\":\"goal_parsed\"},{\"type\":\"planning_started\"},{\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"task_decomposition\",\"task_id\":\"PLAN\",\"type\":\"model_request_returned\"},{\"type\":\"plan_saved\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"action\":\"list_directory\",\"source\":\"rwkv\",\"task_id\":\"T1\",\"type\":\"action_selected\"},{\"action\":\"list_directory\",\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T1-A1\",\"task_id\":\"T1\",\"type\":\"task_failed\"},{\"task_id\":\"T1\",\"type\":\"failure_analysis_started\"},{\"request_type\":\"failure_analysis\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"failure_analysis\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"decision\":\"replan\",\"task_id\":\"T1\",\"type\":\"failure_analysis_returned\"},{\"task_id\":\"T1\",\"type\":\"replan_started\"},{\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"replan\",\"task_id\":\"T1\",\"type\":\"model_request_returned\"},{\"request_type\":\"goal_binding\",\"task_id\":\"GOAL-BINDING\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"goal_binding\",\"task_id\":\"GOAL-BINDING\",\"type\":\"model_request_returned\"},{\"type\":\"replan_saved\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T4\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T4\",\"type\":\"model_request_returned\"},{\"action\":\"write_file\",\"source\":\"rwkv\",\"task_id\":\"T4\",\"type\":\"action_selected\"},{\"action\":\"write_file\",\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"action_returned\"},{\"attempt_id\":\"T4-A1\",\"task_id\":\"T4\",\"type\":\"task_completed\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T2\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T2\",\"type\":\"model_request_returned\"},{\"action\":\"write_file\",\"source\":\"rwkv\",\"task_id\":\"T2\",\"type\":\"action_selected\"},{\"action\":\"write_file\",\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"action_returned\"},{\"attempt_id\":\"T2-A1\",\"task_id\":\"T2\",\"type\":\"task_completed\"},{\"request_type\":\"tool_choice\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_choice\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"request_type\":\"tool_action\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"tool_action\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"request_type\":\"verification_design\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"verification_design\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"action\":\"read_file\",\"source\":\"rwkv\",\"task_id\":\"T3\",\"type\":\"action_selected\"},{\"action\":\"read_file\",\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"attempt_started\"},{\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"action_returned\"},{\"request_type\":\"validation_cross_check\",\"task_id\":\"T3\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"validation_cross_check\",\"task_id\":\"T3\",\"type\":\"model_request_returned\"},{\"attempt_id\":\"T3-A1\",\"task_id\":\"T3\",\"type\":\"task_completed\"},{\"request_type\":\"final_answer\",\"task_id\":\"FINAL\",\"type\":\"model_request_started\"},{\"finish_reason\":\"stop\",\"request_type\":\"final_answer\",\"task_id\":\"FINAL\",\"type\":\"model_request_returned\"},{\"type\":\"run_completed\"}]"
+    }
+  ]
+}

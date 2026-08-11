@@ -1,0 +1,111 @@
+{
+  "schema_version": "rwkv-lh.vllm-rwkv-protocol-probe.v1",
+  "runtime": "vllm-rwkv",
+  "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+  "base_url": "http://127.0.0.1:29610/v1",
+  "secret_persisted": false,
+  "metric": {
+    "version": "utf8-byte-ngram-cosine.v1",
+    "n": 5
+  },
+  "models": {
+    "ok": true,
+    "status_code": 200,
+    "latency_ms": 96.663,
+    "body": {
+      "object": "list",
+      "data": [
+        {
+          "id": "rwkv7-g1i-13.3b-20260805-ctx16384",
+          "object": "model",
+          "created": 1786382276,
+          "owned_by": "vllm",
+          "root": "/home/chase/weights/BlinkDL__rwkv7-g1/rwkv7-g1i-13.3b-20260805-ctx16384.pth",
+          "parent": null,
+          "max_model_len": 16384,
+          "permission": [
+            {
+              "id": "modelperm-b41a09d4299bdc8e",
+              "object": "model_permission",
+              "created": 1786382276,
+              "allow_create_engine": false,
+              "allow_sampling": true,
+              "allow_logprobs": true,
+              "allow_search_indices": false,
+              "allow_view": true,
+              "allow_fine_tuning": false,
+              "organization": "*",
+              "group": null,
+              "is_blocking": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "json_probe": {
+    "response": {
+      "ok": false,
+      "status_code": 500,
+      "latency_ms": 56.805,
+      "body": {
+        "error": {
+          "message": "",
+          "type": "InternalServerError",
+          "param": null,
+          "code": 500
+        }
+      }
+    },
+    "parsed": null,
+    "similarity": 0.0
+  },
+  "tool_probe": {
+    "response": {
+      "ok": true,
+      "status_code": 200,
+      "latency_ms": 1849.808,
+      "body": {
+        "id": "chatcmpl-98cb834aed5ffd9d",
+        "object": "chat.completion",
+        "created": 1786382276,
+        "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": ">\nOkay, let's see. The user wants me to select the write_file tool for probe.txt with the content \"RWKV state probe\" followed by a newline. They also mentioned not to claim execution.\n\nFirst, I need to check the available tools. The write_file function requires a path and content. The path here is probe.txt, and the content should be exactly \"RWKV state probe\\n\". \n\nWait, the user specified \"followed by one newline\". So the content should end with a newline character. In the example, the content is \"RWKV state probe\" plus a newline",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "length",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.23.1rc1.dev9999+g56b463bf6-nohash",
+        "usage": {
+          "prompt_tokens": 191,
+          "total_tokens": 319,
+          "completion_tokens": 128,
+          "prompt_tokens_details": null
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    "parsed_arguments": null,
+    "similarity": 0.0
+  }
+}

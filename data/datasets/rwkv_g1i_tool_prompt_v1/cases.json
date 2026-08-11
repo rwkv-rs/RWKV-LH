@@ -1,0 +1,63 @@
+{
+  "schema_version": "rwkv-g1i-tool-prompt.v1",
+  "cases": [
+    {
+      "case_id": "TP-01",
+      "task": "Read input.txt with at most 2000 characters. Select one tool and do not claim execution.",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      }
+    },
+    {
+      "case_id": "TP-02",
+      "task": "Write output.txt with content exactly hello RWKV followed by one newline. Overwrite the file and do not create parent directories. Select one tool and do not claim execution.",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      }
+    },
+    {
+      "case_id": "TP-03",
+      "task": "Read config.json as JSON. Select one tool and do not claim execution.",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      }
+    },
+    {
+      "case_id": "TP-04",
+      "task": "Remove the first exact line deprecated=true from app.env. Select one tool and do not claim execution.",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      }
+    },
+    {
+      "case_id": "TP-05",
+      "task": "Describe running python -m unittest -v from the workspace root with timeout 120 seconds. Select one tool and do not claim execution.",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": ["python", "-m", "unittest", "-v"],
+          "cwd": ".",
+          "timeout": 120
+        }
+      }
+    }
+  ]
+}

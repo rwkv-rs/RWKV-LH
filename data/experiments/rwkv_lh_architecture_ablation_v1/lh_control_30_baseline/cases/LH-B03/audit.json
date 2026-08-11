@@ -1,0 +1,167 @@
+{
+  "task_id": "LH-B03",
+  "level": "basic",
+  "task_description": "按依赖顺序生成两个文件。",
+  "expected_result": "依赖任务先完成，下游文件随后生成。",
+  "actual_result": "completed",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "dee9f0c0f9d17f9fe8575f02ecf36453d24e755e3670dfca33eab03abc4f790f"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1",
+          "T2"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "first",
+          "path": "first.txt"
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:49.610+00:00",
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-B03/workspace/first.txt"
+            },
+            "kind": "file_exists",
+            "message": "path exists=True",
+            "passed": true,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "second",
+          "path": "second.txt"
+        },
+        "attempt_id": "T2-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 6,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T2-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 7,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T2-A1",
+        "task_id": "T2",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:49.682+00:00",
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-B03/workspace/second.txt"
+            },
+            "kind": "file_exists",
+            "message": "path exists=True",
+            "passed": true,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 8,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 2,
+        "final_output": "Verified 2 task(s) and 2 artifact(s).",
+        "task_count": 2
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "first",
+        "path": "first.txt"
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T1"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "second",
+        "path": "second.txt"
+      },
+      "attempt_id": "T2-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T2"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [],
+  "recovery": [],
+  "final_verification": {
+    "completion_order": [
+      "T1",
+      "T2"
+    ]
+  },
+  "extra": {}
+}

@@ -730,12 +730,8 @@ class SequenceActionClient:
         self.outputs = [
             '"schema_version":"long-horizon.action-choice.v1",'
             '"task_id":"T1","action_type":"write_file"}',
-            '"schema_version":"long-horizon.action.v1",'
-            '"action":{"type":"write_file","arguments":{'
-            '"path":"result.txt","content":"verified"}}}',
-            '"schema_version":"long-horizon.verification-design.v1",'
-            '"completion_criteria":[{"kind":"file_content","parameters":{'
-            '"path":"result.txt","expected_content":"verified"},"required":true}]}',
+            '{"name":"write_file","arguments":{'
+            '"path":"result.txt","content":"verified"}}',
         ]
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
@@ -743,16 +739,16 @@ class SequenceActionClient:
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 
-class MissingTaskIdActionClient(SequenceActionClient):
+class StringArgumentsActionClient(SequenceActionClient):
     def __init__(self):
         super().__init__()
-        self.outputs[0] = (
-            '"schema_version":"long-horizon.action-choice.v1",'
-            '"action_type":"write_file"}'
+        self.outputs[1] = (
+            '{"name":"write_file","arguments":'
+            '"{\\"path\\":\\"result.txt\\",\\"content\\":\\"verified\\"}"}'
         )
 
 
-def test_model_action_pipeline_separates_choice_arguments_and_verification():
+def test_model_action_pipeline_keeps_choice_and_narrows_g1i_tool_contract():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -785,14 +781,19 @@ def test_model_action_pipeline_separates_choice_arguments_and_verification():
         assert proposal.action == TaskAction(
             "write_file", {"path": "result.txt", "content": "verified"}
         )
-        assert [item.kind for item in proposal.completion_criteria] == ["file_content"]
-        assert [temperature for temperature, _ in client.calls] == [0.05, 0.05, 0.03]
+        assert [item.kind for item in proposal.completion_criteria] == [
+            "action_succeeded",
+            "file_content",
+        ]
+        assert [temperature for temperature, _ in client.calls] == [0.05, 0.05]
         assert "ACTION TYPE CATALOG" in client.calls[0][1]
-        assert "SELECTED ACTION CONTRACT" in client.calls[1][1]
-        assert "ALLOWED VERIFIER CONTRACT" in client.calls[2][1]
+        assert client.calls[1][1].startswith("System: Tools: [")
+        assert client.calls[1][1].count('"name":"write_file"') == 1
+        assert '"name":"read_file"' not in client.calls[1][1]
+        assert client.calls[1][1].endswith("Assistant: ```json\n")
 
 
-def test_model_action_safely_recovers_missing_active_task_echo():
+def test_model_action_normalizes_stringified_g1i_arguments():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -810,7 +811,7 @@ def test_model_action_safely_recovers_missing_active_task_echo():
             current.revision = saved.revision
             current.updated_at = saved.updated_at
 
-        client = MissingTaskIdActionClient()
+        client = StringArgumentsActionClient()
         harness = ActionHarness()
         model = LongHorizonModel(ModelInvoker(client=client), harness=harness)
         context = WorkingMemoryBuilder().build(state, task)
@@ -822,14 +823,16 @@ def test_model_action_safely_recovers_missing_active_task_echo():
             persist,
         )
 
-        assert proposal.action.action_type == "write_file"
-        recoveries = [
+        assert proposal.action == TaskAction(
+            "write_file", {"path": "result.txt", "content": "verified"}
+        )
+        normalizations = [
             event
             for event in store.event_records(state.run_id)
-            if event["type"] == "model_protocol_recovered"
+            if event["type"] == "model_protocol_normalized"
         ]
-        assert recoveries[-1]["data"]["field"] == "task_id"
-        assert recoveries[-1]["data"]["recovered_value"] == "T1"
+        assert normalizations[-1]["data"]["field"] == "arguments"
+        assert normalizations[-1]["data"]["normalization"] == "json_string_to_object"
 
 
 class ReselectingFailureModel:

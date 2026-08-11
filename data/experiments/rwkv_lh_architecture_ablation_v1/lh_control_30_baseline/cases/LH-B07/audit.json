@@ -1,0 +1,123 @@
+{
+  "task_id": "LH-B07",
+  "level": "basic",
+  "task_description": "动作返回但要求的文件不存在。",
+  "expected_result": "Verifier 拒绝完成并在重试耗尽后阻断。",
+  "actual_result": "blocked",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "e1034f79cbebd1f94dc7f7bd130bef190407760e47e0c83a807e49c09c1cb02a"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "noop",
+        "arguments": {
+          "output": "claimed"
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "claimed",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_failed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:50.354+00:00",
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-B07/workspace/missing.txt"
+            },
+            "kind": "file_exists",
+            "message": "path exists=False",
+            "passed": false,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "run_blocked",
+      "data": {
+        "attempts": 1,
+        "reason": "task_retry_exhausted",
+        "task_id": "T1"
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "noop",
+      "arguments": {
+        "output": "claimed"
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T1"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [
+    {
+      "task_id": "T1",
+      "type": "ValidationFailed",
+      "attempt_id": "T1-A1",
+      "results": [
+        {
+          "kind": "file_exists",
+          "passed": false,
+          "required": true,
+          "message": "path exists=False",
+          "evidence": {
+            "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-B07/workspace/missing.txt"
+          },
+          "checked_at": "2026-08-10T15:39:50.354+00:00"
+        }
+      ],
+      "at": "2026-08-10T15:39:50.354+00:00"
+    }
+  ],
+  "recovery": [],
+  "final_verification": {
+    "task_status": "blocked",
+    "file_exists": false
+  },
+  "extra": {}
+}

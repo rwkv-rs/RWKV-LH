@@ -1,0 +1,109 @@
+{
+  "task_id": "LH-M10",
+  "level": "medium",
+  "task_description": "两个 run 并发执行且 state 不串。",
+  "expected_result": "各自只产生自己的文件、事件和最终状态。",
+  "actual_result": "concurrent_runs_finished",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "03a0e3e415038ded57c8e871274611a2997f890512b89c76ca629c6a938e451c"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {}
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "A",
+          "path": "A.txt"
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-10T15:39:53.512+00:00",
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/rwkv_lh_architecture_ablation_v1/lh_control_30_baseline/cases/LH-M10/workspace-A/A.txt",
+              "text": "A"
+            },
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 1,
+        "final_output": "Verified 1 task(s) and 1 artifact(s).",
+        "task_count": 1
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "A",
+        "path": "A.txt"
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T1"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [],
+  "recovery": [],
+  "final_verification": {
+    "statuses": {
+      "LH-M10-A": "completed",
+      "LH-M10-B": "completed"
+    }
+  },
+  "extra": {
+    "run_ids": [
+      "LH-M10-A",
+      "LH-M10-B"
+    ]
+  }
+}

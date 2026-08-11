@@ -25,8 +25,9 @@ flowchart TD
     PL --> TG["Task Graph / Ledger"]
     TG --> EC["Single Execution Controller"]
     EC --> WM["Working Memory Projection"]
-    WM --> AS["RWKV Action Selection"]
-    AS --> AH["Scoped Action Harness"]
+    WM --> AS["RWKV Action Type Selection"]
+    AS --> G1["Single-tool G1i Function Call"]
+    G1 --> AH["Scoped Action Harness"]
     AH --> DV["Deterministic Validation"]
     DV -->|"Pass"| TG
     DV -->|"Retryable"| EC
@@ -67,7 +68,7 @@ SQLite 是默认状态存储，`StateStore` Protocol 保留替换数据库实现
 
 ## 5. Working Memory
 
-完整历史不进入每次 prompt。`WorkingMemoryBuilder` 只选择不可变 Goal、当前 Task、依赖输出、显式 memory reference、相关 evidence、最近一次材料性失败和 Action Contract。
+完整历史不进入每次 prompt。`WorkingMemoryBuilder` 只选择不可变 Goal、当前 Task、依赖输出、显式 memory reference、相关 evidence、最近一次材料性失败和 Action Contract。宿主机绝对 workspace root 不进入模型工作记忆；模型只看到逻辑 scope `.`，所有工具路径必须保持 workspace-relative。
 
 RWKV 官方 tokenizer 随包提供，用于真实 token 计数。工作记忆先按 13,600 tokens 上限选择内容，再根据当前请求的 `max_tokens`、16,384 上下文上限、服务端 BOS 和安全余量做最终投影。不可变 Goal 和当前 Task 不会被静默截断；放不下时请求在发送前失败。
 
@@ -89,6 +90,10 @@ required_postconditions
 ```
 
 核心包不会扫描或自动加载检索工具。
+
+动作物化保留两个职责清楚的阶段：RWKV 先从紧凑 catalog 选择一个 action type，再用 `g1i-tool-dialog.v1` 对只包含该动作的 `System: Tools` 生成 `{name, arguments}`。这不是三套相互校验的状态机；第一阶段限制选择空间，第二阶段遵循 G1i 线上函数调用格式。完整工具表一次生成在固定消融中发生工具选择退化，因此不作为默认。
+
+内建 action 的 postcondition 由 Harness 从固定 action arguments 确定性生成；只有自定义 action 缺少内建映射时才请求 RWKV 设计 verifier。`write_file` 作为幂等 action 强制 `overwrite=true`，否则未知结果后的安全重试语义不成立。
 
 ## 7. 结构化 OpenAI-compatible RWKV runtime
 
@@ -130,6 +135,8 @@ vllm-rwkv 当前强制使用 rapid-sampling。RWKV-LH 只开放源码实际支�
 ## 9. Completion 与 Validation
 
 任务完成条件是 required completion criteria 全部通过。Verifier 覆盖文件状态与内容、JSON、命令退出码、哈希、HTTP 字段、evidence binding、memory reference 和 model cross-check。
+
+G1i function call 的 `arguments` 允许模型返回 JSON object，或返回 vLLM/OpenAI 常见的 JSON string；协议层把后者解析为 object，并记录 `model_protocol_normalized` 事件。未知 name、未知顶层字段、额外 action arguments、绝对路径和非对象 arguments 都在副作用前 fail closed。
 
 Run 完成还要求所有 required GoalCriterion 被 active completed tasks 覆盖。最终文字只在这一状态之后调用 RWKV 生成。
 

@@ -1,0 +1,1125 @@
+{
+  "schema_version": "rwkv-lh.g1i-chat-message-tool-dialog-probe.v1",
+  "runtime": "vllm-rwkv",
+  "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+  "dataset": "/home/chase/GitHub/RWKV-LH/data/datasets/rwkv_g1i_online_tool_dialog_v1/cases.json",
+  "dataset_manifest": {
+    "schema_version": "rwkv-lh.dataset-manifest.v1",
+    "dataset_version": "rwkv-g1i-online-tool-dialog.v1",
+    "source": "User-provided G1i online System/Tools, fenced JSON, Function output, submit protocol",
+    "purpose": "Non-executing two-stage G1i tool-dialog format comparison",
+    "generation": "Five manually constructed tool call plus fixed function output plus submit cases",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "16b6d7ed378b41c1beaec1a9aa44045cd5d379a27db649cc6236af96dd80df63"
+      },
+      {
+        "path": "cases.json",
+        "sha256": "9afddf7de315f2305c2cd8cc8d168f3d33cdf226e043ed154e3dac6d74d97800"
+      }
+    ],
+    "metric": {
+      "version": "utf8-byte-ngram-cosine.v1",
+      "n": 5,
+      "near_duplicate_threshold": 0.95,
+      "exact_threshold": 1.0
+    }
+  },
+  "secret_persisted": false,
+  "message_contract": {
+    "system": "Tools: [...] + Return only a JSON function call.",
+    "initial_user": "task prompt",
+    "assistant": "content begins with ```json and contains one call",
+    "followup_user": "Function output: <tool result>"
+  },
+  "fixed_parameters": {
+    "temperature": 0.03,
+    "top_p": 1.0,
+    "max_tokens": 192,
+    "repeats": 2,
+    "assistant_prefill": true,
+    "continue_final_message": true
+  },
+  "metric": {
+    "version": "utf8-byte-ngram-cosine.v1",
+    "n": 5,
+    "near_duplicate_threshold": 0.95,
+    "exact_threshold": 1.0
+  },
+  "aggregate": {
+    "tool_call": {
+      "requests": 10,
+      "http_ok": 10,
+      "json_fence_prefix": 0,
+      "parsed": 0,
+      "name_correct": 0,
+      "exact": 0,
+      "mean_similarity": 0.0,
+      "mean_latency_ms": 213.134,
+      "mean_completion_tokens": 6.8,
+      "mean_repeat_output_similarity": 1.0,
+      "near_duplicate_repeat_pairs": 5
+    },
+    "submit_after_function_output": {
+      "requests": 10,
+      "http_ok": 10,
+      "json_fence_prefix": 0,
+      "parsed": 0,
+      "name_correct": 0,
+      "exact": 0,
+      "mean_similarity": 0.0,
+      "mean_latency_ms": 216.482,
+      "mean_completion_tokens": 7.1,
+      "mean_repeat_output_similarity": 0.813213,
+      "near_duplicate_repeat_pairs": 3
+    },
+    "all": {
+      "requests": 20,
+      "http_ok": 20,
+      "json_fence_prefix": 0,
+      "parsed": 0,
+      "name_correct": 0,
+      "exact": 0,
+      "mean_similarity": 0.0,
+      "mean_latency_ms": 214.808,
+      "mean_completion_tokens": 6.95,
+      "mean_repeat_output_similarity": 0.906607,
+      "near_duplicate_repeat_pairs": 8
+    }
+  },
+  "results": [
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read input.txt with at most 2000 characters, then submit its exact text."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 271.973,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 403,
+          "total_tokens": 411,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read input.txt with at most 2000 characters, then submit its exact text."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"max_chars\":2000,\"path\":\"input.txt\"},\"name\":\"read_file\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"output\":\"alpha=7\\n\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 255.024,
+        "content": "gap_word1_length_1XX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 453,
+          "total_tokens": 463,
+          "completion_tokens": 10,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Write output.txt with content exactly hello RWKV followed by one newline, then submit the written path."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 224.956,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 415,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Write output.txt with content exactly hello RWKV followed by one newline, then submit the written path."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"content\":\"hello RWKV\\n\",\"create_parents\":false,\"overwrite\":true,\"path\":\"output.txt\"},\"name\":\"write_file\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"bytes\":11,\"path\":\"output.txt\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 242.036,
+        "content": "error_line_length_1xx",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 470,
+          "total_tokens": 479,
+          "completion_tokens": 9,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read config.json, then submit the enabled boolean from the returned JSON."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 224.554,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 409,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read config.json, then submit the enabled boolean from the returned JSON."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"path\":\"config.json\"},\"name\":\"read_json\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"success\":true,\"value\":{\"feature\":{\"enabled\":true}}}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 226.288,
+        "content": "error_line_length_XX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 444,
+          "total_tokens": 452,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Remove the first exact line deprecated=true from app.env, then submit whether it was removed."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 225.016,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 414,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Remove the first exact line deprecated=true from app.env, then submit whether it was removed."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"},\"name\":\"remove_line\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"removed_count\":1,\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 233.328,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 457,
+          "total_tokens": 465,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Run python -m unittest -v from the workspace root with timeout 120 seconds, then submit the exit code."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 141.507,
+        "content": "prefix",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 409,
+          "total_tokens": 411,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Run python -m unittest -v from the workspace root with timeout 120 seconds, then submit the exit code."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"argv\":[\"python\",\"-m\",\"unittest\",\"-v\"],\"cwd\":\".\",\"timeout\":120},\"name\":\"run_command\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"exit_code\":0,\"output\":\"Ran 2 tests\\nOK\\n\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 148.677,
+        "content": "prefix",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 477,
+          "total_tokens": 479,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read input.txt with at most 2000 characters, then submit its exact text."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 227.34,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 403,
+          "total_tokens": 411,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read input.txt with at most 2000 characters, then submit its exact text."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"max_chars\":2000,\"path\":\"input.txt\"},\"name\":\"read_file\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"output\":\"alpha=7\\n\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 228.464,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 453,
+          "total_tokens": 461,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Write output.txt with content exactly hello RWKV followed by one newline, then submit the written path."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 224.955,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 415,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Write output.txt with content exactly hello RWKV followed by one newline, then submit the written path."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"content\":\"hello RWKV\\n\",\"create_parents\":false,\"overwrite\":true,\"path\":\"output.txt\"},\"name\":\"write_file\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"bytes\":11,\"path\":\"output.txt\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 227.215,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 470,
+          "total_tokens": 478,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read config.json, then submit the enabled boolean from the returned JSON."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 225.298,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 409,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Read config.json, then submit the enabled boolean from the returned JSON."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"path\":\"config.json\"},\"name\":\"read_json\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"success\":true,\"value\":{\"feature\":{\"enabled\":true}}}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 226.737,
+        "content": "error_line_length_XX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 444,
+          "total_tokens": 452,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Remove the first exact line deprecated=true from app.env, then submit whether it was removed."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 223.808,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 414,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Remove the first exact line deprecated=true from app.env, then submit whether it was removed."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"},\"name\":\"remove_line\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"removed_count\":1,\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 227.826,
+        "content": "error_line_length_XXX",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 457,
+          "total_tokens": 465,
+          "completion_tokens": 8,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Run python -m unittest -v from the workspace root with timeout 120 seconds, then submit the exit code."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 141.935,
+        "content": "prefix",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 409,
+          "total_tokens": 411,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Tools: [{\"description\":\"Read a UTF-8 text file from the scoped workspace.\",\"name\":\"read_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"max_chars\":{\"type\":\"integer\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"max_chars\"],\"type\":\"object\"}},{\"description\":\"Write a UTF-8 text file in the scoped workspace.\",\"name\":\"write_file\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"content\":{\"type\":\"string\"},\"create_parents\":{\"type\":\"boolean\"},\"overwrite\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\",\"overwrite\",\"create_parents\"],\"type\":\"object\"}},{\"description\":\"Read and parse a JSON file from the scoped workspace.\",\"name\":\"read_json\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"}},{\"description\":\"Remove an exact line from a scoped text file.\",\"name\":\"remove_line\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"all\":{\"type\":\"boolean\"},\"path\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}},\"required\":[\"path\",\"text\",\"all\"],\"type\":\"object\"}},{\"description\":\"Describe a scoped argv command; this probe never executes it.\",\"name\":\"run_command\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"argv\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"cwd\":{\"type\":\"string\"},\"timeout\":{\"type\":\"number\"}},\"required\":[\"argv\",\"cwd\",\"timeout\"],\"type\":\"object\"}},{\"description\":\"Submit the final structured result after using tools.\",\"name\":\"submit\",\"parameters\":{\"additionalProperties\":true,\"type\":\"object\"}}]\nReturn only a JSON function call."
+        },
+        {
+          "role": "user",
+          "content": "Run python -m unittest -v from the workspace root with timeout 120 seconds, then submit the exit code."
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n{\"arguments\":{\"argv\":[\"python\",\"-m\",\"unittest\",\"-v\"],\"cwd\":\".\",\"timeout\":120},\"name\":\"run_command\"}"
+        },
+        {
+          "role": "user",
+          "content": "Function output: {\"exit_code\":0,\"output\":\"Ran 2 tests\\nOK\\n\",\"success\":true}"
+        },
+        {
+          "role": "assistant",
+          "content": "```json\n"
+        }
+      ],
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 149.226,
+        "content": "prefix",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 477,
+          "total_tokens": 479,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": null,
+      "parse_error": "model output does not contain a complete JSON object",
+      "parsed_ok": false,
+      "json_fence_prefix": false,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.0
+    }
+  ]
+}

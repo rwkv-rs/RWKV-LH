@@ -8,6 +8,7 @@ from typing import Any
 
 ASSISTANT_HEADER = "### Assistant"
 JSON_CALL_STOP_SUFFIXES = (
+    "\n```",
     "\n### Tool Output",
     "### Tool Output",
     "\n### User",

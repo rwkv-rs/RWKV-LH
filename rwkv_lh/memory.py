@@ -160,7 +160,7 @@ class WorkingMemoryBuilder:
                     "original_request": state.goal.original_request,
                     "constraints": list(state.goal.constraints),
                     "success_criteria": criteria,
-                    "workspace_root": state.goal.workspace_root,
+                    "workspace_scope": ".",
                     "goal_digest": state.goal.digest,
                 },
                 ensure_ascii=False,

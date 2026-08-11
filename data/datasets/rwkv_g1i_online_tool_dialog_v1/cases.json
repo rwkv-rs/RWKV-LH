@@ -1,0 +1,96 @@
+{
+  "schema_version": "rwkv-g1i-online-tool-dialog.v1",
+  "cases": [
+    {
+      "case_id": "TD-01",
+      "task": "Read input.txt with at most 2000 characters, then submit its exact text.",
+      "expected_call": {
+        "name": "read_file",
+        "arguments": {"path": "input.txt", "max_chars": 2000}
+      },
+      "function_output": {
+        "success": true,
+        "output": "alpha=7\n"
+      },
+      "expected_submit": {
+        "name": "submit",
+        "arguments": {"result": "alpha=7\n"}
+      }
+    },
+    {
+      "case_id": "TD-02",
+      "task": "Write output.txt with content exactly hello RWKV followed by one newline, then submit the written path.",
+      "expected_call": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "function_output": {
+        "success": true,
+        "path": "output.txt",
+        "bytes": 11
+      },
+      "expected_submit": {
+        "name": "submit",
+        "arguments": {"status": "written", "path": "output.txt"}
+      }
+    },
+    {
+      "case_id": "TD-03",
+      "task": "Read config.json, then submit the enabled boolean from the returned JSON.",
+      "expected_call": {
+        "name": "read_json",
+        "arguments": {"path": "config.json"}
+      },
+      "function_output": {
+        "success": true,
+        "value": {"feature": {"enabled": true}}
+      },
+      "expected_submit": {
+        "name": "submit",
+        "arguments": {"enabled": true}
+      }
+    },
+    {
+      "case_id": "TD-04",
+      "task": "Remove the first exact line deprecated=true from app.env, then submit whether it was removed.",
+      "expected_call": {
+        "name": "remove_line",
+        "arguments": {"path": "app.env", "text": "deprecated=true", "all": false}
+      },
+      "function_output": {
+        "success": true,
+        "removed_count": 1
+      },
+      "expected_submit": {
+        "name": "submit",
+        "arguments": {"removed": true, "removed_count": 1}
+      }
+    },
+    {
+      "case_id": "TD-05",
+      "task": "Run python -m unittest -v from the workspace root with timeout 120 seconds, then submit the exit code.",
+      "expected_call": {
+        "name": "run_command",
+        "arguments": {
+          "argv": ["python", "-m", "unittest", "-v"],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "function_output": {
+        "success": true,
+        "exit_code": 0,
+        "output": "Ran 2 tests\nOK\n"
+      },
+      "expected_submit": {
+        "name": "submit",
+        "arguments": {"exit_code": 0, "passed": true}
+      }
+    }
+  ]
+}

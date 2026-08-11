@@ -1,0 +1,2508 @@
+{
+  "schema_version": "rwkv-lh.g1i-online-tool-dialog-comparison.v1",
+  "runtime": "vllm-rwkv",
+  "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+  "dataset": "/home/chase/GitHub/RWKV-LH/data/datasets/rwkv_g1i_online_tool_dialog_v1/cases.json",
+  "dataset_manifest": {
+    "schema_version": "rwkv-lh.dataset-manifest.v1",
+    "dataset_version": "rwkv-g1i-online-tool-dialog.v1",
+    "source": "User-provided G1i online System/Tools, fenced JSON, Function output, submit protocol",
+    "purpose": "Non-executing two-stage G1i tool-dialog format comparison",
+    "generation": "Five manually constructed tool call plus fixed function output plus submit cases",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "16b6d7ed378b41c1beaec1a9aa44045cd5d379a27db649cc6236af96dd80df63"
+      },
+      {
+        "path": "cases.json",
+        "sha256": "9afddf7de315f2305c2cd8cc8d168f3d33cdf226e043ed154e3dac6d74d97800"
+      }
+    ],
+    "metric": {
+      "version": "utf8-byte-ngram-cosine.v1",
+      "n": 5,
+      "near_duplicate_threshold": 0.95,
+      "exact_threshold": 1.0
+    }
+  },
+  "secret_persisted": false,
+  "fixed_parameters": {
+    "temperature": 0.03,
+    "top_p": 1.0,
+    "max_tokens": 192,
+    "repeats": 2
+  },
+  "metric": {
+    "version": "utf8-byte-ngram-cosine.v1",
+    "n": 5,
+    "near_duplicate_threshold": 0.95,
+    "exact_threshold": 1.0
+  },
+  "aggregate": {
+    "g1i_online_fenced": {
+      "tool_call": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 10,
+        "exact": 6,
+        "mean_similarity": 0.834268,
+        "mean_latency_ms": 716.719,
+        "mean_completion_tokens": 44.2,
+        "mean_repeat_output_similarity": 1.0,
+        "near_duplicate_repeat_pairs": 5
+      },
+      "submit_after_function_output": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 8,
+        "exact": 2,
+        "mean_similarity": 0.612934,
+        "mean_latency_ms": 337.943,
+        "mean_completion_tokens": 16.1,
+        "mean_repeat_output_similarity": 0.943267,
+        "near_duplicate_repeat_pairs": 4
+      },
+      "all": {
+        "requests": 20,
+        "http_ok": 20,
+        "parsed": 20,
+        "name_correct": 18,
+        "exact": 8,
+        "mean_similarity": 0.723601,
+        "mean_latency_ms": 527.331,
+        "mean_completion_tokens": 30.15,
+        "mean_repeat_output_similarity": 0.971634,
+        "near_duplicate_repeat_pairs": 9
+      }
+    },
+    "g1i_online_fenced_prefill": {
+      "tool_call": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 10,
+        "exact": 6,
+        "mean_similarity": 0.834268,
+        "mean_latency_ms": 704.391,
+        "mean_completion_tokens": 43.2,
+        "mean_repeat_output_similarity": 1.0,
+        "near_duplicate_repeat_pairs": 5
+      },
+      "submit_after_function_output": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 4,
+        "exact": 2,
+        "mean_similarity": 0.44891,
+        "mean_latency_ms": 455.331,
+        "mean_completion_tokens": 24.8,
+        "mean_repeat_output_similarity": 0.998847,
+        "near_duplicate_repeat_pairs": 5
+      },
+      "all": {
+        "requests": 20,
+        "http_ok": 20,
+        "parsed": 20,
+        "name_correct": 14,
+        "exact": 8,
+        "mean_similarity": 0.641589,
+        "mean_latency_ms": 579.861,
+        "mean_completion_tokens": 34,
+        "mean_repeat_output_similarity": 0.999424,
+        "near_duplicate_repeat_pairs": 10
+      }
+    },
+    "project_current_prefill": {
+      "tool_call": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 10,
+        "exact": 8,
+        "mean_similarity": 0.988121,
+        "mean_latency_ms": 732.992,
+        "mean_completion_tokens": 45,
+        "mean_repeat_output_similarity": 1.0,
+        "near_duplicate_repeat_pairs": 5
+      },
+      "submit_after_function_output": {
+        "requests": 10,
+        "http_ok": 10,
+        "parsed": 10,
+        "name_correct": 6,
+        "exact": 2,
+        "mean_similarity": 0.612468,
+        "mean_latency_ms": 489.452,
+        "mean_completion_tokens": 27.1,
+        "mean_repeat_output_similarity": 0.8535,
+        "near_duplicate_repeat_pairs": 4
+      },
+      "all": {
+        "requests": 20,
+        "http_ok": 20,
+        "parsed": 20,
+        "name_correct": 16,
+        "exact": 10,
+        "mean_similarity": 0.800295,
+        "mean_latency_ms": 611.222,
+        "mean_completion_tokens": 36.05,
+        "mean_repeat_output_similarity": 0.92675,
+        "near_duplicate_repeat_pairs": 9
+      }
+    }
+  },
+  "results": [
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 698.488,
+        "text": "\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 403,
+          "total_tokens": 442,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 663.242,
+        "text": "{\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 441,
+          "completion_tokens": 40,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 650.888,
+        "text": "\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 402,
+          "total_tokens": 441,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 529.817,
+        "text": "\n  \"arguments\": {\n    \"content\": \"alpha=7\\n\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 464,
+          "total_tokens": 494,
+          "completion_tokens": 30,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "content": "alpha=7\n"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.804166
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 351.224,
+        "text": "{\"arguments\":{\"path\":\"input.txt\"},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 450,
+          "total_tokens": 467,
+          "completion_tokens": 17,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "input.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.553317
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 498.617,
+        "text": "\n  \"arguments\": {\n    \"path\": \"input.txt\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 451,
+          "total_tokens": 479,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "input.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.553317
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 868.263,
+        "text": "\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": true,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 462,
+          "completion_tokens": 55,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": true,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.940605
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 872.831,
+        "text": "{\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": false,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 405,
+          "total_tokens": 461,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": false,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 868.64,
+        "text": "\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": false,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 461,
+          "completion_tokens": 55,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": false,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 503.098,
+        "text": "\n  \"arguments\": {\n    \"path\": \"output.txt\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 481,
+          "total_tokens": 509,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "output.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.790009
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 264.993,
+        "text": "{\"arguments\":{},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 467,
+          "total_tokens": 478,
+          "completion_tokens": 11,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {},
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.558291
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 303.355,
+        "text": "\n  \"result\": \"output.txt\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 468,
+          "total_tokens": 482,
+          "completion_tokens": 14,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "result": "output.txt"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.282391
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 511.74,
+        "text": "\n  \"name\": \"read_json\",\n  \"arguments\": {\n    \"path\": \"config.json\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 431,
+          "completion_tokens": 30,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 487.635,
+        "text": "{\n  \"name\": \"read_json\",\n  \"arguments\": \"{\\\"path\\\":\\\"config.json\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 399,
+          "total_tokens": 427,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": "{\"path\":\"config.json\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.64296
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 474.624,
+        "text": "\n  \"name\": \"read_json\",\n  \"arguments\": \"{\\\"path\\\":\\\"config.json\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 400,
+          "total_tokens": 427,
+          "completion_tokens": 27,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": "{\"path\":\"config.json\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.64296
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 438.939,
+        "text": "\n  \"arguments\": {\n    \"enabled\": true\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 455,
+          "total_tokens": 479,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 302.686,
+        "text": "{\"arguments\":{\"enabled\":true},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 441,
+          "total_tokens": 455,
+          "completion_tokens": 14,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 437.366,
+        "text": "\n  \"arguments\": {\n    \"enabled\": true\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 442,
+          "total_tokens": 466,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 717.591,
+        "text": "\n  \"name\": \"remove_line\",\n  \"arguments\": {\n    \"all\": false,\n    \"path\": \"app.env\",\n    \"text\": \"deprecated=true\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 451,
+          "completion_tokens": 45,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": {
+          "all": false,
+          "path": "app.env",
+          "text": "deprecated=true"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 652.598,
+        "text": "{\n  \"name\": \"remove_line\",\n  \"arguments\": \"{\\\"all\\\":false,\\\"path\\\":\\\"app.env\\\",\\\"text\\\":\\\"deprecated=true\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 404,
+          "total_tokens": 444,
+          "completion_tokens": 40,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": "{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.528381
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 640.665,
+        "text": "\n  \"name\": \"remove_line\",\n  \"arguments\": \"{\\\"all\\\":false,\\\"path\\\":\\\"app.env\\\",\\\"text\\\":\\\"deprecated=true\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 405,
+          "total_tokens": 444,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": "{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.528381
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 252.506,
+        "text": "\n  \"submit\": true\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 468,
+          "total_tokens": 478,
+          "completion_tokens": 10,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "submit": true
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.219382
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 454.763,
+        "text": "{\"arguments\":{\"path\":\"app.env\",\"max_chars\":1000},\"name\":\"read_file\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 454,
+          "total_tokens": 479,
+          "completion_tokens": 25,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "app.env",
+          "max_chars": 1000
+        },
+        "name": "read_file"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.257694
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 548.236,
+        "text": "\n  \"submit\": true,\n  \"result\": \"The first exact line 'deprecated=true' was removed from app.env.\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 455,
+          "total_tokens": 487,
+          "completion_tokens": 32,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "submit": true,
+        "result": "The first exact line 'deprecated=true' was removed from app.env."
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.156015
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 870.841,
+        "text": "\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 409,
+          "total_tokens": 465,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 887.817,
+        "text": "{\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 464,
+          "completion_tokens": 57,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 872.912,
+        "text": "\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 408,
+          "total_tokens": 464,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 569.425,
+        "text": "\n  \"exit_code\": 0,\n  \"output\": \"Ran 2 tests\\nOK\\n\",\n  \"success\": true\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 488,
+          "total_tokens": 521,
+          "completion_tokens": 33,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "exit_code": 0,
+        "output": "Ran 2 tests\nOK\n",
+        "success": true
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.272727
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 270.218,
+        "text": "{\"arguments\":{},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 474,
+          "total_tokens": 485,
+          "completion_tokens": 11,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {},
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.611577
+    },
+    {
+      "repeat": 1,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 460.958,
+        "text": "\n  \"function\": \"submit\",\n  \"arguments\": \"{}\",\n  \"type\": \"function\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 475,
+          "total_tokens": 500,
+          "completion_tokens": 25,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "function": "submit",
+        "arguments": "{}",
+        "type": "function"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.252825
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 646.648,
+        "text": "\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 403,
+          "total_tokens": 442,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 661.568,
+        "text": "{\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 441,
+          "completion_tokens": 40,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "read_file",
+        "arguments": {
+          "path": "input.txt",
+          "max_chars": 2000
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 647.544,
+        "text": "\n  \"name\": \"read_file\",\n  \"arguments\": {\n    \"max_chars\": 2000,\n    \"path\": \"input.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 402,
+          "total_tokens": 441,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_file",
+        "arguments": {
+          "max_chars": 2000,
+          "path": "input.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 527.309,
+        "text": "\n  \"arguments\": {\n    \"content\": \"alpha=7\\n\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 464,
+          "total_tokens": 494,
+          "completion_tokens": 30,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "content": "alpha=7\n"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.804166
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 350.662,
+        "text": "{\"arguments\":{\"path\":\"input.txt\"},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 450,
+          "total_tokens": 467,
+          "completion_tokens": 17,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "input.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.553317
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-01",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "result": "alpha=7\n"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 498.399,
+        "text": "\n  \"arguments\": {\n    \"path\": \"input.txt\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 451,
+          "total_tokens": 479,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "input.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.553317
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 869.287,
+        "text": "\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": true,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 462,
+          "completion_tokens": 55,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": true,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.940605
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 881.363,
+        "text": "{\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": false,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 405,
+          "total_tokens": 461,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": false,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "write_file",
+        "arguments": {
+          "path": "output.txt",
+          "content": "hello RWKV\n",
+          "overwrite": true,
+          "create_parents": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 867.806,
+        "text": "\n  \"name\": \"write_file\",\n  \"arguments\": {\n    \"content\": \"hello RWKV\\n\",\n    \"create_parents\": false,\n    \"overwrite\": true,\n    \"path\": \"output.txt\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 461,
+          "completion_tokens": 55,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "write_file",
+        "arguments": {
+          "content": "hello RWKV\n",
+          "create_parents": false,
+          "overwrite": true,
+          "path": "output.txt"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 504.949,
+        "text": "\n  \"arguments\": {\n    \"path\": \"output.txt\"\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 481,
+          "total_tokens": 509,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "output.txt"
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.790009
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 269.01,
+        "text": "{\"arguments\":{},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 467,
+          "total_tokens": 478,
+          "completion_tokens": 11,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {},
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.558291
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-02",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "status": "written",
+          "path": "output.txt"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 312.46,
+        "text": "\n  \"result\": \"output.txt\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 468,
+          "total_tokens": 482,
+          "completion_tokens": 14,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "result": "output.txt"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.282391
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 528.567,
+        "text": "\n  \"name\": \"read_json\",\n  \"arguments\": {\n    \"path\": \"config.json\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 401,
+          "total_tokens": 431,
+          "completion_tokens": 30,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 500.495,
+        "text": "{\n  \"name\": \"read_json\",\n  \"arguments\": \"{\\\"path\\\":\\\"config.json\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 399,
+          "total_tokens": 427,
+          "completion_tokens": 28,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": "{\"path\":\"config.json\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.64296
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "read_json",
+        "arguments": {
+          "path": "config.json"
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 484.772,
+        "text": "\n  \"name\": \"read_json\",\n  \"arguments\": \"{\\\"path\\\":\\\"config.json\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 400,
+          "total_tokens": 427,
+          "completion_tokens": 27,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "read_json",
+        "arguments": "{\"path\":\"config.json\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.64296
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 447.639,
+        "text": "\n  \"arguments\": {\n    \"enabled\": true\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 455,
+          "total_tokens": 479,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 312.202,
+        "text": "{\"arguments\":{\"enabled\":true},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 441,
+          "total_tokens": 455,
+          "completion_tokens": 14,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-03",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "enabled": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 445.9,
+        "text": "\n  \"arguments\": {\n    \"enabled\": true\n  },\n  \"name\": \"submit\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 442,
+          "total_tokens": 466,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "enabled": true
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 731.781,
+        "text": "\n  \"name\": \"remove_line\",\n  \"arguments\": {\n    \"all\": false,\n    \"path\": \"app.env\",\n    \"text\": \"deprecated=true\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 406,
+          "total_tokens": 451,
+          "completion_tokens": 45,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": {
+          "all": false,
+          "path": "app.env",
+          "text": "deprecated=true"
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 663.26,
+        "text": "{\n  \"name\": \"remove_line\",\n  \"arguments\": \"{\\\"all\\\":false,\\\"path\\\":\\\"app.env\\\",\\\"text\\\":\\\"deprecated=true\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 404,
+          "total_tokens": 444,
+          "completion_tokens": 40,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": "{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.528381
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "remove_line",
+        "arguments": {
+          "path": "app.env",
+          "text": "deprecated=true",
+          "all": false
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 650.593,
+        "text": "\n  \"name\": \"remove_line\",\n  \"arguments\": \"{\\\"all\\\":false,\\\"path\\\":\\\"app.env\\\",\\\"text\\\":\\\"deprecated=true\\\"}\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 405,
+          "total_tokens": 444,
+          "completion_tokens": 39,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "remove_line",
+        "arguments": "{\"all\":false,\"path\":\"app.env\",\"text\":\"deprecated=true\"}"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.528381
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 544.522,
+        "text": "\n  \"submit\": {\n    \"result\": \"The line 'deprecated=true' was removed from app.env.\"\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 468,
+          "total_tokens": 499,
+          "completion_tokens": 31,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "submit": {
+          "result": "The line 'deprecated=true' was removed from app.env."
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.171499
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 462.221,
+        "text": "{\"arguments\":{\"path\":\"app.env\",\"max_chars\":1000},\"name\":\"read_file\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 454,
+          "total_tokens": 479,
+          "completion_tokens": 25,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "path": "app.env",
+          "max_chars": 1000
+        },
+        "name": "read_file"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.257694
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-04",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "removed": true,
+          "removed_count": 1
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 557.371,
+        "text": "\n  \"submit\": true,\n  \"result\": \"The first exact line 'deprecated=true' was removed from app.env.\"\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 455,
+          "total_tokens": 487,
+          "completion_tokens": 32,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "submit": true,
+        "result": "The first exact line 'deprecated=true' was removed from app.env."
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.156015
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 886.717,
+        "text": "\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 409,
+          "total_tokens": 465,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 896.377,
+        "text": "{\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 407,
+          "total_tokens": 464,
+          "completion_tokens": 57,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "tool_call",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 885.464,
+        "text": "\n  \"name\": \"run_command\",\n  \"arguments\": {\n    \"argv\": [\n      \"python\",\n      \"-m\",\n      \"unittest\",\n      \"-v\"\n    ],\n    \"cwd\": \".\",\n    \"timeout\": 120\n  }\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 408,
+          "total_tokens": 464,
+          "completion_tokens": 56,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "name": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "-v"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        }
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": true,
+      "similarity": 1.0
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "project_current_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 576.32,
+        "text": "\n  \"exit_code\": 0,\n  \"output\": \"Ran 2 tests\\nOK\\n\",\n  \"success\": true\n}\n```",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 488,
+          "total_tokens": 521,
+          "completion_tokens": 33,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "exit_code": 0,
+        "output": "Ran 2 tests\nOK\n",
+        "success": true
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.272727
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 341.452,
+        "text": "{\"arguments\":{\"exit_code\":0},\"name\":\"submit\"}\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 474,
+          "total_tokens": 490,
+          "completion_tokens": 16,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "arguments": {
+          "exit_code": 0
+        },
+        "name": "submit"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": true,
+      "exact": false,
+      "similarity": 0.779163
+    },
+    {
+      "repeat": 2,
+      "case_id": "TD-05",
+      "phase": "submit_after_function_output",
+      "format": "g1i_online_fenced_prefill",
+      "expected": {
+        "name": "submit",
+        "arguments": {
+          "exit_code": 0,
+          "passed": true
+        }
+      },
+      "response": {
+        "ok": true,
+        "status_code": 200,
+        "latency_ms": 490.652,
+        "text": "\n  \"function\": \"submit\",\n  \"arguments\": \"{}\",\n  \"type\": \"function\"\n}\n```\n",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 475,
+          "total_tokens": 502,
+          "completion_tokens": 27,
+          "prompt_tokens_details": null
+        },
+        "error_body": null
+      },
+      "parsed": {
+        "function": "submit",
+        "arguments": "{}",
+        "type": "function"
+      },
+      "parse_error": "",
+      "parsed_ok": true,
+      "name_correct": false,
+      "exact": false,
+      "similarity": 0.252825
+    }
+  ]
+}

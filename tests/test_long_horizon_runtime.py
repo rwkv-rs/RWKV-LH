@@ -51,6 +51,68 @@ def test_harness_extension_is_explicit_and_has_recovery_metadata():
     harness = ActionHarness(actions={"inspect_custom": (definition, handler)})
     assert harness.definition("inspect_custom") == definition
     assert '"inspect_custom"' in harness.action_contract()
+    tool = next(
+        item for item in harness.g1i_tool_definitions()
+        if item["name"] == "inspect_custom"
+    )
+    assert tool["parameters"] == {
+        "type": "object",
+        "properties": {"value": {"description": "text", "type": "string"}},
+        "required": [],
+        "additionalProperties": False,
+    }
+    assert harness.deterministic_verification_specs(
+        TaskAction("inspect_custom", {"value": "x"})
+    ) is None
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        TaskAction("write_file", {"path": "x.txt", "content": "x"}),
+        TaskAction("write_json", {"path": "x.json", "value": {"x": 1}}),
+        TaskAction("replace_text", {"path": "x.txt", "old": "a", "new": "b"}),
+        TaskAction("remove_line", {"path": "x.txt", "text": "a"}),
+        TaskAction("append_file", {"path": "x.txt", "content": "a"}),
+        TaskAction("delete_file", {"path": "x.txt"}),
+        TaskAction("make_directory", {"path": "dir"}),
+        TaskAction("copy_file", {"source": "x.txt", "destination": "y.txt"}),
+        TaskAction("list_directory", {}),
+        TaskAction("read_file", {"path": "x.txt"}),
+        TaskAction("read_json", {"path": "x.json"}),
+        TaskAction(
+            "bind_evidence",
+            {"path": "x.txt", "start_line": 1, "end_line": 1},
+        ),
+        TaskAction("check_command", {"argv": ["python", "-V"]}),
+        TaskAction("run_command", {"argv": ["python", "-V"]}),
+        TaskAction("noop", {}),
+    ],
+)
+def test_builtin_actions_have_deterministic_contract_valid_verification(action):
+    harness = ActionHarness()
+    specs = harness.deterministic_verification_specs(action)
+    assert specs
+    for spec in specs:
+        ValidationEngine.validate_spec_contract(spec)
+    assert harness.missing_required_postconditions(
+        action.action_type,
+        [spec.kind for spec in specs],
+    ) == []
+
+
+def test_g1i_write_contract_makes_retry_semantics_explicit():
+    tool = next(
+        item for item in ActionHarness().g1i_tool_definitions()
+        if item["name"] == "write_file"
+    )
+    assert tool["parameters"]["required"] == [
+        "path",
+        "content",
+        "overwrite",
+        "create_parents",
+    ]
+    assert tool["parameters"]["properties"]["overwrite"]["const"] is True
 
 
 def make_goal(root: Path) -> GoalState:
@@ -162,6 +224,20 @@ def test_structured_action_contract_rejects_missing_and_unknown_arguments():
             TaskAction(
                 "write_file",
                 {"path": "result.txt", "content": "ok", "body": "wrong"},
+            )
+        )
+    with pytest.raises(HarnessError, match="must be workspace-relative"):
+        harness.validate_action_contract(
+            TaskAction(
+                "run_command",
+                {"argv": ["python", "-V"], "cwd": "/tmp/workspace"},
+            )
+        )
+    with pytest.raises(HarnessError, match="preserve idempotent retry"):
+        harness.validate_action_contract(
+            TaskAction(
+                "write_file",
+                {"path": "result.txt", "content": "ok", "overwrite": False},
             )
         )
 
