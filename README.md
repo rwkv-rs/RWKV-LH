@@ -8,6 +8,23 @@ RWKV-LH 专门为 RWKV 模型的长程执行而建立。LongHorizon-Harness、La
 
 **不可变产品原则：RWKV-LH 只为 RWKV 服务。** 不增加通用模型 provider、AgentAdapter、模型混跑或用其他模型掩盖 RWKV 失败；不为了跨模型兼容改写现有 RWKV 提示词格式；不把 LangGraph、Temporal、Harbor 或其他 Agent 框架引入运行时依赖。允许的演进必须直接改善 RWKV 的上下文组织、状态保持、动作执行、验证、恢复或 vllm-rwkv 推理行为。
 
+## 当前状态
+
+当前版本是 **可复现实验基线**，不是 beta 或生产可用版本。2026-08-11 在固定 G1i-13.3B、固定数据集和预注册 `utf8-byte-ngram-cosine.v1` 指标下得到：
+
+- 离线产品回归：`97 passed`。
+- G1i 生产动作固定五题：5/5 完成、5/5 工具名正确、4/5 exact，平均相似度 `0.988121`。
+- RWKV-E2E-42 全量严格验收：5/42；其中 basic 5/10、medium 0/10、hard 0/10、long-horizon 0/12。
+
+这些结果证明 G1i 工具协议已经进入真实 Controller → Harness → Verifier 路径，但长程完成边界仍不可靠。当前优先整改项是：
+
+1. 将任务推进声明与经过验证的 Goal evidence 分离；
+2. 由确定性结构层分配 task id、重写引用并校验 DAG；
+3. 建立跨 replacement 的 recovery lineage，并把验证失败路由回真正的 producer；
+4. 在推理服务提供能力后接入可持久化、可 fork/commit/rollback 的真实 RWKV recurrent state。
+
+完整架构诊断与实施顺序见 [`ARCHITECTURE_FINDINGS.md`](data/experiments/rwkv_lh_architecture_ablation_v1/ARCHITECTURE_FINDINGS.md)，G1i 协议与全量结果见 [`G1I_TOOL_PROTOCOL.zh-CN.md`](docs/G1I_TOOL_PROTOCOL.zh-CN.md)。在上述系统性问题完成并通过固定指标、全数据集与恢复回归前，不应把单题成功或离线通过等同于整体问题已解决。
+
 ## 架构
 
 ```mermaid
@@ -18,9 +35,10 @@ flowchart TD
     P --> T["Task Graph / Task Ledger"]
     T --> C["Single Execution Controller"]
     C --> M["Bounded Working Memory"]
-    M --> A["RWKV Action Selection"]
-    A --> H["Scoped Action Harness"]
-    H --> V["Deterministic Verifier"]
+    M --> A["RWKV Action Type Selection"]
+    A --> FC["Single-tool G1i Function Call"]
+    FC --> H["Scoped Action Harness"]
+    H --> V["Deterministic Postconditions + Verifier"]
     V -->|"通过"| T
     V -->|"失败"| R["Retry / RWKV Replan"]
     R --> T
@@ -37,6 +55,7 @@ flowchart TD
 - `rwkv_lh/validation.py`：依据文件、哈希、命令退出码、JSON、证据绑定等可观察结果验收。
 - `rwkv_lh/memory.py`：从持久状态投影当前任务需要的有界上下文。
 - `rwkv_lh/model.py`：RWKV 的 Goal Parse、Planning、Action、Cross-validation、Replan 和 Final Answer 协议。
+- `rwkv_lh/tool_protocol.py`：线上 G1i `System: Tools`、fenced JSON function call、Function output 续轮格式与参数归一化。
 - `rwkv_lh/runtime/`：结构化 OpenAI-compatible RWKV 客户端。
 
 ## OpenAI-compatible RWKV runtime
@@ -74,6 +93,31 @@ runtime 不是散落的 HTTP 调用，而是四层稳定接口：
 请求级 temperature 的目标不是简单增加随机性，而是按推理阶段选择行为：事实提取、工具动作、验证和最终回答使用低温；任务拆解与 replan 可以使用稍高温度。每次请求都会在 SQLite 事件中记录 request id/type、完整采样配置、输入、输出和结果。
 
 当前运行时按已部署的 vllm-rwkv rapid-sampling 实现收敛参数：支持 `temperature`、`top_p`、`top_k`、`presence_penalty`、`frequency_penalty`、`penalty_decay`、`min_tokens`、停止字符串和附加 `stop_token_ids`；不发送 `seed`、`min_p`、`repetition_penalty`、`ignore_eos` 或 thinking budget。`temperature=0` 会在本地拒绝。模型端当前最大上下文是 16,384 tokens，输入预算会按每次请求的 `max_tokens`、BOS 和安全余量动态计算。
+
+### G1i 工具调用协议
+
+vllm-rwkv 可以启用原生 tool parser，但固定数据复测显示当前 parser 不能作为默认正确性边界。RWKV-LH 在 `/completions` 上显式渲染线上 G1i 格式：
+
+````text
+System: Tools: [...]
+Return only a JSON function call.
+
+User: <任务提示>
+
+Assistant: ```json
+{"name":"read_file","arguments":{"path":"input.txt"}}
+
+User: Function output: <工具返回>
+
+Assistant: ```json
+{"name":"submit","arguments":{...}}
+````
+
+当前推理端没有可持久化的 RWKV recurrent-state handle，因此生产代码使用相同字节格式的完整前缀重放；这只保证协议等价，不宣称获得 state 的延迟、分支或恢复收益。未来接入 state 时，`User: Function output` 是追加到同一 state 的新 User turn，不是连续写进上一个 Assistant 块。
+
+动作链保留紧凑的 action-type 选择，再把唯一已选工具放入 `System: Tools` 生成参数。完整工具表一次生成在固定用例中出现选择退化，因此没有为了减少一次模型调用而牺牲正确率。G1i 输出中的 `arguments` 可以是对象，也可以是 OpenAI/vLLM 常见的 JSON 字符串；协议层统一归一化为对象后再交给 Harness 校验。内建动作的可观察后置条件由确定性代码生成，自定义动作才调用 RWKV 设计 verifier。
+
+协议、state 边界、消融数据和复现命令见 [`docs/G1I_TOOL_PROTOCOL.zh-CN.md`](docs/G1I_TOOL_PROTOCOL.zh-CN.md)。
 
 当前策略定义在 `rwkv_lh/temp_policy.py`。模型调用链为：
 
@@ -128,11 +172,11 @@ uv run rwkv-lh resume RUN_ID
 ## 测试边界
 
 ```bash
-uv run pytest
+uv run pytest -q
 uv run rwkv-lh-control
 ```
 
-`LH-Control-30` 是 RWKV-LH 的确定性运行时回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不调用其他 Agent，也不替代 RWKV 模型能力测试；真实模型能力由单独的 RWKV E2E 套件验证：只向 RWKV 提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
+当前离线测试共 97 项。`LH-Control-30` 是 RWKV-LH 的确定性运行时回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不调用其他 Agent，也不替代 RWKV 模型能力测试；真实模型能力由单独的 RWKV E2E 套件验证：只向 RWKV 提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
 
 真实 E2E 套件可先校验题库边界：
 
@@ -162,7 +206,13 @@ RWKV 的职责定义、现有 10 阶段提示词、12 道新题、隔离威胁�
 
 2026-08-10 的正式使用就绪审计、真实 canary 结果、项目对比、缺陷优先级与晋级门槛见 [`docs/RWKV_FORMAL_READINESS_20260810.zh-CN.md`](docs/RWKV_FORMAL_READINESS_20260810.zh-CN.md)。
 
-2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过；当前版本不能据此标记为生产可用。完整判读见 `docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`。
+2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过，完整判读见 [`docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`](docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md)。最新 G1i 基线虽已提高到 RWKV-E2E-42 的 5/42，但仍不能标记为生产可用。
+
+## 数据与实验记录
+
+固定数据集放在 `data/datasets/`，每个数据集都登记来源、版本、用途、摘要与生成方式；架构消融、协议探针、逐题 audit、统一指标比较和正式结果放在 `data/experiments/rwkv_lh_architecture_ablation_v1/`。运行时 SQLite state、临时探针和生成缓存不进入 Git。
+
+复测不得在结果产生后修改 expected、阈值或相似度算法。发现单题问题后，需要继续检查完整数据集、全部同类场景及相关上下游代码路径。
 
 ## 恢复保证
 
