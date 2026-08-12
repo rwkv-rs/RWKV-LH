@@ -1,0 +1,48 @@
+{
+  "task_id": "LH-H02",
+  "level": "hard",
+  "task_description": "非幂等动作中断且没有可验证结果。",
+  "expected_result": "恢复进入 blocked，禁止盲目重试。",
+  "actual_result": "blocked",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "c22fc71d599d37246b9fc1b8d5d9de1621c5e2997a0a72bda6132356141edb8d"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "simulated_interruption",
+      "data": {}
+    },
+    {
+      "revision": 2,
+      "type": "run_blocked",
+      "data": {
+        "attempt_id": "T1-A1",
+        "reason": "unsafe_interrupted_action",
+        "task_id": "T1"
+      }
+    }
+  ],
+  "tool_calls": [],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [],
+  "recovery": [
+    {}
+  ],
+  "final_verification": {
+    "error": {
+      "type": "UnsafeInterruptedAction",
+      "message": "non-idempotent action has no verified postcondition",
+      "attempt_id": "T1-A1"
+    },
+    "file_exists": false
+  },
+  "extra": {}
+}

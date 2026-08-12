@@ -1,0 +1,301 @@
+{
+  "schema_version": "rwkv-e2e-extension48.acceptance.v1",
+  "cases": {
+    "E2E-B11": {
+      "checks": [
+        {"kind": "file_content", "path": "normalized_name.txt", "content": "RWKV Long Horizon\n"}
+      ]
+    },
+    "E2E-B12": {
+      "checks": [
+        {"kind": "json_equals", "path": "stats.json", "value": {"count": 5, "sum": 25, "min": -2, "max": 9}},
+        {"kind": "json_exact_keys", "path": "stats.json", "keys": ["count", "sum", "min", "max"]}
+      ]
+    },
+    "E2E-B13": {
+      "checks": [
+        {"kind": "json_equals", "path": "config.json", "value": {"service": "atlas", "deployment": {"region": "cn-east", "retries": 5, "enabled": true}, "owner": "ops"}}
+      ]
+    },
+    "E2E-B14": {
+      "checks": [
+        {"kind": "file_content", "path": "merged.txt", "content": "alpha\nbeta\n--\ngamma\ndelta\n"},
+        {"kind": "file_content", "path": "left.txt", "content": "alpha\nbeta\n"},
+        {"kind": "file_content", "path": "right.txt", "content": "gamma\ndelta\n"}
+      ]
+    },
+    "E2E-B15": {
+      "checks": [
+        {"kind": "json_equals", "path": "colors.json", "value": {"colors": ["blue", "red", "green"]}},
+        {"kind": "json_exact_keys", "path": "colors.json", "keys": ["colors"]}
+      ]
+    },
+    "E2E-B16": {
+      "checks": [
+        {"kind": "file_content", "path": "app.env", "content": "NAME=worker\nPORT=9000\nMODE=prod\n"}
+      ]
+    },
+    "E2E-B17": {
+      "checks": [
+        {"kind": "json_equals", "path": "active_users.json", "value": {"active_names": ["Ada", "Zoe"], "active_count": 2}},
+        {"kind": "json_exact_keys", "path": "active_users.json", "keys": ["active_names", "active_count"]}
+      ]
+    },
+    "E2E-B18": {
+      "checks": [
+        {"kind": "json_equals", "path": "total.json", "value": {"subtotal": 80.0, "discount": 12.0, "total": 68.0}},
+        {"kind": "json_exact_keys", "path": "total.json", "keys": ["subtotal", "discount", "total"]}
+      ]
+    },
+    "E2E-B19": {
+      "checks": [
+        {"kind": "json_exact_keys", "path": "manifest.json", "keys": ["file", "sha256"]},
+        {"kind": "sha256_manifest", "source": "payload.txt", "manifest": "manifest.json", "file_field": "file", "digest_field": "sha256"}
+      ]
+    },
+    "E2E-B20": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_parity.py"], "exit_code": 0},
+        {"kind": "file_not_contains", "path": "parity.py", "text": "NotImplementedError"}
+      ]
+    },
+    "E2E-B21": {
+      "checks": [
+        {"kind": "json_equals", "path": "category_totals.json", "value": {"alpha": 3, "beta": 6, "gamma": 1}},
+        {"kind": "json_exact_keys", "path": "category_totals.json", "keys": ["alpha", "beta", "gamma"]}
+      ]
+    },
+    "E2E-B22": {
+      "checks": [
+        {"kind": "file_content", "path": "TASKS.md", "content": "# Tasks\n- [ ] inspect\n- [ ] repair\n- [ ] verify\n"}
+      ]
+    },
+    "E2E-B23": {
+      "checks": [
+        {"kind": "json_equals", "path": "selected.json", "value": {"source": "data/backup.json", "value": {"region": "eu", "revision": 4}}}
+      ]
+    },
+    "E2E-B24": {
+      "checks": [
+        {"kind": "file_content", "path": "sorted.log", "content": "error m\ninfo a\nwarn z\n"},
+        {"kind": "file_content", "path": "log.txt", "content": "warn z\ninfo a\nwarn z\nerror m\ninfo a\n"}
+      ]
+    },
+    "E2E-B25": {
+      "checks": [
+        {"kind": "json_equals", "path": "settings.json", "value": {"name": "demo", "runtime": {"mode": "safe", "retries": 6}, "enabled": true}}
+      ]
+    },
+    "E2E-B26": {
+      "checks": [
+        {"kind": "directory_file_set", "path": "output", "files": ["a.txt", "b.txt", "nested/c.txt"]},
+        {"kind": "file_content", "path": "output/a.txt", "content": "A\n"},
+        {"kind": "file_content", "path": "output/b.txt", "content": "B\n"},
+        {"kind": "file_content", "path": "output/nested/c.txt", "content": "C\n"}
+      ]
+    },
+    "E2E-B27": {
+      "checks": [
+        {"kind": "file_content", "path": "service.conf", "content": "name=edge\nprotocol=v2\nfallback_protocol=v2\nprotocol=v2\n"},
+        {"kind": "file_not_contains", "path": "service.conf", "text": "protocol=v1"}
+      ]
+    },
+    "E2E-B28": {
+      "checks": [
+        {"kind": "json_equals", "path": "metrics.json", "value": {"latency_ms": 48, "requests": 120, "errors": 3}},
+        {"kind": "json_exact_keys", "path": "metrics.json", "keys": ["latency_ms", "requests", "errors"]}
+      ]
+    },
+    "E2E-B29": {
+      "checks": [
+        {"kind": "files_equal", "left": "source.txt", "right": "backup/source.txt"},
+        {"kind": "file_content", "path": "backup/manifest.txt", "content": "source.txt -> backup/source.txt\n"}
+      ]
+    },
+    "E2E-B30": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_names.py"], "exit_code": 0},
+        {"kind": "file_not_contains", "path": "names.py", "text": "NotImplementedError"}
+      ]
+    },
+    "E2E-M11": {
+      "checks": [
+        {"kind": "json_equals", "path": "services/api.json", "value": {"name": "api", "schema_version": 2, "port": 8000, "runtime": {"channel": "stable", "workers": 2}}},
+        {"kind": "json_equals", "path": "services/auth.json", "value": {"name": "auth", "schema_version": 2, "port": 8001, "runtime": {"channel": "stable", "workers": 1}}},
+        {"kind": "json_equals", "path": "services/jobs.json", "value": {"name": "jobs", "schema_version": 2, "port": 8002, "runtime": {"channel": "stable", "workers": 4}}},
+        {"kind": "json_equals", "path": "services/web.json", "value": {"name": "web", "schema_version": 2, "port": 8003, "runtime": {"channel": "stable", "workers": 3}}},
+        {"kind": "json_equals", "path": "services/summary.json", "value": {"api": 8000, "auth": 8001, "jobs": 8002, "web": 8003}}
+      ]
+    },
+    "E2E-M12": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_math_utils.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-M13": {
+      "checks": [
+        {"kind": "json_equals", "path": "sales_summary.json", "value": {"row_count": 4, "quantity_total": 10, "revenue_total": 39.5, "by_region": {"north": 17.5, "south": 12.0, "west": 10.0}}}
+      ]
+    },
+    "E2E-M14": {
+      "checks": [
+        {"kind": "json_equals", "path": "release/release.json", "value": {"name": "Comet", "version": "2.1.0", "date": "2026-08-12", "changes": ["Add audit", "Fix resume", "Improve state"]}},
+        {"kind": "file_content", "path": "release/RELEASE.md", "content": "# Comet 2.1.0\nDate: 2026-08-12\n\n- Add audit\n- Fix resume\n- Improve state\n"}
+      ]
+    },
+    "E2E-M15": {
+      "checks": [
+        {"kind": "json_equals", "path": "docs/index.json", "value": {"files": [{"path": "a.txt", "line_count": 2, "byte_count": 11}, {"path": "nested/b.txt", "line_count": 1, "byte_count": 6}, {"path": "nested/deep/c.md", "line_count": 2, "byte_count": 12}], "total_files": 3, "total_bytes": 29}}
+      ]
+    },
+    "E2E-M16": {
+      "checks": [
+        {"kind": "json_equals", "path": "recovered.json", "value": {"items": [{"id": "01", "value": 3}, {"id": "02", "value": 5}, {"id": "03", "value": 7}, {"id": "04", "value": 11}, {"id": "05", "value": 13}], "sources": {"01": "primary/item_01.json", "02": "fallback/item_02.json", "03": "primary/item_03.json", "04": "fallback/item_04.json", "05": "primary/item_05.json"}}}
+      ]
+    },
+    "E2E-M17": {
+      "checks": [
+        {"kind": "json_equals", "path": "packages/core.json", "value": {"name": "core", "api": "v2", "dependencies": [], "compatible": true}},
+        {"kind": "json_equals", "path": "packages/worker.json", "value": {"name": "worker", "api": "v2", "dependencies": ["core"], "compatible": true}},
+        {"kind": "json_equals", "path": "packages/web.json", "value": {"name": "web", "api": "v2", "dependencies": ["worker", "core"], "compatible": true}},
+        {"kind": "json_equals", "path": "package_matrix.json", "value": {"core": [], "web": ["core", "worker"], "worker": ["core"]}}
+      ]
+    },
+    "E2E-M18": {
+      "checks": [
+        {"kind": "digest_map", "directory": "inputs", "manifest": "digest_map.json", "files": ["a.txt", "b.json", "nested/c.txt"]}
+      ]
+    },
+    "E2E-M19": {
+      "checks": [
+        {"kind": "json_equals", "path": "access_summary.json", "value": {"total_requests": 6, "status_counts": {"200": 2, "201": 1, "500": 1, "503": 2}, "path_counts": {"/admin": 1, "/health": 1, "/items": 4}, "error_paths": ["/admin", "/items"]}}
+      ]
+    },
+    "E2E-M20": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_parser.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-M21": {
+      "checks": [
+        {"kind": "json_equals", "path": "merged_users.json", "value": {"records": [{"id": 1, "name": "A", "role": "reader"}, {"id": 2, "name": "B", "role": "writer"}, {"id": 3, "name": "C2", "role": "admin"}], "record_count": 3}}
+      ]
+    },
+    "E2E-M22": {
+      "checks": [
+        {"kind": "json_equals", "path": "result.json", "value": {"updated_config": {"region": "cn", "replicas": 4, "debug": false, "owner": "ops"}, "applied": ["region", "replicas"], "rejected": ["debug", "owner"]}}
+      ]
+    },
+    "E2E-M23": {
+      "checks": [
+        {"kind": "directory_file_set", "path": "dist", "files": ["README.txt", "bin/start.sh", "config/app.json", "manifest.json"]},
+        {"kind": "file_content", "path": "dist/bin/start.sh", "content": "#!/bin/sh\necho start\n"},
+        {"kind": "file_content", "path": "dist/config/app.json", "content": "{\"mode\":\"prod\"}\n"},
+        {"kind": "file_content", "path": "dist/README.txt", "content": "distribution\n"},
+        {"kind": "json_equals", "path": "dist/manifest.json", "value": {"files": ["README.txt", "bin/start.sh", "config/app.json"]}}
+      ]
+    },
+    "E2E-M24": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_queueing.py"], "exit_code": 0}
+      ]
+    },
+    "E2E-M25": {
+      "checks": [
+        {"kind": "file_content", "path": "CHANGELOG.md", "content": "## 1.3.0\n- [add] audit trace\n- [fix] tool parser\n\n## 1.2.0\n- [add] health check\n- [fix] resume state\n"}
+      ]
+    },
+    "E2E-M26": {
+      "checks": [
+        {"kind": "json_equals", "path": "validation.json", "value": {"valid": [{"id": 1, "name": "Ada", "status": "active"}, {"id": 3, "name": "Lin", "status": "disabled"}], "rejected": [{"index": 1, "reasons": ["invalid_id"]}, {"index": 2, "reasons": ["invalid_name", "invalid_status"]}], "valid_count": 2, "rejected_count": 2}}
+      ]
+    },
+    "E2E-M27": {
+      "checks": [
+        {"kind": "json_equals", "path": "build_order.json", "value": {"order": ["core", "api", "docs", "web", "app"], "node_count": 5}}
+      ]
+    },
+    "E2E-M28": {
+      "checks": [
+        {"kind": "directory_file_set", "path": "logs", "files": ["2026-08-01.log", "2026-08-09.log"]},
+        {"kind": "directory_file_set", "path": "archive", "files": ["2026-07-20.log", "2026-07-31.log"]},
+        {"kind": "file_content", "path": "archive/2026-07-20.log", "content": "old-a\n"},
+        {"kind": "file_content", "path": "archive/2026-07-31.log", "content": "old-b\n"},
+        {"kind": "json_equals", "path": "archive_report.json", "value": {"moved": ["2026-07-20.log", "2026-07-31.log"], "kept": ["2026-08-01.log", "2026-08-09.log"]}}
+      ]
+    },
+    "E2E-M29": {
+      "checks": [
+        {"kind": "json_equals", "path": "resolved_translations.json", "value": {"locale": "zh-CN", "translations": {"hello": "你好", "bye": "Goodbye", "save": "保存", "cancel": "Cancel"}, "missing_keys": ["bye", "cancel"]}}
+      ]
+    },
+    "E2E-M30": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "verify_config.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "config.json", "value": {"schema_version": 2, "runtime": {"request_timeout_ms": 3000, "retries": 4, "mode": "safe"}, "metadata": {"owner": "ops"}}},
+        {"kind": "json_equals", "path": "migration_report.json", "value": {"from_version": 1, "to_version": 2, "renamed": ["retry_count->retries", "timeout->request_timeout_ms"]}}
+      ]
+    },
+    "E2E-H11": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "verify_pipeline.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "release.json", "value": {"items": [{"name": "alpha", "total": 15}, {"name": "beta", "total": 8}], "grand_total": 23}}
+      ]
+    },
+    "E2E-H12": {
+      "checks": [
+        {"kind": "aggregate_shards", "directory": "shards", "path": "aggregate.json"}
+      ]
+    },
+    "E2E-H13": {
+      "checks": [
+        {"kind": "json_equals", "path": "checkpoints/phase01.json", "value": {"phase": 1, "priority_files": ["doc_02.txt"]}},
+        {"kind": "json_equals", "path": "checkpoints/phase02.json", "value": {"phase": 2, "priority_files": ["doc_05.txt"]}},
+        {"kind": "json_equals", "path": "checkpoints/phase03.json", "value": {"phase": 3, "priority_files": ["doc_09.txt", "doc_12.txt"]}},
+        {"kind": "json_equals", "path": "checkpoints/phase04.json", "value": {"phase": 4, "priority_files": []}},
+        {"kind": "json_equals", "path": "checkpoints/phase05.json", "value": {"phase": 5, "priority_files": ["doc_17.txt"]}},
+        {"kind": "json_equals", "path": "checkpoints/phase06.json", "value": {"phase": 6, "priority_files": ["doc_21.txt", "doc_24.txt"]}},
+        {"kind": "priority_summary", "directory": "corpus", "path": "priority_summary.json"}
+      ]
+    },
+    "E2E-H14": {
+      "checks": [
+        {"kind": "json_equals", "path": "catalog/global_index.json", "value": {"datasets": [{"name": "east", "manifest": "regions/east/deep/manifest.json", "depends_on": ["north", "south"], "files": ["regions/east/deep/data/e1.json", "regions/east/deep/data/e2.json"], "record_count": 4}, {"name": "north", "manifest": "regions/north/manifest.json", "depends_on": [], "files": ["regions/north/data/n1.json", "regions/north/data/n2.json"], "record_count": 3}, {"name": "south", "manifest": "regions/south/manifest.json", "depends_on": ["north"], "files": ["regions/south/data/s1.json"], "record_count": 3}], "total_records": 10}}
+      ]
+    },
+    "E2E-H15": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "-m", "unittest", "-v", "test_event_report.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "dist/report.json", "value": {"total": 3, "by_type": {"INFO": 2, "WARN": 1}}},
+        {"kind": "digest_map", "directory": ".", "manifest": "release_manifest.json", "files": ["event_report/analyzer.py", "event_report/parser.py", "event_report/reporter.py", "DESIGN.md", "README.md", "dist/report.json"]}
+      ]
+    },
+    "E2E-H16": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "check_invariants.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "configs/capacity.json", "value": {"workers": 8, "memory": 40}},
+        {"kind": "json_equals", "path": "configs/runtime.json", "value": {"mode": "fast", "timeout": 30}},
+        {"kind": "json_equals", "path": "compensation.json", "value": {"kept": ["capacity.workers", "runtime.mode"], "rolled_back": ["runtime.timeout", "capacity.memory"]}}
+      ]
+    },
+    "E2E-H17": {
+      "runner_control": {
+        "interrupt_after_transitions": 1,
+        "resume_to_completion": true,
+        "resume_after_completion": true
+      },
+      "checks": [
+        {"kind": "json_equals", "path": "ledger.json", "value": {"entries": [{"id": "A", "amount": 4}, {"id": "B", "amount": 7}, {"id": "C", "amount": 2}], "count": 3, "total_amount": 13}},
+        {"kind": "resume_no_repeated_completed_attempts"},
+        {"kind": "completed_resume_is_noop", "path": "ledger.json"}
+      ]
+    },
+    "E2E-H18": {
+      "checks": [
+        {"kind": "command_exit", "argv": ["python3", "release_validator.py"], "exit_code": 0},
+        {"kind": "json_equals", "path": "release/products.json", "value": {"items": [{"sku": "A1", "total": 27.0}, {"sku": "M5", "total": 6.0}, {"sku": "Z9", "total": 18.0}], "grand_total": 51.0}},
+        {"kind": "digest_map", "directory": "release", "manifest": "release/digests.json", "files": ["REPORT.md", "products.json"]}
+      ]
+    }
+  }
+}

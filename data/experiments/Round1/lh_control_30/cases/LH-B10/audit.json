@@ -1,0 +1,278 @@
+{
+  "task_id": "LH-B10",
+  "level": "basic",
+  "task_description": "tool action 与 replan 使用不同 request-level temp。",
+  "expected_result": "两个请求记录独立温度且 ContextVar 恢复。",
+  "actual_result": "model_requests_recorded",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "7b128383cc17fa3eb62dead5f233489d63bd436f6d999c6f372e94ab5be87f07"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "model_request_started",
+      "data": {
+        "backend_profile": "vllm-rwkv-rapid",
+        "frequency_penalty": 0.0,
+        "max_tokens": 4096,
+        "penalty_decay": 0.996,
+        "policy_reason": "base_tool_action",
+        "presence_penalty": 0.0,
+        "prompt": "tool",
+        "request_id": "MR-cc10bfdcef0b461c",
+        "request_type": "tool_action",
+        "seed_supported": false,
+        "task_id": "T1",
+        "temperature": 0.05,
+        "top_k": 0,
+        "top_p": 1.0
+      }
+    },
+    {
+      "revision": 2,
+      "type": "model_request_returned",
+      "data": {
+        "backend_profile": "vllm-rwkv-rapid",
+        "finish_reason": "",
+        "frequency_penalty": 0.0,
+        "max_tokens": 4096,
+        "normalized_visible_output": "\"schema_version\":\"tool.v1\"}",
+        "output": "\"schema_version\":\"tool.v1\"}",
+        "penalty_decay": 0.996,
+        "presence_penalty": 0.0,
+        "prompt_tokens_local": 1,
+        "raw_output": "\"schema_version\":\"tool.v1\"}",
+        "request_id": "MR-cc10bfdcef0b461c",
+        "request_type": "tool_action",
+        "seed_supported": false,
+        "task_id": "T1",
+        "temperature": 0.05,
+        "top_k": 0,
+        "top_p": 1.0
+      }
+    },
+    {
+      "revision": 3,
+      "type": "model_protocol_parsed",
+      "data": {
+        "parsed_payload": {
+          "schema_version": "tool.v1"
+        },
+        "parser": "extract_json_object",
+        "request_id": "MR-cc10bfdcef0b461c",
+        "request_type": "tool_action"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "model_request_started",
+      "data": {
+        "backend_profile": "vllm-rwkv-rapid",
+        "frequency_penalty": 0.0,
+        "max_tokens": 4096,
+        "penalty_decay": 0.996,
+        "policy_reason": "base_replan",
+        "presence_penalty": 0.0,
+        "prompt": "replan",
+        "request_id": "MR-22facff955e94c8f",
+        "request_type": "replan",
+        "seed_supported": false,
+        "task_id": "T1",
+        "temperature": 0.36,
+        "top_k": 0,
+        "top_p": 1.0
+      }
+    },
+    {
+      "revision": 5,
+      "type": "model_request_returned",
+      "data": {
+        "backend_profile": "vllm-rwkv-rapid",
+        "finish_reason": "",
+        "frequency_penalty": 0.0,
+        "max_tokens": 4096,
+        "normalized_visible_output": "\"schema_version\":\"replan.v1\"}",
+        "output": "\"schema_version\":\"replan.v1\"}",
+        "penalty_decay": 0.996,
+        "presence_penalty": 0.0,
+        "prompt_tokens_local": 2,
+        "raw_output": "\"schema_version\":\"replan.v1\"}",
+        "request_id": "MR-22facff955e94c8f",
+        "request_type": "replan",
+        "seed_supported": false,
+        "task_id": "T1",
+        "temperature": 0.36,
+        "top_k": 0,
+        "top_p": 1.0
+      }
+    },
+    {
+      "revision": 6,
+      "type": "model_protocol_parsed",
+      "data": {
+        "parsed_payload": {
+          "schema_version": "replan.v1"
+        },
+        "parser": "extract_json_object",
+        "request_id": "MR-22facff955e94c8f",
+        "request_type": "replan"
+      }
+    }
+  ],
+  "tool_calls": [],
+  "retries": [],
+  "temp_decisions": [
+    {
+      "request_id": "MR-cc10bfdcef0b461c",
+      "task_id": "T1",
+      "request_type": "tool_action",
+      "temperature": 0.05,
+      "policy_reason": "base_tool_action",
+      "attempt": 1,
+      "started_at": "2026-08-12T01:19:22.957+00:00",
+      "top_p": 1.0,
+      "top_k": 0,
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "penalty_decay": 0.996,
+      "max_tokens": 4096,
+      "backend_profile": "vllm-rwkv-rapid",
+      "seed_supported": false,
+      "ended_at": "2026-08-12T01:19:22.964+00:00",
+      "outcome": "ok",
+      "result_summary": "\"schema_version\":\"tool.v1\"}",
+      "error": null
+    },
+    {
+      "request_id": "MR-22facff955e94c8f",
+      "task_id": "T1",
+      "request_type": "replan",
+      "temperature": 0.36,
+      "policy_reason": "base_replan",
+      "attempt": 1,
+      "started_at": "2026-08-12T01:19:22.979+00:00",
+      "top_p": 1.0,
+      "top_k": 0,
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "penalty_decay": 0.996,
+      "max_tokens": 4096,
+      "backend_profile": "vllm-rwkv-rapid",
+      "seed_supported": false,
+      "ended_at": "2026-08-12T01:19:22.987+00:00",
+      "outcome": "ok",
+      "result_summary": "\"schema_version\":\"replan.v1\"}",
+      "error": null
+    }
+  ],
+  "model_inputs_outputs": [
+    {
+      "backend_profile": "vllm-rwkv-rapid",
+      "frequency_penalty": 0.0,
+      "max_tokens": 4096,
+      "penalty_decay": 0.996,
+      "policy_reason": "base_tool_action",
+      "presence_penalty": 0.0,
+      "prompt": "tool",
+      "request_id": "MR-cc10bfdcef0b461c",
+      "request_type": "tool_action",
+      "seed_supported": false,
+      "task_id": "T1",
+      "temperature": 0.05,
+      "top_k": 0,
+      "top_p": 1.0
+    },
+    {
+      "backend_profile": "vllm-rwkv-rapid",
+      "finish_reason": "",
+      "frequency_penalty": 0.0,
+      "max_tokens": 4096,
+      "normalized_visible_output": "\"schema_version\":\"tool.v1\"}",
+      "output": "\"schema_version\":\"tool.v1\"}",
+      "penalty_decay": 0.996,
+      "presence_penalty": 0.0,
+      "prompt_tokens_local": 1,
+      "raw_output": "\"schema_version\":\"tool.v1\"}",
+      "request_id": "MR-cc10bfdcef0b461c",
+      "request_type": "tool_action",
+      "seed_supported": false,
+      "task_id": "T1",
+      "temperature": 0.05,
+      "top_k": 0,
+      "top_p": 1.0
+    },
+    {
+      "backend_profile": "vllm-rwkv-rapid",
+      "frequency_penalty": 0.0,
+      "max_tokens": 4096,
+      "penalty_decay": 0.996,
+      "policy_reason": "base_replan",
+      "presence_penalty": 0.0,
+      "prompt": "replan",
+      "request_id": "MR-22facff955e94c8f",
+      "request_type": "replan",
+      "seed_supported": false,
+      "task_id": "T1",
+      "temperature": 0.36,
+      "top_k": 0,
+      "top_p": 1.0
+    },
+    {
+      "backend_profile": "vllm-rwkv-rapid",
+      "finish_reason": "",
+      "frequency_penalty": 0.0,
+      "max_tokens": 4096,
+      "normalized_visible_output": "\"schema_version\":\"replan.v1\"}",
+      "output": "\"schema_version\":\"replan.v1\"}",
+      "penalty_decay": 0.996,
+      "presence_penalty": 0.0,
+      "prompt_tokens_local": 2,
+      "raw_output": "\"schema_version\":\"replan.v1\"}",
+      "request_id": "MR-22facff955e94c8f",
+      "request_type": "replan",
+      "seed_supported": false,
+      "task_id": "T1",
+      "temperature": 0.36,
+      "top_k": 0,
+      "top_p": 1.0
+    }
+  ],
+  "errors": [],
+  "recovery": [],
+  "final_verification": {
+    "temperatures": [
+      0.05,
+      0.36
+    ],
+    "sampling_profiles": [
+      {
+        "temperature": 0.05,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "request_id": "MR-cc10bfdcef0b461c",
+        "task_id": "T1",
+        "lane": "tool_action"
+      },
+      {
+        "temperature": 0.36,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "request_id": "MR-22facff955e94c8f",
+        "task_id": "T1",
+        "lane": "replan"
+      }
+    ]
+  },
+  "extra": {}
+}

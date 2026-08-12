@@ -1,0 +1,334 @@
+{
+  "task_id": "LH-M02",
+  "level": "medium",
+  "task_description": "测试失败后 replan 修复实现并重新检查。",
+  "expected_result": "失败路径保留，替代节点完成，后续检查通过。",
+  "actual_result": "completed",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "04d6fb8b7fdb72db1816e101f1c7a30a61246a8bcfaffbcc726ab94399102d8d"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1",
+          "T2"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "check_command",
+        "arguments": {
+          "argv": [
+            "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+            "-c",
+            "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+          ]
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": {
+          "message": "exit code 1",
+          "type": "CommandFailed"
+        },
+        "exit_code": 1,
+        "output": "",
+        "success": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_failed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:24:45.759+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "expected": 0
+            },
+            "evidence_refs": [
+              "M-T1-A1"
+            ],
+            "failure_fingerprint": "fc83cec854ece864bc4a00f0d4381f40cab000ae61936a083b76aea528c000d6",
+            "kind": "command_exit_code",
+            "message": "exit_code=1",
+            "passed": false,
+            "required": true,
+            "subject_task_id": "T1"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "replan_started",
+      "data": {
+        "attempt_count": 1,
+        "same_failure_count": 0,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 6,
+      "type": "replan_saved",
+      "data": {
+        "lineage_id": "RL-0001",
+        "local_to_global": {
+          "T1R": "T3"
+        },
+        "new_task_ids": [
+          "T3"
+        ],
+        "plan_generation": 1,
+        "reason": "material strategy change",
+        "supersede": {
+          "T1": "T3"
+        }
+      }
+    },
+    {
+      "revision": 7,
+      "type": "attempt_started",
+      "data": {
+        "action": "replace_text",
+        "arguments": {
+          "new": "VALUE = 2",
+          "old": "VALUE = 1",
+          "path": "app.py"
+        },
+        "attempt_id": "T3-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T3"
+      }
+    },
+    {
+      "revision": 8,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T3-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "replaced 1 occurrence(s)",
+        "success": true,
+        "task_id": "T3"
+      }
+    },
+    {
+      "revision": 9,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T3-A1",
+        "task_id": "T3",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:24:45.921+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round1/pre_round2_lh_control_30/cases/LH-M02/workspace/app.py",
+              "text": "VALUE = 2"
+            },
+            "evidence_refs": [
+              "M-T3-A1",
+              "T3-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T1"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 10,
+      "type": "attempt_started",
+      "data": {
+        "action": "check_command",
+        "arguments": {
+          "argv": [
+            "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+            "-c",
+            "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+          ]
+        },
+        "attempt_id": "T2-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 11,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T2-A1",
+        "error": null,
+        "exit_code": 0,
+        "output": "",
+        "success": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 12,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T2-A1",
+        "task_id": "T2",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:24:46.020+00:00",
+            "criterion_ids": [
+              "GC1"
+            ],
+            "evidence": {
+              "expected": 0
+            },
+            "evidence_refs": [
+              "M-T2-A1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "command_exit_code",
+            "message": "exit_code=0",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T2"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 13,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 1,
+        "final_output": "replanned and verified",
+        "task_count": 3
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "check_command",
+      "arguments": {
+        "argv": [
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+        ]
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T1"
+    },
+    {
+      "action": "replace_text",
+      "arguments": {
+        "new": "VALUE = 2",
+        "old": "VALUE = 1",
+        "path": "app.py"
+      },
+      "attempt_id": "T3-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T3"
+    },
+    {
+      "action": "check_command",
+      "arguments": {
+        "argv": [
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "from pathlib import Path; raise SystemExit(0 if 'VALUE = 2' in Path('app.py').read_text() else 1)"
+        ]
+      },
+      "attempt_id": "T2-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T2"
+    }
+  ],
+  "retries": [
+    {
+      "attempt_count": 1,
+      "same_failure_count": 0,
+      "task_id": "T1"
+    },
+    {
+      "lineage_id": "RL-0001",
+      "local_to_global": {
+        "T1R": "T3"
+      },
+      "new_task_ids": [
+        "T3"
+      ],
+      "plan_generation": 1,
+      "reason": "material strategy change",
+      "supersede": {
+        "T1": "T3"
+      }
+    }
+  ],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [
+    {
+      "task_id": "T1",
+      "type": "ValidationFailed",
+      "attempt_id": "T1-A1",
+      "results": [
+        {
+          "kind": "command_exit_code",
+          "passed": false,
+          "required": true,
+          "message": "exit_code=1",
+          "evidence": {
+            "expected": 0
+          },
+          "subject_task_id": "T1",
+          "criterion_ids": [],
+          "evidence_refs": [
+            "M-T1-A1"
+          ],
+          "failure_fingerprint": "fc83cec854ece864bc4a00f0d4381f40cab000ae61936a083b76aea528c000d6",
+          "checked_at": "2026-08-12T01:24:45.759+00:00"
+        }
+      ],
+      "at": "2026-08-12T01:24:45.759+00:00"
+    }
+  ],
+  "recovery": [],
+  "final_verification": {
+    "app": "VALUE = 2\n",
+    "superseded_by": "T3"
+  },
+  "extra": {}
+}

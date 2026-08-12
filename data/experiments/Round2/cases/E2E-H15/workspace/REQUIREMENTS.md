@@ -1,0 +1,1 @@
+parser.parse(text) returns nonblank stripped event lines. analyzer.count(events) returns total and by_type counts for TYPE:value lines. reporter.render(summary) returns sorted-key JSON with one trailing newline.

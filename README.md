@@ -10,20 +10,33 @@ RWKV-LH 专门为 RWKV 模型的长程执行而建立。LongHorizon-Harness、La
 
 ## 当前状态
 
-当前版本是 **可复现实验基线**，不是 beta 或生产可用版本。2026-08-11 在固定 G1i-13.3B、固定数据集和预注册 `utf8-byte-ngram-cosine.v1` 指标下得到：
+当前版本是 **可复现实验基线**，不是 beta 或生产可用版本。2026-08-12 使用固定
+`rwkv7-g1i-13.3b-20260805-ctx16384`、固定 RWKV-E2E-90、并发 8、每题最多 200 transitions
+与预注册 `utf8-byte-ngram-cosine.v1` 得到：
 
-- 离线产品回归：`97 passed`。
-- G1i 生产动作固定五题：5/5 完成、5/5 工具名正确、4/5 exact，平均相似度 `0.988121`。
-- RWKV-E2E-42 全量严格验收：5/42；其中 basic 5/10、medium 0/10、hard 0/10、long-horizon 0/12。
+| 轮次 | 结构变量 | External | Strict | FP | FN |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Round1 | 整改后的 E2E-90 基线 | 7/90 | 5/90 | 6 | 2 |
+| Round2 | 透明协议外壳归一 | 8/90 | 7/90 | 12 | 1 |
 
-这些结果证明 G1i 工具协议已经进入真实 Controller → Harness → Verifier 路径，但长程完成边界仍不可靠。当前优先整改项是：
+- Round2 难度分组 External：Basic 6/30、Medium 1/30、Hard 1/30。
+- 离线产品回归：`117 passed`；LH-Control：30/30。
+- Round1、Round2 均有 90/90 完整因果链；completed run 的最终回答与 RWKV 原始响应全部字节一致。
+- Round2 的 External/Strict 提升，但 FP 从 6 增至 12。按用户明确要求，本次允许临时取消
+  “FP 不增加”上传门禁以保存 Round2；从 Round3 起恢复该门禁，不能用通过数掩盖错误完成。
 
-1. 将任务推进声明与经过验证的 Goal evidence 分离；
-2. 由确定性结构层分配 task id、重写引用并校验 DAG；
-3. 建立跨 replacement 的 recovery lineage，并把验证失败路由回真正的 producer；
-4. 在推理服务提供能力后接入可持久化、可 fork/commit/rollback 的真实 RWKV recurrent state。
+透明归一只展开完整的 `task_graph.tasks/nodes` 与单 function 外壳，保留归一前后 payload；
+不补任务、criterion、参数、文件内容或答案。当前优先整改项是：
 
-完整架构诊断与实施顺序见 [`ARCHITECTURE_FINDINGS.md`](data/experiments/rwkv_lh_architecture_ablation_v1/ARCHITECTURE_FINDINGS.md)，G1i 协议与全量结果见 [`G1I_TOOL_PROTOCOL.zh-CN.md`](docs/G1I_TOOL_PROTOCOL.zh-CN.md)。在上述系统性问题完成并通过固定指标、全数据集与恢复回归前，不应把单题成功或离线通过等同于整体问题已解决。
+1. 分析并修复已验证 CriterionEvidence 与全局外部结果不一致的完成边界；
+2. 让 RWKV 可靠表达 criterion satisfaction，不能由规则替它补齐 Round2 的 43 个缺失声明；
+3. 对不变 observation 的重复验证建立可审计 gate，把恢复预算转向 producer correction；
+4. 推理后端真实声明 capability 后再接入可持久化、可 fork/commit/rollback 的 RWKV recurrent state。
+
+固定协议见 [`Round0/PROTOCOL.md`](data/experiments/Round0/PROTOCOL.md)，逐轮结果与因果分析见
+[`Round1`](data/experiments/Round1/CAUSAL_ANALYSIS.md) 和
+[`Round2`](data/experiments/Round2/CAUSAL_ANALYSIS.md)。在完成边界、全数据集和恢复回归都达标前，
+不应把单题成功或离线通过等同于整体问题已解决。
 
 ## 架构
 
@@ -176,7 +189,7 @@ uv run pytest -q
 uv run rwkv-lh-control
 ```
 
-当前离线测试共 97 项。`LH-Control-30` 是 RWKV-LH 的确定性运行时回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不调用其他 Agent，也不替代 RWKV 模型能力测试；真实模型能力由单独的 RWKV E2E 套件验证：只向 RWKV 提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
+当前离线测试共 117 项。`LH-Control-30` 是 RWKV-LH 的确定性运行时回归测试，覆盖 Controller、状态、验证、恢复、幂等、依赖、scope 和 request-level sampling。它不调用其他 Agent，也不替代 RWKV 模型能力测试；真实模型能力由单独的 RWKV E2E 套件验证：只向 RWKV 提供用户目标、初始工作区和工具，不预置 Task Graph、动作或 replan 路径。
 
 真实 E2E 套件可先校验题库边界：
 
@@ -186,19 +199,21 @@ uv run rwkv-lh-e2e --suite lh12 --validate-only
 uv run rwkv-lh-e2e --suite all --validate-only
 ```
 
-正式题目可以使用隔离的 case 进程并发，例如：
+`--suite all` 是固定 RWKV-E2E-90：Basic、Medium、Hard 各 30 题；原 `lh12` 保留
+native level=`long_horizon`，汇总时计入 Hard。正式全量可以使用隔离的 case 进程并发：
 
 ```bash
-uv run rwkv-lh-e2e --suite core30 \
-  --case E2E-B01 --case E2E-B02 --case E2E-B03 --case E2E-B04 \
-  --case E2E-B05 --case E2E-B06 --case E2E-B07 --case E2E-B08 \
+uv run rwkv-lh-e2e --suite all \
+  --max-transitions 200 \
   --concurrency 8 \
-  --output outputs/basic8-c8
+  --output data/experiments/RoundN
 ```
 
 `--concurrency` 是 case worker 进程数，不是单题内部模型调用并发。runner 使用独立 spawn 进程而不是线程；每题仍拥有独立工作区、SQLite、模型客户端和 verifier 私有目录，父进程只汇总公开结果。每个子进程必须先关闭 Agent 进程树，再启动该题的 bubblewrap verifier。
 
-`core30` 是原有基础/中等/困难套件；`lh12` 是新增的长程压力套件，覆盖 repeated replan、goal retention、动态发现、crash recovery、fan-out/fan-in、prompt injection、异构迁移、compensation、外部状态、tool-call budget、working memory 和 capstone。
+`core30` 提供原有 30 题，`lh12` 提供 12 道长程压力题，`extension48` 补充 48 题；三者按
+Round0 固定摘要合并为 90 题。每题另存 model trace、event log、逐 revision 完整 state timeline
+和字段级 delta，并以 SHA-256 绑定到 audit。
 
 隐藏 acceptance 由独立 bubblewrap worker 验证：仓库、`/tests`、verifier 日志和 scorecard 不会挂载；工作区是拒绝 symlink 的只读快照；PID 与网络 namespace 独立；Agent 进程必须先退出。Linux 真实 E2E 因而要求系统安装 `bwrap`，缺失时 fail closed。
 
@@ -206,11 +221,14 @@ RWKV 的职责定义、现有 10 阶段提示词、12 道新题、隔离威胁�
 
 2026-08-10 的正式使用就绪审计、真实 canary 结果、项目对比、缺陷优先级与晋级门槛见 [`docs/RWKV_FORMAL_READINESS_20260810.zh-CN.md`](docs/RWKV_FORMAL_READINESS_20260810.zh-CN.md)。
 
-2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过，完整判读见 [`docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`](docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md)。最新 G1i 基线虽已提高到 RWKV-E2E-42 的 5/42，但仍不能标记为生产可用。
+2026-08-09 的初版真实验证为 0/8 严格通过、4/8 隐藏产物验收通过，完整判读见 [`docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md`](docs/RWKV_E2E_INITIAL_VALIDATION_20260809.md)。历史 E2E-42 的 5/42 与当前 E2E-90 不是同口径结果；最新 Round2 为 Strict 7/90，仍不能标记为生产可用。
 
 ## 数据与实验记录
 
-固定数据集放在 `data/datasets/`，每个数据集都登记来源、版本、用途、摘要与生成方式；架构消融、协议探针、逐题 audit、统一指标比较和正式结果放在 `data/experiments/rwkv_lh_architecture_ablation_v1/`。运行时 SQLite state、临时探针和生成缓存不进入 Git。
+固定数据集放在 `data/datasets/`，每个数据集都登记来源、版本、用途、摘要与生成方式；当前
+90 题清单与 Codex 冻结参考答案位于 `data/datasets/rwkv_e2e_90_v1/`。Round0 冻结协议，
+Round1～Round10 保存逐题 audit、统一指标比较、因果分析和结构变量。运行时 SQLite state、临时
+源码镜像和生成缓存不进入 Git；正式轮次导出的 JSON 因果工件进入版本记录。
 
 复测不得在结果产生后修改 expected、阈值或相似度算法。发现单题问题后，需要继续检查完整数据集、全部同类场景及相关上下游代码路径。
 

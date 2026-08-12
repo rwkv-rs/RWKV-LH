@@ -74,23 +74,58 @@ def render_g1i_tool_dialog(
 def normalize_g1i_tool_call(value: Mapping[str, Any]) -> G1iToolCall:
     """Validate one call and decode vLLM/OpenAI-style string arguments."""
 
+    call, _ = normalize_g1i_tool_call_with_trace(value)
+    return call
+
+
+def normalize_g1i_tool_call_with_trace(
+    value: Mapping[str, Any],
+) -> tuple[G1iToolCall, tuple[str, ...]]:
+    """Normalize known wire envelopes while reporting every format change.
+
+    The accepted variants all carry exactly one function name and one argument
+    object. Unknown or mixed fields remain fail-closed; this function never
+    invents a name, argument, or semantic value.
+    """
+
     if not isinstance(value, Mapping):
         raise ValueError("G1i tool call must be a JSON object")
-    unknown = sorted(set(value) - {"name", "arguments"})
+    raw = dict(value)
+    transformations: list[str] = []
+    if set(raw) == {"function_call"} and isinstance(raw["function_call"], Mapping):
+        canonical = dict(raw["function_call"])
+        transformations.append("function_call_envelope_to_canonical")
+    elif (
+        set(raw) == {"type", "function"}
+        and raw.get("type") == "function"
+        and isinstance(raw.get("function"), Mapping)
+    ):
+        canonical = dict(raw["function"])
+        transformations.append("typed_function_envelope_to_canonical")
+    elif (
+        set(raw) == {"function", "arguments"}
+        and isinstance(raw.get("function"), str)
+    ):
+        canonical = {"name": raw["function"], "arguments": raw["arguments"]}
+        transformations.append("function_name_alias_to_canonical")
+    else:
+        canonical = raw
+    unknown = sorted(set(canonical) - {"name", "arguments"})
     if unknown:
         raise ValueError(f"G1i tool call has unknown fields: {unknown}")
-    name = str(value.get("name") or "").strip()
+    name = str(canonical.get("name") or "").strip()
     if not name:
         raise ValueError("G1i tool call requires a non-empty name")
-    arguments: Any = value.get("arguments")
+    arguments: Any = canonical.get("arguments")
     if isinstance(arguments, str):
         try:
             arguments = json.loads(arguments)
         except json.JSONDecodeError as exc:
             raise ValueError("G1i tool-call arguments contain invalid JSON") from exc
+        transformations.append("json_string_to_object")
     if not isinstance(arguments, Mapping):
         raise ValueError("G1i tool-call arguments must decode to an object")
-    return G1iToolCall(name=name, arguments=dict(arguments))
+    return G1iToolCall(name=name, arguments=dict(arguments)), tuple(transformations)
 
 
 __all__ = [
@@ -98,5 +133,6 @@ __all__ = [
     "G1iToolCall",
     "G1iToolExchange",
     "normalize_g1i_tool_call",
+    "normalize_g1i_tool_call_with_trace",
     "render_g1i_tool_dialog",
 ]

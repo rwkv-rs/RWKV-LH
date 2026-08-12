@@ -1,0 +1,530 @@
+{
+  "schema_version": "rwkv-e2e-extension48.tasks.v1",
+  "tasks": [
+    {
+      "task_id": "E2E-B11",
+      "level": "basic",
+      "user_request": "Read name.txt, trim surrounding whitespace, convert the words to title case while preserving the uppercase acronym RWKV, and write the exact result with one trailing newline to normalized_name.txt. Verify the output.",
+      "capabilities": ["read_file", "write_file"],
+      "workspace_files": [
+        {"path": "name.txt", "content": "  rwkv long horizon  \n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B12",
+      "level": "basic",
+      "user_request": "Read every integer in numbers.txt and create stats.json with exactly count, sum, min, and max. Use numeric JSON values and verify the file.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "numbers.txt", "content": "4\n9\n-2\n9\n5\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B13",
+      "level": "basic",
+      "user_request": "Update config.json so deployment.region is cn-east and deployment.retries is 5. Preserve the service name, enabled flag, and all unrelated fields exactly. Verify the JSON.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "config.json", "content": "{\n  \"service\": \"atlas\",\n  \"deployment\": {\"region\": \"us-west\", \"retries\": 2, \"enabled\": true},\n  \"owner\": \"ops\"\n}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B14",
+      "level": "basic",
+      "user_request": "Create merged.txt from left.txt and right.txt. Preserve both source files. The exact format is the complete left content, a line containing only --, then the complete right content, with one final newline. Verify the result.",
+      "capabilities": ["read_file", "write_file"],
+      "workspace_files": [
+        {"path": "left.txt", "content": "alpha\nbeta\n"},
+        {"path": "right.txt", "content": "gamma\ndelta\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B15",
+      "level": "basic",
+      "user_request": "Read colors.txt and create colors.json with exactly one key, colors. Its value must contain unique colors in first-seen order. Verify the result.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "colors.txt", "content": "blue\nred\nblue\ngreen\nred\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B16",
+      "level": "basic",
+      "user_request": "Normalize app.env in place: remove comment and blank lines, change MODE to prod, preserve NAME and PORT, use the order NAME, PORT, MODE, and finish with one newline. Verify the exact content.",
+      "capabilities": ["read_file", "write_file"],
+      "workspace_files": [
+        {"path": "app.env", "content": "# demo configuration\nNAME=worker\n\nPORT=9000\nMODE=dev\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B17",
+      "level": "basic",
+      "user_request": "Read users.json and create active_users.json containing exactly active_names, a sorted array of names whose active value is true, and active_count. Verify the output.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "users.json", "content": "[{\"name\":\"Zoe\",\"active\":true},{\"name\":\"Ada\",\"active\":true},{\"name\":\"Lin\",\"active\":false}]\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B18",
+      "level": "basic",
+      "user_request": "Read price.json. Apply its discount_rate to subtotal and create total.json with exactly subtotal, discount, and total, rounded to two decimal places. Verify the JSON.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "price.json", "content": "{\"subtotal\":80.0,\"discount_rate\":0.15}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B19",
+      "level": "basic",
+      "user_request": "Calculate the lowercase SHA256 digest of payload.txt and create manifest.json with exactly file and sha256. file must be payload.txt. Verify the digest against the source bytes.",
+      "capabilities": ["read_file", "run_command", "write_file"],
+      "workspace_files": [
+        {"path": "payload.txt", "content": "rwkv-e2e-basic-19\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B20",
+      "level": "basic",
+      "user_request": "Implement is_even in parity.py without changing its public name, then run test_parity.py and finish only when all tests pass.",
+      "capabilities": ["read_file", "replace_text", "run_command"],
+      "workspace_files": [
+        {"path": "parity.py", "content": "def is_even(value):\n    raise NotImplementedError\n"},
+        {"path": "test_parity.py", "content": "import unittest\nfrom parity import is_even\n\nclass ParityTests(unittest.TestCase):\n    def test_values(self):\n        self.assertTrue(is_even(0)); self.assertTrue(is_even(-4)); self.assertFalse(is_even(7))\n    def test_bool_result(self):\n        self.assertIs(type(is_even(2)), bool)\n\nif __name__ == '__main__': unittest.main()\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B21",
+      "level": "basic",
+      "user_request": "Read items.csv and create category_totals.json. It must map each category to the sum of quantity, with keys sorted alphabetically and no extra keys. Verify the result.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "items.csv", "content": "category,quantity\nbeta,2\nalpha,3\nbeta,4\ngamma,1\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B22",
+      "level": "basic",
+      "user_request": "Read tasks.json and create TASKS.md with heading # Tasks followed by one unchecked Markdown item per task in the original order. End with one newline and verify exact content.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "tasks.json", "content": "{\"tasks\":[\"inspect\",\"repair\",\"verify\"]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B23",
+      "level": "basic",
+      "user_request": "Create selected.json from data/primary.json if it is readable JSON; otherwise use data/backup.json. Add source with the actual relative path and preserve the selected value object. Verify the fallback selection.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "data/primary.json", "content": "{\"value\":"},
+        {"path": "data/backup.json", "content": "{\"value\":{\"region\":\"eu\",\"revision\":4}}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B24",
+      "level": "basic",
+      "user_request": "Read log.txt, remove duplicate complete lines, sort the remaining lines lexicographically, and write sorted.log with one trailing newline. Preserve log.txt and verify exact output.",
+      "capabilities": ["read_file", "write_file"],
+      "workspace_files": [
+        {"path": "log.txt", "content": "warn z\ninfo a\nwarn z\nerror m\ninfo a\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B25",
+      "level": "basic",
+      "user_request": "Read base.json and override.json and create settings.json. Keep name and nested mode from base, replace nested retries with the override value, and add the override enabled value. Verify the exact JSON structure.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "base.json", "content": "{\"name\":\"demo\",\"runtime\":{\"mode\":\"safe\",\"retries\":1}}\n"},
+        {"path": "override.json", "content": "{\"runtime\":{\"retries\":6},\"enabled\":true}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B26",
+      "level": "basic",
+      "user_request": "Create output/a.txt, output/b.txt, and output/nested/c.txt containing A, B, and C respectively, each followed by one newline. Do not create any other file under output/. Verify the file set and contents.",
+      "capabilities": ["write_file", "list_directory"],
+      "workspace_files": [],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B27",
+      "level": "basic",
+      "user_request": "Replace every complete occurrence of protocol=v1 in service.conf with protocol=v2. Preserve every other byte and verify that no v1 occurrence remains.",
+      "capabilities": ["read_file", "replace_text"],
+      "workspace_files": [
+        {"path": "service.conf", "content": "name=edge\nprotocol=v1\nfallback_protocol=v1\nprotocol=v1\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B28",
+      "level": "basic",
+      "user_request": "Read metrics.txt in key=value format and create metrics.json with exactly latency_ms, requests, and errors as integer JSON values. Verify the output.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "metrics.txt", "content": "requests=120\nerrors=3\nlatency_ms=48\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B29",
+      "level": "basic",
+      "user_request": "Copy source.txt exactly to backup/source.txt and create backup/manifest.txt containing source.txt -> backup/source.txt followed by one newline. Preserve the source and verify both outputs.",
+      "capabilities": ["read_file", "write_file"],
+      "workspace_files": [
+        {"path": "source.txt", "content": "immutable payload\nline two\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B30",
+      "level": "basic",
+      "user_request": "Implement normalize_name in names.py so it trims surrounding whitespace, lowercases text, and joins internal whitespace runs with one hyphen. Run test_names.py and finish only when it passes.",
+      "capabilities": ["read_file", "replace_text", "run_command"],
+      "workspace_files": [
+        {"path": "names.py", "content": "def normalize_name(value):\n    raise NotImplementedError\n"},
+        {"path": "test_names.py", "content": "import unittest\nfrom names import normalize_name\n\nclass NameTests(unittest.TestCase):\n    def test_normalization(self):\n        self.assertEqual(normalize_name('  Alpha   Beta '), 'alpha-beta')\n        self.assertEqual(normalize_name('RWKV'), 'rwkv')\n\nif __name__ == '__main__': unittest.main()\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M11",
+      "level": "medium",
+      "user_request": "Migrate all four JSON files under services/ to schema_version 2 and runtime.channel=stable while preserving each service name, port, and unrelated runtime fields. Create services/summary.json mapping service names to ports, sorted by name. Verify every output.",
+      "capabilities": ["list_directory", "read_json", "write_file"],
+      "workspace_files": [
+        {"path": "services/api.json", "content": "{\"name\":\"api\",\"schema_version\":1,\"port\":8000,\"runtime\":{\"channel\":\"beta\",\"workers\":2}}\n"},
+        {"path": "services/auth.json", "content": "{\"name\":\"auth\",\"schema_version\":1,\"port\":8001,\"runtime\":{\"channel\":\"beta\",\"workers\":1}}\n"},
+        {"path": "services/jobs.json", "content": "{\"name\":\"jobs\",\"schema_version\":1,\"port\":8002,\"runtime\":{\"channel\":\"dev\",\"workers\":4}}\n"},
+        {"path": "services/web.json", "content": "{\"name\":\"web\",\"schema_version\":1,\"port\":8003,\"runtime\":{\"channel\":\"beta\",\"workers\":3}}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M12",
+      "level": "medium",
+      "user_request": "Repair math_utils.py so safe_divide returns a/b and raises ValueError on a zero divisor, and median returns the middle value or the average of the two middle values without mutating its input. Run all tests in test_math_utils.py.",
+      "capabilities": ["read_file", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "math_utils.py", "content": "def safe_divide(a, b):\n    return a * b\n\ndef median(values):\n    return values[0]\n"},
+        {"path": "test_math_utils.py", "content": "import unittest\nfrom math_utils import safe_divide, median\n\nclass MathTests(unittest.TestCase):\n    def test_divide(self):\n        self.assertEqual(safe_divide(8,2),4)\n        with self.assertRaises(ValueError): safe_divide(1,0)\n    def test_median(self):\n        source=[9,1,5,3]; self.assertEqual(median(source),4); self.assertEqual(source,[9,1,5,3])\n        self.assertEqual(median([7,2,4]),4)\n\nif __name__ == '__main__': unittest.main()\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M13",
+      "level": "medium",
+      "user_request": "Read sales.csv and create sales_summary.json containing row_count, quantity_total, revenue_total, and by_region revenue totals. Revenue is quantity times unit_price. Sort region keys and verify all calculations.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "sales.csv", "content": "region,quantity,unit_price\nnorth,2,5.0\nsouth,3,4.0\nnorth,1,7.5\nwest,4,2.5\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M14",
+      "level": "medium",
+      "user_request": "Read release_input.json and create release/release.json plus release/RELEASE.md. The JSON must contain name, version, date, and sorted changes. The Markdown must have a title, date line, and one bullet per sorted change. Verify both agree.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "release_input.json", "content": "{\"name\":\"Comet\",\"version\":\"2.1.0\",\"date\":\"2026-08-12\",\"changes\":[\"Improve state\",\"Fix resume\",\"Add audit\"]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M15",
+      "level": "medium",
+      "user_request": "Recursively inspect docs/. Create docs/index.json with files sorted by relative path; each entry must contain path, line_count, and byte_count for the exact UTF-8 source. Add total_files and total_bytes. Do not include index.json itself. Verify the index.",
+      "capabilities": ["list_directory", "read_file", "write_file"],
+      "workspace_files": [
+        {"path": "docs/a.txt", "content": "alpha\nbeta\n"},
+        {"path": "docs/nested/b.txt", "content": "gamma\n"},
+        {"path": "docs/nested/deep/c.md", "content": "# C\ncontent\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M16",
+      "level": "medium",
+      "user_request": "For ids 01 through 05, read primary/item_NN.json when valid; otherwise use fallback/item_NN.json. Create recovered.json with items in numeric order and sources mapping each id to the selected relative path. No item may be omitted. Verify the result.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "primary/item_01.json", "content": "{\"id\":\"01\",\"value\":3}\n"},
+        {"path": "primary/item_02.json", "content": "{\"id\":"},
+        {"path": "fallback/item_02.json", "content": "{\"id\":\"02\",\"value\":5}\n"},
+        {"path": "primary/item_03.json", "content": "{\"id\":\"03\",\"value\":7}\n"},
+        {"path": "fallback/item_04.json", "content": "{\"id\":\"04\",\"value\":11}\n"},
+        {"path": "primary/item_05.json", "content": "{\"id\":\"05\",\"value\":13}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M17",
+      "level": "medium",
+      "user_request": "Update every package JSON under packages/ from api=v1 to api=v2 and add compatible=true, preserving name and dependencies. Then create package_matrix.json mapping package name to its sorted dependency list. Verify all files.",
+      "capabilities": ["list_directory", "read_json", "write_file"],
+      "workspace_files": [
+        {"path": "packages/core.json", "content": "{\"name\":\"core\",\"api\":\"v1\",\"dependencies\":[]}\n"},
+        {"path": "packages/worker.json", "content": "{\"name\":\"worker\",\"api\":\"v1\",\"dependencies\":[\"core\"]}\n"},
+        {"path": "packages/web.json", "content": "{\"name\":\"web\",\"api\":\"v1\",\"dependencies\":[\"worker\",\"core\"]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M18",
+      "level": "medium",
+      "user_request": "Calculate lowercase SHA256 digests for every file under inputs/ recursively and create digest_map.json mapping sorted relative paths to digests. Exclude digest_map.json and verify against the exact bytes.",
+      "capabilities": ["list_directory", "read_file", "run_command", "write_file"],
+      "workspace_files": [
+        {"path": "inputs/a.txt", "content": "alpha\n"},
+        {"path": "inputs/b.json", "content": "{\"value\":2}\n"},
+        {"path": "inputs/nested/c.txt", "content": "gamma\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M19",
+      "level": "medium",
+      "user_request": "Analyze access.log and create access_summary.json with total_requests, status_counts, path_counts, and error_paths. Count complete lines, use string status keys, sort all object keys, and list unique paths with status 500 or greater in sorted order. Verify the result.",
+      "capabilities": ["read_file", "write_file", "read_json"],
+      "workspace_files": [
+        {"path": "access.log", "content": "GET /health 200\nGET /items 200\nPOST /items 201\nGET /items 503\nGET /admin 500\nGET /items 503\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M20",
+      "level": "medium",
+      "user_request": "Repair parser.py. parse_records(text) must ignore blank lines, split each nonblank line as id|name|score, trim fields, convert score to int, and reject duplicate ids with ValueError. Run test_parser.py and preserve the public function name.",
+      "capabilities": ["read_file", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "parser.py", "content": "def parse_records(text):\n    return []\n"},
+        {"path": "test_parser.py", "content": "import unittest\nfrom parser import parse_records\n\nclass ParserTests(unittest.TestCase):\n    def test_parse(self):\n        self.assertEqual(parse_records('1 | Ada | 9\\n\\n2|Lin|7\\n'), [{'id':'1','name':'Ada','score':9},{'id':'2','name':'Lin','score':7}])\n    def test_duplicate(self):\n        with self.assertRaises(ValueError): parse_records('1|A|1\\n1|B|2\\n')\n\nif __name__ == '__main__': unittest.main()\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M21",
+      "level": "medium",
+      "user_request": "Merge source_a.json and source_b.json into merged_users.json. Use one record per id; source_b replaces source_a for duplicate ids. Sort records by numeric id, preserve each selected record exactly, and add record_count. Verify the output.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "source_a.json", "content": "[{\"id\":3,\"name\":\"C\",\"role\":\"reader\"},{\"id\":1,\"name\":\"A\",\"role\":\"reader\"}]\n"},
+        {"path": "source_b.json", "content": "[{\"id\":2,\"name\":\"B\",\"role\":\"writer\"},{\"id\":3,\"name\":\"C2\",\"role\":\"admin\"}]\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M22",
+      "level": "medium",
+      "user_request": "Apply request.json to config.json under policy.json. Only allow keys listed in allowed, reject all others, and create result.json with updated_config, applied keys sorted, and rejected keys sorted. Preserve untouched config values. Verify the result.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "config.json", "content": "{\"region\":\"us\",\"replicas\":2,\"debug\":false,\"owner\":\"ops\"}\n"},
+        {"path": "request.json", "content": "{\"region\":\"cn\",\"replicas\":4,\"debug\":true,\"owner\":\"dev\"}\n"},
+        {"path": "policy.json", "content": "{\"allowed\":[\"region\",\"replicas\"]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M23",
+      "level": "medium",
+      "user_request": "Read build_plan.json and create the complete dist/ tree. Each declared file must contain its declared content exactly. Then create the additional dist/manifest.json with exactly files, listing the three declared relative paths sorted. Apart from this requested manifest, do not create undeclared files. Verify the tree.",
+      "capabilities": ["read_json", "write_file", "list_directory"],
+      "workspace_files": [
+        {"path": "build_plan.json", "content": "{\"files\":[{\"path\":\"bin/start.sh\",\"content\":\"#!/bin/sh\\necho start\\n\"},{\"path\":\"config/app.json\",\"content\":\"{\\\"mode\\\":\\\"prod\\\"}\\n\"},{\"path\":\"README.txt\",\"content\":\"distribution\\n\"}]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M24",
+      "level": "medium",
+      "user_request": "Repair queueing.py so TaskQueue rejects duplicate task ids, and pop returns the highest priority first with task id ascending as the tie breaker. Preserve the public class and method names and run all tests.",
+      "capabilities": ["read_file", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "queueing.py", "content": "class TaskQueue:\n    def __init__(self): self._items=[]\n    def add(self, task_id, priority): self._items.append((priority,task_id))\n    def pop(self): return self._items.pop()[1]\n"},
+        {"path": "test_queueing.py", "content": "import unittest\nfrom queueing import TaskQueue\n\nclass QueueTests(unittest.TestCase):\n    def test_order(self):\n        q=TaskQueue(); q.add('b',2); q.add('a',2); q.add('c',5)\n        self.assertEqual([q.pop(),q.pop(),q.pop()], ['c','a','b'])\n    def test_duplicate(self):\n        q=TaskQueue(); q.add('x',1)\n        with self.assertRaises(ValueError): q.add('x',9)\n\nif __name__ == '__main__': unittest.main()\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M25",
+      "level": "medium",
+      "user_request": "Read changes.json and create CHANGELOG.md. Group entries by version descending, sort entries within a version by type then text, use headings ## VERSION and bullets - [type] text, and end with one newline. Verify exact content.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "changes.json", "content": "[{\"version\":\"1.2.0\",\"type\":\"fix\",\"text\":\"resume state\"},{\"version\":\"1.3.0\",\"type\":\"add\",\"text\":\"audit trace\"},{\"version\":\"1.2.0\",\"type\":\"add\",\"text\":\"health check\"},{\"version\":\"1.3.0\",\"type\":\"fix\",\"text\":\"tool parser\"}]\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M26",
+      "level": "medium",
+      "user_request": "Validate records.json using schema.json. A valid record has a positive integer id, nonempty string name, and status in the allowed list. Create validation.json with valid records in input order, rejected entries containing the zero-based index and sorted reason codes chosen only from invalid_id, invalid_name, and invalid_status, plus valid_count and rejected_count. Verify the output.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "schema.json", "content": "{\"allowed_status\":[\"active\",\"disabled\"]}\n"},
+        {"path": "records.json", "content": "[{\"id\":1,\"name\":\"Ada\",\"status\":\"active\"},{\"id\":0,\"name\":\"Bad\",\"status\":\"active\"},{\"id\":2,\"name\":\"\",\"status\":\"other\"},{\"id\":3,\"name\":\"Lin\",\"status\":\"disabled\"}]\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M27",
+      "level": "medium",
+      "user_request": "Read graph.json and create build_order.json with a deterministic topological order. A dependency must appear before its consumer; among currently available nodes choose alphabetically. Include node_count and verify all nodes appear once.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "graph.json", "content": "{\"app\":[\"api\",\"web\"],\"api\":[\"core\"],\"web\":[\"core\"],\"core\":[],\"docs\":[]}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M28",
+      "level": "medium",
+      "user_request": "Read retention.json and the dated files under logs/. Move files older than cutoff into archive/ while preserving filenames and bytes. Create archive_report.json with moved and kept filename arrays sorted. Verify both directories and the report.",
+      "capabilities": ["list_directory", "read_json", "read_file", "write_file"],
+      "workspace_files": [
+        {"path": "retention.json", "content": "{\"cutoff\":\"2026-08-01\"}\n"},
+        {"path": "logs/2026-07-20.log", "content": "old-a\n"},
+        {"path": "logs/2026-07-31.log", "content": "old-b\n"},
+        {"path": "logs/2026-08-01.log", "content": "keep-a\n"},
+        {"path": "logs/2026-08-09.log", "content": "keep-b\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M29",
+      "level": "medium",
+      "user_request": "Create resolved_translations.json from base.json and locale.json. Preserve every base key, replace values present in locale, and use the base value for missing keys. Add locale=zh-CN and missing_keys sorted. Verify the exact output.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "base.json", "content": "{\"hello\":\"Hello\",\"bye\":\"Goodbye\",\"save\":\"Save\",\"cancel\":\"Cancel\"}\n"},
+        {"path": "locale.json", "content": "{\"hello\":\"你好\",\"save\":\"保存\"}\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-M30",
+      "level": "medium",
+      "user_request": "Migrate config.json according to MIGRATION.md, then run verify_config.py. Preserve unrelated metadata, create migration_report.json describing from_version, to_version, and renamed fields, and finish only when verification passes.",
+      "capabilities": ["read_file", "read_json", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "MIGRATION.md", "content": "Migrate schema 1 to 2. Rename timeout to request_timeout_ms and retry_count to retries under runtime. Convert timeout seconds to milliseconds. Preserve metadata.\n"},
+        {"path": "config.json", "content": "{\"schema_version\":1,\"runtime\":{\"timeout\":3,\"retry_count\":4,\"mode\":\"safe\"},\"metadata\":{\"owner\":\"ops\"}}\n"},
+        {"path": "verify_config.py", "content": "import json\nfrom pathlib import Path\nc=json.loads(Path('config.json').read_text())\nassert c=={'schema_version':2,'runtime':{'request_timeout_ms':3000,'retries':4,'mode':'safe'},'metadata':{'owner':'ops'}}\nr=json.loads(Path('migration_report.json').read_text())\nassert r=={'from_version':1,'to_version':2,'renamed':['retry_count->retries','timeout->request_timeout_ms']}\nprint('config verified')\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-H11",
+      "level": "hard",
+      "user_request": "Repair pipeline.py through all verifier stages. normalize must trim and lowercase names; validate must require a nonempty name and positive integer quantity and price; total must multiply quantity by price; build must sort items by name and add grand_total. Generate release.json from orders.json and run verify_pipeline.py until it succeeds. Do not weaken the verifier.",
+      "capabilities": ["read_file", "read_json", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "pipeline.py", "content": "def normalize(name): return name\n\ndef validate(item): return True\n\ndef total(item): return item['quantity'] + item['price']\n\ndef build(items): return {'items': items, 'grand_total': 0}\n"},
+        {"path": "orders.json", "content": "[{\"name\":\" Beta \",\"quantity\":2,\"price\":4},{\"name\":\"ALPHA\",\"quantity\":3,\"price\":5}]\n"},
+        {"path": "verify_pipeline.py", "content": "import json\nfrom pathlib import Path\nfrom pipeline import normalize,validate,total,build\nraw=json.loads(Path('orders.json').read_text())\nassert normalize(' Beta ')=='beta', 'stage 1 normalize'\nitems=[{**x,'name':normalize(x['name'])} for x in raw]\nassert all(validate(x) for x in items) and not validate({'name':'','quantity':0,'price':-1}), 'stage 2 validate'\nassert [total(x) for x in items]==[8,15], 'stage 3 total'\nexpected={'items':[{'name':'alpha','total':15},{'name':'beta','total':8}],'grand_total':23}\nassert build(items)==expected, 'stage 4 build'\nassert json.loads(Path('release.json').read_text())==expected, 'stage 5 artifact'\nprint('pipeline verified')\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-H12",
+      "level": "hard",
+      "user_request": "Process all 15 JSON shards under shards/ without assuming their values. Create aggregate.json containing shard_count, item_count, value_total, and categories totals. Every shard and every item must contribute exactly once. Verify the aggregate.",
+      "capabilities": ["list_directory", "read_json", "write_file"],
+      "workspace_files": [],
+      "workspace_generators": [
+        {"kind": "json_shards", "directory": "shards", "count": 15}
+      ]
+    },
+    {
+      "task_id": "E2E-H13",
+      "level": "hard",
+      "user_request": "Inspect all 24 documents under corpus/ in six consecutive four-file phases. For each phase create checkpoints/phaseNN.json with phase and the priority filenames found in that batch. Then create priority_summary.json mapping every PRIORITY yes filename to its signal line. Exclude noise and verify all phase checkpoints and the final summary.",
+      "capabilities": ["list_directory", "read_file", "write_file"],
+      "workspace_files": [],
+      "workspace_generators": [
+        {"kind": "priority_corpus", "directory": "corpus", "count": 24, "priority_indices": [2, 5, 9, 12, 17, 21, 24]}
+      ]
+    },
+    {
+      "task_id": "E2E-H14",
+      "level": "hard",
+      "user_request": "Starting only from catalog/root_manifest.json, recursively discover all referenced manifests and data files. Create catalog/global_index.json with datasets sorted by name; each entry must include name, manifest, depends_on, files as catalog-relative paths, and record_count. Add total_records and verify each discovered file contributes exactly once.",
+      "capabilities": ["list_directory", "read_json", "write_file"],
+      "workspace_files": [],
+      "workspace_generators": [
+        {"kind": "manifest_tree", "directory": "catalog", "count": 1}
+      ]
+    },
+    {
+      "task_id": "E2E-H15",
+      "level": "hard",
+      "user_request": "Complete the event-report mini-project. Implement parser.py, analyzer.py, and reporter.py from REQUIREMENTS.md; run all tests; create DESIGN.md and README.md; generate dist/report.json from example.txt; and create release_manifest.json with lowercase SHA256 digests for all three modules, both documents, and the report. Finish only after tests and digest verification pass.",
+      "capabilities": ["read_file", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "REQUIREMENTS.md", "content": "parser.parse(text) returns nonblank stripped event lines. analyzer.count(events) returns total and by_type counts for TYPE:value lines. reporter.render(summary) returns sorted-key JSON with one trailing newline.\n"},
+        {"path": "event_report/__init__.py", "content": ""},
+        {"path": "event_report/parser.py", "content": "def parse(text):\n    raise NotImplementedError\n"},
+        {"path": "event_report/analyzer.py", "content": "def count(events):\n    raise NotImplementedError\n"},
+        {"path": "event_report/reporter.py", "content": "def render(summary):\n    raise NotImplementedError\n"},
+        {"path": "test_event_report.py", "content": "import json, unittest\nfrom event_report.parser import parse\nfrom event_report.analyzer import count\nfrom event_report.reporter import render\n\nclass Tests(unittest.TestCase):\n    def test_pipeline(self):\n        events=parse(' INFO:a\\n\\nERROR:b\\nINFO:c\\n')\n        self.assertEqual(events,['INFO:a','ERROR:b','INFO:c'])\n        summary=count(events)\n        self.assertEqual(summary,{'total':3,'by_type':{'ERROR':1,'INFO':2}})\n        self.assertEqual(json.loads(render(summary)),summary)\n        self.assertTrue(render(summary).endswith('\\n'))\n\nif __name__ == '__main__': unittest.main()\n"},
+        {"path": "example.txt", "content": "INFO:start\nWARN:slow\nINFO:done\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-H16",
+      "level": "hard",
+      "user_request": "Apply change_request.json to configs, then run check_invariants.py. If the requested state violates invariants, follow policy.json priority order and roll back the minimum lower-priority changes needed. Create compensation.json with kept and rolled_back arrays in policy order, and finish with the invariant check passing.",
+      "capabilities": ["read_json", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "configs/capacity.json", "content": "{\"workers\":4,\"memory\":40}\n"},
+        {"path": "configs/runtime.json", "content": "{\"mode\":\"safe\",\"timeout\":30}\n"},
+        {"path": "change_request.json", "content": "{\"capacity.workers\":8,\"capacity.memory\":80,\"runtime.mode\":\"fast\",\"runtime.timeout\":10}\n"},
+        {"path": "policy.json", "content": "{\"priority\":[\"capacity.workers\",\"runtime.mode\",\"runtime.timeout\",\"capacity.memory\"],\"rollback_values\":{\"capacity.memory\":40,\"runtime.timeout\":30,\"runtime.mode\":\"safe\",\"capacity.workers\":4}}\n"},
+        {"path": "check_invariants.py", "content": "import json\nfrom pathlib import Path\nc=json.loads(Path('configs/capacity.json').read_text()); r=json.loads(Path('configs/runtime.json').read_text())\nassert c['workers']*10+c['memory']<=120\nassert r['mode']=='safe' or (c['workers']>=8 and r['timeout']>=20)\nassert c['workers']==8\nprint('invariants verified')\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-H17",
+      "level": "hard",
+      "user_request": "Read events.json and create ledger.json with one entry per unique event id in first-seen order, count, and total_amount. The runner will interrupt and resume the run. The completed ledger must remain byte-for-byte stable after an additional resume, and completed tasks must never execute again. Verify the ledger and resume behavior.",
+      "capabilities": ["read_json", "write_file"],
+      "workspace_files": [
+        {"path": "events.json", "content": "[{\"id\":\"A\",\"amount\":4},{\"id\":\"B\",\"amount\":7},{\"id\":\"A\",\"amount\":4},{\"id\":\"C\",\"amount\":2}]\n"}
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-H18",
+      "level": "hard",
+      "user_request": "Complete the release workflow from products.csv and policy.json. Calculate discounted totals, create release/products.json with items sorted by sku and grand_total, create release/REPORT.md with every item and total, repair release_validator.py only if its implementation is broken but never weaken its assertions, run it successfully, and create release/digests.json with lowercase SHA256 digests of both release outputs.",
+      "capabilities": ["read_file", "read_json", "write_file", "run_command"],
+      "workspace_files": [
+        {"path": "products.csv", "content": "sku,category,quantity,unit_price\nZ9,standard,2,12\nA1,premium,3,10\nM5,standard,1,8\n"},
+        {"path": "policy.json", "content": "{\"discounts\":{\"standard\":0.25,\"premium\":0.10}}\n"},
+        {"path": "release_validator.py", "content": "import json\nfrom pathlib import Path\np=json.loads(Path('release/products.json').read_text())\nassert p=={'items':[{'sku':'A1','total':27.0},{'sku':'M5','total':6.0},{'sku':'Z9','total':18.0}],'grand_total':51.0}\ntext=Path('release/REPORT.md').read_text()\nfor value in ['A1: 27.0','M5: 6.0','Z9: 18.0','Grand total: 51.0']: assert value in text\nprint('release verified')\n"}
+      ],
+      "workspace_generators": []
+    }
+  ]
+}

@@ -9,6 +9,7 @@ from rwkv_lh.runtime.protocol import (
     RWKVProtocolError,
     RWKVRuntimeError,
     RWKVTransportError,
+    RuntimeCapabilities,
 )
 from rwkv_lh.runtime.sampling import (
     current_model_lane,
@@ -31,6 +32,7 @@ __all__ = [
     "RWKVProtocolError",
     "RWKVRuntimeError",
     "RWKVTransportError",
+    "RuntimeCapabilities",
     "RuntimeSettings",
     "current_model_lane",
     "current_task_id",

@@ -1,0 +1,132 @@
+{
+  "task_id": "LH-M08",
+  "level": "medium",
+  "task_description": "上游失败时阻止下游执行。",
+  "expected_result": "上游和依赖它的下游均 blocked，下游无 attempt。",
+  "actual_result": "blocked",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "f47ec9ce698c1cf10dc56c9d2213bf8548e29f73bacf0d02f91f647e4e5dfc78"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1",
+          "T2"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "noop",
+        "arguments": {},
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "noop",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_failed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:19:24.760+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round1/lh_control_30/cases/LH-M08/workspace/never.txt"
+            },
+            "evidence_refs": [
+              "M-T1-A1"
+            ],
+            "failure_fingerprint": "a8b81d8fd74115b335d30b09e33e9526c50606073b0d31985ae5360f2240a14a",
+            "kind": "file_exists",
+            "message": "path exists=False",
+            "passed": false,
+            "required": true,
+            "subject_task_id": "T1"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "run_blocked",
+      "data": {
+        "lineage_id": "RL-0001",
+        "reason": "recovery_lineage_budget_exhausted",
+        "task_id": "T1"
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "noop",
+      "arguments": {},
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T1"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [
+    {
+      "task_id": "T1",
+      "type": "ValidationFailed",
+      "attempt_id": "T1-A1",
+      "results": [
+        {
+          "kind": "file_exists",
+          "passed": false,
+          "required": true,
+          "message": "path exists=False",
+          "evidence": {
+            "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round1/lh_control_30/cases/LH-M08/workspace/never.txt"
+          },
+          "subject_task_id": "T1",
+          "criterion_ids": [],
+          "evidence_refs": [
+            "M-T1-A1"
+          ],
+          "failure_fingerprint": "a8b81d8fd74115b335d30b09e33e9526c50606073b0d31985ae5360f2240a14a",
+          "checked_at": "2026-08-12T01:19:24.760+00:00"
+        }
+      ],
+      "at": "2026-08-12T01:19:24.761+00:00"
+    }
+  ],
+  "recovery": [],
+  "final_verification": {
+    "upstream": "blocked",
+    "downstream": "blocked"
+  },
+  "extra": {}
+}

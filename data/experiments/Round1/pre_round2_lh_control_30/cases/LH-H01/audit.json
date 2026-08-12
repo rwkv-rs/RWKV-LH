@@ -1,0 +1,58 @@
+{
+  "task_id": "LH-H01",
+  "level": "hard",
+  "task_description": "文件写入成功但 attempt 结果落库前中断。",
+  "expected_result": "恢复通过 postcondition 认定完成，不重复写入。",
+  "actual_result": "completed",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "e9276c35c6937d192c70d8ecf90958ddf3dd66b12c8a0e503b66e4dbf9190f9b"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "simulated_interruption",
+      "data": {}
+    },
+    {
+      "revision": 2,
+      "type": "recovered_as_completed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 0,
+        "final_output": "Verified 1 task(s) and 0 artifact(s).",
+        "task_count": 1
+      }
+    }
+  ],
+  "tool_calls": [],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [],
+  "recovery": [
+    {},
+    {
+      "attempt_id": "T1-A1",
+      "task_id": "T1"
+    }
+  ],
+  "final_verification": {
+    "attempts": [
+      "T1-A1"
+    ],
+    "content": "single-write"
+  },
+  "extra": {}
+}

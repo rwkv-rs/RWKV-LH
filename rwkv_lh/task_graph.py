@@ -96,6 +96,54 @@ class TaskGraph:
                 self.tasks.pop(task.task_id, None)
             raise
 
+    @staticmethod
+    def materialize_model_tasks(
+        tasks: Iterable[TaskNode],
+        *,
+        existing_ids: Iterable[str] = (),
+        next_sequence: int = 1,
+    ) -> tuple[list[TaskNode], dict[str, str], int]:
+        """Allocate global task ids and deterministically rewrite local refs.
+
+        Model-emitted ids are local references only. They never become global
+        structure ids directly, which prevents reuse and supersede corruption
+        from crossing the model/Controller boundary.
+        """
+
+        proposals = [TaskNode.from_dict(task.to_dict()) for task in tasks]
+        if not proposals:
+            raise TaskGraphError("model task proposal is empty")
+        local_ids = [task.task_id for task in proposals]
+        if any(not task_id for task_id in local_ids):
+            raise TaskGraphError("model tasks require non-empty local ids")
+        if len(local_ids) != len(set(local_ids)):
+            raise TaskGraphError("model task local ids must be unique")
+        reserved = {str(item) for item in existing_ids}
+        sequence = max(1, int(next_sequence))
+        mapping: dict[str, str] = {}
+        for local_id in local_ids:
+            while f"T{sequence}" in reserved:
+                sequence += 1
+            allocated = f"T{sequence}"
+            sequence += 1
+            reserved.add(allocated)
+            mapping[local_id] = allocated
+        local_set = set(local_ids)
+        for task in proposals:
+            local_id = task.task_id
+            task.task_id = mapping[local_id]
+            task.dependencies = [
+                mapping[dependency] if dependency in local_set else dependency
+                for dependency in task.dependencies
+            ]
+            task.active = True
+            task.status = TaskStatus.PENDING
+            task.attempt_ids = []
+            task.output_refs = []
+            task.error = None
+            task.superseded_by = None
+        return proposals, mapping, sequence
+
     def ready_tasks(self) -> list[TaskNode]:
         ready = []
         for task in self.tasks.values():

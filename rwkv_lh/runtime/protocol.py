@@ -203,6 +203,79 @@ class HealthStatus:
         }
 
 
+@dataclass(frozen=True)
+class RuntimeCapabilities:
+    """Server-declared capabilities; absence always means unsupported."""
+
+    source: str = "local_fallback"
+    prompt_replay: bool = True
+    native_tool_calls_declared: bool = False
+    recurrent_state_create: bool = False
+    recurrent_state_resume: bool = False
+    recurrent_state_fork: bool = False
+    recurrent_state_commit: bool = False
+    recurrent_state_rollback: bool = False
+    recurrent_state_export: bool = False
+    recurrent_state_import: bool = False
+    error: str = ""
+
+    @property
+    def durable_recurrent_state(self) -> bool:
+        return all(
+            (
+                self.recurrent_state_create,
+                self.recurrent_state_resume,
+                self.recurrent_state_fork,
+                self.recurrent_state_commit,
+                self.recurrent_state_rollback,
+                self.recurrent_state_export,
+                self.recurrent_state_import,
+            )
+        )
+
+    @classmethod
+    def from_mapping(
+        cls,
+        value: Mapping[str, Any],
+        *,
+        source: str,
+    ) -> "RuntimeCapabilities":
+        state = value.get("recurrent_state")
+        raw_state = state if isinstance(state, Mapping) else {}
+        tools = value.get("tools")
+        raw_tools = tools if isinstance(tools, Mapping) else {}
+        return cls(
+            source=source,
+            prompt_replay=True,
+            native_tool_calls_declared=bool(raw_tools.get("native_tool_calls", False)),
+            recurrent_state_create=bool(raw_state.get("create", False)),
+            recurrent_state_resume=bool(raw_state.get("resume", False)),
+            recurrent_state_fork=bool(raw_state.get("fork", False)),
+            recurrent_state_commit=bool(raw_state.get("commit", False)),
+            recurrent_state_rollback=bool(raw_state.get("rollback", False)),
+            recurrent_state_export=bool(raw_state.get("export", False)),
+            recurrent_state_import=bool(raw_state.get("import", False)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "prompt_replay": self.prompt_replay,
+            "native_tool_calls_declared": self.native_tool_calls_declared,
+            "recurrent_state": {
+                "create": self.recurrent_state_create,
+                "resume": self.recurrent_state_resume,
+                "fork": self.recurrent_state_fork,
+                "commit": self.recurrent_state_commit,
+                "rollback": self.recurrent_state_rollback,
+                "export": self.recurrent_state_export,
+                "import": self.recurrent_state_import,
+                "durable": self.durable_recurrent_state,
+            },
+            "error": self.error,
+        }
+
+
 def normalize_stop(value: Sequence[str] | None) -> tuple[str, ...]:
     if not value:
         return ()
@@ -227,6 +300,7 @@ __all__ = [
     "RWKVProtocolError",
     "RWKVRuntimeError",
     "RWKVTransportError",
+    "RuntimeCapabilities",
     "TextCompletionRequest",
     "TokenUsage",
     "normalize_stop",

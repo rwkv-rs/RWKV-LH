@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import shutil
 import tempfile
@@ -13,6 +14,7 @@ from scripts.run_rwkv_e2e_benchmark import (
     FORBIDDEN_VISIBLE_KEYS,
     VISIBLE_TASK_KEYS,
     _check,
+    difficulty_group,
     load_suite,
     materialize_workspace,
 )
@@ -73,6 +75,76 @@ def test_long_horizon_catalog_has_12_hidden_acceptance_cases():
     for task in tasks:
         assert set(task) <= VISIBLE_TASK_KEYS
         assert not (set(task) & FORBIDDEN_VISIBLE_KEYS)
+
+
+def test_extension_catalog_completes_fixed_90_case_difficulty_groups():
+    extension, acceptance = load_suite("extension48")
+    assert len(extension) == 48
+    assert len(acceptance) == 48
+    assert len({task["task_id"] for task in extension}) == 48
+    assert {
+        level: sum(task["level"] == level for task in extension)
+        for level in ("basic", "medium", "hard")
+    } == {"basic": 20, "medium": 20, "hard": 8}
+
+    all_tasks = []
+    all_acceptance = {}
+    for suite in ("core30", "lh12", "extension48"):
+        tasks, hidden = load_suite(suite)
+        all_tasks.extend(tasks)
+        assert not (set(all_acceptance) & set(hidden))
+        all_acceptance.update(hidden)
+
+    assert len(all_tasks) == len(all_acceptance) == 90
+    assert len({task["task_id"] for task in all_tasks}) == 90
+    assert {
+        group: sum(difficulty_group(task["level"]) == group for task in all_tasks)
+        for group in ("basic", "medium", "hard")
+    } == {"basic": 30, "medium": 30, "hard": 30}
+    for task in all_tasks:
+        assert set(task) <= VISIBLE_TASK_KEYS
+        assert not (set(task) & FORBIDDEN_VISIBLE_KEYS)
+
+
+def test_extension_seeded_python_files_compile():
+    tasks, _ = load_suite("extension48")
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        for task in tasks:
+            workspace = root / task["task_id"]
+            materialize_workspace(task, workspace)
+            for path in workspace.rglob("*.py"):
+                compile(path.read_text(encoding="utf-8"), str(path), "exec")
+
+
+def test_frozen_codex_reference_covers_the_same_90_cases_and_digest():
+    root = Path(__file__).resolve().parents[1]
+    dataset = root / "data" / "datasets" / "rwkv_e2e_90_v1"
+    manifest = json.loads((dataset / "manifest.json").read_text(encoding="utf-8"))
+    reference_path = dataset / "codex_reference_answers.json"
+    references = json.loads(reference_path.read_text(encoding="utf-8"))
+    digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
+
+    all_tasks = []
+    for suite in ("core30", "lh12", "extension48"):
+        tasks, _ = load_suite(suite)
+        all_tasks.extend(tasks)
+
+    assert manifest["case_count"] == 90
+    assert manifest["difficulty_groups"] == {
+        "basic": 30,
+        "medium": 30,
+        "hard": 30,
+    }
+    assert digest == manifest["reference_answer_policy"]["sha256"]
+    assert digest == "947a4b495951374b4d83a1029a2e3196e98c277e2c5d815919bdc58bf482d89b"
+    assert {item["task_id"] for item in references["cases"]} == {
+        task["task_id"] for task in all_tasks
+    }
+    assert {
+        group: sum(item["group"] == group for item in references["cases"])
+        for group in ("basic", "medium", "hard")
+    } == {"basic": 30, "medium": 30, "hard": 30}
 
 
 def test_long_horizon_generators_materialize_dynamic_pressure_fixtures():

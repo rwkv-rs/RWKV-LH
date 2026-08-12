@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.schema import (
+    LEGACY_RUN_SCHEMA_VERSION,
+    RUN_SCHEMA_VERSION,
     GoalCriterion,
     GoalState,
     RunState,
@@ -205,6 +207,13 @@ def test_store_projects_tasks_and_checkpoints_transactionally():
             ).fetchone()[0]
         assert task_row == ("pending", 1, 1, 91)
         assert checkpoint_count == 2
+        checkpoints = store.checkpoint_records(state.run_id)
+        assert [item["revision"] for item in checkpoints] == [0, 1]
+        assert [item["event_type"] for item in checkpoints] == [
+            "run_created",
+            "plan_saved",
+        ]
+        assert checkpoints[-1]["state"]["tasks"]["T1"]["priority"] == 91
 
 
 def test_checkpoint_retention_does_not_keep_every_planning_request():
@@ -221,3 +230,56 @@ def test_checkpoint_retention_does_not_keep_every_planning_request():
                 (state.run_id,),
             ).fetchall()
         assert dict(rows) == {0: 5, 1: 1}
+
+
+def test_v1_run_migration_does_not_promote_ambiguous_goal_bindings():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-V1-MIGRATION", make_goal(Path(directory)))
+        state.tasks = {
+            "T1": TaskNode(
+                "T1",
+                "Legacy task",
+                "Legacy ambiguous criterion binding",
+                goal_criteria=["GC1"],
+                satisfies_criteria=["GC1"],
+            )
+        }
+        payload = state.to_dict()
+        payload["schema_version"] = LEGACY_RUN_SCHEMA_VERSION
+        payload.pop("criterion_evidence")
+        payload.pop("recovery_states")
+        payload.pop("model_states")
+        payload.pop("next_task_sequence")
+        payload["tasks"]["T1"].pop("satisfies_criteria")
+
+        migrated = RunState.from_dict(payload)
+
+        assert migrated.schema_version == RUN_SCHEMA_VERSION
+        assert migrated.tasks["T1"].goal_criteria == ["GC1"]
+        assert migrated.tasks["T1"].satisfies_criteria == []
+        assert migrated.criterion_evidence == {}
+        assert migrated.next_task_sequence == 2
+
+
+def test_model_task_ids_are_local_and_deterministically_rewritten():
+    proposals = [
+        TaskNode("T1", "Local first", "First local task"),
+        TaskNode(
+            "T9",
+            "Local second",
+            "Second local task",
+            dependencies=["T1"],
+        ),
+    ]
+
+    tasks, mapping, next_sequence = TaskGraph.materialize_model_tasks(
+        proposals,
+        existing_ids={"T1", "T9"},
+        next_sequence=1,
+    )
+
+    assert mapping == {"T1": "T2", "T9": "T3"}
+    assert [task.task_id for task in tasks] == ["T2", "T3"]
+    assert tasks[1].dependencies == ["T2"]
+    assert next_sequence == 4
+    assert [task.task_id for task in proposals] == ["T1", "T9"]

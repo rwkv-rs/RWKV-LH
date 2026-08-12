@@ -15,6 +15,7 @@ from rwkv_lh.model import (
     ActionProposal,
     FailureAnalysisProposal,
     LongHorizonModel,
+    ModelProtocolError,
     PersistCallback,
     ReplanProposal,
 )
@@ -22,9 +23,12 @@ from rwkv_lh.schema import (
     ArtifactRecord,
     Attempt,
     AttemptStatus,
+    CriterionEvidence,
+    CriterionEvidenceStatus,
     MemoryEntry,
     RunState,
     RunStatus,
+    RecoveryState,
     TaskStatus,
     TaskAction,
     ValidationResult,
@@ -92,11 +96,24 @@ class LongHorizonController:
                 if not state.tasks:
                     self._create_plan(state)
                     transitions += 1
+                    if state.status == RunStatus.BLOCKED:
+                        return ControllerResult(state, self._final_output(state), transitions)
                 while transitions < self.max_transitions:
                     graph = TaskGraph(state.tasks)
                     if graph.required_complete():
-                        output = self._complete_run(state)
-                        return ControllerResult(state, output, transitions)
+                        if self._goal_criteria_covered(state):
+                            output = self._complete_run(state)
+                            return ControllerResult(state, output, transitions)
+                        state.status = RunStatus.BLOCKED
+                        self._persist(
+                            state,
+                            "run_blocked",
+                            {
+                                "reason": "required_goal_evidence_missing",
+                                "criterion_ids": self._missing_goal_criteria(state),
+                            },
+                        )
+                        return ControllerResult(state, self._final_output(state), transitions)
                     ready = graph.ready_tasks()
                     if not ready:
                         self._block_unreachable_tasks(state, graph)
@@ -141,16 +158,37 @@ class LongHorizonController:
             raise RuntimeError("a model is required when the run has no task graph")
         state.status = RunStatus.PLANNING
         self._persist(state, "planning_started", {})
-        tasks = self.model.plan(state, self._persist_callback())
+        try:
+            proposed_tasks = self.model.plan(state, self._persist_callback())
+        except ModelProtocolError as exc:
+            state.status = RunStatus.BLOCKED
+            self._persist(
+                state,
+                "model_protocol_blocked",
+                {
+                    "phase": "plan_materialization",
+                    "error": str(exc)[:2000],
+                },
+            )
+            return
+        tasks, local_to_global, next_sequence = TaskGraph.materialize_model_tasks(
+            proposed_tasks,
+            next_sequence=state.next_task_sequence,
+        )
         graph = TaskGraph()
         graph.add_tasks(tasks)
         state.tasks = graph.tasks
+        state.next_task_sequence = next_sequence
         state.plan_generation += 1
         state.status = RunStatus.RUNNING
         self._persist(
             state,
             "plan_saved",
-            {"task_ids": list(state.tasks), "plan_generation": state.plan_generation},
+            {
+                "task_ids": list(state.tasks),
+                "local_to_global": local_to_global,
+                "plan_generation": state.plan_generation,
+            },
         )
 
     def _execute_task(self, state: RunState, graph: TaskGraph, task_id: str) -> None:
@@ -159,13 +197,29 @@ class LongHorizonController:
             if self.model is None:
                 raise RuntimeError(f"task {task_id} requires a model-proposed action")
             context = self.memory.build(state, task)
-            proposal = self.model.propose_action(
-                state,
-                task,
-                context,
-                self.harness.action_contract(),
-                self._persist_callback(),
-            )
+            try:
+                proposal = self.model.propose_action(
+                    state,
+                    task,
+                    context,
+                    self.harness.action_contract(),
+                    self._persist_callback(),
+                )
+            except ModelProtocolError as exc:
+                graph.transition(task_id, TaskStatus.BLOCKED)
+                task.error = {
+                    "type": "ModelProtocolError",
+                    "phase": "action_materialization",
+                    "message": str(exc)[:2000],
+                }
+                state.status = RunStatus.BLOCKED
+                state.active_task_id = None
+                self._persist(
+                    state,
+                    "model_protocol_blocked",
+                    {"task_id": task_id, **task.error},
+                )
+                return
             if isinstance(proposal, ActionProposal):
                 task.action = proposal.action
                 task.completion_criteria = list(proposal.completion_criteria)
@@ -260,34 +314,22 @@ class LongHorizonController:
             },
         )
         state.status = RunStatus.VALIDATING
-        validation = self.validator.validate(
+        validation_results, required_passed = self._validate_task_result(
+            state,
             task,
             result,
-            state.goal,
-            state,
-            cross_check=self._model_cross_check(state),
         )
-        validation_results = list(validation.results)
-        required_passed = validation.required_passed
-        explicit_cross_check = any(
-            item.kind == "model_cross_check" and item.required
-            for item in validation_results
-        )
-        if required_passed and not explicit_cross_check:
-            semantic_result = self._mandatory_semantic_check(
-                state,
-                task,
-                result,
-                validation_results,
-            )
-            if semantic_result is not None:
-                validation_results.append(semantic_result)
-                required_passed = required_passed and semantic_result.passed
         attempt.validation_results = validation_results
         if required_passed:
             attempt.status = AttemptStatus.SUCCEEDED
             attempt.ended_at = utc_now()
             graph.transition(task_id, TaskStatus.COMPLETED)
+            self._commit_criterion_evidence(
+                state,
+                task,
+                attempt,
+                validation_results,
+            )
             task.error = None
             state.active_task_id = None
             state.status = RunStatus.RUNNING
@@ -310,6 +352,7 @@ class LongHorizonController:
             "attempt_id": attempt_id,
             "results": [vars(item) for item in validation_results],
         }
+        self._record_recovery_failure(state, task, validation_results)
         state.errors.append({"task_id": task_id, **task.error, "at": utc_now()})
         self._persist(
             state,
@@ -328,6 +371,26 @@ class LongHorizonController:
     ) -> None:
         task = state.tasks[task_id]
         attempt_count = len(task.attempt_ids)
+        lineage = (
+            state.recovery_states.get(task.recovery_lineage_id)
+            if task.recovery_lineage_id
+            else None
+        )
+        if lineage is not None and lineage.remaining_budget <= 0:
+            graph.transition(task_id, TaskStatus.BLOCKED)
+            self._block_unreachable_tasks(state, graph)
+            state.active_task_id = None
+            state.status = RunStatus.BLOCKED
+            self._persist(
+                state,
+                "run_blocked",
+                {
+                    "reason": "recovery_lineage_budget_exhausted",
+                    "task_id": task_id,
+                    "lineage_id": lineage.lineage_id,
+                },
+            )
+            return
         analyzer = (
             getattr(self.model, "analyze_failure", None)
             if self.model is not None
@@ -357,6 +420,21 @@ class LongHorizonController:
             decision = str(analysis.decision or "").strip().casefold()
             if decision not in {"retry_same", "reselect_action", "replan"}:
                 raise ValueError(f"unsupported failure-analysis decision: {decision}")
+            if same_failure_count >= 2 and decision in {
+                "retry_same",
+                "reselect_action",
+            }:
+                decision = "replan"
+                self._persist(
+                    state,
+                    "near_duplicate_recovery_guard",
+                    {
+                        "task_id": task_id,
+                        "lineage_id": task.recovery_lineage_id,
+                        "same_failure_count": same_failure_count,
+                    },
+                )
+            self._record_recovery_decision(state, task, decision, analysis.reason)
             self._persist(
                 state,
                 "failure_analysis_returned",
@@ -382,7 +460,10 @@ class LongHorizonController:
                         "reason": "non_idempotent_action_cannot_be_blindly_retried",
                     },
                 )
-            if decision in {"retry_same", "reselect_action"} and attempt_count >= task.retry_policy.max_attempts:
+            if decision in {"retry_same", "reselect_action"} and (
+                attempt_count >= task.retry_policy.max_attempts
+                or (lineage is not None and lineage.remaining_budget <= 0)
+            ):
                 decision = "replan"
                 self._persist(
                     state,
@@ -486,17 +567,37 @@ class LongHorizonController:
                 "same_failure_count": same_failure_count,
             },
         )
-        proposal = self.model.replan(
-            state,
-            task,
-            context,
-            self._persist_callback(),
-            same_failure_count=same_failure_count,
-        )
+        try:
+            proposal = self.model.replan(
+                state,
+                task,
+                context,
+                self._persist_callback(),
+                same_failure_count=same_failure_count,
+            )
+        except ModelProtocolError as exc:
+            graph.transition(task.task_id, TaskStatus.BLOCKED)
+            task.error = {
+                "type": "ModelProtocolError",
+                "phase": "replan_intent",
+                "message": str(exc)[:2000],
+            }
+            state.active_task_id = None
+            state.status = RunStatus.BLOCKED
+            self._persist(
+                state,
+                "model_protocol_blocked",
+                {"task_id": task.task_id, **task.error},
+            )
+            return
         self._apply_replan(state, graph, task.task_id, proposal)
 
     @staticmethod
     def _same_failure_count(state: RunState, task) -> int:
+        if task.recovery_lineage_id:
+            lineage = state.recovery_states.get(task.recovery_lineage_id)
+            if lineage is not None:
+                return lineage.same_failure_count
         fingerprints = [
             state.attempts[attempt_id].action_fingerprint
             for attempt_id in task.attempt_ids
@@ -526,21 +627,55 @@ class LongHorizonController:
             task_id: type(task).from_dict(task.to_dict())
             for task_id, task in state.tasks.items()
         }
+        failed_task = state.tasks[failed_task_id]
+        replacement_local_id = proposal.supersede.get(failed_task_id)
+        if not replacement_local_id:
+            replacement_local_id = proposal.tasks[0].task_id
+        materialized, local_to_global, next_sequence = TaskGraph.materialize_model_tasks(
+            proposal.tasks,
+            existing_ids=state.tasks,
+            next_sequence=state.next_task_sequence,
+        )
+        replacement_id = local_to_global.get(replacement_local_id)
+        if not replacement_id:
+            raise TaskGraphError("replan replacement local id is missing")
+        replacement_task = next(
+            task for task in materialized if task.task_id == replacement_id
+        )
+        if not replacement_task.satisfies_criteria:
+            replacement_task.satisfies_criteria = list(failed_task.satisfies_criteria)
+        if not replacement_task.goal_criteria:
+            replacement_task.goal_criteria = list(failed_task.goal_criteria)
+        lineage = (
+            state.recovery_states.get(failed_task.recovery_lineage_id)
+            if failed_task.recovery_lineage_id
+            else None
+        )
+        for task in materialized:
+            task.recovery_lineage_id = failed_task.recovery_lineage_id
+            task.subject_task_id = (
+                lineage.subject_task_id if lineage is not None else failed_task.subject_task_id
+            )
         try:
-            graph.add_tasks(proposal.tasks)
-            replacement_id = proposal.supersede.get(failed_task_id)
-            if not replacement_id:
-                raise TaskGraphError(f"replan did not supersede failed task {failed_task_id}")
+            graph.add_tasks(materialized)
             graph.supersede(failed_task_id, replacement_id)
-            for old_task_id, new_task_id in proposal.supersede.items():
-                if old_task_id == failed_task_id:
-                    continue
-                graph.supersede(old_task_id, new_task_id)
             graph.validate()
         except Exception:
             state.tasks.clear()
             state.tasks.update(original_tasks)
             raise
+        if lineage is not None:
+            lineage.task_ids.extend(
+                task.task_id for task in materialized if task.task_id not in lineage.task_ids
+            )
+            lineage.failed_task_id = failed_task_id
+            lineage.updated_at = utc_now()
+            self._invalidate_criterion_evidence(
+                state,
+                lineage.subject_task_id,
+                invalidated_by=lineage.lineage_id,
+            )
+        state.next_task_sequence = next_sequence
         state.plan_generation += 1
         state.active_task_id = None
         state.status = RunStatus.RUNNING
@@ -549,8 +684,10 @@ class LongHorizonController:
             "replan_saved",
             {
                 "reason": proposal.reason,
-                "new_task_ids": [task.task_id for task in proposal.tasks],
-                "supersede": proposal.supersede,
+                "new_task_ids": [task.task_id for task in materialized],
+                "local_to_global": local_to_global,
+                "supersede": {failed_task_id: replacement_id},
+                "lineage_id": failed_task.recovery_lineage_id,
                 "plan_generation": state.plan_generation,
             },
         )
@@ -572,19 +709,23 @@ class LongHorizonController:
             self._persist(state, "run_blocked", {"reason": "orphan_running_attempt", "attempt_id": attempt.attempt_id})
             return
         result = ActionResult.from_dict(attempt.tool_result)
-        validation = self.validator.validate(
+        validation_results, required_passed = self._validate_task_result(
+            state,
             task,
             result,
-            state.goal,
-            state,
-            cross_check=self._model_cross_check(state),
         )
         graph = TaskGraph(state.tasks)
-        if validation.required_passed:
+        if required_passed:
             attempt.status = AttemptStatus.SUCCEEDED
             attempt.ended_at = utc_now()
-            attempt.validation_results = list(validation.results)
+            attempt.validation_results = validation_results
             graph.transition(task.task_id, TaskStatus.COMPLETED)
+            self._commit_criterion_evidence(
+                state,
+                task,
+                attempt,
+                validation_results,
+            )
             task.error = None
             state.active_task_id = None
             state.status = RunStatus.RUNNING
@@ -597,8 +738,9 @@ class LongHorizonController:
         definition = self.harness.definition(task.action.action_type)
         attempt.status = AttemptStatus.INTERRUPTED
         attempt.ended_at = utc_now()
-        attempt.validation_results = list(validation.results)
+        attempt.validation_results = validation_results
         graph.transition(task.task_id, TaskStatus.FAILED)
+        self._record_recovery_failure(state, task, validation_results)
         if definition.idempotent or definition.read_only:
             graph.transition(task.task_id, TaskStatus.PENDING)
             state.active_task_id = None
@@ -816,11 +958,18 @@ class LongHorizonController:
                         "status": task.status.value,
                         "output_refs": task.output_refs,
                         "goal_criteria": task.goal_criteria,
+                        "satisfies_criteria": task.satisfies_criteria,
+                        "subject_task_id": task.subject_task_id,
+                        "recovery_lineage_id": task.recovery_lineage_id,
                     }
                     for task_id, task in state.tasks.items()
                     if task.active
                 },
                 "artifacts": {key: vars(value) for key, value in state.artifacts.items()},
+                "criterion_evidence": {
+                    key: value.to_dict()
+                    for key, value in state.criterion_evidence.items()
+                },
                 "memory": {
                     key: {"summary": value.summary, "artifact_refs": value.artifact_refs, "evidence_refs": value.evidence_refs}
                     for key, value in state.memory_index.items()
@@ -843,32 +992,82 @@ class LongHorizonController:
     def _persist_callback(self) -> PersistCallback:
         return self._persist
 
+    def _validate_task_result(
+        self,
+        state: RunState,
+        task,
+        action_result: ActionResult,
+    ) -> tuple[list[ValidationResult], bool]:
+        validation = self.validator.validate(
+            task,
+            action_result,
+            state.goal,
+            state,
+            cross_check=self._model_cross_check(state),
+        )
+        results = list(validation.results)
+        required_passed = validation.required_passed
+        explicit_cross_check = any(
+            item.kind == "model_cross_check" and item.required for item in results
+        )
+        if required_passed and task.satisfies_criteria and not explicit_cross_check:
+            semantic_result = self._criterion_semantic_check(
+                state,
+                task,
+                action_result,
+                results,
+            )
+            if semantic_result is not None:
+                results.append(semantic_result)
+                required_passed = required_passed and semantic_result.passed
+        subject_task_id = self._validation_subject_task_id(state, task)
+        failed_required = [
+            item for item in results if item.required and not item.passed
+        ]
+        fingerprint = (
+            self._failure_fingerprint(task, subject_task_id, failed_required)
+            if failed_required
+            else ""
+        )
+        for index, result in enumerate(results, start=1):
+            result.subject_task_id = subject_task_id
+            result.criterion_ids = list(task.satisfies_criteria)
+            result.evidence_refs = list(dict.fromkeys(task.output_refs))
+            if result.required and not result.passed:
+                result.failure_fingerprint = fingerprint
+            if not result.evidence_refs and task.attempt_ids:
+                result.evidence_refs = [f"{task.attempt_ids[-1]}:V{index}"]
+        return results, required_passed
+
     def _model_cross_check(self, state: RunState):
         method = getattr(self.model, "cross_validate", None) if self.model is not None else None
         if not callable(method):
             return None
 
         def check(task, action_result, spec, validation_results):
-            context = self.memory.build(state, task)
-            passed, reason = method(
-                state,
-                task,
-                context,
-                self._persist_callback(),
-                action_result=action_result.to_dict(),
-                validation_results=[vars(item) for item in validation_results],
-            )
+            context = self.memory.build_task_validation(state, task)
+            try:
+                passed, reason = method(
+                    state,
+                    task,
+                    context,
+                    self._persist_callback(),
+                    action_result=action_result.to_dict(),
+                    validation_results=[vars(item) for item in validation_results],
+                )
+            except ModelProtocolError as exc:
+                passed, reason = False, f"ModelProtocolError: {exc}"
             return ValidationResult(
                 kind="model_cross_check",
                 passed=bool(passed),
                 required=spec.required,
                 message=str(reason),
-                evidence={"owner": "rwkv"},
+                evidence={"owner": "rwkv", "scope": "task_local"},
             )
 
         return check
 
-    def _mandatory_semantic_check(
+    def _criterion_semantic_check(
         self,
         state: RunState,
         task,
@@ -880,28 +1079,193 @@ class LongHorizonController:
             if self.model is not None
             else None
         )
-        if not callable(method) or not task.required:
+        if not callable(method) or not task.satisfies_criteria:
             return None
-        context = self.memory.build(state, task)
-        passed, reason = method(
-            state,
-            task,
-            context,
-            self._persist_callback(),
-            action_result=action_result.to_dict(),
-            validation_results=[vars(item) for item in validation_results],
-        )
+        context = self.memory.build_task_validation(state, task)
+        try:
+            passed, reason = method(
+                state,
+                task,
+                context,
+                self._persist_callback(),
+                action_result=action_result.to_dict(),
+                validation_results=[vars(item) for item in validation_results],
+            )
+        except ModelProtocolError as exc:
+            passed, reason = False, f"ModelProtocolError: {exc}"
         return ValidationResult(
-            kind="goal_cross_check",
+            kind="criterion_cross_check",
             passed=bool(passed),
             required=True,
             message=str(reason),
             evidence={
                 "owner": "rwkv",
+                "scope": "task_local",
                 "goal_digest": state.goal.digest,
-                "goal_criteria": list(task.goal_criteria),
+                "criterion_ids": list(task.satisfies_criteria),
             },
         )
+
+    @staticmethod
+    def _validation_subject_task_id(state: RunState, task) -> str:
+        if task.subject_task_id and task.subject_task_id in state.tasks:
+            return task.subject_task_id
+        if task.recovery_lineage_id:
+            lineage = state.recovery_states.get(task.recovery_lineage_id)
+            if lineage is not None and lineage.subject_task_id in state.tasks:
+                return lineage.subject_task_id
+        if task.action.action_type in {"run_command", "check_command"}:
+            completed_dependencies = [
+                dependency
+                for dependency in task.dependencies
+                if dependency in state.tasks
+                and state.tasks[dependency].status == TaskStatus.COMPLETED
+            ]
+            if completed_dependencies:
+                return completed_dependencies[-1]
+        return task.task_id
+
+    @staticmethod
+    def _failure_fingerprint(task, subject_task_id: str, failed: list[ValidationResult]) -> str:
+        payload = {
+            "subject_task_id": subject_task_id,
+            "action": {
+                "type": task.action.action_type,
+                "arguments": task.action.arguments,
+            },
+            "verifiers": [
+                {
+                    "kind": item.kind,
+                    "message": item.message,
+                    "criterion_ids": item.criterion_ids,
+                }
+                for item in failed
+            ],
+        }
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _record_recovery_failure(
+        self,
+        state: RunState,
+        task,
+        validation_results: list[ValidationResult],
+    ) -> RecoveryState:
+        failed = [item for item in validation_results if item.required and not item.passed]
+        fingerprint = next(
+            (item.failure_fingerprint for item in failed if item.failure_fingerprint),
+            self._failure_fingerprint(
+                task,
+                self._validation_subject_task_id(state, task),
+                failed,
+            ),
+        )
+        lineage = (
+            state.recovery_states.get(task.recovery_lineage_id)
+            if task.recovery_lineage_id
+            else None
+        )
+        if lineage is None:
+            lineage_id = f"RL-{len(state.recovery_states) + 1:04d}"
+            lineage = RecoveryState(
+                lineage_id=lineage_id,
+                root_task_id=task.task_id,
+                failed_task_id=task.task_id,
+                subject_task_id=self._validation_subject_task_id(state, task),
+                remaining_budget=max(1, task.retry_policy.max_attempts),
+                task_ids=[task.task_id],
+            )
+            state.recovery_states[lineage_id] = lineage
+            task.recovery_lineage_id = lineage_id
+            task.subject_task_id = lineage.subject_task_id
+        previous_same = 0
+        for entry in reversed(lineage.decision_history):
+            if entry.get("type") != "failure":
+                continue
+            if entry.get("failure_fingerprint") != fingerprint:
+                break
+            previous_same += 1
+        lineage.failure_fingerprint = fingerprint
+        lineage.same_failure_count = previous_same
+        lineage.failed_task_id = task.task_id
+        lineage.remaining_budget = max(0, lineage.remaining_budget - 1)
+        lineage.updated_at = utc_now()
+        lineage.decision_history.append(
+            {
+                "type": "failure",
+                "task_id": task.task_id,
+                "subject_task_id": lineage.subject_task_id,
+                "failure_fingerprint": fingerprint,
+                "same_failure_count": previous_same,
+                "at": lineage.updated_at,
+            }
+        )
+        return lineage
+
+    @staticmethod
+    def _record_recovery_decision(state: RunState, task, decision: str, reason: str) -> None:
+        if not task.recovery_lineage_id:
+            return
+        lineage = state.recovery_states.get(task.recovery_lineage_id)
+        if lineage is None:
+            return
+        lineage.updated_at = utc_now()
+        lineage.decision_history.append(
+            {
+                "type": "decision",
+                "task_id": task.task_id,
+                "decision": decision,
+                "reason": str(reason)[:2000],
+                "at": lineage.updated_at,
+            }
+        )
+
+    @staticmethod
+    def _commit_criterion_evidence(
+        state: RunState,
+        task,
+        attempt: Attempt,
+        validation_results: list[ValidationResult],
+    ) -> None:
+        if not task.satisfies_criteria:
+            return
+        validation_refs = [
+            f"{attempt.attempt_id}:V{index}"
+            for index, result in enumerate(validation_results, start=1)
+            if result.required and result.passed
+        ]
+        for criterion_id in task.satisfies_criteria:
+            evidence_id = f"CE-{criterion_id}-{attempt.attempt_id}"
+            state.criterion_evidence[evidence_id] = CriterionEvidence(
+                evidence_id=evidence_id,
+                criterion_id=criterion_id,
+                status=CriterionEvidenceStatus.VERIFIED,
+                owner_task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                validation_refs=validation_refs,
+                artifact_refs=list(attempt.artifact_refs),
+                state_ref=None,
+            )
+
+    @staticmethod
+    def _invalidate_criterion_evidence(
+        state: RunState,
+        owner_task_id: str,
+        *,
+        invalidated_by: str,
+    ) -> None:
+        for evidence in state.criterion_evidence.values():
+            if (
+                evidence.owner_task_id == owner_task_id
+                and evidence.status == CriterionEvidenceStatus.VERIFIED
+            ):
+                evidence.status = CriterionEvidenceStatus.INVALIDATED
+                evidence.invalidated_by = invalidated_by
 
     @staticmethod
     def _goal_criteria_covered(state: RunState) -> bool:
@@ -910,15 +1274,32 @@ class LongHorizonController:
             for criterion in state.goal.success_criteria
             if criterion.required
         }
-        explicit = {
-            criterion_id
-            for task in state.tasks.values()
-            if task.active and task.status == TaskStatus.COMPLETED
-            for criterion_id in task.goal_criteria
+        verified = {
+            evidence.criterion_id
+            for evidence in state.criterion_evidence.values()
+            if evidence.status == CriterionEvidenceStatus.VERIFIED
+            and evidence.owner_task_id in state.tasks
+            and state.tasks[evidence.owner_task_id].active
+            and state.tasks[evidence.owner_task_id].status == TaskStatus.COMPLETED
         }
-        if not any(task.goal_criteria for task in state.tasks.values()):
-            return True
-        return required.issubset(explicit)
+        return required.issubset(verified)
+
+    @staticmethod
+    def _missing_goal_criteria(state: RunState) -> list[str]:
+        required = {
+            criterion.criterion_id
+            for criterion in state.goal.success_criteria
+            if criterion.required
+        }
+        verified = {
+            evidence.criterion_id
+            for evidence in state.criterion_evidence.values()
+            if evidence.status == CriterionEvidenceStatus.VERIFIED
+            and evidence.owner_task_id in state.tasks
+            and state.tasks[evidence.owner_task_id].active
+            and state.tasks[evidence.owner_task_id].status == TaskStatus.COMPLETED
+        }
+        return sorted(required - verified)
 
     def _persist(self, state: RunState, event_type: str, event: Mapping[str, Any]) -> None:
         saved = self.store.save(

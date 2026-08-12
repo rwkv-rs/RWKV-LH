@@ -1,0 +1,1433 @@
+{
+  "task_id": "LH-H09",
+  "level": "hard",
+  "task_description": "20 节点链在第 11 节点后中断并恢复。",
+  "expected_result": "前 11 节点不重做，剩余 9 节点继续并完成。",
+  "actual_result": "completed",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "467cb4bf6e0af344f1a527b75f362dc09e91131bbb58ea4f4d42655e9d4450a5"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1",
+          "T2",
+          "T3",
+          "T4",
+          "T5",
+          "T6",
+          "T7",
+          "T8",
+          "T9",
+          "T10",
+          "T11",
+          "T12",
+          "T13",
+          "T14",
+          "T15",
+          "T16",
+          "T17",
+          "T18",
+          "T19",
+          "T20"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "1",
+          "path": "node-1.txt"
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:18.871+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-1.txt",
+              "text": "1"
+            },
+            "evidence_refs": [
+              "M-T1-A1",
+              "T1-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T1"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "2",
+          "path": "node-2.txt"
+        },
+        "attempt_id": "T2-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 6,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T2-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T2"
+      }
+    },
+    {
+      "revision": 7,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T2-A1",
+        "task_id": "T2",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:18.905+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-2.txt",
+              "text": "2"
+            },
+            "evidence_refs": [
+              "M-T2-A1",
+              "T2-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T2"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 8,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "3",
+          "path": "node-3.txt"
+        },
+        "attempt_id": "T3-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T3"
+      }
+    },
+    {
+      "revision": 9,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T3-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T3"
+      }
+    },
+    {
+      "revision": 10,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T3-A1",
+        "task_id": "T3",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:18.939+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-3.txt",
+              "text": "3"
+            },
+            "evidence_refs": [
+              "M-T3-A1",
+              "T3-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T3"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 11,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "4",
+          "path": "node-4.txt"
+        },
+        "attempt_id": "T4-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T4"
+      }
+    },
+    {
+      "revision": 12,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T4-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T4"
+      }
+    },
+    {
+      "revision": 13,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T4-A1",
+        "task_id": "T4",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.008+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-4.txt",
+              "text": "4"
+            },
+            "evidence_refs": [
+              "M-T4-A1",
+              "T4-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T4"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 14,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "5",
+          "path": "node-5.txt"
+        },
+        "attempt_id": "T5-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T5"
+      }
+    },
+    {
+      "revision": 15,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T5-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T5"
+      }
+    },
+    {
+      "revision": 16,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T5-A1",
+        "task_id": "T5",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.092+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-5.txt",
+              "text": "5"
+            },
+            "evidence_refs": [
+              "M-T5-A1",
+              "T5-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T5"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 17,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "6",
+          "path": "node-6.txt"
+        },
+        "attempt_id": "T6-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T6"
+      }
+    },
+    {
+      "revision": 18,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T6-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T6"
+      }
+    },
+    {
+      "revision": 19,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T6-A1",
+        "task_id": "T6",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.175+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-6.txt",
+              "text": "6"
+            },
+            "evidence_refs": [
+              "M-T6-A1",
+              "T6-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T6"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 20,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "7",
+          "path": "node-7.txt"
+        },
+        "attempt_id": "T7-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T7"
+      }
+    },
+    {
+      "revision": 21,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T7-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T7"
+      }
+    },
+    {
+      "revision": 22,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T7-A1",
+        "task_id": "T7",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.261+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-7.txt",
+              "text": "7"
+            },
+            "evidence_refs": [
+              "M-T7-A1",
+              "T7-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T7"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 23,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "8",
+          "path": "node-8.txt"
+        },
+        "attempt_id": "T8-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T8"
+      }
+    },
+    {
+      "revision": 24,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T8-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T8"
+      }
+    },
+    {
+      "revision": 25,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T8-A1",
+        "task_id": "T8",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.342+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-8.txt",
+              "text": "8"
+            },
+            "evidence_refs": [
+              "M-T8-A1",
+              "T8-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T8"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 26,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "9",
+          "path": "node-9.txt"
+        },
+        "attempt_id": "T9-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T9"
+      }
+    },
+    {
+      "revision": 27,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T9-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T9"
+      }
+    },
+    {
+      "revision": 28,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T9-A1",
+        "task_id": "T9",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.432+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-9.txt",
+              "text": "9"
+            },
+            "evidence_refs": [
+              "M-T9-A1",
+              "T9-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T9"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 29,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "10",
+          "path": "node-10.txt"
+        },
+        "attempt_id": "T10-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T10"
+      }
+    },
+    {
+      "revision": 30,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T10-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T10"
+      }
+    },
+    {
+      "revision": 31,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T10-A1",
+        "task_id": "T10",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.515+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-10.txt",
+              "text": "10"
+            },
+            "evidence_refs": [
+              "M-T10-A1",
+              "T10-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T10"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 32,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "11",
+          "path": "node-11.txt"
+        },
+        "attempt_id": "T11-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T11"
+      }
+    },
+    {
+      "revision": 33,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T11-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T11"
+      }
+    },
+    {
+      "revision": 34,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T11-A1",
+        "task_id": "T11",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.599+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-11.txt",
+              "text": "11"
+            },
+            "evidence_refs": [
+              "M-T11-A1",
+              "T11-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T11"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 35,
+      "type": "run_interrupted",
+      "data": {
+        "reason": "controller_transition_limit"
+      }
+    },
+    {
+      "revision": 36,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "12",
+          "path": "node-12.txt"
+        },
+        "attempt_id": "T12-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T12"
+      }
+    },
+    {
+      "revision": 37,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T12-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T12"
+      }
+    },
+    {
+      "revision": 38,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T12-A1",
+        "task_id": "T12",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.761+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-12.txt",
+              "text": "12"
+            },
+            "evidence_refs": [
+              "M-T12-A1",
+              "T12-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T12"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 39,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "13",
+          "path": "node-13.txt"
+        },
+        "attempt_id": "T13-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T13"
+      }
+    },
+    {
+      "revision": 40,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T13-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T13"
+      }
+    },
+    {
+      "revision": 41,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T13-A1",
+        "task_id": "T13",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.844+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-13.txt",
+              "text": "13"
+            },
+            "evidence_refs": [
+              "M-T13-A1",
+              "T13-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T13"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 42,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "14",
+          "path": "node-14.txt"
+        },
+        "attempt_id": "T14-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T14"
+      }
+    },
+    {
+      "revision": 43,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T14-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T14"
+      }
+    },
+    {
+      "revision": 44,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T14-A1",
+        "task_id": "T14",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:19.929+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-14.txt",
+              "text": "14"
+            },
+            "evidence_refs": [
+              "M-T14-A1",
+              "T14-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T14"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 45,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "15",
+          "path": "node-15.txt"
+        },
+        "attempt_id": "T15-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T15"
+      }
+    },
+    {
+      "revision": 46,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T15-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T15"
+      }
+    },
+    {
+      "revision": 47,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T15-A1",
+        "task_id": "T15",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.019+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-15.txt",
+              "text": "15"
+            },
+            "evidence_refs": [
+              "M-T15-A1",
+              "T15-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T15"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 48,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "16",
+          "path": "node-16.txt"
+        },
+        "attempt_id": "T16-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T16"
+      }
+    },
+    {
+      "revision": 49,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T16-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T16"
+      }
+    },
+    {
+      "revision": 50,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T16-A1",
+        "task_id": "T16",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.106+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-16.txt",
+              "text": "16"
+            },
+            "evidence_refs": [
+              "M-T16-A1",
+              "T16-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T16"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 51,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "17",
+          "path": "node-17.txt"
+        },
+        "attempt_id": "T17-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T17"
+      }
+    },
+    {
+      "revision": 52,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T17-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T17"
+      }
+    },
+    {
+      "revision": 53,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T17-A1",
+        "task_id": "T17",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.192+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-17.txt",
+              "text": "17"
+            },
+            "evidence_refs": [
+              "M-T17-A1",
+              "T17-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T17"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 54,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "18",
+          "path": "node-18.txt"
+        },
+        "attempt_id": "T18-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T18"
+      }
+    },
+    {
+      "revision": 55,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T18-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T18"
+      }
+    },
+    {
+      "revision": 56,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T18-A1",
+        "task_id": "T18",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.276+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-18.txt",
+              "text": "18"
+            },
+            "evidence_refs": [
+              "M-T18-A1",
+              "T18-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T18"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 57,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "19",
+          "path": "node-19.txt"
+        },
+        "attempt_id": "T19-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T19"
+      }
+    },
+    {
+      "revision": 58,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T19-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T19"
+      }
+    },
+    {
+      "revision": 59,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T19-A1",
+        "task_id": "T19",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.361+00:00",
+            "criterion_ids": [],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-19.txt",
+              "text": "19"
+            },
+            "evidence_refs": [
+              "M-T19-A1",
+              "T19-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T19"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 60,
+      "type": "attempt_started",
+      "data": {
+        "action": "write_file",
+        "arguments": {
+          "content": "20",
+          "path": "node-20.txt"
+        },
+        "attempt_id": "T20-A1",
+        "idempotent": true,
+        "side_effect": true,
+        "task_id": "T20"
+      }
+    },
+    {
+      "revision": 61,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T20-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "file written",
+        "success": true,
+        "task_id": "T20"
+      }
+    },
+    {
+      "revision": 62,
+      "type": "task_completed",
+      "data": {
+        "attempt_id": "T20-A1",
+        "task_id": "T20",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:41:20.448+00:00",
+            "criterion_ids": [
+              "GC1"
+            ],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round2/lh_control_30/cases/LH-H09/workspace/node-20.txt",
+              "text": "20"
+            },
+            "evidence_refs": [
+              "M-T20-A1",
+              "T20-A1-R1"
+            ],
+            "failure_fingerprint": "",
+            "kind": "file_contains",
+            "message": "text present=True",
+            "passed": true,
+            "required": true,
+            "subject_task_id": "T20"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 63,
+      "type": "run_completed",
+      "data": {
+        "artifact_count": 20,
+        "final_output": "Verified 20 task(s) and 20 artifact(s).",
+        "task_count": 20
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "1",
+        "path": "node-1.txt"
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T1"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "2",
+        "path": "node-2.txt"
+      },
+      "attempt_id": "T2-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T2"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "3",
+        "path": "node-3.txt"
+      },
+      "attempt_id": "T3-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T3"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "4",
+        "path": "node-4.txt"
+      },
+      "attempt_id": "T4-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T4"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "5",
+        "path": "node-5.txt"
+      },
+      "attempt_id": "T5-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T5"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "6",
+        "path": "node-6.txt"
+      },
+      "attempt_id": "T6-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T6"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "7",
+        "path": "node-7.txt"
+      },
+      "attempt_id": "T7-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T7"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "8",
+        "path": "node-8.txt"
+      },
+      "attempt_id": "T8-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T8"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "9",
+        "path": "node-9.txt"
+      },
+      "attempt_id": "T9-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T9"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "10",
+        "path": "node-10.txt"
+      },
+      "attempt_id": "T10-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T10"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "11",
+        "path": "node-11.txt"
+      },
+      "attempt_id": "T11-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T11"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "12",
+        "path": "node-12.txt"
+      },
+      "attempt_id": "T12-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T12"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "13",
+        "path": "node-13.txt"
+      },
+      "attempt_id": "T13-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T13"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "14",
+        "path": "node-14.txt"
+      },
+      "attempt_id": "T14-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T14"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "15",
+        "path": "node-15.txt"
+      },
+      "attempt_id": "T15-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T15"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "16",
+        "path": "node-16.txt"
+      },
+      "attempt_id": "T16-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T16"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "17",
+        "path": "node-17.txt"
+      },
+      "attempt_id": "T17-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T17"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "18",
+        "path": "node-18.txt"
+      },
+      "attempt_id": "T18-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T18"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "19",
+        "path": "node-19.txt"
+      },
+      "attempt_id": "T19-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T19"
+    },
+    {
+      "action": "write_file",
+      "arguments": {
+        "content": "20",
+        "path": "node-20.txt"
+      },
+      "attempt_id": "T20-A1",
+      "idempotent": true,
+      "side_effect": true,
+      "task_id": "T20"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [],
+  "recovery": [
+    {
+      "reason": "controller_transition_limit"
+    }
+  ],
+  "final_verification": {
+    "completed_before_resume": [
+      "T1",
+      "T10",
+      "T11",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7",
+      "T8",
+      "T9"
+    ],
+    "attempt_counts": {
+      "T1": 1,
+      "T10": 1,
+      "T11": 1,
+      "T12": 1,
+      "T13": 1,
+      "T14": 1,
+      "T15": 1,
+      "T16": 1,
+      "T17": 1,
+      "T18": 1,
+      "T19": 1,
+      "T2": 1,
+      "T20": 1,
+      "T3": 1,
+      "T4": 1,
+      "T5": 1,
+      "T6": 1,
+      "T7": 1,
+      "T8": 1,
+      "T9": 1
+    }
+  },
+  "extra": {}
+}

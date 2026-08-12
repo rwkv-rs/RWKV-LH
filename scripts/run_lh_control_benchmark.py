@@ -23,6 +23,8 @@ from rwkv_lh.schema import (
     ArtifactRecord,
     Attempt,
     AttemptStatus,
+    CriterionEvidence,
+    CriterionEvidenceStatus,
     GoalCriterion,
     GoalState,
     MemoryEntry,
@@ -176,6 +178,12 @@ def task(
 
 def persist_graph(context: CaseContext, tasks: list[TaskNode]) -> RunState:
     state = context.store.create_run(make_goal(context), context.run_id)
+    depended_on = {
+        dependency for item in tasks for dependency in item.dependencies
+    }
+    for item in tasks:
+        if item.required and item.task_id not in depended_on:
+            item.satisfies_criteria = ["GC1"]
     state.tasks = {item.task_id: item for item in tasks}
     state.status = RunStatus.RUNNING
     return context.store.save(
@@ -412,6 +420,7 @@ def case_m04(context: CaseContext) -> CaseExecution:
 
 def interrupted_state(context: CaseContext, interrupted_task: TaskNode) -> RunState:
     state = context.store.create_run(make_goal(context), context.run_id)
+    interrupted_task.satisfies_criteria = ["GC1"]
     interrupted_task.status = TaskStatus.RUNNING
     attempt = Attempt(
         attempt_id=f"{interrupted_task.task_id}-A1",
@@ -474,6 +483,14 @@ def case_m09(context: CaseContext) -> CaseExecution:
     completed.attempt_ids = ["T1-A1"]
     state = persist_graph(context, [completed])
     state.attempts["T1-A1"] = Attempt("T1-A1", "T1", AttemptStatus.SUCCEEDED, action_fingerprint(completed.action), "done", utc_now(), ended_at=utc_now())
+    state.criterion_evidence["CE-GC1-T1-A1"] = CriterionEvidence(
+        "CE-GC1-T1-A1",
+        "GC1",
+        CriterionEvidenceStatus.VERIFIED,
+        "T1",
+        "T1-A1",
+        validation_refs=["T1-A1:V1"],
+    )
     state = context.store.save(state, event_type="completed_fixture_saved")
     first = LongHorizonController(context.store).run(state.run_id).state
     second = LongHorizonController(context.store).resume(state.run_id).state
@@ -491,6 +508,7 @@ def case_m10(context: CaseContext) -> CaseExecution:
         local = CaseContext(context.spec, context.root, workspace, store, f"{context.run_id}-{suffix}")
         state = store.create_run(make_goal(local), local.run_id)
         node = task("T1", f"write {suffix}", "write_file", {"path": f"{suffix}.txt", "content": suffix}, [ValidationSpec("file_contains", {"path": f"{suffix}.txt", "text": suffix})])
+        node.satisfies_criteria = ["GC1"]
         state.tasks = {"T1": node}
         state.status = RunStatus.RUNNING
         store.save(state, event_type="plan_saved")
@@ -589,7 +607,13 @@ def case_h07(context: CaseContext) -> CaseExecution:
     replacement = task("T1R", "resolve status", "write_file", {"path": "resolved.txt", "content": "status=stable; source=v2"}, [ValidationSpec("file_contains", {"path": "resolved.txt", "text": "source=v2"})])
     state, _ = run_graph(context, [initial], model=replacement_model(replacement))
     failed_attempt = state.attempts["T1-A1"]
-    passed = state.status == RunStatus.COMPLETED and any(not item.passed for item in failed_attempt.validation_results) and state.tasks["T1"].superseded_by == "T1R"
+    replacement_id = state.tasks["T1"].superseded_by
+    passed = (
+        state.status == RunStatus.COMPLETED
+        and any(not item.passed for item in failed_attempt.validation_results)
+        and replacement_id in state.tasks
+        and state.tasks[replacement_id].title == "resolve status"
+    )
     return execution(passed, state.status.value, {"failed_validation": [asdict(item) for item in failed_attempt.validation_results], "replacement": state.tasks["T1"].superseded_by}, state)
 
 
@@ -662,7 +686,13 @@ def case_h10(context: CaseContext) -> CaseExecution:
     model = replacement_model(replacement, failed_id="T2", final="Full workflow verified")
     state, final = run_graph(context, tasks, model=model)
     manifest = (context.workspace / "manifest.txt").read_text() if (context.workspace / "manifest.txt").exists() else ""
-    passed = state.status == RunStatus.COMPLETED and state.tasks["T2"].superseded_by == "T2R" and "implementation=verified" in manifest
+    replacement_id = state.tasks["T2"].superseded_by
+    passed = (
+        state.status == RunStatus.COMPLETED
+        and replacement_id in state.tasks
+        and state.tasks[replacement_id].title == "repair implementation"
+        and "implementation=verified" in manifest
+    )
     return execution(passed, state.status.value, {"manifest": manifest, "replacement": state.tasks["T2"].superseded_by, "final": final}, state)
 
 

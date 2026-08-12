@@ -5,6 +5,7 @@ import pytest
 from rwkv_lh.tool_protocol import (
     G1iToolExchange,
     normalize_g1i_tool_call,
+    normalize_g1i_tool_call_with_trace,
     render_g1i_tool_dialog,
 )
 
@@ -64,12 +65,54 @@ def test_g1i_call_normalizes_openai_style_string_arguments():
 
 
 @pytest.mark.parametrize(
+    "payload,expected_transformations",
+    [
+        (
+            {"function_call": {"name": "read_file", "arguments": {"path": "input.txt"}}},
+            ("function_call_envelope_to_canonical",),
+        ),
+        (
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "arguments": '{"path":"input.txt"}',
+                },
+            },
+            ("typed_function_envelope_to_canonical", "json_string_to_object"),
+        ),
+        (
+            {"function": "read_file", "arguments": {"path": "input.txt"}},
+            ("function_name_alias_to_canonical",),
+        ),
+    ],
+)
+def test_g1i_call_transparently_normalizes_known_single_function_envelopes(
+    payload, expected_transformations
+):
+    call, transformations = normalize_g1i_tool_call_with_trace(payload)
+    assert call.to_dict() == {
+        "name": "read_file",
+        "arguments": {"path": "input.txt"},
+    }
+    assert transformations == expected_transformations
+
+
+@pytest.mark.parametrize(
     "value,match",
     [
         ({"arguments": {}}, "non-empty name"),
         ({"name": "read_file", "arguments": []}, "must decode to an object"),
         (
             {"name": "read_file", "arguments": {}, "schema_version": "wrong"},
+            "unknown fields",
+        ),
+        (
+            {
+                "type": "function",
+                "function": {"name": "read_file", "arguments": {}},
+                "extra": True,
+            },
             "unknown fields",
         ),
     ],

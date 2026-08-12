@@ -184,6 +184,49 @@ def test_seed_is_rejected_before_a_request_is_sent(monkeypatch):
     assert fake.calls == []
 
 
+def test_runtime_capabilities_require_explicit_recurrent_state_declaration(monkeypatch):
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "tools": {"native_tool_calls": True},
+                    "recurrent_state": {
+                        "create": True,
+                        "resume": True,
+                        "fork": True,
+                        "commit": True,
+                        "rollback": True,
+                        "export": True,
+                        "import": True,
+                    },
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+
+    capabilities = client.capabilities()
+
+    assert capabilities.durable_recurrent_state is True
+    assert capabilities.native_tool_calls_declared is True
+    assert capabilities.prompt_replay is True
+    assert fake.calls[0][1].endswith("/v1/capabilities")
+
+
+def test_runtime_capabilities_fail_closed_to_prompt_replay(monkeypatch):
+    fake = FakeSession([FakeResponse({"detail": "not found"}, status_code=404)])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+
+    capabilities = client.capabilities()
+
+    assert capabilities.prompt_replay is True
+    assert capabilities.durable_recurrent_state is False
+    assert capabilities.source == "prompt_replay_fallback"
+    assert "HTTP 404" in capabilities.error
+
+
 def test_runtime_context_budget_reserves_output_bos_and_margin():
     runtime = settings(
         max_model_len=100,

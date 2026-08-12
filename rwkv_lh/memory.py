@@ -149,6 +149,61 @@ class WorkingMemoryBuilder:
             total_limit = min(total_limit, request_limit)
         return bundle.projected(total_limit)
 
+    def build_task_validation(
+        self,
+        state: RunState,
+        task: TaskNode,
+    ) -> ContextBundle:
+        """Project a task-local, read-only validation lane.
+
+        The validation model receives only the criteria directly claimed by
+        this task, its dependencies, its observations, and the current
+        recovery lineage. It does not receive unrelated Goal outcomes.
+        """
+
+        bundle = self.build(state, task)
+        claimed = [
+            asdict(criterion)
+            for criterion in state.goal.success_criteria
+            if criterion.criterion_id in task.satisfies_criteria
+        ]
+        bundle.goal = self._bounded(
+            "TASK VALIDATION SCOPE\n"
+            + json.dumps(
+                {
+                    "goal_digest": state.goal.digest,
+                    "constraints": list(state.goal.constraints),
+                    "claimed_criteria": claimed,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            self.budgets.goal,
+        )
+        explicit_refs = self._explicit_memory_refs(task)
+        allowed_ids = {
+            entry.memory_id
+            for entry in state.memory_index.values()
+            if entry.task_id == task.task_id
+            or entry.task_id in task.dependencies
+            or entry.memory_id in explicit_refs
+        }
+        bundle.evidence = [
+            item
+            for item in bundle.evidence
+            if any(item.startswith(f"[{memory_id}]") for memory_id in allowed_ids)
+        ]
+        bundle.selected_memory_ids = [
+            memory_id
+            for memory_id in bundle.selected_memory_ids
+            if memory_id in allowed_ids
+        ]
+        bundle.excluded_memory_ids = sorted(
+            set(state.memory_index) - set(bundle.selected_memory_ids)
+        )
+        bundle.refresh_token_counts()
+        return bundle.projected(self.budgets.total_input)
+
     @staticmethod
     def _goal_text(state: RunState) -> str:
         criteria = [asdict(item) for item in state.goal.success_criteria]
@@ -179,6 +234,9 @@ class WorkingMemoryBuilder:
                     "description": task.description,
                     "dependencies": task.dependencies,
                     "goal_criteria": task.goal_criteria,
+                    "satisfies_criteria": task.satisfies_criteria,
+                    "subject_task_id": task.subject_task_id,
+                    "recovery_lineage_id": task.recovery_lineage_id,
                     "inputs": task.inputs,
                     "action": {
                         "type": task.action.action_type,
@@ -288,6 +346,10 @@ class WorkingMemoryBuilder:
 
     @staticmethod
     def _failure_text(state: RunState, task: TaskNode) -> str:
+        if task.recovery_lineage_id:
+            lineage = state.recovery_states.get(task.recovery_lineage_id)
+            if lineage is not None:
+                return json.dumps(asdict(lineage), ensure_ascii=False, indent=2)
         if task.error:
             return json.dumps(task.error, ensure_ascii=False, indent=2)
         for error in reversed(state.errors):

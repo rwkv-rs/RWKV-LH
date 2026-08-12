@@ -1,0 +1,139 @@
+{
+  "task_id": "LH-B07",
+  "level": "basic",
+  "task_description": "动作返回但要求的文件不存在。",
+  "expected_result": "Verifier 拒绝完成并在重试耗尽后阻断。",
+  "actual_result": "blocked",
+  "success": true,
+  "steps": [
+    {
+      "revision": 0,
+      "type": "run_created",
+      "data": {
+        "goal_digest": "1503e5136c4250d6d5adebc6e0a8cfd5266a33880597985401a0b642112ecb85"
+      }
+    },
+    {
+      "revision": 1,
+      "type": "plan_saved",
+      "data": {
+        "source": "benchmark_fixture",
+        "task_ids": [
+          "T1"
+        ]
+      }
+    },
+    {
+      "revision": 2,
+      "type": "attempt_started",
+      "data": {
+        "action": "noop",
+        "arguments": {
+          "output": "claimed"
+        },
+        "attempt_id": "T1-A1",
+        "idempotent": true,
+        "side_effect": false,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 3,
+      "type": "action_returned",
+      "data": {
+        "attempt_id": "T1-A1",
+        "error": null,
+        "exit_code": null,
+        "output": "claimed",
+        "success": true,
+        "task_id": "T1"
+      }
+    },
+    {
+      "revision": 4,
+      "type": "task_failed",
+      "data": {
+        "attempt_id": "T1-A1",
+        "task_id": "T1",
+        "validation": [
+          {
+            "checked_at": "2026-08-12T01:24:44.089+00:00",
+            "criterion_ids": [
+              "GC1"
+            ],
+            "evidence": {
+              "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round1/pre_round2_lh_control_30/cases/LH-B07/workspace/missing.txt"
+            },
+            "evidence_refs": [
+              "M-T1-A1"
+            ],
+            "failure_fingerprint": "87cfce2c98b352ba38e30a561a77bf9d2806314eaeea665e520467a5738028d9",
+            "kind": "file_exists",
+            "message": "path exists=False",
+            "passed": false,
+            "required": true,
+            "subject_task_id": "T1"
+          }
+        ]
+      }
+    },
+    {
+      "revision": 5,
+      "type": "run_blocked",
+      "data": {
+        "lineage_id": "RL-0001",
+        "reason": "recovery_lineage_budget_exhausted",
+        "task_id": "T1"
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "action": "noop",
+      "arguments": {
+        "output": "claimed"
+      },
+      "attempt_id": "T1-A1",
+      "idempotent": true,
+      "side_effect": false,
+      "task_id": "T1"
+    }
+  ],
+  "retries": [],
+  "temp_decisions": [],
+  "model_inputs_outputs": [],
+  "errors": [
+    {
+      "task_id": "T1",
+      "type": "ValidationFailed",
+      "attempt_id": "T1-A1",
+      "results": [
+        {
+          "kind": "file_exists",
+          "passed": false,
+          "required": true,
+          "message": "path exists=False",
+          "evidence": {
+            "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round1/pre_round2_lh_control_30/cases/LH-B07/workspace/missing.txt"
+          },
+          "subject_task_id": "T1",
+          "criterion_ids": [
+            "GC1"
+          ],
+          "evidence_refs": [
+            "M-T1-A1"
+          ],
+          "failure_fingerprint": "87cfce2c98b352ba38e30a561a77bf9d2806314eaeea665e520467a5738028d9",
+          "checked_at": "2026-08-12T01:24:44.089+00:00"
+        }
+      ],
+      "at": "2026-08-12T01:24:44.089+00:00"
+    }
+  ],
+  "recovery": [],
+  "final_verification": {
+    "task_status": "blocked",
+    "file_exists": false
+  },
+  "extra": {}
+}

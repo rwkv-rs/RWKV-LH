@@ -287,6 +287,36 @@ class LongHorizonStore:
             for row in rows
         ]
 
+    def checkpoint_records(self, run_id: str) -> list[dict[str, Any]]:
+        """Return retained state snapshots in causal revision order.
+
+        Production stores may prune ordinary checkpoints according to their
+        retention policy. Formal experiment stores opt into a high retention
+        value and export this sequence before the case is finalized.
+        """
+
+        identifier = self._normalize_run_id(run_id)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT revision, state_json, event_type, milestone, created_at
+                FROM checkpoints
+                WHERE run_id = ?
+                ORDER BY revision
+                """,
+                (identifier,),
+            ).fetchall()
+        return [
+            {
+                "revision": int(row["revision"]),
+                "event_type": row["event_type"],
+                "milestone": bool(row["milestone"]),
+                "created_at": row["created_at"],
+                "state": json.loads(row["state_json"]),
+            }
+            for row in rows
+        ]
+
     @contextmanager
     def controller_lease(
         self,

@@ -18,6 +18,7 @@ from rwkv_lh.runtime.protocol import (
     RWKVOutcomeUnknownError,
     RWKVProtocolError,
     RWKVTransportError,
+    RuntimeCapabilities,
     TextCompletionRequest,
     TokenUsage,
     normalize_stop,
@@ -439,6 +440,26 @@ class OpenAICompatibleRWKVClient:
                 endpoint=self.settings.base_url,
                 model=self.model_name,
                 latency_ms=round((time.perf_counter() - started) * 1000, 1),
+                error=f"{type(exc).__name__}: {exc}"[:500],
+            )
+
+    def capabilities(self) -> RuntimeCapabilities:
+        """Negotiate explicit RWKV extensions without inferring from caches.
+
+        A server must expose `/capabilities` and affirm each state operation.
+        OpenAI-compatible endpoints, cached tokens, or tool parser presence do
+        not imply a resumable recurrent-state handle.
+        """
+
+        try:
+            data, _, _ = self._request_json("GET", "/capabilities")
+            return RuntimeCapabilities.from_mapping(
+                data,
+                source=self.settings.base_url + "/capabilities",
+            )
+        except Exception as exc:
+            return RuntimeCapabilities(
+                source="prompt_replay_fallback",
                 error=f"{type(exc).__name__}: {exc}"[:500],
             )
 

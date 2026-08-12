@@ -8,7 +8,10 @@ import importlib.resources
 import json
 import multiprocessing
 import os
+import platform
 import shutil
+import subprocess
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,9 +27,11 @@ from rwkv_lh.benchmark_verifier import (
 from rwkv_lh.controller import ControllerResult, LongHorizonController
 from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
 from rwkv_lh.model import LongHorizonModel, ModelInvoker
-from rwkv_lh.runtime import OpenAICompatibleRWKVClient
+from rwkv_lh.runtime import OpenAICompatibleRWKVClient, get_runtime_settings
 from rwkv_lh.schema import RunState, RunStatus, TaskAction
 from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.temp_policy import TemperaturePolicy
+from rwkv_lh.token_budget import VOCAB_PATH
 
 
 
@@ -59,6 +64,15 @@ SUITES = {
         acceptance_schema="rwkv-e2e-lh12.acceptance.v1",
         expected_count=12,
         level_counts={"long_horizon": 12},
+    ),
+    "extension48": SuiteDefinition(
+        key="extension48",
+        title="RWKV-E2E-Extension48",
+        package="benchmarks.rwkv_e2e.rwkv_e2e_extension48",
+        tasks_schema="rwkv-e2e-extension48.tasks.v1",
+        acceptance_schema="rwkv-e2e-extension48.acceptance.v1",
+        expected_count=48,
+        level_counts={"basic": 20, "medium": 20, "hard": 8},
     ),
 }
 PACKAGE = SUITES["core30"].package
@@ -262,6 +276,13 @@ def _canonical_digest(value: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def difficulty_group(level: str) -> str:
+    """Map the long-horizon stress tag into the fixed three-group scoreboard."""
+
+    normalized = str(level or "").strip().casefold()
+    return "hard" if normalized == "long_horizon" else normalized
 
 
 def _load_json(resource) -> dict[str, Any]:
@@ -541,6 +562,202 @@ def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_output(*arguments: str) -> str:
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=Path(__file__).resolve().parents[1],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def _write_run_metadata(
+    output: Path,
+    *,
+    arguments: argparse.Namespace,
+    suite_title: str,
+    tasks: list[dict[str, Any]],
+    selected: list[dict[str, Any]],
+    health: Mapping[str, Any],
+    capabilities: Mapping[str, Any],
+) -> None:
+    settings = get_runtime_settings()
+    repository = Path(__file__).resolve().parents[1]
+    diff = _git_output("diff", "--binary")
+    source_resources: list[dict[str, Any]] = []
+    selected_ids = {str(task["task_id"]) for task in selected}
+    for definition in SUITES.values():
+        task_resource, acceptance_resource = suite_resources(definition)
+        source_resources.extend(
+            [
+                {
+                    "suite": definition.key,
+                    "role": "visible_tasks",
+                    "path": str(Path(str(task_resource)).relative_to(repository)),
+                    "sha256": hashlib.sha256(task_resource.read_bytes()).hexdigest(),
+                },
+                {
+                    "suite": definition.key,
+                    "role": "hidden_acceptance",
+                    "path": str(Path(str(acceptance_resource)).relative_to(repository)),
+                    "sha256": hashlib.sha256(acceptance_resource.read_bytes()).hexdigest(),
+                },
+            ]
+        )
+    reference_path = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+    doctor = {
+        "schema_version": "rwkv-lh.runtime-doctor.v1",
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "health": dict(health),
+        "capabilities": dict(capabilities),
+        "settings": {
+            "base_url": settings.base_url,
+            "model": settings.model,
+            "backend_profile": settings.backend_profile,
+            "api_key_configured": bool(settings.api_key),
+            "proxy_configured": bool(settings.proxy_url),
+            "connect_timeout_seconds": settings.connect_timeout_seconds,
+            "read_timeout_seconds": settings.read_timeout_seconds,
+            "retry_attempts": settings.retry_attempts,
+            "max_model_len": settings.max_model_len,
+            "return_token_ids": settings.return_token_ids,
+        },
+        "tokenizer": {
+            "path": str(VOCAB_PATH.relative_to(repository)),
+            "sha256": _file_sha256(VOCAB_PATH),
+        },
+        "environment": {
+            "platform": platform.platform(),
+            "python": sys.version,
+            "executable": sys.executable,
+            "wsl_distro": os.environ.get("WSL_DISTRO_NAME", ""),
+        },
+        "credential_values_recorded": False,
+    }
+    protocol = {
+        "schema_version": "rwkv-lh.round-run-protocol.v1",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "round": output.name,
+        "suite": suite_title,
+        "total_catalog_cases": len(tasks),
+        "selected_case_count": len(selected),
+        "selected_case_ids": [str(task["task_id"]) for task in selected],
+        "difficulty_groups": {
+            group: sum(
+                difficulty_group(str(task["level"])) == group
+                and str(task["task_id"]) in selected_ids
+                for task in tasks
+            )
+            for group in ("basic", "medium", "hard")
+        },
+        "max_transitions": arguments.max_transitions,
+        "concurrency": arguments.concurrency,
+        "model": settings.model,
+        "backend_profile": settings.backend_profile,
+        "sampling": {
+            "temperature_policy": dict(TemperaturePolicy._base),
+            "top_p": settings.default_top_p,
+            "top_k": settings.default_top_k,
+            "presence_penalty": settings.default_presence_penalty,
+            "frequency_penalty": settings.default_frequency_penalty,
+            "penalty_decay": settings.default_penalty_decay,
+        },
+        "source_resources": source_resources,
+        "codex_reference_answers": {
+            "path": str(reference_path.relative_to(repository)),
+            "sha256": _file_sha256(reference_path),
+            "runtime_visibility": "forbidden; post-run comparison only",
+        },
+        "code": {
+            "commit": _git_output("rev-parse", "HEAD").strip(),
+            "status": _git_output("status", "--short").splitlines(),
+            "working_diff_sha256": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
+            "runner_sha256": _file_sha256(Path(__file__)),
+        },
+        "non_intervention": {
+            "final_output": "byte-exact raw RWKV response",
+            "semantic_answer_filtering": False,
+            "hidden_acceptance_available_during_generation": False,
+        },
+    }
+    (output / "runtime_doctor.json").write_text(
+        json.dumps(doctor, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output / "RUN_PROTOCOL.json").write_text(
+        json.dumps(protocol, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+_MISSING = object()
+
+
+def _json_changes(before: Any, after: Any, path: str = "$") -> list[dict[str, Any]]:
+    """Describe an exact JSON-state transition without interpreting its meaning."""
+
+    if isinstance(before, Mapping) and isinstance(after, Mapping):
+        changes: list[dict[str, Any]] = []
+        for key in sorted(set(before) | set(after)):
+            child = f"{path}.{key}"
+            old = before.get(key, _MISSING)
+            new = after.get(key, _MISSING)
+            if old is _MISSING:
+                changes.append({"op": "add", "path": child, "after": new})
+            elif new is _MISSING:
+                changes.append({"op": "remove", "path": child, "before": old})
+            else:
+                changes.extend(_json_changes(old, new, child))
+        return changes
+    if isinstance(before, list) and isinstance(after, list):
+        changes = []
+        shared = min(len(before), len(after))
+        for index in range(shared):
+            changes.extend(_json_changes(before[index], after[index], f"{path}[{index}]"))
+        for index in range(shared, len(before)):
+            changes.append(
+                {"op": "remove", "path": f"{path}[{index}]", "before": before[index]}
+            )
+        for index in range(shared, len(after)):
+            changes.append(
+                {"op": "add", "path": f"{path}[{index}]", "after": after[index]}
+            )
+        return changes
+    if before != after:
+        return [{"op": "replace", "path": path, "before": before, "after": after}]
+    return []
+
+
+def _state_timeline(store: LongHorizonStore, run_id: str) -> list[dict[str, Any]]:
+    timeline: list[dict[str, Any]] = []
+    previous: Any = _MISSING
+    for checkpoint in store.checkpoint_records(run_id):
+        state = checkpoint["state"]
+        changes = (
+            [{"op": "initial", "path": "$", "after": state}]
+            if previous is _MISSING
+            else _json_changes(previous, state)
+        )
+        timeline.append(
+            {
+                **checkpoint,
+                "state_sha256": hashlib.sha256(
+                    json.dumps(
+                        state,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "changes_from_previous": changes,
+            }
+        )
+        previous = state
+    return timeline
+
+
 def _agent_process_tree_closed(workspace: Path) -> bool:
     """Return false if any surviving process still names the scoped workspace."""
 
@@ -594,7 +811,9 @@ def run_case(
     workspace = case_root / "workspace"
     materialize_workspace(task, workspace)
     control = dict(acceptance.get("runner_control") or {})
-    store = LongHorizonStore(case_root / "state")
+    # Formal experiments retain every ordinary checkpoint so the exported
+    # causal timeline is complete. This changes observation retention only.
+    store = LongHorizonStore(case_root / "state", checkpoint_retention=100_000)
     model_trace: list[dict[str, Any]] = []
     client = OpenAICompatibleRWKVClient()
     invoker = ModelInvoker(client=client, audit_hook=model_trace.append)
@@ -748,6 +967,20 @@ def run_case(
     }
     agent_completed = state is not None and state.status == RunStatus.COMPLETED
     final_nonempty = bool(str(final_output or "").strip())
+    final_model_responses = [
+        item
+        for item in model_trace
+        if item.get("type") == "model_request_returned"
+        and item.get("request_type") == "final_answer"
+    ]
+    raw_final_output = (
+        str(final_model_responses[-1].get("raw_output") or "")
+        if final_model_responses
+        else ""
+    )
+    final_output_matches_raw_rwkv = bool(final_model_responses) and (
+        final_output == raw_final_output
+    )
     event_log = store.event_records(task_id) if state is not None else []
     verifier_failure = ""
     verifier_metadata: dict[str, Any] = {}
@@ -771,7 +1004,7 @@ def run_case(
         str(suite_resources(definition)[1]) for definition in SUITES.values()
     }
     acceptance_reference_leaked = any(
-        hidden_path in str(event.get("prompt") or event.get("output") or "")
+        hidden_path in json.dumps(event, ensure_ascii=False, sort_keys=True)
         for event in model_trace
         for hidden_path in hidden_resource_paths
     )
@@ -783,13 +1016,31 @@ def run_case(
         agent_completed
         and external_passed
         and final_nonempty
+        and final_output_matches_raw_rwkv
         and not acceptance_reference_leaked
         and isolation_passed
+    )
+    state_timeline = _state_timeline(store, task_id) if state is not None else []
+    trace_path = case_root / "model_trace.json"
+    event_path = case_root / "event_log.json"
+    timeline_path = case_root / "state_timeline.json"
+    trace_path.write_text(
+        json.dumps(model_trace, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    event_path.write_text(
+        json.dumps(event_log, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    timeline_path.write_text(
+        json.dumps(state_timeline, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
     audit = {
         "schema_version": "rwkv-e2e.case-audit.v1",
         "task_id": task_id,
         "level": task["level"],
+        "difficulty_group": difficulty_group(str(task["level"])),
         "user_request": task["user_request"],
         "visible_input_digest": _canonical_digest(task),
         "model_input_boundary": {
@@ -809,6 +1060,30 @@ def run_case(
         "agent_completed": agent_completed,
         "external_passed": external_passed,
         "final_output_nonempty": final_nonempty,
+        "output_non_intervention": {
+            "raw_rwkv_final_output": raw_final_output,
+            "delivered_final_output": final_output,
+            "byte_exact_match": final_output_matches_raw_rwkv,
+            "policy": "observe_and_score_only; never rewrite, rank, or replace RWKV output",
+        },
+        "causal_artifacts": {
+            "model_trace": {
+                "path": trace_path.name,
+                "sha256": _file_sha256(trace_path),
+                "records": len(model_trace),
+            },
+            "event_log": {
+                "path": event_path.name,
+                "sha256": _file_sha256(event_path),
+                "records": len(event_log),
+            },
+            "state_timeline": {
+                "path": timeline_path.name,
+                "sha256": _file_sha256(timeline_path),
+                "records": len(state_timeline),
+                "policy": "all checkpoints retained; exact snapshot plus field-level delta",
+            },
+        },
         "passed": passed,
         "failure": failure,
         "verifier_failure": verifier_failure,
@@ -831,10 +1106,12 @@ def run_case(
     return {
         "task_id": task_id,
         "level": task["level"],
+        "difficulty_group": difficulty_group(str(task["level"])),
         "passed": passed,
         "agent_completed": agent_completed,
         "external_passed": external_passed,
         "final_output_nonempty": final_nonempty,
+        "final_output_matches_raw_rwkv": final_output_matches_raw_rwkv,
         "status": state.status.value if state is not None else "not_created",
         "failure": failure,
         "audit": str((case_root / "audit.json").relative_to(output_root)),
@@ -868,13 +1145,13 @@ def _write_report(
         f"- External acceptance passed: {external}",
         f"- Strict E2E passed: {passed}",
         "",
-        "| Task | Level | Agent | External | Strict | Model requests | Tasks | Attempts | Replans |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+        "| Task | Group | Native level | Agent | External | Strict | Model requests | Tasks | Attempts | Replans |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
     ]
     for item in results:
         mark = lambda value: "PASS" if value else "FAIL"
         lines.append(
-            f"| {item['task_id']} | {item['level']} | {mark(item['agent_completed'])} | "
+            f"| {item['task_id']} | {item['difficulty_group']} | {item['level']} | {mark(item['agent_completed'])} | "
             f"{mark(item['external_passed'])} | {mark(item['passed'])} | {item['model_requests']} | "
             f"{item['task_count']} | {item['attempt_count']} | {item['replan_count']} |"
         )
@@ -895,7 +1172,7 @@ def parse_args() -> argparse.Namespace:
         "--suite",
         choices=[*SUITES, "all"],
         default="core30",
-        help="core30, lh12, or all",
+        help="core30, lh12, extension48, or all (fixed 90-case suite)",
     )
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--max-cases", type=int, default=None)
@@ -925,7 +1202,21 @@ def main() -> int:
             if overlap:
                 raise ValueError(f"duplicate task ids across suites: {sorted(overlap)}")
             acceptance.update(suite_acceptance)
-        suite_title = "RWKV-E2E-42"
+        group_counts = {
+            group: sum(
+                difficulty_group(str(task["level"])) == group for task in tasks
+            )
+            for group in ("basic", "medium", "hard")
+        }
+        if len(tasks) != 90 or group_counts != {
+            "basic": 30,
+            "medium": 30,
+            "hard": 30,
+        }:
+            raise ValueError(
+                f"RWKV-E2E-90 difficulty groups are invalid: total={len(tasks)} groups={group_counts}"
+            )
+        suite_title = "RWKV-E2E-90"
     else:
         tasks, acceptance = load_suite(arguments.suite)
         suite_title = SUITES[arguments.suite].title
@@ -949,11 +1240,26 @@ def main() -> int:
         )
     health_client = OpenAICompatibleRWKVClient()
     health = health_client.health()
+    capabilities = health_client.capabilities()
     health_client.close()
     if not health.available:
         raise RuntimeError(f"RWKV endpoint is unavailable: {health.error}")
+    settings = get_runtime_settings()
+    if health.models and settings.model not in health.models:
+        raise RuntimeError(
+            f"configured RWKV model {settings.model!r} is absent from /models: {health.models}"
+        )
     output = Path(arguments.output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=False)
+    _write_run_metadata(
+        output,
+        arguments=arguments,
+        suite_title=suite_title,
+        tasks=tasks,
+        selected=selected,
+        health=health.to_dict(),
+        capabilities=capabilities.to_dict(),
+    )
     results_by_id: dict[str, dict[str, Any]] = {}
 
     def record_result(result: dict[str, Any]) -> None:

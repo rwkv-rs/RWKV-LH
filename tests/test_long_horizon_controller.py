@@ -22,6 +22,8 @@ from rwkv_lh.model import (
 from rwkv_lh.schema import (
     Attempt,
     AttemptStatus,
+    CriterionEvidence,
+    CriterionEvidenceStatus,
     GoalCriterion,
     GoalState,
     RetryPolicy,
@@ -50,6 +52,16 @@ def make_goal(root: Path) -> GoalState:
 
 
 def save_tasks(store: LongHorizonStore, state: RunState, tasks: list[TaskNode]) -> RunState:
+    if tasks and not any(task.satisfies_criteria for task in tasks):
+        final_required = next(
+            (task for task in reversed(tasks) if task.required),
+            tasks[-1],
+        )
+        final_required.satisfies_criteria = [
+            criterion.criterion_id
+            for criterion in state.goal.success_criteria
+            if criterion.required
+        ]
     state.tasks = {task.task_id: task for task in tasks}
     state.status = RunStatus.RUNNING
     return store.save(state, event_type="plan_saved")
@@ -124,6 +136,7 @@ def test_recovery_accepts_postcondition_without_repeating_write():
             "Write before a simulated crash",
             status=TaskStatus.RUNNING,
             action=TaskAction("write_file", {"path": "done.txt", "content": "done"}),
+            satisfies_criteria=["GC1"],
             completion_criteria=[ValidationSpec("file_contains", {"path": "done.txt", "text": "done"})],
             attempt_ids=["T1-A1"],
         )
@@ -284,6 +297,7 @@ def test_resume_continues_replan_after_interrupted_failed_state():
             "Interrupted failed path",
             "Resume through a replacement",
             status=TaskStatus.FAILED,
+            satisfies_criteria=["GC1"],
             action=TaskAction("noop", {"output": "failed"}),
             completion_criteria=[ValidationSpec("file_exists", {"path": "missing.txt"})],
             retry_policy=RetryPolicy(max_attempts=3, replan_after=1),
@@ -379,6 +393,29 @@ def test_empty_final_output_never_marks_run_completed():
         assert store.load(state.run_id).status == RunStatus.INTERRUPTED
 
 
+def test_final_answer_is_returned_without_rule_based_rewriting():
+    raw = "  <think>internal</think>\nRWKV final answer\n  "
+
+    class RawFinalClient:
+        def text_completion(self, prompt, max_tokens=768, stop=None):
+            return type("Response", (), {"content": raw})()
+
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState(
+            run_id="RAW-FINAL",
+            goal=make_goal(Path(directory) / "workspace"),
+        )
+        trace = []
+        output = LongHorizonModel(
+            ModelInvoker(client=RawFinalClient(), audit_hook=trace.append)
+        ).final_answer(state, "verified context", lambda *_args: None)
+
+    assert output == raw
+    returned = next(item for item in trace if item["type"] == "model_request_returned")
+    assert returned["raw_output"] == raw
+    assert returned["normalized_visible_output"] == "RWKV final answer"
+
+
 class RecordingClient:
     def __init__(self):
         self.calls = []
@@ -422,9 +459,10 @@ def test_model_invoker_persists_request_sampling_profile():
         assert loaded.temp_decisions[-1].top_k == 0
         assert loaded.temp_decisions[-1].seed_supported is False
         assert loaded.temp_decisions[-1].outcome == "ok"
-        assert [event["type"] for event in store.event_records(state.run_id)][-2:] == [
+        assert [event["type"] for event in store.event_records(state.run_id)][-3:] == [
             "model_request_started",
             "model_request_returned",
+            "model_protocol_parsed",
         ]
 
 
@@ -500,11 +538,15 @@ def test_model_invoker_out_of_run_audit_captures_goal_exchange():
     assert [item["type"] for item in trace] == [
         "model_request_started",
         "model_request_returned",
+        "model_protocol_parsed",
     ]
     assert trace[0]["prompt"] == "goal prompt"
     assert trace[0]["seed_supported"] is False
     assert trace[0]["top_p"] == 1.0
-    assert trace[1]["output"] == '"schema_version":"test.v1"}'
+    assert trace[1]["raw_output"] == '"schema_version":"test.v1"}'
+    assert trace[1]["normalized_visible_output"] == '"schema_version":"test.v1"}'
+    assert trace[2]["parser"] == "extract_json_object"
+    assert trace[2]["parsed_payload"] == {"schema_version": "test.v1"}
 
 
 def test_model_invoker_recovers_only_opted_in_length_truncated_decision():
@@ -537,8 +579,11 @@ def test_model_invoker_recovers_only_opted_in_length_truncated_decision():
     assert [item["type"] for item in trace] == [
         "model_request_started",
         "model_request_returned",
+        "model_protocol_parsed",
         "model_protocol_recovered",
     ]
+    assert trace[2]["parser"] == "extract_truncated_decision_object"
+    assert trace[2]["parsed_payload"] == result.payload
 
 
 class SequencePlanClient:
@@ -626,6 +671,64 @@ def test_model_plan_repairs_contract_once_without_raising_temperature():
         assert [temperature for temperature, _ in client.calls] == [0.18, 0.18]
         assert "PROTOCOL CORRECTION" in client.calls[1][1]
         assert [item.outcome for item in state.temp_decisions] == ["contract_error", "ok"]
+
+
+class NestedTaskGraphPlanClient:
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        return type(
+            "Response",
+            (),
+            {
+                "content": json.dumps(
+                    {
+                        "schema_version": "long-horizon.plan.v2",
+                        "task_graph": {
+                            "nodes": [
+                                {
+                                    "local_id": "step_1",
+                                    "title": "Write artifact",
+                                    "description": "Create the required artifact",
+                                    "dependencies": [],
+                                    "required": True,
+                                    "priority": 50,
+                                    "advances_criteria": ["GC1"],
+                                    "satisfies_criteria": ["GC1"],
+                                    "retry_policy": {"max_attempts": 3},
+                                }
+                            ],
+                            "edges": [],
+                        },
+                    }
+                )
+            },
+        )()
+
+
+def test_model_plan_aliases_complete_nested_task_graph_without_semantic_inference():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-NESTED-PLAN")
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        tasks = LongHorizonModel(
+            ModelInvoker(client=NestedTaskGraphPlanClient()), action_contract="{}"
+        ).plan(state, persist)
+
+        assert [task.task_id for task in tasks] == ["step_1"]
+        normalizations = [
+            event
+            for event in store.event_records(state.run_id)
+            if event["type"] == "model_protocol_normalized"
+        ]
+        assert normalizations[-1]["data"]["field"] == "task_graph.nodes"
+        assert normalizations[-1]["data"]["input_payload"]["task_graph"]["nodes"] == (
+            normalizations[-1]["data"]["normalized_payload"]["tasks"]
+        )
 
 
 class BareTaskPlanClient:
@@ -722,6 +825,33 @@ def test_bare_plan_recovery_rejects_partial_or_unknown_task_objects():
         base,
         criterion_ids=["GC1", "GC2"],
     ) is None
+
+
+def test_plan_v2_separates_progress_from_direct_satisfaction_claims():
+    tasks = LongHorizonModel._task_nodes(
+        [
+            {
+                "local_id": "inspect",
+                "title": "Inspect input",
+                "description": "Obtain an intermediate observation",
+                "dependencies": [],
+                "advances_criteria": ["GC1"],
+                "satisfies_criteria": [],
+            },
+            {
+                "local_id": "produce",
+                "title": "Produce output",
+                "description": "Establish the observable result",
+                "dependencies": ["inspect"],
+                "advances_criteria": ["GC1"],
+                "satisfies_criteria": ["GC1"],
+            },
+        ]
+    )
+
+    assert tasks[0].goal_criteria == ["GC1"]
+    assert tasks[0].satisfies_criteria == []
+    assert tasks[1].satisfies_criteria == ["GC1"]
 
 
 class SequenceActionClient:
@@ -833,6 +963,13 @@ def test_model_action_normalizes_stringified_g1i_arguments():
         ]
         assert normalizations[-1]["data"]["field"] == "arguments"
         assert normalizations[-1]["data"]["normalization"] == "json_string_to_object"
+        assert normalizations[-1]["data"]["input_payload"]["arguments"] == (
+            '{"path":"result.txt","content":"verified"}'
+        )
+        assert normalizations[-1]["data"]["normalized_payload"] == {
+            "name": "write_file",
+            "arguments": {"path": "result.txt", "content": "verified"},
+        }
 
 
 class ReselectingFailureModel:
@@ -924,7 +1061,7 @@ def test_rwkv_failure_analysis_reselects_action_instead_of_blind_retry():
         )
 
 
-def test_replan_candidate_rejects_reused_ids_and_replacement_self_dependency():
+def test_replan_intent_treats_model_ids_as_local_and_rejects_failed_dependency():
     with tempfile.TemporaryDirectory() as directory:
         state = RunState(
             "LH-REPLAN-CONTRACT",
@@ -938,24 +1075,279 @@ def test_replan_candidate_rejects_reused_ids_and_replacement_self_dependency():
                 status=TaskStatus.FAILED,
             )
         }
-        with pytest.raises(ModelProtocolError, match="reuses existing task ids"):
-            LongHorizonModel._validate_replan_candidate(
-                state,
-                "T1",
-                [TaskNode("T1", "Reuse", "Invalid reuse")],
-                {"T1": "T1"},
-            )
-        with pytest.raises(TaskGraphError, match="replacement"):
-            LongHorizonModel._validate_replan_candidate(
+        LongHorizonModel._validate_replan_intent(
+            state,
+            "T1",
+            [TaskNode("T1", "Local reference", "A local id may repeat a global id")],
+        )
+        with pytest.raises(ModelProtocolError, match="cannot depend on failed task"):
+            LongHorizonModel._validate_replan_intent(
                 state,
                 "T1",
                 [
                     TaskNode(
-                        "T2",
+                        "correction",
                         "Replacement",
-                        "Invalid self dependency through supersede",
+                        "Invalid dependency on the failed global task",
                         dependencies=["T1"],
                     )
                 ],
-                {"T1": "T2"},
             )
+
+
+def test_intermediate_progress_cannot_cover_goal_without_typed_evidence():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "LH-EVIDENCE-BOUNDARY")
+        (workspace / "scores.csv").write_text("name,score\na,1\n", encoding="utf-8")
+        task = TaskNode(
+            "T1",
+            "Inspect scores",
+            "Read the input as preparation for a later aggregate",
+            goal_criteria=["GC1"],
+            satisfies_criteria=[],
+            action=TaskAction("read_file", {"path": "scores.csv"}),
+            completion_criteria=[ValidationSpec("action_succeeded", {})],
+        )
+        state.tasks = {"T1": task}
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="plan_saved")
+
+        result = LongHorizonController(store).run(state.run_id)
+
+        assert result.state.tasks["T1"].status == TaskStatus.COMPLETED
+        assert result.state.status == RunStatus.BLOCKED
+        assert result.state.criterion_evidence == {}
+        assert store.event_records(state.run_id)[-1]["data"] == {
+            "reason": "required_goal_evidence_missing",
+            "criterion_ids": ["GC1"],
+        }
+
+
+class TaskLocalValidationModel:
+    def __init__(self):
+        self.validated_tasks = []
+        self.validation_scopes = []
+
+    def plan(self, state, persist):
+        raise AssertionError("persisted graph is used")
+
+    def propose_action(self, state, task, context, action_contract, persist):
+        raise AssertionError("actions are already materialized")
+
+    def cross_validate(
+        self,
+        state,
+        task,
+        context,
+        persist,
+        *,
+        action_result=None,
+        validation_results=None,
+    ):
+        self.validated_tasks.append(task.task_id)
+        self.validation_scopes.append(context.goal)
+        return True, "direct task evidence satisfies the claimed criterion"
+
+    def final_answer(self, state, context, persist):
+        return "task-local evidence verified"
+
+
+def test_semantic_validation_runs_only_for_direct_satisfaction_claims():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "LH-TASK-LOCAL")
+        (workspace / "input.txt").write_text("source", encoding="utf-8")
+        tasks = [
+            TaskNode(
+                "T1",
+                "Read source",
+                "Obtain dependency evidence only",
+                goal_criteria=["GC1"],
+                action=TaskAction("read_file", {"path": "input.txt"}),
+                completion_criteria=[ValidationSpec("action_succeeded", {})],
+            ),
+            TaskNode(
+                "T2",
+                "Write result",
+                "Create the directly verifiable Goal artifact",
+                dependencies=["T1"],
+                goal_criteria=["GC1"],
+                satisfies_criteria=["GC1"],
+                action=TaskAction(
+                    "write_file", {"path": "result.txt", "content": "source"}
+                ),
+                completion_criteria=[
+                    ValidationSpec(
+                        "file_content",
+                        {"path": "result.txt", "expected_content": "source"},
+                    )
+                ],
+            ),
+        ]
+        state.tasks = {task.task_id: task for task in tasks}
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="plan_saved")
+        model = TaskLocalValidationModel()
+
+        result = LongHorizonController(store, model=model).run(state.run_id)
+
+        assert result.state.status == RunStatus.COMPLETED
+        assert model.validated_tasks == ["T2"]
+        assert all("TASK VALIDATION SCOPE" in scope for scope in model.validation_scopes)
+        evidence = list(result.state.criterion_evidence.values())
+        assert len(evidence) == 1
+        assert evidence[0].owner_task_id == "T2"
+        assert evidence[0].status == CriterionEvidenceStatus.VERIFIED
+
+
+class RepeatingReplanModel:
+    def __init__(self):
+        self.same_failure_counts = []
+
+    def replan(self, state, failed_task, context, persist, *, same_failure_count):
+        self.same_failure_counts.append(same_failure_count)
+        replacement = TaskNode(
+            "replacement",
+            "Equivalent replacement",
+            "Repeat the same failing observation",
+            action=TaskAction("noop", {"output": "same"}),
+            completion_criteria=[ValidationSpec("file_exists", {"path": "missing.txt"})],
+            retry_policy=RetryPolicy(max_attempts=3, replan_after=1),
+        )
+        return ReplanProposal(
+            [replacement],
+            {failed_task.task_id: "replacement"},
+            "same strategy",
+        )
+
+    def final_answer(self, state, context, persist):
+        raise AssertionError("repeated failures must not complete")
+
+
+def test_recovery_lineage_survives_replacements_and_exhausts_global_budget():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-LINEAGE")
+        failed = TaskNode(
+            "T1",
+            "Initial failure",
+            "Fail with a stable fingerprint",
+            satisfies_criteria=["GC1"],
+            action=TaskAction("noop", {"output": "same"}),
+            completion_criteria=[ValidationSpec("file_exists", {"path": "missing.txt"})],
+            retry_policy=RetryPolicy(max_attempts=3, replan_after=1),
+        )
+        state.tasks = {"T1": failed}
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="plan_saved")
+        model = RepeatingReplanModel()
+
+        result = LongHorizonController(store, model=model).run(state.run_id)
+
+        assert result.state.status == RunStatus.BLOCKED
+        assert model.same_failure_counts == [0, 1]
+        assert len(result.state.recovery_states) == 1
+        lineage = next(iter(result.state.recovery_states.values()))
+        assert lineage.remaining_budget == 0
+        assert lineage.same_failure_count == 2
+        assert len([item for item in lineage.decision_history if item["type"] == "failure"]) == 3
+        assert all(
+            task.recovery_lineage_id == lineage.lineage_id
+            for task in result.state.tasks.values()
+        )
+
+
+class ProducerCorrectionModel:
+    def replan(self, state, failed_task, context, persist, *, same_failure_count):
+        assert failed_task.subject_task_id == "T1"
+        correction = TaskNode(
+            "fix_producer",
+            "Correct producer output",
+            "Replace the invalid producer artifact with the verified value",
+            satisfies_criteria=["GC1"],
+            action=TaskAction(
+                "write_file", {"path": "value.txt", "content": "correct"}
+            ),
+            completion_criteria=[
+                ValidationSpec(
+                    "file_content",
+                    {"path": "value.txt", "expected_content": "correct"},
+                )
+            ],
+        )
+        return ReplanProposal(
+            [correction],
+            {failed_task.task_id: "fix_producer"},
+            "correct the producer",
+        )
+
+    def final_answer(self, state, context, persist):
+        return "producer corrected"
+
+
+def test_validation_failure_routes_to_completed_producer_without_mutating_history():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        workspace.mkdir()
+        (workspace / "value.txt").write_text("wrong", encoding="utf-8")
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "LH-PRODUCER-ROUTING")
+        producer = TaskNode(
+            "T1",
+            "Produce value",
+            "Historical producer event",
+            status=TaskStatus.COMPLETED,
+            action=TaskAction("write_file", {"path": "value.txt", "content": "wrong"}),
+        )
+        verifier = TaskNode(
+            "T2",
+            "Verify producer",
+            "Run an independent check against the producer output",
+            dependencies=["T1"],
+            satisfies_criteria=["GC1"],
+            action=TaskAction(
+                "check_command",
+                {
+                    "argv": [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; raise SystemExit(0 if Path('value.txt').read_text() == 'correct' else 1)",
+                    ]
+                },
+            ),
+            completion_criteria=[ValidationSpec("command_exit_code", {"expected": 0})],
+            retry_policy=RetryPolicy(max_attempts=3, replan_after=1),
+        )
+        state.tasks = {"T1": producer, "T2": verifier}
+        state.criterion_evidence["CE-OLD"] = CriterionEvidence(
+            "CE-OLD",
+            "GC1",
+            CriterionEvidenceStatus.VERIFIED,
+            "T1",
+            "T1-A1",
+        )
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="plan_saved")
+
+        result = LongHorizonController(
+            store,
+            model=ProducerCorrectionModel(),
+        ).run(state.run_id)
+
+        assert result.state.status == RunStatus.COMPLETED
+        assert result.state.tasks["T1"].status == TaskStatus.COMPLETED
+        assert result.state.tasks["T1"].active is True
+        assert result.state.criterion_evidence["CE-OLD"].status == CriterionEvidenceStatus.INVALIDATED
+        lineage = next(iter(result.state.recovery_states.values()))
+        assert lineage.subject_task_id == "T1"
+        correction_id = result.state.tasks["T2"].superseded_by
+        assert correction_id in result.state.tasks
+        assert result.state.tasks[correction_id].subject_task_id == "T1"
+        assert (workspace / "value.txt").read_text(encoding="utf-8") == "correct"
