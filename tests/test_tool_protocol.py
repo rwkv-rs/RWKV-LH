@@ -6,6 +6,8 @@ from rwkv_lh.tool_protocol import (
     G1iToolExchange,
     normalize_g1i_tool_call,
     normalize_g1i_tool_call_with_trace,
+    normalize_plan_envelope_with_trace,
+    protocol_payload_digest,
     render_g1i_tool_dialog,
 )
 
@@ -96,6 +98,182 @@ def test_g1i_call_transparently_normalizes_known_single_function_envelopes(
         "arguments": {"path": "input.txt"},
     }
     assert transformations == expected_transformations
+
+
+@pytest.mark.parametrize(
+    "payload,expected_transformations",
+    [
+        (
+            {
+                "type": "function",
+                "name": "read_file",
+                "arguments": {"path": "input.txt"},
+            },
+            ("flat_typed_function_envelope_to_canonical",),
+        ),
+        (
+            {
+                "action_type": "read_file",
+                "arguments": {"path": "input.txt"},
+            },
+            ("action_type_alias_to_canonical",),
+        ),
+        (
+            {
+                "action": {
+                    "type": "read_file",
+                    "arguments": {"path": "input.txt"},
+                }
+            },
+            ("action_envelope_to_canonical",),
+        ),
+        (
+            {
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {
+                            "name": "read_file",
+                            "arguments": '{"path":"input.txt"}',
+                        },
+                    }
+                ]
+            },
+            ("single_tool_calls_envelope_to_canonical", "json_string_to_object"),
+        ),
+        (
+            {
+                "tool_calls": [
+                    {
+                        "name": "read_file",
+                        "arguments": {"path": "input.txt"},
+                    }
+                ]
+            },
+            ("single_direct_tool_calls_envelope_to_canonical",),
+        ),
+    ],
+)
+def test_round23_registered_action_envelopes_are_transparent_and_name_bound(
+    payload, expected_transformations
+):
+    call, transformations = normalize_g1i_tool_call_with_trace(
+        payload,
+        expected_name="read_file",
+    )
+    assert call.to_dict() == {
+        "name": "read_file",
+        "arguments": {"path": "input.txt"},
+    }
+    assert transformations == expected_transformations
+
+
+@pytest.mark.parametrize(
+    "payload,match",
+    [
+        (
+            {"action": {"type": "read_file", "path": "input.txt"}},
+            "exactly type and arguments",
+        ),
+        ({"tool_calls": []}, "exactly one call"),
+        (
+            {
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": {}},
+                    },
+                    {
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": {}},
+                    },
+                ]
+            },
+            "exactly one call",
+        ),
+        (
+            {"action_type": "write_file", "arguments": {"path": "input.txt"}},
+            "does not match",
+        ),
+        (
+            {
+                "name": "read_file",
+                "arguments": {},
+                "action_type": "read_file",
+            },
+            "unknown fields",
+        ),
+    ],
+)
+def test_round23_registered_action_envelopes_fail_closed_on_ambiguity(
+    payload, match
+):
+    with pytest.raises(ValueError, match=match):
+        normalize_g1i_tool_call_with_trace(payload, expected_name="read_file")
+
+
+def test_round23_new_action_envelopes_require_a_uniquely_selected_action():
+    with pytest.raises(ValueError, match="uniquely selected action"):
+        normalize_g1i_tool_call_with_trace(
+            {"action_type": "read_file", "arguments": {"path": "input.txt"}}
+        )
+
+
+def test_round23_plan_graph_envelope_closes_registered_schema_without_task_mutation():
+    tasks = [
+        {
+            "local_id": "step_1",
+            "title": "Inspect",
+            "description": "Read input",
+            "dependencies": [],
+            "required": True,
+            "priority": 50,
+            "advances_criteria": ["GC1"],
+            "satisfies_criteria": [],
+            "retry_policy": {"max_attempts": 3},
+        }
+    ]
+    raw = {"task_graph": {"tasks": tasks}}
+    normalized, transformations = normalize_plan_envelope_with_trace(raw)
+
+    assert normalized["schema_version"] == "long-horizon.plan.v2"
+    assert normalized["tasks"] == tasks
+    assert normalized["tasks"] is tasks
+    assert transformations == (
+        "task_graph_tasks_to_canonical_tasks",
+        "registered_plan_envelope_implies_v2",
+    )
+    assert protocol_payload_digest(raw) != protocol_payload_digest(normalized)
+
+
+@pytest.mark.parametrize(
+    "payload,match",
+    [
+        (
+            {"tasks": [{}], "task_graph": {"tasks": [{}]}},
+            "conflicting task arrays",
+        ),
+        (
+            {"task_graph": {"tasks": [{}], "nodes": [{}]}},
+            "multiple task arrays",
+        ),
+        (
+            {"task_graph": {"nodes": [{"local_id": "T1"}]}},
+            "explicit dependencies",
+        ),
+        (
+            {
+                "schema_version": "long-horizon.goal.v1",
+                "task_graph": {"tasks": [{}]},
+            },
+            "unsupported registered plan envelope schema",
+        ),
+    ],
+)
+def test_round23_plan_graph_envelope_fails_closed_on_conflict(payload, match):
+    with pytest.raises(ValueError, match=match):
+        normalize_plan_envelope_with_trace(payload)
 
 
 @pytest.mark.parametrize(

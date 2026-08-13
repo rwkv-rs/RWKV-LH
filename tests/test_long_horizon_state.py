@@ -6,10 +6,21 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.schema import (
+    EVIDENCE_RUN_SCHEMA_VERSION,
     LEGACY_RUN_SCHEMA_VERSION,
+    PREVIOUS_RUN_SCHEMA_VERSION,
+    PROOF_RUN_SCHEMA_VERSION,
     RUN_SCHEMA_VERSION,
+    CriterionClaim,
+    CriterionClaimStatus,
+    CriterionEvidence,
+    CriterionEvidenceStatus,
     GoalCriterion,
+    GoalObligationState,
+    GoalObligationStatus,
     GoalState,
+    ProofExpr,
+    RecoveryState,
     RunState,
     RunStatus,
     TaskAction,
@@ -48,6 +59,73 @@ def test_goal_digest_detects_mutation():
         payload["objective"] = "A different goal"
         with pytest.raises(ValueError, match="goal digest mismatch"):
             GoalState.from_dict(payload)
+
+
+def test_recovery_failed_observation_state_round_trips_and_old_v2_defaults_closed():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-OBSERVATION-STATE", make_goal(Path(directory)))
+        state.recovery_states["RL-0001"] = RecoveryState(
+            lineage_id="RL-0001",
+            root_task_id="T1",
+            failed_task_id="T1",
+            subject_task_id="T1",
+            failed_observations={
+                "digest": {
+                    "validation_kind": "criterion_cross_check",
+                    "decision": "replan",
+                    "protocol_valid": True,
+                }
+            },
+            suppressed_cross_check_count=2,
+            remaining_budget=1,
+        )
+        restored = RunState.from_dict(state.to_dict())
+        lineage = restored.recovery_states["RL-0001"]
+        assert lineage.failed_observations["digest"]["decision"] == "replan"
+        assert lineage.suppressed_cross_check_count == 2
+
+        legacy_payload = state.to_dict()
+        legacy_payload["recovery_states"]["RL-0001"].pop("failed_observations")
+        legacy_payload["recovery_states"]["RL-0001"].pop(
+            "suppressed_cross_check_count"
+        )
+        legacy_lineage = RunState.from_dict(legacy_payload).recovery_states["RL-0001"]
+        assert legacy_lineage.failed_observations == {}
+        assert legacy_lineage.suppressed_cross_check_count == 0
+
+
+def test_goal_obligation_state_round_trips_with_digest_budget_and_history():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-GOAL-OBLIGATION", make_goal(Path(directory)))
+        state.goal_obligation = GoalObligationState(
+            goal_digest=state.goal.digest,
+            unresolved_criterion_ids=["GC1"],
+            status=GoalObligationStatus.UNRESOLVED,
+            generation_count=2,
+            remaining_budget=1,
+            last_observation_digest="capsule-digest",
+            task_ids=["T2", "T3"],
+            decision_history=[
+                {
+                    "type": "tasks_appended",
+                    "observation_digest": "capsule-digest",
+                    "task_ids": ["T3"],
+                }
+            ],
+        )
+
+        restored = RunState.from_dict(state.to_dict())
+
+        obligation = restored.goal_obligation
+        assert restored.schema_version == RUN_SCHEMA_VERSION
+        assert obligation is not None
+        assert obligation.goal_digest == state.goal.digest
+        assert obligation.status == GoalObligationStatus.UNRESOLVED
+        assert obligation.generation_count == 2
+        assert obligation.remaining_budget == 1
+        assert obligation.last_observation_digest == "capsule-digest"
+        assert obligation.task_ids == ["T2", "T3"]
+        assert obligation.decision_history[0]["type"] == "tasks_appended"
 
 
 def test_store_rejects_replacing_the_immutable_goal():
@@ -259,6 +337,86 @@ def test_v1_run_migration_does_not_promote_ambiguous_goal_bindings():
         assert migrated.tasks["T1"].satisfies_criteria == []
         assert migrated.criterion_evidence == {}
         assert migrated.next_task_sequence == 2
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_status"),
+    [
+        (RunStatus.RUNNING, CriterionEvidenceStatus.LEGACY_UNVERIFIED),
+        (RunStatus.COMPLETED, CriterionEvidenceStatus.VERIFIED),
+    ],
+)
+def test_v2_evidence_requires_independent_claims_for_unfinished_runs(
+    status,
+    expected_status,
+):
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-V2-MIGRATION", make_goal(Path(directory)))
+        state.status = status
+        state.criterion_evidence["CE-GC1-T1-A1"] = CriterionEvidence(
+            "CE-GC1-T1-A1",
+            "GC1",
+            CriterionEvidenceStatus.VERIFIED,
+            "T1",
+            "T1-A1",
+        )
+        payload = state.to_dict()
+        payload["schema_version"] = EVIDENCE_RUN_SCHEMA_VERSION
+        payload.pop("criterion_claims")
+
+        migrated = RunState.from_dict(payload)
+
+        assert migrated.schema_version == RUN_SCHEMA_VERSION
+        assert migrated.criterion_claims == {}
+        assert migrated.criterion_evidence["CE-GC1-T1-A1"].status == expected_status
+
+
+def test_v3_recursive_claim_state_loads_into_v4_without_semantic_rewrite():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-V3-MIGRATION", make_goal(Path(directory)))
+        raw_claim = {
+            "criterion_id": "GC1",
+            "subject_task_id": "T1",
+            "producer_task_id": "T1",
+            "comparison": "exact_equals",
+            "actual": {"op": "literal", "goal_quote": "artifact", "value": 1},
+            "expected": {"op": "literal", "goal_quote": "artifact", "value": 1},
+        }
+        state.criterion_claims["CC-1"] = CriterionClaim(
+            claim_id="CC-1",
+            criterion_id="GC1",
+            subject_task_id="T1",
+            producer_task_id="T1",
+            attempt_id="T1-A1",
+            comparison="exact_equals",
+            actual=ProofExpr.from_dict(raw_claim["actual"]),
+            expected=ProofExpr.from_dict(raw_claim["expected"]),
+            status=CriterionClaimStatus.REJECTED,
+            passed=False,
+            raw_claim=raw_claim,
+        )
+        payload = state.to_dict()
+        payload["schema_version"] = PREVIOUS_RUN_SCHEMA_VERSION
+
+        migrated = RunState.from_dict(payload)
+
+        claim = migrated.criterion_claims["CC-1"]
+        assert migrated.schema_version == RUN_SCHEMA_VERSION
+        assert claim.claim_protocol == "proof_expr.v1"
+        assert claim.raw_claim == raw_claim
+
+
+def test_v4_proof_state_loads_into_v5_with_no_invented_goal_obligation():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-V4-MIGRATION", make_goal(Path(directory)))
+        payload = state.to_dict()
+        payload["schema_version"] = PROOF_RUN_SCHEMA_VERSION
+        payload.pop("goal_obligation")
+
+        migrated = RunState.from_dict(payload)
+
+        assert migrated.schema_version == RUN_SCHEMA_VERSION
+        assert migrated.goal_obligation is None
 
 
 def test_model_task_ids_are_local_and_deterministically_rewritten():

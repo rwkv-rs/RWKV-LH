@@ -29,6 +29,8 @@ class StateStore(Protocol):
 
     def artifact_locator(self, path: str | Path) -> str: ...
 
+    def resolve_artifact_locator(self, locator: str) -> Path: ...
+
     def create_run(self, goal: GoalState, run_id: str | None = None) -> RunState: ...
 
     def load(self, run_id: str) -> RunState: ...
@@ -89,6 +91,20 @@ class LongHorizonStore:
         except ValueError as exc:
             raise ValueError("artifact is outside the store root") from exc
         return f"store:{relative}"
+
+    def resolve_artifact_locator(self, locator: str) -> Path:
+        value = str(locator or "")
+        if not value.startswith("store:"):
+            raise ValueError("artifact locator is not store-scoped")
+        relative = Path(value.removeprefix("store:"))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("artifact locator is outside the store root")
+        resolved = (self.root / relative).resolve(strict=True)
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("artifact locator is outside the store root") from exc
+        return resolved
 
     def create_run(self, goal: GoalState, run_id: str | None = None) -> RunState:
         identifier = self._normalize_run_id(run_id or f"LH-{uuid4().hex[:16]}")

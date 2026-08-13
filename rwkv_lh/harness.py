@@ -35,6 +35,10 @@ class ActionDefinition:
     default_timeout: float
     argument_schema: dict[str, Any] = field(default_factory=dict)
     required_postconditions: tuple[str, ...] = ()
+    # Failure observations may only be reused when the action is explicitly
+    # confined to deterministic workspace state. Extensions default closed;
+    # an external or time-sensitive action must never opt in.
+    failure_observation_cacheable: bool = False
 
 
 @dataclass
@@ -163,20 +167,24 @@ class ActionHarness:
                 "create_parents": "boolean",
             },
             ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "write_json": ActionDefinition(
             "write_json", "Atomically serialize a JSON value inside the workspace.", False, True, True, 30.0,
             {"path": "relative path", "value": "any JSON value"}, ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "replace_text": ActionDefinition(
             "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
             {"path": "relative path", "old": "exact text", "new": "replacement", "count": "positive integer"},
             ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "remove_line": ActionDefinition(
             "remove_line", "Remove a complete UTF-8 text line from an existing file.", False, True, True, 30.0,
             {"path": "relative path", "text": "line text without newline", "all": "boolean"},
             ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "append_file": ActionDefinition(
             "append_file", "Append UTF-8 text; this action is non-idempotent.", False, True, False, 30.0,
@@ -185,14 +193,17 @@ class ActionHarness:
         "delete_file": ActionDefinition(
             "delete_file", "Delete one explicitly scoped path.", False, True, True, 30.0,
             {"path": "relative path", "missing_ok": "boolean", "recursive": "boolean"}, ("file_absent",),
+            failure_observation_cacheable=True,
         ),
         "make_directory": ActionDefinition(
             "make_directory", "Create a directory inside the workspace.", False, True, True, 30.0,
             {"path": "relative path", "parents": "boolean"}, ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "copy_file": ActionDefinition(
             "copy_file", "Copy one scoped file to another scoped path.", False, True, True, 30.0,
             {"source": "relative path", "destination": "relative path"}, ("file_exists",),
+            failure_observation_cacheable=True,
         ),
         "list_directory": ActionDefinition(
             "list_directory",
@@ -206,20 +217,24 @@ class ActionHarness:
                 "recursive": "boolean",
                 "max_entries": "positive integer up to 1024",
             },
+            failure_observation_cacheable=True,
         ),
         "read_file": ActionDefinition(
             "read_file", "Read a UTF-8 file without modifying it.", True, False, True, 30.0,
             {"path": "relative path", "max_chars": "positive integer"},
+            failure_observation_cacheable=True,
         ),
         "read_json": ActionDefinition(
             "read_json", "Parse a JSON file and return normalized structured content without modifying it.",
             True, False, True, 30.0,
             {"path": "relative path", "max_chars": "positive integer"},
+            failure_observation_cacheable=True,
         ),
         "bind_evidence": ActionDefinition(
             "bind_evidence", "Read an exact line span and retain its source locator and quote.", True, False, True, 30.0,
             {"path": "relative path", "start_line": "1-based integer", "end_line": "inclusive 1-based integer", "source": "source label or URL"},
             ("evidence_bound",),
+            failure_observation_cacheable=True,
         ),
         "check_command": ActionDefinition(
             "check_command", "Run a read-only test, linter, or inspection command with argv and shell disabled.",
@@ -323,6 +338,30 @@ class ActionHarness:
                 "description": definition.description,
                 "read_only": definition.read_only,
                 "side_effect": definition.side_effect,
+            }
+            for name, definition in self._definitions.items()
+        }
+
+    def compact_action_commit_catalog(self) -> dict[str, dict[str, Any]]:
+        """Return a fixed-order catalog for one atomic RWKV action commit.
+
+        This catalog exposes structural argument names, never values. It is
+        intentionally independent of the active task and workspace contents.
+        """
+
+        return {
+            name: {
+                "description": definition.description,
+                "read_only": definition.read_only,
+                "side_effect": definition.side_effect,
+                "idempotent": definition.idempotent,
+                "argument_names": list(definition.argument_schema),
+                "required_arguments": list(
+                    self._g1i_required_arguments.get(
+                        name,
+                        self._required_arguments.get(name, ()),
+                    )
+                ),
             }
             for name, definition in self._definitions.items()
         }
@@ -565,6 +604,122 @@ class ActionHarness:
             if truncated:
                 break
         return {"entries": entries, "truncated": truncated, "entry_count": len(entries)}
+
+    def workspace_observation_snapshot(
+        self,
+        goal: GoalState,
+        *,
+        max_entries: int = 4096,
+        max_total_bytes: int = 1_073_741_824,
+    ) -> dict[str, Any]:
+        """Hash a complete, bounded workspace view for failure reuse.
+
+        This is deliberately stricter than :meth:`workspace_manifest`, which
+        is a bounded metadata prompt view. A partial snapshot must never make
+        two observations appear equivalent, so any symlink, bound overflow,
+        read error, or concurrent file mutation fails closed.
+        """
+
+        root = Path(goal.workspace_root).resolve(strict=True)
+        entry_limit = max(1, int(max_entries))
+        byte_limit = max(1, int(max_total_bytes))
+        entries: list[dict[str, Any]] = []
+        total_bytes = 0
+
+        def failed(reason: str) -> dict[str, Any]:
+            return {
+                "schema_version": "rwkv-lh.workspace-observation.v1",
+                "cacheable": False,
+                "reason": reason,
+                "digest": "",
+                "entry_count": len(entries),
+                "total_bytes": total_bytes,
+                "entries": entries,
+            }
+
+        try:
+            for directory, directory_names, file_names in os.walk(
+                root,
+                topdown=True,
+                followlinks=False,
+            ):
+                current = Path(directory)
+                retained_directories: list[str] = []
+                for name in sorted(directory_names):
+                    path = current / name
+                    if path.is_symlink():
+                        return failed(
+                            f"symbolic_link_not_cacheable:{path.relative_to(root).as_posix()}"
+                        )
+                    retained_directories.append(name)
+                    if len(entries) >= entry_limit:
+                        return failed("workspace_entry_limit_exceeded")
+                    entries.append(
+                        {
+                            "path": path.relative_to(root).as_posix(),
+                            "type": "directory",
+                        }
+                    )
+                directory_names[:] = retained_directories
+
+                for name in sorted(file_names):
+                    path = current / name
+                    relative = path.relative_to(root).as_posix()
+                    if path.is_symlink():
+                        return failed(f"symbolic_link_not_cacheable:{relative}")
+                    if len(entries) >= entry_limit:
+                        return failed("workspace_entry_limit_exceeded")
+                    before = path.stat()
+                    if not path.is_file():
+                        return failed(f"non_regular_entry_not_cacheable:{relative}")
+                    if total_bytes + before.st_size > byte_limit:
+                        return failed("workspace_byte_limit_exceeded")
+                    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                    after = path.stat()
+                    before_identity = (
+                        before.st_dev,
+                        before.st_ino,
+                        before.st_size,
+                        before.st_mtime_ns,
+                    )
+                    after_identity = (
+                        after.st_dev,
+                        after.st_ino,
+                        after.st_size,
+                        after.st_mtime_ns,
+                    )
+                    if before_identity != after_identity:
+                        return failed(f"workspace_changed_during_snapshot:{relative}")
+                    total_bytes += after.st_size
+                    entries.append(
+                        {
+                            "path": relative,
+                            "type": "file",
+                            "size_bytes": after.st_size,
+                            "sha256": digest,
+                        }
+                    )
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            return failed(f"workspace_snapshot_error:{type(exc).__name__}:{exc}")
+
+        payload = {
+            "schema_version": "rwkv-lh.workspace-observation.v1",
+            "entries": entries,
+        }
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return {
+            **payload,
+            "cacheable": True,
+            "reason": "",
+            "digest": hashlib.sha256(encoded).hexdigest(),
+            "entry_count": len(entries),
+            "total_bytes": total_bytes,
+        }
 
     def missing_required_postconditions(
         self,

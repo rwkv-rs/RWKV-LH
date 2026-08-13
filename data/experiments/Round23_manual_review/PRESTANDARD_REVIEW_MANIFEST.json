@@ -1,0 +1,70 @@
+{
+  "schema_version": "rwkv-lh.round23-prestandard-manual-review-manifest.v1",
+  "round": "Round23",
+  "frozen_at": "2026-08-13T16:34:23+08:00",
+  "purpose": "Freeze all 90 per-case causal reviews before reference-answer and acceptance comparison.",
+  "boundary": {
+    "included": [
+      "user-visible request",
+      "public workspace inputs",
+      "model prompts and raw outputs",
+      "protocol parsing and normalization records",
+      "task, attempt, event, memory, recovery, artifact, and terminal state",
+      "final public workspace"
+    ],
+    "excluded": [
+      "results.json semantic fields",
+      "acceptance.json",
+      "reference answer",
+      "Codex answer",
+      "external score and verifier-private fields"
+    ],
+    "note": "A repository text search printed one acceptance.json match containing only the already user-visible sorted service names for E2E-LH07; no acceptance condition or expected value was opened or used in any causal judgment."
+  },
+  "source_artifacts": {
+    "public_artifact_manifest": {
+      "path": "../Round23/FROZEN_PUBLIC_ARTIFACT_MANIFEST.json",
+      "sha256": "a59225f93a07beac1355ce3ac05a035d67fb6123d0bfe7d95e63663d7b562adf",
+      "case_count": 90,
+      "file_count": 902,
+      "required_complete": true
+    },
+    "round_results_bytes": {
+      "path": "../Round23/results.json",
+      "sha256": "4c6eb45509ecbe748c374afdd7a16053dd9fbeb8fbbcece2ce4ca19cdd040109",
+      "semantic_content_used_before_freeze": false
+    },
+    "blind_fact_index": {
+      "path": "../Round23/blind_lifecycle_fact_index.json",
+      "sha256": "657445e1b5a9cf54a3784c2eb6fbf0a71db59e89ea1d96d0aa71949ea9e110ac"
+    }
+  },
+  "reviews": [
+    {
+      "path": "BASIC_B01_B30_PRESTANDARD_CAUSAL_REVIEW.md",
+      "case_prefix": "E2E-B",
+      "case_count": 30,
+      "sha256": "b2d793de10eab2da00833514191911b6d7a9f540c5a226a3f30ea7b96bc6d9a1"
+    },
+    {
+      "path": "MEDIUM_M01_M30_PRESTANDARD_CAUSAL_REVIEW.md",
+      "case_prefix": "E2E-M",
+      "case_count": 30,
+      "sha256": "aff5b1fef27448e8d7979952fd906c4f1c39a9fd928d6045641949af0244beed"
+    },
+    {
+      "path": "HARD_H01_H18_PRESTANDARD_CAUSAL_REVIEW.md",
+      "case_prefix": "E2E-H",
+      "case_count": 18,
+      "sha256": "b91dd46e785a12d8bfd7e23f9a5d59cd1a3e48b995c65f338186b420c747262d"
+    },
+    {
+      "path": "LONG_HORIZON_LH01_LH12_PRESTANDARD_CAUSAL_REVIEW.md",
+      "case_prefix": "E2E-LH",
+      "case_count": 12,
+      "sha256": "0f86cc6f8ba4473ae03dac5e304ba06482d4ef7c1a3972ced02ae4a09f22c019"
+    }
+  ],
+  "review_case_count": 90,
+  "manual_method": "Each case was read and attributed across Goal, Plan, action/effect, state/evidence, recovery, and terminal stages; the blind fact index was used only for locating raw records, not for automatic root-cause classification."
+}

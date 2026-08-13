@@ -1,0 +1,293 @@
+{
+  "schema_version": "rwkv-lh.round4-proof-analysis.v1",
+  "round": "Round4",
+  "cases": 90,
+  "validation": {
+    "cases_with_validation": 26,
+    "requests_started": 132,
+    "responses_returned": 132,
+    "parsed_events": 131,
+    "json_protocol_error_events": 1,
+    "contract_error_events": 93,
+    "attempts_by_protocol_valid": {
+      "True": 38,
+      "False": 46
+    }
+  },
+  "criterion_claim_evaluation": {
+    "cases": 26,
+    "events": 84,
+    "rwkv_decisions": {
+      "pass": 34,
+      "replan": 50
+    },
+    "exact_coverage": {
+      "True": 36,
+      "False": 48
+    },
+    "proof_passed": {
+      "False": 84
+    },
+    "claim_statuses": {
+      "rejected": 55
+    },
+    "claim_reasons": {
+      "ProofEvaluationError: only exact_equals comparison is supported": 16,
+      "ProofEvaluationError: claim subject_task_id is outside task scope": 7,
+      "ProofEvaluationError: unsupported proof op: read_json": 7,
+      "RWKV decision was replan; proof was not executed": 6,
+      "ProofEvaluationError: expected proof cannot reference mutable workspace state": 5,
+      "ProofEvaluationError: literal requires an exact non-empty Goal.original_request quote": 3,
+      "ProofEvaluationError: unsupported ref source: ": 2,
+      "ProofEvaluationError: unsupported proof op: read": 2,
+      "ProofEvaluationError: unsupported ref source: workspace/archive/2026/source.txt": 1,
+      "ProofEvaluationError: claim producer_task_id is outside task scope": 1,
+      "ProofEvaluationError: unsupported proof op: file_content": 1,
+      "ProofEvaluationError: proof expression has unsupported fields: ['path', 'selector', 'source']": 1,
+      "ProofEvaluationError: unsupported proof op: json_field_equals": 1,
+      "ProofEvaluationError: unsupported proof op: read_file": 1,
+      "ProofEvaluationError: unsupported proof op: action_result": 1
+    },
+    "comparisons": {
+      "exists": 4,
+      "exact_equals": 30,
+      "contains": 2,
+      "contains_exactly_one_line_with": 1,
+      "ends_with_newline": 1,
+      "missing": 9,
+      "valid_json": 2,
+      "sorted": 1,
+      "json_field_equals": 1,
+      "ordered_ids_01_to_05": 1,
+      "sources_map_to_selected_path": 1,
+      "no_omitted_ids_01_to_05": 1,
+      "equals": 1
+    },
+    "actual_ops": {
+      "exists": 4,
+      "ref": 14,
+      "read_file": 5,
+      "action_succeeded": 1,
+      "object": 5,
+      "read": 9,
+      "read_json": 8,
+      "file_content": 1,
+      "count": 1,
+      "json_field_equals": 2,
+      "missing": 2,
+      "directory_exists": 1,
+      "directory_files": 1,
+      "action_result": 1
+    },
+    "expected_ops": {
+      "exists": 4,
+      "ref": 14,
+      "read_file": 2,
+      "literal": 18,
+      "action_succeeded": 1,
+      "read": 6,
+      "file_content": 1,
+      "count": 1,
+      "missing": 3,
+      "read_json": 2,
+      "directory_exists": 1,
+      "directory_files": 1,
+      "object": 1
+    },
+    "cases_with_verified_claims": [],
+    "cases_with_criterion_evidence": []
+  },
+  "terminal_reasons": {
+    "model_protocol_blocked:none": 53,
+    "run_blocked:required_goal_evidence_missing": 25,
+    "no_terminal_event": 6,
+    "run_blocked:recovery_lineage_budget_exhausted": 5,
+    "run_interrupted:ModelProtocolError: failure analysis decision must be retry_same, reselect_action, or replan": 1
+  },
+  "external_correct_cases": [
+    {
+      "task_id": "E2E-B04",
+      "status": "blocked",
+      "validation_requests": 6,
+      "claim_evaluations": 4,
+      "rwkv_pass_evaluations": 2,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [
+        "ProofEvaluationError: only exact_equals comparison is supported",
+        "ProofEvaluationError: unsupported ref source: workspace/archive/2026/source.txt"
+      ],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-B06",
+      "status": "blocked",
+      "validation_requests": 1,
+      "claim_evaluations": 1,
+      "rwkv_pass_evaluations": 1,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [
+        "ProofEvaluationError: only exact_equals comparison is supported",
+        "ProofEvaluationError: only exact_equals comparison is supported",
+        "ProofEvaluationError: only exact_equals comparison is supported",
+        "ProofEvaluationError: only exact_equals comparison is supported",
+        "ProofEvaluationError: only exact_equals comparison is supported"
+      ],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4",
+            "GC5"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-B13",
+      "status": "blocked",
+      "validation_requests": 4,
+      "claim_evaluations": 3,
+      "rwkv_pass_evaluations": 2,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [
+        "ProofEvaluationError: claim producer_task_id is outside task scope",
+        "ProofEvaluationError: claim subject_task_id is outside task scope",
+        "ProofEvaluationError: claim subject_task_id is outside task scope",
+        "ProofEvaluationError: claim subject_task_id is outside task scope",
+        "ProofEvaluationError: claim subject_task_id is outside task scope",
+        "ProofEvaluationError: claim subject_task_id is outside task scope"
+      ],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4",
+            "GC5"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-B19",
+      "status": "blocked",
+      "validation_requests": 4,
+      "claim_evaluations": 2,
+      "rwkv_pass_evaluations": 0,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-B22",
+      "status": "blocked",
+      "validation_requests": 4,
+      "claim_evaluations": 2,
+      "rwkv_pass_evaluations": 0,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-B26",
+      "status": "blocked",
+      "validation_requests": 4,
+      "claim_evaluations": 4,
+      "rwkv_pass_evaluations": 3,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [
+        "ProofEvaluationError: literal requires an exact non-empty Goal.original_request quote",
+        "ProofEvaluationError: literal requires an exact non-empty Goal.original_request quote",
+        "ProofEvaluationError: literal requires an exact non-empty Goal.original_request quote",
+        "RWKV decision was replan; proof was not executed",
+        "RWKV decision was replan; proof was not executed",
+        "RWKV decision was replan; proof was not executed"
+      ],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    },
+    {
+      "task_id": "E2E-H09",
+      "status": "blocked",
+      "validation_requests": 2,
+      "claim_evaluations": 1,
+      "rwkv_pass_evaluations": 0,
+      "proof_pass_evaluations": 0,
+      "claim_reasons": [],
+      "criterion_evidence_count": 0,
+      "terminal": {
+        "event_type": "run_blocked",
+        "data": {
+          "criterion_ids": [
+            "GC1",
+            "GC2",
+            "GC3",
+            "GC4",
+            "GC5"
+          ],
+          "reason": "required_goal_evidence_missing"
+        }
+      }
+    }
+  ],
+  "interpretation_constraints": [
+    "FP=0 is vacuous when Agent completed=0; it is not evidence of useful precision.",
+    "Only RWKV-proposed claims were evaluated; no candidate claim was selected.",
+    "Post-run hidden acceptance and reference answers were not available during generation."
+  ]
+}

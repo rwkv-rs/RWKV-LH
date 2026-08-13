@@ -1,0 +1,56 @@
+{
+  "checks": {
+    "all_request_hashes_match_remote": true,
+    "all_response_hashes_and_sizes_match_remote": true,
+    "every_job_delivered_on_one_transport_attempt": true,
+    "every_local_delivery_reports_one_upstream_invocation": true,
+    "every_remote_job_complete_http_200": true,
+    "every_remote_job_invoked_rwkv_exactly_once": true,
+    "formal_results_have_90_rows": true,
+    "no_transport_or_delivery_failure_events": true,
+    "one_transport_job_per_reported_model_request": true,
+    "started_returned_delivered_remote_job_ids_match": true
+  },
+  "content_policy": {
+    "benchmark_acceptance_or_reference_read": false,
+    "metadata_fields": [
+      "job_id",
+      "byte_count",
+      "sha256",
+      "state",
+      "HTTP status",
+      "upstream invocation count",
+      "transport attempt count"
+    ],
+    "request_or_response_content_read": false
+  },
+  "counts": {
+    "event_types": {
+      "job_delivered": 1436,
+      "job_started": 1436,
+      "transport_attempt_returned": 1436
+    },
+    "formal_result_rows": 90,
+    "local_delivered_jobs": 1436,
+    "local_events": 4308,
+    "local_returned_jobs": 1436,
+    "local_started_jobs": 1436,
+    "remote_jobs": 1436,
+    "reported_model_requests": 1436
+  },
+  "generated_at": "2026-08-12T14:04:14+00:00",
+  "hashes": {
+    "formal_results": "85e2759678a27c57f61739d896c77513fc19e985dfb19fcbe9f04dcc899d1a30",
+    "local_audit": "9dfa2527154009e7dbce3079ad03036534aa12ed05ed0aa8c528b48b067fbe64",
+    "local_proxy_script": "ac6912c2ee03686efeea16a85f8be7afdad87e701867f10b0f82d3c4b94efedd",
+    "remote_spool_script": "461b647e60d84dd5d75e0b4fb3556bf6e4e6108dd854180c6ac92e72689d34ae"
+  },
+  "passed": true,
+  "purpose": "Prove metadata-level one-to-one correspondence between each formal local model request, the remote exactly-once spool job, and the byte-identical response delivery.",
+  "schema_version": "round12.formal-durable-transport.v1",
+  "sources": {
+    "formal_results": "/home/chase/GitHub/RWKV-LH/data/experiments/Round12/results.json",
+    "local_audit": "/home/chase/GitHub/RWKV-LH/data/experiments/Round12_transport/formal_proxy_audit.jsonl",
+    "remote_job_root": "/home/chase/rwkv_lh_transport/round12_formal_20260812T125000Z"
+  }
+}

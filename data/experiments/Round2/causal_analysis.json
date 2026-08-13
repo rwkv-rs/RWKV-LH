@@ -141,18 +141,39 @@
   "false_negative_case_ids": [
     "E2E-B14"
   ],
+  "observation_gate": {
+    "prepared": 0,
+    "cacheable": 0,
+    "uncacheable": 0,
+    "registered_failed_rwkv_observations": 0,
+    "suppressed_cross_checks": 0,
+    "causal_interpretation": "suppressed_cross_checks is the only count attributable to failed-equivalent-observation reuse; request-count changes must not be attributed to the gate when it is zero"
+  },
   "next_ablation": {
-    "name": "transparent_protocol_envelope_normalization",
-    "evidence": {
-      "nested_task_graph_cases": 0,
-      "g1i_wrapper_cases": 4
-    },
-    "allowed_change": "Map known complete wire envelopes to the existing canonical payload while retaining and auditing both input and normalized objects byte-for-byte.",
-    "forbidden_change": "Do not infer missing tasks, criterion claims, action values, artifact content, or final answers.",
-    "deferred_independent_failures": {
-      "plan_missing_direct_criterion_claims": 43,
-      "agent_completed_external_failed": 12
-    }
+    "name": "not_selected_by_post_run_analyzer",
+    "reason": "The analyzer reports comparable causal evidence only. The next single variable must be pre-registered separately and cannot be selected by hidden acceptance or reference answers.",
+    "candidate_evidence": [
+      {
+        "name": "goal_obligation_planning",
+        "affected_cases": 43,
+        "evidence": "initial plan rejected before execution for missing direct claims"
+      },
+      {
+        "name": "criterion_evidence_boundary",
+        "affected_cases": 12,
+        "evidence": "agent completed while external acceptance failed"
+      },
+      {
+        "name": "goal_criterion_capacity",
+        "affected_cases": 9,
+        "evidence": "goal proposal exceeded the fixed five-criterion contract"
+      },
+      {
+        "name": "transparent_protocol_envelope_normalization",
+        "affected_cases": 4,
+        "evidence": "complete task/function objects remained under known wire envelopes"
+      }
+    ]
   },
   "event_type_counts": {
     "model_request_started": 704,

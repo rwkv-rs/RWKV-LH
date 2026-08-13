@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>RWKV-LH Local Lab</title>
+    <meta name="description" content="本地、透明、可审计的 RWKV 长程 Agent 测试界面">
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="RWKV-LH Local Lab 首页">
+        <span class="brand-mark">R</span>
+        <span><strong>RWKV-LH</strong><small>LOCAL LAB</small></span>
+      </a>
+      <div class="runtime-strip">
+        <span id="runtimeDot" class="status-dot unknown"></span>
+        <span id="runtimeLabel">正在读取运行时</span>
+        <button id="healthButton" class="text-button" type="button">检查连接</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="intro panel">
+        <div>
+          <p class="eyebrow">REAL RWKV · NO ANSWER REWRITE</p>
+          <h1>让每一步都<br><span>看得见。</span></h1>
+          <p class="lede">输入一个任务，观察 RWKV 如何建立目标、规划、调用工具、失败、恢复和提交证据。界面只展示真实链路，不替模型做决定。</p>
+        </div>
+        <div class="score-card" aria-label="Round12 最新正式结果">
+          <div class="score-head"><span>最新正式基线</span><strong>ROUND 12</strong></div>
+          <div class="score-grid">
+            <div><strong>0</strong><span>STRICT / 90</span></div>
+            <div><strong>11</strong><span>EXTERNAL / 90</span></div>
+            <div><strong>0</strong><span>FALSE POSITIVE</span></div>
+          </div>
+          <p>实验级系统，不代表任务可稳定完成。</p>
+        </div>
+      </section>
+
+      <section class="workbench">
+        <aside class="sidebar panel">
+          <div class="section-title">
+            <div><span class="index">01</span><h2>手工测试</h2></div>
+            <button id="newRunButton" class="icon-button" type="button" title="清空表单">＋</button>
+          </div>
+          <form id="runForm">
+            <label for="requestInput">任务要求</label>
+            <textarea id="requestInput" required placeholder="例如：读取 config.json，创建一份 summary.md，并验证摘要包含全部配置项。"></textarea>
+
+            <label for="constraintInput">约束 <span>每行一条，可留空</span></label>
+            <textarea id="constraintInput" class="compact" placeholder="不要访问工作区外部文件&#10;输出必须为 UTF-8"></textarea>
+
+            <div class="form-row">
+              <label for="maxTransitions">最大 transitions</label>
+              <input id="maxTransitions" type="number" min="1" max="500" value="200">
+            </div>
+
+            <div class="seed-heading">
+              <label>初始文件 <span>可选</span></label>
+              <button id="addSeedButton" class="text-button" type="button">添加文件</button>
+            </div>
+            <div id="seedFiles" class="seed-files"></div>
+
+            <button id="startButton" class="primary-button" type="submit">
+              <span>启动真实 RWKV 任务</span><span aria-hidden="true">↗</span>
+            </button>
+            <p id="formMessage" class="form-message" role="status"></p>
+          </form>
+
+          <div class="history-head"><h3>运行记录</h3><span id="runCount">0</span></div>
+          <div id="runList" class="run-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="monitor panel">
+          <div id="emptyState" class="empty-state">
+            <div class="pulse-orbit"><span></span></div>
+            <p class="eyebrow">WAITING FOR A RUN</p>
+            <h2>选择历史记录，或启动一个新任务。</h2>
+            <p>模型输入、原始输出、程序转换和工作区变化会在这里按因果顺序展开。</p>
+          </div>
+
+          <div id="runView" class="run-view hidden">
+            <div class="run-header">
+              <div>
+                <p id="runId" class="eyebrow">—</p>
+                <h2 id="runObjective">正在建立目标…</h2>
+              </div>
+              <div class="run-actions">
+                <span id="runStatus" class="status-pill">QUEUED</span>
+                <button id="resumeButton" class="secondary-button hidden" type="button">恢复</button>
+                <button id="stopButton" class="danger-button hidden" type="button">停止</button>
+                <a id="exportButton" class="secondary-button" href="#">导出审计</a>
+              </div>
+            </div>
+
+            <div class="metric-row">
+              <div><span>状态修订</span><strong id="revisionMetric">—</strong></div>
+              <div><span>模型请求</span><strong id="requestMetric">0</strong></div>
+              <div><span>任务</span><strong id="taskMetric">0</strong></div>
+              <div><span>证据</span><strong id="evidenceMetric">0</strong></div>
+            </div>
+
+            <nav class="tabs" aria-label="运行详情">
+              <button class="tab active" data-tab="overview" type="button">概览</button>
+              <button class="tab" data-tab="exchange" type="button">RWKV 输入 / 输出 <span id="traceCount">0</span></button>
+              <button class="tab" data-tab="events" type="button">因果事件 <span id="eventCount">0</span></button>
+              <button class="tab" data-tab="files" type="button">工作区 <span id="fileCount">0</span></button>
+            </nav>
+
+            <div id="overviewTab" class="tab-panel active">
+              <div class="overview-grid">
+                <article class="subpanel">
+                  <div class="subhead"><h3>不可变 Goal</h3><span id="goalDigest">尚未创建</span></div>
+                  <div id="criteriaList" class="criteria-list muted-copy">等待 RWKV 解析目标。</div>
+                </article>
+                <article class="subpanel">
+                  <div class="subhead"><h3>Task Graph</h3><span id="taskSummary">0 tasks</span></div>
+                  <div id="taskList" class="task-list muted-copy">尚无任务。</div>
+                </article>
+              </div>
+              <article class="subpanel final-panel">
+                <div class="subhead"><h3>RWKV 最终输出</h3><span>逐字展示 · 不修订</span></div>
+                <pre id="finalOutput" class="output-block">运行尚未产生最终输出。</pre>
+              </article>
+              <article id="errorPanel" class="subpanel error-panel hidden">
+                <div class="subhead"><h3>终止信息</h3></div>
+                <pre id="errorOutput" class="output-block"></pre>
+              </article>
+            </div>
+
+            <div id="exchangeTab" class="tab-panel">
+              <div class="filter-row">
+                <p>完整 prompt、raw output 与 protocol payload 均来自本次真实运行。</p>
+                <select id="traceFilter" aria-label="筛选模型事件">
+                  <option value="all">全部模型事件</option>
+                  <option value="model_request_started">只看输入</option>
+                  <option value="model_request_returned">只看原始输出</option>
+                  <option value="model_protocol_normalized">只看格式转换</option>
+                  <option value="model_protocol_error">只看协议错误</option>
+                </select>
+              </div>
+              <div id="traceList" class="timeline"></div>
+            </div>
+
+            <div id="eventsTab" class="tab-panel">
+              <div class="filter-row"><p>SQLite 中按 revision 持久化的 Controller 事件。</p></div>
+              <div id="eventList" class="timeline compact-timeline"></div>
+            </div>
+
+            <div id="filesTab" class="tab-panel">
+              <div class="file-layout">
+                <div id="fileList" class="file-list"></div>
+                <article class="file-preview">
+                  <div class="subhead"><h3 id="filePreviewName">选择一个文件</h3><span id="filePreviewMeta"></span></div>
+                  <pre id="filePreview">仅显示受管工作区中的文件；二进制文件可直接下载。</pre>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="truth-grid">
+        <article><span class="index">02</span><h2>像普通 Agent 一样做过什么</h2><ul id="canList"><li>正在读取真实任务记录…</li></ul></article>
+        <article><span class="index">03</span><h2>相比成熟 Agent 还缺什么</h2><ul id="cannotList"><li>正在读取限制…</li></ul></article>
+      </section>
+    </main>
+
+    <template id="seedTemplate">
+      <div class="seed-file">
+        <div><input class="seed-path" type="text" placeholder="路径，例如 input/config.json" aria-label="初始文件路径"><button class="remove-seed" type="button" aria-label="删除初始文件">×</button></div>
+        <textarea class="seed-content compact" placeholder="UTF-8 文件内容" aria-label="初始文件内容"></textarea>
+      </div>
+    </template>
+
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

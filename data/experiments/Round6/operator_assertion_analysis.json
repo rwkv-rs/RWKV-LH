@@ -1,0 +1,145 @@
+{
+  "schema_version": "rwkv-lh.round6-operator-assertion-analysis.v1",
+  "round": "Round6",
+  "cases": 90,
+  "request_events": {
+    "validation_cross_check:model_request_started": 79,
+    "validation_cross_check:model_request_returned": 79,
+    "validation_cross_check:model_protocol_parsed": 79,
+    "criterion_assertion_binding:model_request_started": 51,
+    "criterion_assertion_binding:model_request_returned": 51,
+    "criterion_assertion_binding:model_protocol_parsed": 51,
+    "validation_cross_check:model_protocol_recovered": 6
+  },
+  "contract_error_events": {
+    "criterion_assertion_binding": 46,
+    "validation_cross_check": 52
+  },
+  "phase_a_contract_errors": {
+    "assertion comparison must be exact_equals": 14,
+    "invalid expected_read_op": 8,
+    "criterion assertion intent fields must be exactly ['actual_read_op', 'comparison', 'criterion_id', 'expected_read_op', 'producer_task_id', 'subject_task_id']": 8,
+    "validation v4 top-level fields must be exactly ['criterion_assertion_intents', 'decision', 'reason', 'schema_version']": 8,
+    "replan validation must not emit criterion assertion intents": 6,
+    "invalid actual_read_op": 4,
+    "pass validation must emit exactly one intent per declared criterion": 2,
+    "criterion assertion intent fields cannot be empty": 2
+  },
+  "phase_b_contract_errors": {
+    "assertion binding fields must be exactly ['actual_arguments', 'actual_transforms', 'criterion_id', 'expected_arguments', 'expected_transforms']": 37,
+    "assertion binding count does not match intents": 2,
+    "dependency_artifact_json argument fields must be exactly ['artifact_id', 'task_id']": 2,
+    "assertion transform contract is invalid": 1,
+    "action_output_text argument fields must be exactly []": 1,
+    "action_output_text arguments must be an object": 1,
+    "dependency_artifact_text argument fields must be exactly ['artifact_id', 'task_id']": 1,
+    "workspace_text argument fields must be exactly ['path']": 1
+  },
+  "assertion_pipeline": {
+    "cases": 20,
+    "rwkv_decisions": {
+      "pass": 27,
+      "replan": 26
+    },
+    "event_shapes": {
+      "decision=replan;intents=0;binding=True;claims=0;proof=False": 26,
+      "decision=pass;intents=1;binding=False;claims=0;proof=False": 20,
+      "decision=pass;intents=1;binding=True;claims=1;proof=False": 4,
+      "decision=pass;intents=3;binding=False;claims=0;proof=False": 2,
+      "decision=pass;intents=3;binding=True;claims=3;proof=False": 1
+    },
+    "actual_read_ops": {
+      "dependency_artifact_json": 15,
+      "action_result_json_pointer": 5,
+      "workspace_json_pointer": 4,
+      "workspace_json": 3,
+      "dependency_artifact_json_pointer": 3,
+      "dependency_artifact_text": 1,
+      "action_output_text": 1,
+      "workspace_text": 1
+    },
+    "expected_read_ops": {
+      "dependency_artifact_json": 24,
+      "dependency_artifact_json_pointer": 5,
+      "dependency_artifact_text": 4
+    },
+    "claim_statuses": {
+      "rejected": 7
+    },
+    "claim_reasons": {
+      "ProofEvaluationError: proof ref is not a direct dependency": 6,
+      "ProofEvaluationError: actual and expected share the same evidence source: ['{\"selector\":{\"kind\":\"json\"},\"source\":\"path:metrics.json\"}']": 1
+    },
+    "cases_with_binding_success": [
+      "E2E-B03",
+      "E2E-B28",
+      "E2E-H09",
+      "E2E-M21",
+      "E2E-M23"
+    ],
+    "cases_with_verified_claims": [],
+    "cases_with_criterion_evidence": []
+  },
+  "external_correct_cases": [
+    {
+      "task_id": "E2E-B03",
+      "status": "blocked",
+      "assertion_events": 2,
+      "pass_intent_events": 2,
+      "binding_success_events": 1,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    },
+    {
+      "task_id": "E2E-B04",
+      "status": "blocked",
+      "assertion_events": 4,
+      "pass_intent_events": 2,
+      "binding_success_events": 0,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    },
+    {
+      "task_id": "E2E-B07",
+      "status": "blocked",
+      "assertion_events": 2,
+      "pass_intent_events": 0,
+      "binding_success_events": 0,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    },
+    {
+      "task_id": "E2E-B26",
+      "status": "blocked",
+      "assertion_events": 4,
+      "pass_intent_events": 0,
+      "binding_success_events": 0,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    },
+    {
+      "task_id": "E2E-B29",
+      "status": "blocked",
+      "assertion_events": 4,
+      "pass_intent_events": 1,
+      "binding_success_events": 0,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    },
+    {
+      "task_id": "E2E-H04",
+      "status": "blocked",
+      "assertion_events": 1,
+      "pass_intent_events": 0,
+      "binding_success_events": 0,
+      "proof_pass_events": 0,
+      "criterion_evidence_count": 0
+    }
+  ],
+  "interpretation_constraints": [
+    "FP=0 is vacuous because Agent completed=0.",
+    "All operator and binding fields came from RWKV; no candidate was selected.",
+    "Binding/proof failure did not replace RWKV semantic pass with replan.",
+    "Hidden acceptance and Codex references were read only after all model requests finished."
+  ]
+}

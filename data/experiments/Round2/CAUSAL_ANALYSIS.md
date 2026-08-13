@@ -54,7 +54,19 @@
 - False positive case：E2E-B25, E2E-H02, E2E-H09, E2E-H12, E2E-M01, E2E-M04, E2E-M07, E2E-M15, E2E-M16, E2E-M17, E2E-M22, E2E-M25
 - False negative case：E2E-B14
 
-## Round2 预注册单变量
+## 本轮 observation gate 触发情况
 
-采用 `transparent_protocol_envelope_normalization`：只把完整的 `task_graph.tasks`、`function_call`、`type=function + function` 和 `function + arguments` 外壳映射为现有规范对象，同时保留归一前后 payload。不得补任务、补 criterion、补参数或改最终回答。
-criterion 缺失声明和 external false positive 属于独立问题，本轮不一起修改。
+- Prepared：0
+- Cacheable / uncacheable：0 / 0
+- 首次有效 RWKV 失败记录：0
+- 实际抑制：0
+- 只有实际抑制数可归因于不变失败观察 gate；若为 0，不得把总请求变化解释成该 gate 的收益。
+
+## 下一轮候选证据（不自动选方案）
+
+- goal_obligation_planning: 43 题；initial plan rejected before execution for missing direct claims。
+- criterion_evidence_boundary: 12 题；agent completed while external acceptance failed。
+- goal_criterion_capacity: 9 题；goal proposal exceeded the fixed five-criterion contract。
+- transparent_protocol_envelope_normalization: 4 题；complete task/function objects remained under known wire envelopes。
+
+下一轮单变量必须另行预注册；本分析器不利用隐藏验收或标准答案自动选择结构。

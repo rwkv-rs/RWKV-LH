@@ -47,5 +47,9 @@ Round1 的 90 题全量因果分析显示：
 - 因果链完整：90/90；completed run 最终回答非干预：19/19。
 - 运行后门禁：离线 117/117、LH-Control 30/30。
 
-虽然 External 与 Strict 提升，但 FP 翻倍，不满足 `external 提升且 FP 不增加` 的 GitHub 回档门禁。
-Round2 因此不上传为最佳点；透明归一机制保留为候选，但下一轮必须先修复由它暴露出的完成边界。
+虽然 External 与 Strict 提升，但 FP 翻倍，不满足预注册的
+`external 提升且 FP 不增加` GitHub 回档门禁。用户在看到完整结果后明确批准 **仅 Round2**
+临时取消 FP 门禁，以保存这一真实中间检查点；提交
+`b5aa2b2d64036f41aab3ccdc20b2cbfb718e5dbe` 已上传到
+`origin/chase/g1i-tool-protocol`。这不是把 Round2 标记为满足原门禁，也不改变已登记的评价口径。
+从 Round3 起恢复 FP 不增加要求，透明归一暴露出的完成边界仍必须继续整改。

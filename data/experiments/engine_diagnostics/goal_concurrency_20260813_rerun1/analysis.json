@@ -1,0 +1,168 @@
+{
+  "schema_version": "rwkv-lh.goal-concurrency-analysis.v1",
+  "generated_at": "2026-08-12T16:53:39+00:00",
+  "source": {
+    "results": "results.json",
+    "results_sha256": "c30a65563f11aa65ed75d7c1f559c4183a8af098bbc4ea4ddba0c0f2dbd55e74",
+    "schema_version": "rwkv-lh.goal-concurrency-diagnostic.v1"
+  },
+  "integrity": {
+    "durable_files": 367,
+    "case_results_checked": 120,
+    "case_traces_checked": 120,
+    "errors": [],
+    "passed": true
+  },
+  "conditions": [
+    {
+      "concurrency": 1,
+      "total": 30,
+      "valid_goal": 29,
+      "invalid_goal": 1,
+      "model_requests": 32,
+      "model_returns": 32,
+      "transport_failures": 0,
+      "error_counts": {
+        "ModelProtocolError: goal proposal has 8 criteria; maximum is 5": 1
+      },
+      "duration_ms": 141266.737
+    },
+    {
+      "concurrency": 2,
+      "total": 30,
+      "valid_goal": 29,
+      "invalid_goal": 1,
+      "model_requests": 32,
+      "model_returns": 32,
+      "transport_failures": 0,
+      "error_counts": {
+        "ModelProtocolError: goal proposal has 8 criteria; maximum is 5": 1
+      },
+      "duration_ms": 79407.158
+    },
+    {
+      "concurrency": 4,
+      "total": 30,
+      "valid_goal": 28,
+      "invalid_goal": 2,
+      "model_requests": 32,
+      "model_returns": 32,
+      "transport_failures": 0,
+      "error_counts": {
+        "ModelProtocolError: goal proposal has 8 criteria; maximum is 5": 1,
+        "ModelProtocolError: goal proposal has 9 criteria; maximum is 5": 1
+      },
+      "duration_ms": 49029.286
+    },
+    {
+      "concurrency": 8,
+      "total": 30,
+      "valid_goal": 30,
+      "invalid_goal": 0,
+      "model_requests": 30,
+      "model_returns": 30,
+      "transport_failures": 0,
+      "error_counts": {},
+      "duration_ms": 26354.805
+    }
+  ],
+  "overall": {
+    "cases": 120,
+    "valid_goal": 116,
+    "invalid_goal": 4,
+    "model_requests": 126,
+    "model_returns": 126,
+    "parsed_payloads": 126,
+    "protocol_parse_errors": 0,
+    "transport_failures": 0,
+    "finish_reason_counts": {
+      "stop": 126
+    },
+    "error_counts": {
+      "ModelProtocolError: goal proposal has 8 criteria; maximum is 5": 3,
+      "ModelProtocolError: goal proposal has 9 criteria; maximum is 5": 1
+    },
+    "first_attempt_valid": 114,
+    "retried_cases": 6,
+    "retry_recovered": 2
+  },
+  "failures": [
+    {
+      "concurrency": 1,
+      "task_id": "E2E-B12",
+      "error": "ModelProtocolError: goal proposal has 8 criteria; maximum is 5",
+      "request_count": 2,
+      "criteria_per_attempt": [
+        8,
+        8
+      ],
+      "raw_output_sha256": [
+        "0cb446706d943ea4c234540cca2f6125d5eb91fa66b65b6279cf99805c51faa6",
+        "0cb446706d943ea4c234540cca2f6125d5eb91fa66b65b6279cf99805c51faa6"
+      ]
+    },
+    {
+      "concurrency": 2,
+      "task_id": "E2E-B12",
+      "error": "ModelProtocolError: goal proposal has 8 criteria; maximum is 5",
+      "request_count": 2,
+      "criteria_per_attempt": [
+        8,
+        8
+      ],
+      "raw_output_sha256": [
+        "31cbb4b7e554b24e9b0d16782ad26995c0f72e15905709269f8f707a99e47f6e",
+        "31cbb4b7e554b24e9b0d16782ad26995c0f72e15905709269f8f707a99e47f6e"
+      ]
+    },
+    {
+      "concurrency": 4,
+      "task_id": "E2E-B09",
+      "error": "ModelProtocolError: goal proposal has 9 criteria; maximum is 5",
+      "request_count": 2,
+      "criteria_per_attempt": [
+        9,
+        9
+      ],
+      "raw_output_sha256": [
+        "62b6496fa8b841c559cfd9fcca54ca1c74ca0dbffa525c247e06bab51a212746",
+        "62b6496fa8b841c559cfd9fcca54ca1c74ca0dbffa525c247e06bab51a212746"
+      ]
+    },
+    {
+      "concurrency": 4,
+      "task_id": "E2E-B12",
+      "error": "ModelProtocolError: goal proposal has 8 criteria; maximum is 5",
+      "request_count": 2,
+      "criteria_per_attempt": [
+        8,
+        8
+      ],
+      "raw_output_sha256": [
+        "0cb446706d943ea4c234540cca2f6125d5eb91fa66b65b6279cf99805c51faa6",
+        "0cb446706d943ea4c234540cca2f6125d5eb91fa66b65b6279cf99805c51faa6"
+      ]
+    }
+  ],
+  "stochasticity": {
+    "tasks_with_byte_identical_first_raw_output_at_all_four_levels": 9,
+    "task_ids": [
+      "E2E-B01",
+      "E2E-B03",
+      "E2E-B08",
+      "E2E-B15",
+      "E2E-B17",
+      "E2E-B20",
+      "E2E-B24",
+      "E2E-B25",
+      "E2E-B26"
+    ],
+    "note": "Differences are expected at temperature 0.03 and are not selected or rescored."
+  },
+  "conclusion": {
+    "concurrency_degradation_observed": false,
+    "evidence": "Concurrency 8 produced 30/30 valid Goals, all 30 requests returned and parsed, and no transport failure occurred. Validity did not decrease monotonically with concurrency.",
+    "remaining_model_issue": "Four condition-cases failed the semantic Goal contract because RWKV repeated 8 or 9 success criteria after correction; no failure was malformed or incomplete JSON.",
+    "next_step": "Run a fresh unchanged-Round12 E2E-90 control on the restarted endpoint before changing Agent architecture. Preserve the pre-restart 2/90 run as an engine-instance failure sample."
+  }
+}

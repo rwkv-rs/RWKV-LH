@@ -1,0 +1,134 @@
+{
+  "schema_version": "rwkv-lh.round19-prestandard-synthesis.v1",
+  "generated_at": "2026-08-13T00:16:36.035058+00:00",
+  "boundary": "Generated after the frozen E2E-90 run and before reference-answer scoring. Inputs are limited to lifecycle/protocol/action/obligation/witness/proof/state analysis artifacts. No external_passed, passed, verifier observation, final answer, reference answer, or standard answer is read.",
+  "source_hashes": {
+    "results_json": "cf5afdbdaee32761e67c6311c227bea5fb097bcde386e23f771911b6c94c29c9",
+    "progressive_witness_analysis": "8053c1e43eb35ded19f952148be22d878ae517853dde5ab2f1a2b6c98e84ae2b",
+    "backward_causal_comparison": "c08cc661268714979c179c45db966f1c57b2f0746e8898dbd0aea21eea5bf91c",
+    "round18_obligation_analysis": "fbf556ef5e82ce96e91503247b7ab73070d6c3d008e4493561a1f0cac623ca2b",
+    "round19_obligation_analysis": "975356960c3537e2565c5875488fdb9d320e79c2164c099680048ea85a01514a"
+  },
+  "round19_terminal": {
+    "status_counts": {
+      "blocked": 73,
+      "interrupted": 8,
+      "not_created": 9
+    },
+    "terminal_cause_counts": {
+      "action_argument_contract": 15,
+      "action_choice_contract": 1,
+      "action_recovery_budget_exhausted": 15,
+      "goal_parse_contract": 9,
+      "obligation_replan_budget_exhausted": 28,
+      "obligation_replan_contract": 10,
+      "planning_contract": 4,
+      "recovery_analysis_contract": 3,
+      "run_interrupted_other": 1,
+      "unhandled_priority_type": 4
+    }
+  },
+  "round18_to_round19": {
+    "stage_reach_delta": {
+      "action_returned": -1,
+      "attempt_started": -1,
+      "criterion_assertions_evaluated": 4,
+      "criterion_evidence_persisted": -1,
+      "goal_obligation_capsule_prepared": -3,
+      "goal_obligation_replan_started": -3,
+      "goal_parsed": -2,
+      "plan_saved": -2,
+      "run_completed": -1,
+      "run_created": -2,
+      "task_completed": -2,
+      "witness_binding_evaluated": 4,
+      "witness_catalog_prepared": 1,
+      "witness_intent_precommit_started": 0,
+      "witness_intents_precommitted": 0,
+      "witness_selection_compiled": 1,
+      "witness_selection_started": -1,
+      "witness_source_catalog_prepared": -1
+    },
+    "reported_total_delta": {
+      "attempt_count": 15,
+      "model_requests": 70,
+      "replan_count": 0,
+      "task_count": -22
+    },
+    "obligation_delta": {
+      "saved_cases": -1,
+      "saved_replans": 10,
+      "appended_tasks": 30,
+      "duplicate_task_instances": 43,
+      "cases_with_duplicate_task_semantics": 6,
+      "repeated_semantic_proposals": -2,
+      "cases_with_repeated_semantic_proposals": -1,
+      "cases_with_persisted_evidence": -1
+    },
+    "post_first_replan_amplification_delta": {
+      "actions_returned": 31,
+      "events": 616,
+      "model_requests": 96,
+      "proof_pass_events": -2,
+      "selection_starts": 16,
+      "tasks_completed": 13
+    }
+  },
+  "provenance_rule": {
+    "rejection_events": 49,
+    "rejection_case_count": 8,
+    "rejection_cases": [
+      {
+        "case_id": "E2E-B01",
+        "events": 6
+      },
+      {
+        "case_id": "E2E-B17",
+        "events": 19
+      },
+      {
+        "case_id": "E2E-B18",
+        "events": 6
+      },
+      {
+        "case_id": "E2E-B25",
+        "events": 1
+      },
+      {
+        "case_id": "E2E-LH02",
+        "events": 3
+      },
+      {
+        "case_id": "E2E-M05",
+        "events": 5
+      },
+      {
+        "case_id": "E2E-M15",
+        "events": 3
+      },
+      {
+        "case_id": "E2E-M25",
+        "events": 6
+      }
+    ],
+    "unsafe_model_written_same_target_proof_pass_assertions": 0,
+    "allowed_proof_pass_assertions": 11,
+    "allowed_proof_pass_lineage_counts": {
+      "read_only_same_workspace_target_snapshot": 11
+    },
+    "evidence_persisted_case_count": 5,
+    "completed_case_count": 0
+  },
+  "blind_causal_conclusion": {
+    "safety_effect": "The pre-registered risk class was absent from proof-pass assertions while read-only same-target snapshots remained eligible.",
+    "amplification_effect": "The same provenance rejection was retried 49 times across 8 cases. The local revision/replan path did not reliably change the observation or expected-source lineage, so a narrow safety rejection became repeated model work and obligation growth rather than producer correction.",
+    "system_chain": [
+      "RWKV selects and executes producer actions, including workspace mutation.",
+      "RWKV later binds an expected source that can descend from that mutation.",
+      "The proof engine correctly rejects model-written same-target circular provenance.",
+      "Local witness revision often selects the same semantic lineage again.",
+      "Obligation replan appends semantically duplicated work until budget exhaustion."
+    ],
+    "next_hypothesis_not_implemented": "For deterministic workspace proofs only, cache an observation/proof-failure digest. If evidence, verifier, criterion, and failure fingerprint are unchanged, consume recovery budget without rerunning the same proof/RWKV cross-check and route recovery toward producer correction. External or time-varying observations must remain uncached."
+  }
+}

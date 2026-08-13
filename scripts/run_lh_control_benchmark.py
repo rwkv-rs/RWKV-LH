@@ -18,7 +18,12 @@ from typing import Any, Callable
 from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.memory import MemoryBudgets, WorkingMemoryBuilder
-from rwkv_lh.model import LongHorizonModel, ModelInvoker, ReplanProposal
+from rwkv_lh.model import (
+    CrossValidationDecision,
+    LongHorizonModel,
+    ModelInvoker,
+    ReplanProposal,
+)
 from rwkv_lh.schema import (
     ArtifactRecord,
     Attempt,
@@ -66,7 +71,58 @@ class CaseExecution:
     extra: dict[str, Any] | None = None
 
 
-class FixtureReplanModel:
+def fixture_proof_decision(
+    state: RunState,
+    task: TaskNode,
+    action_result: dict[str, Any] | None,
+) -> CrossValidationDecision:
+    output = str((action_result or {}).get("output") or "")
+    return CrossValidationDecision(
+        True,
+        "fixture semantic pass",
+        [
+            {
+                "criterion_id": criterion_id,
+                "subject_task_id": task.subject_task_id or task.task_id,
+                "producer_task_id": task.task_id,
+                "comparison": "exact_equals",
+                "actual": {
+                    "read_op": "action_output_text",
+                    "arguments": {},
+                    "transforms": [],
+                },
+                "expected": {
+                    "read_op": "goal_literal",
+                    "arguments": {
+                        "goal_quote": state.goal.original_request,
+                        "value": output,
+                    },
+                    "transforms": [],
+                },
+            }
+            for criterion_id in task.satisfies_criteria
+        ],
+    )
+
+
+class FixtureProofModel:
+    def cross_validate(
+        self,
+        state,
+        task,
+        context,
+        persist,
+        *,
+        action_result=None,
+        validation_results=None,
+    ):
+        return fixture_proof_decision(state, task, action_result)
+
+    def final_answer(self, state, context, persist):
+        return "verified fixture final"
+
+
+class FixtureReplanModel(FixtureProofModel):
     def __init__(self, factory: Callable[[RunState, TaskNode], ReplanProposal], final: str = "verified fixture final"):
         self.factory = factory
         self.final = final
@@ -203,7 +259,7 @@ def run_graph(
     state = persist_graph(context, tasks)
     result = LongHorizonController(
         context.store,
-        model=model,
+        model=model or FixtureProofModel(),
         max_transitions=max_transitions,
     ).run(state.run_id)
     return result.state, result.final_output
@@ -402,10 +458,93 @@ def case_m03(context: CaseContext) -> CaseExecution:
 
 def case_m04(context: CaseContext) -> CaseExecution:
     (context.workspace / "source.txt").write_text("header\nVersion 8 theme is Ocean Renewal.\nfooter\n", encoding="utf-8")
-    client = SequenceClient([
-        '"schema_version":"long-horizon.validation.v1","decision":"pass","reason":"span directly supports the fact"}',
-        ">Evidence span was bound and cross-validated.",
-    ])
+
+    class WitnessFixtureClient:
+        def __init__(self):
+            self.calls: list[dict[str, Any]] = []
+
+        @staticmethod
+        def prompt_json(prompt: str, marker: str) -> Any:
+            suffix = prompt.split(marker, 1)[1].lstrip()
+            value, _ = json.JSONDecoder().raw_decode(suffix)
+            return value
+
+        def text_completion(self, prompt, max_tokens=768, stop=None):
+            self.calls.append(
+                {
+                    "sampling": asdict(get_request_sampling()),
+                    "prompt": prompt,
+                    "max_tokens": max_tokens,
+                }
+            )
+            if "long-horizon.witness-mode.v1" in prompt:
+                output = json.dumps(
+                    {
+                        "schema_version": "long-horizon.witness-mode.v1",
+                        "decision": "goal_literal",
+                    },
+                    ensure_ascii=False,
+                )
+            elif "COMPLETE RAW SOURCE CATALOG:" in prompt:
+                sources = self.prompt_json(
+                    prompt, "COMPLETE RAW SOURCE CATALOG:\n"
+                )
+                actual = next(
+                    item
+                    for item in sources
+                    if item["source_kind"] == "action_output"
+                    and "actual" in item["eligible_sides"]
+                )
+                output = json.dumps(
+                    {
+                        "schema_version": "long-horizon.witness-binding.v1",
+                        "decision": "pass",
+                        "reason": "span directly supports the fact",
+                        "witness_selections": [
+                            {
+                                "criterion_id": "GC1",
+                                "actual_source_handle_id": actual["source_handle_id"],
+                                "expected_goal_quote": "RWKV",
+                                "expected_goal_value": "Version 8 theme is Ocean Renewal.",
+                                "note": "bind action output to the requested release fact",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            elif "SELECTED-SOURCE DERIVED HANDLE VARIANTS:" in prompt:
+                view = self.prompt_json(
+                    prompt, "SELECTED-SOURCE DERIVED HANDLE VARIANTS:\n"
+                )
+                item = view[0]
+
+                def identity(groups):
+                    return next(
+                        variant["handle_id"]
+                        for group in groups
+                        for variant in group["variants"]
+                        if variant["transforms"] == []
+                    )
+
+                output = json.dumps(
+                    {
+                        "schema_version": "long-horizon.witness-handle-binding.v1",
+                        "witness_bindings": [
+                            {
+                                "intent_id": "WI-T1-GC1",
+                                "criterion_id": "GC1",
+                                "actual_handle_id": identity(item["actual_source_groups"]),
+                                "expected_handle_id": identity(item["expected_source_groups"]),
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            else:
+                output = ">Evidence span was bound and cross-validated."
+            return type("Response", (), {"content": output})()
+
+    client = WitnessFixtureClient()
     model = LongHorizonModel(ModelInvoker(client=client), action_contract="{}")
     evidence_task = task(
         "T1", "bind exact source span", "bind_evidence",
@@ -414,7 +553,15 @@ def case_m04(context: CaseContext) -> CaseExecution:
     )
     state, final = run_graph(context, [evidence_task], model=model)
     memory = state.memory_index.get("M-T1-A1")
-    passed = state.status == RunStatus.COMPLETED and bool(memory and memory.evidence_refs) and any(item.request_type == "validation_cross_check" for item in state.temp_decisions)
+    request_types = {item.request_type for item in state.temp_decisions}
+    passed = (
+        state.status == RunStatus.COMPLETED
+        and bool(memory and memory.evidence_refs)
+        and {
+            "witness_selection",
+            "witness_handle_binding",
+        }.issubset(request_types)
+    )
     return execution(passed, state.status.value, {"evidence_refs": memory.evidence_refs if memory else [], "temperatures": [asdict(item) for item in state.temp_decisions], "final": final}, state, model_calls=client.calls)
 
 
@@ -442,7 +589,10 @@ def case_m05(context: CaseContext) -> CaseExecution:
     (context.workspace / "input.txt").write_text("read me", encoding="utf-8")
     interrupted = task("T1", "resume read-only task", "read_file", {"path": "input.txt"}, [ValidationSpec("action_succeeded", {})])
     state = interrupted_state(context, interrupted)
-    result = LongHorizonController(context.store).resume(state.run_id).state
+    result = LongHorizonController(
+        context.store,
+        model=FixtureProofModel(),
+    ).resume(state.run_id).state
     statuses = [result.attempts[item].status.value for item in result.tasks["T1"].attempt_ids]
     passed = result.status == RunStatus.COMPLETED and statuses == ["interrupted", "succeeded"]
     return execution(passed, result.status.value, {"attempt_statuses": statuses}, result)
@@ -514,7 +664,18 @@ def case_m10(context: CaseContext) -> CaseExecution:
         store.save(state, event_type="plan_saved")
         contexts.append(local)
     results: dict[str, RunState] = {}
-    threads = [threading.Thread(target=lambda item=local: results.__setitem__(item.run_id, LongHorizonController(store).run(item.run_id).state)) for local in contexts]
+    threads = [
+        threading.Thread(
+            target=lambda item=local: results.__setitem__(
+                item.run_id,
+                LongHorizonController(
+                    store,
+                    model=FixtureProofModel(),
+                ).run(item.run_id).state,
+            )
+        )
+        for local in contexts
+    ]
     for worker in threads:
         worker.start()
     for worker in threads:
@@ -527,7 +688,10 @@ def case_h01(context: CaseContext) -> CaseExecution:
     interrupted = task("T1", "recover completed write", "write_file", {"path": "done.txt", "content": "single-write"}, [ValidationSpec("file_contains", {"path": "done.txt", "text": "single-write"})])
     state = interrupted_state(context, interrupted)
     ActionHarness().execute(interrupted.action, state.goal)
-    resumed = LongHorizonController(context.store).resume(state.run_id).state
+    resumed = LongHorizonController(
+        context.store,
+        model=FixtureProofModel(),
+    ).resume(state.run_id).state
     passed = resumed.status == RunStatus.COMPLETED and len(resumed.tasks["T1"].attempt_ids) == 1 and (context.workspace / "done.txt").read_text() == "single-write"
     return execution(passed, resumed.status.value, {"attempts": resumed.tasks["T1"].attempt_ids, "content": (context.workspace / "done.txt").read_text()}, resumed)
 
@@ -665,9 +829,16 @@ def case_h09(context: CaseContext) -> CaseExecution:
         dependencies = [f"T{index - 1}"] if index > 1 else []
         tasks.append(task(f"T{index}", f"chain node {index}", "write_file", {"path": f"node-{index}.txt", "content": str(index)}, [ValidationSpec("file_contains", {"path": f"node-{index}.txt", "text": str(index)})], dependencies=dependencies))
     state = persist_graph(context, tasks)
-    interrupted = LongHorizonController(context.store, max_transitions=11).run(state.run_id).state
+    interrupted = LongHorizonController(
+        context.store,
+        model=FixtureProofModel(),
+        max_transitions=11,
+    ).run(state.run_id).state
     completed_before = {task_id for task_id, node in interrupted.tasks.items() if node.status == TaskStatus.COMPLETED}
-    resumed = LongHorizonController(context.store).resume(state.run_id).state
+    resumed = LongHorizonController(
+        context.store,
+        model=FixtureProofModel(),
+    ).resume(state.run_id).state
     attempts = {task_id: len(node.attempt_ids) for task_id, node in resumed.tasks.items()}
     passed = interrupted.status == RunStatus.INTERRUPTED and len(completed_before) == 11 and resumed.status == RunStatus.COMPLETED and all(value == 1 for value in attempts.values())
     return execution(passed, resumed.status.value, {"completed_before_resume": sorted(completed_before), "attempt_counts": attempts}, resumed)

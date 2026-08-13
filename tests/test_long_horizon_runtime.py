@@ -1,4 +1,5 @@
 import json
+import time
 import shutil
 import sys
 import tempfile
@@ -64,6 +65,88 @@ def test_harness_extension_is_explicit_and_has_recovery_metadata():
     assert harness.deterministic_verification_specs(
         TaskAction("inspect_custom", {"value": "x"})
     ) is None
+
+
+def test_failure_observation_cacheability_defaults_closed_and_is_not_model_input():
+    definition = ActionDefinition(
+        name="inspect_external",
+        description="Read a changing external source.",
+        read_only=True,
+        side_effect=False,
+        idempotent=True,
+        default_timeout=5.0,
+        argument_schema={},
+    )
+
+    def handler(goal, arguments):
+        return ActionResult("inspect_external", True, output="same visible value")
+
+    harness = ActionHarness(actions={"inspect_external": (definition, handler)})
+    assert harness.definition("read_file").failure_observation_cacheable is True
+    assert harness.definition("check_command").failure_observation_cacheable is False
+    assert harness.definition("run_command").failure_observation_cacheable is False
+    assert harness.definition("noop").failure_observation_cacheable is False
+    assert harness.definition("inspect_external").failure_observation_cacheable is False
+    assert "failure_observation_cacheable" not in harness.action_definition_contract(
+        "read_file"
+    )
+
+
+def test_workspace_observation_snapshot_is_content_exact_and_fails_closed():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        goal = make_goal(workspace)
+        path = workspace / "value.txt"
+        path.write_text("alpha", encoding="utf-8")
+        harness = ActionHarness()
+
+        first = harness.workspace_observation_snapshot(goal)
+        second = harness.workspace_observation_snapshot(goal)
+        assert first["cacheable"] is True
+        assert first["digest"] == second["digest"]
+        assert first["entries"] == second["entries"]
+
+        path.write_text("bravo", encoding="utf-8")
+        changed = harness.workspace_observation_snapshot(goal)
+        assert changed["cacheable"] is True
+        assert changed["digest"] != first["digest"]
+
+        (workspace / "linked.txt").symlink_to(path)
+        linked = harness.workspace_observation_snapshot(goal)
+        assert linked["cacheable"] is False
+        assert linked["digest"] == ""
+        assert linked["reason"].startswith("symbolic_link_not_cacheable:")
+
+
+def test_command_timeout_terminates_descendant_process_tree():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        goal = make_goal(workspace)
+        harness = ActionHarness()
+        assert harness._bubblewrap is not None
+        child = (
+            "import subprocess,sys,time; "
+            "subprocess.Popen([sys.executable,'-c',"
+            "\"import time; from pathlib import Path; time.sleep(0.8); "
+            "Path('descendant-survived.txt').write_text('leaked')\"]); "
+            "time.sleep(10)"
+        )
+
+        result = harness.execute(
+            TaskAction(
+                "check_command",
+                {"argv": [sys.executable, "-c", child], "timeout": 0.2},
+            ),
+            goal,
+        )
+
+        assert result.success is False
+        assert result.error is not None
+        assert result.error["type"] == "TimeoutExpired"
+        time.sleep(1.0)
+        assert not (workspace / "descendant-survived.txt").exists()
 
 
 @pytest.mark.parametrize(
@@ -454,7 +537,12 @@ def test_working_memory_selects_dependencies_and_excludes_noise():
     with tempfile.TemporaryDirectory() as directory:
         goal = make_goal(Path(directory) / "workspace")
         state = RunState("LH-MEMORY", goal)
-        state.tasks["T1"] = TaskNode("T1", "Prepare", "Prepare dependency")
+        state.tasks["T1"] = TaskNode(
+            "T1",
+            "Prepare",
+            "Prepare dependency",
+            output_refs=["M-DEP"],
+        )
         state.tasks["T2"] = TaskNode("T2", "Build report", "Use release evidence", dependencies=["T1"])
         state.memory_index = {
             "M-DEP": MemoryEntry("M-DEP", "result", "T1", "dependency result", "use this"),
@@ -469,7 +557,7 @@ def test_working_memory_selects_dependencies_and_excludes_noise():
             action_contract="write_file",
         )
         assert "M-DEP" in bundle.selected_memory_ids
-        assert "M-EVIDENCE" in bundle.selected_memory_ids
+        assert "M-EVIDENCE" in bundle.excluded_memory_ids
         assert "M-NOISE" in bundle.excluded_memory_ids
         assert bundle.total_tokens <= 1200
 
@@ -501,8 +589,12 @@ def test_temperature_policy_only_escalates_exploration():
     repeated_replan = policy.decide("replan", generation=4, same_failure_count=3)
     reset_replan = policy.decide("replan", generation=4, same_failure_count=3, new_evidence=True)
     failure_analysis = policy.decide("failure_analysis", same_failure_count=4)
+    obligation = policy.decide("goal_obligation_planning")
+    obligation_replan = policy.decide("goal_obligation_replan")
     assert strict.temperature == 0.02
     assert first_replan.temperature == 0.28
     assert repeated_replan.temperature == 0.52
     assert reset_replan.temperature == 0.28
     assert failure_analysis.temperature == 0.10
+    assert obligation.temperature == 0.18
+    assert obligation_replan.temperature == 0.18

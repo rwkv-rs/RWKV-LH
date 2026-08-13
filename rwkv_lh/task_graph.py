@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections import deque
 from typing import Iterable
 
-from rwkv_lh.schema import TaskNode, TaskStatus
+from rwkv_lh.schema import (
+    TaskCommitStatus,
+    TaskEffectStatus,
+    TaskNode,
+    TaskStatus,
+)
 
 
 class TaskGraphError(ValueError):
@@ -138,6 +143,9 @@ class TaskGraph:
             ]
             task.active = True
             task.status = TaskStatus.PENDING
+            task.effect_observation_status = TaskEffectStatus.PENDING
+            task.postcondition_commit_status = TaskCommitStatus.PENDING
+            task.postcondition_observation_digest = ""
             task.attempt_ids = []
             task.output_refs = []
             task.error = None

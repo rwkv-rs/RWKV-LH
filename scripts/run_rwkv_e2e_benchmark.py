@@ -573,6 +573,30 @@ def _git_output(*arguments: str) -> str:
     return result.stdout
 
 
+def _source_tree_manifest(repository: Path) -> list[dict[str, Any]]:
+    scopes = ["rwkv_lh", "scripts", "tests", "benchmarks", "pyproject.toml", "uv.lock"]
+    paths = _git_output(
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "--",
+        *scopes,
+    ).splitlines()
+    manifest = []
+    for relative in sorted(set(paths)):
+        path = repository / relative
+        if path.is_file():
+            manifest.append(
+                {
+                    "path": relative,
+                    "size_bytes": path.stat().st_size,
+                    "sha256": _file_sha256(path),
+                }
+            )
+    return manifest
+
+
 def _write_run_metadata(
     output: Path,
     *,
@@ -586,6 +610,13 @@ def _write_run_metadata(
     settings = get_runtime_settings()
     repository = Path(__file__).resolve().parents[1]
     diff = _git_output("diff", "--binary")
+    source_manifest = _source_tree_manifest(repository)
+    source_manifest_bytes = json.dumps(
+        source_manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     source_resources: list[dict[str, Any]] = []
     selected_ids = {str(task["task_id"]) for task in selected}
     for definition in SUITES.values():
@@ -675,6 +706,10 @@ def _write_run_metadata(
             "status": _git_output("status", "--short").splitlines(),
             "working_diff_sha256": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
             "runner_sha256": _file_sha256(Path(__file__)),
+            "source_tree_file_count": len(source_manifest),
+            "source_tree_manifest_sha256": hashlib.sha256(
+                source_manifest_bytes
+            ).hexdigest(),
         },
         "non_intervention": {
             "final_output": "byte-exact raw RWKV response",
@@ -684,6 +719,10 @@ def _write_run_metadata(
     }
     (output / "runtime_doctor.json").write_text(
         json.dumps(doctor, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output / "source_tree_manifest.json").write_text(
+        json.dumps(source_manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     (output / "RUN_PROTOCOL.json").write_text(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
@@ -26,6 +27,7 @@ class MemoryBudgets:
 class ContextBundle:
     goal: str
     task: str
+    schema_version: str = "rwkv-lh.execution-capsule.v1"
     dependencies: list[str] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     failure: str = ""
@@ -33,6 +35,7 @@ class ContextBundle:
     selected_memory_ids: list[str] = field(default_factory=list)
     excluded_memory_ids: list[str] = field(default_factory=list)
     token_counts: dict[str, int] = field(default_factory=dict)
+    capsule_digest: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -55,6 +58,7 @@ class ContextBundle:
 
         limit = max(1, int(total_input))
         bundle = ContextBundle(
+            schema_version=self.schema_version,
             goal=self.goal,
             task=self.task,
             dependencies=list(self.dependencies),
@@ -81,6 +85,21 @@ class ContextBundle:
         bundle.refresh_token_counts()
         return bundle
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "capsule_digest": self.capsule_digest,
+            "goal": self.goal,
+            "task": self.task,
+            "dependencies": list(self.dependencies),
+            "evidence": list(self.evidence),
+            "failure": self.failure,
+            "action_contract": self.action_contract,
+            "selected_memory_ids": list(self.selected_memory_ids),
+            "excluded_memory_ids": list(self.excluded_memory_ids),
+            "token_counts": dict(self.token_counts),
+        }
+
     def refresh_token_counts(self) -> None:
         self.token_counts = {
             "goal": get_token_count(self.goal),
@@ -91,6 +110,9 @@ class ContextBundle:
             "action_contract": get_token_count(self.action_contract),
             "total": get_token_count(self.to_prompt()),
         }
+        self.capsule_digest = hashlib.sha256(
+            self.to_prompt().encode("utf-8")
+        ).hexdigest()
 
 
 class WorkingMemoryBuilder:
@@ -106,7 +128,7 @@ class WorkingMemoryBuilder:
         max_output_tokens: int | None = None,
         prompt_overhead_tokens: int = 0,
     ) -> ContextBundle:
-        goal = self._bounded(self._goal_text(state), self.budgets.goal)
+        goal = self._bounded(self._goal_text(state, task), self.budgets.goal)
         task_text = self._bounded(self._task_text(task), self.budgets.task)
         dependency_entries = self._dependency_entries(state, task)
         explicit_refs = self._explicit_memory_refs(task)
@@ -205,8 +227,13 @@ class WorkingMemoryBuilder:
         return bundle.projected(self.budgets.total_input)
 
     @staticmethod
-    def _goal_text(state: RunState) -> str:
-        criteria = [asdict(item) for item in state.goal.success_criteria]
+    def _goal_text(state: RunState, task: TaskNode) -> str:
+        bound_ids = set(task.goal_criteria) | set(task.satisfies_criteria)
+        criteria = [
+            asdict(item)
+            for item in state.goal.success_criteria
+            if item.criterion_id in bound_ids
+        ]
         return (
             "IMMUTABLE GOAL\n"
             + json.dumps(
@@ -214,7 +241,7 @@ class WorkingMemoryBuilder:
                     "objective": state.goal.objective,
                     "original_request": state.goal.original_request,
                     "constraints": list(state.goal.constraints),
-                    "success_criteria": criteria,
+                    "task_bound_success_criteria": criteria,
                     "workspace_scope": ".",
                     "goal_digest": state.goal.digest,
                 },
@@ -274,15 +301,21 @@ class WorkingMemoryBuilder:
 
     @staticmethod
     def _dependency_entries(state: RunState, task: TaskNode) -> list[MemoryEntry]:
-        dependencies = set(task.dependencies)
-        return sorted(
-            (
-                entry
-                for entry in state.memory_index.values()
-                if entry.task_id in dependencies
-            ),
-            key=lambda entry: (task.dependencies.index(entry.task_id), entry.created_at, entry.memory_id),
-        )
+        selected: list[MemoryEntry] = []
+        seen: set[str] = set()
+        for dependency_id in task.dependencies:
+            dependency = state.tasks.get(dependency_id)
+            if dependency is None:
+                continue
+            # output_refs is replaced on every attempt, so it is the
+            # authoritative latest projection for this dependency.
+            for output_ref in dependency.output_refs:
+                entry = state.memory_index.get(output_ref)
+                if entry is None or entry.memory_id in seen:
+                    continue
+                selected.append(entry)
+                seen.add(entry.memory_id)
+        return selected
 
     @staticmethod
     def _relevant_entries(
@@ -292,33 +325,22 @@ class WorkingMemoryBuilder:
         excluded_ids: set[str],
         explicit_refs: set[str],
     ) -> list[MemoryEntry]:
-        task_terms = {
-            term.casefold()
-            for term in f"{task.title} {task.description}".replace("/", " ").split()
-            if len(term) >= 3
-        }
-
-        def score(entry: MemoryEntry) -> tuple[int, str, str]:
-            explicit = int(entry.memory_id in explicit_refs)
-            active = int(entry.task_id == task.task_id)
-            evidence = int(bool(entry.evidence_refs))
-            tag_matches = sum(
-                1 for tag in entry.tags if str(tag).casefold() in task_terms
-            )
-            return (explicit * 100 + active * 50 + evidence * 20 + tag_matches, entry.created_at, entry.memory_id)
-
-        candidates = [
-            entry
-            for entry in state.memory_index.values()
-            if entry.memory_id not in excluded_ids
-            and (
-                entry.memory_id in explicit_refs
-                or entry.task_id == task.task_id
-                or bool(entry.evidence_refs)
-                or any(str(tag).casefold() in task_terms for tag in entry.tags)
-            )
-        ]
-        return sorted(candidates, key=score, reverse=True)
+        current_refs = list(task.output_refs)
+        ordered_ids = list(dict.fromkeys([*sorted(explicit_refs), *current_refs]))
+        dependencies = set(task.dependencies)
+        selected: list[MemoryEntry] = []
+        for memory_id in ordered_ids:
+            if memory_id in excluded_ids or memory_id not in state.memory_index:
+                continue
+            entry = state.memory_index[memory_id]
+            if (
+                entry.kind == "post_action_workspace_snapshot"
+                and entry.task_id != task.task_id
+                and entry.task_id not in dependencies
+            ):
+                continue
+            selected.append(entry)
+        return selected
 
     def _pack_entries(
         self,
@@ -349,7 +371,28 @@ class WorkingMemoryBuilder:
         if task.recovery_lineage_id:
             lineage = state.recovery_states.get(task.recovery_lineage_id)
             if lineage is not None:
-                return json.dumps(asdict(lineage), ensure_ascii=False, indent=2)
+                latest = next(
+                    (
+                        dict(item)
+                        for item in reversed(lineage.decision_history)
+                        if item.get("type") in {"failure", "decision"}
+                    ),
+                    {},
+                )
+                return json.dumps(
+                    {
+                        "lineage_id": lineage.lineage_id,
+                        "root_task_id": lineage.root_task_id,
+                        "failed_task_id": lineage.failed_task_id,
+                        "subject_task_id": lineage.subject_task_id,
+                        "failure_fingerprint": lineage.failure_fingerprint,
+                        "same_failure_count": lineage.same_failure_count,
+                        "remaining_budget": lineage.remaining_budget,
+                        "latest_material_event": latest,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
         if task.error:
             return json.dumps(task.error, ensure_ascii=False, indent=2)
         for error in reversed(state.errors):

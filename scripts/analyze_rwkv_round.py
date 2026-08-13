@@ -301,6 +301,7 @@ def analyze(round_path: Path, previous_path: Path | None = None) -> dict[str, An
     causal_complete = 0
     completed_external_failure_checks: Counter[str] = Counter()
     nested_task_graph_rejections: list[str] = []
+    observation_gate_counts: Counter[str] = Counter()
 
     for result in results:
         task_id = str(result["task_id"])
@@ -334,7 +335,22 @@ def analyze(round_path: Path, previous_path: Path | None = None) -> dict[str, An
                 total_prompt_tokens += int(event.get("prompt_tokens_local") or 0)
                 total_output_tokens += get_token_count(str(event.get("raw_output") or ""))
         for event in audit.get("events") or []:
-            event_type_counts[str(event.get("type") or "unknown")] += 1
+            event_type = str(event.get("type") or "unknown")
+            event_type_counts[event_type] += 1
+            data = event.get("data") or {}
+            if event_type == "cross_check_observation_prepared":
+                observation_gate_counts["prepared"] += 1
+                observation_gate_counts[
+                    "cacheable" if bool(data.get("cacheable")) else "uncacheable"
+                ] += 1
+            elif event_type == "failed_cross_check_observation_registered":
+                observations = data.get("observations") or []
+                observation_gate_counts["registered"] += max(
+                    1,
+                    len(observations) if isinstance(observations, list) else 0,
+                )
+            elif event_type == "unchanged_observation_cross_check_suppressed":
+                observation_gate_counts["suppressed"] += 1
         state = audit.get("run_state")
         if isinstance(state, Mapping):
             for decision in state.get("temp_decisions") or []:
@@ -454,6 +470,48 @@ def analyze(round_path: Path, previous_path: Path | None = None) -> dict[str, An
             "false_positive": metrics["overall"]["false_positive"]
             - previous_summary["overall"]["false_positive"],
         }
+    goal_capacity_failures = sum(
+        count
+        for reason, count in terminal_reason_counts.items()
+        if reason.startswith("goal proposal has ") and "; maximum is " in reason
+    )
+    wrapper_failures = sum(
+        count
+        for reason, count in terminal_reason_counts.items()
+        if reason
+        in {
+            "g1i_function_envelope_rejected",
+            "g1i_function_call_envelope_rejected",
+            "g1i_typed_function_envelope_rejected",
+        }
+    )
+    candidate_evidence = [
+        {
+            "name": "criterion_evidence_boundary",
+            "affected_cases": metrics["overall"]["false_positive"],
+            "evidence": "agent completed while external acceptance failed",
+        },
+        {
+            "name": "goal_obligation_planning",
+            "affected_cases": terminal_reason_counts[
+                "plan_missing_direct_criterion_claims"
+            ],
+            "evidence": "initial plan rejected before execution for missing direct claims",
+        },
+        {
+            "name": "goal_criterion_capacity",
+            "affected_cases": goal_capacity_failures,
+            "evidence": "goal proposal exceeded the fixed five-criterion contract",
+        },
+        {
+            "name": "transparent_protocol_envelope_normalization",
+            "affected_cases": len(nested_task_graph_rejections) + wrapper_failures,
+            "evidence": "complete task/function objects remained under known wire envelopes",
+        },
+    ]
+    candidate_evidence.sort(
+        key=lambda item: (-int(item["affected_cases"]), str(item["name"]))
+    )
     return {
         "schema_version": "rwkv-lh.causal-analysis.v1",
         "round": round_path.name,
@@ -473,16 +531,7 @@ def analyze(round_path: Path, previous_path: Path | None = None) -> dict[str, An
         "transparent_format_findings": {
             "nested_task_graph_rejected_cases": sorted(nested_task_graph_rejections),
             "nested_task_graph_rejected_count": len(nested_task_graph_rejections),
-            "g1i_wrapper_rejected_count": sum(
-                count
-                for reason, count in terminal_reason_counts.items()
-                if reason
-                in {
-                    "g1i_function_envelope_rejected",
-                    "g1i_function_call_envelope_rejected",
-                    "g1i_typed_function_envelope_rejected",
-                }
-            ),
+            "g1i_wrapper_rejected_count": wrapper_failures,
             "interpretation": (
                 "Observed model payloads contain complete task/function objects under known wire-format "
                 "envelopes; any future normalization must preserve the parsed semantic payload exactly."
@@ -500,36 +549,26 @@ def analyze(round_path: Path, previous_path: Path | None = None) -> dict[str, An
         "false_negative_case_ids": sorted(
             item["task_id"] for item in cases if item["false_negative"]
         ),
+        "observation_gate": {
+            "prepared": observation_gate_counts["prepared"],
+            "cacheable": observation_gate_counts["cacheable"],
+            "uncacheable": observation_gate_counts["uncacheable"],
+            "registered_failed_rwkv_observations": observation_gate_counts[
+                "registered"
+            ],
+            "suppressed_cross_checks": observation_gate_counts["suppressed"],
+            "causal_interpretation": (
+                "suppressed_cross_checks is the only count attributable to failed-equivalent-observation "
+                "reuse; request-count changes must not be attributed to the gate when it is zero"
+            ),
+        },
         "next_ablation": {
-            "name": "transparent_protocol_envelope_normalization",
-            "evidence": {
-                "nested_task_graph_cases": len(nested_task_graph_rejections),
-                "g1i_wrapper_cases": sum(
-                    count
-                    for reason, count in terminal_reason_counts.items()
-                    if reason
-                    in {
-                        "g1i_function_envelope_rejected",
-                        "g1i_function_call_envelope_rejected",
-                        "g1i_typed_function_envelope_rejected",
-                    }
-                ),
-            },
-            "allowed_change": (
-                "Map known complete wire envelopes to the existing canonical payload while retaining and "
-                "auditing both input and normalized objects byte-for-byte."
+            "name": "not_selected_by_post_run_analyzer",
+            "reason": (
+                "The analyzer reports comparable causal evidence only. The next single variable must be "
+                "pre-registered separately and cannot be selected by hidden acceptance or reference answers."
             ),
-            "forbidden_change": (
-                "Do not infer missing tasks, criterion claims, action values, artifact content, or final answers."
-            ),
-            "deferred_independent_failures": {
-                "plan_missing_direct_criterion_claims": terminal_reason_counts[
-                    "plan_missing_direct_criterion_claims"
-                ],
-                "agent_completed_external_failed": terminal_reason_counts[
-                    "agent_completed_external_failed"
-                ],
-            },
+            "candidate_evidence": candidate_evidence,
         },
         "event_type_counts": dict(event_type_counts.most_common()),
         "request_type_counts": dict(request_type_counts.most_common()),
@@ -606,12 +645,27 @@ def _write_markdown(path: Path, analysis: Mapping[str, Any]) -> None:
             f"- False positive case：{', '.join(analysis['false_positive_case_ids'])}",
             f"- False negative case：{', '.join(analysis['false_negative_case_ids'])}",
             "",
-            "## Round2 预注册单变量",
+            "## 本轮 observation gate 触发情况",
             "",
-            "采用 `transparent_protocol_envelope_normalization`：只把完整的 `task_graph.tasks`、"
-            "`function_call`、`type=function + function` 和 `function + arguments` 外壳映射为现有规范对象，"
-            "同时保留归一前后 payload。不得补任务、补 criterion、补参数或改最终回答。",
-            "criterion 缺失声明和 external false positive 属于独立问题，本轮不一起修改。",
+            f"- Prepared：{analysis['observation_gate']['prepared']}",
+            f"- Cacheable / uncacheable：{analysis['observation_gate']['cacheable']} / "
+            f"{analysis['observation_gate']['uncacheable']}",
+            f"- 首次有效 RWKV 失败记录：{analysis['observation_gate']['registered_failed_rwkv_observations']}",
+            f"- 实际抑制：{analysis['observation_gate']['suppressed_cross_checks']}",
+            "- 只有实际抑制数可归因于不变失败观察 gate；若为 0，不得把总请求变化解释成该 gate 的收益。",
+            "",
+            "## 下一轮候选证据（不自动选方案）",
+            "",
+        ]
+    )
+    for item in analysis["next_ablation"]["candidate_evidence"]:
+        lines.append(
+            f"- {item['name']}: {item['affected_cases']} 题；{item['evidence']}。"
+        )
+    lines.extend(
+        [
+            "",
+            "下一轮单变量必须另行预注册；本分析器不利用隐藏验收或标准答案自动选择结构。",
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

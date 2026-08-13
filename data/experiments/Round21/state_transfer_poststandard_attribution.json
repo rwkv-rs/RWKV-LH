@@ -1,0 +1,866 @@
+{
+  "schema_version": "rwkv-lh.round21-state-transfer-poststandard-attribution.v1",
+  "generated_at": "2026-08-13T02:31:15.641841+00:00",
+  "boundary": "Post-run join only. Frozen state-transfer chains were generated before standard answer scoring. This report adds external acceptance and failed-check observations after all 90 cases terminated; it never participates in generation, action choice, proof, completion, or final-output delivery.",
+  "source_hashes": {
+    "state_transfer_analysis": "8c49bb0df475219aaad81c85d118b24d4d537bd7e098d1bd9a3e1ce164e2d66d",
+    "poststandard_stage_attribution": "8bc452c72afb1cc15f5b7c3d81baaa4e760599a911361d1432c60aeca5648a86",
+    "round20_causal_analysis": "6b41c48e1d751b94979be6a579a61755656c9628107bff4f7790b4d0a555f9f6",
+    "round21_causal_analysis": "fe47eb927135d2aad21e00618d54f6454a51d3566ebe4ceac77c68cd00b89b14"
+  },
+  "summary": {
+    "round20_external": 17,
+    "round21_external": 20,
+    "round20_to_round21_gained_cases": [
+      "E2E-B16",
+      "E2E-B17",
+      "E2E-B22",
+      "E2E-B26",
+      "E2E-B28",
+      "E2E-M11",
+      "E2E-M12"
+    ],
+    "round20_to_round21_lost_cases": [
+      "E2E-B06",
+      "E2E-B12",
+      "E2E-B29",
+      "E2E-H09"
+    ],
+    "state_transfer_cases": 14,
+    "state_transfer_external_correct": [
+      "E2E-B28"
+    ],
+    "state_transfer_external_wrong": [
+      "E2E-B02",
+      "E2E-B06",
+      "E2E-B18",
+      "E2E-H08",
+      "E2E-H14",
+      "E2E-H16",
+      "E2E-M15",
+      "E2E-M19",
+      "E2E-M22",
+      "E2E-M26",
+      "E2E-M27",
+      "E2E-M28",
+      "E2E-M29"
+    ],
+    "state_transfer_wrong_case_count": 13,
+    "correct_target_overwritten_with_opaque_transfer": [
+      "E2E-B02",
+      "E2E-B18",
+      "E2E-M28"
+    ]
+  },
+  "inference": "Opaque dependency transfer is not sufficient by itself to prove causation, but its scope is material: 13 of 14 affected cases ended externally wrong, and three have a directly observable exact-target write followed by a divergent same-target write. For those three cases the chain is: RWKV produced a correct target; the architecture stored only a success acknowledgement in dependency memory; a dependent RWKV task wrote the same target again without receiving the prior value; the final target diverged. The later wrong value still originates from RWKV; the architecture amplifies it by discarding already-correct observable state.",
+  "rows": [
+    {
+      "case_id": "E2E-B02",
+      "difficulty_group": "basic",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-B02",
+          "prior_task_id": "T2",
+          "later_task_id": "T3",
+          "path": "report.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": true,
+      "first_divergent_target_mutation": {
+        "event_id": 39,
+        "task_id": "T3",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "report.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"doubled_count\": 4, \"project\": \"project\"}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "report.json"
+          ],
+          "actual": "{\"doubled_count\": 4, \"project\": \"project\"}",
+          "target": "{\"doubled_count\": 14, \"project\": \"Orion\"}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "unhandled_priority_type"
+    },
+    {
+      "case_id": "E2E-B06",
+      "difficulty_group": "basic",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 3,
+      "chains": [
+        {
+          "case_id": "E2E-B06",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "combined.txt",
+          "prior_action_type": "write_file",
+          "later_action_type": "write_file",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "file written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-B06",
+          "prior_task_id": "T4",
+          "later_task_id": "T5",
+          "path": "combined.txt",
+          "prior_action_type": "write_file",
+          "later_action_type": "write_file",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "file written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-B06",
+          "prior_task_id": "T5",
+          "later_task_id": "T6",
+          "path": "combined.txt",
+          "prior_action_type": "write_file",
+          "later_action_type": "append_file",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "file written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": null,
+      "failed_checks": [
+        {
+          "kind": "file_content",
+          "paths": [
+            "combined.txt"
+          ],
+          "actual": "---",
+          "target": "alpha beta --- gamma delta",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-B18",
+      "difficulty_group": "basic",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 2,
+      "chains": [
+        {
+          "case_id": "E2E-B18",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "total.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-B18",
+          "prior_task_id": "T4",
+          "later_task_id": "T5",
+          "path": "total.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": true,
+      "first_divergent_target_mutation": {
+        "event_id": 70,
+        "task_id": "T4",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "total.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"discount\": 10.0, \"subtotal\": 100.0, \"total\": 90.0}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "total.json"
+          ],
+          "actual": "{\"discount\": 10.0, \"subtotal\": 100.0, \"total\": 90.0}",
+          "target": "{\"discount\": 12.0, \"subtotal\": 80.0, \"total\": 68.0}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-B28",
+      "difficulty_group": "basic",
+      "external_passed": true,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-B28",
+          "prior_task_id": "T2",
+          "later_task_id": "T6",
+          "path": "metrics.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": null,
+      "failed_checks": [],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-H08",
+      "difficulty_group": "hard",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-H08",
+          "prior_task_id": "T3",
+          "later_task_id": "T5",
+          "path": "ledger.json",
+          "prior_action_type": "write_file",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "file written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 66,
+        "task_id": "T5",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "ledger.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"count\": 3, \"events\": [{\"count\": 1, \"id\": \"evt-3\"}, {\"count\": 2, \"id\": \"evt-1\"}, {\"count\": 1, \"id\": \"evt-2\"}]}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "ledger.json"
+          ],
+          "actual": "{\"count\": 3, \"events\": [{\"count\": 1, \"id\": \"evt-3\"}, {\"count\": 2, \"id\": \"evt-1\"}, {\"count\": 1, \"id\": \"evt-2\"}]}",
+          "target": "{\"count\": 3, \"event_ids\": [\"evt-3\", \"evt-1\", \"evt-2\"]}",
+          "error": ""
+        },
+        {
+          "kind": "completed_resume_is_noop",
+          "paths": [],
+          "actual": "",
+          "target": "",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-H14",
+      "difficulty_group": "hard",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 2,
+      "chains": [
+        {
+          "case_id": "E2E-H14",
+          "prior_task_id": "T4",
+          "later_task_id": "T5",
+          "path": "catalog/global_index.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-H14",
+          "prior_task_id": "T11",
+          "later_task_id": "T12",
+          "path": "catalog/global_index.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 50,
+        "task_id": "T4",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "catalog/global_index.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"datasets\": [{\"depends_on\": [], \"files\": [\"data/n1.json\", \"data/n2.json\"], \"name\": \"north\", \"record_count\": 2, \"total_records\": 2}, {\"depends_on\": [], \"files\": [\"data/s1.json\"], \"name\": \"south\", \"record_count\": 1, \"total_records\": 1}, {\"depends_on\": [], \"files\": [\"data/e1.json\", \"data/e2.json\"], \"name\": \"east\", \"record_count\": 2, \"total_records\": 2}], \"total_records\": 5}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "catalog/global_index.json"
+          ],
+          "actual": "{\"datasets\": [{\"depends_on\": [], \"files\": [\"catalog/regions/east/data/e1.json\", \"catalog/regions/east/data/e2.json\"], \"manifest\": \"catalog/regions/east/manifest.json\", \"name\": \"east\", \"record_count\": 2, \"total_records\": 2}, {\"depends_on\": [], \"files\": [\"catalog/regions/north/data/n1.json\", \"catalog/regions/north/data/n2.json\"], \"manifest\": \"catalog/regions/north/manifest.json\", \"name\": \"north\", \"record_count\": 2, \"total_records\": 2}, {\"depends_on\": [], \"files\": [\"catalog/regions/south/data/s1.json\"], \"manifest\": \"catalog/regions/south/manifest.json\", \"name\": \"south\", \"record_count\": 1, \"total_records\": 1}], \"total_records\": 5}",
+          "target": "{\"datasets\": [{\"depends_on\": [\"north\", \"south\"], \"files\": [\"regions/east/deep/data/e1.json\", \"regions/east/deep/data/e2.json\"], \"manifest\": \"regions/east/deep/manifest.json\", \"name\": \"east\", \"record_count\": 4}, {\"depends_on\": [], \"files\": [\"regions/north/data/n1.json\", \"regions/north/data/n2.json\"], \"manifest\": \"regions/north/manifest.json\", \"name\": \"north\", \"record_count\": 3}, {\"depends_on\": [\"north\"], \"files\": [\"regions/south/data/s1.json\"], \"manifest\": \"regions/south/manifest.json\", \"name\": \"south\", \"record_count\": 3}], \"total_records\": 10}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-H16",
+      "difficulty_group": "hard",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-H16",
+          "prior_task_id": "T7",
+          "later_task_id": "T8",
+          "path": "compensation.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 62,
+        "task_id": "T5",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "configs/capacity.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"memory\": 40, \"workers\": 4}"
+      },
+      "failed_checks": [
+        {
+          "kind": "command_exit",
+          "paths": [],
+          "actual": "",
+          "target": "",
+          "error": ""
+        },
+        {
+          "kind": "json_equals",
+          "paths": [
+            "configs/capacity.json"
+          ],
+          "actual": "{\"memory\": 40, \"workers\": 4}",
+          "target": "{\"memory\": 40, \"workers\": 8}",
+          "error": ""
+        },
+        {
+          "kind": "json_equals",
+          "paths": [
+            "configs/runtime.json"
+          ],
+          "actual": "{\"mode\": \"safe\", \"timeout\": 30}",
+          "target": "{\"mode\": \"fast\", \"timeout\": 30}",
+          "error": ""
+        },
+        {
+          "kind": "json_equals",
+          "paths": [
+            "compensation.json"
+          ],
+          "actual": "{\"kept\": [\"capacity\", \"runtime\"], \"rolled_back\": [\"timeout\"]}",
+          "target": "{\"kept\": [\"capacity.workers\", \"runtime.mode\"], \"rolled_back\": [\"runtime.timeout\", \"capacity.memory\"]}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "action_argument_contract"
+    },
+    {
+      "case_id": "E2E-M15",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-M15",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "docs/index.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 39,
+        "task_id": "T3",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "docs/index.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"files\": [{\"byte_count\": 11, \"line_count\": 2, \"path\": \"docs/a.txt\"}, {\"byte_count\": 6, \"line_count\": 1, \"path\": \"docs/nested/b.txt\"}, {\"byte_count\": 12, \"line_count\": 2, \"path\": \"docs/nested/deep/c.md\"}], \"total_bytes\": 29, \"total_files\": 3}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "docs/index.json"
+          ],
+          "actual": "{\"entries\": [{\"byte_count\": 11, \"line_count\": 1, \"path\": \"docs/a.txt\"}, {\"byte_count\": 6, \"line_count\": 1, \"path\": \"docs/nested/b.txt\"}, {\"byte_count\": 12, \"line_count\": 1, \"path\": \"docs/nested/deep/c.md\"}], \"total_bytes\": 57, \"total_files\": 4}",
+          "target": "{\"files\": [{\"byte_count\": 11, \"line_count\": 2, \"path\": \"a.txt\"}, {\"byte_count\": 6, \"line_count\": 1, \"path\": \"nested/b.txt\"}, {\"byte_count\": 12, \"line_count\": 2, \"path\": \"nested/deep/c.md\"}], \"total_bytes\": 29, \"total_files\": 3}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_contract"
+    },
+    {
+      "case_id": "E2E-M19",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-M19",
+          "prior_task_id": "T5",
+          "later_task_id": "T7",
+          "path": "access_summary.json",
+          "prior_action_type": "write_file",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "file written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 84,
+        "task_id": "T7",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "access_summary.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"error_paths\": [\"/admin\", \"/items\"], \"path_counts\": {\"/admin\": 1, \"/health\": 2, \"/items\": 3}, \"status_counts\": {\"200\": 2, \"500\": 1, \"503\": 3}, \"total_requests\": 6}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "access_summary.json"
+          ],
+          "actual": "{\"error_paths\": [\"/admin\", \"/items\"], \"path_counts\": {\"/admin\": 1, \"/health\": 2, \"/items\": 3}, \"status_counts\": {\"200\": 2, \"500\": 1, \"503\": 3}, \"total_requests\": 6}",
+          "target": "{\"error_paths\": [\"/admin\", \"/items\"], \"path_counts\": {\"/admin\": 1, \"/health\": 1, \"/items\": 4}, \"status_counts\": {\"200\": 2, \"201\": 1, \"500\": 1, \"503\": 2}, \"total_requests\": 6}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "unhandled_priority_type"
+    },
+    {
+      "case_id": "E2E-M22",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 6,
+      "chains": [
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T14",
+          "later_task_id": "T15",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T14",
+          "later_task_id": "T16",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T14",
+          "later_task_id": "T17",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T15",
+          "later_task_id": "T18",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T16",
+          "later_task_id": "T19",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M22",
+          "prior_task_id": "T19",
+          "later_task_id": "T20",
+          "path": "result.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 164,
+        "task_id": "T14",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "result.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"applied_keys\": [\"debug\", \"owner\", \"region\", \"replicas\"], \"rejected_keys\": [\"debug\", \"owner\", \"region\", \"replicas\"], \"updated_config\": {\"debug\": true, \"owner\": \"dev\", \"region\": \"cn\", \"replicas\": 4}}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "result.json"
+          ],
+          "actual": "{\"applied_keys\": [\"name\", \"age\", \"city\"], \"rejected_keys\": [\"email\", \"phone\"], \"updated_config\": {\"age\": 30, \"city\": \"New York\", \"name\": \"Alice\"}}",
+          "target": "{\"applied\": [\"region\", \"replicas\"], \"rejected\": [\"debug\", \"owner\"], \"updated_config\": {\"debug\": false, \"owner\": \"ops\", \"region\": \"cn\", \"replicas\": 4}}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-M26",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 2,
+      "chains": [
+        {
+          "case_id": "E2E-M26",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "validation.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M26",
+          "prior_task_id": "T5",
+          "later_task_id": "T6",
+          "path": "validation.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 29,
+        "task_id": "T2",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "validation.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"rejected_count\": 2, \"rejected_records\": [{\"index\": 2, \"reasons\": [\"invalid_id\", \"invalid_name\"]}, {\"index\": 3, \"reasons\": [\"invalid_status\"]}], \"valid_count\": 2, \"valid_records\": [{\"id\": 1, \"name\": \"Ada\", \"status\": \"active\"}, {\"id\": 0, \"name\": \"Bad\", \"status\": \"active\"}]}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "validation.json"
+          ],
+          "actual": "{\"records\": [{\"index\": 0, \"reasons\": [], \"status\": \"valid\"}, {\"index\": 1, \"reasons\": [], \"status\": \"valid\"}, {\"index\": 2, \"reasons\": [], \"status\": \"valid\"}, {\"index\": 3, \"reasons\": [\"invalid_id\"], \"status\": \"rejected\"}, {\"index\": 4, \"reasons\": [\"invalid_name\"], \"status\": \"rejected\"}], \"rejected_count\": 2, \"valid_count\": 3}",
+          "target": "{\"rejected\": [{\"index\": 1, \"reasons\": [\"invalid_id\"]}, {\"index\": 2, \"reasons\": [\"invalid_name\", \"invalid_status\"]}], \"rejected_count\": 2, \"valid\": [{\"id\": 1, \"name\": \"Ada\", \"status\": \"active\"}, {\"id\": 3, \"name\": \"Lin\", \"status\": \"disabled\"}], \"valid_count\": 2}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "other_model_protocol_contract"
+    },
+    {
+      "case_id": "E2E-M27",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 1,
+      "chains": [
+        {
+          "case_id": "E2E-M27",
+          "prior_task_id": "T2",
+          "later_task_id": "T6",
+          "path": "build_order.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 28,
+        "task_id": "T2",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "build_order.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"node_count\": 5, \"order\": [\"core\", \"api\", \"web\", \"docs\", \"app\"]}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "build_order.json"
+          ],
+          "actual": "{\"node_count\": 5, \"order\": [\"core\", \"api\", \"web\", \"docs\", \"app\"]}",
+          "target": "{\"node_count\": 5, \"order\": [\"core\", \"api\", \"docs\", \"web\", \"app\"]}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_budget_exhausted"
+    },
+    {
+      "case_id": "E2E-M28",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 2,
+      "chains": [
+        {
+          "case_id": "E2E-M28",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "archive_report.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M28",
+          "prior_task_id": "T4",
+          "later_task_id": "T5",
+          "path": "archive_report.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": true,
+      "first_divergent_target_mutation": {
+        "event_id": 61,
+        "task_id": "T5",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "archive_report.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"kept\": [], \"moved\": [\"2026-07-20.log\", \"2026-07-31.log\", \"2026-08-01.log\", \"2026-08-09.log\"]}"
+      },
+      "failed_checks": [
+        {
+          "kind": "directory_file_set",
+          "paths": [
+            "logs"
+          ],
+          "actual": "[\"2026-07-20.log\", \"2026-07-31.log\", \"2026-08-01.log\", \"2026-08-09.log\"]",
+          "target": "[\"2026-08-01.log\", \"2026-08-09.log\"]",
+          "error": ""
+        },
+        {
+          "kind": "directory_file_set",
+          "paths": [],
+          "actual": "",
+          "target": "",
+          "error": "FileNotFoundError: [Errno 2] No such file or directory: '/workspace/archive'"
+        },
+        {
+          "kind": "file_content",
+          "paths": [],
+          "actual": "",
+          "target": "",
+          "error": "FileNotFoundError: [Errno 2] No such file or directory: '/workspace/archive'"
+        },
+        {
+          "kind": "file_content",
+          "paths": [],
+          "actual": "",
+          "target": "",
+          "error": "FileNotFoundError: [Errno 2] No such file or directory: '/workspace/archive'"
+        },
+        {
+          "kind": "json_equals",
+          "paths": [
+            "archive_report.json"
+          ],
+          "actual": "{\"kept\": [], \"moved\": [\"2026-07-20.log\", \"2026-07-31.log\", \"2026-08-01.log\", \"2026-08-09.log\"]}",
+          "target": "{\"kept\": [\"2026-08-01.log\", \"2026-08-09.log\"], \"moved\": [\"2026-07-20.log\", \"2026-07-31.log\"]}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_contract"
+    },
+    {
+      "case_id": "E2E-M29",
+      "difficulty_group": "medium",
+      "external_passed": false,
+      "agent_completed": false,
+      "state_transfer_chain_count": 2,
+      "chains": [
+        {
+          "case_id": "E2E-M29",
+          "prior_task_id": "T3",
+          "later_task_id": "T4",
+          "path": "resolved_translations.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        },
+        {
+          "case_id": "E2E-M29",
+          "prior_task_id": "T5",
+          "later_task_id": "T6",
+          "path": "resolved_translations.json",
+          "prior_action_type": "write_json",
+          "later_action_type": "write_json",
+          "prior_is_transitive_dependency": true,
+          "dependency_memory_values": [
+            "JSON written"
+          ],
+          "dependency_memory_has_only_opaque_acknowledgement": true
+        }
+      ],
+      "correct_target_was_overwritten": false,
+      "first_divergent_target_mutation": {
+        "event_id": 39,
+        "task_id": "T5",
+        "source": "rwkv",
+        "action": "write_json",
+        "path": "resolved_translations.json",
+        "target_relation": "divergent_target_write",
+        "payload_preview": "{\"bye\": \"Goodbye\", \"cancel\": \"Cancel\", \"hello\": \"你好\", \"locale\": \"zh-CN\", \"missing_keys\": [\"cancel\", \"hello\", \"save\"], \"save\": \"保存\"}"
+      },
+      "failed_checks": [
+        {
+          "kind": "json_equals",
+          "paths": [
+            "resolved_translations.json"
+          ],
+          "actual": "{\"error\": \"Error\", \"farewell\": \"Goodbye\", \"greeting\": \"Hello\", \"locale\": \"zh-CN\", \"missing_keys\": [\"greeting\", \"farewell\"], \"welcome\": \"Welcome\"}",
+          "target": "{\"locale\": \"zh-CN\", \"missing_keys\": [\"bye\", \"cancel\"], \"translations\": {\"bye\": \"Goodbye\", \"cancel\": \"Cancel\", \"hello\": \"你好\", \"save\": \"保存\"}}",
+          "error": ""
+        }
+      ],
+      "terminal_cause": "obligation_replan_contract"
+    }
+  ]
+}
