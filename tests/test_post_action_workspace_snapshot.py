@@ -416,6 +416,31 @@ class SnapshotCompletionModel:
     def final_answer(self, state, context, persist):
         return "fixture verified completion"
 
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del state, context, persist
+        actual_sources = source_catalog["causal_actual_sources"]
+        assert actual_sources
+        return {
+            "decision": "pass",
+            "bindings": [
+                {
+                    "criterion_id": criterion_id,
+                    "actual_ref": actual_sources[0]["ref"],
+                    "expected_ref": "GOAL",
+                    "reason": "fixture provenance pass",
+                }
+                for criterion_id in criterion_ids
+            ],
+        }
+
 
 def test_snapshot_audit_event_and_state_survive_store_reload(tmp_path):
     workspace = tmp_path / "workspace"
@@ -472,3 +497,51 @@ def test_snapshot_audit_event_and_state_survive_store_reload(tmp_path):
     assert audit["reference_or_acceptance_used"] is False
     assert audit["rwkv_output_modified"] is False
     assert "content" not in audit
+    revision = loaded.artifact_revisions["answer.txt"][0]
+    assert revision.artifact_id == "T1-A1-R1"
+    assert revision.outcome_type == "success"
+    assert revision.task_commit_status == "committed"
+
+
+def test_declared_negative_outcome_is_an_observation_not_a_controller_answer(
+    tmp_path,
+):
+    goal = make_goal(tmp_path / "workspace")
+    state = RunState("ROUND25-TYPED-OUTCOME", goal)
+    task = TaskNode(
+        "T1",
+        "Observe optional config",
+        "Read config if it exists and preserve absence as an observation",
+        operation_kind="observe",
+        subject_key="workspace/config",
+        phase_key="discover",
+        effect_targets=["config.json"],
+        expected_outcomes=["success", "not_found"],
+        postcondition="The config presence or absence is observed",
+        action=TaskAction("read_json", {"path": "config.json"}),
+        completion_criteria=[
+            ValidationSpec("action_succeeded", {}),
+            ValidationSpec("file_exists", {"path": "config.json"}),
+        ],
+        attempt_ids=["T1-A1"],
+    )
+    state.tasks = {"T1": task}
+    result = ActionResult(
+        "read_json",
+        False,
+        error={"type": "FileNotFoundError", "message": "config.json"},
+    )
+
+    validation, effect_observed, task_committed = LongHorizonController(
+        LongHorizonStore(tmp_path / "state")
+    )._validate_task_result(state, task, result)
+
+    assert result.outcome_type == "not_found"
+    assert effect_observed is True
+    assert task_committed is True
+    typed = next(item for item in validation if item.kind == "declared_outcome_observed")
+    assert typed.evidence == {
+        "outcome_type": "not_found",
+        "expected_outcomes": ["success", "not_found"],
+        "tool_success": False,
+    }

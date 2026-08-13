@@ -6,11 +6,12 @@ import json
 import hashlib
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
-from rwkv_lh.harness import ActionHarness, ActionResult
+from rwkv_lh.harness import ActionHarness, ActionResult, HarnessError
 from rwkv_lh.memory import WorkingMemoryBuilder
 from rwkv_lh.model import (
     ActionProposal,
@@ -21,17 +22,18 @@ from rwkv_lh.model import (
     ModelProtocolError,
     PersistCallback,
     ReplanProposal,
-    WitnessSelectionProposal,
 )
 from rwkv_lh.proof import CriterionProofEngine
 from rwkv_lh.schema import (
     ArtifactRecord,
+    ArtifactRevision,
     Attempt,
     AttemptStatus,
     CriterionEvidence,
     CriterionEvidenceStatus,
     CriterionClaim,
     CriterionClaimStatus,
+    EvidenceRef,
     GoalObligationState,
     GoalObligationStatus,
     ProofExpr,
@@ -45,7 +47,6 @@ from rwkv_lh.schema import (
     TaskAction,
     ValidationResult,
     ValidationSpec,
-    WitnessIntentState,
     action_fingerprint,
     utc_now,
 )
@@ -53,7 +54,6 @@ from rwkv_lh.store import LongHorizonStore, StateStore
 from rwkv_lh.task_graph import TaskGraph, TaskGraphError
 from rwkv_lh.token_budget import get_token_count
 from rwkv_lh.validation import ValidationEngine
-from rwkv_lh.witness import WitnessCatalogBuilder, WitnessCatalogError
 
 
 class PlannerModel(Protocol):
@@ -61,28 +61,15 @@ class PlannerModel(Protocol):
 
     def propose_action(self, state, task, context, action_contract, persist): ...
 
-    def prepare_witness_intents(
+    def commit_criterion_evidence(
         self,
         state,
-        task,
         context,
         persist,
         *,
-        previous_intents=None,
-        proof_feedback=None,
+        criterion_ids,
+        source_catalog,
     ): ...
-
-    def select_witness_sources(
-        self,
-        state,
-        task,
-        context,
-        persist,
-        *,
-        action_result,
-        validation_results,
-        witness_catalog,
-    ) -> WitnessSelectionProposal: ...
 
     def plan_goal_obligations(
         self,
@@ -127,6 +114,8 @@ class LongHorizonController:
         memory: WorkingMemoryBuilder | None = None,
         proof_engine: CriterionProofEngine | None = None,
         max_transitions: int = 500,
+        max_goal_expansions: int = 64,
+        max_parallel_tasks: int = 8,
     ):
         self.store = store or LongHorizonStore()
         self.model = model
@@ -138,8 +127,9 @@ class LongHorizonController:
             self.harness,
             artifact_resolver=(artifact_resolver if callable(artifact_resolver) else None),
         )
-        self.witness_catalog = WitnessCatalogBuilder(self.proof_engine)
         self.max_transitions = max(1, int(max_transitions))
+        self.max_goal_expansions = max(1, int(max_goal_expansions))
+        self.max_parallel_tasks = max(1, min(32, int(max_parallel_tasks)))
 
     def run(self, run_id: str) -> ControllerResult:
         with self.store.controller_lease(run_id):
@@ -163,8 +153,20 @@ class LongHorizonController:
                         return ControllerResult(state, self._final_output(state), transitions)
                 while transitions < self.max_transitions:
                     graph = TaskGraph(state.tasks)
+                    skipped = self._skip_unselected_outcome_tasks(state, graph)
+                    if skipped:
+                        self._persist(
+                            state,
+                            "dependency_outcome_branches_skipped",
+                            {"task_ids": skipped},
+                        )
                     if graph.required_complete():
                         invalidated_claim_ids = self._revalidate_goal_proofs(state)
+                        self._sync_goal_obligation_state(state)
+                        if self._goal_criteria_covered(state):
+                            output = self._complete_run(state)
+                            return ControllerResult(state, output, transitions)
+                        self._commit_goal_criterion_evidence(state)
                         self._sync_goal_obligation_state(state)
                         if self._goal_criteria_covered(state):
                             output = self._complete_run(state)
@@ -192,9 +194,8 @@ class LongHorizonController:
                             {"reason": "no_ready_required_tasks", "unresolved": [task.task_id for task in graph.unresolved_required()]},
                         )
                         return ControllerResult(state, self._final_output(state), transitions)
-                    task = ready[0]
-                    self._execute_task(state, graph, task.task_id)
-                    transitions += 1
+                    executed = self._execute_ready_frontier(state, graph, ready)
+                    transitions += max(1, executed)
                     if state.status == RunStatus.BLOCKED:
                         return ControllerResult(state, self._final_output(state), transitions)
                 state.status = RunStatus.INTERRUPTED
@@ -266,7 +267,7 @@ class LongHorizonController:
             goal_digest=state.goal.digest,
             unresolved_criterion_ids=required_ids,
             status=GoalObligationStatus.UNRESOLVED,
-            remaining_budget=3,
+            remaining_budget=self.max_goal_expansions,
         )
         self._persist(
             state,
@@ -301,7 +302,7 @@ class LongHorizonController:
                     if missing
                     else GoalObligationStatus.RESOLVED
                 ),
-                remaining_budget=3,
+                remaining_budget=self.max_goal_expansions,
             )
             state.goal_obligation = obligation
             self._persist(
@@ -350,6 +351,8 @@ class LongHorizonController:
         *,
         invalidated_claim_ids: list[str],
     ) -> dict[str, Any]:
+        """Project the same causal ledger used by execution into frontier expansion."""
+
         missing = set(self._missing_goal_criteria(state))
         active_tasks = [
             task
@@ -359,33 +362,74 @@ class LongHorizonController:
             )
             if task.active
         ]
-        selected_active_tasks = active_tasks[-24:]
-        action_observations = sorted(
-            (
-                entry
-                for entry in state.memory_index.values()
-                if entry.kind == "action_result"
-            ),
-            key=lambda item: (item.created_at, item.memory_id),
-        )
-        selected_observations = action_observations[-32:]
-        artifacts = sorted(
-            state.artifacts.values(),
-            key=lambda item: (item.created_at, item.artifact_id),
-        )
-        selected_artifacts = artifacts[-64:]
-        criterion_evidence = sorted(
-            state.criterion_evidence.values(),
-            key=lambda item: (item.verified_at, item.evidence_id),
-        )
-        selected_evidence = criterion_evidence[-32:]
-        workspace_manifest = self.harness.workspace_manifest(
-            state.goal,
-            max_entries=64,
-        )
-        workspace_observation = self.harness.workspace_observation_snapshot(
-            state.goal,
-        )
+        selected_tasks = active_tasks[-12:]
+        indexed_tasks = active_tasks[-128:]
+        latest_revisions = [
+            revision
+            for target in sorted(state.artifact_revisions)
+            for revision in state.artifact_revisions[target][-1:]
+        ][-32:]
+        action_memories = [
+            entry
+            for entry in sorted(
+                state.memory_index.values(),
+                key=lambda item: (item.created_at, item.memory_id),
+            )
+            if entry.kind == "action_result" and entry.task_id in state.tasks
+        ][-128:]
+        action_observations = []
+        for entry in action_memories:
+            task = state.tasks[entry.task_id]
+            action_arguments = {
+                key: value
+                for key, value in task.action.arguments.items()
+                if key
+                in {
+                    "path",
+                    "source",
+                    "destination",
+                    "start_char",
+                    "start_after",
+                    "recursive",
+                }
+            }
+            content = entry.content or entry.summary
+            content_limit = 6000 if task.action.action_type == "list_directory" else 0
+            observation_metadata: dict[str, Any] = {}
+            marker = "\n\nACTION RESULT METADATA\n"
+            if marker in content:
+                _, metadata_text = content.rsplit(marker, 1)
+                try:
+                    parsed_metadata = json.loads(metadata_text)
+                except (TypeError, ValueError):
+                    parsed_metadata = {}
+                if isinstance(parsed_metadata, Mapping):
+                    observation_metadata = {
+                        key: parsed_metadata[key]
+                        for key in {
+                            "next_cursor",
+                            "next_start_char",
+                            "complete",
+                            "truncated",
+                        }
+                        if key in parsed_metadata
+                    }
+            observation = {
+                    "memory_id": entry.memory_id,
+                    "task_id": task.task_id,
+                    "action": {
+                        "name": task.action.action_type,
+                        "arguments": action_arguments,
+                    },
+                    "outcome_type": task.outcome_type,
+                    "content": content[:content_limit],
+                    "content_truncated": len(content) > content_limit,
+                }
+            if observation_metadata:
+                observation["metadata"] = observation_metadata
+            action_observations.append(observation)
+        workspace_manifest = self.harness.workspace_manifest(state.goal, max_entries=32)
+        workspace_observation = self.harness.workspace_observation_snapshot(state.goal)
         unchanged_failures = self._unchanged_deterministic_proof_failures(
             state,
             workspace_observation,
@@ -403,8 +447,8 @@ class LongHorizonController:
             ),
             None,
         )
-        capsule = {
-            "schema_version": "long-horizon.goal-obligation-capsule.v1",
+        capsule: dict[str, Any] = {
+            "schema_version": "long-horizon.goal-obligation-capsule.v2",
             "goal_digest": state.goal.digest,
             "unresolved_criteria": [
                 {
@@ -420,63 +464,53 @@ class LongHorizonController:
                 "fields": [
                     "task_id",
                     "status",
-                    "required",
                     "dependencies",
-                    "advances_criteria",
+                    "operation_kind",
+                    "member_key",
+                    "effect_targets",
                     "satisfies_criteria",
-                    "output_refs",
                 ],
                 "rows": [
                     [
                         task.task_id,
                         task.status.value,
-                        task.required,
                         list(task.dependencies),
-                        list(task.goal_criteria),
+                        task.operation_kind,
+                        task.member_key,
+                        list(task.effect_targets)[:8],
                         list(task.satisfies_criteria),
-                        list(task.output_refs),
                     ]
-                    for task in active_tasks
+                    for task in indexed_tasks
                 ],
             },
             "active_tasks": [
                 {
                     "task_id": task.task_id,
-                    "title": task.title[:300],
-                    "description": task.description[:1000],
+                    "title": task.title[:120],
+                    "description": task.description[:320],
+                    "postcondition": task.postcondition[:320],
                     "status": task.status.value,
-                    "required": task.required,
+                    "outcome_type": task.outcome_type,
                     "dependencies": list(task.dependencies),
-                    "advances_criteria": list(task.goal_criteria),
+                    "dependency_outcomes": task.dependency_outcomes,
+                    "operation_kind": task.operation_kind,
+                    "subject_key": task.subject_key,
+                    "member_key": task.member_key,
+                    "phase_key": task.phase_key,
+                    "effect_targets": list(task.effect_targets),
+                    "advances_criteria": list(task.advances_criteria),
                     "satisfies_criteria": list(task.satisfies_criteria),
                     "output_refs": list(task.output_refs),
                 }
-                for task in selected_active_tasks
+                for task in selected_tasks
             ],
-            "action_observations": [
-                {
-                    "memory_id": entry.memory_id,
-                    "task_id": entry.task_id,
-                    "summary": entry.summary[:600],
-                    "artifact_refs": list(entry.artifact_refs),
-                    "evidence_refs": list(entry.evidence_refs),
-                }
-                for entry in selected_observations
-            ],
-            "artifacts": [
-                {
-                    "artifact_id": artifact.artifact_id,
-                    "task_id": artifact.task_id,
-                    "path": artifact.path,
-                    "sha256": artifact.sha256,
-                    "media_type": artifact.media_type,
-                    "summary": artifact.summary[:500],
-                }
-                for artifact in selected_artifacts
-            ],
+            "artifact_revisions": [vars(item) for item in latest_revisions],
             "criterion_evidence": [
                 evidence.to_dict()
-                for evidence in selected_evidence
+                for evidence in sorted(
+                    state.criterion_evidence.values(),
+                    key=lambda item: (item.verified_at, item.evidence_id),
+                )[-16:]
             ],
             "invalidated_claim_ids": sorted(invalidated_claim_ids),
             "workspace_manifest": workspace_manifest,
@@ -491,67 +525,74 @@ class LongHorizonController:
             "recovery_feedback": (
                 {
                     "type": previous_suppression.get("type"),
-                    "workspace_digest": previous_suppression.get(
-                        "workspace_digest", ""
-                    ),
+                    "workspace_digest": previous_suppression.get("workspace_digest", ""),
                     "conflicts": previous_suppression.get("conflicts", []),
                     "entire_proposal_rejected": True,
                 }
                 if previous_suppression is not None
                 else None
             ),
+            "action_observations": action_observations,
+            "artifacts": [
+                vars(artifact)
+                for artifact in sorted(
+                    state.artifacts.values(),
+                    key=lambda item: (item.created_at, item.artifact_id),
+                )[-32:]
+            ],
             "projection": {
                 "active_task_count": len(active_tasks),
-                "included_detailed_task_count": len(selected_active_tasks),
-                "excluded_detailed_task_ids": [
-                    task.task_id
-                    for task in active_tasks[: -len(selected_active_tasks)]
+                "included_index_task_count": len(indexed_tasks),
+                "excluded_index_task_ids": [
+                    task.task_id for task in active_tasks[: -len(indexed_tasks)]
                 ]
-                if len(active_tasks) > len(selected_active_tasks)
+                if len(active_tasks) > len(indexed_tasks)
                 else [],
-                "action_observation_count": len(action_observations),
-                "included_action_observation_count": len(selected_observations),
+                "included_detailed_task_count": len(selected_tasks),
+                "excluded_detailed_task_ids": [
+                    task.task_id for task in active_tasks[: -len(selected_tasks)]
+                ]
+                if len(active_tasks) > len(selected_tasks)
+                else [],
+                "action_observation_count": sum(
+                    entry.kind == "action_result"
+                    for entry in state.memory_index.values()
+                ),
+                "included_action_observation_count": len(action_observations),
                 "excluded_action_observation_ids": [
                     entry.memory_id
-                    for entry in action_observations[: -len(selected_observations)]
-                ]
-                if len(action_observations) > len(selected_observations)
-                else [],
-                "artifact_count": len(artifacts),
-                "included_artifact_count": len(selected_artifacts),
+                    for entry in action_memories[: -len(action_observations)]
+                ],
+                "artifact_count": len(state.artifacts),
+                "included_artifact_count": min(32, len(state.artifacts)),
                 "excluded_artifact_ids": [
-                    artifact.artifact_id
-                    for artifact in artifacts[: -len(selected_artifacts)]
-                ]
-                if len(artifacts) > len(selected_artifacts)
-                else [],
-                "criterion_evidence_count": len(criterion_evidence),
-                "included_criterion_evidence_count": len(selected_evidence),
-                "excluded_criterion_evidence_ids": [
-                    evidence.evidence_id
-                    for evidence in criterion_evidence[: -len(selected_evidence)]
-                ]
-                if len(criterion_evidence) > len(selected_evidence)
-                else [],
-                "excluded_workspace_paths": [],
-                "workspace_entry_count": int(
-                    workspace_manifest.get("entry_count", 0)
+                    item.artifact_id
+                    for item in sorted(
+                        state.artifacts.values(),
+                        key=lambda entry: (entry.created_at, entry.artifact_id),
+                    )[:-32]
+                ],
+                "criterion_evidence_count": len(state.criterion_evidence),
+                "included_criterion_evidence_count": min(
+                    16,
+                    len(state.criterion_evidence),
                 ),
+                "excluded_criterion_evidence_ids": [],
                 "included_workspace_entry_count": len(
                     workspace_manifest.get("entries") or []
                 ),
-                "unchanged_failed_verifier_count": len(unchanged_failures),
-                "included_unchanged_failed_verifier_count": min(
-                    12, len(unchanged_failures)
+                "excluded_workspace_paths": [],
+                "task_text_truncated": any(
+                    len(task.title) > 120
+                    or len(task.description) > 320
+                    or len(task.postcondition) > 320
+                    for task in selected_tasks
                 ),
-                "task_text_truncated": False,
                 "capsule_tokens": 0,
             },
         }
-        projection = capsule["projection"]
-        workspace_entries = capsule["workspace_manifest"].get("entries") or []
 
-        def capsule_tokens() -> int:
+        def measure() -> int:
             return get_token_count(
                 json.dumps(
                     capsule,
@@ -561,183 +602,82 @@ class LongHorizonController:
                 )
             )
 
-        while capsule_tokens() > 5000:
-            if len(workspace_entries) > 16:
-                removed = workspace_entries.pop()
-                projection["excluded_workspace_paths"].append(
-                    str((removed or {}).get("path") or "")
-                )
-                capsule["workspace_manifest"]["truncated"] = True
-                continue
-            if len(capsule["artifacts"]) > 16:
-                removed = capsule["artifacts"].pop(0)
-                projection["excluded_artifact_ids"].append(
-                    str(removed.get("artifact_id") or "")
-                )
-                continue
-            if len(capsule["action_observations"]) > 16:
-                removed = capsule["action_observations"].pop(0)
-                projection["excluded_action_observation_ids"].append(
-                    str(removed.get("memory_id") or "")
-                )
-                continue
-            if len(capsule["criterion_evidence"]) > 8:
-                removed = capsule["criterion_evidence"].pop(0)
-                projection["excluded_criterion_evidence_ids"].append(
-                    str(removed.get("evidence_id") or "")
-                )
-                continue
-            if len(capsule["active_tasks"]) > 8:
-                removed = capsule["active_tasks"].pop(0)
-                projection["excluded_detailed_task_ids"].append(
-                    str(removed.get("task_id") or "")
-                )
-                continue
-            descriptions = [
-                task
-                for task in capsule["active_tasks"]
-                if str(task.get("description") or "")
-            ]
-            if descriptions:
-                for task in descriptions:
-                    task["description"] = str(task["description"])[:160]
-                projection["task_text_truncated"] = True
-                if all(len(str(task.get("description") or "")) <= 160 for task in descriptions):
-                    for task in descriptions:
-                        task["description"] = ""
-                continue
-            titled = [
-                task
-                for task in capsule["active_tasks"]
-                if len(str(task.get("title") or "")) > 80
-            ]
-            if titled:
-                for task in titled:
-                    task["title"] = str(task["title"])[:80]
-                projection["task_text_truncated"] = True
-                continue
-            if len(capsule["action_observations"]) > 8:
-                removed = capsule["action_observations"].pop(0)
-                projection["excluded_action_observation_ids"].append(
-                    str(removed.get("memory_id") or "")
-                )
-                continue
-            if len(capsule["artifacts"]) > 8:
-                removed = capsule["artifacts"].pop(0)
-                projection["excluded_artifact_ids"].append(
-                    str(removed.get("artifact_id") or "")
-                )
-                continue
-            if len(workspace_entries) > 8:
-                removed = workspace_entries.pop()
-                projection["excluded_workspace_paths"].append(
-                    str((removed or {}).get("path") or "")
-                )
-                capsule["workspace_manifest"]["truncated"] = True
-                continue
-            if capsule["action_observations"]:
-                removed = capsule["action_observations"].pop(0)
-                projection["excluded_action_observation_ids"].append(
-                    str(removed.get("memory_id") or "")
-                )
-                continue
-            if capsule["artifacts"]:
-                removed = capsule["artifacts"].pop(0)
-                projection["excluded_artifact_ids"].append(
-                    str(removed.get("artifact_id") or "")
-                )
-                continue
-            if capsule["criterion_evidence"]:
-                removed = capsule["criterion_evidence"].pop(0)
-                projection["excluded_criterion_evidence_ids"].append(
-                    str(removed.get("evidence_id") or "")
-                )
-                continue
-            if workspace_entries:
-                removed = workspace_entries.pop()
-                projection["excluded_workspace_paths"].append(
-                    str((removed or {}).get("path") or "")
-                )
-                capsule["workspace_manifest"]["truncated"] = True
-                continue
+        projection = capsule["projection"]
+        while measure() > 5000:
             if capsule["active_tasks"]:
                 removed = capsule["active_tasks"].pop(0)
-                projection["excluded_detailed_task_ids"].append(
-                    str(removed.get("task_id") or "")
+                projection["excluded_detailed_task_ids"].append(removed["task_id"])
+                projection["included_detailed_task_count"] = len(
+                    capsule["active_tasks"]
                 )
-                continue
-            break
-        def update_projection_counts() -> None:
-            projection["included_action_observation_count"] = len(
-                capsule["action_observations"]
-            )
-            projection["included_artifact_count"] = len(capsule["artifacts"])
-            projection["included_criterion_evidence_count"] = len(
-                capsule["criterion_evidence"]
-            )
-            projection["included_workspace_entry_count"] = len(
-                workspace_entries
-            )
-            projection["included_detailed_task_count"] = len(
-                capsule["active_tasks"]
-            )
-
-        def settle_capsule_token_count() -> int:
-            for _ in range(8):
-                measured = capsule_tokens()
-                if projection["capsule_tokens"] == measured:
-                    return measured
-                projection["capsule_tokens"] = measured
-            return capsule_tokens()
-
-        update_projection_counts()
-        actual_tokens = settle_capsule_token_count()
-        while actual_tokens > 5000:
-            if capsule["action_observations"]:
-                removed = capsule["action_observations"].pop(0)
-                projection["excluded_action_observation_ids"].append(
-                    str(removed.get("memory_id") or "")
-                )
+            elif capsule["artifact_revisions"]:
+                capsule["artifact_revisions"].pop(0)
             elif capsule["artifacts"]:
                 removed = capsule["artifacts"].pop(0)
                 projection["excluded_artifact_ids"].append(
-                    str(removed.get("artifact_id") or "")
+                    removed["artifact_id"]
+                )
+                projection["included_artifact_count"] = len(
+                    capsule["artifacts"]
                 )
             elif capsule["criterion_evidence"]:
-                removed = capsule["criterion_evidence"].pop(0)
-                projection["excluded_criterion_evidence_ids"].append(
-                    str(removed.get("evidence_id") or "")
+                capsule["criterion_evidence"].pop(0)
+                projection["included_criterion_evidence_count"] = len(
+                    capsule["criterion_evidence"]
                 )
-            elif workspace_entries:
-                removed = workspace_entries.pop()
-                projection["excluded_workspace_paths"].append(
-                    str((removed or {}).get("path") or "")
+            elif capsule["workspace_manifest"].get("entries"):
+                removed = capsule["workspace_manifest"]["entries"].pop()
+                projection["excluded_workspace_paths"].append(removed.get("path", ""))
+                projection["included_workspace_entry_count"] = len(
+                    capsule["workspace_manifest"]["entries"]
                 )
-                capsule["workspace_manifest"]["truncated"] = True
-            elif capsule["active_tasks"]:
-                removed = capsule["active_tasks"].pop(0)
-                projection["excluded_detailed_task_ids"].append(
-                    str(removed.get("task_id") or "")
+            elif len(capsule["action_observations"]) > 1:
+                removed = capsule["action_observations"].pop(0)
+                projection["excluded_action_observation_ids"].append(
+                    removed["memory_id"]
+                )
+                projection["included_action_observation_count"] = len(
+                    capsule["action_observations"]
+                )
+            elif len(capsule["active_task_index"]["rows"]) > 1:
+                removed = capsule["active_task_index"]["rows"].pop(0)
+                projection["excluded_index_task_ids"].append(str(removed[0]))
+                projection["included_index_task_count"] = len(
+                    capsule["active_task_index"]["rows"]
                 )
             else:
                 raise RuntimeError(
-                    "goal obligation capsule authoritative index exceeds 5000 tokens"
+                    "causal task index exceeds goal obligation capsule budget"
                 )
-            update_projection_counts()
-            actual_tokens = settle_capsule_token_count()
-        projection["capsule_tokens"] = actual_tokens
-        if capsule_tokens() != actual_tokens:
-            projection["capsule_tokens"] = settle_capsule_token_count()
-        if capsule_tokens() > 5000:
-            raise RuntimeError("goal obligation capsule exceeds 5000 tokens")
+        for _ in range(8):
+            tokens = measure()
+            if projection["capsule_tokens"] == tokens:
+                break
+            projection["capsule_tokens"] = tokens
         return capsule
+
 
     @staticmethod
     def _goal_obligation_task_semantic_projection(task) -> dict[str, Any]:
         return {
             "title": task.title,
             "description": task.description,
-            "advances_criteria": sorted(str(value) for value in task.goal_criteria),
+            "operation_kind": task.operation_kind,
+            "subject_key": task.subject_key,
+            "member_key": task.member_key,
+            "phase_key": task.phase_key,
+            "effect_targets": sorted(str(value) for value in task.effect_targets),
+            "expected_outcomes": sorted(
+                str(value) for value in task.expected_outcomes
+            ),
+            "dependency_outcomes": {
+                str(key): sorted(str(value) for value in outcomes)
+                for key, outcomes in sorted(task.dependency_outcomes.items())
+            },
+            "postcondition": task.postcondition,
+            "advances_criteria": sorted(
+                str(value) for value in task.advances_criteria
+            ),
             "satisfies_criteria": sorted(
                 str(value) for value in task.satisfies_criteria
             ),
@@ -1016,6 +956,23 @@ class LongHorizonController:
             return False
         if not isinstance(proposal, GoalObligationProposal):
             raise TypeError("model returned an unsupported goal obligation proposal")
+        if self._immediately_ready_obligation_count(state, proposal.tasks) > 8:
+            obligation.remaining_budget = max(0, obligation.remaining_budget - 1)
+            obligation.status = GoalObligationStatus.BLOCKED
+            obligation.updated_at = utc_now()
+            state.status = RunStatus.BLOCKED
+            self._persist(
+                state,
+                "model_protocol_blocked",
+                {
+                    "phase": "goal_obligation_replan",
+                    "error": "causal frontier exceeds 8 immediately-ready entry tasks",
+                    "criterion_ids": missing,
+                    "remaining_budget": obligation.remaining_budget,
+                    "controller_trust_boundary": True,
+                },
+            )
+            return False
         conflicts = self._unchanged_obligation_proposal_conflicts(
             state,
             proposal,
@@ -1107,7 +1064,7 @@ class LongHorizonController:
                         "title": task.title,
                         "description": task.description,
                         "dependencies": list(task.dependencies),
-                        "advances_criteria": list(task.goal_criteria),
+                        "advances_criteria": list(task.advances_criteria),
                         "satisfies_criteria": list(task.satisfies_criteria),
                     }
                     for task in proposal.tasks
@@ -1119,463 +1076,330 @@ class LongHorizonController:
         return True
 
     @staticmethod
-    def _task_witness_intents(
+    def _immediately_ready_obligation_count(
         state: RunState,
-        task,
-    ) -> list[WitnessIntentState]:
-        return sorted(
-            (
-                intent
-                for intent in state.witness_intents.values()
-                if intent.task_id == task.task_id
-            ),
-            key=lambda item: (item.criterion_id, item.intent_id),
+        tasks: list,
+    ) -> int:
+        completed = {
+            task.task_id
+            for task in state.tasks.values()
+            if task.active and task.status == TaskStatus.COMPLETED
+        }
+        local_ids = {task.task_id for task in tasks}
+        return sum(
+            all(
+                dependency in completed and dependency not in local_ids
+                for dependency in task.dependencies
+            )
+            for task in tasks
         )
 
-    def _ensure_task_witness_intents(
+    def _execute_ready_frontier(
         self,
         state: RunState,
         graph: TaskGraph,
-        task,
-    ) -> bool:
-        if not task.satisfies_criteria:
-            return True
-        existing = self._task_witness_intents(state, task)
-        if existing:
-            if (
-                sorted(item.criterion_id for item in existing)
-                == sorted(task.satisfies_criteria)
-                and len({item.criterion_id for item in existing}) == len(existing)
-            ):
-                return True
-            graph.transition(task.task_id, TaskStatus.BLOCKED)
-            task.error = {
-                "type": "WitnessIntentStateError",
-                "phase": "witness_intent_precommit",
-                "message": "persisted witness intents do not exactly cover task criteria",
-            }
-            state.status = RunStatus.BLOCKED
-            state.active_task_id = None
-            self._persist(
-                state,
-                "witness_intent_state_blocked",
-                {"task_id": task.task_id, **task.error},
-            )
-            return False
-        method = (
-            getattr(self.model, "prepare_witness_intents", None)
-            if self.model is not None
-            else None
-        )
-        if not callable(method):
-            # Deterministic/legacy fixtures retain the pre-Round12 proof path.
-            return True
-        context = self.memory.build_task_validation(state, task)
-        self._persist(
-            state,
-            "witness_intent_precommit_started",
-            {
-                "task_id": task.task_id,
-                "criterion_ids": list(task.satisfies_criteria),
-                "protocol": "rwkv_witness_intent_lifecycle.v1",
-                "phase": "before_action",
-            },
-        )
-        try:
-            proposals = method(
-                state,
-                task,
-                context,
-                self._persist_callback(),
-                previous_intents=None,
-                proof_feedback=None,
-            )
-            if not isinstance(proposals, list) or not all(
-                isinstance(item, WitnessIntentState) for item in proposals
-            ):
-                raise ModelProtocolError(
-                    "prepare_witness_intents must return WitnessIntentState objects"
-                )
-            if (
-                sorted(item.criterion_id for item in proposals)
-                != sorted(task.satisfies_criteria)
-                or len({item.criterion_id for item in proposals}) != len(proposals)
-            ):
-                raise ModelProtocolError(
-                    "prepared witness intents do not exactly cover task criteria"
-                )
-        except ModelProtocolError as exc:
-            graph.transition(task.task_id, TaskStatus.BLOCKED)
-            task.error = {
-                "type": "ModelProtocolError",
-                "phase": "witness_intent_precommit",
-                "message": str(exc)[:2000],
-            }
-            state.status = RunStatus.BLOCKED
-            state.active_task_id = None
-            self._persist(
-                state,
-                "model_protocol_blocked",
-                {"task_id": task.task_id, **task.error},
-            )
-            return False
-        for intent in proposals:
-            state.witness_intents[intent.intent_id] = intent
-        self._persist(
-            state,
-            "witness_intents_precommitted",
-            {
-                "task_id": task.task_id,
-                "phase": "before_action",
-                "criterion_ids": [item.criterion_id for item in proposals],
-                "intents": [item.to_dict() for item in proposals],
-            },
-        )
-        return True
+        ready: list,
+    ) -> int:
+        """Execute one dependency-independent frontier with a serial state merge.
 
-    def _revise_task_witness_intents(
-        self,
-        state: RunState,
-        task,
-        previous: list[WitnessIntentState],
-        feedback: list[dict[str, Any]],
-    ) -> list[WitnessIntentState]:
-        method = (
-            getattr(self.model, "prepare_witness_intents", None)
-            if self.model is not None
-            else None
-        )
-        if not callable(method):
-            raise ModelProtocolError("witness-intent revision adapter is unavailable")
-        context = self.memory.build_task_validation(state, task)
-        revised = method(
-            state,
-            task,
-            context,
-            self._persist_callback(),
-            previous_intents=previous,
-            proof_feedback=feedback,
-        )
-        if not isinstance(revised, list) or not all(
-            isinstance(item, WitnessIntentState) for item in revised
-        ):
-            raise ModelProtocolError(
-                "witness-intent revision must return WitnessIntentState objects"
-            )
-        if (
-            {item.intent_id for item in revised} != {item.intent_id for item in previous}
-            or sorted(item.criterion_id for item in revised)
-            != sorted(task.satisfies_criteria)
-        ):
-            raise ModelProtocolError(
-                "revised witness intents must preserve IDs and criterion coverage"
-            )
-        previous_by_id = {item.intent_id: item for item in previous}
-        for item in revised:
-            prior = previous_by_id[item.intent_id]
-            if item.revision != prior.revision + 1:
-                raise ModelProtocolError(
-                    "revised witness intent revision must advance exactly once"
-                )
-            # Audit history is controller-owned structural state. The RWKV
-            # proposal changes only its explicit semantic intent fields.
-            item.binding_history = list(prior.binding_history)
-            item.current_binding = {}
-            item.catalog_digest = ""
-            item.status = "prepared"
-            item.created_at = prior.created_at
-            item.updated_at = utc_now()
-        before = [item.to_dict() for item in previous]
-        for item in revised:
-            state.witness_intents[item.intent_id] = item
-        self._persist(
-            state,
-            "witness_intents_revised",
-            {
-                "task_id": task.task_id,
-                "before": before,
-                "after": [item.to_dict() for item in revised],
-                "proof_feedback": feedback,
-                "action_reexecuted": False,
-            },
-        )
-        return self._task_witness_intents(state, task)
+        RWKV action decisions may run concurrently against isolated RunState
+        snapshots. Only actions whose authoritative Harness metadata says
+        read_only=true and side_effect=false are dispatched concurrently.
+        Every durable state mutation remains on this controller thread.
+        """
 
-    def _build_task_witness_catalog(
-        self,
-        state: RunState,
-        task,
-        attempt: Attempt,
-        intents: list[WitnessIntentState],
-        *,
-        allow_intent_revision_change: bool,
-    ) -> dict[str, Any]:
-        catalog = self.witness_catalog.build(state, task, attempt, intents)
-        digest = str(catalog.get("catalog_digest") or "")
-        previous_digest = attempt.witness_catalog_digest
-        if (
-            previous_digest
-            and previous_digest != digest
-            and not allow_intent_revision_change
-        ):
-            raise WitnessCatalogError(
-                "witness catalog digest changed for the same persisted attempt"
-            )
-        attempt.witness_catalog_digest = digest
-        for intent in intents:
-            intent.catalog_digest = digest
-            intent.updated_at = utc_now()
-        self._persist(
-            state,
-            (
-                "witness_catalog_rebuilt_after_intent_revision"
-                if allow_intent_revision_change and previous_digest
-                else "witness_catalog_prepared"
-            ),
-            {
-                "task_id": task.task_id,
-                "attempt_id": attempt.attempt_id,
-                "previous_catalog_digest": previous_digest,
-                "catalog": catalog,
-                "protocol": "rwkv_witness_intent_lifecycle.v1",
-                "criterion_text_used_for_catalog": False,
-                "reference_or_acceptance_used": False,
-            },
-        )
-        return catalog
+        candidates = list(ready[: self.max_parallel_tasks])
+        self._materialize_frontier_actions(state, graph, candidates)
+        if state.status == RunStatus.BLOCKED:
+            return 0
 
-    def _select_post_action_witness_intents(
-        self,
-        state: RunState,
-        task,
-        attempt: Attempt,
-        action_result: ActionResult,
-        validation_results: list[ValidationResult],
-    ) -> tuple[
-        WitnessSelectionProposal,
-        dict[str, Any] | None,
-    ]:
-        method = (
-            getattr(self.model, "select_witness_sources", None)
-            if self.model is not None
-            else None
-        )
-        if not callable(method):
-            raise ModelProtocolError("post-action witness selection adapter is unavailable")
-        discovery_catalog = self.witness_catalog.build(state, task, attempt, [])
-        self._persist(
-            state,
-            "witness_source_catalog_prepared",
-            {
-                "task_id": task.task_id,
-                "attempt_id": attempt.attempt_id,
-                "criterion_ids": list(task.satisfies_criteria),
-                "catalog": discovery_catalog,
-                "protocol": "post_action_catalog_bound_witness.v2",
-                "selection_contract": "rwkv_committed_progressive_witness_disclosure.v6",
-                "phase": "after_action",
-                "criterion_text_used_for_catalog": False,
-                "reference_or_acceptance_used": False,
-            },
-        )
-        context = self.memory.build_task_validation(state, task)
-        self._persist(
-            state,
-            "witness_selection_started",
-            {
-                "task_id": task.task_id,
-                "attempt_id": attempt.attempt_id,
-                "criterion_ids": list(task.satisfies_criteria),
-                "discovery_catalog_digest": discovery_catalog.get(
-                    "catalog_digest", ""
-                ),
-                "protocol": "post_action_catalog_bound_witness.v2",
-                "selection_contract": "rwkv_committed_progressive_witness_disclosure.v6",
-            },
-        )
-        proposal = method(
-            state,
-            task,
-            context,
-            self._persist_callback(),
-            action_result=action_result.to_dict(),
-            validation_results=[vars(item) for item in validation_results],
-            witness_catalog=discovery_catalog,
-        )
-        if not isinstance(proposal, WitnessSelectionProposal):
-            raise ModelProtocolError(
-                "select_witness_sources must return WitnessSelectionProposal"
-            )
-        if proposal.decision == "replan":
-            if proposal.intents or proposal.source_selections:
-                raise ModelProtocolError(
-                    "replan witness selection must not compile intents or sources"
-                )
-            self._persist(
-                state,
-                "witness_selection_replan_requested",
-                {
-                    "task_id": task.task_id,
-                    "attempt_id": attempt.attempt_id,
-                    "reason": proposal.reason,
-                    "rwkv_reason_provided": proposal.reason_provided,
-                    "selection_contract": "rwkv_committed_progressive_witness_disclosure.v6",
-                    "discovery_catalog_digest": discovery_catalog.get(
-                        "catalog_digest", ""
-                    ),
-                },
-            )
-            return proposal, None
-        if proposal.decision != "pass":
-            raise ModelProtocolError("post-action witness decision must be pass or replan")
-        if (
-            sorted(item.criterion_id for item in proposal.intents)
-            != sorted(task.satisfies_criteria)
-            or len({item.criterion_id for item in proposal.intents})
-            != len(proposal.intents)
-        ):
-            raise ModelProtocolError(
-                "post-action witness intents must exactly cover task criteria"
-            )
+        parallel: list = []
+        for task in candidates:
+            definition = self.harness.definition(task.action.action_type)
+            if not definition.read_only or definition.side_effect:
+                break
+            parallel.append(task)
+        if len(parallel) < 2:
+            self._execute_task(state, graph, candidates[0].task_id)
+            return 1
 
-        final_catalog = self._build_task_witness_catalog(
-            state,
-            task,
-            attempt,
-            proposal.intents,
-            allow_intent_revision_change=False,
-        )
-        final_sources = {
-            str(item.get("source_handle_id") or ""): item
-            for item in final_catalog.get("sources") or []
-            if isinstance(item, Mapping)
-        }
-        for intent, selection in zip(
-            proposal.intents, proposal.source_selections, strict=True
-        ):
-            if selection.get("intent_id") != intent.intent_id:
-                raise ModelProtocolError(
-                    "compiled witness source order does not match intents"
-                )
-            actual_id = str(selection.get("actual_source_handle_id") or "")
-            actual = final_sources.get(actual_id)
-            if actual is None:
-                raise WitnessCatalogError(
-                    "RWKV-selected actual source disappeared from final catalog"
-                )
-            expected_id = str(selection.get("expected_source_handle_id") or "")
-            if intent.expected_source_kind == "goal_literal":
-                matches = [
-                    source
-                    for source in final_sources.values()
-                    if source.get("source_kind") == "goal_literal"
-                    and source.get("intent_id") == intent.intent_id
-                ]
-                if len(matches) != 1:
-                    raise WitnessCatalogError(
-                        "RWKV-selected Goal literal did not compile to one source"
-                    )
-                expected_id = str(matches[0].get("source_handle_id") or "")
-                selection["expected_source_handle_id"] = expected_id
-            if expected_id not in final_sources:
-                raise WitnessCatalogError(
-                    "RWKV-selected expected source disappeared from final catalog"
-                )
-            intent.source_selection = dict(selection)
-            intent.selection_reason = proposal.reason
-            intent.catalog_digest = str(final_catalog.get("catalog_digest") or "")
-            state.witness_intents[intent.intent_id] = intent
+        dispatched_at = {task.task_id: utc_now() for task in parallel}
         self._persist(
             state,
-            "witness_selection_compiled",
+            "parallel_frontier_dispatched",
             {
-                "task_id": task.task_id,
-                "attempt_id": attempt.attempt_id,
-                "protocol": "post_action_catalog_bound_witness.v2",
-                "selection_contract": "rwkv_committed_progressive_witness_disclosure.v6",
-                "reason": proposal.reason,
-                "rwkv_reason_provided": proposal.reason_provided,
-                "rwkv_selection_notes": proposal.selection_notes,
-                "discovery_catalog_digest": discovery_catalog.get(
-                    "catalog_digest", ""
-                ),
-                "final_catalog_digest": final_catalog.get("catalog_digest", ""),
-                "intents": [item.to_dict() for item in proposal.intents],
-                "source_selections": [
-                    dict(item) for item in proposal.source_selections
+                "task_ids": [task.task_id for task in parallel],
+                "actions": [
+                    {
+                        "task_id": task.task_id,
+                        "name": task.action.action_type,
+                        "arguments": dict(task.action.arguments),
+                    }
+                    for task in parallel
                 ],
-                "controller_semantic_fields_generated": False,
-                "reference_or_acceptance_used": False,
+                "max_workers": len(parallel),
+                "state_mutation_in_workers": False,
+                "read_only_only": True,
             },
         )
-        return proposal, final_catalog
+        with ThreadPoolExecutor(
+            max_workers=len(parallel),
+            thread_name_prefix="rwkv-lh-read",
+        ) as executor:
+            futures = [
+                executor.submit(
+                    self.harness.execute,
+                    TaskAction(
+                        task.action.action_type,
+                        dict(task.action.arguments),
+                    ),
+                    state.goal,
+                )
+                for task in parallel
+            ]
+            results = [future.result() for future in futures]
 
-    def _execute_task(self, state: RunState, graph: TaskGraph, task_id: str) -> None:
-        task = state.tasks[task_id]
-        if not task.action.action_type or task.action.action_type == "model_action":
-            if self.model is None:
-                raise RuntimeError(f"task {task_id} requires a model-proposed action")
-            context = self.memory.build(state, task)
+        blocked = False
+        for task, result in zip(parallel, results, strict=True):
+            self._execute_task(
+                state,
+                graph,
+                task.task_id,
+                observed_result=result,
+                observed_started_at=dispatched_at[task.task_id],
+            )
+            blocked = blocked or state.status == RunStatus.BLOCKED
+        if blocked:
+            state.status = RunStatus.BLOCKED
+        self._persist(
+            state,
+            "parallel_frontier_merged",
+            {
+                "task_ids": [task.task_id for task in parallel],
+                "outcomes": [result.outcome_type for result in results],
+                "merge_order": [task.task_id for task in parallel],
+                "state_mutation_in_workers": False,
+            },
+        )
+        return len(parallel)
+
+    def _materialize_frontier_actions(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        tasks: list,
+    ) -> None:
+        unresolved = [
+            task
+            for task in tasks
+            if not task.action.action_type
+            or task.action.action_type == "model_action"
+        ]
+        if not unresolved:
+            return
+        if (
+            len(unresolved) == 1
+            or not isinstance(self.model, LongHorizonModel)
+            or self.max_parallel_tasks == 1
+        ):
+            for task in unresolved:
+                if not self._materialize_task_action(state, graph, task.task_id):
+                    return
+            return
+
+        if self.model is None:
+            raise RuntimeError("ready frontier requires a model-proposed action")
+        contexts: dict[str, Any] = {}
+        for task in unresolved:
+            context = self.memory.build_action_commit(state, task)
+            contexts[task.task_id] = context
             self._persist(
                 state,
                 "execution_capsule_prepared",
                 {
-                    "task_id": task_id,
+                    "task_id": task.task_id,
                     "request_scope": "action_commit",
                     "capsule": context.to_dict(),
+                    "frontier_mode": "isolated_parallel_proposal",
                 },
             )
+        snapshot = state.to_dict()
+
+        def propose(task_id: str):
+            local_state = RunState.from_dict(snapshot)
+            local_task = local_state.tasks[task_id]
+            start = len(local_state.temp_decisions)
+            events: list[tuple[str, dict[str, Any]]] = []
+
+            def collect(_state, event_type, event):
+                events.append((str(event_type), dict(event)))
+
             try:
                 proposal = self.model.propose_action(
-                    state,
-                    task,
-                    context,
+                    local_state,
+                    local_task,
+                    contexts[task_id],
                     self.harness.action_contract(),
-                    self._persist_callback(),
+                    collect,
                 )
-            except ModelProtocolError as exc:
-                graph.transition(task_id, TaskStatus.BLOCKED)
-                task.error = {
-                    "type": "ModelProtocolError",
-                    "phase": "action_materialization",
-                    "message": str(exc)[:2000],
-                }
-                state.status = RunStatus.BLOCKED
-                state.active_task_id = None
-                self._persist(
-                    state,
-                    "model_protocol_blocked",
-                    {"task_id": task_id, **task.error},
-                )
-                return
-            if isinstance(proposal, ActionProposal):
-                task.action = proposal.action
-                task.completion_criteria = list(proposal.completion_criteria)
-            elif isinstance(proposal, TaskAction):
-                # Compatibility for deterministic architecture fixtures.
-                task.action = proposal
-            else:
-                raise TypeError("model returned an unsupported action proposal")
-            if not task.completion_criteria:
-                raise ValueError(f"task {task_id} action proposal has no completion criteria")
-            self._persist(
-                state,
-                "action_selected",
-                {
-                    "task_id": task_id,
-                    "action": task.action.action_type,
-                    "arguments": task.action.arguments,
-                    "completion_criteria": [
-                        {
-                            "kind": criterion.kind,
-                            "parameters": criterion.parameters,
-                            "required": criterion.required,
-                        }
-                        for criterion in task.completion_criteria
-                    ],
-                    "source": "rwkv",
-                },
+                error: Exception | None = None
+            except Exception as exc:
+                proposal = None
+                error = exc
+            return (
+                proposal,
+                error,
+                local_state.temp_decisions[start:],
+                events,
             )
+
+        with ThreadPoolExecutor(
+            max_workers=len(unresolved),
+            thread_name_prefix="rwkv-lh-model",
+        ) as executor:
+            futures = [
+                executor.submit(propose, task.task_id) for task in unresolved
+            ]
+            proposals = [future.result() for future in futures]
+
+        for task, (proposal, error, decisions, events) in zip(
+            unresolved,
+            proposals,
+            strict=True,
+        ):
+            state.temp_decisions.extend(decisions)
+            for event_type, event in events:
+                self._persist(state, event_type, event)
+            if error is not None:
+                if isinstance(error, ModelProtocolError):
+                    self._block_action_materialization(
+                        state,
+                        graph,
+                        task.task_id,
+                        error,
+                    )
+                    return
+                raise error
+            self._apply_action_proposal(state, task.task_id, proposal)
+
+    def _materialize_task_action(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        task_id: str,
+    ) -> bool:
+        task = state.tasks[task_id]
+        if task.action.action_type and task.action.action_type != "model_action":
+            return True
+        if self.model is None:
+            raise RuntimeError(f"task {task_id} requires a model-proposed action")
+        context = self.memory.build_action_commit(state, task)
+        self._persist(
+            state,
+            "execution_capsule_prepared",
+            {
+                "task_id": task_id,
+                "request_scope": "action_commit",
+                "capsule": context.to_dict(),
+                "frontier_mode": "serial_proposal",
+            },
+        )
+        try:
+            proposal = self.model.propose_action(
+                state,
+                task,
+                context,
+                self.harness.action_contract(),
+                self._persist_callback(),
+            )
+        except ModelProtocolError as exc:
+            self._block_action_materialization(state, graph, task_id, exc)
+            return False
+        self._apply_action_proposal(state, task_id, proposal)
+        return True
+
+    def _apply_action_proposal(
+        self,
+        state: RunState,
+        task_id: str,
+        proposal: Any,
+    ) -> None:
+        task = state.tasks[task_id]
+        if isinstance(proposal, ActionProposal):
+            task.action = proposal.action
+            task.completion_criteria = list(proposal.completion_criteria)
+        elif isinstance(proposal, TaskAction):
+            # Compatibility for deterministic architecture fixtures.
+            task.action = proposal
+        else:
+            raise TypeError("model returned an unsupported action proposal")
+        if not task.completion_criteria:
+            raise ValueError(f"task {task_id} action proposal has no completion criteria")
+        task.operation_kind = task.action.action_type
+        target = str(
+            task.action.arguments.get("path")
+            or task.action.arguments.get("destination")
+            or task.action.arguments.get("source")
+            or ""
+        ).strip()
+        task.subject_key = target
+        task.member_key = target
+        task.phase_key = task.action.action_type
+        task.effect_targets = [target] if target else []
+        self._persist(
+            state,
+            "action_selected",
+            {
+                "task_id": task_id,
+                "action": task.action.action_type,
+                "arguments": task.action.arguments,
+                "completion_criteria": [
+                    {
+                        "kind": criterion.kind,
+                        "parameters": criterion.parameters,
+                        "required": criterion.required,
+                    }
+                    for criterion in task.completion_criteria
+                ],
+                "source": "rwkv",
+            },
+        )
+
+    def _block_action_materialization(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        task_id: str,
+        error: ModelProtocolError,
+    ) -> None:
+        task = state.tasks[task_id]
+        graph.transition(task_id, TaskStatus.BLOCKED)
+        task.error = {
+            "type": "ModelProtocolError",
+            "phase": "action_materialization",
+            "message": str(error)[:2000],
+        }
+        state.status = RunStatus.BLOCKED
+        state.active_task_id = None
+        self._persist(
+            state,
+            "model_protocol_blocked",
+            {"task_id": task_id, **task.error},
+        )
+
+    def _execute_task(
+        self,
+        state: RunState,
+        graph: TaskGraph,
+        task_id: str,
+        *,
+        observed_result: ActionResult | None = None,
+        observed_started_at: str | None = None,
+    ) -> None:
+        task = state.tasks[task_id]
+        if not task.action.action_type or task.action.action_type == "model_action":
+            if not self._materialize_task_action(state, graph, task_id):
+                return
         definition = self.harness.definition(task.action.action_type)
         missing_postconditions = self.harness.missing_required_postconditions(
             task.action.action_type,
@@ -1613,7 +1437,7 @@ class LongHorizonController:
             status=AttemptStatus.RUNNING,
             action_fingerprint=action_fingerprint(task.action),
             idempotency_key=f"{state.run_id}:{task_id}:{action_fingerprint(task.action)}",
-            started_at=utc_now(),
+            started_at=observed_started_at or utc_now(),
         )
         task.attempt_ids.append(attempt_id)
         state.attempts[attempt_id] = attempt
@@ -1627,9 +1451,16 @@ class LongHorizonController:
                 "arguments": task.action.arguments,
                 "idempotent": definition.idempotent,
                 "side_effect": definition.side_effect,
+                "execution_mode": (
+                    "parallel_read_only"
+                    if observed_result is not None
+                    else "serial"
+                ),
             },
         )
-        result = self.harness.execute(task.action, state.goal)
+        result = observed_result or self.harness.execute(task.action, state.goal)
+        attempt.outcome_type = result.outcome_type
+        task.outcome_type = result.outcome_type
         snapshot_audits = self._record_artifacts_and_memory(
             state,
             task_id,
@@ -1646,7 +1477,9 @@ class LongHorizonController:
                 "success": result.success,
                 "exit_code": result.exit_code,
                 "output": result.output,
+                "metadata": result.metadata,
                 "error": result.error,
+                "outcome_type": result.outcome_type,
             },
         )
         for audit in snapshot_audits:
@@ -1672,6 +1505,11 @@ class LongHorizonController:
             effect_passed=effect_passed,
             task_committed=task_committed,
         )
+        self._apply_revision_commit_state(
+            state,
+            attempt_id,
+            task.postcondition_commit_status,
+        )
         self._persist(
             state,
             "task_commit_state_recorded",
@@ -1695,12 +1533,6 @@ class LongHorizonController:
             attempt.status = AttemptStatus.SUCCEEDED
             attempt.ended_at = utc_now()
             graph.transition(task_id, TaskStatus.COMPLETED)
-            self._commit_criterion_evidence(
-                state,
-                task,
-                attempt,
-                validation_results,
-            )
             self._sync_goal_obligation_state(state)
             task.error = None
             state.active_task_id = None
@@ -1770,7 +1602,7 @@ class LongHorizonController:
         )
         if callable(analyzer):
             same_failure_count = self._same_failure_count(state, task)
-            context = self.memory.build(state, task)
+            context = self.memory.build_recovery(state, task)
             state.status = RunStatus.REPLANNING
             self._persist(
                 state,
@@ -1927,7 +1759,7 @@ class LongHorizonController:
     ) -> None:
         if self.model is None:
             raise RuntimeError("replan requires a model")
-        context = self.memory.build(state, task)
+        context = self.memory.build_recovery(state, task)
         state.status = RunStatus.REPLANNING
         event_type = "replan_recovery_started" if recovery else "replan_started"
         self._persist(
@@ -2016,8 +1848,10 @@ class LongHorizonController:
         )
         if not replacement_task.satisfies_criteria:
             replacement_task.satisfies_criteria = list(failed_task.satisfies_criteria)
-        if not replacement_task.goal_criteria:
-            replacement_task.goal_criteria = list(failed_task.goal_criteria)
+        if not replacement_task.advances_criteria:
+            replacement_task.advances_criteria = list(
+                failed_task.advances_criteria
+            )
         lineage = (
             state.recovery_states.get(failed_task.recovery_lineage_id)
             if failed_task.recovery_lineage_id
@@ -2081,6 +1915,8 @@ class LongHorizonController:
             self._persist(state, "run_blocked", {"reason": "orphan_running_attempt", "attempt_id": attempt.attempt_id})
             return
         result = ActionResult.from_dict(attempt.tool_result)
+        attempt.outcome_type = result.outcome_type
+        task.outcome_type = result.outcome_type
         validation_results, effect_passed, task_committed = self._validate_task_result(
             state,
             task,
@@ -2092,18 +1928,17 @@ class LongHorizonController:
             effect_passed=effect_passed,
             task_committed=task_committed,
         )
+        self._apply_revision_commit_state(
+            state,
+            attempt.attempt_id,
+            task.postcondition_commit_status,
+        )
         graph = TaskGraph(state.tasks)
         if task_committed:
             attempt.status = AttemptStatus.SUCCEEDED
             attempt.ended_at = utc_now()
             attempt.validation_results = validation_results
             graph.transition(task.task_id, TaskStatus.COMPLETED)
-            self._commit_criterion_evidence(
-                state,
-                task,
-                attempt,
-                validation_results,
-            )
             self._sync_goal_obligation_state(state)
             task.error = None
             state.active_task_id = None
@@ -2286,15 +2121,71 @@ class LongHorizonController:
             )
             artifact_refs.append(artifact_id)
             observed_artifacts.append((artifact_id, observed, index))
+        revisions_by_target = {
+            str(target).strip(): ("", "")
+            for target in state.tasks[task_id].effect_targets
+            if str(target).strip()
+        }
+        for artifact_id, observed, _ in observed_artifacts:
+            revisions_by_target[str(observed.path)] = (
+                artifact_id,
+                str(observed.sha256),
+            )
+        for revision_index, (target, artifact_data) in enumerate(
+            sorted(revisions_by_target.items()),
+            start=1,
+        ):
+            artifact_id, digest = artifact_data
+            state.artifact_revisions.setdefault(target, []).append(
+                ArtifactRevision(
+                    revision_id=f"{attempt_id}-REV{revision_index}",
+                    target=target,
+                    artifact_id=artifact_id,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    sha256=digest,
+                    outcome_type=result.outcome_type,
+                )
+            )
         state.attempts[attempt_id].artifact_refs = artifact_refs
         memory_id = f"M-{attempt_id}"
         output = str(result.output or "")
+        observation_metadata = {
+            key: value
+            for key, value in result.metadata.items()
+            if key
+            in {
+                "path",
+                "recursive",
+                "entry_count",
+                "truncated",
+                "next_cursor",
+                "start_char",
+                "end_char",
+                "next_start_char",
+                "complete",
+                "original_chars",
+                "json_type",
+                "output_truncated",
+                "output_artifact",
+            }
+        }
+        metadata_text = json.dumps(
+            observation_metadata,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        observation_content = output
+        if observation_metadata:
+            marker = f"\n\nACTION RESULT METADATA\n{metadata_text}"
+            observation_content = output[: max(0, 20_000 - len(marker))] + marker
         state.memory_index[memory_id] = MemoryEntry(
             memory_id=memory_id,
             kind="action_result",
             task_id=task_id,
             summary=(output[:1000] or json.dumps(result.error or {}, ensure_ascii=False)[:1000]),
-            content=output[:20_000],
+            content=observation_content[:20_000],
             artifact_refs=artifact_refs,
             evidence_refs=[
                 str(item.get("locator") or item.get("url") or item.get("source") or "")
@@ -2487,6 +2378,25 @@ class LongHorizonController:
                 pass
 
     @staticmethod
+    def _skip_unselected_outcome_tasks(
+        state: RunState,
+        graph: TaskGraph,
+    ) -> list[str]:
+        skipped: list[str] = []
+        for task in graph.outcome_mismatched_tasks():
+            graph.transition(task.task_id, TaskStatus.SKIPPED)
+            task.error = {
+                "type": "DependencyOutcomeNotSelected",
+                "dependencies": {
+                    dependency: state.tasks[dependency].outcome_type
+                    for dependency in task.dependencies
+                    if dependency in task.dependency_outcomes
+                },
+            }
+            skipped.append(task.task_id)
+        return skipped
+
+    @staticmethod
     def _block_unreachable_tasks(state: RunState, graph: TaskGraph) -> None:
         for task in graph.unresolved_required():
             if task.status != TaskStatus.PENDING:
@@ -2509,7 +2419,7 @@ class LongHorizonController:
                         "title": task.title,
                         "status": task.status.value,
                         "output_refs": task.output_refs,
-                        "goal_criteria": task.goal_criteria,
+                        "advances_criteria": task.advances_criteria,
                         "satisfies_criteria": task.satisfies_criteria,
                         "subject_task_id": task.subject_task_id,
                         "recovery_lineage_id": task.recovery_lineage_id,
@@ -2563,9 +2473,41 @@ class LongHorizonController:
             cross_check=self._model_cross_check(state),
         )
         results = list(validation.results)
-        effect_passed = validation.required_passed
+        declared_outcome_observed = (
+            action_result.outcome_type != "success"
+            and action_result.outcome_type in task.expected_outcomes
+            and action_result.outcome_type
+            in {"not_found", "invalid", "conflict", "timeout", "nonzero"}
+        )
+        if declared_outcome_observed:
+            results.append(
+                ValidationResult(
+                    kind="declared_outcome_observed",
+                    passed=True,
+                    required=True,
+                    message=(
+                        f"observed model-declared outcome {action_result.outcome_type}"
+                    ),
+                    evidence={
+                        "outcome_type": action_result.outcome_type,
+                        "expected_outcomes": list(task.expected_outcomes),
+                        "tool_success": action_result.success,
+                    },
+                )
+            )
+        effect_passed = validation.required_passed or declared_outcome_observed
         task_committed = effect_passed
-        if effect_passed:
+        existing_rwkv_semantic_commit = any(
+            item.required
+            and item.passed
+            and item.kind in {
+                "model_cross_check",
+                "criterion_cross_check",
+                "task_postcondition_cross_check",
+            }
+            for item in results
+        )
+        if effect_passed and not existing_rwkv_semantic_commit:
             commit_result = self._task_postcondition_check(
                 state,
                 task,
@@ -2575,29 +2517,12 @@ class LongHorizonController:
             if commit_result is not None:
                 results.append(commit_result)
                 task_committed = commit_result.passed
-        assertion_was_requested = any(
-            item.kind == "model_cross_check"
-            and isinstance(item.evidence, Mapping)
-            and item.evidence.get("criterion_assertion_evaluated") is True
-            for item in results
-        )
-        if (
-            task_committed
-            and task.satisfies_criteria
-            and not assertion_was_requested
-        ):
-            semantic_result = self._criterion_semantic_check(
-                state,
-                task,
-                action_result,
-                results,
-            )
-            if semantic_result is not None:
-                results.append(semantic_result)
         subject_task_id = self._validation_subject_task_id(state, task)
-        failed_required = [
-            item for item in results if item.required and not item.passed
-        ]
+        failed_required = (
+            []
+            if declared_outcome_observed and task_committed
+            else [item for item in results if item.required and not item.passed]
+        )
         fingerprint = (
             self._failure_fingerprint(task, subject_task_id, failed_required)
             if failed_required
@@ -2639,6 +2564,17 @@ class LongHorizonController:
             ),
             "",
         )
+
+    @staticmethod
+    def _apply_revision_commit_state(
+        state: RunState,
+        attempt_id: str,
+        commit_status: TaskCommitStatus,
+    ) -> None:
+        for revisions in state.artifact_revisions.values():
+            for revision in revisions:
+                if revision.attempt_id == attempt_id:
+                    revision.task_commit_status = commit_status.value
 
     def _task_postcondition_check(
         self,
@@ -2686,29 +2622,662 @@ class LongHorizonController:
 
         return check
 
-    def _criterion_semantic_check(
-        self,
-        state: RunState,
-        task,
-        action_result: ActionResult,
-        validation_results: list[ValidationResult],
-    ) -> ValidationResult | None:
+    def _commit_goal_criterion_evidence(self, state: RunState) -> bool:
+        """Ask RWKV for Goal evidence only after the required graph closes."""
+
+        criterion_ids = self._missing_goal_criteria(state)
+        if not criterion_ids:
+            return True
         method = (
-            getattr(self.model, "cross_validate", None)
+            getattr(self.model, "commit_criterion_evidence", None)
             if self.model is not None
             else None
         )
-        if not callable(method) or not task.satisfies_criteria:
-            return None
-        return self._cross_check_with_observation_gate(
+        if not callable(method):
+            return False
+        source_catalog = self._goal_criterion_provenance_catalog(
             state,
-            task,
-            action_result,
-            validation_results,
-            kind="criterion_cross_check",
-            required=False,
-            parameters={},
+            criterion_ids,
         )
+        completed_task_ids = [
+            task.task_id for task in self._completed_active_tasks(state)
+        ]
+        collected_bindings: list[dict[str, Any]] = []
+        try:
+            for criterion_id in criterion_ids:
+                local_catalog = dict(source_catalog)
+                local_catalog["claimed_criterion_ids"] = [criterion_id]
+                context = self.memory.build_goal_validation(
+                    state,
+                    criterion_ids=[criterion_id],
+                    selected_memory_ids=[
+                        str(item.get("ref") or "")
+                        for item in source_catalog["causal_actual_sources"]
+                    ],
+                )
+                self._persist(
+                    state,
+                    "goal_criterion_provenance_catalog_prepared",
+                    {
+                        "criterion_ids": [criterion_id],
+                        "catalog": local_catalog,
+                        "completed_active_task_ids": completed_task_ids,
+                        "criterion_local": True,
+                        "controller_semantic_fields_generated": False,
+                    },
+                )
+                local_proposal = method(
+                    state,
+                    context,
+                    self._persist_callback(),
+                    criterion_ids=[criterion_id],
+                    source_catalog=local_catalog,
+                )
+                if not isinstance(local_proposal, Mapping):
+                    raise ModelProtocolError(
+                        "criterion-local evidence proposal must be an object"
+                    )
+                decision = str(
+                    local_proposal.get("decision") or ""
+                ).strip().casefold()
+                bindings = local_proposal.get("bindings")
+                if decision == "replan" and bindings == []:
+                    self._persist(
+                        state,
+                        "goal_criterion_local_batch_replan_requested",
+                        {
+                            "criterion_id": criterion_id,
+                            "collected_pass_criterion_ids": [
+                                str(item.get("criterion_id") or "")
+                                for item in collected_bindings
+                            ],
+                            "partial_evidence_committed": False,
+                            "controller_semantic_fields_generated": False,
+                        },
+                    )
+                    self._persist(
+                        state,
+                        "goal_criterion_provenance_replan_requested",
+                        {
+                            "claim_ids": [],
+                            "criterion_ids": [],
+                            "producer_task_ids": [],
+                            "protocol": "rwkv_goal_provenance_commit.v1",
+                            "controller_semantic_fields_generated": False,
+                        },
+                    )
+                    return False
+                if decision != "pass" or not isinstance(bindings, list):
+                    raise ModelProtocolError(
+                        "criterion-local evidence must pass with one binding or replan empty"
+                    )
+                if len(bindings) != 1 or not isinstance(bindings[0], Mapping):
+                    raise ModelProtocolError(
+                        "criterion-local pass must return exactly one binding"
+                    )
+                binding = dict(bindings[0])
+                if str(binding.get("criterion_id") or "") != criterion_id:
+                    raise ModelProtocolError(
+                        "criterion-local binding changed the fixed criterion id"
+                    )
+                collected_bindings.append(binding)
+                self._persist(
+                    state,
+                    "goal_criterion_local_decision_collected",
+                    {
+                        "criterion_id": criterion_id,
+                        "decision": "pass",
+                        "actual_ref": str(binding.get("actual_ref") or ""),
+                        "expected_ref": str(binding.get("expected_ref") or ""),
+                        "partial_evidence_committed": False,
+                        "controller_semantic_fields_generated": False,
+                    },
+                )
+            self._persist(
+                state,
+                "goal_criterion_local_batch_ready",
+                {
+                    "criterion_ids": criterion_ids,
+                    "binding_count": len(collected_bindings),
+                    "partial_evidence_committed": False,
+                    "controller_semantic_fields_generated": False,
+                },
+            )
+            claims = self._validate_and_commit_goal_provenance_bindings(
+                state,
+                criterion_ids,
+                source_catalog,
+                {"decision": "pass", "bindings": collected_bindings},
+            )
+            self._commit_goal_criterion_evidence_records(state, claims)
+        except ModelProtocolError as exc:
+            self._persist(
+                state,
+                "goal_criterion_provenance_commit_blocked",
+                {
+                    "criterion_ids": criterion_ids,
+                    "error": str(exc)[:2000],
+                    "controller_semantic_fields_generated": False,
+                },
+            )
+            return False
+        committed = bool(claims)
+        self._persist(
+            state,
+            (
+                "goal_criterion_provenance_committed"
+                if committed
+                else "goal_criterion_provenance_replan_requested"
+            ),
+            {
+                "claim_ids": [claim.claim_id for claim in claims],
+                "criterion_ids": [claim.criterion_id for claim in claims],
+                "producer_task_ids": [claim.producer_task_id for claim in claims],
+                "protocol": "rwkv_goal_provenance_commit.v1",
+                "controller_semantic_fields_generated": False,
+            },
+        )
+        return committed
+
+    @staticmethod
+    def _completed_active_tasks(state: RunState) -> list:
+        return [
+            task
+            for task in sorted(
+                state.tasks.values(),
+                key=lambda item: (item.insertion_order, item.task_id),
+            )
+            if task.active and task.status == TaskStatus.COMPLETED
+        ]
+
+    def _criterion_provenance_source(
+        self,
+        state: RunState,
+        memory_id: str,
+    ) -> dict[str, Any]:
+        entry = state.memory_index[memory_id]
+        owner = state.tasks.get(entry.task_id)
+        workspace_digests = {
+            state.artifacts[artifact_id].path: state.artifacts[artifact_id].sha256
+            for artifact_id in entry.artifact_refs
+            if artifact_id in state.artifacts
+            and state.artifacts[artifact_id].path
+        }
+        action_arguments = {}
+        if owner is not None:
+            action_arguments = {
+                key: value
+                for key, value in owner.action.arguments.items()
+                if key
+                in {
+                    "path",
+                    "source",
+                    "destination",
+                    "start_char",
+                    "start_after",
+                    "recursive",
+                }
+            }
+        preview_limit = 240
+        source_content = entry.content or entry.summary
+        attempt_id = owner.attempt_ids[-1] if owner and owner.attempt_ids else ""
+        return {
+            "ref": memory_id,
+            "source_type": "memory",
+            "owner_task_id": entry.task_id,
+            "owner_attempt_id": attempt_id,
+            "action": (
+                {
+                    "name": owner.action.action_type,
+                    "arguments": action_arguments,
+                }
+                if owner is not None
+                else {}
+            ),
+            "workspace_paths": sorted(workspace_digests),
+            "workspace_digests": dict(sorted(workspace_digests.items())),
+            "content_digest": self._provenance_memory_digest(state, memory_id),
+            "content_preview": source_content[:preview_limit],
+            "content_preview_truncated": len(source_content) > preview_limit,
+        }
+
+    def _goal_criterion_provenance_catalog(
+        self,
+        state: RunState,
+        criterion_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        actual_sources: list[dict[str, Any]] = []
+        for task in self._completed_active_tasks(state):
+            memory_ids = self._canonical_goal_memory_ids(state, task)
+            actual_sources.extend(
+                self._criterion_provenance_source(state, memory_id)
+                for memory_id in memory_ids
+            )
+            if not memory_ids:
+                actual_sources.extend(
+                    self._recovered_workspace_provenance_sources(state, task)
+                )
+        expected_sources = [
+            {
+                "ref": "GOAL",
+                "source_type": "goal",
+                "owner_task_id": "GOAL",
+                "owner_attempt_id": "",
+                "workspace_paths": [],
+                "workspace_digests": {},
+                "content_digest": state.goal.digest,
+                "content_preview": state.goal.original_request[:480],
+                "content_preview_truncated": len(state.goal.original_request)
+                > 480,
+                "evidence_role": "immutable_goal",
+            },
+            *[
+                {**source, "evidence_role": "original_read_only_observation"}
+                for source in actual_sources
+                if self._is_original_read_only_provenance(state, source)
+            ],
+        ]
+        for source in actual_sources:
+            source_paths = set(source.get("workspace_paths") or [])
+            source["eligible_expected_refs"] = [
+                str(expected.get("ref") or "")
+                for expected in expected_sources
+                if str(expected.get("ref") or "")
+                and str(expected.get("ref") or "")
+                != str(source.get("ref") or "")
+                and not (
+                    source_paths
+                    & set(expected.get("workspace_paths") or [])
+                )
+            ]
+        return {
+            "schema_version": "rwkv-lh.goal-criterion-provenance-catalog.v1",
+            "goal_digest": state.goal.digest,
+            "claimed_criterion_ids": list(
+                criterion_ids
+                if criterion_ids is not None
+                else self._missing_goal_criteria(state)
+            ),
+            "causal_actual_sources": actual_sources,
+            "independent_expected_sources": expected_sources,
+        }
+
+    @staticmethod
+    def _canonical_goal_memory_ids(state: RunState, task) -> list[str]:
+        memory_ids = list(
+            dict.fromkeys(
+                ref for ref in task.output_refs if ref in state.memory_index
+            )
+        )
+        snapshot_artifacts = {
+            artifact_ref
+            for memory_id in memory_ids
+            if state.memory_index[memory_id].kind
+            == "post_action_workspace_snapshot"
+            for artifact_ref in state.memory_index[memory_id].artifact_refs
+        }
+        if not snapshot_artifacts:
+            return memory_ids
+        return [
+            memory_id
+            for memory_id in memory_ids
+            if not (
+                state.memory_index[memory_id].kind == "action_result"
+                and bool(
+                    set(state.memory_index[memory_id].artifact_refs)
+                    & snapshot_artifacts
+                )
+            )
+        ]
+
+    def _is_original_read_only_provenance(
+        self,
+        state: RunState,
+        source: Mapping[str, Any],
+    ) -> bool:
+        owner_task_id = str(source.get("owner_task_id") or "")
+        owner = state.tasks.get(owner_task_id)
+        paths = set(source.get("workspace_paths") or [])
+        if owner is None or not paths:
+            return False
+        try:
+            if not self.harness.definition(owner.action.action_type).read_only:
+                return False
+        except HarnessError:
+            return False
+        for candidate in state.tasks.values():
+            if (
+                not candidate.active
+                or candidate.status != TaskStatus.COMPLETED
+                or candidate.insertion_order >= owner.insertion_order
+            ):
+                continue
+            try:
+                if not self.harness.definition(
+                    candidate.action.action_type
+                ).side_effect:
+                    continue
+            except HarnessError:
+                continue
+            targets = set(candidate.effect_targets)
+            for key in ("path", "destination"):
+                value = str(candidate.action.arguments.get(key) or "").strip()
+                if value:
+                    targets.add(value)
+            if paths & targets:
+                return False
+        return True
+
+    def _recovered_workspace_provenance_sources(
+        self,
+        state: RunState,
+        task,
+    ) -> list[dict[str, Any]]:
+        """Represent a recovered effect when the pre-crash action memory is absent."""
+
+        attempt_id = task.attempt_ids[-1] if task.attempt_ids else ""
+        attempt = state.attempts.get(attempt_id)
+        if attempt is None or attempt.status != AttemptStatus.SUCCEEDED:
+            return []
+        root = Path(state.goal.workspace_root).resolve(strict=True)
+        paths: set[str] = set()
+        for result in attempt.validation_results:
+            if not result.passed or not isinstance(result.evidence, Mapping):
+                continue
+            raw_path = str(result.evidence.get("path") or "").strip()
+            if not raw_path:
+                continue
+            try:
+                resolved = Path(raw_path).resolve(strict=True)
+                paths.add(resolved.relative_to(root).as_posix())
+            except (FileNotFoundError, OSError, ValueError):
+                continue
+
+        sources: list[dict[str, Any]] = []
+        for relative in sorted(paths):
+            try:
+                resolved = self.harness.resolve_path(
+                    state.goal,
+                    relative,
+                    must_exist=True,
+                )
+                if not resolved.is_file():
+                    continue
+                content_bytes = resolved.read_bytes()
+            except (FileNotFoundError, OSError, ValueError):
+                continue
+            workspace_digest = hashlib.sha256(content_bytes).hexdigest()
+            try:
+                content = content_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                content = ""
+            payload_digest = hashlib.sha256(
+                json.dumps(
+                    {"path": relative, "sha256": workspace_digest},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            preview_limit = 240
+            sources.append(
+                {
+                    "ref": f"WORKSPACE:{attempt_id}:{relative}",
+                    "source_type": "workspace_recovery_observation",
+                    "owner_task_id": task.task_id,
+                    "owner_attempt_id": attempt_id,
+                    "action": {
+                        "name": "observe_recovered_workspace_effect",
+                        "arguments": {"path": relative},
+                    },
+                    "workspace_paths": [relative],
+                    "workspace_digests": {relative: workspace_digest},
+                    "content_digest": payload_digest,
+                    "content_preview": content[:preview_limit],
+                    "content_preview_truncated": len(content) > preview_limit,
+                }
+            )
+        return sources
+
+    @staticmethod
+    def _provenance_memory_digest(state: RunState, memory_id: str) -> str:
+        entry = state.memory_index[memory_id]
+        artifact_hashes = sorted(
+            state.artifacts[artifact_id].sha256
+            for artifact_id in entry.artifact_refs
+            if artifact_id in state.artifacts
+        )
+        payload = {
+            "memory_id": memory_id,
+            "task_id": entry.task_id,
+            "kind": entry.kind,
+            "summary": entry.summary,
+            "content": entry.content,
+            "artifact_hashes": artifact_hashes,
+            "evidence_refs": list(entry.evidence_refs),
+        }
+        return hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    def _validate_and_commit_goal_provenance_bindings(
+        self,
+        state: RunState,
+        declared: list[str],
+        catalog: Mapping[str, Any],
+        proposal: Any,
+    ) -> list[CriterionClaim]:
+        if not isinstance(proposal, Mapping):
+            raise ModelProtocolError("criterion evidence proposal must be an object")
+        decision = str(proposal.get("decision") or "").strip().casefold()
+        bindings = proposal.get("bindings")
+        if decision == "replan" and bindings == []:
+            return []
+        if decision != "pass" or not isinstance(bindings, list):
+            raise ModelProtocolError("criterion evidence proposal must pass with bindings or replan empty")
+        required_binding_fields = {"criterion_id", "actual_ref", "expected_ref"}
+        allowed_binding_fields = {*required_binding_fields, "reason"}
+        if not all(
+            isinstance(item, Mapping)
+            and required_binding_fields.issubset(item)
+            and not set(item) - allowed_binding_fields
+            and all(
+                isinstance(item.get(field), str)
+                and bool(str(item.get(field) or "").strip())
+                for field in required_binding_fields
+            )
+            and (
+                "reason" not in item
+                or (
+                    isinstance(item.get("reason"), str)
+                    and bool(str(item.get("reason") or "").strip())
+                )
+            )
+            for item in bindings
+        ):
+            raise ModelProtocolError(
+                "criterion provenance bindings require three non-empty refs and optional reason"
+            )
+        criterion_ids = [str(item.get("criterion_id") or "") for item in bindings]
+        if sorted(criterion_ids) != sorted(declared) or len(set(criterion_ids)) != len(bindings):
+            raise ModelProtocolError(
+                "criterion provenance bindings must cover each claimed criterion exactly once"
+            )
+        actual_sources = {
+            str(item.get("ref") or ""): dict(item)
+            for item in catalog.get("causal_actual_sources") or []
+        }
+        expected_sources = {
+            str(item.get("ref") or ""): dict(item)
+            for item in catalog.get("independent_expected_sources") or []
+        }
+        claims: list[CriterionClaim] = []
+        for index, binding in enumerate(bindings, start=1):
+            actual_ref = str(binding.get("actual_ref") or "")
+            expected_ref = str(binding.get("expected_ref") or "")
+            actual = actual_sources.get(actual_ref)
+            expected = expected_sources.get(expected_ref)
+            if actual is None:
+                raise ModelProtocolError(
+                    "actual_ref is outside completed active causal observations"
+                )
+            if expected is None:
+                raise ModelProtocolError(
+                    "expected_ref is outside Goal/completed causal observations"
+                )
+            if actual_ref == expected_ref:
+                raise ModelProtocolError("actual_ref and expected_ref must be independent")
+            producer_task_id = str(actual.get("owner_task_id") or "")
+            attempt_id = str(actual.get("owner_attempt_id") or "")
+            producer = state.tasks.get(producer_task_id)
+            attempt = state.attempts.get(attempt_id)
+            if (
+                producer is None
+                or not producer.active
+                or producer.status != TaskStatus.COMPLETED
+                or attempt is None
+                or attempt.task_id != producer_task_id
+                or attempt.status != AttemptStatus.SUCCEEDED
+            ):
+                raise ModelProtocolError(
+                    "actual_ref owner must be a completed active Task with a succeeded Attempt"
+                )
+            actual_paths = set(actual.get("workspace_paths") or [])
+            expected_paths = set(expected.get("workspace_paths") or [])
+            overlap = sorted(actual_paths & expected_paths)
+            if overlap:
+                raise ModelProtocolError(
+                    f"actual and expected share workspace path lineage: {overlap}"
+                )
+            eligible_expected_refs = {
+                str(item or "")
+                for item in actual.get("eligible_expected_refs") or []
+                if str(item or "")
+            }
+            if (
+                "eligible_expected_refs" in actual
+                and expected_ref not in eligible_expected_refs
+            ):
+                raise ModelProtocolError(
+                    "expected_ref is not an eligible independent source for actual_ref"
+                )
+            actual_digest = str(actual.get("content_digest") or "")
+            expected_digest = str(expected.get("content_digest") or "")
+            criterion_id = str(binding.get("criterion_id") or "")
+            claim_key = hashlib.sha256(
+                f"{state.goal.digest}\0{criterion_id}\0{actual_ref}\0{actual_digest}\0{expected_ref}\0{expected_digest}".encode(
+                    "utf-8"
+                )
+            ).hexdigest()[:16]
+            claim_id = f"CC-GOAL-{criterion_id}-{claim_key}"
+            observation_digest = hashlib.sha256(
+                f"{state.goal.digest}\0{actual_ref}\0{actual_digest}\0{expected_ref}\0{expected_digest}".encode(
+                    "utf-8"
+                )
+            ).hexdigest()
+            raw_claim = {
+                "criterion_id": criterion_id,
+                "actual_ref": actual_ref,
+                "actual_digest": actual_digest,
+                "actual_workspace_paths": sorted(actual_paths),
+                "actual_workspace_digests": dict(actual.get("workspace_digests") or {}),
+                "expected_ref": expected_ref,
+                "expected_digest": expected_digest,
+                "expected_workspace_paths": sorted(expected_paths),
+                "expected_workspace_digests": dict(expected.get("workspace_digests") or {}),
+                "goal_digest": state.goal.digest,
+                "protocol": "rwkv_goal_provenance_commit.v1",
+            }
+            if "reason" in binding:
+                raw_claim["reason"] = str(binding.get("reason") or "")
+            proof_refs = [
+                EvidenceRef(
+                    evidence_ref_id=f"{claim_id}:actual",
+                    source_type=str(actual.get("source_type") or "memory"),
+                    source_id=actual_ref,
+                    source_sha256=actual_digest,
+                    metadata={"side": "actual", "workspace_paths": sorted(actual_paths)},
+                ),
+                EvidenceRef(
+                    evidence_ref_id=f"{claim_id}:expected",
+                    source_type=str(
+                        expected.get("source_type")
+                        or ("goal" if expected_ref == "GOAL" else "memory")
+                    ),
+                    source_id=expected_ref,
+                    source_sha256=expected_digest,
+                    metadata={"side": "expected", "workspace_paths": sorted(expected_paths)},
+                ),
+            ]
+            claim = CriterionClaim(
+                claim_id=claim_id,
+                criterion_id=raw_claim["criterion_id"],
+                subject_task_id=producer_task_id,
+                producer_task_id=producer_task_id,
+                attempt_id=attempt_id,
+                comparison="rwkv_goal_provenance_commit",
+                actual=ProofExpr("provenance_ref", {"ref": actual_ref}),
+                expected=ProofExpr("provenance_ref", {"ref": expected_ref}),
+                status=CriterionClaimStatus.VERIFIED,
+                passed=True,
+                reason="independent provenance refs validated",
+                rwkv_reason=str(binding.get("reason") or ""),
+                proof_refs=proof_refs,
+                actual_value_sha256=actual_digest,
+                expected_value_sha256=expected_digest,
+                observation_digest=observation_digest,
+                raw_claim=raw_claim,
+                claim_protocol="rwkv_goal_provenance_commit.v1",
+            )
+            claims.append(claim)
+        for claim in claims:
+            state.criterion_claims[claim.claim_id] = claim
+        return claims
+
+    @staticmethod
+    def _commit_goal_criterion_evidence_records(
+        state: RunState,
+        claims: list[CriterionClaim],
+    ) -> None:
+        for claim in claims:
+            attempt = state.attempts.get(claim.attempt_id)
+            if attempt is None:
+                raise ModelProtocolError(
+                    "criterion claim producer Attempt disappeared before commit"
+                )
+            validation_refs = [
+                f"{attempt.attempt_id}:V{index}"
+                for index, result in enumerate(attempt.validation_results, start=1)
+                if result.passed
+            ]
+            actual_memory = state.memory_index.get(
+                str(claim.raw_claim.get("actual_ref") or "")
+            )
+            source_artifacts = (
+                list(actual_memory.artifact_refs)
+                if actual_memory is not None
+                else []
+            )
+            evidence_id = f"CE-{claim.criterion_id}-{claim.claim_id[-16:]}"
+            state.criterion_evidence[evidence_id] = CriterionEvidence(
+                evidence_id=evidence_id,
+                criterion_id=claim.criterion_id,
+                status=CriterionEvidenceStatus.VERIFIED,
+                owner_task_id=claim.producer_task_id,
+                attempt_id=attempt.attempt_id,
+                validation_refs=validation_refs,
+                artifact_refs=list(
+                    dict.fromkeys([*attempt.artifact_refs, *source_artifacts])
+                ),
+                state_ref=None,
+                claim_id=claim.claim_id,
+                proof_refs=[ref.evidence_ref_id for ref in claim.proof_refs],
+                observation_digest=claim.observation_digest,
+            )
 
     def _cross_check_with_observation_gate(
         self,
@@ -2797,12 +3366,8 @@ class LongHorizonController:
                     "protocol_valid": True,
                     "decision": "replan",
                     "decision_source": "prior_rwkv_replan",
-                    "criterion_assertion_evaluated": bool(
-                        task.satisfies_criteria
-                    ),
-                    "proof_passed": (
-                        False if task.satisfies_criteria else None
-                    ),
+                    "criterion_assertion_evaluated": False,
+                    "proof_passed": None,
                     "criterion_claim_ids": [],
                     "original_task_id": cached.get("task_id", ""),
                     "original_attempt_id": cached.get("attempt_id", ""),
@@ -2810,16 +3375,20 @@ class LongHorizonController:
                 },
             )
 
-        method_name = (
-            "commit_task_postcondition"
-            if kind == "task_postcondition_cross_check"
-            else "cross_validate"
-        )
-        method = (
-            getattr(self.model, method_name, None)
+        postcondition_method = (
+            getattr(self.model, "commit_task_postcondition", None)
             if self.model is not None
             else None
         )
+        method = postcondition_method
+        if not callable(method):
+            # Compatibility for deterministic test adapters. LongHorizonModel
+            # always uses the single task-postcondition protocol here.
+            method = (
+                getattr(self.model, "cross_validate", None)
+                if self.model is not None
+                else None
+            )
         if not callable(method):
             return ValidationResult(
                 kind=kind,
@@ -2835,198 +3404,8 @@ class LongHorizonController:
                     "decision_source": "adapter_unavailable",
                 },
             )
-        assertion_evaluated = bool(task.satisfies_criteria) and kind in {
-            "model_cross_check",
-            "criterion_cross_check",
-        }
-        witness_intents = (
-            self._task_witness_intents(state, task) if assertion_evaluated else []
-        )
-        attempt = state.attempts.get(attempt_id)
-        witness_catalog: dict[str, Any] | None = None
-        witness_source_selections: list[dict[str, Any]] | None = None
-        witness_semantic_reason = ""
-        selection_method = (
-            getattr(self.model, "select_witness_sources", None)
-            if self.model is not None
-            else None
-        )
-        if assertion_evaluated and attempt is not None and not witness_intents and callable(selection_method):
-            try:
-                proposal, witness_catalog = self._select_post_action_witness_intents(
-                    state,
-                    task,
-                    attempt,
-                    action_result,
-                    validation_results,
-                )
-            except (ModelProtocolError, WitnessCatalogError) as exc:
-                self._persist(
-                    state,
-                    "witness_selection_blocked",
-                    {
-                        "task_id": task.task_id,
-                        "attempt_id": attempt_id,
-                        "error": str(exc),
-                        "protocol": "post_action_catalog_bound_witness.v2",
-                        "selection_contract": "rwkv_committed_progressive_witness_disclosure.v6",
-                    },
-                )
-                return ValidationResult(
-                    kind=kind,
-                    passed=False,
-                    required=required,
-                    message=f"{type(exc).__name__}: {exc}",
-                    evidence={
-                        "owner": "rwkv",
-                        "scope": "task_local",
-                        "protocol_valid": False,
-                        "decision": "replan",
-                        "decision_source": "rwkv_contract_error",
-                        "criterion_assertion_evaluated": True,
-                        "proof_passed": False,
-                    },
-                )
-            if proposal.decision == "replan":
-                return ValidationResult(
-                    kind=kind,
-                    passed=False,
-                    required=required,
-                    message=proposal.reason,
-                    evidence={
-                        "owner": "rwkv",
-                        "scope": "task_local",
-                        "protocol_valid": True,
-                        "decision": "replan",
-                        "decision_source": "rwkv_current",
-                        "criterion_assertion_evaluated": True,
-                        "criterion_assertion_intents": [],
-                        "proof_passed": False,
-                    },
-                )
-            witness_intents = list(proposal.intents)
-            witness_source_selections = [
-                dict(item) for item in proposal.source_selections
-            ]
-            witness_semantic_reason = proposal.reason
-        elif assertion_evaluated and attempt is not None and not witness_intents:
-            legacy_method = (
-                getattr(self.model, "prepare_witness_intents", None)
-                if self.model is not None
-                else None
-            )
-            if callable(legacy_method):
-                try:
-                    context = self.memory.build_task_validation(state, task)
-                    proposals = legacy_method(
-                        state,
-                        task,
-                        context,
-                        self._persist_callback(),
-                        previous_intents=None,
-                        proof_feedback=None,
-                    )
-                    if not isinstance(proposals, list) or not all(
-                        isinstance(item, WitnessIntentState) for item in proposals
-                    ):
-                        raise ModelProtocolError(
-                            "prepare_witness_intents must return WitnessIntentState objects"
-                        )
-                    if (
-                        sorted(item.criterion_id for item in proposals)
-                        != sorted(task.satisfies_criteria)
-                        or len({item.criterion_id for item in proposals})
-                        != len(proposals)
-                    ):
-                        raise ModelProtocolError(
-                            "post-action legacy witness intents do not exactly cover task criteria"
-                        )
-                    for intent in proposals:
-                        state.witness_intents[intent.intent_id] = intent
-                    self._persist(
-                        state,
-                        "legacy_witness_intents_prepared_after_action",
-                        {
-                            "task_id": task.task_id,
-                            "attempt_id": attempt_id,
-                            "intents": [item.to_dict() for item in proposals],
-                        },
-                    )
-                    witness_intents = list(proposals)
-                except ModelProtocolError as exc:
-                    return ValidationResult(
-                        kind=kind,
-                        passed=False,
-                        required=required,
-                        message=f"ModelProtocolError: {exc}",
-                        evidence={
-                            "owner": "rwkv",
-                            "scope": "task_local",
-                            "protocol_valid": False,
-                            "decision": "replan",
-                            "criterion_assertion_evaluated": True,
-                            "proof_passed": False,
-                        },
-                    )
-        if witness_intents and witness_catalog is None:
-            if attempt is None:
-                return ValidationResult(
-                    kind=kind,
-                    passed=False,
-                    required=required,
-                    message="witness catalog rejected: current attempt is missing",
-                    evidence={
-                        "owner": "runtime",
-                        "scope": "task_local",
-                        "protocol_valid": False,
-                        "criterion_assertion_evaluated": True,
-                        "proof_passed": False,
-                    },
-                )
-            if all(item.source_selection for item in witness_intents):
-                witness_source_selections = [
-                    dict(item.source_selection) for item in witness_intents
-                ]
-                witness_semantic_reason = next(
-                    (
-                        item.selection_reason
-                        for item in witness_intents
-                        if item.selection_reason
-                    ),
-                    "persisted post-action witness selection",
-                )
-            try:
-                witness_catalog = self._build_task_witness_catalog(
-                    state,
-                    task,
-                    attempt,
-                    witness_intents,
-                    allow_intent_revision_change=False,
-                )
-            except WitnessCatalogError as exc:
-                self._persist(
-                    state,
-                    "witness_catalog_blocked",
-                    {
-                        "task_id": task.task_id,
-                        "attempt_id": attempt_id,
-                        "error": str(exc),
-                    },
-                )
-                return ValidationResult(
-                    kind=kind,
-                    passed=False,
-                    required=required,
-                    message=f"WitnessCatalogError: {exc}",
-                    evidence={
-                        "owner": "runtime",
-                        "scope": "task_local",
-                        "protocol_valid": False,
-                        "criterion_assertion_evaluated": True,
-                        "proof_passed": False,
-                    },
-                )
-
+        # A Task-level model call decides only the active Task postcondition.
+        # It cannot create, bind, revise, or validate Goal criterion evidence.
         context = self.memory.build_task_validation(state, task)
         self._persist(
             state,
@@ -3039,228 +3418,28 @@ class LongHorizonController:
             },
         )
         protocol_valid = True
-        decision = CrossValidationDecision(False, "", [])
-        proof_passed: bool | None = None
-        proof_message = ""
-        claim_ids: list[str] = []
-        binding_feedback: list[dict[str, Any]] = []
-        witness_rounds = 3 if witness_catalog is not None else 1
-        completed_witness_rounds = 0
-        for witness_round in range(1, witness_rounds + 1):
-            completed_witness_rounds = witness_round
-            try:
-                call_kwargs: dict[str, Any] = {
-                    "action_result": action_result.to_dict(),
-                    "validation_results": [vars(item) for item in validation_results],
-                }
-                if witness_catalog is not None:
-                    call_kwargs.update(
-                        {
-                            "witness_intents": witness_intents,
-                            "witness_catalog": witness_catalog,
-                            "binding_feedback": binding_feedback,
-                        }
-                    )
-                    if witness_source_selections is not None:
-                        call_kwargs.update(
-                            {
-                                "witness_source_selections": witness_source_selections,
-                                "witness_semantic_reason": witness_semantic_reason,
-                            }
-                        )
-                if kind == "task_postcondition_cross_check":
-                    raw_decision = method(
-                        state,
-                        task,
-                        context,
-                        self._persist_callback(),
-                        action_result=action_result.to_dict(),
-                        validation_results=[
-                            vars(item) for item in validation_results
-                        ],
-                    )
-                else:
-                    raw_decision = method(
-                        state,
-                        task,
-                        context,
-                        self._persist_callback(),
-                        **call_kwargs,
-                    )
-                decision = self._normalize_cross_validation_decision(raw_decision)
-            except ModelProtocolError as exc:
-                decision = CrossValidationDecision(
-                    False,
-                    f"ModelProtocolError: {exc}",
-                    [],
-                )
-                protocol_valid = False
-                break
-
-            claim_ids = []
-            proof_passed = None
-            proof_message = ""
-            if assertion_evaluated:
-                claim_ids, proof_passed, proof_message = self._evaluate_criterion_assertions(
-                    state,
-                    task,
-                    decision,
-                    witness_round=(witness_round if witness_catalog is not None else 0),
-                )
-
-            if witness_catalog is None:
-                break
-            binding_by_intent = {
-                str(item.get("intent_id") or ""): dict(item)
-                for item in decision.witness_bindings
-            }
-            claims = [
-                state.criterion_claims[claim_id]
-                for claim_id in claim_ids
-                if claim_id in state.criterion_claims
-            ]
-            for intent in witness_intents:
-                claim = next(
-                    (
-                        item
-                        for item in claims
-                        if item.criterion_id == intent.criterion_id
-                    ),
-                    None,
-                )
-                binding = binding_by_intent.get(intent.intent_id, {})
-                record = {
-                    "round": witness_round,
-                    "catalog_digest": witness_catalog.get("catalog_digest", ""),
-                    "rwkv_decision": decision.witness_decision,
-                    "rwkv_reason": decision.reason,
-                    "source_selection": next(
-                        (
-                            dict(item)
-                            for item in decision.witness_source_selections
-                            if str(item.get("intent_id") or "") == intent.intent_id
-                        ),
-                        {},
-                    ),
-                    "binding": binding,
-                    "claim_id": claim.claim_id if claim is not None else "",
-                    "proof_status": claim.status.value if claim is not None else "not_evaluated",
-                    "proof_passed": bool(claim is not None and claim.passed),
-                    "proof_reason": claim.reason if claim is not None else proof_message,
-                    "action_reexecuted": False,
-                }
-                intent.binding_history.append(record)
-                intent.current_binding = binding
-                intent.updated_at = utc_now()
-                if claim is not None and claim.passed:
-                    intent.status = "verified"
-                elif decision.witness_decision == "replan":
-                    intent.status = "replan_requested"
-                elif decision.witness_decision == "revise_intent":
-                    intent.status = "intent_revision_requested"
-                else:
-                    intent.status = "binding_rejected"
-            self._persist(
+        try:
+            raw_decision = method(
                 state,
-                "witness_binding_evaluated",
-                {
-                    "task_id": task.task_id,
-                    "attempt_id": attempt_id,
-                    "round": witness_round,
-                    "catalog_digest": witness_catalog.get("catalog_digest", ""),
-                    "rwkv_decision": decision.witness_decision,
-                    "rwkv_reason": decision.reason,
-                    "source_selections": list(
-                        decision.witness_source_selections
-                    ),
-                    "bindings": list(decision.witness_bindings),
-                    "expanded_assertions": list(decision.criterion_assertions),
-                    "claim_ids": claim_ids,
-                    "proof_passed": proof_passed,
-                    "proof_message": proof_message,
-                    "action_reexecuted": False,
-                },
+                task,
+                context,
+                self._persist_callback(),
+                action_result=action_result.to_dict(),
+                validation_results=[vars(item) for item in validation_results],
             )
-            if decision.witness_decision == "replan":
-                break
-            if decision.witness_decision == "revise_intent":
-                if witness_round >= witness_rounds:
-                    break
-                binding_feedback = [
-                    {
-                        "type": "rwkv_requested_intent_revision",
-                        "reason": decision.reason,
-                    }
-                ]
-                try:
-                    witness_intents = self._revise_task_witness_intents(
-                        state,
-                        task,
-                        witness_intents,
-                        binding_feedback,
-                    )
-                    witness_catalog = self._build_task_witness_catalog(
-                        state,
-                        task,
-                        attempt,
-                        witness_intents,
-                        allow_intent_revision_change=True,
-                    )
-                except (ModelProtocolError, WitnessCatalogError) as exc:
-                    decision = CrossValidationDecision(
-                        False,
-                        f"{type(exc).__name__}: {exc}",
-                        [],
-                        witness_decision="replan",
-                    )
-                    protocol_valid = False
-                    break
-                continue
-            if decision.passed and proof_passed is False and witness_round < witness_rounds:
-                binding_feedback = [
-                    {
-                        "claim_id": claim.claim_id,
-                        "criterion_id": claim.criterion_id,
-                        "status": claim.status.value,
-                        "reason": claim.reason,
-                        "raw_claim": claim.raw_claim,
-                    }
-                    for claim in claims
-                    if not claim.passed
-                ]
-                if decision.assertion_binding_error:
-                    binding_feedback.append(
-                        {
-                            "type": "binding_protocol_error",
-                            "reason": decision.assertion_binding_error,
-                        }
-                    )
-                self._persist(
-                    state,
-                    "witness_binding_revision_requested",
-                    {
-                        "task_id": task.task_id,
-                        "attempt_id": attempt_id,
-                        "completed_round": witness_round,
-                        "remaining_rounds": witness_rounds - witness_round,
-                        "proof_feedback": binding_feedback,
-                        "action_reexecuted": False,
-                    },
-                )
-                continue
-            break
-
-        passed = bool(decision.passed)
-        if assertion_evaluated:
-            passed = passed and proof_passed is True
-        message = str(decision.reason)
-        if decision.passed and proof_message:
-            message = f"{message}; {proof_message}" if message else proof_message
+            decision = self._normalize_cross_validation_decision(raw_decision)
+        except ModelProtocolError as exc:
+            decision = CrossValidationDecision(
+                False,
+                f"ModelProtocolError: {exc}",
+                [],
+            )
+            protocol_valid = False
         return ValidationResult(
             kind=kind,
-            passed=passed,
+            passed=bool(decision.passed),
             required=required,
-            message=message,
+            message=str(decision.reason),
             evidence={
                 "owner": "rwkv",
                 "scope": "task_local",
@@ -3270,34 +3449,13 @@ class LongHorizonController:
                 "workspace_digest": observation.get("workspace_digest", ""),
                 "observation_cacheable": cacheable,
                 "protocol_valid": protocol_valid,
-                "decision": (
-                    decision.witness_decision
-                    or ("pass" if decision.passed else "replan")
-                ),
+                "decision": "pass" if decision.passed else "replan",
                 "decision_source": "rwkv_current",
-                "criterion_assertion_evaluated": assertion_evaluated,
-                "criterion_assertion_intents": list(
-                    decision.criterion_assertion_intents
-                ),
-                "assertion_binding_protocol_valid": (
-                    decision.assertion_binding_protocol_valid
-                ),
-                "assertion_binding_error": decision.assertion_binding_error,
-                "proof_passed": proof_passed,
-                "criterion_claim_ids": claim_ids,
-                "witness_catalog_digest": (
-                    witness_catalog.get("catalog_digest", "")
-                    if witness_catalog is not None
-                    else ""
-                ),
-                "witness_bindings": list(decision.witness_bindings),
-                "witness_source_selections": list(
-                    decision.witness_source_selections
-                ),
-                "witness_local_rounds": completed_witness_rounds,
+                "criterion_assertion_evaluated": False,
+                "proof_passed": None,
+                "criterion_claim_ids": [],
             },
         )
-
     @staticmethod
     def _normalize_cross_validation_decision(value: Any) -> CrossValidationDecision:
         if isinstance(value, CrossValidationDecision):
@@ -3310,165 +3468,6 @@ class LongHorizonController:
         raise ModelProtocolError(
             "cross_validate must return CrossValidationDecision"
         )
-
-    def _evaluate_criterion_assertions(
-        self,
-        state: RunState,
-        task,
-        decision: CrossValidationDecision,
-        *,
-        witness_round: int = 0,
-    ) -> tuple[list[str], bool, str]:
-        attempt_id = task.attempt_ids[-1] if task.attempt_ids else ""
-        attempt = state.attempts.get(attempt_id)
-        declared = list(task.satisfies_criteria)
-        evaluated: list[CriterionClaim] = []
-        if attempt is None:
-            return [], False, "criterion proof rejected: current attempt is missing"
-        for index, raw_claim in enumerate(decision.criterion_assertions, start=1):
-            claim_id = (
-                f"CC-{attempt_id}-W{witness_round}-{index}"
-                if witness_round > 0
-                else f"CC-{attempt_id}-{index}"
-            )
-            if decision.passed:
-                actual_raw = raw_claim.get("actual")
-                operator_protocol = (
-                    isinstance(actual_raw, Mapping)
-                    and "read_op" in actual_raw
-                )
-                evaluator = (
-                    self.proof_engine.evaluate_operator_assertion
-                    if operator_protocol
-                    else self.proof_engine.evaluate_linear_assertion
-                )
-                claim = evaluator(
-                    state,
-                    task,
-                    attempt,
-                    raw_claim,
-                    claim_id=claim_id,
-                    rwkv_reason=decision.reason,
-                )
-            else:
-                normalization_trace: list[dict[str, Any]] = []
-                actual_input = raw_claim.get("actual")
-                operator_protocol = (
-                    isinstance(actual_input, Mapping)
-                    and "read_op" in actual_input
-                )
-                try:
-                    normalizer = (
-                        self.proof_engine.normalize_operator_assertion
-                        if operator_protocol
-                        else self.proof_engine.normalize_linear_assertion
-                    )
-                    normalized, normalization_trace = normalizer(raw_claim)
-                except (TypeError, ValueError):
-                    normalized = dict(raw_claim)
-                actual_raw = normalized.get("actual")
-                if not isinstance(actual_raw, Mapping):
-                    actual_raw = {}
-                expected_raw = normalized.get("expected")
-                if not isinstance(expected_raw, Mapping):
-                    expected_raw = {}
-                claim = CriterionClaim(
-                    claim_id=claim_id,
-                    criterion_id=str(raw_claim.get("criterion_id") or ""),
-                    subject_task_id=str(raw_claim.get("subject_task_id") or ""),
-                    producer_task_id=str(raw_claim.get("producer_task_id") or ""),
-                    attempt_id=attempt_id,
-                    comparison=str(raw_claim.get("comparison") or ""),
-                    actual=ProofExpr.from_dict(actual_raw),
-                    expected=ProofExpr.from_dict(expected_raw),
-                    status=CriterionClaimStatus.REJECTED,
-                    passed=False,
-                    reason="RWKV decision was replan; assertion was not executed",
-                    rwkv_reason=decision.reason,
-                    raw_claim=dict(raw_claim),
-                    claim_protocol=(
-                        "read_operator_assertion.v1"
-                        if operator_protocol
-                        else "linear_typed_assertion.v1"
-                    ),
-                    normalization_trace=normalization_trace,
-                )
-            state.criterion_claims[claim_id] = claim
-            evaluated.append(claim)
-
-        claim_ids = [claim.claim_id for claim in evaluated]
-        declared_counts = {criterion_id: declared.count(criterion_id) for criterion_id in set(declared)}
-        claim_counts = {
-            criterion_id: sum(
-                1 for claim in evaluated if claim.criterion_id == criterion_id
-            )
-            for criterion_id in set([*declared, *(claim.criterion_id for claim in evaluated)])
-        }
-        exact_coverage = (
-            len(evaluated) == len(declared)
-            and declared_counts == claim_counts
-            and all(count == 1 for count in declared_counts.values())
-        )
-        proof_passed = (
-            decision.passed
-            and exact_coverage
-            and all(
-                claim.status == CriterionClaimStatus.VERIFIED and claim.passed
-                for claim in evaluated
-            )
-        )
-        self._persist(
-            state,
-            "criterion_assertions_evaluated",
-            {
-                "task_id": task.task_id,
-                "attempt_id": attempt_id,
-                "rwkv_decision": "pass" if decision.passed else "replan",
-                "criterion_assertion_intents": list(
-                    decision.criterion_assertion_intents
-                ),
-                "assertion_binding_protocol_valid": (
-                    decision.assertion_binding_protocol_valid
-                ),
-                "assertion_binding_error": decision.assertion_binding_error,
-                "witness_round": witness_round,
-                "witness_decision": decision.witness_decision,
-                "witness_bindings": list(decision.witness_bindings),
-                "witness_source_selections": list(
-                    decision.witness_source_selections
-                ),
-                "declared_criterion_ids": declared,
-                "exact_coverage": exact_coverage,
-                "proof_passed": proof_passed,
-                "assertion_protocol": (
-                    "read_operator_assertion.v1"
-                    if decision.criterion_assertion_intents
-                    or any(
-                        claim.claim_protocol == "read_operator_assertion.v1"
-                        for claim in evaluated
-                    )
-                    else "linear_typed_assertion.v1"
-                ),
-                "claims": [claim.to_dict() for claim in evaluated],
-            },
-        )
-        if not decision.passed:
-            summary = "criterion assertion not executed because RWKV chose replan"
-        elif not exact_coverage:
-            summary = (
-                "criterion assertion rejected: RWKV must emit exactly one assertion "
-                "for each declared criterion"
-            )
-        elif proof_passed:
-            summary = "all RWKV-proposed criterion assertions passed exact evaluation"
-        else:
-            reasons = [
-                claim.reason
-                for claim in evaluated
-                if claim.status != CriterionClaimStatus.VERIFIED
-            ]
-            summary = "criterion assertion rejected: " + " | ".join(reasons)
-        return claim_ids, proof_passed, summary
 
     def _build_cross_check_observation(
         self,
@@ -3483,7 +3482,7 @@ class LongHorizonController:
         definition = self.harness.definition(task.action.action_type)
         snapshot = self.harness.workspace_observation_snapshot(state.goal)
         bound_ids = list(
-            dict.fromkeys([*task.goal_criteria, *task.satisfies_criteria])
+            dict.fromkeys([*task.advances_criteria, *task.satisfies_criteria])
         )
         bound_criteria = [
             {
@@ -3552,7 +3551,7 @@ class LongHorizonController:
                 "description": task.description,
                 "required": task.required,
                 "dependencies": list(task.dependencies),
-                "goal_criteria": list(task.goal_criteria),
+                "advances_criteria": list(task.advances_criteria),
                 "satisfies_criteria": list(task.satisfies_criteria),
                 "inputs": list(task.inputs),
                 "action": {
@@ -3781,6 +3780,118 @@ class LongHorizonController:
             }
         )
 
+    def _revalidate_provenance_claim(
+        self,
+        state: RunState,
+        claim: CriterionClaim,
+    ) -> str:
+        """Recheck controller-owned scope and digest invariants without re-deciding semantics."""
+
+        raw = claim.raw_claim
+        if not isinstance(raw, Mapping):
+            return "criterion provenance claim payload is missing"
+        if raw.get("protocol") not in {
+            "rwkv_provenance_commit.v1",
+            "rwkv_goal_provenance_commit.v1",
+        }:
+            return "criterion provenance protocol marker changed"
+        if raw.get("goal_digest") != state.goal.digest:
+            return "immutable Goal digest changed"
+        if raw.get("criterion_id") != claim.criterion_id:
+            return "criterion provenance id changed"
+
+        catalog = self._goal_criterion_provenance_catalog(
+            state,
+            [claim.criterion_id],
+        )
+        actual_sources = {
+            str(item.get("ref") or ""): item
+            for item in catalog.get("causal_actual_sources") or []
+            if isinstance(item, Mapping)
+        }
+        expected_sources = {
+            str(item.get("ref") or ""): item
+            for item in catalog.get("independent_expected_sources") or []
+            if isinstance(item, Mapping)
+        }
+        actual_ref = str(raw.get("actual_ref") or "")
+        expected_ref = str(raw.get("expected_ref") or "")
+        actual = actual_sources.get(actual_ref)
+        expected = expected_sources.get(expected_ref)
+        if actual is None:
+            return "actual provenance ref left completed active causal scope"
+        if expected is None:
+            return "expected provenance ref left Goal/completed causal scope"
+        if actual_ref == expected_ref:
+            return "actual and expected provenance refs are identical"
+
+        actual_paths = sorted(actual.get("workspace_paths") or [])
+        expected_paths = sorted(expected.get("workspace_paths") or [])
+        if set(actual_paths) & set(expected_paths):
+            return "actual and expected now share workspace path lineage"
+        actual_digest = str(actual.get("content_digest") or "")
+        expected_digest = str(expected.get("content_digest") or "")
+        if actual_digest != raw.get("actual_digest"):
+            return "actual provenance content digest changed"
+        if expected_digest != raw.get("expected_digest"):
+            return "expected provenance content digest changed"
+        if actual_paths != sorted(raw.get("actual_workspace_paths") or []):
+            return "actual provenance workspace lineage changed"
+        if expected_paths != sorted(raw.get("expected_workspace_paths") or []):
+            return "expected provenance workspace lineage changed"
+
+        actual_workspace_digests = dict(actual.get("workspace_digests") or {})
+        expected_workspace_digests = dict(expected.get("workspace_digests") or {})
+        if actual_workspace_digests != dict(
+            raw.get("actual_workspace_digests") or {}
+        ):
+            return "actual provenance artifact digest changed"
+        if expected_workspace_digests != dict(
+            raw.get("expected_workspace_digests") or {}
+        ):
+            return "expected provenance artifact digest changed"
+        for path, recorded_digest in {
+            **expected_workspace_digests,
+            **actual_workspace_digests,
+        }.items():
+            try:
+                resolved = self.harness.resolve_path(
+                    state.goal,
+                    path,
+                    must_exist=True,
+                )
+                live_digest = (
+                    hashlib.sha256(resolved.read_bytes()).hexdigest()
+                    if resolved.is_file()
+                    else hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()
+                )
+            except Exception as exc:
+                return f"provenance workspace source unavailable: {type(exc).__name__}"
+            if live_digest != recorded_digest:
+                return f"provenance workspace source changed: {path}"
+
+        expected_observation_digest = hashlib.sha256(
+            f"{state.goal.digest}\0{actual_ref}\0{actual_digest}\0{expected_ref}\0{expected_digest}".encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        if claim.observation_digest != expected_observation_digest:
+            return "criterion provenance observation digest changed"
+        if claim.actual_value_sha256 != actual_digest:
+            return "criterion actual evidence digest changed"
+        if claim.expected_value_sha256 != expected_digest:
+            return "criterion expected evidence digest changed"
+        ref_pairs = {
+            (ref.metadata.get("side"), ref.source_id, ref.source_sha256)
+            for ref in claim.proof_refs
+        }
+        if ref_pairs != {
+            ("actual", actual_ref, actual_digest),
+            ("expected", expected_ref, expected_digest),
+        }:
+            return "criterion provenance proof refs changed"
+        return ""
+
     def _revalidate_goal_proofs(self, state: RunState) -> list[str]:
         invalidated: list[dict[str, str]] = []
         for evidence in state.criterion_evidence.values():
@@ -3802,7 +3913,16 @@ class LongHorizonController:
                 if attempt is None or task is None:
                     reason = "criterion claim attempt or task is missing"
                 else:
-                    if claim.claim_protocol == "read_operator_assertion.v1":
+                    if claim.claim_protocol in {
+                        "rwkv_provenance_commit.v1",
+                        "rwkv_goal_provenance_commit.v1",
+                    }:
+                        reason = self._revalidate_provenance_claim(
+                            state,
+                            claim,
+                        )
+                        refreshed = None
+                    elif claim.claim_protocol == "read_operator_assertion.v1":
                         refreshed = self.proof_engine.evaluate_operator_assertion(
                             state,
                             task,
@@ -3829,13 +3949,14 @@ class LongHorizonController:
                             claim_id=claim.claim_id,
                             rwkv_reason=claim.rwkv_reason,
                         )
-                    if (
-                        refreshed.status != CriterionClaimStatus.VERIFIED
-                        or not refreshed.passed
-                    ):
-                        reason = refreshed.reason
-                    elif refreshed.observation_digest != claim.observation_digest:
-                        reason = "criterion proof provenance changed"
+                    if refreshed is not None:
+                        if (
+                            refreshed.status != CriterionClaimStatus.VERIFIED
+                            or not refreshed.passed
+                        ):
+                            reason = refreshed.reason
+                        elif refreshed.observation_digest != claim.observation_digest:
+                            reason = "criterion proof provenance changed"
             if not reason:
                 continue
             evidence.status = CriterionEvidenceStatus.INVALIDATED
@@ -3860,69 +3981,6 @@ class LongHorizonController:
                 {"invalidated": invalidated},
             )
         return [item["claim_id"] for item in invalidated]
-
-    @staticmethod
-    def _commit_criterion_evidence(
-        state: RunState,
-        task,
-        attempt: Attempt,
-        validation_results: list[ValidationResult],
-    ) -> None:
-        if not task.satisfies_criteria:
-            return
-        validation_refs = [
-            f"{attempt.attempt_id}:V{index}"
-            for index, result in enumerate(validation_results, start=1)
-            if result.passed
-        ]
-        proof_results = [
-            result
-            for result in validation_results
-            if result.kind in {"model_cross_check", "criterion_cross_check"}
-            and result.passed
-            and isinstance(result.evidence, Mapping)
-            and result.evidence.get("proof_passed") is True
-        ]
-        claim_ids = [
-            str(claim_id)
-            for result in proof_results
-            for claim_id in result.evidence.get("criterion_claim_ids") or []
-        ]
-        for claim_id in claim_ids:
-            claim = state.criterion_claims.get(claim_id)
-            if (
-                claim is None
-                or claim.status != CriterionClaimStatus.VERIFIED
-                or not claim.passed
-                or claim.criterion_id not in task.satisfies_criteria
-            ):
-                continue
-            criterion_id = claim.criterion_id
-            evidence_id = f"CE-{criterion_id}-{attempt.attempt_id}"
-            state.criterion_evidence[evidence_id] = CriterionEvidence(
-                evidence_id=evidence_id,
-                criterion_id=criterion_id,
-                status=CriterionEvidenceStatus.VERIFIED,
-                owner_task_id=claim.producer_task_id,
-                attempt_id=attempt.attempt_id,
-                validation_refs=validation_refs,
-                artifact_refs=list(
-                    dict.fromkeys(
-                        [
-                            *attempt.artifact_refs,
-                            *[
-                                ref.source_id
-                                for ref in claim.proof_refs
-                                if ref.source_type == "dependency_artifact"
-                            ],
-                        ]
-                    )
-                ),
-                state_ref=None,
-                claim_id=claim.claim_id,
-                proof_refs=[ref.evidence_ref_id for ref in claim.proof_refs],
-                observation_digest=claim.observation_digest,
-            )
 
     @staticmethod
     def _invalidate_criterion_evidence(

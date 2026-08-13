@@ -486,24 +486,16 @@ def test_round11_v5_state_migrates_without_inventing_witness_intents(tmp_path):
     )
 
 
-def test_same_attempt_catalog_digest_change_fails_closed(tmp_path):
+def test_legacy_witness_catalog_digest_changes_when_workspace_source_changes(tmp_path):
     state, task, attempt, intent = witness_state(tmp_path)
-    store = LongHorizonStore(tmp_path / "store")
-    controller = LongHorizonController(store)
-    first = controller.witness_catalog.build(state, task, attempt, [intent])
-    attempt.witness_catalog_digest = first["catalog_digest"]
+    builder = WitnessCatalogBuilder(CriterionProofEngine(ActionHarness()))
+    first = builder.build(state, task, attempt, [intent])
     (Path(state.goal.workspace_root) / "result.txt").write_text(
         "changed", encoding="utf-8"
     )
+    second = builder.build(state, task, attempt, [intent])
 
-    with pytest.raises(WitnessCatalogError, match="digest changed"):
-        controller._build_task_witness_catalog(
-            state,
-            task,
-            attempt,
-            [intent],
-            allow_intent_revision_change=False,
-        )
+    assert second["catalog_digest"] != first["catalog_digest"]
 
 
 def test_rwkv_precommits_witness_intent_before_action_result(tmp_path):
@@ -998,6 +990,30 @@ class LocalWitnessRevisionModel:
         self.final_calls += 1
         return "verified final"
 
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del state, context, persist
+        actual_sources = source_catalog["causal_actual_sources"]
+        return {
+            "decision": "pass",
+            "bindings": [
+                {
+                    "criterion_id": criterion_id,
+                    "actual_ref": actual_sources[0]["ref"],
+                    "expected_ref": "GOAL",
+                    "reason": "fixture uses the sole online provenance protocol",
+                }
+                for criterion_id in criterion_ids
+            ],
+        }
+
 
 class ActionThenIntentModel(LocalWitnessRevisionModel):
     def __init__(self):
@@ -1016,7 +1032,7 @@ class ActionThenIntentModel(LocalWitnessRevisionModel):
         )
 
 
-def test_controller_prepares_legacy_intent_only_after_action_execution(tmp_path):
+def test_controller_uses_provenance_commit_after_action_not_legacy_intents(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True)
     store = LongHorizonStore(tmp_path / "state")
@@ -1050,16 +1066,19 @@ def test_controller_prepares_legacy_intent_only_after_action_execution(tmp_path)
     result = LongHorizonController(store, model=model).run(state.run_id)
 
     assert result.state.status == RunStatus.COMPLETED
-    assert model.action_seen_at_precommit == "write_file"
+    assert model.action_seen_at_precommit == ""
+    assert model.precommit_calls == 0
+    assert result.state.witness_intents == {}
     event_types = [item["type"] for item in store.event_records(state.run_id)]
     assert event_types.index("action_selected") < event_types.index(
         "attempt_started"
     ) < event_types.index("action_returned") < event_types.index(
-        "legacy_witness_intents_prepared_after_action"
+        "goal_criterion_provenance_committed"
     )
+    assert "legacy_witness_intents_prepared_after_action" not in event_types
 
 
-def test_controller_rebinds_witness_without_reexecuting_successful_action(tmp_path):
+def test_controller_commits_provenance_without_reexecuting_successful_action(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True)
     store = LongHorizonStore(tmp_path / "state")
@@ -1098,24 +1117,18 @@ def test_controller_rebinds_witness_without_reexecuting_successful_action(tmp_pa
 
     assert result.state.status == RunStatus.COMPLETED
     assert harness.execute_count == 1
-    assert model.precommit_calls == 1
-    assert model.cross_calls == 2
+    assert model.precommit_calls == 0
+    assert model.cross_calls == 0
     assert model.final_calls == 1
-    intent = result.state.witness_intents["WI-T1-GC1"]
-    assert [item["proof_passed"] for item in intent.binding_history] == [
-        False,
-        True,
-    ]
-    assert intent.status == "verified"
+    assert result.state.witness_intents == {}
     claims = list(result.state.criterion_claims.values())
-    assert len(claims) == 2
-    assert claims[0].passed is False
-    assert claims[1].passed is True
+    assert len(claims) == 1
+    assert claims[0].passed is True
+    assert claims[0].claim_protocol == "rwkv_goal_provenance_commit.v1"
     events = store.event_records(state.run_id)
-    revision = next(
-        item for item in events if item["type"] == "witness_binding_revision_requested"
+    assert not any(
+        item["type"] == "witness_binding_revision_requested" for item in events
     )
-    assert revision["data"]["action_reexecuted"] is False
 
 
 class ExplicitIntentRevisionModel(LocalWitnessRevisionModel):
@@ -1183,7 +1196,7 @@ class ExplicitIntentRevisionModel(LocalWitnessRevisionModel):
         )
 
 
-def test_controller_applies_explicit_rwkv_intent_revision_without_action_retry(tmp_path):
+def test_controller_does_not_enter_obsolete_intent_revision_path(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True)
     store = LongHorizonStore(tmp_path / "state")
@@ -1220,12 +1233,12 @@ def test_controller_applies_explicit_rwkv_intent_revision_without_action_retry(t
 
     assert result.state.status == RunStatus.COMPLETED
     assert harness.execute_count == 1
-    assert model.precommit_calls == 2
-    assert model.cross_calls == 2
-    intent = result.state.witness_intents["WI-T1-GC1"]
-    assert intent.revision == 1
-    assert intent.actual_source_kind == "workspace"
-    assert len(intent.binding_history) == 2
+    assert model.precommit_calls == 0
+    assert model.cross_calls == 0
+    assert result.state.witness_intents == {}
     events = store.event_records(state.run_id)
-    revised = next(item for item in events if item["type"] == "witness_intents_revised")
-    assert revised["data"]["action_reexecuted"] is False
+    assert not any(item["type"] == "witness_intents_revised" for item in events)
+    assert any(
+        item["type"] == "goal_criterion_provenance_committed"
+        for item in events
+    )

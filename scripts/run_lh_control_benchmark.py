@@ -121,6 +121,32 @@ class FixtureProofModel:
     def final_answer(self, state, context, persist):
         return "verified fixture final"
 
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del state, context, persist
+        actual_sources = source_catalog["causal_actual_sources"]
+        if not actual_sources:
+            return {"decision": "replan", "bindings": []}
+        return {
+            "decision": "pass",
+            "bindings": [
+                {
+                    "criterion_id": criterion_id,
+                    "actual_ref": actual_sources[0]["ref"],
+                    "expected_ref": "GOAL",
+                    "reason": "LH-Control fixture selected scoped provenance refs",
+                }
+                for criterion_id in criterion_ids
+            ],
+        }
+
 
 class FixtureReplanModel(FixtureProofModel):
     def __init__(self, factory: Callable[[RunState, TaskNode], ReplanProposal], final: str = "verified fixture final"):
@@ -224,7 +250,7 @@ def task(
         title=title,
         description=title,
         dependencies=list(dependencies or []),
-        goal_criteria=["GC1"],
+        advances_criteria=["GC1"],
         priority=priority,
         action=TaskAction(action_type, arguments),
         completion_criteria=list(criteria or []),
@@ -477,7 +503,30 @@ def case_m04(context: CaseContext) -> CaseExecution:
                     "max_tokens": max_tokens,
                 }
             )
-            if "long-horizon.witness-mode.v1" in prompt:
+            if "FIXED CRITERION:" in prompt and "SOURCE CATALOG:\n" in prompt:
+                catalog = self.prompt_json(prompt, "SOURCE CATALOG:\n")
+                actual = catalog["causal_actual_sources"][0]
+                output = json.dumps(
+                    {
+                        "decision": "pass",
+                        "binding": {
+                            "criterion_id": "GC1",
+                            "actual_ref": actual["ref"],
+                            "expected_ref": "GOAL",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            elif "long-horizon.task-commit.v1" in prompt:
+                output = json.dumps(
+                    {
+                        "schema_version": "long-horizon.task-commit.v1",
+                        "decision": "pass",
+                        "reason": "the requested source span was bound",
+                    },
+                    ensure_ascii=False,
+                )
+            elif "long-horizon.witness-mode.v1" in prompt:
                 output = json.dumps(
                     {
                         "schema_version": "long-horizon.witness-mode.v1",
@@ -558,9 +607,10 @@ def case_m04(context: CaseContext) -> CaseExecution:
         state.status == RunStatus.COMPLETED
         and bool(memory and memory.evidence_refs)
         and {
-            "witness_selection",
-            "witness_handle_binding",
+            "task_postcondition_commit",
+            "goal_criterion_evidence_commit",
         }.issubset(request_types)
+        and not any(request_type.startswith("witness_") for request_type in request_types)
     )
     return execution(passed, state.status.value, {"evidence_refs": memory.evidence_refs if memory else [], "temperatures": [asdict(item) for item in state.temp_decisions], "final": final}, state, model_calls=client.calls)
 

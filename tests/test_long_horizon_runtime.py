@@ -26,6 +26,7 @@ from rwkv_lh.schema import (
     RunState,
     TaskAction,
     TaskNode,
+    TaskStatus,
     ValidationResult,
     ValidationSpec,
 )
@@ -92,6 +93,36 @@ def test_failure_observation_cacheability_defaults_closed_and_is_not_model_input
     )
 
 
+def test_task_batch_accepts_only_minimal_causal_contract_without_filling_fields():
+    payload = {
+        "local_id": "observe_config",
+        "title": "Observe config",
+        "description": "Read the current config state",
+        "dependencies": [],
+        "required": True,
+        "priority": 50,
+        "advances_criteria": ["GC1"],
+        "satisfies_criteria": [],
+        "retry_policy": {"max_attempts": 2, "replan_after": 1},
+    }
+    with pytest.raises(ModelProtocolError, match="unknown fields"):
+        LongHorizonModel._task_nodes([payload])
+
+    minimal = {
+        "local_id": "observe_config",
+        "title": "Observe config",
+        "description": "Read the current config state",
+        "dependencies": [],
+        "postcondition": "The config presence and content are observed",
+    }
+    task = LongHorizonModel._task_nodes([minimal])[0]
+    assert task.operation_kind == "unspecified"
+    assert task.expected_outcomes == ["success"]
+    assert task.advances_criteria == []
+    assert task.satisfies_criteria == []
+    assert task.postcondition == "The config presence and content are observed"
+
+
 def test_workspace_observation_snapshot_is_content_exact_and_fails_closed():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -147,6 +178,60 @@ def test_command_timeout_terminates_descendant_process_tree():
         assert result.error["type"] == "TimeoutExpired"
         time.sleep(1.0)
         assert not (workspace / "descendant-survived.txt").exists()
+
+
+def test_command_interface_resolves_python_alias_inside_the_same_sandbox():
+    with tempfile.TemporaryDirectory() as directory:
+        goal = make_goal(Path(directory) / "workspace")
+        harness = ActionHarness()
+
+        result = harness.execute(
+            TaskAction(
+                "check_command",
+                {
+                    "argv": ["python", "-c", "print('rwkv-lh-runtime-ok')"],
+                    "cwd": ".",
+                },
+            ),
+            goal,
+        )
+
+        assert result.success is True
+        assert result.outcome_type == "success"
+        assert result.output.strip() == "rwkv-lh-runtime-ok"
+        assert result.metadata["argv"][0] == "python"
+        assert Path(result.metadata["resolved_argv"][0]).resolve() == Path(
+            sys.executable
+        ).resolve()
+        assert result.metadata["executable_resolution"] == (
+            "python_alias_to_project_runtime"
+        )
+
+
+@pytest.mark.parametrize(
+    ("error_type", "exit_code", "expected"),
+    [
+        ("FileNotFoundError", None, "not_found"),
+        ("JSONDecodeError", None, "invalid"),
+        ("FileExistsError", None, "conflict"),
+        ("TimeoutExpired", None, "timeout"),
+        ("CommandFailed", 2, "nonzero"),
+        ("RuntimeError", None, "failed"),
+    ],
+)
+def test_action_outcome_type_is_mechanically_derived(
+    error_type,
+    exit_code,
+    expected,
+):
+    result = ActionResult(
+        "fixture",
+        False,
+        exit_code=exit_code,
+        error={"type": error_type, "message": "observed failure"},
+    )
+    assert result.outcome_type == expected
+    assert ActionResult.from_dict(result.to_dict()).outcome_type == expected
 
 
 @pytest.mark.parametrize(
@@ -279,6 +364,65 @@ def test_list_directory_observes_empty_and_recursive_workspace_metadata():
         assert harness.definition("list_directory").read_only is True
 
 
+def test_list_directory_cursor_pages_cover_each_entry_once_in_stable_order():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "workspace"
+        goal = make_goal(root)
+        for index in range(11):
+            (root / f"module_{index:02d}.py").write_text(
+                f"VALUE = {index}\n",
+                encoding="utf-8",
+            )
+        harness = ActionHarness()
+        observed = []
+        cursor = ""
+        while True:
+            arguments = {"path": ".", "recursive": True, "max_entries": 3}
+            if cursor:
+                arguments["start_after"] = cursor
+            result = harness.execute(TaskAction("list_directory", arguments), goal)
+            assert result.success is True
+            payload = json.loads(result.output)
+            observed.extend(item["path"] for item in payload["entries"])
+            if not payload["truncated"]:
+                assert payload["next_cursor"] == ""
+                break
+            cursor = payload["next_cursor"]
+            assert cursor == payload["entries"][-1]["path"]
+
+        assert observed == [f"module_{index:02d}.py" for index in range(11)]
+        assert len(observed) == len(set(observed))
+
+
+def test_read_file_cursor_pages_reconstruct_large_utf8_text_exactly():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "workspace"
+        goal = make_goal(root)
+        content = "".join(f"line-{index:05d}: 数据\n" for index in range(3000))
+        (root / "large.py").write_text(content, encoding="utf-8")
+        harness = ActionHarness()
+        observed = []
+        start = 0
+        while True:
+            result = harness.execute(
+                TaskAction(
+                    "read_file",
+                    {"path": "large.py", "start_char": start, "max_chars": 4096},
+                ),
+                goal,
+            )
+            assert result.success is True
+            observed.append(result.output)
+            assert result.metadata["start_char"] == start
+            if result.metadata["complete"]:
+                assert result.metadata["next_start_char"] is None
+                break
+            start = result.metadata["next_start_char"]
+            assert start == result.metadata["end_char"]
+
+        assert "".join(observed) == content
+
+
 def test_only_length_truncated_terminal_decision_reason_is_recoverable():
     recovered = extract_truncated_decision_object(
         '"schema_version":"long-horizon.failure-analysis.v1",'
@@ -323,6 +467,78 @@ def test_structured_action_contract_rejects_missing_and_unknown_arguments():
                 {"path": "result.txt", "content": "ok", "overwrite": False},
             )
         )
+
+
+@pytest.mark.parametrize("count", [-1, 0, True, "2"])
+def test_round38_replace_text_rejects_invalid_count_without_coercion(count):
+    harness = ActionHarness()
+    with pytest.raises(HarnessError, match="count must be a positive integer"):
+        harness.validate_action_contract(
+            TaskAction(
+                "replace_text",
+                {
+                    "path": "service.conf",
+                    "old": "protocol=v1",
+                    "new": "protocol=v2",
+                    "count": count,
+                },
+            )
+        )
+
+
+def test_round38_replace_text_direct_execute_does_not_reinterpret_invalid_count():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        goal = make_goal(root)
+        path = root / "service.conf"
+        original = "protocol=v1\nprotocol=v1\n"
+        path.write_text(original, encoding="utf-8")
+        harness = ActionHarness()
+
+        invalid = harness.execute(
+            TaskAction(
+                "replace_text",
+                {
+                    "path": "service.conf",
+                    "old": "protocol=v1",
+                    "new": "protocol=v2",
+                    "count": -1,
+                },
+            ),
+            goal,
+        )
+
+        assert invalid.success is False
+        assert invalid.error["type"] == "HarnessError"
+        assert path.read_text(encoding="utf-8") == original
+
+        valid = TaskAction(
+            "replace_text",
+            {
+                "path": "service.conf",
+                "old": "protocol=v1",
+                "new": "protocol=v2",
+                "count": 2,
+            },
+        )
+        harness.validate_action_contract(valid)
+        result = harness.execute(valid, goal)
+        assert result.success is True
+        assert path.read_text(encoding="utf-8") == "protocol=v2\nprotocol=v2\n"
+
+
+def test_round38_replace_text_g1i_schema_declares_positive_minimum():
+    definition = next(
+        item
+        for item in ActionHarness().g1i_tool_definitions()
+        if item["name"] == "replace_text"
+    )
+
+    assert definition["parameters"]["properties"]["count"] == {
+        "type": "integer",
+        "minimum": 1,
+        "description": "positive replacement count",
+    }
 
 
 def test_structured_verifier_contract_rejects_parameter_alias_hallucination():
@@ -541,9 +757,27 @@ def test_working_memory_selects_dependencies_and_excludes_noise():
             "T1",
             "Prepare",
             "Prepare dependency",
+            status=TaskStatus.COMPLETED,
+            subject_key="release/report",
+            member_key="source",
+            phase_key="observe",
+            effect_targets=["source.txt"],
+            postcondition="source is observed",
+            outcome_type="success",
             output_refs=["M-DEP"],
         )
-        state.tasks["T2"] = TaskNode("T2", "Build report", "Use release evidence", dependencies=["T1"])
+        state.tasks["T2"] = TaskNode(
+            "T2",
+            "Build report",
+            "Use release evidence",
+            dependencies=["T1"],
+            dependency_outcomes={"T1": ["success"]},
+            subject_key="release/report",
+            member_key="report",
+            phase_key="produce",
+            effect_targets=["report.txt"],
+            postcondition="report is produced",
+        )
         state.memory_index = {
             "M-DEP": MemoryEntry("M-DEP", "result", "T1", "dependency result", "use this"),
             "M-EVIDENCE": MemoryEntry(
@@ -557,9 +791,14 @@ def test_working_memory_selects_dependencies_and_excludes_noise():
             action_contract="write_file",
         )
         assert "M-DEP" in bundle.selected_memory_ids
-        assert "M-EVIDENCE" in bundle.excluded_memory_ids
+        assert "M-EVIDENCE" in bundle.selected_memory_ids
         assert "M-NOISE" in bundle.excluded_memory_ids
         assert bundle.total_tokens <= 1200
+        causal = json.loads(bundle.causal_state)
+        assert causal["direct_dependencies"][0]["outcome_type"] == "success"
+        assert causal["direct_dependencies"][0][
+            "allowed_outcomes_for_active_task"
+        ] == ["success"]
 
 
 def test_request_specific_context_projection_preserves_goal_and_prompt_template():

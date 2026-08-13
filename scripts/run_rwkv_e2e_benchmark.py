@@ -797,6 +797,179 @@ def _state_timeline(store: LongHorizonStore, run_id: str) -> list[dict[str, Any]
     return timeline
 
 
+def _causal_ledger(
+    model_trace: list[dict[str, Any]],
+    event_log: list[dict[str, Any]],
+    state_timeline: list[dict[str, Any]],
+    state: RunState | Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Link exact causal records without adding or interpreting semantic fields."""
+
+    state_payload: dict[str, Any]
+    if isinstance(state, RunState):
+        state_payload = state.to_dict()
+    elif isinstance(state, Mapping):
+        state_payload = dict(state)
+    else:
+        state_payload = {}
+
+    event_revision_rows = []
+    for index, event in enumerate(event_log):
+        timeline = state_timeline[index] if index < len(state_timeline) else {}
+        event_revision_rows.append(
+            {
+                "event_index": index,
+                "revision": timeline.get("revision"),
+                "event_type": event.get("type"),
+                "event_data": event.get("data") or {},
+                "state_sha256": timeline.get("state_sha256", ""),
+                "changes_from_previous": timeline.get(
+                    "changes_from_previous", []
+                ),
+            }
+        )
+
+    request_order: list[str] = []
+    requests: dict[str, dict[str, Any]] = {}
+    for trace_index, event in enumerate(model_trace):
+        request_id = str(event.get("request_id") or "")
+        if not request_id:
+            continue
+        if request_id not in requests:
+            request_order.append(request_id)
+            requests[request_id] = {
+                "request_id": request_id,
+                "request_type": str(event.get("request_type") or ""),
+                "task_id": str(event.get("task_id") or ""),
+                "trace_events": [],
+                "input": None,
+                "raw_output": None,
+                "protocol_events": [],
+                "linked_event_revisions": [],
+            }
+        request = requests[request_id]
+        request["trace_events"].append(
+            {"trace_index": trace_index, "event": event}
+        )
+        event_type = str(event.get("type") or "")
+        if event_type == "model_request_started":
+            prompt = str(event.get("prompt") or "")
+            request["input"] = {
+                "prompt": prompt,
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "sampling": {
+                    key: event.get(key)
+                    for key in (
+                        "temperature",
+                        "top_p",
+                        "top_k",
+                        "presence_penalty",
+                        "frequency_penalty",
+                        "penalty_decay",
+                        "max_tokens",
+                        "backend_profile",
+                        "seed_supported",
+                    )
+                },
+            }
+        elif event_type in {
+            "model_request_returned",
+            "model_request_failed",
+            "model_request_unknown",
+        }:
+            raw_output = str(event.get("raw_output") or event.get("output") or "")
+            request["raw_output"] = {
+                "text": raw_output,
+                "sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
+                "finish_reason": str(event.get("finish_reason") or ""),
+                "terminal_type": event_type,
+            }
+        elif event_type.startswith("model_protocol_"):
+            request["protocol_events"].append(event)
+
+    for request in requests.values():
+        request_id = request["request_id"]
+        request["linked_event_revisions"] = [
+            row
+            for row in event_revision_rows
+            if str(row["event_data"].get("request_id") or "") == request_id
+        ]
+
+    tasks_payload = state_payload.get("tasks") or {}
+    attempts_payload = state_payload.get("attempts") or {}
+    memory_payload = state_payload.get("memory_index") or {}
+    artifacts_payload = state_payload.get("artifacts") or {}
+    claims_payload = state_payload.get("criterion_claims") or {}
+    evidence_payload = state_payload.get("criterion_evidence") or {}
+    task_lineage: dict[str, Any] = {}
+    for task_id, task in tasks_payload.items():
+        attempt_ids = [str(item) for item in task.get("attempt_ids") or []]
+        output_refs = [str(item) for item in task.get("output_refs") or []]
+        resolved_outputs = []
+        for ref in output_refs:
+            if ref in memory_payload:
+                resolved_outputs.append(
+                    {"ref": ref, "kind": "memory", "record": memory_payload[ref]}
+                )
+            elif ref in artifacts_payload:
+                resolved_outputs.append(
+                    {"ref": ref, "kind": "artifact", "record": artifacts_payload[ref]}
+                )
+            else:
+                resolved_outputs.append({"ref": ref, "kind": "unresolved"})
+        dependencies = [str(item) for item in task.get("dependencies") or []]
+        task_lineage[str(task_id)] = {
+            "task": task,
+            "dependency_outputs": {
+                dependency: list(
+                    (tasks_payload.get(dependency) or {}).get("output_refs") or []
+                )
+                for dependency in dependencies
+            },
+            "model_request_ids": [
+                request_id
+                for request_id in request_order
+                if requests[request_id]["task_id"] == str(task_id)
+            ],
+            "event_revisions": [
+                row
+                for row in event_revision_rows
+                if str(row["event_data"].get("task_id") or "") == str(task_id)
+            ],
+            "attempts": {
+                attempt_id: attempts_payload[attempt_id]
+                for attempt_id in attempt_ids
+                if attempt_id in attempts_payload
+            },
+            "resolved_outputs": resolved_outputs,
+            "criterion_claims": {
+                claim_id: claim
+                for claim_id, claim in claims_payload.items()
+                if claim.get("producer_task_id") == str(task_id)
+                or claim.get("subject_task_id") == str(task_id)
+            },
+            "criterion_evidence": {
+                evidence_id: item
+                for evidence_id, item in evidence_payload.items()
+                if item.get("owner_task_id") == str(task_id)
+            },
+        }
+
+    return {
+        "schema_version": "rwkv-e2e.causal-ledger.v1",
+        "policy": {
+            "semantic_inference": False,
+            "records_rewritten": False,
+            "linkage_only": True,
+            "hidden_acceptance_included": False,
+        },
+        "request_order": request_order,
+        "requests": [requests[request_id] for request_id in request_order],
+        "tasks": task_lineage,
+        "event_revision_sequence": event_revision_rows,
+    }
+
+
 def _agent_process_tree_closed(workspace: Path) -> bool:
     """Return false if any surviving process still names the scoped workspace."""
 
@@ -1063,6 +1236,7 @@ def run_case(
     trace_path = case_root / "model_trace.json"
     event_path = case_root / "event_log.json"
     timeline_path = case_root / "state_timeline.json"
+    ledger_path = case_root / "causal_ledger.json"
     trace_path.write_text(
         json.dumps(model_trace, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -1073,6 +1247,11 @@ def run_case(
     )
     timeline_path.write_text(
         json.dumps(state_timeline, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    ledger = _causal_ledger(model_trace, event_log, state_timeline, state)
+    ledger_path.write_text(
+        json.dumps(ledger, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     audit = {
@@ -1121,6 +1300,13 @@ def run_case(
                 "sha256": _file_sha256(timeline_path),
                 "records": len(state_timeline),
                 "policy": "all checkpoints retained; exact snapshot plus field-level delta",
+            },
+            "causal_ledger": {
+                "path": ledger_path.name,
+                "sha256": _file_sha256(ledger_path),
+                "request_records": len(ledger["requests"]),
+                "task_records": len(ledger["tasks"]),
+                "policy": "linkage only; exact source records retained without semantic inference",
             },
         },
         "passed": passed,

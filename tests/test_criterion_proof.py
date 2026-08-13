@@ -1318,6 +1318,7 @@ class ScriptedProofModel:
     def __init__(self, decision_factory):
         self.decision_factory = decision_factory
         self.cross_calls = 0
+        self.commit_calls = 0
         self.final_calls = 0
 
     def cross_validate(
@@ -1332,6 +1333,58 @@ class ScriptedProofModel:
     ):
         self.cross_calls += 1
         return self.decision_factory(state, task, action_result or {})
+
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del context, persist
+        self.commit_calls += 1
+        actual_sources = source_catalog["causal_actual_sources"]
+        producer = state.tasks[actual_sources[-1]["owner_task_id"]]
+        decision = self.decision_factory(
+            state,
+            producer,
+            {"output": str(producer.action.arguments.get("content") or "")},
+        )
+        claims = decision.criterion_assertions
+        exact_coverage = (
+            decision.passed
+            and len(claims) == len(criterion_ids)
+            and sorted(str(item.get("criterion_id") or "") for item in claims)
+            == sorted(criterion_ids)
+            and len({str(item.get("criterion_id") or "") for item in claims})
+            == len(claims)
+            and decision.assertion_binding_protocol_valid
+        )
+        expected_values = [
+            str(
+                ((item.get("expected") or {}).get("arguments") or {}).get(
+                    "value"
+                )
+                or ""
+            )
+            for item in claims
+        ]
+        if not exact_coverage or any(value != "good" for value in expected_values):
+            return {"decision": "replan", "bindings": []}
+        return {
+            "decision": "pass",
+            "bindings": [
+                {
+                    "criterion_id": criterion_id,
+                    "actual_ref": actual_sources[0]["ref"],
+                    "expected_ref": "GOAL",
+                    "reason": decision.reason,
+                }
+                for criterion_id in criterion_ids
+            ],
+        }
 
     def final_answer(self, state, context, persist):
         self.final_calls += 1
@@ -1404,6 +1457,7 @@ def test_valid_rwkv_claim_creates_goal_evidence_and_completes(tmp_path):
     claim = result.state.criterion_claims[evidence.claim_id]
     assert evidence.owner_task_id == "T1"
     assert claim.status == CriterionClaimStatus.VERIFIED
+    assert claim.claim_protocol == "rwkv_goal_provenance_commit.v1"
 
 
 def test_explicit_model_cross_check_is_reused_for_criterion_assertion(tmp_path):
@@ -1442,14 +1496,20 @@ def test_explicit_model_cross_check_is_reused_for_criterion_assertion(tmp_path):
 
     assert result.state.status == RunStatus.COMPLETED
     assert model.cross_calls == 1
+    assert model.commit_calls == 1
     attempt = result.state.attempts["T1-A1"]
     assert [item.kind for item in attempt.validation_results] == [
         "file_content",
         "model_cross_check",
     ]
     cross_result = attempt.validation_results[-1]
-    assert cross_result.evidence["criterion_assertion_evaluated"] is True
-    assert cross_result.evidence["proof_passed"] is True
+    assert cross_result.evidence["criterion_assertion_evaluated"] is False
+    committed = next(
+        item
+        for item in store.event_records(result.state.run_id)
+        if item["type"] == "goal_criterion_provenance_committed"
+    )
+    assert committed["data"]["protocol"] == "rwkv_goal_provenance_commit.v1"
 
 
 def test_unequal_or_missing_claim_does_not_fail_task_but_blocks_goal(tmp_path):
@@ -1472,7 +1532,7 @@ def test_unequal_or_missing_claim_does_not_fail_task_but_blocks_goal(tmp_path):
         )
 
 
-def test_operator_binding_failure_is_audited_without_overriding_task_pass(tmp_path):
+def test_invalid_old_binding_shape_requests_replan_without_overriding_task_pass(tmp_path):
     intent = {
         "criterion_id": "GC1",
         "subject_task_id": "T1",
@@ -1497,18 +1557,16 @@ def test_operator_binding_failure_is_audited_without_overriding_task_pass(tmp_pa
     assert result.state.tasks["T1"].status == TaskStatus.COMPLETED
     assert result.state.status == RunStatus.BLOCKED
     assert result.state.criterion_evidence == {}
-    assertion_event = next(
+    replan_event = next(
         item
         for item in store.event_records(result.state.run_id)
-        if item["type"] == "criterion_assertions_evaluated"
+        if item["type"] == "goal_criterion_provenance_replan_requested"
     )
-    assert assertion_event["data"]["assertion_binding_protocol_valid"] is False
-    assert assertion_event["data"]["assertion_binding_error"] == (
-        "binding contract rejected"
-    )
+    assert replan_event["data"]["protocol"] == "rwkv_goal_provenance_commit.v1"
+    assert replan_event["data"]["controller_semantic_fields_generated"] is False
 
 
-def test_duplicate_claims_are_not_candidate_selected(tmp_path):
+def test_duplicate_criterion_proposals_create_no_evidence(tmp_path):
     def decide(state, task, action_result):
         claim = scripted_claim(task)
         return CrossValidationDecision(True, "semantic pass", [claim, dict(claim)])
@@ -1517,14 +1575,10 @@ def test_duplicate_claims_are_not_candidate_selected(tmp_path):
 
     assert result.state.status == RunStatus.BLOCKED
     assert result.state.criterion_evidence == {}
-    assert len(result.state.criterion_claims) == 2
-    assert all(
-        claim.status == CriterionClaimStatus.VERIFIED
-        for claim in result.state.criterion_claims.values()
-    )
+    assert result.state.criterion_claims == {}
 
 
-def test_rwkv_replan_is_never_overridden_by_a_matching_expression(tmp_path):
+def test_rwkv_replan_is_never_overridden_by_available_provenance(tmp_path):
     def decide(state, task, action_result):
         return CrossValidationDecision(False, "semantic replan", [scripted_claim(task)])
 
@@ -1532,9 +1586,7 @@ def test_rwkv_replan_is_never_overridden_by_a_matching_expression(tmp_path):
 
     assert result.state.tasks["T1"].status == TaskStatus.COMPLETED
     assert result.state.status == RunStatus.BLOCKED
-    claim = next(iter(result.state.criterion_claims.values()))
-    assert claim.status == CriterionClaimStatus.REJECTED
-    assert "assertion was not executed" in claim.reason
+    assert result.state.criterion_claims == {}
 
 
 def test_final_revalidation_invalidates_evidence_changed_by_later_task(tmp_path):
@@ -1554,20 +1606,7 @@ def test_final_revalidation_invalidates_evidence_changed_by_later_task(tmp_path)
             )
         ],
     )
-    second = TaskNode(
-        "T2",
-        "Change result",
-        "Mutate the previously proved artifact",
-        dependencies=["T1"],
-        action=TaskAction("write_file", {"path": "result.txt", "content": "bad"}),
-        completion_criteria=[
-            ValidationSpec(
-                "file_content",
-                {"path": "result.txt", "expected_content": "bad"},
-            )
-        ],
-    )
-    state.tasks = {"T1": first, "T2": second}
+    state.tasks = {"T1": first}
     state.status = RunStatus.RUNNING
     state = store.save(state, event_type="plan_saved")
 
@@ -1575,14 +1614,17 @@ def test_final_revalidation_invalidates_evidence_changed_by_later_task(tmp_path)
         return CrossValidationDecision(True, "semantic pass", [scripted_claim(task)])
 
     model = ScriptedProofModel(decide)
-    result = LongHorizonController(store, model=model).run(state.run_id)
+    controller = LongHorizonController(store, model=model)
+    result = controller.run(state.run_id)
 
-    assert result.state.status == RunStatus.BLOCKED
-    assert model.final_calls == 0
+    assert result.state.status == RunStatus.COMPLETED
+    assert model.final_calls == 1
     evidence = next(iter(result.state.criterion_evidence.values()))
     claim = result.state.criterion_claims[evidence.claim_id]
+    (workspace / "result.txt").write_text("bad", encoding="utf-8")
+
+    invalidated = controller._revalidate_goal_proofs(result.state)
+
+    assert invalidated == [claim.claim_id]
     assert evidence.status.value == "invalidated"
     assert claim.status == CriterionClaimStatus.INVALIDATED
-    assert store.event_records(result.state.run_id)[-1]["data"]["reason"] == (
-        "stale_or_invalid_goal_proof"
-    )

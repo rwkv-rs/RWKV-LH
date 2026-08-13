@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.schema import (
+    ArtifactRevision,
     EVIDENCE_RUN_SCHEMA_VERSION,
     LEGACY_RUN_SCHEMA_VERSION,
     PREVIOUS_RUN_SCHEMA_VERSION,
@@ -24,6 +25,7 @@ from rwkv_lh.schema import (
     RunState,
     RunStatus,
     TaskAction,
+    TaskCommitStatus,
     TaskNode,
     TaskStatus,
 )
@@ -157,6 +159,37 @@ def test_task_graph_orders_ready_tasks_and_enforces_dependencies():
     assert [task.task_id for task in graph.ready_tasks()] == ["T2", "T3"]
 
 
+def test_task_graph_routes_only_the_rwkv_declared_typed_outcome_edge():
+    observation = make_task("T1")
+    observation.status = TaskStatus.COMPLETED
+    observation.outcome_type = "not_found"
+    create = make_task("T2", ["T1"])
+    create.dependency_outcomes = {"T1": ["not_found"]}
+    update = make_task("T3", ["T1"])
+    update.dependency_outcomes = {"T1": ["success"]}
+    graph = TaskGraph({task.task_id: task for task in (observation, create, update)})
+
+    assert [task.task_id for task in graph.ready_tasks()] == ["T2"]
+    assert [task.task_id for task in graph.outcome_mismatched_tasks()] == ["T3"]
+
+
+def test_materialized_causal_tasks_rewrite_outcome_edges_and_reset_observation():
+    observe = make_task("observe")
+    produce = make_task("produce", ["observe"])
+    produce.dependency_outcomes = {"observe": ["not_found"]}
+    produce.outcome_type = "success"
+
+    materialized, mapping, _ = TaskGraph.materialize_model_tasks(
+        [observe, produce],
+        next_sequence=7,
+    )
+
+    rewritten = next(task for task in materialized if task.task_id == mapping["produce"])
+    assert rewritten.dependencies == [mapping["observe"]]
+    assert rewritten.dependency_outcomes == {mapping["observe"]: ["not_found"]}
+    assert rewritten.outcome_type == "pending"
+
+
 def test_task_graph_rejects_cycles_and_completed_reexecution():
     first = make_task("T1", ["T2"])
     second = make_task("T2", ["T1"])
@@ -183,6 +216,43 @@ def test_store_round_trip_and_stale_revision_rejection():
         assert loaded.tasks["T1"].action.action_type == "write_file"
         with pytest.raises(ConcurrentStateError):
             store.save(stale)
+
+
+def test_causal_task_and_artifact_revision_ledger_round_trip():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("LH-CAUSAL-ROUNDTRIP", make_goal(Path(directory)))
+        task = make_task("T1")
+        task.operation_kind = "produce"
+        task.subject_key = "artifact/report"
+        task.member_key = "report.txt"
+        task.phase_key = "write"
+        task.effect_targets = ["report.txt"]
+        task.expected_outcomes = ["success", "conflict"]
+        task.postcondition = "report.txt contains the requested report"
+        task.outcome_type = "success"
+        state.tasks = {"T1": task}
+        state.artifact_revisions = {
+            "report.txt": [
+                ArtifactRevision(
+                    "T1-A1-REV1",
+                    "report.txt",
+                    "T1-A1-R1",
+                    "T1",
+                    "T1-A1",
+                    "a" * 64,
+                    "success",
+                    TaskCommitStatus.COMMITTED.value,
+                )
+            ]
+        }
+
+        restored = RunState.from_dict(state.to_dict())
+
+        assert restored.tasks["T1"].subject_key == "artifact/report"
+        assert restored.tasks["T1"].outcome_type == "success"
+        revision = restored.artifact_revisions["report.txt"][0]
+        assert revision.sha256 == "a" * 64
+        assert revision.task_commit_status == "committed"
 
 
 def test_store_recovers_from_corrupt_state_snapshot():
@@ -318,7 +388,7 @@ def test_v1_run_migration_does_not_promote_ambiguous_goal_bindings():
                 "T1",
                 "Legacy task",
                 "Legacy ambiguous criterion binding",
-                goal_criteria=["GC1"],
+                advances_criteria=["GC1"],
                 satisfies_criteria=["GC1"],
             )
         }
@@ -328,12 +398,15 @@ def test_v1_run_migration_does_not_promote_ambiguous_goal_bindings():
         payload.pop("recovery_states")
         payload.pop("model_states")
         payload.pop("next_task_sequence")
+        payload["tasks"]["T1"]["goal_criteria"] = payload["tasks"]["T1"].pop(
+            "advances_criteria"
+        )
         payload["tasks"]["T1"].pop("satisfies_criteria")
 
         migrated = RunState.from_dict(payload)
 
         assert migrated.schema_version == RUN_SCHEMA_VERSION
-        assert migrated.tasks["T1"].goal_criteria == ["GC1"]
+        assert migrated.tasks["T1"].advances_criteria == ["GC1"]
         assert migrated.tasks["T1"].satisfies_criteria == []
         assert migrated.criterion_evidence == {}
         assert migrated.next_task_sequence == 2

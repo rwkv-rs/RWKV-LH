@@ -19,7 +19,11 @@ class TaskGraphError(ValueError):
 
 class TaskGraph:
     _allowed_transitions = {
-        TaskStatus.PENDING: {TaskStatus.RUNNING, TaskStatus.BLOCKED},
+        TaskStatus.PENDING: {
+            TaskStatus.RUNNING,
+            TaskStatus.BLOCKED,
+            TaskStatus.SKIPPED,
+        },
         TaskStatus.RUNNING: {
             TaskStatus.COMPLETED,
             TaskStatus.FAILED,
@@ -28,6 +32,7 @@ class TaskGraph:
         TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.BLOCKED},
         TaskStatus.COMPLETED: set(),
         TaskStatus.BLOCKED: set(),
+        TaskStatus.SKIPPED: set(),
     }
 
     def __init__(self, tasks: dict[str, TaskNode] | None = None):
@@ -45,6 +50,14 @@ class TaskGraph:
                 raise TaskGraphError(f"task {key} has unknown dependencies: {unknown}")
             if key in task.dependencies:
                 raise TaskGraphError(f"task {key} cannot depend on itself")
+            unknown_outcome_dependencies = sorted(
+                set(task.dependency_outcomes) - set(task.dependencies)
+            )
+            if unknown_outcome_dependencies:
+                raise TaskGraphError(
+                    f"task {key} has outcome rules for non-dependencies: "
+                    f"{unknown_outcome_dependencies}"
+                )
             if task.superseded_by is not None:
                 if task.superseded_by not in self.tasks:
                     raise TaskGraphError(
@@ -141,11 +154,16 @@ class TaskGraph:
                 mapping[dependency] if dependency in local_set else dependency
                 for dependency in task.dependencies
             ]
+            task.dependency_outcomes = {
+                mapping[dependency] if dependency in local_set else dependency: outcomes
+                for dependency, outcomes in task.dependency_outcomes.items()
+            }
             task.active = True
             task.status = TaskStatus.PENDING
             task.effect_observation_status = TaskEffectStatus.PENDING
             task.postcondition_commit_status = TaskCommitStatus.PENDING
             task.postcondition_observation_digest = ""
+            task.outcome_type = "pending"
             task.attempt_ids = []
             task.output_refs = []
             task.error = None
@@ -158,7 +176,7 @@ class TaskGraph:
             if not task.active or task.status != TaskStatus.PENDING:
                 continue
             if all(
-                self._dependency_satisfied(dependency)
+                self._dependency_satisfied(dependency, dependent=task)
                 for dependency in task.dependencies
             ):
                 ready.append(task)
@@ -186,7 +204,7 @@ class TaskGraph:
             unmet = [
                 dependency
                 for dependency in task.dependencies
-                if not self._dependency_satisfied(dependency)
+                if not self._dependency_satisfied(dependency, dependent=task)
             ]
             if unmet:
                 raise TaskGraphError(f"task {task_id} has unmet dependencies: {unmet}")
@@ -223,9 +241,42 @@ class TaskGraph:
                 raise TaskGraphError(f"unknown replacement task: {current}")
         return current
 
-    def _dependency_satisfied(self, task_id: str) -> bool:
+    def _dependency_satisfied(
+        self,
+        task_id: str,
+        *,
+        dependent: TaskNode | None = None,
+    ) -> bool:
         effective = self.tasks[self._effective_task_id(task_id)]
-        return effective.active and effective.status == TaskStatus.COMPLETED
+        if not effective.active or effective.status != TaskStatus.COMPLETED:
+            return False
+        if dependent is None:
+            return True
+        allowed = dependent.dependency_outcomes.get(task_id)
+        if allowed is None and effective.task_id != task_id:
+            allowed = dependent.dependency_outcomes.get(effective.task_id)
+        return allowed is None or effective.outcome_type in allowed
+
+    def outcome_mismatched_tasks(self) -> list[TaskNode]:
+        """Return pending branch tasks whose completed prerequisites chose another edge."""
+
+        mismatched: list[TaskNode] = []
+        for task in self.tasks.values():
+            if not task.active or task.status != TaskStatus.PENDING:
+                continue
+            for dependency_id in task.dependencies:
+                effective = self.tasks[self._effective_task_id(dependency_id)]
+                allowed = task.dependency_outcomes.get(dependency_id)
+                if allowed is None and effective.task_id != dependency_id:
+                    allowed = task.dependency_outcomes.get(effective.task_id)
+                if (
+                    allowed is not None
+                    and effective.status == TaskStatus.COMPLETED
+                    and effective.outcome_type not in allowed
+                ):
+                    mismatched.append(task)
+                    break
+        return mismatched
 
     def _validate_effective_acyclic(self) -> None:
         active_ids = {task_id for task_id, task in self.tasks.items() if task.active}
@@ -266,14 +317,17 @@ class TaskGraph:
             if task.active and task.required
         ]
         return bool(required) and all(
-            task.status == TaskStatus.COMPLETED for task in required
+            task.status in {TaskStatus.COMPLETED, TaskStatus.SKIPPED}
+            for task in required
         )
 
     def unresolved_required(self) -> list[TaskNode]:
         return [
             task
             for task in self.tasks.values()
-            if task.active and task.required and task.status != TaskStatus.COMPLETED
+            if task.active
+            and task.required
+            and task.status not in {TaskStatus.COMPLETED, TaskStatus.SKIPPED}
         ]
 
 

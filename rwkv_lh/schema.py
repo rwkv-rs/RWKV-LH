@@ -11,14 +11,17 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-GOAL_SCHEMA_VERSION = "long-horizon.goal.v1"
+LEGACY_GOAL_SCHEMA_VERSION = "long-horizon.goal.v1"
+PREVIOUS_GOAL_SCHEMA_VERSION = "long-horizon.goal.v2"
+GOAL_SCHEMA_VERSION = "long-horizon.goal.v3"
 LEGACY_RUN_SCHEMA_VERSION = "long-horizon.run.v1"
 EVIDENCE_RUN_SCHEMA_VERSION = "long-horizon.run.v2"
 PREVIOUS_RUN_SCHEMA_VERSION = "long-horizon.run.v3"
 PROOF_RUN_SCHEMA_VERSION = "long-horizon.run.v4"
 OBLIGATION_RUN_SCHEMA_VERSION = "long-horizon.run.v5"
 CAUSAL_TASK_RUN_SCHEMA_VERSION = "long-horizon.run.v6"
-RUN_SCHEMA_VERSION = "long-horizon.run.v7"
+COMPACT_TASK_RUN_SCHEMA_VERSION = "long-horizon.run.v7"
+RUN_SCHEMA_VERSION = "long-horizon.run.v8"
 
 
 def utc_now() -> str:
@@ -41,6 +44,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     BLOCKED = "blocked"
+    SKIPPED = "skipped"
 
 
 class TaskEffectStatus(str, Enum):
@@ -99,6 +103,16 @@ class GoalCriterion:
     criterion_id: str
     description: str
     required: bool = True
+    source_quote: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the only active criterion contract (legacy quote is migration-only)."""
+
+        return {
+            "criterion_id": self.criterion_id,
+            "description": self.description,
+            "required": self.required,
+        }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "GoalCriterion":
@@ -106,6 +120,7 @@ class GoalCriterion:
             criterion_id=str(value.get("criterion_id") or value.get("id") or "").strip(),
             description=str(value.get("description") or "").strip(),
             required=bool(value.get("required", True)),
+            source_quote=str(value.get("source_quote") or ""),
         )
 
 
@@ -144,7 +159,7 @@ class GoalState:
             "objective": str(objective or "").strip(),
             "original_request": str(original_request or "").strip(),
             "constraints": list(normalized_constraints),
-            "success_criteria": [asdict(item) for item in normalized_criteria],
+            "success_criteria": [item.to_dict() for item in normalized_criteria],
             "workspace_root": root,
             "created_at": created_at,
         }
@@ -164,13 +179,21 @@ class GoalState:
         )
 
     def immutable_payload(self) -> dict[str, Any]:
+        criteria = [item.to_dict() for item in self.success_criteria]
+        if self.schema_version == LEGACY_GOAL_SCHEMA_VERSION:
+            pass
+        elif self.schema_version == PREVIOUS_GOAL_SCHEMA_VERSION:
+            criteria = [
+                {**item.to_dict(), "source_quote": item.source_quote}
+                for item in self.success_criteria
+            ]
         return {
             "schema_version": self.schema_version,
             "goal_id": self.goal_id,
             "objective": self.objective,
             "original_request": self.original_request,
             "constraints": list(self.constraints),
-            "success_criteria": [asdict(item) for item in self.success_criteria],
+            "success_criteria": criteria,
             "workspace_root": self.workspace_root,
             "created_at": self.created_at,
         }
@@ -198,7 +221,11 @@ class GoalState:
             created_at=str(value.get("created_at") or ""),
             digest=str(value.get("digest") or ""),
         )
-        if goal.schema_version != GOAL_SCHEMA_VERSION:
+        if goal.schema_version not in {
+            LEGACY_GOAL_SCHEMA_VERSION,
+            PREVIOUS_GOAL_SCHEMA_VERSION,
+            GOAL_SCHEMA_VERSION,
+        }:
             raise ValueError(f"unsupported goal schema: {goal.schema_version}")
         if not goal.verify_digest():
             raise ValueError("goal digest mismatch")
@@ -268,12 +295,20 @@ class TaskNode:
     effect_observation_status: TaskEffectStatus = TaskEffectStatus.PENDING
     postcondition_commit_status: TaskCommitStatus = TaskCommitStatus.PENDING
     postcondition_observation_digest: str = ""
+    outcome_type: str = "pending"
+    operation_kind: str = "unspecified"
+    subject_key: str = ""
+    member_key: str = ""
+    phase_key: str = ""
+    effect_targets: list[str] = field(default_factory=list)
+    expected_outcomes: list[str] = field(default_factory=lambda: ["success"])
+    dependency_outcomes: dict[str, list[str]] = field(default_factory=dict)
+    postcondition: str = ""
     required: bool = True
     active: bool = True
     dependencies: list[str] = field(default_factory=list)
-    # Legacy planning relevance. This field may describe criteria that a task
-    # advances, but it is never completion evidence in run schema v2.
-    goal_criteria: list[str] = field(default_factory=list)
+    # Planning relevance is distinct from completion evidence.
+    advances_criteria: list[str] = field(default_factory=list)
     # Direct Goal-satisfaction claims. A claim only becomes effective after
     # the Controller commits typed CriterionEvidence from a passed attempt.
     satisfies_criteria: list[str] = field(default_factory=list)
@@ -299,10 +334,22 @@ class TaskNode:
             "effect_observation_status": self.effect_observation_status.value,
             "postcondition_commit_status": self.postcondition_commit_status.value,
             "postcondition_observation_digest": self.postcondition_observation_digest,
+            "outcome_type": self.outcome_type,
+            "operation_kind": self.operation_kind,
+            "subject_key": self.subject_key,
+            "member_key": self.member_key,
+            "phase_key": self.phase_key,
+            "effect_targets": list(self.effect_targets),
+            "expected_outcomes": list(self.expected_outcomes),
+            "dependency_outcomes": {
+                key: list(outcomes)
+                for key, outcomes in self.dependency_outcomes.items()
+            },
+            "postcondition": self.postcondition,
             "required": self.required,
             "active": self.active,
             "dependencies": list(self.dependencies),
-            "goal_criteria": list(self.goal_criteria),
+            "advances_criteria": list(self.advances_criteria),
             "satisfies_criteria": list(self.satisfies_criteria),
             "priority": self.priority,
             "inputs": list(self.inputs),
@@ -343,10 +390,34 @@ class TaskNode:
             postcondition_observation_digest=str(
                 value.get("postcondition_observation_digest") or ""
             ),
+            outcome_type=str(value.get("outcome_type") or "pending"),
+            operation_kind=str(value.get("operation_kind") or "unspecified"),
+            subject_key=str(value.get("subject_key") or ""),
+            member_key=str(value.get("member_key") or ""),
+            phase_key=str(value.get("phase_key") or ""),
+            effect_targets=[
+                str(item) for item in value.get("effect_targets") or []
+            ],
+            expected_outcomes=[
+                str(item) for item in value.get("expected_outcomes") or ["success"]
+            ],
+            dependency_outcomes={
+                str(key): [str(item) for item in outcomes]
+                for key, outcomes in (value.get("dependency_outcomes") or {}).items()
+                if isinstance(outcomes, list)
+            },
+            postcondition=str(value.get("postcondition") or ""),
             required=bool(value.get("required", True)),
             active=bool(value.get("active", True)),
             dependencies=[str(item) for item in value.get("dependencies") or []],
-            goal_criteria=[str(item) for item in value.get("goal_criteria") or []],
+            advances_criteria=[
+                str(item)
+                for item in (
+                    value.get("advances_criteria")
+                    or value.get("goal_criteria")
+                    or []
+                )
+            ],
             satisfies_criteria=[
                 str(item) for item in value.get("satisfies_criteria") or []
             ],
@@ -606,7 +677,7 @@ class GoalObligationState:
     unresolved_criterion_ids: list[str] = field(default_factory=list)
     status: GoalObligationStatus = GoalObligationStatus.UNRESOLVED
     generation_count: int = 0
-    remaining_budget: int = 3
+    remaining_budget: int = 64
     last_observation_digest: str = ""
     task_ids: list[str] = field(default_factory=list)
     decision_history: list[dict[str, Any]] = field(default_factory=list)
@@ -629,7 +700,7 @@ class GoalObligationState:
                 str(value.get("status") or GoalObligationStatus.UNRESOLVED.value)
             ),
             generation_count=max(0, int(value.get("generation_count", 0) or 0)),
-            remaining_budget=max(0, int(value.get("remaining_budget", 3) or 0)),
+            remaining_budget=max(0, int(value.get("remaining_budget", 64) or 0)),
             last_observation_digest=str(value.get("last_observation_digest") or ""),
             task_ids=[str(item) for item in value.get("task_ids") or []],
             decision_history=[
@@ -792,6 +863,7 @@ class Attempt:
     witness_catalog_digest: str = ""
     validation_results: list[ValidationResult] = field(default_factory=list)
     error: dict[str, Any] | None = None
+    outcome_type: str = "pending"
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
@@ -822,6 +894,7 @@ class Attempt:
                 if isinstance(item, Mapping)
             ],
             error=dict(value["error"]) if isinstance(value.get("error"), Mapping) else None,
+            outcome_type=str(value.get("outcome_type") or "pending"),
         )
 
 
@@ -834,6 +907,19 @@ class ArtifactRecord:
     media_type: str = "application/octet-stream"
     summary: str = ""
     created_at: str = field(default_factory=utc_now)
+
+
+@dataclass
+class ArtifactRevision:
+    revision_id: str
+    target: str
+    artifact_id: str
+    task_id: str
+    attempt_id: str
+    sha256: str
+    outcome_type: str
+    task_commit_status: str = TaskCommitStatus.PENDING.value
+    observed_at: str = field(default_factory=utc_now)
 
 
 @dataclass
@@ -885,6 +971,7 @@ class RunState:
     plan_generation: int = 0
     memory_index: dict[str, MemoryEntry] = field(default_factory=dict)
     artifacts: dict[str, ArtifactRecord] = field(default_factory=dict)
+    artifact_revisions: dict[str, list[ArtifactRevision]] = field(default_factory=dict)
     criterion_evidence: dict[str, CriterionEvidence] = field(default_factory=dict)
     criterion_claims: dict[str, CriterionClaim] = field(default_factory=dict)
     witness_intents: dict[str, WitnessIntentState] = field(default_factory=dict)
@@ -911,6 +998,10 @@ class RunState:
             "plan_generation": self.plan_generation,
             "memory_index": {key: asdict(value) for key, value in self.memory_index.items()},
             "artifacts": {key: asdict(value) for key, value in self.artifacts.items()},
+            "artifact_revisions": {
+                key: [asdict(item) for item in revisions]
+                for key, revisions in self.artifact_revisions.items()
+            },
             "criterion_evidence": {
                 key: value.to_dict() for key, value in self.criterion_evidence.items()
             },
@@ -948,6 +1039,7 @@ class RunState:
             PROOF_RUN_SCHEMA_VERSION,
             OBLIGATION_RUN_SCHEMA_VERSION,
             CAUSAL_TASK_RUN_SCHEMA_VERSION,
+            COMPACT_TASK_RUN_SCHEMA_VERSION,
             RUN_SCHEMA_VERSION,
         }:
             raise ValueError(f"unsupported run schema: {schema_version}")
@@ -982,6 +1074,15 @@ class RunState:
                 str(key): ArtifactRecord(**dict(item))
                 for key, item in (value.get("artifacts") or {}).items()
                 if isinstance(item, Mapping)
+            },
+            artifact_revisions={
+                str(key): [
+                    ArtifactRevision(**dict(item))
+                    for item in revisions
+                    if isinstance(item, Mapping)
+                ]
+                for key, revisions in (value.get("artifact_revisions") or {}).items()
+                if isinstance(revisions, list)
             },
             criterion_evidence={
                 str(key): CriterionEvidence.from_dict(item)
@@ -1072,6 +1173,7 @@ def action_fingerprint(action: TaskAction) -> str:
 
 __all__ = [
     "ArtifactRecord",
+    "ArtifactRevision",
     "Attempt",
     "AttemptStatus",
     "CriterionEvidence",
@@ -1079,18 +1181,21 @@ __all__ = [
     "CriterionClaim",
     "CriterionClaimStatus",
     "CAUSAL_TASK_RUN_SCHEMA_VERSION",
+    "COMPACT_TASK_RUN_SCHEMA_VERSION",
     "EVIDENCE_RUN_SCHEMA_VERSION",
     "GoalObligationState",
     "GoalObligationStatus",
     "WitnessIntentState",
     "EvidenceRef",
     "GOAL_SCHEMA_VERSION",
+    "LEGACY_GOAL_SCHEMA_VERSION",
     "GoalCriterion",
     "GoalState",
     "MemoryEntry",
     "ModelStateRef",
     "LEGACY_RUN_SCHEMA_VERSION",
     "PREVIOUS_RUN_SCHEMA_VERSION",
+    "PREVIOUS_GOAL_SCHEMA_VERSION",
     "PROOF_RUN_SCHEMA_VERSION",
     "OBLIGATION_RUN_SCHEMA_VERSION",
     "ProofExpr",

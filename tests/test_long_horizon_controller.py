@@ -1,7 +1,9 @@
+import hashlib
 import json
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -46,6 +48,10 @@ from rwkv_lh.schema import (
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.task_graph import TaskGraph, TaskGraphError
 from rwkv_lh.token_budget import get_token_count
+from rwkv_lh.tool_protocol import (
+    TASK_BATCH_SCHEMA_VERSION,
+    normalize_task_batch_envelope_with_trace,
+)
 
 
 def make_goal(root: Path) -> GoalState:
@@ -57,6 +63,423 @@ def make_goal(root: Path) -> GoalState:
         success_criteria=[GoalCriterion("GC1", "All required tasks are verified")],
         workspace_root=root,
     )
+
+
+class Round34TaskCommitAliasClient:
+    def __init__(self, *, extra_field: bool = False, omit_schema: bool = False):
+        self.calls = []
+        self.extra_field = extra_field
+        self.omit_schema = omit_schema
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.calls.append(prompt)
+        payload = {
+            "schema_version": "rwkv-lh.task-commit.v1",
+            "decision": "pass",
+            "reason": "The requested input was observed.",
+        }
+        if self.omit_schema:
+            payload.pop("schema_version")
+        if self.extra_field:
+            payload["task_commit_status"] = "committed"
+        return type("Response", (), {"content": json.dumps(payload)})()
+
+
+def test_round34_task_commit_alias_is_converted_once_at_model_boundary():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R34-COMMIT")
+        task = TaskNode(
+            "T1",
+            "Read input",
+            "Observe the scoped input",
+            postcondition="The input is observed",
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round34TaskCommitAliasClient()
+        model = LongHorizonModel(ModelInvoker(client=client), action_contract="{}")
+        decision = model.commit_task_postcondition(
+            state,
+            task,
+            WorkingMemoryBuilder().build_task_validation(state, task),
+            persist,
+            action_result={"success": True, "output": "observed"},
+            validation_results=[],
+        )
+
+        assert decision.passed is True
+        assert len(client.calls) == 1
+        event = next(
+            item["data"]
+            for item in store.event_records(state.run_id)
+            if item["type"] == "model_protocol_normalized"
+            and item["data"]["request_type"] == "task_postcondition_commit"
+        )
+        assert event["field"] == "schema_version"
+        assert event["input_payload"]["schema_version"] == (
+            "rwkv-lh.task-commit.v1"
+        )
+        assert event["normalized_payload"]["schema_version"] == (
+            "long-horizon.task-commit.v1"
+        )
+        assert event["controller_semantic_fields_generated"] is False
+
+
+def test_round46_missing_task_commit_schema_normalizes_without_resampling():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R46-COMMIT")
+        task = TaskNode(
+            "T1",
+            "Read input",
+            "Observe the scoped input",
+            postcondition="The input is observed",
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round34TaskCommitAliasClient(omit_schema=True)
+        decision = LongHorizonModel(
+            ModelInvoker(client=client), action_contract="{}"
+        ).commit_task_postcondition(
+            state,
+            task,
+            WorkingMemoryBuilder().build_task_validation(state, task),
+            persist,
+            action_result={"success": True, "output": "observed"},
+            validation_results=[],
+        )
+
+        assert decision.passed is True
+        assert decision.reason == "The requested input was observed."
+        assert len(client.calls) == 1
+        assert "You are the semantic verifier for exactly the ACTIVE TASK" in client.calls[0]
+        events = [
+            item["data"]
+            for item in store.event_records(state.run_id)
+            if item["type"] == "model_protocol_normalized"
+            and item["data"]["request_type"] == "task_postcondition_commit"
+        ]
+        assert len(events) == 1
+        assert events[0]["input_payload"] == {
+            "decision": "pass",
+            "reason": "The requested input was observed.",
+        }
+        assert events[0]["normalized_payload"] == {
+            "schema_version": "long-horizon.task-commit.v1",
+            **events[0]["input_payload"],
+        }
+        assert events[0]["transformations"] == [
+            "missing_schema_tag->long-horizon.task-commit.v1"
+        ]
+        assert events[0]["controller_semantic_fields_generated"] is False
+
+
+def test_round34_task_commit_alias_does_not_hide_extra_fields():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R34-EXTRA")
+        task = TaskNode(
+            "T1",
+            "Read input",
+            "Observe the scoped input",
+            postcondition="The input is observed",
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round34TaskCommitAliasClient(extra_field=True)
+        model = LongHorizonModel(ModelInvoker(client=client), action_contract="{}")
+        with pytest.raises(ModelProtocolError, match="fields must be exactly"):
+            model.commit_task_postcondition(
+                state,
+                task,
+                WorkingMemoryBuilder().build_task_validation(state, task),
+                persist,
+                action_result={"success": True, "output": "observed"},
+                validation_results=[],
+            )
+
+        assert len(client.calls) == 2
+        normalized = [
+            item["data"]["normalized_payload"]
+            for item in store.event_records(state.run_id)
+            if item["type"] == "model_protocol_normalized"
+            and item["data"]["request_type"] == "task_postcondition_commit"
+        ]
+        assert len(normalized) == 2
+        assert all(item["task_commit_status"] == "committed" for item in normalized)
+
+
+def test_round35_action_capsule_contains_real_data_without_internal_placeholders():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        state = RunState(run_id="LH-R35-ACTION", goal=make_goal(root / "workspace"))
+        dependency = TaskNode(
+            "T1",
+            "Read input",
+            "Observe input.txt",
+            status=TaskStatus.COMPLETED,
+            action=TaskAction("read_file", {"path": "input.txt"}),
+            output_refs=["M-T1", "M-T1-POST"],
+        )
+        active = TaskNode(
+            "T2",
+            "Write derived output",
+            "Use the observed input to write result.txt",
+            dependencies=["T1"],
+            postcondition="result.txt contains the derived output",
+            action=TaskAction("model_action", {}),
+            completion_criteria=[ValidationSpec("action_succeeded", {})],
+        )
+        state.tasks = {"T1": dependency, "T2": active}
+        state.memory_index = {
+            "M-T1": MemoryEntry(
+                "M-T1",
+                "action_result",
+                "T1",
+                "alpha",
+                content=(
+                    "alpha\n\nACTION RESULT METADATA\n"
+                    '{"complete":false,"next_start_char":5,"truncated":true}'
+                ),
+                artifact_refs=["A-T1", "UNKNOWN-ARTIFACT"],
+            ),
+            "M-T1-POST": MemoryEntry(
+                "M-T1-POST",
+                "post_action_workspace_snapshot",
+                "T1",
+                "snapshot",
+                content=json.dumps(
+                    {
+                        "schema_version": "rwkv-lh.post-action-workspace-snapshot.v1",
+                        "path": "input.txt",
+                        "content": "alpha",
+                        "content_included": True,
+                        "sha256": "abc",
+                        "size_bytes": 5,
+                        "source_label": "internal-audit-label",
+                    }
+                ),
+            ),
+        }
+        state.artifacts = {
+            "A-T1": ArtifactRecord(
+                "A-T1",
+                "T1",
+                "input.txt",
+                "a" * 64,
+                media_type="text/plain",
+            )
+        }
+
+        capsule = WorkingMemoryBuilder().build_action_commit(state, active)
+        prompt = capsule.to_prompt()
+
+        assert capsule.schema_version == "rwkv-lh.action-commit-capsule.v1"
+        assert "alpha" in prompt
+        assert '"next_start_char":5' in prompt
+        assert "model_action" not in prompt
+        assert "completion_criteria" not in prompt
+        assert "commit_status" not in prompt
+        assert "rwkv-lh.causal-state.v1" not in prompt
+        assert "internal-audit-label" not in prompt
+        assert str(root / "workspace") not in prompt
+        assert '"path": "input.txt"' in prompt
+        assert f'"sha256": "{"a" * 64}"' in prompt
+        assert '"media_type": "text/plain"' in prompt
+        assert "A-T1" not in prompt
+        assert "UNKNOWN-ARTIFACT" not in prompt
+
+def test_round35_task_postcondition_capsule_is_task_local_and_keeps_committed_action():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        state = RunState(run_id="LH-R35-COMMIT", goal=make_goal(root / "workspace"))
+        task = TaskNode(
+            "T1",
+            "Write result",
+            "Write the observed result",
+            postcondition="result.txt contains alpha",
+            action=TaskAction(
+                "write_file",
+                {
+                    "path": "result.txt",
+                    "content": "alpha",
+                    "overwrite": True,
+                    "create_parents": True,
+                },
+            ),
+            completion_criteria=[ValidationSpec("action_succeeded", {})],
+        )
+        state.tasks = {"T1": task}
+
+        capsule = WorkingMemoryBuilder().build_task_validation(state, task)
+        prompt = capsule.to_prompt()
+
+        assert capsule.schema_version == "rwkv-lh.task-postcondition-capsule.v1"
+        assert '"committed_action"' in prompt
+        assert '"name": "write_file"' in prompt
+        assert '"postcondition": "result.txt contains alpha"' in prompt
+        assert "completion_criteria" not in prompt
+        assert "rwkv-lh.causal-state.v1" not in prompt
+        assert str(root / "workspace") not in prompt
+
+        checks = LongHorizonModel._task_effect_check_view(
+            state,
+            [
+                {
+                    "kind": "file_content",
+                    "passed": True,
+                    "required": True,
+                    "message": "content matched",
+                    "evidence": {
+                        "path": str(root / "workspace" / "result.txt"),
+                        "actual": "alpha",
+                        "expected": "alpha",
+                    },
+                    "checked_at": "internal-timestamp",
+                }
+            ],
+        )
+        assert checks == [
+            {
+                "kind": "file_content",
+                "passed": True,
+                "required": True,
+                "message": "content matched",
+                "evidence": {
+                    "actual": "alpha",
+                    "expected": "alpha",
+                    "workspace_path": "result.txt",
+                },
+            }
+        ]
+
+
+class Round35GoalAndPlanClient:
+    def __init__(self):
+        self.prompts = []
+        self.outputs = [
+            {
+                "schema_version": "long-horizon.goal-proposal.v1",
+                "objective": "Read input and write result",
+                "constraints": [],
+                "success_criteria": [
+                    {
+                        "id": "result",
+                        "description": "result.txt contains the requested result",
+                        "required": True,
+                    }
+                ],
+            },
+            {
+                "schema_version": TASK_BATCH_SCHEMA_VERSION,
+                "tasks": [
+                    {
+                        "local_id": "read",
+                        "title": "Read input",
+                        "description": "Observe input.txt",
+                        "dependencies": [],
+                        "postcondition": "input.txt content is observed",
+                    }
+                ],
+            },
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.prompts.append(prompt)
+        return type("Response", (), {"content": json.dumps(self.outputs.pop(0))})()
+
+
+def test_round35_runtime_workspace_root_is_hidden_from_goal_and_plan_prompts():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "private-runtime-workspace"
+        workspace.mkdir()
+        client = Round35GoalAndPlanClient()
+        model = LongHorizonModel(ModelInvoker(client=client), action_contract="{}")
+
+        goal, _ = model.parse_goal("Read input and write result", str(workspace))
+        state = RunState(run_id="LH-R35-ROOT", goal=goal)
+        model.plan(state, lambda *_args: None)
+
+        assert goal.workspace_root == str(workspace.resolve())
+        assert all(str(workspace) not in prompt for prompt in client.prompts)
+        assert "SCOPED WORKSPACE:\n." in client.prompts[0]
+        assert '"workspace_scope": "."' in client.prompts[1]
+        assert "post-action workspace snapshot" in client.prompts[1]
+
+
+class Round35TaskCommitCorrectionClient:
+    def __init__(self):
+        self.prompts = []
+        self.outputs = [
+            {
+                "schema_version": "long-horizon.task-commit.v1",
+                "decision": "pass",
+                "reason": "UNIQUE_REJECTED_MARKER",
+                "task_commit_status": "committed",
+            },
+            {
+                "schema_version": "long-horizon.task-commit.v1",
+                "decision": "pass",
+                "reason": "The observed read completes the task.",
+            },
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.prompts.append(prompt)
+        return type("Response", (), {"content": json.dumps(self.outputs.pop(0))})()
+
+
+def test_round35_task_commit_correction_does_not_echo_rejected_json():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R35-CORRECT")
+        task = TaskNode(
+            "T1",
+            "Read input",
+            "Observe input.txt",
+            postcondition="input.txt is observed",
+            action=TaskAction("read_file", {"path": "input.txt"}),
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round35TaskCommitCorrectionClient()
+        decision = LongHorizonModel(
+            ModelInvoker(client=client), action_contract="{}"
+        ).commit_task_postcondition(
+            state,
+            task,
+            WorkingMemoryBuilder().build_task_validation(state, task),
+            persist,
+            action_result={"success": True, "output": "observed"},
+            validation_results=[],
+        )
+
+        assert decision.passed is True
+        assert len(client.prompts) == 2
+        assert "PROTOCOL CORRECTION" in client.prompts[1]
+        assert "UNIQUE_REJECTED_MARKER" not in client.prompts[1]
 
 
 def save_tasks(store: LongHorizonStore, state: RunState, tasks: list[TaskNode]) -> RunState:
@@ -73,6 +496,1033 @@ def save_tasks(store: LongHorizonStore, state: RunState, tasks: list[TaskNode]) 
     state.tasks = {task.task_id: task for task in tasks}
     state.status = RunStatus.RUNNING
     return store.save(state, event_type="plan_saved")
+
+
+def make_provenance_commit_fixture(root: Path, *, goal: GoalState | None = None):
+    workspace = root / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    store = LongHorizonStore(root / "state")
+    state = store.create_run(goal or make_goal(workspace), "LH-PROVENANCE")
+    (workspace / "input.txt").write_text("expected source\n", encoding="utf-8")
+    (workspace / "result.txt").write_text("actual result\n", encoding="utf-8")
+    input_digest = hashlib.sha256((workspace / "input.txt").read_bytes()).hexdigest()
+    result_digest = hashlib.sha256((workspace / "result.txt").read_bytes()).hexdigest()
+    dependency = TaskNode(
+        "T1",
+        "Read input",
+        "Observe the independent input",
+        status=TaskStatus.COMPLETED,
+        action=TaskAction("read_file", {"path": "input.txt"}),
+        output_refs=["M-T1", "A-T1"],
+    )
+    current = TaskNode(
+        "T2",
+        "Read result",
+        "Observe the produced result",
+        status=TaskStatus.COMPLETED,
+        dependencies=["T1"],
+        satisfies_criteria=["GC1"],
+        action=TaskAction("read_file", {"path": "result.txt"}),
+        attempt_ids=["T2-A1"],
+        output_refs=["M-T2", "A-T2"],
+    )
+    state.tasks = {"T1": dependency, "T2": current}
+    state.attempts["T1-A1"] = Attempt(
+        "T1-A1",
+        "T1",
+        AttemptStatus.SUCCEEDED,
+        action_fingerprint(dependency.action),
+        "fixture:T1-A1",
+        utc_now(),
+        ended_at=utc_now(),
+    )
+    dependency.attempt_ids = ["T1-A1"]
+    state.attempts["T2-A1"] = Attempt(
+        "T2-A1",
+        "T2",
+        AttemptStatus.SUCCEEDED,
+        action_fingerprint(current.action),
+        "fixture:T2-A1",
+        utc_now(),
+        ended_at=utc_now(),
+    )
+    state.artifacts = {
+        "A-T1": ArtifactRecord("A-T1", "T1", "input.txt", input_digest),
+        "A-T2": ArtifactRecord("A-T2", "T2", "result.txt", result_digest),
+    }
+    state.memory_index = {
+        "M-T1": MemoryEntry(
+            "M-T1",
+            "action_result",
+            "T1",
+            "expected source",
+            content="expected source\n",
+            artifact_refs=["A-T1"],
+        ),
+        "M-T2": MemoryEntry(
+            "M-T2",
+            "action_result",
+            "T2",
+            "actual result",
+            content="actual result\n",
+            artifact_refs=["A-T2"],
+        ),
+    }
+    return store, state, current
+
+
+def test_provenance_commit_accepts_current_actual_and_ancestor_expected_refs():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, task = make_provenance_commit_fixture(Path(directory))
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        claims = controller._validate_and_commit_goal_provenance_bindings(
+            state,
+            ["GC1"],
+            catalog,
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                        "reason": "The result observation is supported by the independent input observation.",
+                    }
+                ],
+            },
+        )
+
+        assert [item.criterion_id for item in claims] == ["GC1"]
+        assert claims[0].claim_protocol == "rwkv_goal_provenance_commit.v1"
+        assert claims[0].raw_claim["reason"].startswith("The result observation")
+        assert claims[0].raw_claim["actual_ref"] == "M-T2"
+        assert claims[0].raw_claim["expected_ref"] == "M-T1"
+
+
+@pytest.mark.parametrize(
+    "proposal, message",
+    [
+        (
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "UNKNOWN",
+                        "expected_ref": "GOAL",
+                        "reason": "wrong scope",
+                    }
+                ],
+            },
+            "outside completed active causal observations",
+        ),
+        (
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "UNKNOWN",
+                        "reason": "unknown ref",
+                    }
+                ],
+            },
+            "outside Goal/completed causal observations",
+        ),
+        (
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                        "reason": "first",
+                    },
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "GOAL",
+                        "reason": "duplicate",
+                    },
+                ],
+            },
+            "exactly once",
+        ),
+    ],
+)
+def test_provenance_commit_rejects_scope_and_coverage_violations(proposal, message):
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, task = make_provenance_commit_fixture(Path(directory))
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        with pytest.raises(ModelProtocolError, match=message):
+            controller._validate_and_commit_goal_provenance_bindings(
+                state,
+                ["GC1"],
+                catalog,
+                proposal,
+            )
+
+
+def test_provenance_commit_rejects_shared_workspace_lineage():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, task = make_provenance_commit_fixture(Path(directory))
+        state.artifacts["A-T1"].path = "result.txt"
+        state.artifacts["A-T1"].sha256 = state.artifacts["A-T2"].sha256
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        with pytest.raises(ModelProtocolError, match="share workspace path lineage"):
+            controller._validate_and_commit_goal_provenance_bindings(
+                state,
+                ["GC1"],
+                catalog,
+                {
+                    "decision": "pass",
+                    "bindings": [
+                        {
+                            "criterion_id": "GC1",
+                            "actual_ref": "M-T2",
+                            "expected_ref": "M-T1",
+                            "reason": "same path cannot be independent",
+                        }
+                    ],
+                },
+            )
+
+
+def test_provenance_commit_accepts_dependency_actual_without_generating_reason():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, task = make_provenance_commit_fixture(Path(directory))
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        claims = controller._validate_and_commit_goal_provenance_bindings(
+            state,
+            ["GC1"],
+            catalog,
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T1",
+                        "expected_ref": "GOAL",
+                    }
+                ],
+            },
+        )
+
+        assert claims[0].raw_claim["actual_ref"] == "M-T1"
+        assert "reason" not in claims[0].raw_claim
+        assert claims[0].rwkv_reason == ""
+
+
+def test_goal_catalog_includes_all_and_only_completed_active_task_observations():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store, state, task = make_provenance_commit_fixture(root)
+        workspace = Path(state.goal.workspace_root)
+        (workspace / "root.txt").write_text("root source\n", encoding="utf-8")
+        root_digest = hashlib.sha256((workspace / "root.txt").read_bytes()).hexdigest()
+        state.tasks["T0"] = TaskNode(
+            "T0",
+            "Read root",
+            "Observe transitive input",
+            status=TaskStatus.COMPLETED,
+            action=TaskAction("read_file", {"path": "root.txt"}),
+            output_refs=["M-T0", "A-T0"],
+        )
+        state.tasks["T1"].dependencies = ["T0"]
+        state.artifacts["A-T0"] = ArtifactRecord(
+            "A-T0", "T0", "root.txt", root_digest
+        )
+        state.memory_index["M-T0"] = MemoryEntry(
+            "M-T0",
+            "action_result",
+            "T0",
+            "root source",
+            content="root source\n",
+            artifact_refs=["A-T0"],
+        )
+        state.tasks["T3"] = TaskNode(
+            "T3",
+            "Observe parallel sibling",
+            "Contribute an independent completed branch",
+            status=TaskStatus.COMPLETED,
+            action=TaskAction("noop", {"output": "sibling"}),
+            output_refs=["M-T3"],
+        )
+        state.memory_index["M-T3"] = MemoryEntry(
+            "M-T3",
+            "action_result",
+            "T3",
+            "sibling",
+            content="sibling",
+        )
+        controller = LongHorizonController(store)
+
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+        assert {item["ref"] for item in catalog["causal_actual_sources"]} == {
+            "M-T0",
+            "M-T1",
+            "M-T2",
+            "M-T3",
+        }
+
+        state.tasks["T0"].active = False
+        inactive_catalog = controller._goal_criterion_provenance_catalog(
+            state, ["GC1"]
+        )
+        assert "M-T0" not in {
+            item["ref"] for item in inactive_catalog["causal_actual_sources"]
+        }
+
+        state.tasks["T0"].active = True
+        state.tasks["T0"].status = TaskStatus.PENDING
+        pending_catalog = controller._goal_criterion_provenance_catalog(
+            state, ["GC1"]
+        )
+        assert "M-T0" not in {
+            item["ref"] for item in pending_catalog["causal_actual_sources"]
+        }
+
+
+def test_round41_goal_catalog_uses_snapshot_and_original_read_only_expected_role():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, _ = make_provenance_commit_fixture(Path(directory))
+        state.tasks["T1"].insertion_order = 0
+        state.tasks["T2"].insertion_order = 1
+        state.tasks["T2"].action = TaskAction(
+            "write_file",
+            {
+                "path": "result.txt",
+                "content": "actual result\n",
+                "overwrite": True,
+                "create_parents": False,
+            },
+        )
+        state.memory_index["M-T2-POST-R1"] = MemoryEntry(
+            "M-T2-POST-R1",
+            "post_action_workspace_snapshot",
+            "T2",
+            "Observed result.txt",
+            content=json.dumps(
+                {
+                    "path": "result.txt",
+                    "content": "actual result\n",
+                    "sha256": state.artifacts["A-T2"].sha256,
+                }
+            ),
+            artifact_refs=["A-T2"],
+        )
+        state.tasks["T2"].output_refs = ["M-T2", "M-T2-POST-R1", "A-T2"]
+        controller = LongHorizonController(store)
+
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        actual_by_ref = {
+            item["ref"]: item for item in catalog["causal_actual_sources"]
+        }
+        assert "M-T2" not in actual_by_ref
+        assert "M-T2-POST-R1" in actual_by_ref
+        assert "M-T2" in state.memory_index
+        assert {
+            item["ref"] for item in catalog["independent_expected_sources"]
+        } == {"GOAL", "M-T1"}
+        assert actual_by_ref["M-T2-POST-R1"]["eligible_expected_refs"] == [
+            "GOAL",
+            "M-T1",
+        ]
+
+
+def test_round41_read_after_workspace_production_is_not_an_expected_source():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, _ = make_provenance_commit_fixture(Path(directory))
+        state.tasks["T1"].insertion_order = 0
+        state.tasks["T2"].insertion_order = 1
+        state.tasks["T2"].action = TaskAction(
+            "write_file",
+            {
+                "path": "result.txt",
+                "content": "actual result\n",
+                "overwrite": True,
+                "create_parents": False,
+            },
+        )
+        state.tasks["T2"].effect_targets = ["result.txt"]
+        state.tasks["T3"] = TaskNode(
+            "T3",
+            "Read produced result",
+            "Observe result.txt after production",
+            status=TaskStatus.COMPLETED,
+            insertion_order=2,
+            action=TaskAction("read_file", {"path": "result.txt"}),
+            attempt_ids=["T3-A1"],
+            output_refs=["M-T3", "A-T2"],
+        )
+        state.attempts["T3-A1"] = Attempt(
+            "T3-A1",
+            "T3",
+            AttemptStatus.SUCCEEDED,
+            action_fingerprint(state.tasks["T3"].action),
+            "fixture:T3-A1",
+            utc_now(),
+            ended_at=utc_now(),
+        )
+        state.memory_index["M-T3"] = MemoryEntry(
+            "M-T3",
+            "action_result",
+            "T3",
+            "actual result",
+            content="actual result\n",
+            artifact_refs=["A-T2"],
+        )
+        controller = LongHorizonController(store)
+
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        expected_refs = {
+            item["ref"] for item in catalog["independent_expected_sources"]
+        }
+        assert "M-T1" in expected_refs
+        assert "M-T3" not in expected_refs
+
+
+def test_goal_provenance_rejects_actual_source_without_succeeded_owner_attempt():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, _ = make_provenance_commit_fixture(Path(directory))
+        del state.attempts["T2-A1"]
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+
+        with pytest.raises(
+            ModelProtocolError,
+            match="completed active Task with a succeeded Attempt",
+        ):
+            controller._validate_and_commit_goal_provenance_bindings(
+                state,
+                ["GC1"],
+                catalog,
+                {
+                    "decision": "pass",
+                    "bindings": [
+                        {
+                            "criterion_id": "GC1",
+                            "actual_ref": "M-T2",
+                            "expected_ref": "M-T1",
+                        }
+                    ],
+                },
+            )
+
+
+def test_provenance_commit_is_invalidated_when_workspace_source_changes():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store, state, task = make_provenance_commit_fixture(root)
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+        claim = controller._validate_and_commit_goal_provenance_bindings(
+            state,
+            ["GC1"],
+            catalog,
+            {
+                "decision": "pass",
+                "bindings": [
+                    {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                        "reason": "independent refs establish the claim",
+                    }
+                ],
+            },
+        )[0]
+        state.criterion_evidence["CE-GC1-T2-A1"] = CriterionEvidence(
+            "CE-GC1-T2-A1",
+            "GC1",
+            CriterionEvidenceStatus.VERIFIED,
+            "T2",
+            "T2-A1",
+            claim_id=claim.claim_id,
+            proof_refs=[item.evidence_ref_id for item in claim.proof_refs],
+            observation_digest=claim.observation_digest,
+        )
+
+        assert controller._revalidate_goal_proofs(state) == []
+        (root / "workspace" / "result.txt").write_text(
+            "changed after evidence\n",
+            encoding="utf-8",
+        )
+        assert controller._revalidate_goal_proofs(state) == [claim.claim_id]
+        assert state.criterion_evidence["CE-GC1-T2-A1"].status == CriterionEvidenceStatus.INVALIDATED
+
+
+class MalformedThenCompactProvenanceClient:
+    def __init__(self):
+        self.outputs = [
+            "not a JSON object",
+            {
+                "decision": "pass",
+                "binding": {
+                    "criterion_id": "GC1",
+                    "actual_ref": "M-T2",
+                    "expected_ref": "M-T1",
+                },
+            },
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        del prompt, max_tokens, stop
+        output = self.outputs.pop(0)
+        content = output if isinstance(output, str) else json.dumps(output)
+        return type("Response", (), {"content": content, "finish_reason": "stop"})()
+
+
+def test_compact_provenance_commit_retries_parse_error_without_completing_json():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, task = make_provenance_commit_fixture(Path(directory))
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+        client = MalformedThenCompactProvenanceClient()
+        model = LongHorizonModel(ModelInvoker(client=client))
+        events = []
+
+        result = model.commit_criterion_evidence(
+            state,
+            WorkingMemoryBuilder().build_goal_validation(
+                state,
+                criterion_ids=["GC1"],
+                selected_memory_ids=["M-T1", "M-T2"],
+            ),
+            lambda _state, event_type, data: events.append(
+                {"type": event_type, "data": dict(data)}
+            ),
+            criterion_ids=["GC1"],
+            source_catalog=catalog,
+        )
+
+        assert result["decision"] == "pass"
+        assert result["bindings"][0]["actual_ref"] == "M-T2"
+        assert "reason" not in result["bindings"][0]
+        assert client.outputs == []
+        assert [item["type"] for item in events].count("model_request_started") == 2
+        assert [item["type"] for item in events].count("model_protocol_error") == 1
+        retry = next(
+            item
+            for item in events
+            if item["type"] == "goal_criterion_evidence_commit_retry_requested"
+        )
+        assert retry["data"]["semantic_fields_generated"] is False
+        assert "complete JSON object" in retry["data"]["error"]
+        parsed = [item for item in events if item["type"] == "model_protocol_parsed"]
+        assert len(parsed) == 1
+        assert parsed[0]["data"]["parsed_payload"] == {
+            "decision": "pass",
+            "binding": result["bindings"][0],
+        }
+
+
+class CriterionLocalEvidenceClient:
+    def __init__(self, outputs):
+        self.outputs = list(outputs)
+        self.prompts = []
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        del max_tokens, stop
+        self.prompts.append(prompt)
+        return type(
+            "Response",
+            (),
+            {"content": json.dumps(self.outputs.pop(0)), "finish_reason": "stop"},
+        )()
+
+
+def test_round40_goal_evidence_is_criterion_local_and_aggregated_atomically():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        goal = GoalState.create(
+            objective="Execute and verify a long task",
+            original_request="Execute every dependent step and verify the artifacts",
+            constraints=["Stay in the workspace"],
+            success_criteria=(
+                GoalCriterion("GC1", "All required tasks are verified"),
+                GoalCriterion("GC2", "A second fact is proven"),
+            ),
+            workspace_root=root / "workspace",
+        )
+        store, state, _ = make_provenance_commit_fixture(root, goal=goal)
+        client = CriterionLocalEvidenceClient(
+            [
+                {
+                    "decision": "pass",
+                    "binding": {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                    },
+                },
+                {"decision": "replan", "binding": None},
+            ]
+        )
+        model = LongHorizonModel(ModelInvoker(client=client))
+        controller = LongHorizonController(store, model=model)
+
+        assert controller._commit_goal_criterion_evidence(state) is False
+        assert len(client.prompts) == 2
+        assert '"criterion_id": "GC1"' in client.prompts[0]
+        assert '"criterion_id": "GC2"' not in client.prompts[0]
+        assert '"criterion_id": "GC2"' in client.prompts[1]
+        assert state.criterion_claims == {}
+        assert state.criterion_evidence == {}
+        events = store.event_records(state.run_id)
+        assert any(
+            item["type"] == "goal_criterion_local_batch_replan_requested"
+            and item["data"]["partial_evidence_committed"] is False
+            for item in events
+        )
+
+
+def test_round40_goal_evidence_rejects_criterion_id_switch():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, _ = make_provenance_commit_fixture(Path(directory))
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+        client = CriterionLocalEvidenceClient(
+            [
+                {
+                    "decision": "pass",
+                    "binding": {
+                        "criterion_id": "GC2",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                    },
+                },
+                {
+                    "decision": "pass",
+                    "binding": {
+                        "criterion_id": "GC2",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                    },
+                },
+            ]
+        )
+        model = LongHorizonModel(ModelInvoker(client=client))
+
+        with pytest.raises(
+            ModelProtocolError,
+            match="criterion-local binding changed the fixed criterion id",
+        ):
+            model.commit_criterion_evidence(
+                state,
+                WorkingMemoryBuilder().build_goal_validation(
+                    state,
+                    criterion_ids=["GC1"],
+                    selected_memory_ids=["M-T1", "M-T2"],
+                ),
+                lambda _state, _event_type, _data: None,
+                criterion_ids=["GC1"],
+                source_catalog=catalog,
+            )
+
+        assert len(client.prompts) == 2
+        assert "PROTOCOL CORRECTION" in client.prompts[1]
+
+
+def test_round41_criterion_local_pair_contract_retries_without_rewriting_refs():
+    with tempfile.TemporaryDirectory() as directory:
+        store, state, _ = make_provenance_commit_fixture(Path(directory))
+        state.tasks["T1"].insertion_order = 0
+        state.tasks["T2"].insertion_order = 1
+        controller = LongHorizonController(store)
+        catalog = controller._goal_criterion_provenance_catalog(state, ["GC1"])
+        client = CriterionLocalEvidenceClient(
+            [
+                {
+                    "decision": "pass",
+                    "binding": {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T2",
+                    },
+                },
+                {
+                    "decision": "pass",
+                    "binding": {
+                        "criterion_id": "GC1",
+                        "actual_ref": "M-T2",
+                        "expected_ref": "M-T1",
+                    },
+                },
+            ]
+        )
+        model = LongHorizonModel(ModelInvoker(client=client))
+
+        result = model.commit_criterion_evidence(
+            state,
+            WorkingMemoryBuilder().build_goal_validation(
+                state,
+                criterion_ids=["GC1"],
+                selected_memory_ids=["M-T1", "M-T2"],
+            ),
+            lambda _state, _event_type, _data: None,
+            criterion_ids=["GC1"],
+            source_catalog=catalog,
+        )
+
+        assert result["bindings"] == [
+            {
+                "criterion_id": "GC1",
+                "actual_ref": "M-T2",
+                "expected_ref": "M-T1",
+            }
+        ]
+        assert len(client.prompts) == 2
+        assert "not eligible" in client.prompts[1]
+        assert '"expected_ref": "M-T2"' not in client.prompts[1].split(
+            "PROTOCOL CORRECTION", 1
+        )[1]
+
+
+class ConcurrentReadHarness(ActionHarness):
+    def __init__(self):
+        super().__init__()
+        self._activity_lock = threading.Lock()
+        self.active_reads = 0
+        self.max_active_reads = 0
+
+    def execute(self, action, goal):
+        if action.action_type != "read_file":
+            return super().execute(action, goal)
+        with self._activity_lock:
+            self.active_reads += 1
+            self.max_active_reads = max(self.max_active_reads, self.active_reads)
+        try:
+            time.sleep(0.05)
+            return super().execute(action, goal)
+        finally:
+            with self._activity_lock:
+                self.active_reads -= 1
+
+
+class ConcurrentReadActionModel(LongHorizonModel):
+    commit_task_postcondition = None
+    cross_validate = None
+    bind_observed_task_criteria = None
+
+    def __init__(self, harness):
+        super().__init__(harness=harness)
+        self._activity_lock = threading.Lock()
+        self.active_proposals = 0
+        self.max_active_proposals = 0
+
+    def propose_action(self, state, task, context, action_contract, persist):
+        del state, context, action_contract, persist
+        with self._activity_lock:
+            self.active_proposals += 1
+            self.max_active_proposals = max(
+                self.max_active_proposals,
+                self.active_proposals,
+            )
+        try:
+            time.sleep(0.05)
+            action = TaskAction("read_file", {"path": f"{task.task_id}.py"})
+            return ActionProposal(
+                action,
+                self.harness.deterministic_verification_specs(action),
+            )
+        finally:
+            with self._activity_lock:
+                self.active_proposals -= 1
+
+
+class ConcurrentToolCallClient:
+    def __init__(self):
+        self._activity_lock = threading.Lock()
+        self.active_calls = 0
+        self.max_active_calls = 0
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        del max_tokens, stop
+        task_id = next(
+            candidate
+            for candidate in ("T1", "T2", "T3")
+            if f'"task_id": "{candidate}"' in prompt
+        )
+        with self._activity_lock:
+            self.active_calls += 1
+            self.max_active_calls = max(self.max_active_calls, self.active_calls)
+        try:
+            time.sleep(0.05)
+            content = json.dumps(
+                {
+                    "name": "read_file",
+                    "arguments": {"path": f"{task_id}.py"},
+                }
+            )
+            return type("Response", (), {"content": content})()
+        finally:
+            with self._activity_lock:
+                self.active_calls -= 1
+
+
+def test_real_long_horizon_model_calls_merge_from_isolated_parallel_snapshots():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "PARALLEL-MODEL-MERGE")
+        state.tasks = {
+            task_id: TaskNode(
+                task_id,
+                f"Read {task_id}.py",
+                f"Observe {task_id}.py",
+                action=TaskAction("model_action", {}),
+                insertion_order=index,
+            )
+            for index, task_id in enumerate(("T1", "T2", "T3"), start=1)
+        }
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="parallel_model_fixture_seeded")
+        harness = ActionHarness()
+        client = ConcurrentToolCallClient()
+        model = LongHorizonModel(
+            ModelInvoker(client=client),
+            harness=harness,
+        )
+        controller = LongHorizonController(
+            store,
+            model=model,
+            harness=harness,
+            max_parallel_tasks=3,
+        )
+        graph = TaskGraph(state.tasks)
+
+        controller._materialize_frontier_actions(
+            state,
+            graph,
+            graph.ready_tasks(),
+        )
+
+        assert client.max_active_calls >= 2
+        assert [
+            state.tasks[task_id].action.arguments["path"]
+            for task_id in ("T1", "T2", "T3")
+        ] == ["T1.py", "T2.py", "T3.py"]
+        assert len(state.temp_decisions) == 3
+        assert len({item.request_id for item in state.temp_decisions}) == 3
+        returned = [
+            item
+            for item in store.event_records(state.run_id)
+            if item["type"] == "model_request_returned"
+        ]
+        assert [item["data"]["task_id"] for item in returned] == ["T1", "T2", "T3"]
+
+
+def test_ready_frontier_parallelizes_isolated_model_proposals_and_read_actions():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "PARALLEL-READS")
+        for task_id in ("T1", "T2", "T3"):
+            (root / "workspace" / f"{task_id}.py").write_text(
+                f"VALUE = '{task_id}'\n",
+                encoding="utf-8",
+            )
+        state.tasks = {
+            task_id: TaskNode(
+                task_id,
+                f"Read {task_id}.py",
+                f"Observe {task_id}.py before summarizing it",
+                action=TaskAction("model_action", {}),
+                insertion_order=index,
+            )
+            for index, task_id in enumerate(("T1", "T2", "T3"), start=1)
+        }
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="parallel_fixture_seeded")
+        harness = ConcurrentReadHarness()
+        model = ConcurrentReadActionModel(harness)
+        controller = LongHorizonController(
+            store,
+            model=model,
+            harness=harness,
+            max_parallel_tasks=3,
+        )
+        graph = TaskGraph(state.tasks)
+
+        executed = controller._execute_ready_frontier(
+            state,
+            graph,
+            graph.ready_tasks(),
+        )
+
+        assert executed == 3
+        assert model.max_active_proposals >= 2
+        assert harness.max_active_reads >= 2
+        assert all(task.status == TaskStatus.COMPLETED for task in state.tasks.values())
+        assert all(
+            "ACTION RESULT METADATA" in state.memory_index[f"M-{task_id}-A1"].content
+            for task_id in state.tasks
+        )
+        event_types = [item["type"] for item in store.event_records(state.run_id)]
+        assert "parallel_frontier_dispatched" in event_types
+        assert "parallel_frontier_merged" in event_types
+
+
+class ObservationBindingModel:
+    def __init__(self):
+        self.observed = []
+
+    def bind_observed_task_criteria(
+        self,
+        state,
+        task,
+        context,
+        persist,
+        *,
+        action_result,
+        validation_results,
+    ):
+        del state, context, persist, validation_results
+        self.observed.append((task.task_id, action_result["output"]))
+        return ["GC1"]
+
+
+def test_intermediate_task_completion_never_invokes_removed_task_goal_binding():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "POST-READ-BINDING")
+        (workspace / "input.py").write_text("VALUE = 7\n", encoding="utf-8")
+        task = TaskNode(
+            "T1",
+            "Read input.py",
+            "Observe the source before deciding whether it advances the Goal",
+            action=TaskAction("read_file", {"path": "input.py"}),
+            completion_criteria=[ValidationSpec("file_exists", {"path": "input.py"})],
+        )
+        state.tasks = {task.task_id: task}
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="binding_fixture_seeded")
+        model = ObservationBindingModel()
+        controller = LongHorizonController(store, model=model)
+
+        assert state.tasks["T1"].satisfies_criteria == []
+        controller._execute_task(state, TaskGraph(state.tasks), "T1")
+
+        assert model.observed == []
+        assert state.tasks["T1"].satisfies_criteria == []
+        assert state.tasks["T1"].advances_criteria == []
+        assert state.criterion_claims == {}
+        assert state.criterion_evidence == {}
+        events = store.event_records(state.run_id)
+        event_types = [item["type"] for item in events]
+        assert event_types.index("action_returned") < event_types.index("task_completed")
+        assert "task_criterion_binding_committed" not in event_types
+        assert "criterion_provenance_committed" not in event_types
+
+
+class FrontierEvidenceTimingModel:
+    def __init__(self):
+        self.statuses_at_commit = []
+
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del context, persist
+        self.statuses_at_commit.append(
+            {task_id: task.status for task_id, task in state.tasks.items()}
+        )
+        actual = source_catalog["causal_actual_sources"][-1]
+        return {
+            "decision": "pass",
+            "bindings": [
+                {
+                    "criterion_id": criterion_id,
+                    "actual_ref": actual["ref"],
+                    "expected_ref": "GOAL",
+                }
+                for criterion_id in criterion_ids
+            ],
+        }
+
+    def final_answer(self, state, context, persist):
+        return "frontier verified"
+
+
+def test_goal_evidence_is_requested_once_only_after_all_required_tasks_complete():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "GOAL-FRONTIER-TIMING")
+        tasks = [
+            TaskNode(
+                "T1",
+                "Write dependency",
+                "Create the first observed result",
+                action=TaskAction(
+                    "write_file", {"path": "first.txt", "content": "first"}
+                ),
+                completion_criteria=[
+                    ValidationSpec("file_exists", {"path": "first.txt"})
+                ],
+            ),
+            TaskNode(
+                "T2",
+                "Write terminal result",
+                "Use the dependency to close the current graph",
+                dependencies=["T1"],
+                action=TaskAction(
+                    "write_file", {"path": "second.txt", "content": "second"}
+                ),
+                completion_criteria=[
+                    ValidationSpec("file_exists", {"path": "second.txt"})
+                ],
+            ),
+        ]
+        state.tasks = {task.task_id: task for task in tasks}
+        state.status = RunStatus.RUNNING
+        state = store.save(state, event_type="plan_saved")
+        model = FrontierEvidenceTimingModel()
+
+        result = LongHorizonController(store, model=model).run(state.run_id)
+
+        assert result.state.status == RunStatus.COMPLETED
+        assert model.statuses_at_commit == [
+            {"T1": TaskStatus.COMPLETED, "T2": TaskStatus.COMPLETED}
+        ]
+        events = store.event_records(state.run_id)
+        first_task_complete = next(
+            index
+            for index, item in enumerate(events)
+            if item["type"] == "task_completed" and item["data"]["task_id"] == "T1"
+        )
+        goal_catalog = next(
+            index
+            for index, item in enumerate(events)
+            if item["type"] == "goal_criterion_provenance_catalog_prepared"
+        )
+        second_task_complete = next(
+            index
+            for index, item in enumerate(events)
+            if item["type"] == "task_completed" and item["data"]["task_id"] == "T2"
+        )
+        assert first_task_complete < second_task_complete < goal_catalog
 
 
 def passing_criterion_decision(state, task, action_result=None):
@@ -102,6 +1552,28 @@ def passing_criterion_decision(state, task, action_result=None):
     return CrossValidationDecision(True, "fixture semantic pass", claims)
 
 
+def passing_provenance_commit(
+    criterion_ids,
+    source_catalog,
+    *,
+    reason="fixture provenance pass",
+):
+    actual_sources = source_catalog["causal_actual_sources"]
+    assert actual_sources
+    return {
+        "decision": "pass",
+        "bindings": [
+            {
+                "criterion_id": criterion_id,
+                "actual_ref": actual_sources[-1]["ref"],
+                "expected_ref": "GOAL",
+                "reason": reason,
+            }
+            for criterion_id in criterion_ids
+        ],
+    }
+
+
 class ProofPassModel:
     def cross_validate(
         self,
@@ -115,8 +1587,275 @@ class ProofPassModel:
     ):
         return passing_criterion_decision(state, task, action_result)
 
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del state, context, persist
+        return passing_provenance_commit(
+            criterion_ids,
+            source_catalog,
+            reason="fixture RWKV selected current observation and immutable Goal",
+        )
+
     def final_answer(self, state, context, persist):
         return "fixture verified completion"
+
+
+class ObservationDrivenProjectSummaryModel(ProofPassModel):
+    def __init__(self):
+        self.capsules = []
+        self.paths = []
+        self.discovery_task_id = ""
+
+    def plan(self, state, persist):
+        return [
+            TaskNode(
+                "discover",
+                "Discover source files",
+                "List the scoped project before choosing file reads",
+                postcondition="The complete scoped source file list is observed",
+                action=TaskAction(
+                    "list_directory",
+                    {"path": ".", "recursive": True, "max_entries": 32},
+                ),
+                completion_criteria=[ValidationSpec("action_succeeded", {})],
+            )
+        ]
+
+    def propose_action(self, state, task, context, action_contract, persist):
+        del context, action_contract, persist
+        if task.title.startswith("Summarize "):
+            dependency = state.tasks[task.dependencies[0]]
+            memory = state.memory_index[dependency.output_refs[0]]
+            path = dependency.action.arguments["path"]
+            source = memory.content.split("\n\nACTION RESULT METADATA", 1)[0]
+            output = f"{path}: {source.splitlines()[0]}"
+        elif task.title == "Aggregate project summary":
+            output = "\n".join(
+                state.memory_index[state.tasks[dependency].output_refs[0]].content
+                for dependency in task.dependencies
+            )
+        else:
+            raise AssertionError(f"unexpected delayed action task: {task.title}")
+        return ActionProposal(
+            TaskAction("noop", {"output": output}),
+            [ValidationSpec("action_succeeded", {})],
+        )
+
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        aggregate_complete = any(
+            task.active
+            and task.status == TaskStatus.COMPLETED
+            and task.title == "Aggregate project summary"
+            for task in state.tasks.values()
+        )
+        if not aggregate_complete:
+            return {"decision": "replan", "bindings": []}
+        return super().commit_criterion_evidence(
+            state,
+            context,
+            persist,
+            criterion_ids=criterion_ids,
+            source_catalog=source_catalog,
+        )
+
+    def plan_goal_obligations(self, state, capsule, persist):
+        del persist
+        self.capsules.append(capsule)
+        observations = capsule["action_observations"]
+        if not self.paths:
+            listing = next(
+                item for item in observations if item["action"]["name"] == "list_directory"
+            )
+            self.discovery_task_id = listing["task_id"]
+            listing_output = listing["content"].split(
+                "\n\nACTION RESULT METADATA",
+                1,
+            )[0]
+            self.paths = [
+                item["path"]
+                for item in json.loads(listing_output)["entries"]
+                if item["type"] == "file" and item["path"].endswith(".py")
+            ]
+        read_by_path = {
+            task.action.arguments["path"]: task
+            for task in state.tasks.values()
+            if task.active and task.action.action_type == "read_file"
+        }
+        unread = [path for path in self.paths if path not in read_by_path]
+        if unread:
+            return GoalObligationProposal(
+                [
+                    TaskNode(
+                        f"read_{self.paths.index(path) + 1}",
+                        f"Read {path}",
+                        f"Observe the complete source text of {path}",
+                        dependencies=[self.discovery_task_id],
+                        postcondition=f"The source text of {path} is observed",
+                        action=TaskAction("read_file", {"path": path}),
+                        completion_criteria=[
+                            ValidationSpec("file_exists", {"path": path})
+                        ],
+                    )
+                    for path in unread[:8]
+                ],
+                "fan out only from observed directory members",
+            )
+        summary_by_path = {
+            task.title.removeprefix("Summarize "): task
+            for task in state.tasks.values()
+            if task.active and task.title.startswith("Summarize ")
+        }
+        unsummarized = [
+            path for path in self.paths if path not in summary_by_path
+        ]
+        if unsummarized:
+            return GoalObligationProposal(
+                [
+                    TaskNode(
+                        f"summarize_{self.paths.index(path) + 1}",
+                        f"Summarize {path}",
+                        "Produce one file-local summary from its observed source text",
+                        dependencies=[read_by_path[path].task_id],
+                        postcondition="A file-local summary is observed",
+                        action=TaskAction("model_action", {}),
+                    )
+                    for path in unsummarized[:8]
+                ],
+                "summarize each observed file independently",
+            )
+        return GoalObligationProposal(
+            [
+                TaskNode(
+                    "aggregate",
+                    "Aggregate project summary",
+                    "Combine every observed file-local summary",
+                    dependencies=[summary_by_path[path].task_id for path in self.paths],
+                    postcondition="One project summary covering every file is observed",
+                    satisfies_criteria=["GC1"],
+                    action=TaskAction("model_action", {}),
+                )
+            ],
+            "aggregate only after every file-local summary is observed",
+        )
+
+
+def test_observation_driven_read_fanout_parallel_summary_and_aggregation_chain():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(workspace), "PROJECT-SUMMARY-FANOUT")
+        file_count = 31
+        for index in range(file_count):
+            (workspace / f"module_{index}.py").write_text(
+                f"def function_{index}():\n    return {index}\n",
+                encoding="utf-8",
+            )
+        model = ObservationDrivenProjectSummaryModel()
+
+        result = LongHorizonController(
+            store,
+            model=model,
+            max_parallel_tasks=8,
+        ).run(state.run_id)
+
+        assert result.state.status == RunStatus.COMPLETED
+        assert len(model.capsules) == 9
+        first_observation = model.capsules[0]["action_observations"][0]
+        assert first_observation["action"]["name"] == "list_directory"
+        assert all(
+            f"module_{index}.py" in first_observation["content"]
+            for index in range(file_count)
+        )
+        read_capsule = next(
+            capsule
+            for capsule in model.capsules
+            if sum(
+                item["action"]["name"] == "read_file"
+                for item in capsule["action_observations"]
+            )
+            == file_count
+        )
+        second_actions = {
+            item["action"]["arguments"]["path"]
+            for item in read_capsule["action_observations"]
+            if item["action"]["name"] == "read_file"
+        }
+        assert second_actions == {
+            f"module_{index}.py" for index in range(file_count)
+        }
+        read_observations = [
+            item
+            for item in read_capsule["action_observations"]
+            if item["action"]["name"] == "read_file"
+        ]
+        assert all(item["content"] == "" for item in read_observations)
+        assert all(item["content_truncated"] is True for item in read_observations)
+        for item in read_observations:
+            task = result.state.tasks[item["task_id"]]
+            full_memory = result.state.memory_index[task.output_refs[0]].content
+            assert full_memory.startswith("def function_")
+        aggregate = next(
+            task for task in result.state.tasks.values() if task.title == "Aggregate project summary"
+        )
+        aggregate_output = result.state.memory_index[aggregate.output_refs[0]].content
+        assert all(
+            f"module_{index}.py" in aggregate_output
+            for index in range(file_count)
+        )
+        events = store.event_records(state.run_id)
+        parallel_events = [
+            item for item in events if item["type"] == "parallel_frontier_dispatched"
+        ]
+        assert any(len(item["data"]["task_ids"]) == 8 for item in parallel_events)
+
+
+def test_controller_trust_boundary_counts_wide_immediate_obligation_frontier():
+    with tempfile.TemporaryDirectory() as directory:
+        state = RunState("WIDE-OBLIGATION", make_goal(Path(directory) / "workspace"))
+        state.tasks = {
+            "T0": TaskNode(
+                "T0",
+                "Observed root",
+                "Completed observation",
+                status=TaskStatus.COMPLETED,
+            )
+        }
+        wide = [
+            TaskNode(
+                f"local_{index}",
+                f"Read member {index}",
+                "Observe one bounded member",
+                dependencies=["T0"],
+            )
+            for index in range(9)
+        ]
+        chained = [
+            TaskNode("first", "First", "First step", dependencies=["T0"]),
+            TaskNode("second", "Second", "Second step", dependencies=["first"]),
+        ]
+
+        assert LongHorizonController._immediately_ready_obligation_count(
+            state, wide
+        ) == 9
+        assert LongHorizonController._immediately_ready_obligation_count(
+            state, chained
+        ) == 1
 
 
 def test_controller_executes_dependency_chain_and_resume_is_noop():
@@ -643,12 +2382,9 @@ class SequencePlanClient:
         self.calls = []
         self.outputs = [
             '"schema_version":"long-horizon.goal.v1","tasks":[]}',
-            '"schema_version":"long-horizon.plan.v1","tasks":[{'
-            '"task_id":"T1","title":"Write","description":"Write file",'
-            '"dependencies":[],"goal_criteria":["GC1"],"required":true,"priority":50,'
-            '"action":{"type":"write_file","arguments":{"path":"x.txt","content":"x"}},'
-            '"completion_criteria":[{"kind":"file_contains","parameters":{"path":"x.txt","text":"x"},"required":true}],'
-            '"retry_policy":{"max_attempts":2,"replan_after":2}}]}'
+            f'"schema_version":"{TASK_BATCH_SCHEMA_VERSION}","tasks":[{{'
+            '"local_id":"T1","title":"Write","description":"Write file",'
+            '"dependencies":[],"postcondition":"x.txt contains x"}]}'
         ]
 
     def text_completion(self, prompt, max_tokens=768, stop=None):
@@ -658,19 +2394,7 @@ class SequencePlanClient:
 
 class SequenceGoalClient:
     def __init__(self):
-        six = [
-            {"id": f"C{index}", "description": f"criterion {index}", "required": True}
-            for index in range(1, 7)
-        ]
         self.outputs = [
-            json.dumps(
-                {
-                    "schema_version": "long-horizon.goal-proposal.v1",
-                    "objective": "too granular",
-                    "constraints": [],
-                    "success_criteria": six,
-                }
-            ),
             json.dumps(
                 {
                     "schema_version": "long-horizon.goal-proposal.v1",
@@ -693,7 +2417,7 @@ class SequenceGoalClient:
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 
-def test_goal_parser_repairs_over_granular_criteria_at_same_temperature():
+def test_goal_parser_uses_immutable_request_provenance_without_quote_field():
     with tempfile.TemporaryDirectory() as directory:
         client = SequenceGoalClient()
         goal, decision = LongHorizonModel(
@@ -701,9 +2425,9 @@ def test_goal_parser_repairs_over_granular_criteria_at_same_temperature():
         ).parse_goal("Create one verified artifact", directory)
         assert goal.objective == "compact"
         assert [item.criterion_id for item in goal.success_criteria] == ["GC1"]
-        assert [temperature for temperature, _ in client.calls] == [0.03, 0.03]
-        assert "PROTOCOL CORRECTION" in client.calls[1][1]
-        assert decision.attempt == 2
+        assert "source_quote" not in goal.success_criteria[0].to_dict()
+        assert [temperature for temperature, _ in client.calls] == [0.03]
+        assert decision.attempt == 1
 
 
 def test_model_plan_repairs_contract_once_without_raising_temperature():
@@ -733,7 +2457,7 @@ class NestedTaskGraphPlanClient:
             {
                 "content": json.dumps(
                     {
-                        "schema_version": "long-horizon.plan.v2",
+                        "schema_version": TASK_BATCH_SCHEMA_VERSION,
                         "task_graph": {
                             "nodes": [
                                 {
@@ -741,11 +2465,7 @@ class NestedTaskGraphPlanClient:
                                     "title": "Write artifact",
                                     "description": "Create the required artifact",
                                     "dependencies": [],
-                                    "required": True,
-                                    "priority": 50,
-                                    "advances_criteria": ["GC1"],
-                                    "satisfies_criteria": ["GC1"],
-                                    "retry_policy": {"max_attempts": 3},
+                                    "postcondition": "The artifact exists",
                                 }
                             ],
                             "edges": [],
@@ -789,7 +2509,7 @@ def test_model_plan_aliases_complete_nested_task_graph_without_semantic_inferenc
             for item in store.event_records(state.run_id)
             if item["type"] == "goal_obligation_ledger_created"
         )
-        assert ledger["data"]["missing_criterion_ids"] == []
+        assert ledger["data"]["missing_criterion_ids"] == ["GC1"]
 
 
 class RegisteredTaskGraphWithoutVersionClient:
@@ -821,7 +2541,7 @@ class RegisteredTaskGraphWithoutVersionClient:
         )()
 
 
-def test_round23_registered_task_graph_without_version_closes_protocol_identity():
+def test_plan_task_graph_without_version_is_rejected():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -832,26 +2552,12 @@ def test_round23_registered_task_graph_without_version_closes_protocol_identity(
             current.revision = saved.revision
             current.updated_at = saved.updated_at
 
-        tasks = LongHorizonModel(
-            ModelInvoker(client=RegisteredTaskGraphWithoutVersionClient()),
-            action_contract="{}",
-        ).plan(state, persist)
-
-        assert [task.task_id for task in tasks] == ["step_1"]
-        event = next(
-            item
-            for item in store.event_records(state.run_id)
-            if item["type"] == "model_protocol_normalized"
-        )["data"]
-        assert event["transformations"] == [
-            "task_graph_tasks_to_canonical_tasks",
-            "registered_plan_envelope_implies_v2",
-        ]
-        assert event["normalized_payload"]["tasks"] == (
-            event["input_payload"]["task_graph"]["tasks"]
-        )
-        assert event["controller_semantic_fields_generated"] is False
-        assert event["input_payload_digest"] != event["normalized_payload_digest"]
+        with pytest.raises(ModelProtocolError, match="requires exactly schema_version"):
+            LongHorizonModel(
+                ModelInvoker(client=RegisteredTaskGraphWithoutVersionClient()),
+                action_contract="{}",
+            ).plan(state, persist)
+        assert len(state.temp_decisions) == 2
 
 
 class ParserFailureThenValidPlanClient:
@@ -861,18 +2567,14 @@ class ParserFailureThenValidPlanClient:
             "not a JSON object",
             json.dumps(
                 {
-                    "schema_version": "long-horizon.plan.v2",
+                    "schema_version": TASK_BATCH_SCHEMA_VERSION,
                     "tasks": [
                         {
                             "local_id": "step_1",
                             "title": "Inspect input",
                             "description": "Read the scoped input",
                             "dependencies": [],
-                            "required": True,
-                            "priority": 50,
-                            "advances_criteria": ["GC1"],
-                            "satisfies_criteria": ["GC1"],
-                            "retry_policy": {"max_attempts": 3},
+                            "postcondition": "The input is observed",
                         }
                     ],
                 }
@@ -937,7 +2639,7 @@ class BareTaskPlanClient:
         )()
 
 
-def test_model_plan_safely_recovers_complete_bare_task_envelope():
+def test_model_plan_rejects_bare_task_envelope():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -949,61 +2651,32 @@ def test_model_plan_safely_recovers_complete_bare_task_envelope():
             current.updated_at = saved.updated_at
 
         client = BareTaskPlanClient()
-        tasks = LongHorizonModel(ModelInvoker(client=client), action_contract="{}").plan(
-            state, persist
+        with pytest.raises(
+            ModelProtocolError,
+            match="canonical task batch requires exactly schema_version and tasks",
+        ):
+            LongHorizonModel(
+                ModelInvoker(client=client), action_contract="{}"
+            ).plan(state, persist)
+        assert len(client.calls) == 2
+        assert not any(
+            event["type"] == "model_protocol_recovered"
+            for event in store.event_records(state.run_id)
         )
 
-        assert [task.task_id for task in tasks] == ["T1"]
-        assert tasks[0].action.action_type == "model_action"
-        assert len(client.calls) == 1
-        assert state.temp_decisions[-1].outcome == "protocol_recovered"
-        recoveries = [
-            event
-            for event in store.event_records(state.run_id)
-            if event["type"] == "model_protocol_recovered"
-        ]
-        assert recoveries[-1]["data"] == {
-            "request_id": state.temp_decisions[-1].request_id,
-            "request_type": "task_decomposition",
-            "field": "plan_envelope",
-            "reason": "single_complete_task_node",
-            "ignored_fields": [],
-        }
+
+@pytest.mark.parametrize(
+    "schema",
+    ["long-horizon.plan.v1", "long-horizon.plan.v2", "long-horizon.plan.v3"],
+)
+def test_old_plan_versions_are_not_online_protocols(schema):
+    with pytest.raises(ValueError, match="unsupported task batch schema"):
+        normalize_task_batch_envelope_with_trace(
+            {"schema_version": schema, "tasks": []}
+        )
 
 
-def test_bare_plan_recovery_rejects_partial_or_unknown_task_objects():
-    base = {
-        "task_id": "T1",
-        "title": "Inspect",
-        "description": "Inspect input",
-        "dependencies": [],
-        "required": True,
-        "priority": 50,
-        "goal_criteria": ["GC1"],
-        "retry_policy": {"max_attempts": 3},
-    }
-    assert LongHorizonModel._recover_bare_plan_task(
-        base, criterion_ids=["GC1"]
-    ) is not None
-    assert LongHorizonModel._recover_bare_plan_task(
-        {key: value for key, value in base.items() if key != "goal_criteria"},
-        criterion_ids=["GC1"],
-    ) is None
-    assert LongHorizonModel._recover_bare_plan_task(
-        {**base, "untrusted_extension": True},
-        criterion_ids=["GC1"],
-    ) is None
-    assert LongHorizonModel._recover_bare_plan_task(
-        {**base, "arguments": {"path": "input.txt"}},
-        criterion_ids=["GC1"],
-    ) is None
-    assert LongHorizonModel._recover_bare_plan_task(
-        base,
-        criterion_ids=["GC1", "GC2"],
-    ) is None
-
-
-def test_plan_v2_separates_progress_from_direct_satisfaction_claims():
+def test_task_batch_defers_goal_binding_until_real_observation():
     tasks = LongHorizonModel._task_nodes(
         [
             {
@@ -1011,41 +2684,36 @@ def test_plan_v2_separates_progress_from_direct_satisfaction_claims():
                 "title": "Inspect input",
                 "description": "Obtain an intermediate observation",
                 "dependencies": [],
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": [],
+                "postcondition": "The input is observed",
             },
             {
                 "local_id": "produce",
                 "title": "Produce output",
                 "description": "Establish the observable result",
                 "dependencies": ["inspect"],
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": ["GC1"],
+                "postcondition": "The output exists",
             },
         ]
     )
 
-    assert tasks[0].goal_criteria == ["GC1"]
+    assert tasks[0].advances_criteria == []
     assert tasks[0].satisfies_criteria == []
-    assert tasks[1].satisfies_criteria == ["GC1"]
+    assert tasks[1].advances_criteria == []
+    assert tasks[1].satisfies_criteria == []
 
 
 class InitialObligationPlanClient:
     def __init__(self):
         self.calls = []
         self.outputs = [{
-            "schema_version": "long-horizon.plan.v2",
+            "schema_version": TASK_BATCH_SCHEMA_VERSION,
             "tasks": [
                 {
                     "local_id": "inspect",
                     "title": "Inspect input",
                     "description": "Read the input before producing output",
                     "dependencies": [],
-                    "required": True,
-                    "priority": 50,
-                    "advances_criteria": ["GC1"],
-                    "satisfies_criteria": [],
-                    "retry_policy": {"max_attempts": 3},
+                    "postcondition": "The input is observed",
                 }
             ],
         }]
@@ -1125,19 +2793,14 @@ def test_structural_plan_is_preserved_without_synchronous_obligation_expansion()
 
 def test_goal_obligation_replan_rejects_existing_id_without_mutating_state():
     bad = {
-        "schema_version": "long-horizon.obligation-replan.v1",
-        "reason": "replace history",
-        "new_tasks": [
+        "schema_version": TASK_BATCH_SCHEMA_VERSION,
+        "tasks": [
             {
                 "local_id": "T1",
                 "title": "Overwrite",
                 "description": "Attempt to replace the existing task",
                 "dependencies": [],
-                "required": True,
-                "priority": 50,
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": ["GC1"],
-                "retry_policy": {"max_attempts": 3},
+                "postcondition": "The result is overwritten",
             }
         ],
     }
@@ -1167,30 +2830,21 @@ def test_goal_obligation_replan_rejects_existing_id_without_mutating_state():
 
 def test_goal_obligation_replan_rewrites_existing_and_new_dependencies_stably():
     supplemental = {
-        "schema_version": "long-horizon.obligation-replan.v1",
-        "reason": "finish unresolved evidence",
-        "new_tasks": [
+        "schema_version": TASK_BATCH_SCHEMA_VERSION,
+        "tasks": [
             {
                 "local_id": "prepare",
                 "title": "Prepare result",
                 "description": "Prepare evidence after inspection",
                 "dependencies": ["T1"],
-                "required": True,
-                "priority": 50,
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": [],
-                "retry_policy": {"max_attempts": 3},
+                "postcondition": "The result is prepared",
             },
             {
                 "local_id": "verify",
                 "title": "Establish result",
                 "description": "Directly establish GC1",
                 "dependencies": ["prepare"],
-                "required": True,
-                "priority": 50,
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": ["GC1"],
-                "retry_policy": {"max_attempts": 3},
+                "postcondition": "GC1 has observable evidence",
             },
         ],
     }
@@ -1230,17 +2884,14 @@ def test_goal_obligation_replan_rewrites_existing_and_new_dependencies_stably():
 
 def test_goal_obligation_replan_accepts_semantic_minimum_without_filling_metadata():
     supplemental = {
-        "new_tasks": [
+        "schema_version": TASK_BATCH_SCHEMA_VERSION,
+        "tasks": [
             {
                 "local_id": "verify",
                 "title": "Establish result",
                 "description": "Directly establish GC1",
                 "dependencies": ["T1"],
-                "required": True,
-                "priority": 50,
-                "advances_criteria": ["GC1"],
-                "satisfies_criteria": ["GC1"],
-                "retry_policy": {"max_attempts": 3},
+                "postcondition": "GC1 has observable evidence",
             }
         ]
     }
@@ -1265,14 +2916,15 @@ def test_goal_obligation_replan_accepts_semantic_minimum_without_filling_metadat
         )
 
         assert [task.task_id for task in proposal.tasks] == ["verify"]
-        assert proposal.reason == ""
+        assert proposal.reason == "observation-driven frontier extension"
         assert proposal.reason_provided is False
-        assert proposal.schema_version_provided is False
+        assert proposal.schema_version_provided is True
 
 
 def test_goal_obligation_replan_rejects_unknown_top_level_field():
     payload = {
-        "new_tasks": [],
+        "schema_version": TASK_BATCH_SCHEMA_VERSION,
+        "tasks": [],
         "task_complete": True,
     }
     with tempfile.TemporaryDirectory() as directory:
@@ -1282,7 +2934,7 @@ def test_goal_obligation_replan_rejects_unknown_top_level_field():
 
         with pytest.raises(
             ModelProtocolError,
-            match="requires new_tasks; only optional schema_version and reason are allowed",
+            match="requires exactly schema_version and tasks",
         ):
             LongHorizonModel(
                 ModelInvoker(client=client), action_contract="{}"
@@ -1293,29 +2945,23 @@ def test_goal_obligation_replan_rejects_unknown_top_level_field():
             )
 
 
-@pytest.mark.parametrize(
-    ("metadata", "message"),
-    [
-        ({"schema_version": "wrong"}, "invalid obligation replan schema"),
-        ({"reason": {"text": "not a string"}}, "optional obligation reason must be a string"),
-    ],
-)
-def test_goal_obligation_replan_validates_optional_metadata(metadata, message):
+def test_goal_obligation_replan_rejects_wrong_schema():
     valid_task = {
         "local_id": "verify",
         "title": "Establish result",
         "description": "Directly establish GC1",
         "dependencies": [],
-        "required": True,
-        "advances_criteria": ["GC1"],
-        "satisfies_criteria": ["GC1"],
+        "postcondition": "GC1 has observable evidence",
     }
-    payload = {"new_tasks": [valid_task], **metadata}
+    payload = {
+        "schema_version": "wrong",
+        "tasks": [valid_task],
+    }
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         state = RunState("MINIMAL-OBLIGATION-METADATA", make_goal(root / "workspace"))
 
-        with pytest.raises(ModelProtocolError, match=message):
+        with pytest.raises(ModelProtocolError, match="unsupported task batch schema"):
             LongHorizonModel(
                 ModelInvoker(client=ObligationReplanClient(payload)),
                 action_contract="{}",
@@ -1358,7 +3004,7 @@ class PersistentObligationLifecycleModel(ProofPassModel):
                     "Produce verified result",
                     "Use completed T1 observations to establish GC1",
                     dependencies=["T1"],
-                    goal_criteria=["GC1"],
+                    advances_criteria=["GC1"],
                     satisfies_criteria=["GC1"],
                     action=TaskAction(
                         "write_file",
@@ -1376,6 +3022,31 @@ class PersistentObligationLifecycleModel(ProofPassModel):
                 )
             ],
             "completed observation now supports an evidence-producing task",
+        )
+
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        result_complete = any(
+            task.active
+            and task.status == TaskStatus.COMPLETED
+            and task.title == "Produce verified result"
+            for task in state.tasks.values()
+        )
+        if not result_complete:
+            return {"decision": "replan", "bindings": []}
+        return super().commit_criterion_evidence(
+            state,
+            context,
+            persist,
+            criterion_ids=criterion_ids,
+            source_catalog=source_catalog,
         )
 
     def final_answer(self, state, context, persist):
@@ -1421,7 +3092,7 @@ def test_persistent_goal_obligation_runs_base_plan_before_rwkv_extension():
         assert obligation.status == GoalObligationStatus.RESOLVED
         assert obligation.unresolved_criterion_ids == []
         assert obligation.generation_count == 1
-        assert obligation.remaining_budget == 2
+        assert obligation.remaining_budget == 63
         assert obligation.task_ids == ["T2"]
         events = store.event_records(state.run_id)
         types = [item["type"] for item in events]
@@ -1449,7 +3120,7 @@ def test_goal_obligation_capsule_is_bounded_without_dropping_task_structure():
                 f"Task {index} " + "title " * 80,
                 "long observed task description " * 120,
                 status=TaskStatus.COMPLETED,
-                goal_criteria=["GC1"],
+                advances_criteria=["GC1"],
                 output_refs=[f"M-T{index}-A1", f"T{index}-A1-R1"],
             )
             for index in range(1, 65)
@@ -1494,7 +3165,8 @@ def test_goal_obligation_capsule_is_bounded_without_dropping_task_structure():
         )
         assert capsule["projection"]["capsule_tokens"] == actual_capsule_tokens
         assert capsule["projection"]["task_text_truncated"] is True
-        assert capsule["projection"]["excluded_action_observation_ids"]
+        assert capsule["projection"]["included_action_observation_count"] == 40
+        assert capsule["projection"]["excluded_action_observation_ids"] == []
         assert capsule["projection"]["excluded_artifact_ids"]
 
 
@@ -1528,7 +3200,7 @@ class ExhaustingGoalObligationModel:
                     "Observe unresolved criterion",
                     "Advance GC1 without claiming unsupported proof",
                     dependencies=[completed[-1]],
-                    goal_criteria=["GC1"],
+                    advances_criteria=["GC1"],
                     satisfies_criteria=[],
                     action=TaskAction("noop", {"output": local_id}),
                     completion_criteria=[ValidationSpec("action_succeeded", {})],
@@ -1548,7 +3220,11 @@ def test_goal_obligation_budget_exhausts_without_controller_generated_claims():
         )
         model = ExhaustingGoalObligationModel()
 
-        result = LongHorizonController(store, model=model).run(state.run_id)
+        result = LongHorizonController(
+            store,
+            model=model,
+            max_goal_expansions=3,
+        ).run(state.run_id)
 
         assert result.state.status == RunStatus.BLOCKED
         assert model.obligation_calls == 3
@@ -1590,7 +3266,7 @@ def test_goal_obligation_protocol_error_is_audited_and_fails_closed():
         obligation = result.state.goal_obligation
         assert obligation is not None
         assert obligation.status == GoalObligationStatus.BLOCKED
-        assert obligation.remaining_budget == 2
+        assert obligation.remaining_budget == 63
         assert obligation.decision_history[-1]["type"] == "protocol_error"
         events = store.event_records(state.run_id)
         assert any(
@@ -1622,7 +3298,7 @@ def seeded_unchanged_proof_obligation(root: Path):
         "Verify result.json",
         "Read result.json to establish GC1",
         status=TaskStatus.COMPLETED,
-        goal_criteria=["GC1"],
+        advances_criteria=["GC1"],
         satisfies_criteria=["GC1"],
         action=TaskAction("read_json", {"path": "result.json"}),
         completion_criteria=[ValidationSpec("file_exists", {"path": "result.json"})],
@@ -1687,7 +3363,7 @@ def obligation_task(local_id: str, *, duplicate: bool) -> TaskNode:
             else "Create a different producer correction before establishing GC1"
         ),
         dependencies=["T1"],
-        goal_criteria=["GC1"],
+        advances_criteria=["GC1"],
         satisfies_criteria=["GC1"],
     )
 
@@ -1818,8 +3494,6 @@ class SequenceActionClient:
     def __init__(self):
         self.calls = []
         self.outputs = [
-            '"schema_version":"long-horizon.action-choice.v1",'
-            '"task_id":"T1","action_type":"write_file"}',
             '{"name":"write_file","arguments":{'
             '"path":"result.txt","content":"verified"}}',
         ]
@@ -1832,13 +3506,134 @@ class SequenceActionClient:
 class StringArgumentsActionClient(SequenceActionClient):
     def __init__(self):
         super().__init__()
-        self.outputs[1] = (
+        self.outputs[0] = (
             '{"name":"write_file","arguments":'
             '"{\\"path\\":\\"result.txt\\",\\"content\\":\\"verified\\"}"}'
         )
 
 
-def test_atomic_action_pipeline_keeps_legacy_fallback_and_narrows_g1i_contract():
+class Round39SingleSchemaCorrectionClient:
+    def __init__(self, *, switch_tool: bool = False):
+        self.calls = []
+        self.outputs = [
+            {
+                "tool": "write_json",
+                "arguments": {
+                    "path": "result.json",
+                    "value": {"value": 7},
+                    "overwrite": True,
+                    "create_parents": True,
+                },
+            },
+            (
+                {
+                    "name": "write_file",
+                    "arguments": {
+                        "path": "result.json",
+                        "content": '{"value":7}\n',
+                        "overwrite": True,
+                        "create_parents": True,
+                    },
+                }
+                if switch_tool
+                else {
+                    "name": "write_json",
+                    "arguments": {
+                        "path": "result.json",
+                        "value": {"value": 7},
+                    },
+                }
+            ),
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        self.calls.append((get_request_temperature(), prompt))
+        return type("Response", (), {"content": json.dumps(self.outputs.pop(0))})()
+
+
+def test_round39_argument_correction_shows_only_rwkv_selected_tool_schema():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R39-ARGS")
+        task = TaskNode(
+            "T1",
+            "Write JSON result",
+            "Write result.json with value 7",
+            action=TaskAction("model_action", {}),
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round39SingleSchemaCorrectionClient()
+        harness = ActionHarness()
+        proposal = LongHorizonModel(
+            ModelInvoker(client=client), harness=harness
+        ).propose_action(
+            state,
+            task,
+            WorkingMemoryBuilder().build_action_commit(state, task),
+            harness.action_contract(),
+            persist,
+        )
+
+        assert proposal.action == TaskAction(
+            "write_json",
+            {"path": "result.json", "value": {"value": 7}},
+        )
+        assert len(client.calls) == 2
+        second_system = client.calls[1][1].split("\nReturn only", 1)[0]
+        assert second_system.count('"name":"write_json"') == 1
+        assert '"name":"write_file"' not in second_system
+        assert "ARGUMENT CONTRACT CORRECTION" in client.calls[1][1]
+        assert '"overwrite"' not in client.calls[1][1].split(
+            "ARGUMENT CONTRACT CORRECTION", 1
+        )[1]
+        event = next(
+            item["data"]
+            for item in store.event_records(state.run_id)
+            if item["type"] == "atomic_action_committed"
+        )
+        assert event["path"] == "rwkv_selected_single_schema_correction"
+        assert event["controller_selected_action"] is False
+
+
+def test_round39_single_schema_correction_rejects_tool_switch():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "LH-R39-SWITCH")
+        task = TaskNode(
+            "T1",
+            "Write JSON result",
+            "Write result.json with value 7",
+            action=TaskAction("model_action", {}),
+        )
+
+        def persist(current, event_type, event):
+            saved = store.save(current, event_type=event_type, event=event)
+            current.revision = saved.revision
+            current.updated_at = saved.updated_at
+
+        client = Round39SingleSchemaCorrectionClient(switch_tool=True)
+        harness = ActionHarness()
+        with pytest.raises(ModelProtocolError, match="does not match"):
+            LongHorizonModel(ModelInvoker(client=client), harness=harness).propose_action(
+                state,
+                task,
+                WorkingMemoryBuilder().build_action_commit(state, task),
+                harness.action_contract(),
+                persist,
+            )
+
+        assert len(client.calls) == 2
+        assert "write_json" in client.calls[1][1]
+
+
+def test_atomic_action_pipeline_uses_one_g1i_commit_request():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -1847,7 +3642,7 @@ def test_atomic_action_pipeline_keeps_legacy_fallback_and_narrows_g1i_contract()
             "T1",
             "Write result",
             "Write verified text to result.txt",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             action=TaskAction("model_action", {}),
         )
 
@@ -1875,32 +3670,26 @@ def test_atomic_action_pipeline_keeps_legacy_fallback_and_narrows_g1i_contract()
             "action_succeeded",
             "file_content",
         ]
-        assert [temperature for temperature, _ in client.calls] == [0.05, 0.05]
-        assert "FIXED COMPACT ACTION CATALOG" in client.calls[0][1]
-        assert '"argument_names"' in client.calls[0][1]
-        assert client.calls[1][1].startswith("System: Tools: [")
-        assert client.calls[1][1].count('"name":"write_file"') == 1
-        assert '"name":"read_file"' not in client.calls[1][1]
-        assert client.calls[1][1].endswith("Assistant: ```json\n")
+        assert [temperature for temperature, _ in client.calls] == [0.05]
+        assert client.calls[0][1].startswith("System: Tools: [")
+        assert client.calls[0][1].count('"name":"write_file"') == 1
+        assert client.calls[0][1].count('"name":"read_file"') == 1
+        assert client.calls[0][1].endswith("Assistant: ```json\n")
 
 
 class ParserFailureThenRegisteredActionClient:
     def __init__(self):
         self.calls = []
         self.outputs = [
-            '"schema_version":"long-horizon.action-choice.v1",'
-            '"task_id":"T1","action_type":"write_file"}',
             "not a JSON function call",
             json.dumps(
                 {
-                    "action": {
-                        "type": "write_file",
-                        "arguments": {
-                            "path": "result.txt",
-                            "content": "verified",
-                            "overwrite": True,
-                            "create_parents": True,
-                        },
+                    "name": "write_file",
+                    "arguments": {
+                        "path": "result.txt",
+                        "content": "verified",
+                        "overwrite": True,
+                        "create_parents": True,
                     }
                 }
             ),
@@ -1911,7 +3700,7 @@ class ParserFailureThenRegisteredActionClient:
         return type("Response", (), {"content": self.outputs.pop(0)})()
 
 
-def test_round23_tool_parser_failure_retries_and_registered_action_stays_name_bound():
+def test_atomic_tool_parser_failure_retries_same_g1i_protocol():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -1920,7 +3709,7 @@ def test_round23_tool_parser_failure_retries_and_registered_action_stays_name_bo
             "T1",
             "Write result",
             "Write verified text to result.txt",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             action=TaskAction("model_action", {}),
         )
 
@@ -1950,24 +3739,24 @@ def test_round23_tool_parser_failure_retries_and_registered_action_stays_name_bo
                 "create_parents": True,
             },
         )
-        assert len(client.calls) == 3
-        assert "Failure stage: json_extraction_or_normalization" in client.calls[2][1]
-        assert "not a JSON function call" not in client.calls[2][1]
+        assert len(client.calls) == 2
+        assert "PROTOCOL CORRECTION" in client.calls[1][1]
+        assert "not a JSON function call" not in client.calls[1][1]
         event = [
             item
             for item in store.event_records(state.run_id)
             if item["type"] == "model_protocol_normalized"
-            and item["data"]["request_type"] == "tool_action"
+            and item["data"]["request_type"] == "tool_action_commit"
         ][-1]["data"]
-        assert event["transformations"] == ["action_envelope_to_canonical"]
+        assert event["transformations"] == []
         assert event["selected_action"] == "write_file"
         assert event["controller_semantic_fields_generated"] is False
 
 
-class ConflictingActionIdentityClient(ParserFailureThenRegisteredActionClient):
+class ExplicitActionEnvelopeClient(ParserFailureThenRegisteredActionClient):
     def __init__(self):
         super().__init__()
-        conflicting = json.dumps(
+        old_envelope = json.dumps(
             {
                 "action": {
                     "type": "read_file",
@@ -1975,10 +3764,10 @@ class ConflictingActionIdentityClient(ParserFailureThenRegisteredActionClient):
                 }
             }
         )
-        self.outputs = [self.outputs[0], conflicting, conflicting]
+        self.outputs = [old_envelope, old_envelope]
 
 
-def test_round23_action_wrapper_never_rewrites_conflicting_identity():
+def test_explicit_action_envelope_selects_registered_action_at_model_boundary():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         store = LongHorizonStore(root / "state")
@@ -1987,7 +3776,7 @@ def test_round23_action_wrapper_never_rewrites_conflicting_identity():
             "T1",
             "Write result",
             "Write verified text to result.txt",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             action=TaskAction("model_action", {}),
         )
 
@@ -1996,25 +3785,29 @@ def test_round23_action_wrapper_never_rewrites_conflicting_identity():
             current.revision = saved.revision
             current.updated_at = saved.updated_at
 
-        client = ConflictingActionIdentityClient()
+        client = ExplicitActionEnvelopeClient()
         harness = ActionHarness()
-        with pytest.raises(ModelProtocolError, match="does not match"):
-            LongHorizonModel(
-                ModelInvoker(client=client), harness=harness
-            ).propose_action(
-                state,
-                task,
-                WorkingMemoryBuilder().build(state, task),
-                harness.action_contract(),
-                persist,
-            )
-
-        assert len(client.calls) == 3
-        assert not any(
-            item["type"] == "model_protocol_normalized"
-            and item["data"].get("request_type") == "tool_action"
-            for item in store.event_records(state.run_id)
+        proposal = LongHorizonModel(
+            ModelInvoker(client=client), harness=harness
+        ).propose_action(
+            state,
+            task,
+            WorkingMemoryBuilder().build(state, task),
+            harness.action_contract(),
+            persist,
         )
+
+        assert proposal.action == TaskAction(
+            "read_file",
+            {"path": "result.txt"},
+        )
+        assert len(client.calls) == 1
+        normalized = [
+            item["type"] == "model_protocol_normalized"
+            and item["data"].get("request_type") == "tool_action_commit"
+            for item in store.event_records(state.run_id)
+        ]
+        assert any(normalized)
 
 
 def test_model_action_normalizes_stringified_g1i_arguments():
@@ -2026,7 +3819,7 @@ def test_model_action_normalizes_stringified_g1i_arguments():
             "T1",
             "Write result",
             "Write verified text to result.txt",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             action=TaskAction("model_action", {}),
         )
 
@@ -2064,6 +3857,121 @@ def test_model_action_normalizes_stringified_g1i_arguments():
             "name": "write_file",
             "arguments": {"path": "result.txt", "content": "verified"},
         }
+
+
+class RichThenMinimalReplanClient:
+    def __init__(self):
+        self.prompts = []
+        self.outputs = [
+            {
+                "schema_version": TASK_BATCH_SCHEMA_VERSION,
+                "tasks": [
+                    {
+                        "local_id": "replacement",
+                        "title": "Use independent verification",
+                        "description": "Verify from independent observations",
+                        "dependencies": [],
+                        "postcondition": "Independent verification is observed",
+                        "action": {
+                            "type": "noop",
+                            "arguments": {"output": "SHOULD_NOT_BE_REINJECTED"},
+                        },
+                    }
+                ],
+            },
+            {
+                "schema_version": TASK_BATCH_SCHEMA_VERSION,
+                "tasks": [
+                    {
+                        "local_id": "replacement",
+                        "title": "Use independent verification",
+                        "description": "Verify from independent observations",
+                        "dependencies": [],
+                        "postcondition": "Independent verification is observed",
+                    }
+                ],
+            },
+        ]
+
+    def text_completion(self, prompt, max_tokens=768, stop=None):
+        del max_tokens, stop
+        self.prompts.append(prompt)
+        content = json.dumps(self.outputs.pop(0))
+        return type("Response", (), {"content": content, "finish_reason": "stop"})()
+
+
+def test_replan_projects_one_compact_task_shape_and_does_not_echo_rejection():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        store = LongHorizonStore(root / "state")
+        state = store.create_run(make_goal(root / "workspace"), "REPLAN-COMPACT")
+        failed = TaskNode(
+            "T1",
+            "Verify output",
+            "Verify output using independent evidence",
+            status=TaskStatus.FAILED,
+            postcondition="The output is independently verified",
+            advances_criteria=["GC1"],
+            satisfies_criteria=["GC1"],
+            recovery_lineage_id="RL-1",
+            action=TaskAction("read_json", {"path": "result.json"}),
+            completion_criteria=[ValidationSpec("file_exists", {"path": "result.json"})],
+            attempt_ids=["T1-A1"],
+        )
+        state.tasks = {"T1": failed}
+        state.attempts["T1-A1"] = Attempt(
+            "T1-A1",
+            "T1",
+            AttemptStatus.FAILED,
+            action_fingerprint(failed.action),
+            "fixture:T1-A1",
+            utc_now(),
+            ended_at=utc_now(),
+            tool_result={
+                "success": True,
+                "output": '{"value": 1}',
+                "metadata": {"json_type": "dict"},
+                "error": None,
+                "outcome_type": "success",
+            },
+            validation_results=[
+                ValidationResult(
+                    "task_postcondition_cross_check",
+                    False,
+                    True,
+                    "an independent check is still required",
+                )
+            ],
+        )
+        client = RichThenMinimalReplanClient()
+        model = LongHorizonModel(ModelInvoker(client=client))
+        events = []
+
+        proposal = model.replan(
+            state,
+            failed,
+            WorkingMemoryBuilder().build(state, failed),
+            lambda _state, event_type, data: events.append(
+                {"type": event_type, "data": dict(data)}
+            ),
+            same_failure_count=0,
+        )
+
+        assert [task.task_id for task in proposal.tasks] == ["replacement"]
+        assert client.outputs == []
+        first_prompt, second_prompt = client.prompts
+        for legacy_field in (
+            '"advances_criteria":',
+            '"satisfies_criteria":',
+            '"completion_criteria":',
+            '"operation_kind":',
+            '"recovery_lineage_id":',
+            '"last_attempt":',
+        ):
+            assert legacy_field not in first_prompt
+            assert legacy_field not in second_prompt
+        assert "SHOULD_NOT_BE_REINJECTED" not in second_prompt
+        assert any(item["type"] == "model_contract_error" for item in events)
 
 
 class ReselectingFailureModel:
@@ -2118,6 +4026,18 @@ class ReselectingFailureModel:
             return CrossValidationDecision(False, "checked against Goal", [])
         return passing_criterion_decision(state, task, action_result)
 
+    def commit_criterion_evidence(
+        self,
+        state,
+        context,
+        persist,
+        *,
+        criterion_ids,
+        source_catalog,
+    ):
+        del state, context, persist
+        return passing_provenance_commit(criterion_ids, source_catalog)
+
     def final_answer(self, state, context, persist):
         return "corrected and verified"
 
@@ -2131,7 +4051,7 @@ def test_rwkv_failure_analysis_reselects_action_instead_of_blind_retry():
             "T1",
             "Write exact result",
             "Write the correct value",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             action=TaskAction(
                 "write_file",
                 {"path": "result.txt", "content": "wrong"},
@@ -2151,7 +4071,7 @@ def test_rwkv_failure_analysis_reselects_action_instead_of_blind_retry():
         assert (root / "workspace" / "result.txt").read_text() == "correct"
         assert len(result.state.tasks["T1"].attempt_ids) == 2
         assert model.analysis_calls == 1
-        assert model.cross_checks == 2
+        assert model.cross_checks == 1
         assert any(
             event["type"] == "action_reselection_scheduled"
             for event in store.event_records(state.run_id)
@@ -2203,7 +4123,7 @@ def test_intermediate_progress_cannot_cover_goal_without_typed_evidence():
             "T1",
             "Inspect scores",
             "Read the input as preparation for a later aggregate",
-            goal_criteria=["GC1"],
+            advances_criteria=["GC1"],
             satisfies_criteria=[],
             action=TaskAction("read_file", {"path": "scores.csv"}),
             completion_criteria=[ValidationSpec("action_succeeded", {})],
@@ -2225,7 +4145,7 @@ def test_intermediate_progress_cannot_cover_goal_without_typed_evidence():
 
 class TaskLocalValidationModel:
     def __init__(self):
-        self.validated_tasks = []
+        self.commit_calls = 0
         self.validation_scopes = []
 
     def plan(self, state, persist):
@@ -2234,25 +4154,25 @@ class TaskLocalValidationModel:
     def propose_action(self, state, task, context, action_contract, persist):
         raise AssertionError("actions are already materialized")
 
-    def cross_validate(
+    def commit_criterion_evidence(
         self,
         state,
-        task,
         context,
         persist,
         *,
-        action_result=None,
-        validation_results=None,
+        criterion_ids,
+        source_catalog,
     ):
-        self.validated_tasks.append(task.task_id)
+        del state, persist
+        self.commit_calls += 1
         self.validation_scopes.append(context.goal)
-        return passing_criterion_decision(state, task, action_result)
+        return passing_provenance_commit(criterion_ids, source_catalog)
 
     def final_answer(self, state, context, persist):
         return "task-local evidence verified"
 
 
-def test_semantic_validation_runs_only_for_direct_satisfaction_claims():
+def test_goal_semantic_validation_runs_once_after_the_required_graph_closes():
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         workspace = root / "workspace"
@@ -2264,7 +4184,7 @@ def test_semantic_validation_runs_only_for_direct_satisfaction_claims():
                 "T1",
                 "Read source",
                 "Obtain dependency evidence only",
-                goal_criteria=["GC1"],
+                advances_criteria=["GC1"],
                 action=TaskAction("read_file", {"path": "input.txt"}),
                 completion_criteria=[ValidationSpec("action_succeeded", {})],
             ),
@@ -2273,7 +4193,7 @@ def test_semantic_validation_runs_only_for_direct_satisfaction_claims():
                 "Write result",
                 "Create the directly verifiable Goal artifact",
                 dependencies=["T1"],
-                goal_criteria=["GC1"],
+                advances_criteria=["GC1"],
                 satisfies_criteria=["GC1"],
                 action=TaskAction(
                     "write_file", {"path": "result.txt", "content": "source"}
@@ -2294,8 +4214,11 @@ def test_semantic_validation_runs_only_for_direct_satisfaction_claims():
         result = LongHorizonController(store, model=model).run(state.run_id)
 
         assert result.state.status == RunStatus.COMPLETED
-        assert model.validated_tasks == ["T2"]
-        assert all("TASK VALIDATION SCOPE" in scope for scope in model.validation_scopes)
+        assert model.commit_calls == 1
+        assert all(
+            "IMMUTABLE GOAL EVIDENCE SCOPE" in scope
+            for scope in model.validation_scopes
+        )
         evidence = list(result.state.criterion_evidence.values())
         assert len(evidence) == 1
         assert evidence[0].owner_task_id == "T2"

@@ -60,6 +60,44 @@ class ActionResult:
     evidence: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     error: dict[str, Any] | None = None
+    outcome_type: str = "pending"
+
+    def __post_init__(self) -> None:
+        if not self.outcome_type or self.outcome_type == "pending":
+            self.outcome_type = self.classify_outcome(
+                success=self.success,
+                exit_code=self.exit_code,
+                error=self.error,
+            )
+
+    @staticmethod
+    def classify_outcome(
+        *,
+        success: bool,
+        exit_code: int | None,
+        error: Mapping[str, Any] | None,
+    ) -> str:
+        if success:
+            return "success"
+        error_type = str((error or {}).get("type") or "")
+        if error_type in {"FileNotFoundError", "NotADirectoryError"}:
+            return "not_found"
+        if error_type in {
+            "JSONDecodeError",
+            "UnicodeDecodeError",
+            "ValueError",
+            "TypeError",
+            "HarnessError",
+            "ScopeViolation",
+        }:
+            return "invalid"
+        if error_type in {"FileExistsError", "AlreadyExists", "Conflict"}:
+            return "conflict"
+        if error_type in {"TimeoutExpired", "TimeoutError"}:
+            return "timeout"
+        if exit_code not in {None, 0} or error_type == "CommandFailed":
+            return "nonzero"
+        return "failed"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -71,6 +109,7 @@ class ActionResult:
             "evidence": self.evidence,
             "metadata": self.metadata,
             "error": self.error,
+            "outcome_type": self.outcome_type,
         }
 
     @classmethod
@@ -89,6 +128,7 @@ class ActionResult:
             evidence=[dict(item) for item in raw.get("evidence") or [] if isinstance(item, Mapping)],
             metadata=dict(raw.get("metadata") or {}),
             error=dict(raw["error"]) if isinstance(raw.get("error"), Mapping) else None,
+            outcome_type=str(raw.get("outcome_type") or "pending"),
         )
 
 
@@ -176,7 +216,16 @@ class ActionHarness:
         ),
         "replace_text": ActionDefinition(
             "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
-            {"path": "relative path", "old": "exact text", "new": "replacement", "count": "positive integer"},
+            {
+                "path": "relative path",
+                "old": "exact text",
+                "new": "replacement",
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "positive replacement count",
+                },
+            },
             ("file_exists",),
             failure_observation_cacheable=True,
         ),
@@ -216,12 +265,17 @@ class ActionHarness:
                 "path": "relative directory; defaults to workspace root",
                 "recursive": "boolean",
                 "max_entries": "positive integer up to 1024",
+                "start_after": "optional prior page next_cursor path",
             },
             failure_observation_cacheable=True,
         ),
         "read_file": ActionDefinition(
             "read_file", "Read a UTF-8 file without modifying it.", True, False, True, 30.0,
-            {"path": "relative path", "max_chars": "positive integer"},
+            {
+                "path": "relative path",
+                "start_char": "zero-based non-negative integer",
+                "max_chars": "positive integer up to 16000",
+            },
             failure_observation_cacheable=True,
         ),
         "read_json": ActionDefinition(
@@ -321,6 +375,7 @@ class ActionHarness:
     def action_contract(self) -> str:
         return json.dumps(
             {
+                "runtime_capabilities": self.runtime_capabilities(),
                 "actions": {
                     name: self.action_definition_contract(name)
                     for name in self._definitions
@@ -330,40 +385,17 @@ class ActionHarness:
             indent=2,
         )
 
-    def action_catalog(self) -> dict[str, dict[str, Any]]:
-        """Return the compact first-stage tool-choice contract."""
-
+    @staticmethod
+    def runtime_capabilities() -> dict[str, Any]:
         return {
-            name: {
-                "description": definition.description,
-                "read_only": definition.read_only,
-                "side_effect": definition.side_effect,
-            }
-            for name, definition in self._definitions.items()
-        }
-
-    def compact_action_commit_catalog(self) -> dict[str, dict[str, Any]]:
-        """Return a fixed-order catalog for one atomic RWKV action commit.
-
-        This catalog exposes structural argument names, never values. It is
-        intentionally independent of the active task and workspace contents.
-        """
-
-        return {
-            name: {
-                "description": definition.description,
-                "read_only": definition.read_only,
-                "side_effect": definition.side_effect,
-                "idempotent": definition.idempotent,
-                "argument_names": list(definition.argument_schema),
-                "required_arguments": list(
-                    self._g1i_required_arguments.get(
-                        name,
-                        self._required_arguments.get(name, ()),
-                    )
-                ),
-            }
-            for name, definition in self._definitions.items()
+            "command_execution": "argv only; shell=False; workspace scoped",
+            "python": {
+                "canonical_argv_prefix": ["python", "-m"],
+                "resolved_by_harness": str(Path(sys.executable).resolve()),
+                "python_alias_available": True,
+                "pytest_invocation": ["python", "-m", "pytest"],
+            },
+            "network": "shared only inside the command sandbox",
         }
 
     @staticmethod
@@ -499,7 +531,7 @@ class ActionHarness:
         """Return the exact argument and recovery contract for one selected action."""
 
         definition = self.definition(action_type)
-        return {
+        contract = {
             "description": definition.description,
             "read_only": definition.read_only,
             "side_effect": definition.side_effect,
@@ -511,6 +543,9 @@ class ActionHarness:
             ),
             "required_postconditions": list(definition.required_postconditions),
         }
+        if definition.name in {"run_command", "check_command"}:
+            contract["runtime_capabilities"] = self.runtime_capabilities()
+        return contract
 
     def verifier_candidates(self, action_type: str) -> tuple[str, ...]:
         """Return verifier kinds that can observe the selected action's effects."""
@@ -550,6 +585,12 @@ class ActionHarness:
             if name in arguments and Path(arguments[name]).is_absolute():
                 raise HarnessError(
                     f"action {definition.name} argument {name} must be workspace-relative"
+                )
+        if definition.name == "replace_text" and "count" in arguments:
+            count = arguments["count"]
+            if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+                raise HarnessError(
+                    "action replace_text argument count must be a positive integer"
                 )
         if definition.name in {"run_command", "check_command"}:
             argv = arguments.get("argv")
@@ -768,7 +809,14 @@ class ActionHarness:
         normalized = str(action.action_type or "").strip()
         self.definition(normalized)
         try:
-            return self._handlers[normalized](goal, dict(action.arguments or {}))
+            result = self._handlers[normalized](goal, dict(action.arguments or {}))
+            if not result.outcome_type or result.outcome_type == "pending":
+                result.outcome_type = ActionResult.classify_outcome(
+                    success=result.success,
+                    exit_code=result.exit_code,
+                    error=result.error,
+                )
+            return result
         except Exception as exc:
             return ActionResult(
                 action_type=normalized,
@@ -818,7 +866,9 @@ class ActionHarness:
         if not old:
             raise HarnessError("replace_text requires non-empty old text")
         content = path.read_text(encoding="utf-8")
-        expected = max(1, int(arguments.get("count", 1)))
+        expected = arguments.get("count", 1)
+        if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
+            raise HarnessError("replace_text count must be a positive integer")
         occurrences = content.count(old)
         if occurrences < expected:
             if old not in content and content.count(new) >= expected:
@@ -910,6 +960,12 @@ class ActionHarness:
             raise HarnessError("list_directory requires a directory")
         recursive = bool(arguments.get("recursive", False))
         max_entries = max(1, min(1024, int(arguments.get("max_entries", 256))))
+        start_after = str(arguments.get("start_after") or "").strip()
+        cursor_path = Path(start_after) if start_after else None
+        if cursor_path is not None and (
+            cursor_path.is_absolute() or ".." in cursor_path.parts
+        ):
+            raise HarnessError("list_directory start_after is outside workspace scope")
         excluded_directories = {".git", ".venv", "node_modules", "__pycache__"}
         candidates: list[Path] = []
         if recursive:
@@ -931,6 +987,16 @@ class ActionHarness:
                 ),
                 key=lambda path: path.name,
             )
+        candidates = sorted(
+            candidates,
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+        if start_after:
+            candidates = [
+                path
+                for path in candidates
+                if path.relative_to(root).as_posix() > start_after
+            ]
 
         entries: list[dict[str, Any]] = []
         truncated = False
@@ -967,12 +1033,15 @@ class ActionHarness:
             "entries": entries,
             "entry_count": len(entries),
             "truncated": truncated,
+            "next_cursor": entries[-1]["path"] if truncated and entries else "",
         }
+        observation_limit = min(self.output_limit_chars, 16_000)
         output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-        while entries and len(output) > self.output_limit_chars:
+        while entries and len(output) > observation_limit:
             entries.pop()
             payload["entry_count"] = len(entries)
             payload["truncated"] = True
+            payload["next_cursor"] = entries[-1]["path"] if entries else start_after
             output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return ActionResult(
             "list_directory",
@@ -985,15 +1054,33 @@ class ActionHarness:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         if not path.is_file():
             raise HarnessError("read_file requires a regular file")
-        limit = max(1, min(self.output_limit_chars, int(arguments.get("max_chars", self.output_limit_chars))))
+        start = max(0, int(arguments.get("start_char", 0)))
+        limit = max(
+            1,
+            min(
+                self.output_limit_chars,
+                16_000,
+                int(arguments.get("max_chars", 16_000)),
+            ),
+        )
         content = path.read_text(encoding=str(arguments.get("encoding") or "utf-8"))
-        truncated = len(content) > limit
+        if start > len(content):
+            raise HarnessError("read_file start_char is past end of file")
+        end = min(len(content), start + limit)
+        truncated = end < len(content)
         return ActionResult(
             "read_file",
             True,
-            output=content[:limit],
+            output=content[start:end],
             artifacts=[self._artifact(goal, path)],
-            metadata={"truncated": truncated, "original_chars": len(content)},
+            metadata={
+                "start_char": start,
+                "end_char": end,
+                "next_start_char": end if truncated else None,
+                "truncated": truncated,
+                "complete": not truncated,
+                "original_chars": len(content),
+            },
         )
 
     def _read_json(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
@@ -1063,10 +1150,14 @@ class ActionHarness:
         if not isinstance(explicit_environment, Mapping):
             raise HarnessError("command env must be an object")
         environment.update({str(key): str(value) for key, value in explicit_environment.items()})
-        command = list(argv)
+        requested_argv = list(argv)
+        resolved_argv = list(argv)
+        if resolved_argv[0] == "python":
+            resolved_argv[0] = str(Path(sys.executable).resolve(strict=True))
+        command = list(resolved_argv)
         sandboxed = bool(self._bubblewrap)
         if self._bubblewrap:
-            command, sandbox_path = self._bubblewrap_command(goal, cwd, argv)
+            command, sandbox_path = self._bubblewrap_command(goal, cwd, resolved_argv)
             environment["PATH"] = sandbox_path
         completed = subprocess.run(
             command,
@@ -1087,7 +1178,13 @@ class ActionHarness:
             output=output[: self.output_limit_chars],
             exit_code=completed.returncode,
             metadata={
-                "argv": argv,
+                "argv": requested_argv,
+                "resolved_argv": resolved_argv,
+                "executable_resolution": (
+                    "python_alias_to_project_runtime"
+                    if requested_argv[0] != resolved_argv[0]
+                    else "unchanged"
+                ),
                 "cwd": str(cwd.relative_to(Path(goal.workspace_root))),
                 "output_truncated": len(output) > self.output_limit_chars,
                 "sandboxed": sandboxed,
@@ -1122,6 +1219,7 @@ class ActionHarness:
 
         runtime_root: Path | None = None
         sandbox_runtime = Path("/opt/rwkv-lh-python")
+        configured_runtime_root = Path(sys.executable).resolve(strict=True).parent.parent
         if resolved_executable is not None:
             if resolved_executable.is_relative_to(workspace):
                 child_argv[0] = str(
@@ -1129,9 +1227,11 @@ class ActionHarness:
                 )
             elif resolved_executable.is_relative_to(Path("/usr")):
                 pass
-            elif resolved_executable == Path(sys.executable).resolve(strict=True):
-                runtime_root = resolved_executable.parent.parent
-                child_argv[0] = str(sandbox_runtime / "bin" / resolved_executable.name)
+            elif resolved_executable.is_relative_to(configured_runtime_root):
+                runtime_root = configured_runtime_root
+                child_argv[0] = str(
+                    sandbox_runtime / resolved_executable.relative_to(runtime_root)
+                )
             else:
                 raise HarnessError(
                     "command executable is outside the isolated system/workspace toolchain: "

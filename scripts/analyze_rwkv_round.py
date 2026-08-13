@@ -180,7 +180,7 @@ def _verify_causal_artifacts(round_path: Path, audit: Mapping[str, Any]) -> dict
     case_path = round_path / "cases" / str(audit["task_id"])
     declared = audit.get("causal_artifacts") or {}
     checks: dict[str, Any] = {}
-    for name in ("model_trace", "event_log", "state_timeline"):
+    for name in ("model_trace", "event_log", "state_timeline", "causal_ledger"):
         metadata = declared.get(name) if isinstance(declared, Mapping) else None
         path = case_path / str((metadata or {}).get("path") or "")
         exists = path.is_file()
@@ -252,16 +252,39 @@ def _verify_causal_artifacts(round_path: Path, audit: Mapping[str, Any]) -> dict
         "incomplete": incomplete,
         "complete": not incomplete,
     }
+    ledger_path = case_path / "causal_ledger.json"
+    ledger = _read_json(ledger_path) if ledger_path.is_file() else {}
+    ledger_request_ids = [
+        str(item.get("request_id") or "")
+        for item in ledger.get("requests") or []
+    ]
+    trace_request_ids = list(by_request)
+    final_state = audit.get("run_state") or {}
+    ledger_task_ids = set((ledger.get("tasks") or {}).keys())
+    final_task_ids = set((final_state.get("tasks") or {}).keys())
+    checks["causal_ledger_links"] = {
+        "schema_version": ledger.get("schema_version", ""),
+        "request_order_exact": ledger_request_ids == trace_request_ids,
+        "task_set_exact": ledger_task_ids == final_task_ids,
+        "event_revision_count": len(ledger.get("event_revision_sequence") or []),
+        "event_revision_count_exact": len(
+            ledger.get("event_revision_sequence") or []
+        )
+        == len(events),
+    }
     checks["complete"] = all(
         item.get("hash_matches", False)
         for key, item in checks.items()
-        if key in {"model_trace", "event_log", "state_timeline"}
+        if key in {"model_trace", "event_log", "state_timeline", "causal_ledger"}
     ) and all(
         (
             checks["state_sequence"]["one_snapshot_per_event"],
             checks["state_sequence"]["strict_revision_order"],
             checks["state_sequence"]["every_transition_has_delta"],
             checks["model_exchange_sequence"]["complete"],
+            checks["causal_ledger_links"]["request_order_exact"],
+            checks["causal_ledger_links"]["task_set_exact"],
+            checks["causal_ledger_links"]["event_revision_count_exact"],
         )
     )
     return checks
