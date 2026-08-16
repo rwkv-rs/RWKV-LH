@@ -1,0 +1,292 @@
+{
+  "schema_version": "rwkv-lh.operation-selection-dataset.v1",
+  "cases": [
+    {
+      "case_id": "OS-001",
+      "category": "create_text",
+      "objective": "Create notes/alpha.txt containing exactly the UTF-8 text alpha.",
+      "done_when": "notes/alpha.txt exists and its complete content is alpha.",
+      "context": {},
+      "expected_operation": "write_file"
+    },
+    {
+      "case_id": "OS-002",
+      "category": "replace_json",
+      "objective": "Replace config/app.json with the complete JSON value {\"mode\":\"safe\",\"retries\":2}; any old keys must be removed.",
+      "done_when": "config/app.json equals exactly the requested complete JSON value.",
+      "context": {},
+      "expected_operation": "write_json"
+    },
+    {
+      "case_id": "OS-003",
+      "category": "patch_json",
+      "objective": "Change only the top-level key retries to 4 in existing config/app.json while preserving every unspecified key.",
+      "done_when": "retries is 4 and all unspecified top-level keys remain unchanged.",
+      "context": {},
+      "expected_operation": "patch_json"
+    },
+    {
+      "case_id": "OS-004",
+      "category": "replace_text",
+      "objective": "In existing docs/status.txt replace the exact first occurrence of pending with ready.",
+      "done_when": "The requested exact occurrence is ready and other text is unchanged.",
+      "context": {},
+      "expected_operation": "replace_text"
+    },
+    {
+      "case_id": "OS-005",
+      "category": "remove_line",
+      "objective": "Remove the complete line deprecated=true from existing settings.env.",
+      "done_when": "No complete line equal to deprecated=true remains.",
+      "context": {},
+      "expected_operation": "remove_line"
+    },
+    {
+      "case_id": "OS-006",
+      "category": "append_text",
+      "objective": "Append the UTF-8 text build=42 followed by a newline to existing logs/build.log without replacing its old content.",
+      "done_when": "The old content is preserved and the requested text is appended once.",
+      "context": {},
+      "expected_operation": "append_file"
+    },
+    {
+      "case_id": "OS-007",
+      "category": "delete_path",
+      "objective": "Delete the explicitly scoped file cache/stale.bin.",
+      "done_when": "cache/stale.bin is absent.",
+      "context": {},
+      "expected_operation": "delete_file"
+    },
+    {
+      "case_id": "OS-008",
+      "category": "create_directory",
+      "objective": "Create the directory artifacts/reports including missing parent directories.",
+      "done_when": "artifacts/reports exists as a directory.",
+      "context": {},
+      "expected_operation": "make_directory"
+    },
+    {
+      "case_id": "OS-009",
+      "category": "copy_one_file",
+      "objective": "Copy the exact bytes of templates/base.ini to generated/base.ini.",
+      "done_when": "generated/base.ini exists and has the same bytes as templates/base.ini.",
+      "context": {},
+      "expected_operation": "copy_file"
+    },
+    {
+      "case_id": "OS-010",
+      "category": "list_metadata",
+      "objective": "List bounded path, type, and size metadata under assets recursively; do not read file contents.",
+      "done_when": "The bounded recursive directory metadata has been observed.",
+      "context": {},
+      "expected_operation": "list_directory"
+    },
+    {
+      "case_id": "OS-011",
+      "category": "read_text",
+      "objective": "Observe the first tokenizer-bounded UTF-8 byte range of existing input/story.txt.",
+      "done_when": "The exact first bounded text range and continuation metadata are observed.",
+      "context": {},
+      "expected_operation": "read_file"
+    },
+    {
+      "case_id": "OS-012",
+      "category": "read_json",
+      "objective": "Parse data/catalog.json and observe the first tokenizer-bounded range of its canonical compact JSON representation.",
+      "done_when": "The exact bounded canonical JSON range and continuation metadata are observed.",
+      "context": {},
+      "expected_operation": "read_json"
+    },
+    {
+      "case_id": "OS-013",
+      "category": "bind_source",
+      "objective": "Bind lines 18 through 23 of sources/report.md as evidence, retaining the exact source locator and quote.",
+      "done_when": "The exact line span is retained with its source locator.",
+      "context": {},
+      "expected_operation": "bind_evidence"
+    },
+    {
+      "case_id": "OS-014",
+      "category": "read_only_command",
+      "objective": "Run the read-only test command argv [\"python\",\"-m\",\"pytest\",\"tests/test_math.py\"] with shell disabled.",
+      "done_when": "The test exit code and bounded output are observed without workspace mutation.",
+      "context": {},
+      "expected_operation": "check_command"
+    },
+    {
+      "case_id": "OS-015",
+      "category": "mutating_command",
+      "objective": "Run argv [\"python\",\"-m\",\"tools.generate_index\"] which intentionally regenerates workspace files, with shell disabled.",
+      "done_when": "The mutating generator exits successfully and its effects are available for checks.",
+      "context": {},
+      "expected_operation": "run_command"
+    },
+    {
+      "case_id": "OS-016",
+      "category": "declare_workset",
+      "objective": "Copy every .cfg member discovered under incoming into mirrored, one member at a time.",
+      "done_when": "The complete sealed member set is known and every member has a verified destination copy.",
+      "context": {
+        "member_set_status": "unbound",
+        "known_members": []
+      },
+      "expected_operation": "lh_workset"
+    },
+    {
+      "case_id": "OS-017",
+      "category": "chunk_map",
+      "objective": "Read-only analyze existing UTF-8 files corpus/a.txt and corpus/b.txt in tokenizer-sized chunks and reduce all headings into one explicit result.",
+      "done_when": "Every exact source chunk is covered and the reduced heading list is present.",
+      "context": {},
+      "expected_operation": "lh_chunk_map"
+    },
+    {
+      "case_id": "OS-018",
+      "category": "task_complete",
+      "objective": "Create output/ready.txt with exact content ready.",
+      "done_when": "output/ready.txt exists and its complete content is ready.",
+      "context": {
+        "latest_observation": {
+          "event_type": "action_result",
+          "action": "write_file",
+          "success": true,
+          "passed_checks": ["file_exists", "file_content"],
+          "artifact_refs": ["AR-READY"]
+        }
+      },
+      "expected_operation": "lh_task_done"
+    },
+    {
+      "case_id": "OS-019",
+      "category": "reopen_task",
+      "objective": "Repair the plan after current evidence disproved the completed Task verify-index.",
+      "done_when": "The disproved existing Task is active again and can be re-executed.",
+      "context": {
+        "latest_observation": {
+          "event_type": "task_completion_rejected",
+          "target_task": "verify-index",
+          "reason": "index hash no longer matches the checked artifact"
+        }
+      },
+      "expected_operation": "lh_reopen_task"
+    },
+    {
+      "case_id": "OS-020",
+      "category": "replace_task",
+      "objective": "Repair the plan because Task download-schema is infeasible: network access is unavailable but a local schema fixture exists.",
+      "done_when": "download-schema is explicitly replaced by a feasible Task batch using the local fixture.",
+      "context": {
+        "latest_observation": {
+          "event_type": "failure_observed",
+          "target_task": "download-schema",
+          "outcome_type": "infeasible",
+          "available_recovery": "schemas/local.json"
+        }
+      },
+      "expected_operation": "lh_replace_task"
+    },
+    {
+      "case_id": "OS-021",
+      "category": "replace_json_discrimination",
+      "objective": "Overwrite state/current.json with exactly the array [1,2,3], deleting the old object rather than preserving its keys.",
+      "done_when": "The complete JSON value is exactly [1,2,3].",
+      "context": {},
+      "expected_operation": "write_json"
+    },
+    {
+      "case_id": "OS-022",
+      "category": "patch_json_discrimination",
+      "objective": "Preserve all current fields in package.json except set the top-level version field to 3.1.0.",
+      "done_when": "version is 3.1.0 and every unspecified field is unchanged.",
+      "context": {},
+      "expected_operation": "patch_json"
+    },
+    {
+      "case_id": "OS-023",
+      "category": "list_vs_read",
+      "objective": "Discover only filenames, entry types, and sizes in samples so a later Task can decide what to read.",
+      "done_when": "Bounded samples directory metadata is observed without file content.",
+      "context": {},
+      "expected_operation": "list_directory"
+    },
+    {
+      "case_id": "OS-024",
+      "category": "check_vs_run",
+      "objective": "Inspect whether argv [\"git\",\"diff\",\"--check\"] exits zero; it must not mutate the workspace.",
+      "done_when": "The read-only command exit code is observed.",
+      "context": {},
+      "expected_operation": "check_command"
+    },
+    {
+      "case_id": "OS-025",
+      "category": "append_vs_write",
+      "objective": "Add one new audit record to the end of existing audit/events.txt while retaining every existing byte.",
+      "done_when": "Existing bytes remain and the audit record occurs once at the end.",
+      "context": {},
+      "expected_operation": "append_file"
+    },
+    {
+      "case_id": "OS-026",
+      "category": "workset_before_members",
+      "objective": "For every unknown member of queue/incoming, create a corresponding archive copy and track each member separately.",
+      "done_when": "The member set is sealed and no member remains pending or failed.",
+      "context": {
+        "member_set_status": "unbound",
+        "known_members": []
+      },
+      "expected_operation": "lh_workset"
+    },
+    {
+      "case_id": "OS-027",
+      "category": "chunk_vs_single_read",
+      "objective": "Extract all TODO markers from the complete contents of three large existing UTF-8 logs using exact tokenizer-sized chunks and combine the results.",
+      "done_when": "All chunks from all three logs are covered and one reduced TODO list is returned.",
+      "context": {},
+      "expected_operation": "lh_chunk_map"
+    },
+    {
+      "case_id": "OS-028",
+      "category": "continue_text_read",
+      "objective": "Continue observing input/large.txt from the exact next_start_byte returned by the prior bounded read.",
+      "done_when": "The next exact bounded range and its continuation metadata are observed.",
+      "context": {
+        "latest_observation": {
+          "event_type": "action_result",
+          "action": "read_file",
+          "complete": false,
+          "next_start_byte": 18432
+        }
+      },
+      "expected_operation": "read_file"
+    },
+    {
+      "case_id": "OS-029",
+      "category": "continue_member",
+      "objective": "Copy every sealed workset member to its declared target; member cfg-02 is the next pending member.",
+      "done_when": "Every sealed member copy is verified and no member remains pending.",
+      "context": {
+        "member_set_status": "sealed",
+        "member_counts": {"completed": 1, "pending": 1, "failed": 0},
+        "active_members": [
+          {"id": "cfg-02", "source": "incoming/b.cfg", "target": "mirrored/b.cfg", "status": "pending"}
+        ]
+      },
+      "expected_operation": "copy_file"
+    },
+    {
+      "case_id": "OS-030",
+      "category": "not_done_after_failed_check",
+      "objective": "Create output/value.txt with exact content final.",
+      "done_when": "output/value.txt exists and its complete content is final.",
+      "context": {
+        "latest_observation": {
+          "event_type": "task_completion_rejected",
+          "reason": "file content is old",
+          "passed_checks": ["file_exists"],
+          "failed_checks": ["file_content"]
+        }
+      },
+      "expected_operation": "write_file"
+    }
+  ]
+}

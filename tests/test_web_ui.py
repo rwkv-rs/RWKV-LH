@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from rwkv_lh.schema import GoalCriterion, GoalState, MemoryEntry, RunState
+from rwkv_lh.schema import GoalState, RunState
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.web_ui import (
     ManualRunRepository,
@@ -74,21 +74,13 @@ def test_result_payload_preserves_controller_final_output_exactly(tmp_path: Path
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     goal = GoalState.create(
-        objective="Preserve output",
-        original_request="Preserve output",
+        request="Preserve output",
         constraints=[],
-        success_criteria=[GoalCriterion("GC1", "The output is preserved")],
         workspace_root=workspace,
     )
     state = RunState(run_id="UI-OUTPUT", goal=goal)
     raw = "  RWKV 原始输出\n```json\n{\"x\":1}\n```\n\u0000tail  "
-    state.memory_index["M-FINAL"] = MemoryEntry(
-        memory_id="M-FINAL",
-        kind="final",
-        task_id="RUN",
-        summary="exact RWKV final output",
-        content=raw,
-    )
+    state.final_output = raw
     payload = result_payload(state, raw, 4)
     assert payload["final_output"] == raw
     assert payload["persisted_final_output"] == raw
@@ -99,10 +91,8 @@ def test_export_contains_consistent_sqlite_snapshot_and_full_state_exports(tmp_p
     repository, metadata = create_repository_run(tmp_path, "UI-EXPORT")
     run_root = repository.run_root(metadata["run_id"])
     goal = GoalState.create(
-        objective="Export state",
-        original_request="Export state",
+        request="Export state",
         constraints=[],
-        success_criteria=[GoalCriterion("GC1", "State exists")],
         workspace_root=run_root / "workspace",
     )
     store = LongHorizonStore(run_root / "state", checkpoint_retention=100_000)
@@ -165,7 +155,7 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
     try:
         status, capabilities = request_json(base + "/api/capabilities")
         assert status == 200
-        assert capabilities["latest_formal"]["strict"] == "0/90"
+        assert capabilities["latest_formal"]["strict"] == "31/90"
         assert capabilities["experimental"] is True
         status, created = request_json(
             base + "/api/runs",

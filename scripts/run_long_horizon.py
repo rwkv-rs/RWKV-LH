@@ -49,16 +49,15 @@ def _summary(state, final_output: str = "") -> dict[str, Any]:
         "run_id": state.run_id,
         "revision": state.revision,
         "status": state.status.value,
-        "goal": state.goal.objective,
-        "tasks": {
-            task_id: {
-                "title": task.title,
-                "status": task.status.value,
-                "active": task.active,
-                "attempts": len(task.attempt_ids),
-                "output_refs": task.output_refs,
+        "request": state.goal.request,
+        "actions": {
+            action_id: {
+                "sequence": action.sequence,
+                "operation": action.action_type,
+                "status": action.status.value,
+                "artifact_refs": list(action.artifact_refs),
             }
-            for task_id, task in state.tasks.items()
+            for action_id, action in state.actions.items()
         },
         "artifact_count": len(state.artifacts),
         "model_requests": len(state.temp_decisions),
@@ -71,8 +70,7 @@ def main() -> int:
     store = LongHorizonStore(Path(arguments.state_directory))
     if arguments.command == "status":
         state = store.load(arguments.run_id)
-        final = state.memory_index.get("M-FINAL")
-        print(json.dumps(_summary(state, final.content if final else ""), ensure_ascii=False, indent=2))
+        print(json.dumps(_summary(state, state.final_output), ensure_ascii=False, indent=2))
         return 0
 
     harness = ActionHarness()
@@ -85,29 +83,12 @@ def main() -> int:
 
     workspace = Path(arguments.workspace).expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
-    goal, goal_decision = model.parse_goal(
+    goal = model.create_literal_goal(
         _request_text(arguments),
         str(workspace),
         constraints=list(arguments.constraint or []),
     )
     state = store.create_run(goal, arguments.run_id)
-    state.temp_decisions.append(goal_decision)
-    state = store.save(
-        state,
-        event_type="goal_parsed",
-        event={
-            "request_id": goal_decision.request_id,
-            "temperature": goal_decision.temperature,
-            "top_p": goal_decision.top_p,
-            "top_k": goal_decision.top_k,
-            "presence_penalty": goal_decision.presence_penalty,
-            "frequency_penalty": goal_decision.frequency_penalty,
-            "penalty_decay": goal_decision.penalty_decay,
-            "backend_profile": goal_decision.backend_profile,
-            "seed_supported": goal_decision.seed_supported,
-            "outcome": goal_decision.outcome,
-        },
-    )
     result = controller.run(state.run_id)
     print(json.dumps(_summary(result.state, result.final_output), ensure_ascii=False, indent=2))
     return 0 if result.state.status.value == "completed" else 2

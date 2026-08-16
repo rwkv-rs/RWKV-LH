@@ -1,0 +1,820 @@
+{
+  "schema_version": "lh-control-30-results.v1",
+  "started_at": "2026-08-14T08:36:33+00:00",
+  "finished_at": "2026-08-14T08:36:34+00:00",
+  "total": 4,
+  "passed": 4,
+  "failed": 0,
+  "records": [
+    {
+      "task_id": "LH-M05",
+      "level": "medium",
+      "task_description": "中断一个 running 的只读任务后恢复。",
+      "expected_result": "旧 attempt 标为 interrupted，安全重试后完成。",
+      "actual_result": "completed",
+      "success": true,
+      "steps": [
+        {
+          "revision": 0,
+          "type": "run_created",
+          "data": {
+            "goal_digest": "5c0cc7d83caa4cfa885aa6fc7524b0bb461ca4062d1e49ba6302bc28155cbb7e"
+          }
+        },
+        {
+          "revision": 1,
+          "type": "simulated_interruption",
+          "data": {}
+        },
+        {
+          "revision": 2,
+          "type": "interrupted_attempt_retryable",
+          "data": {
+            "attempt_id": "T1-A1",
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 3,
+          "type": "attempt_started",
+          "data": {
+            "action": "read_file",
+            "arguments": {
+              "path": "input.txt"
+            },
+            "attempt_id": "T1-A2",
+            "execution_mode": "serial",
+            "idempotent": true,
+            "side_effect": false,
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 4,
+          "type": "action_returned",
+          "data": {
+            "attempt_id": "T1-A2",
+            "error": null,
+            "exit_code": null,
+            "metadata": {
+              "complete": true,
+              "end_char": 7,
+              "next_start_char": null,
+              "original_chars": 7,
+              "start_char": 0,
+              "truncated": false
+            },
+            "outcome_type": "success",
+            "output": "read me",
+            "success": true,
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 5,
+          "type": "cross_check_observation_prepared",
+          "data": {
+            "attempt_id": "T1-A2",
+            "cacheable": true,
+            "observation": {
+              "action_result": {
+                "action_type": "read_file",
+                "artifacts": [
+                  {
+                    "media_type": "text/plain",
+                    "path": "input.txt",
+                    "sha256": "3f22095641508576e91dc7c6c7f7e08a093985d53ea998043c6619ad240dc92c",
+                    "size_bytes": 7,
+                    "summary": ""
+                  }
+                ],
+                "error": null,
+                "evidence": [],
+                "exit_code": null,
+                "metadata": {
+                  "complete": true,
+                  "end_char": 7,
+                  "next_start_char": null,
+                  "original_chars": 7,
+                  "start_char": 0,
+                  "truncated": false
+                },
+                "outcome_type": "success",
+                "output": "read me",
+                "success": true
+              },
+              "check": {
+                "kind": "task_postcondition_cross_check",
+                "parameters": {}
+              },
+              "dependencies": [],
+              "deterministic_validation_results": [
+                {
+                  "evidence": {
+                    "error": null
+                  },
+                  "kind": "action_succeeded",
+                  "message": "action success flag",
+                  "passed": true,
+                  "required": true
+                }
+              ],
+              "goal": {
+                "constraints": [
+                  "Only modify the isolated benchmark workspace",
+                  "Verify observable results"
+                ],
+                "request": "中断一个 running 的只读任务后恢复。"
+              },
+              "schema_version": "rwkv-lh.cross-check-observation.v1",
+              "task": {
+                "action": {
+                  "arguments": {
+                    "path": "input.txt"
+                  },
+                  "type": "read_file"
+                },
+                "completion_criteria": [
+                  {
+                    "kind": "action_succeeded",
+                    "parameters": {},
+                    "required": true
+                  }
+                ],
+                "dependencies": [],
+                "description": "resume read-only task",
+                "inputs": [],
+                "required": true,
+                "subject_task_id": "T1",
+                "title": "resume read-only task"
+              },
+              "workspace": {
+                "cacheable": true,
+                "digest": "8d028d1f9a80325998459c08e9191bb52f0d205d8ca61a4e970164c2a6b475dd",
+                "entries": [
+                  {
+                    "path": "input.txt",
+                    "sha256": "3f22095641508576e91dc7c6c7f7e08a093985d53ea998043c6619ad240dc92c",
+                    "size_bytes": 7,
+                    "type": "file"
+                  }
+                ],
+                "entry_count": 1,
+                "reason": "",
+                "schema_version": "rwkv-lh.workspace-observation.v1",
+                "total_bytes": 7
+              }
+            },
+            "observation_digest": "c11a2686597c9ab56923b783cf53c8bb9cb407f6b4d51379a6e82bcf3715069e",
+            "task_id": "T1",
+            "uncacheable_reason": "",
+            "validation_kind": "task_postcondition_cross_check"
+          }
+        },
+        {
+          "revision": 6,
+          "type": "execution_capsule_prepared",
+          "data": {
+            "attempt_id": "T1-A2",
+            "capsule": {
+              "action_contract": "",
+              "capsule_digest": "b8cc1a6ee3f28bfcf2f841d14e42b077ca3d707b84abee5bd8f70ad951937a96",
+              "causal_state": "{\"attempt_count\":2,\"attempts\":[{\"action\":{\"action_type\":\"read_file\",\"arguments\":{\"path\":\"input.txt\"}},\"action_fingerprint\":\"62841b5d56a69c4310ed7ae86f1e78e2e3128948f8213708d2dadbb4437f83c3\",\"attempt_id\":\"T1-A1\",\"failure_fingerprint\":\"\",\"next_action_name\":\"\",\"outcome_type\":\"failed\",\"sequence\":1,\"status\":\"interrupted\",\"task_decision\":\"not_run\",\"task_decision_reason\":\"\",\"tool_success\":false,\"workspace_digest\":\"\"},{\"action\":{\"arguments\":{\"path\":\"input.txt\"},\"type\":\"read_file\"},\"action_fingerprint\":\"62841b5d56a69c4310ed7ae86f1e78e2e3128948f8213708d2dadbb4437f83c3\",\"attempt_id\":\"T1-A2\",\"failure_fingerprint\":\"\",\"next_action_name\":\"\",\"outcome_type\":\"success\",\"sequence\":2,\"status\":\"running\",\"task_decision\":\"not_run\",\"task_decision_reason\":\"\",\"tool_success\":true,\"workspace_digest\":\"\"}],\"projection\":\"full_compact\",\"schema_version\":\"rwkv-lh.task-action-ledger.v1\",\"task_id\":\"T1\"}",
+              "dependencies": [],
+              "evidence": [
+                "[M-T1-A2] observed_kind=action_result producer_task=T1\nobserved_data:\nread me\nobservation_metadata:\n{\n  \"complete\": true,\n  \"end_char\": 7,\n  \"next_start_char\": null,\n  \"original_chars\": 7,\n  \"start_char\": 0,\n  \"truncated\": false\n}\nobserved_artifacts:\n[\n  {\n    \"path\": \"input.txt\",\n    \"sha256\": \"3f22095641508576e91dc7c6c7f7e08a093985d53ea998043c6619ad240dc92c\",\n    \"media_type\": \"text/plain\"\n  }\n]"
+              ],
+              "excluded_memory_ids": [],
+              "failure": "",
+              "goal": "IMMUTABLE GOAL\n{\n  \"request\": \"中断一个 running 的只读任务后恢复。\",\n  \"constraints\": [\n    \"Only modify the isolated benchmark workspace\",\n    \"Verify observable results\"\n  ],\n  \"workspace_scope\": \".\"\n}",
+              "schema_version": "rwkv-lh.task-step-capsule.v1",
+              "selected_memory_ids": [
+                "M-T1-A2"
+              ],
+              "task": "ACTIVE TASK CONTRACT\n{\n  \"task_id\": \"T1\",\n  \"title\": \"resume read-only task\",\n  \"description\": \"resume read-only task\",\n  \"dependencies\": [],\n  \"postcondition\": \"\",\n  \"committed_action\": {\n    \"name\": \"read_file\",\n    \"arguments\": {\n      \"path\": \"input.txt\"\n    }\n  }\n}",
+              "token_counts": {
+                "action_contract": 0,
+                "causal_state": 300,
+                "dependencies": 0,
+                "evidence": 167,
+                "failure": 0,
+                "goal": 59,
+                "task": 85,
+                "total": 631
+              }
+            },
+            "request_scope": "task_postcondition_cross_check",
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 7,
+          "type": "task_commit_state_recorded",
+          "data": {
+            "attempt_id": "T1-A2",
+            "decision_source": "rwkv",
+            "effect_observation_status": "observed",
+            "postcondition_commit_status": "committed",
+            "postcondition_observation_digest": "c11a2686597c9ab56923b783cf53c8bb9cb407f6b4d51379a6e82bcf3715069e",
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 8,
+          "type": "task_completed",
+          "data": {
+            "attempt_id": "T1-A2",
+            "task_id": "T1",
+            "validation": [
+              {
+                "checked_at": "2026-08-14T08:36:33.570+00:00",
+                "evidence": {
+                  "error": null
+                },
+                "evidence_refs": [
+                  "M-T1-A2",
+                  "T1-A2-R1"
+                ],
+                "failure_fingerprint": "",
+                "kind": "action_succeeded",
+                "message": "action success flag",
+                "passed": true,
+                "required": true,
+                "subject_task_id": "T1"
+              },
+              {
+                "checked_at": "2026-08-14T08:36:34.284+00:00",
+                "evidence": {
+                  "decision": "pass",
+                  "decision_source": "rwkv_current",
+                  "next_action_name": "",
+                  "observation_cacheable": true,
+                  "observation_digest": "c11a2686597c9ab56923b783cf53c8bb9cb407f6b4d51379a6e82bcf3715069e",
+                  "owner": "rwkv",
+                  "protocol_valid": true,
+                  "scope": "task_local",
+                  "selected_evidence_refs": [],
+                  "workspace_digest": "8d028d1f9a80325998459c08e9191bb52f0d205d8ca61a4e970164c2a6b475dd"
+                },
+                "evidence_refs": [
+                  "M-T1-A2",
+                  "T1-A2-R1"
+                ],
+                "failure_fingerprint": "",
+                "kind": "task_postcondition_cross_check",
+                "message": "fixture semantic pass",
+                "passed": true,
+                "required": true,
+                "subject_task_id": "T1"
+              }
+            ]
+          }
+        },
+        {
+          "revision": 9,
+          "type": "goal_frontier_capsule_prepared",
+          "data": {
+            "capsule": {
+              "action_observations": [
+                {
+                  "action": {
+                    "action_type": "read_file",
+                    "arguments": {
+                      "path": "input.txt"
+                    }
+                  },
+                  "artifacts": [],
+                  "attempt_id": "T1-A1",
+                  "observed_content": "",
+                  "observed_content_truncated": false,
+                  "outcome_type": "failed",
+                  "success": false,
+                  "task_id": "T1"
+                },
+                {
+                  "action": {
+                    "arguments": {
+                      "path": "input.txt"
+                    },
+                    "type": "read_file"
+                  },
+                  "artifacts": [
+                    {
+                      "path": "input.txt",
+                      "sha256": "3f22095641508576e91dc7c6c7f7e08a093985d53ea998043c6619ad240dc92c"
+                    }
+                  ],
+                  "attempt_id": "T1-A2",
+                  "observed_content": "read me",
+                  "observed_content_truncated": false,
+                  "outcome_type": "success",
+                  "success": true,
+                  "task_id": "T1"
+                }
+              ],
+              "caller_constraints": [
+                "Only modify the isolated benchmark workspace",
+                "Verify observable results"
+              ],
+              "completed_task_history": [
+                {
+                  "dependencies": [],
+                  "description": "resume read-only task",
+                  "latest_action": {
+                    "arguments": {
+                      "path": "input.txt"
+                    },
+                    "type": "read_file"
+                  },
+                  "latest_outcome": "success",
+                  "postcondition": "",
+                  "status": "completed",
+                  "task_id": "T1",
+                  "title": "resume read-only task"
+                }
+              ],
+              "immutable_request": "中断一个 running 的只读任务后恢复。",
+              "plan_generation": 0,
+              "schema_version": "rwkv-lh.goal-frontier-capsule.v1",
+              "workspace_manifest": {
+                "entries": [
+                  {
+                    "path": "input.txt",
+                    "sha256": "3f22095641508576e91dc7c6c7f7e08a093985d53ea998043c6619ad240dc92c",
+                    "size_bytes": 7
+                  }
+                ],
+                "entry_count": 1,
+                "truncated": false
+              },
+              "workspace_scope": "."
+            },
+            "controller_semantic_fields_generated": false
+          }
+        },
+        {
+          "revision": 10,
+          "type": "goal_frontier_finished",
+          "data": {
+            "reason": "fixture graph is complete",
+            "source": "rwkv"
+          }
+        },
+        {
+          "revision": 11,
+          "type": "run_completed",
+          "data": {
+            "artifact_count": 1,
+            "final_output": "verified fixture final",
+            "task_count": 1
+          }
+        }
+      ],
+      "tool_calls": [
+        {
+          "action": "read_file",
+          "arguments": {
+            "path": "input.txt"
+          },
+          "attempt_id": "T1-A2",
+          "execution_mode": "serial",
+          "idempotent": true,
+          "side_effect": false,
+          "task_id": "T1"
+        }
+      ],
+      "retries": [],
+      "temp_decisions": [],
+      "model_inputs_outputs": [],
+      "errors": [],
+      "recovery": [
+        {},
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1"
+        }
+      ],
+      "final_verification": {
+        "attempt_statuses": [
+          "interrupted",
+          "succeeded"
+        ]
+      },
+      "extra": {}
+    },
+    {
+      "task_id": "LH-M09",
+      "level": "medium",
+      "task_description": "completed 节点在二次 resume 中不执行。",
+      "expected_result": "revision、attempt 和文件内容均保持不变。",
+      "actual_result": "completed",
+      "success": true,
+      "steps": [
+        {
+          "revision": 0,
+          "type": "run_created",
+          "data": {
+            "goal_digest": "a9174c696e4e4a90c62f8add2d578e7e401125d28eba63bef7dc768f47d57d3a"
+          }
+        },
+        {
+          "revision": 1,
+          "type": "plan_saved",
+          "data": {
+            "source": "benchmark_fixture",
+            "task_ids": [
+              "T1"
+            ]
+          }
+        },
+        {
+          "revision": 2,
+          "type": "completed_fixture_saved",
+          "data": {}
+        },
+        {
+          "revision": 3,
+          "type": "goal_frontier_capsule_prepared",
+          "data": {
+            "capsule": {
+              "action_observations": [
+                {
+                  "action": {},
+                  "artifacts": [],
+                  "attempt_id": "T1-A1",
+                  "observed_content": "",
+                  "observed_content_truncated": false,
+                  "outcome_type": "pending",
+                  "success": false,
+                  "task_id": "T1"
+                }
+              ],
+              "caller_constraints": [
+                "Only modify the isolated benchmark workspace",
+                "Verify observable results"
+              ],
+              "completed_task_history": [
+                {
+                  "dependencies": [],
+                  "description": "already completed append",
+                  "latest_action": {},
+                  "latest_outcome": "pending",
+                  "postcondition": "",
+                  "status": "completed",
+                  "task_id": "T1",
+                  "title": "already completed append"
+                }
+              ],
+              "immutable_request": "completed 节点在二次 resume 中不执行。",
+              "plan_generation": 0,
+              "schema_version": "rwkv-lh.goal-frontier-capsule.v1",
+              "workspace_manifest": {
+                "entries": [
+                  {
+                    "path": "log.txt",
+                    "sha256": "ad06e72726f6d8ff00228160453949c1ceb89571c99332e4815f9edce2acad07",
+                    "size_bytes": 5
+                  }
+                ],
+                "entry_count": 1,
+                "truncated": false
+              },
+              "workspace_scope": "."
+            },
+            "controller_semantic_fields_generated": false
+          }
+        },
+        {
+          "revision": 4,
+          "type": "goal_frontier_finished",
+          "data": {
+            "reason": "fixture graph is complete",
+            "source": "rwkv"
+          }
+        },
+        {
+          "revision": 5,
+          "type": "run_completed",
+          "data": {
+            "artifact_count": 0,
+            "final_output": "verified fixture final",
+            "task_count": 1
+          }
+        }
+      ],
+      "tool_calls": [],
+      "retries": [],
+      "temp_decisions": [],
+      "model_inputs_outputs": [],
+      "errors": [],
+      "recovery": [],
+      "final_verification": {
+        "first_revision": 5,
+        "second_revision": 5,
+        "content": "once\n"
+      },
+      "extra": {}
+    },
+    {
+      "task_id": "LH-H01",
+      "level": "hard",
+      "task_description": "文件写入成功但 attempt 结果落库前中断。",
+      "expected_result": "恢复通过 postcondition 认定完成，不重复写入。",
+      "actual_result": "completed",
+      "success": true,
+      "steps": [
+        {
+          "revision": 0,
+          "type": "run_created",
+          "data": {
+            "goal_digest": "4fa0674596a6dc2ea57e6bb90837a5777c669253fd438daa66236175388a335d"
+          }
+        },
+        {
+          "revision": 1,
+          "type": "simulated_interruption",
+          "data": {}
+        },
+        {
+          "revision": 2,
+          "type": "cross_check_observation_prepared",
+          "data": {
+            "attempt_id": "T1-A1",
+            "cacheable": true,
+            "observation": {
+              "action_result": {
+                "action_type": "",
+                "artifacts": [],
+                "error": null,
+                "evidence": [],
+                "exit_code": null,
+                "metadata": {},
+                "outcome_type": "failed",
+                "output": "",
+                "success": false
+              },
+              "check": {
+                "kind": "task_postcondition_cross_check",
+                "parameters": {}
+              },
+              "dependencies": [],
+              "deterministic_validation_results": [
+                {
+                  "evidence": {
+                    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/Round75_offline/lh_control_clean_retry/cases/LH-H01/workspace/done.txt",
+                    "text": "single-write"
+                  },
+                  "kind": "file_contains",
+                  "message": "text present=True",
+                  "passed": true,
+                  "required": true
+                }
+              ],
+              "goal": {
+                "constraints": [
+                  "Only modify the isolated benchmark workspace",
+                  "Verify observable results"
+                ],
+                "request": "文件写入成功但 attempt 结果落库前中断。"
+              },
+              "schema_version": "rwkv-lh.cross-check-observation.v1",
+              "task": {
+                "action": {
+                  "arguments": {
+                    "content": "single-write",
+                    "path": "done.txt"
+                  },
+                  "type": "write_file"
+                },
+                "completion_criteria": [
+                  {
+                    "kind": "file_contains",
+                    "parameters": {
+                      "path": "done.txt",
+                      "text": "single-write"
+                    },
+                    "required": true
+                  }
+                ],
+                "dependencies": [],
+                "description": "recover completed write",
+                "inputs": [],
+                "required": true,
+                "subject_task_id": "T1",
+                "title": "recover completed write"
+              },
+              "workspace": {
+                "cacheable": true,
+                "digest": "ca6c5b0d2d8e21afeb81b08ab94406fc95897b8425ae1ade75ced586e0b93db0",
+                "entries": [
+                  {
+                    "path": "done.txt",
+                    "sha256": "221df3c4c0fbb014e18177ebdb49098b874bec21ce932362321a0cae6c2e89a2",
+                    "size_bytes": 12,
+                    "type": "file"
+                  }
+                ],
+                "entry_count": 1,
+                "reason": "",
+                "schema_version": "rwkv-lh.workspace-observation.v1",
+                "total_bytes": 12
+              }
+            },
+            "observation_digest": "718aa231d3739286337552df53d6763dba9ea4022d71adc78217a722be383fd3",
+            "task_id": "T1",
+            "uncacheable_reason": "",
+            "validation_kind": "task_postcondition_cross_check"
+          }
+        },
+        {
+          "revision": 3,
+          "type": "execution_capsule_prepared",
+          "data": {
+            "attempt_id": "T1-A1",
+            "capsule": {
+              "action_contract": "",
+              "capsule_digest": "0bce40122575a2d41adbd3847f3bd90a8cbb0d00cdd08fdf506064d4acea57d5",
+              "causal_state": "{\"attempt_count\":1,\"attempts\":[{\"action\":{\"action_type\":\"write_file\",\"arguments\":{\"content\":\"single-write\",\"path\":\"done.txt\"}},\"action_fingerprint\":\"eef641521f5ed65f8ecfe5b89f0f67d193e6403a16d96aa235ce5274740cf6b0\",\"attempt_id\":\"T1-A1\",\"failure_fingerprint\":\"\",\"next_action_name\":\"\",\"outcome_type\":\"failed\",\"sequence\":1,\"status\":\"running\",\"task_decision\":\"not_run\",\"task_decision_reason\":\"\",\"tool_success\":false,\"workspace_digest\":\"\"}],\"projection\":\"full_compact\",\"schema_version\":\"rwkv-lh.task-action-ledger.v1\",\"task_id\":\"T1\"}",
+              "dependencies": [],
+              "evidence": [],
+              "excluded_memory_ids": [],
+              "failure": "",
+              "goal": "IMMUTABLE GOAL\n{\n  \"request\": \"文件写入成功但 attempt 结果落库前中断。\",\n  \"constraints\": [\n    \"Only modify the isolated benchmark workspace\",\n    \"Verify observable results\"\n  ],\n  \"workspace_scope\": \".\"\n}",
+              "schema_version": "rwkv-lh.task-step-capsule.v1",
+              "selected_memory_ids": [],
+              "task": "ACTIVE TASK CONTRACT\n{\n  \"task_id\": \"T1\",\n  \"title\": \"recover completed write\",\n  \"description\": \"recover completed write\",\n  \"dependencies\": [],\n  \"postcondition\": \"\",\n  \"committed_action\": {\n    \"name\": \"write_file\",\n    \"arguments\": {\n      \"content\": \"single-write\",\n      \"path\": \"done.txt\"\n    }\n  }\n}",
+              "token_counts": {
+                "action_contract": 0,
+                "causal_state": 178,
+                "dependencies": 0,
+                "evidence": 0,
+                "failure": 0,
+                "goal": 61,
+                "task": 90,
+                "total": 337
+              }
+            },
+            "request_scope": "task_postcondition_cross_check",
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 4,
+          "type": "recovered_as_completed",
+          "data": {
+            "attempt_id": "T1-A1",
+            "task_id": "T1"
+          }
+        },
+        {
+          "revision": 5,
+          "type": "goal_frontier_capsule_prepared",
+          "data": {
+            "capsule": {
+              "action_observations": [
+                {
+                  "action": {
+                    "action_type": "write_file",
+                    "arguments": {
+                      "content": "single-write",
+                      "path": "done.txt"
+                    }
+                  },
+                  "artifacts": [],
+                  "attempt_id": "T1-A1",
+                  "observed_content": "",
+                  "observed_content_truncated": false,
+                  "outcome_type": "failed",
+                  "success": false,
+                  "task_id": "T1"
+                }
+              ],
+              "caller_constraints": [
+                "Only modify the isolated benchmark workspace",
+                "Verify observable results"
+              ],
+              "completed_task_history": [
+                {
+                  "dependencies": [],
+                  "description": "recover completed write",
+                  "latest_action": {
+                    "action_type": "write_file",
+                    "arguments": {
+                      "content": "single-write",
+                      "path": "done.txt"
+                    }
+                  },
+                  "latest_outcome": "failed",
+                  "postcondition": "",
+                  "status": "completed",
+                  "task_id": "T1",
+                  "title": "recover completed write"
+                }
+              ],
+              "immutable_request": "文件写入成功但 attempt 结果落库前中断。",
+              "plan_generation": 0,
+              "schema_version": "rwkv-lh.goal-frontier-capsule.v1",
+              "workspace_manifest": {
+                "entries": [
+                  {
+                    "path": "done.txt",
+                    "sha256": "221df3c4c0fbb014e18177ebdb49098b874bec21ce932362321a0cae6c2e89a2",
+                    "size_bytes": 12
+                  }
+                ],
+                "entry_count": 1,
+                "truncated": false
+              },
+              "workspace_scope": "."
+            },
+            "controller_semantic_fields_generated": false
+          }
+        },
+        {
+          "revision": 6,
+          "type": "goal_frontier_finished",
+          "data": {
+            "reason": "fixture graph is complete",
+            "source": "rwkv"
+          }
+        },
+        {
+          "revision": 7,
+          "type": "run_completed",
+          "data": {
+            "artifact_count": 0,
+            "final_output": "verified fixture final",
+            "task_count": 1
+          }
+        }
+      ],
+      "tool_calls": [],
+      "retries": [],
+      "temp_decisions": [],
+      "model_inputs_outputs": [],
+      "errors": [],
+      "recovery": [
+        {},
+        {
+          "attempt_id": "T1-A1",
+          "task_id": "T1"
+        }
+      ],
+      "final_verification": {
+        "attempts": [
+          "T1-A1"
+        ],
+        "content": "single-write"
+      },
+      "extra": {}
+    },
+    {
+      "task_id": "LH-H02",
+      "level": "hard",
+      "task_description": "非幂等动作中断且没有可验证结果。",
+      "expected_result": "恢复进入 blocked，禁止盲目重试。",
+      "actual_result": "blocked",
+      "success": true,
+      "steps": [
+        {
+          "revision": 0,
+          "type": "run_created",
+          "data": {
+            "goal_digest": "5aa44734f45a79ff3f40543743af744ec73fadbfc50111550e9947fe6b05057b"
+          }
+        },
+        {
+          "revision": 1,
+          "type": "simulated_interruption",
+          "data": {}
+        },
+        {
+          "revision": 2,
+          "type": "run_blocked",
+          "data": {
+            "attempt_id": "T1-A1",
+            "reason": "unsafe_interrupted_action",
+            "task_id": "T1"
+          }
+        }
+      ],
+      "tool_calls": [],
+      "retries": [],
+      "temp_decisions": [],
+      "model_inputs_outputs": [],
+      "errors": [],
+      "recovery": [
+        {}
+      ],
+      "final_verification": {
+        "error": {
+          "type": "UnsafeInterruptedAction",
+          "message": "non-idempotent action has no verified postcondition",
+          "attempt_id": "T1-A1"
+        },
+        "file_exists": false
+      },
+      "extra": {}
+    }
+  ]
+}

@@ -26,7 +26,7 @@ def smart_truncate(text: str, max_tokens: int) -> tuple[str, str]:
     tokens = tokenizer().encode(value)
     if len(tokens) <= limit:
         return value, ""
-    prefix = tokenizer().decodeBytes(tokens[:limit]).decode("utf-8", errors="ignore")
+    prefix = tokenizer().decode_bytes(tokens[:limit]).decode("utf-8", errors="ignore")
     split = max(prefix.rfind("\n"), prefix.rfind(" "), prefix.rfind("。"))
     if split >= len(prefix) // 2:
         prefix = prefix[: split + 1]

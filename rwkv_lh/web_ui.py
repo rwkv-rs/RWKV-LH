@@ -244,42 +244,29 @@ class ManualRunRepository:
             except StateRecoveryError as exc:
                 output["state_error"] = f"{type(exc).__name__}: {exc}"
             else:
-                final = state.memory_index.get("M-FINAL")
                 output["state"] = {
                     "run_id": state.run_id,
                     "revision": state.revision,
                     "status": state.status.value,
-                    "objective": state.goal.objective,
+                    "request": state.goal.request,
                     "goal_digest": state.goal.digest,
-                    "criteria": [
+                    "actions": [
                         {
-                            "criterion_id": item.criterion_id,
-                            "description": item.description,
-                            "required": item.required,
+                            "action_id": action.action_id,
+                            "sequence": action.sequence,
+                            "operation": action.action_type,
+                            "status": action.status.value,
+                            "artifact_refs": list(action.artifact_refs),
                         }
-                        for item in state.goal.success_criteria
-                    ],
-                    "tasks": [
-                        {
-                            "task_id": task.task_id,
-                            "title": task.title,
-                            "status": task.status.value,
-                            "active": task.active,
-                            "required": task.required,
-                            "attempts": len(task.attempt_ids),
-                            "dependencies": list(task.dependencies),
-                            "satisfies_criteria": list(task.satisfies_criteria),
-                            "output_refs": list(task.output_refs),
-                        }
-                        for task in state.tasks.values()
+                        for action in sorted(
+                            state.actions.values(), key=lambda item: item.sequence
+                        )
                     ],
                     "artifact_count": len(state.artifacts),
-                    "attempt_count": len(state.attempts),
+                    "causal_record_count": len(state.causal_order),
                     "model_request_count": len(state.temp_decisions),
-                    "criterion_evidence_count": len(state.criterion_evidence),
-                    "witness_intent_count": len(state.witness_intents),
                     "errors": state.errors[-8:],
-                    "final_output": final.content if final else "",
+                    "final_output": state.final_output,
                 }
         result = read_json(self.run_root(run_id) / "result.json")
         if isinstance(result, dict):
@@ -606,7 +593,7 @@ class WebHandler(BaseHTTPRequestHandler):
                             "可以审计：查看每次模型输入、原始输出、格式转换、文件变化和失败位置",
                         ],
                         "cannot": [
-                            "不能像成熟 Coding Agent 一样稳定完成仓库级开发；最新 Strict 是 0/90",
+                            "不能像成熟 Coding Agent 一样稳定完成仓库级开发；最新已上传 Strict 是 31/90",
                             "不能搜索网页、操作浏览器、调用外部网站或自动研究资料",
                             "不能直接管理真实 Git 仓库、提交、PR、部署或云服务",
                             "不能处理图片、PDF、Word、Excel、幻灯片等专用文档工作流",
@@ -615,11 +602,11 @@ class WebHandler(BaseHTTPRequestHandler):
                             "不能用其他模型替 RWKV 修复协议、判断答案或改写最终输出",
                         ],
                         "latest_formal": {
-                            "round": "Round12",
-                            "strict": "0/90",
-                            "external": "11/90",
-                            "false_positive": 0,
-                            "false_negative": 11,
+                            "round": "Round46",
+                            "strict": "31/90",
+                            "external": "32/90",
+                            "false_positive": 24,
+                            "false_negative": 1,
                         },
                     }
                 )

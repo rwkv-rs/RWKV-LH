@@ -1,0 +1,91 @@
+{
+  "schema_version": "rwkv-lh.operation-selection-report.v1",
+  "created_at": "2026-08-14T14:36:47+00:00",
+  "dataset": "/home/chase/GitHub/RWKV-LH/data/datasets/rwkv_lh_operation_selection_v1/cases.json",
+  "dataset_manifest": {
+    "schema_version": "rwkv-lh.dataset-manifest.v1",
+    "dataset_version": "rwkv-lh.operation-selection-dataset.v1",
+    "source": "Local RWKV-LH ActionDefinition registry plus Task-lane control registry; independently authored generic fixtures.",
+    "purpose": "Isolate strict G1i Task operation selection from parameter binding, action execution, short7, and full E2E planning.",
+    "generation": "Enumerate all 15 public harness actions and 5 Task controls, author one unambiguous case per operation, then add 10 discrimination/continuation cases before runner implementation.",
+    "case_count": 30,
+    "files": {
+      "cases.json": {
+        "sha256": "74760bd370f4ae0f35703820ea350da58788a5857a165c2cc5f99be5e59ebf13"
+      },
+      "README.md": {
+        "sha256": "42845d4b06e8b3267a880413cc1a8409e9c50827b7c17cc49948288b1d37bbb8"
+      }
+    }
+  },
+  "dataset_validation": {
+    "valid": true,
+    "case_count": 30,
+    "unique_case_count": 30,
+    "registry_operation_count": 20,
+    "covered_operations": [
+      "append_file",
+      "bind_evidence",
+      "check_command",
+      "copy_file",
+      "delete_file",
+      "lh_chunk_map",
+      "lh_reopen_task",
+      "lh_replace_task",
+      "lh_task_done",
+      "lh_workset",
+      "list_directory",
+      "make_directory",
+      "patch_json",
+      "read_file",
+      "read_json",
+      "remove_line",
+      "replace_text",
+      "run_command",
+      "write_file",
+      "write_json"
+    ],
+    "dataset_sha256": "74760bd370f4ae0f35703820ea350da58788a5857a165c2cc5f99be5e59ebf13",
+    "manifest_sha256": "6445218b7e2766d51067471831d694147404d186e79c28783d32d3355dbc0774",
+    "independence_markers_absent": true
+  },
+  "metric": {
+    "version": "rwkv-lh.operation-selection-metrics.v1",
+    "similarity_version": "utf8-byte-5gram-cosine.v1",
+    "n": 5,
+    "near_stable_threshold": 0.95,
+    "thresholds": {
+      "http_success_rate": 1.0,
+      "protocol_valid_rate": 0.95,
+      "exact_operation_rate": 0.9,
+      "selector_bypass_rate_max": 0.02,
+      "unknown_operation_rate_max": 0.02,
+      "repeat_exact_agreement_rate": 0.9,
+      "repeat_near_stable_rate": 0.9
+    }
+  },
+  "fixed_parameters": {
+    "temperature": 0.05,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996,
+    "max_output_tokens": 96,
+    "repeats": 3,
+    "max_workers": 8,
+    "semantic_resample_count": 0
+  },
+  "runtime": {
+    "base_url": "http://127.0.0.1:29610/v1",
+    "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+    "backend_profile": "vllm-rwkv-rapid",
+    "max_model_len": 16384,
+    "context_safety_margin": 32,
+    "bos_token_count": 1,
+    "secret_persisted": false
+  },
+  "validate_only": true,
+  "aggregate": null,
+  "results": []
+}
