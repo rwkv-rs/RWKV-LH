@@ -30,12 +30,25 @@ class QueueClient:
             for item in calls
         ]
         self.prompts: list[str] = []
+        self._ensemble_output = ""
+        self._ensemble_remaining = 0
 
     def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
         self.prompts.append(prompt)
-        if not self.outputs:
-            raise AssertionError("unexpected model request")
-        return Response(self.outputs.pop(0))
+        pair_count = prompt.count("\n\nAssistant: ```json\n") - 1
+        if pair_count <= 1:
+            if self._ensemble_remaining:
+                raise AssertionError("incomplete ensemble request group")
+            if not self.outputs:
+                raise AssertionError("unexpected model request")
+            return Response(self.outputs.pop(0))
+        if not self._ensemble_remaining:
+            if not self.outputs:
+                raise AssertionError("unexpected model request")
+            self._ensemble_output = self.outputs.pop(0)
+            self._ensemble_remaining = 3
+        self._ensemble_remaining -= 1
+        return Response(self._ensemble_output)
 
 
 def call(name: str, **arguments):

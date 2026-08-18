@@ -991,6 +991,33 @@ def _agent_process_tree_closed(workspace: Path) -> bool:
     return True
 
 
+def _accepted_final_model_response(
+    model_trace: list[dict[str, Any]],
+    event_log: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    accepted_request_id = next(
+        (
+            str((event.get("data") or {}).get("request_id") or "")
+            for event in reversed(event_log)
+            if event.get("type") == "model_call_accepted"
+            and (event.get("data") or {}).get("operation") == "final_answer"
+        ),
+        "",
+    )
+    if not accepted_request_id:
+        return None
+    return next(
+        (
+            event
+            for event in reversed(model_trace)
+            if event.get("type") == "model_session_generation_returned"
+            and event.get("lane_id") == "LANE:ACTION"
+            and event.get("request_id") == accepted_request_id
+        ),
+        None,
+    )
+
+
 def _run_controller(
     store: LongHorizonStore,
     model: LongHorizonModel,
@@ -1164,20 +1191,13 @@ def run_case(
     }
     agent_completed = state is not None and state.status == RunStatus.COMPLETED
     final_nonempty = bool(str(final_output or "").strip())
-    final_model_responses: list[dict[str, Any]] = []
-    for item in model_trace:
-        if (
-            item.get("type") != "model_session_generation_returned"
-            or item.get("lane_id") != "LANE:ACTION"
-        ):
-            continue
-        try:
-            candidate_command = parse_model_command(str(item.get("raw_output") or ""))
-        except ModelIOError:
-            continue
-        if candidate_command.name == "final_answer":
-            final_model_responses.append(item)
-    raw_final_output = str(final_model_responses[-1].get("raw_output") or "") if final_model_responses else ""
+    event_log = store.event_records(task_id) if state is not None else []
+    final_model_response = _accepted_final_model_response(model_trace, event_log)
+    raw_final_output = (
+        str(final_model_response.get("raw_output") or "")
+        if final_model_response is not None
+        else ""
+    )
     decoded_final_output = ""
     if raw_final_output:
         try:
@@ -1186,10 +1206,9 @@ def run_case(
                 decoded_final_output = str(final_command.arguments.get("text") or "")
         except ModelIOError:
             decoded_final_output = ""
-    final_output_matches_raw_rwkv = bool(final_model_responses) and (
+    final_output_matches_raw_rwkv = final_model_response is not None and (
         final_output == decoded_final_output
     )
-    event_log = store.event_records(task_id) if state is not None else []
     verifier_failure = ""
     verifier_metadata: dict[str, Any] = {}
     try:
@@ -1410,8 +1429,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--concurrency",
         type=int,
-        default=1,
-        help="isolated case worker processes (default: 1)",
+        default=5,
+        help="isolated case worker processes (default: 5)",
     )
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--validate-only", action="store_true")

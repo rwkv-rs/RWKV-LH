@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Protocol, Sequence
 from uuid import uuid4
@@ -112,6 +114,7 @@ class ModelSession:
         self.settings = settings or get_runtime_settings()
         self.client = client or OpenAICompatibleRWKVClient(self.settings)
         self.audit_hook = audit_hook
+        self._audit_lock = threading.Lock()
 
     @property
     def model_name(self) -> str:
@@ -120,7 +123,8 @@ class ModelSession:
     def _emit(self, event: Mapping[str, Any]) -> None:
         if self.audit_hook is None:
             return
-        self.audit_hook(dict(event))
+        with self._audit_lock:
+            self.audit_hook(dict(event))
 
     def _checkpoint(
         self,
@@ -307,14 +311,22 @@ class ModelSession:
         sampling: SessionSampling | None = None,
         max_output_tokens: int = 900,
         json_output: bool = True,
+        transcript_override: str | None = None,
     ) -> CandidateGeneration:
         self._require_committed(checkpoint)
         selected = sampling or SessionSampling()
         output_limit = max(1, int(max_output_tokens))
         input_limit = self.settings.max_prompt_tokens(output_limit)
-        if checkpoint.token_count > input_limit:
+        prompt = (
+            checkpoint.transcript
+            if transcript_override is None
+            else transcript_override
+        )
+        prompt_tokens = get_token_count(prompt)
+        prompt_digest = _digest_text(prompt)
+        if prompt_tokens > input_limit:
             raise InputBudgetError(
-                f"lane {checkpoint.lane_id} uses {checkpoint.token_count} input tokens; "
+                f"lane {checkpoint.lane_id} uses {prompt_tokens} input tokens; "
                 f"limit is {input_limit} with max_output_tokens={output_limit}"
             )
         request_id = f"MR-{uuid4().hex[:16]}"
@@ -325,9 +337,11 @@ class ModelSession:
                 "lane_id": checkpoint.lane_id,
                 "lane_kind": checkpoint.lane_kind.value,
                 "input_checkpoint_id": checkpoint.checkpoint_id,
-                "input_digest": checkpoint.transcript_digest,
-                "prompt_tokens_local": checkpoint.token_count,
-                "static_replay_tokens": checkpoint.token_count,
+                "input_digest": prompt_digest,
+                "canonical_input_digest": checkpoint.transcript_digest,
+                "prompt_tokens_local": prompt_tokens,
+                "static_replay_tokens": prompt_tokens,
+                "transcript_override": transcript_override is not None,
                 "max_tokens": output_limit,
                 "sampling": selected.to_dict(),
                 "state_transport": self.transport,
@@ -346,7 +360,7 @@ class ModelSession:
                 penalty_decay=selected.penalty_decay,
             ):
                 response = self.client.text_completion(
-                    checkpoint.transcript,
+                    prompt,
                     max_tokens=output_limit,
                     stop=JSON_CALL_STOP_SUFFIXES if json_output else None,
                 )
@@ -359,7 +373,7 @@ class ModelSession:
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
-            transcript=checkpoint.transcript + raw,
+            transcript=prompt + raw,
             event_ids=checkpoint.event_ids,
             status=ModelCheckpointStatus.CANDIDATE,
         )
@@ -381,12 +395,103 @@ class ModelSession:
                 "candidate_id": candidate.candidate_id,
                 "candidate_checkpoint_id": candidate.checkpoint.checkpoint_id,
                 "candidate_digest": candidate.checkpoint.transcript_digest,
+                "input_digest": prompt_digest,
+                "transcript_override": transcript_override is not None,
                 "raw_output": raw,
                 "finish_reason": finish_reason,
                 "state_transport": self.transport,
             }
         )
         return candidate
+
+    def generate_many(
+        self,
+        checkpoint: ModelCheckpoint,
+        *,
+        transcript_overrides: Sequence[str | None],
+        sampling: SessionSampling | None = None,
+        max_output_tokens: int = 900,
+        json_output: bool = True,
+        max_concurrency: int = 16,
+    ) -> list[CandidateGeneration]:
+        overrides = tuple(transcript_overrides)
+        if not overrides:
+            return []
+        concurrency_enabled = bool(
+            getattr(self.client, "supports_concurrent_requests", False)
+        )
+        worker_count = (
+            min(len(overrides), max(1, int(max_concurrency)))
+            if concurrency_enabled
+            else 1
+        )
+        if worker_count == 1:
+            return [
+                self.generate(
+                    checkpoint,
+                    sampling=sampling,
+                    max_output_tokens=max_output_tokens,
+                    json_output=json_output,
+                    transcript_override=override,
+                )
+                for override in overrides
+            ]
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(
+                    self.generate,
+                    checkpoint,
+                    sampling=sampling,
+                    max_output_tokens=max_output_tokens,
+                    json_output=json_output,
+                    transcript_override=override,
+                )
+                for override in overrides
+            ]
+            return [future.result() for future in futures]
+
+    def materialize_candidate(
+        self,
+        candidate: CandidateGeneration,
+        parent: ModelCheckpoint,
+    ) -> CandidateGeneration:
+        self._require_committed(parent)
+        if candidate.checkpoint.status != ModelCheckpointStatus.CANDIDATE:
+            raise ModelSessionError("only a candidate generation can be materialized")
+        if candidate.parent.checkpoint_id != parent.checkpoint_id:
+            raise ModelSessionError("candidate and materialization parent do not match")
+        checkpoint = self._checkpoint(
+            lane_id=parent.lane_id,
+            lane_kind=parent.lane_kind,
+            parent_checkpoint_id=parent.checkpoint_id,
+            transcript=parent.transcript + candidate.raw_output,
+            event_ids=parent.event_ids,
+            status=ModelCheckpointStatus.CANDIDATE,
+        )
+        materialized = CandidateGeneration(
+            request_id=candidate.request_id,
+            candidate_id=f"CAND-{uuid4().hex[:16]}",
+            parent=parent,
+            checkpoint=checkpoint,
+            raw_output=candidate.raw_output,
+            finish_reason=candidate.finish_reason,
+            sampling=candidate.sampling,
+            max_output_tokens=candidate.max_output_tokens,
+        )
+        self._emit(
+            {
+                "type": "model_session_candidate_materialized",
+                "request_id": candidate.request_id,
+                "source_candidate_id": candidate.candidate_id,
+                "candidate_id": materialized.candidate_id,
+                "lane_id": parent.lane_id,
+                "parent_checkpoint_id": parent.checkpoint_id,
+                "checkpoint_id": checkpoint.checkpoint_id,
+                "transcript_digest": checkpoint.transcript_digest,
+                "state_transport": self.transport,
+            }
+        )
+        return materialized
 
     def parse(self, candidate: CandidateGeneration) -> ModelCommand:
         return parse_model_command(candidate.raw_output)
@@ -420,6 +525,10 @@ class ModelSession:
     ) -> ModelCheckpoint:
         if candidate.checkpoint.status != ModelCheckpointStatus.CANDIDATE:
             raise ModelSessionError("only a candidate checkpoint can be committed")
+        if candidate.checkpoint.transcript != candidate.parent.transcript + candidate.raw_output:
+            raise ModelSessionError(
+                "candidate must be materialized onto its committed parent before commit"
+            )
         if parse_model_command(candidate.raw_output) != command:
             raise ModelIOError("accepted command differs from candidate output")
         committed = ModelCheckpoint(

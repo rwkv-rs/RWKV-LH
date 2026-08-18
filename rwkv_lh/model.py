@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
@@ -16,7 +18,12 @@ from rwkv_lh.model_io import (
     canonical_digest,
     validate_final_answer,
 )
-from rwkv_lh.model_session import CandidateGeneration, ModelSession, SessionSampling
+from rwkv_lh.model_session import (
+    CandidateGeneration,
+    ModelSession,
+    ModelSessionError,
+    SessionSampling,
+)
 from rwkv_lh.schema import (
     DecisionRecord,
     GoalState,
@@ -68,6 +75,7 @@ class LongHorizonModel:
     """The complete online semantic surface: one lane and direct operations."""
 
     ACTION_LANE_ID = "LANE:ACTION"
+    _CONTINUATION_ANCHOR = "\n\nAssistant: ```json\n"
     _SAMPLING = SessionSampling(
         temperature=0.05,
         top_p=1.0,
@@ -274,18 +282,208 @@ class LongHorizonModel:
         definitions: Sequence[Mapping[str, Any]],
         max_output_tokens: int,
     ) -> ActionDecision:
-        candidate = self.session.generate(
-            checkpoint,
-            sampling=self._SAMPLING,
-            max_output_tokens=max_output_tokens,
+        pair_count, variants = self._order_ensemble_transcripts(checkpoint.transcript)
+        generated: list[CandidateGeneration] = []
+        candidate_by_permutation: dict[str, CandidateGeneration] = {}
+        if pair_count <= 1:
+            candidate = self.session.generate(
+                checkpoint,
+                sampling=self._SAMPLING,
+                max_output_tokens=max_output_tokens,
+            )
+            generated.append(candidate)
+            for permutation_id, _transcript in variants:
+                candidate_by_permutation[permutation_id] = candidate
+        else:
+            transcript_by_permutation = dict(variants)
+            generation_order = ("reversed", "rotated", "canonical")
+            candidates = self.session.generate_many(
+                checkpoint,
+                sampling=self._SAMPLING,
+                max_output_tokens=max_output_tokens,
+                transcript_overrides=[
+                    (
+                        None
+                        if permutation_id == "canonical"
+                        else transcript_by_permutation[permutation_id]
+                    )
+                    for permutation_id in generation_order
+                ],
+                max_concurrency=3,
+            )
+            for permutation_id, candidate in zip(
+                generation_order,
+                candidates,
+                strict=True,
+            ):
+                generated.append(candidate)
+                candidate_by_permutation[permutation_id] = candidate
+
+        allowed = {str(item["name"]) for item in definitions}
+        parsed_by_candidate: dict[str, dict[str, Any]] = {}
+        entries: list[dict[str, Any]] = []
+        seen_candidate_ids: set[str] = set()
+        for permutation_id, transcript in variants:
+            candidate = candidate_by_permutation[permutation_id]
+            parsed = parsed_by_candidate.get(candidate.candidate_id)
+            if parsed is None:
+                wire_command: ModelCommand | None = None
+                command: ModelCommand | None = None
+                argument_normalization: dict[str, Any] = {
+                    "normalizer_version": "action-arguments.none",
+                    "transformations": [],
+                    "controller_semantic_fields_generated": False,
+                }
+                error = ""
+                try:
+                    wire_command, _normalization = self.session.parse_with_trace(candidate)
+                    if wire_command.name not in allowed:
+                        raise ModelIOError(
+                            f"operation {wire_command.name!r} is not displayed in this turn"
+                        )
+                    command = wire_command
+                    if wire_command.name == "final_answer":
+                        validate_final_answer(wire_command)
+                    else:
+                        normalized_action, argument_normalization = (
+                            self.harness.normalize_action_with_trace(
+                                TaskAction(wire_command.name, wire_command.arguments)
+                            )
+                        )
+                        command = ModelCommand(
+                            normalized_action.action_type,
+                            dict(normalized_action.arguments),
+                        )
+                except (ModelIOError, HarnessError, ValueError) as exc:
+                    error = str(exc)
+                parsed = {
+                    "wire_command": wire_command,
+                    "command": command,
+                    "argument_normalization": argument_normalization,
+                    "error": error,
+                    "valid": not error and wire_command is not None and command is not None,
+                }
+                parsed_by_candidate[candidate.candidate_id] = parsed
+            entries.append(
+                {
+                    "permutation_id": permutation_id,
+                    "transcript": transcript,
+                    "candidate": candidate,
+                    "reused_generation": candidate.candidate_id in seen_candidate_ids,
+                    **parsed,
+                }
+            )
+            seen_candidate_ids.add(candidate.candidate_id)
+
+        canonical_entry = entries[0]
+        final_entries = [
+            entry
+            for entry in entries
+            if entry["valid"] and entry["wire_command"].name == "final_answer"
+        ]
+        selected_entry = canonical_entry
+        vote_type = "canonical_fallback"
+        agreement = "none"
+        if len(final_entries) >= 2:
+            selected_entry = (
+                canonical_entry
+                if canonical_entry in final_entries
+                else final_entries[-1]
+            )
+            vote_type = "final_operation"
+            agreement = f"{len(final_entries)}/3"
+        else:
+            non_final_entries = [
+                entry
+                for entry in entries
+                if entry["valid"] and entry["wire_command"].name != "final_answer"
+            ]
+            digest_counts = Counter(
+                entry["wire_command"].digest for entry in non_final_entries
+            )
+            winning_digest = next(
+                (
+                    entry["wire_command"].digest
+                    for entry in non_final_entries
+                    if digest_counts[entry["wire_command"].digest] >= 2
+                ),
+                "",
+            )
+            if winning_digest:
+                matching = [
+                    entry
+                    for entry in non_final_entries
+                    if entry["wire_command"].digest == winning_digest
+                ]
+                selected_entry = (
+                    canonical_entry
+                    if canonical_entry in matching
+                    else matching[0]
+                )
+                vote_type = "exact_command_digest"
+                agreement = f"{digest_counts[winning_digest]}/3"
+
+        candidate = selected_entry["candidate"]
+        selected_candidate = candidate
+        selected_operation = (
+            selected_entry["wire_command"].name
+            if selected_entry["wire_command"] is not None
+            else ""
         )
+        selected_permutation = str(selected_entry["permutation_id"])
+        order_ensemble = {
+            "version": "order-shuffled-self-consistency.v1",
+            "pair_count": pair_count,
+            "generation_count": len(generated),
+            "generation_mode": "single" if pair_count <= 1 else "concurrent",
+            "generation_concurrency": 1 if pair_count <= 1 else 3,
+            "generation_order": [
+                "canonical"
+                if pair_count <= 1
+                else "reversed",
+                *([] if pair_count <= 1 else ["rotated", "canonical"]),
+            ],
+            "permutation_count": len(entries),
+            "vote_type": vote_type,
+            "agreement": agreement,
+            "selected_permutation": selected_permutation,
+            "canonical_overridden": selected_permutation != "canonical",
+            "candidates": [
+                {
+                    "permutation_id": entry["permutation_id"],
+                    "request_id": entry["candidate"].request_id,
+                    "candidate_id": entry["candidate"].candidate_id,
+                    "prompt_digest": hashlib.sha256(
+                        entry["transcript"].encode("utf-8")
+                    ).hexdigest(),
+                    "raw_output_digest": hashlib.sha256(
+                        entry["candidate"].raw_output.encode("utf-8")
+                    ).hexdigest(),
+                    "operation": (
+                        entry["wire_command"].name
+                        if entry["wire_command"] is not None
+                        else ""
+                    ),
+                    "wire_command_digest": (
+                        entry["wire_command"].digest
+                        if entry["wire_command"] is not None
+                        else ""
+                    ),
+                    "valid": entry["valid"],
+                    "error": entry["error"][:2000],
+                    "reused_generation": entry["reused_generation"],
+                    "selected": entry is selected_entry,
+                }
+                for entry in entries
+            ],
+        }
         temp = TempDecision(
             request_id=candidate.request_id,
             task_id=self.ACTION_LANE_ID,
             request_type="action_lane",
             temperature=self._SAMPLING.temperature,
-            policy_reason="single_direct_action_spine",
-            attempt=1,
+            policy_reason="order_shuffled_self_consistency_k3",
+            attempt=("canonical", "reversed", "rotated").index(selected_permutation) + 1,
             started_at=utc_now(),
             top_p=self._SAMPLING.top_p,
             top_k=self._SAMPLING.top_k,
@@ -297,36 +495,36 @@ class LongHorizonModel:
         )
         state.temp_decisions.append(temp)
         decision_id = f"D-{uuid4().hex[:16]}"
-        selected_operation = ""
+        rolled_back: set[str] = set()
         try:
-            wire_command, _normalization = self.session.parse_with_trace(candidate)
-            selected_operation = wire_command.name
-            allowed = {str(item["name"]) for item in definitions}
-            if wire_command.name not in allowed:
+            if not selected_entry["valid"]:
                 raise ModelIOError(
-                    f"operation {wire_command.name!r} is not displayed in this turn"
+                    selected_entry["error"] or "canonical order candidate is invalid"
                 )
-            argument_normalization: dict[str, Any] = {
-                "normalizer_version": "action-arguments.none",
-                "transformations": [],
-                "controller_semantic_fields_generated": False,
-            }
-            command = wire_command
-            if wire_command.name == "final_answer":
-                validate_final_answer(wire_command)
-            else:
-                normalized_action, argument_normalization = (
-                    self.harness.normalize_action_with_trace(
-                        TaskAction(wire_command.name, wire_command.arguments)
-                    )
+            wire_command = selected_entry["wire_command"]
+            command = selected_entry["command"]
+            argument_normalization = selected_entry["argument_normalization"]
+            if selected_permutation != "canonical":
+                selected_candidate = self.session.materialize_candidate(
+                    candidate,
+                    checkpoint,
                 )
-                command = ModelCommand(
-                    normalized_action.action_type,
-                    dict(normalized_action.arguments),
+            for generated_candidate in generated:
+                if generated_candidate.candidate_id == selected_candidate.candidate_id:
+                    continue
+                self.session.rollback(
+                    generated_candidate,
+                    error="order ensemble candidate not selected",
                 )
-            committed = self.session.commit(candidate, wire_command)
-        except (ModelIOError, HarnessError, ValueError) as exc:
-            self.session.rollback(candidate, error=str(exc))
+                rolled_back.add(generated_candidate.candidate_id)
+            committed = self.session.commit(selected_candidate, wire_command)
+            candidate = selected_candidate
+        except (ModelIOError, ModelSessionError, HarnessError, ValueError) as exc:
+            for generated_candidate in [*generated, selected_candidate]:
+                if generated_candidate.candidate_id in rolled_back:
+                    continue
+                self.session.rollback(generated_candidate, error=str(exc))
+                rolled_back.add(generated_candidate.candidate_id)
             temp.ended_at = utc_now()
             temp.outcome = "rejected"
             temp.error = str(exc)[:2000]
@@ -348,6 +546,7 @@ class LongHorizonModel:
                     "error": str(exc)[:2000],
                     "raw_output_digest": canonical_digest(candidate.raw_output),
                     "action_executed": False,
+                    "order_ensemble": order_ensemble,
                     "decision": record.to_dict(),
                     "temp_decision": temp.__dict__,
                 },
@@ -387,6 +586,7 @@ class LongHorizonModel:
                 "wire_command_digest": wire_command.digest,
                 "executable_command_digest": command.digest,
                 "argument_normalization": argument_normalization,
+                "order_ensemble": order_ensemble,
                 "decision": record.to_dict(),
                 "temp_decision": temp.__dict__,
             },
@@ -398,6 +598,32 @@ class LongHorizonModel:
             decision=record,
             argument_normalization=argument_normalization,
         )
+
+    @classmethod
+    def _order_ensemble_transcripts(
+        cls,
+        transcript: str,
+    ) -> tuple[int, list[tuple[str, str]]]:
+        anchor = cls._CONTINUATION_ANCHOR
+        if not transcript.endswith(anchor):
+            raise ModelProtocolError("action transcript lacks a continuation anchor")
+        segments = transcript.split(anchor)
+        if not segments or segments[-1] != "":
+            raise ModelProtocolError("action transcript has an invalid continuation tail")
+        head = segments[0]
+        pairs = segments[1:-1]
+        orderings = (
+            ("canonical", pairs),
+            ("reversed", list(reversed(pairs))),
+            ("rotated", pairs[1:] + pairs[:1]),
+        )
+        variants = [
+            (permutation_id, anchor.join([head, *ordered_pairs, ""]))
+            for permutation_id, ordered_pairs in orderings
+        ]
+        if variants[0][1] != transcript:
+            raise ModelProtocolError("canonical transcript reconstruction changed bytes")
+        return len(pairs), variants
 
     def _decision_record(
         self,

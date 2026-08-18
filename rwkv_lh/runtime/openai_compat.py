@@ -36,6 +36,7 @@ class OpenAICompatibleRWKVClient:
     """Thread-safe, pooled client with explicit request and response contracts."""
 
     backend_name = "openai_compatible_rwkv"
+    supports_concurrent_requests = True
 
     def __init__(
         self,

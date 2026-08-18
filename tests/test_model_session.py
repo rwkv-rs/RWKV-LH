@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
+import time
 from dataclasses import dataclass
 
 import pytest
@@ -15,7 +18,7 @@ from rwkv_lh.model_io import (
     render_event_append,
     validate_final_answer,
 )
-from rwkv_lh.model_session import InputBudgetError, ModelSession
+from rwkv_lh.model_session import InputBudgetError, ModelSession, ModelSessionError
 from rwkv_lh.runtime.settings import RuntimeSettings
 from rwkv_lh.schema import ModelEvent, ModelLaneKind
 
@@ -36,6 +39,37 @@ class QueueClient:
     def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
         self.prompts.append(prompt)
         return Response(self.outputs.pop(0))
+
+
+class ConcurrentProbeClient:
+    model_name = "test-rwkv"
+    supports_concurrent_requests = True
+
+    def __init__(self, concurrency: int):
+        self.barrier = threading.Barrier(concurrency)
+        self.lock = threading.Lock()
+        self.prompts: list[str] = []
+        self.active = 0
+        self.max_active = 0
+
+    def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+        with self.lock:
+            self.prompts.append(prompt)
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+        try:
+            self.barrier.wait(timeout=2)
+            time.sleep(0.01)
+            digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            return Response(
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": digest}},
+                    separators=(",", ":"),
+                )
+            )
+        finally:
+            with self.lock:
+                self.active -= 1
 
 
 def settings(max_model_len: int = 16384) -> RuntimeSettings:
@@ -168,6 +202,71 @@ def test_session_commit_keeps_exact_prompt_replay_lineage() -> None:
     assert committed.parent_checkpoint_id == checkpoint.checkpoint_id
     assert committed.transcript.endswith(candidate.raw_output)
     assert any(item["type"] == "model_session_candidate_committed" for item in audits)
+
+
+def test_generate_many_submits_requests_concurrently_and_preserves_input_mapping() -> None:
+    client = ConcurrentProbeClient(3)
+    audits: list[dict] = []
+    session = ModelSession(client, settings=settings(), audit_hook=audits.append)
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "finish",
+        [FINAL_ANSWER_DEFINITION],
+    )
+    overrides = [
+        checkpoint.transcript + "\nvariant one",
+        checkpoint.transcript + "\nvariant two",
+        None,
+    ]
+
+    candidates = session.generate_many(
+        checkpoint,
+        transcript_overrides=overrides,
+        max_output_tokens=100,
+        max_concurrency=3,
+    )
+
+    expected_prompts = [overrides[0], overrides[1], checkpoint.transcript]
+    assert client.max_active == 3
+    assert set(client.prompts) == set(expected_prompts)
+    assert [
+        session.parse(candidate).arguments["text"] for candidate in candidates
+    ] == [
+        hashlib.sha256(str(prompt).encode("utf-8")).hexdigest()
+        for prompt in expected_prompts
+    ]
+    assert len(
+        [item for item in audits if item["type"] == "model_session_generation_started"]
+    ) == 3
+    assert len(
+        [item for item in audits if item["type"] == "model_session_generation_returned"]
+    ) == 3
+
+
+def test_permuted_candidate_requires_materialization_before_commit() -> None:
+    raw = '{"function":"read_file","params":{"path":"a.txt"}}'
+    client = QueueClient([raw])
+    session = ModelSession(client, settings=settings())
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "read a.txt",
+        [FINAL_ANSWER_DEFINITION],
+        lane_id="LANE:ACTION",
+    )
+    alternate = checkpoint.transcript.replace("read a.txt", "read a.txt now")
+    candidate = session.generate(
+        checkpoint,
+        max_output_tokens=100,
+        transcript_override=alternate,
+    )
+    command = session.parse(candidate)
+    with pytest.raises(ModelSessionError, match="materialized"):
+        session.commit(candidate, command)
+    materialized = session.materialize_candidate(candidate, checkpoint)
+    committed = session.commit(materialized, command)
+    assert client.prompts == [alternate]
+    assert committed.transcript == checkpoint.transcript + raw
+    assert committed.parent_checkpoint_id == checkpoint.checkpoint_id
 
 
 def test_session_rejects_commit_with_changed_model_command() -> None:
