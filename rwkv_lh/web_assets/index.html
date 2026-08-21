@@ -27,14 +27,14 @@
         <div>
           <p class="eyebrow">REAL RWKV · NO ANSWER REWRITE</p>
           <h1>让每一步都<br><span>看得见。</span></h1>
-          <p class="lede">输入一个任务，观察 RWKV 如何建立目标、规划、调用工具、失败、恢复和提交证据。界面只展示真实链路，不替模型做决定。</p>
+          <p class="lede">输入一个任务，观察不可变 Goal、Task Graph、工具调用、失败恢复和最终输出。界面只展示真实链路，不替模型做决定。</p>
         </div>
-        <div class="score-card" aria-label="Round12 最新正式结果">
-          <div class="score-head"><span>最新正式基线</span><strong>ROUND 12</strong></div>
+        <div class="score-card" aria-label="Round46 最新已上传正式结果">
+          <div class="score-head"><span>最新已上传基线</span><strong>ROUND 46</strong></div>
           <div class="score-grid">
-            <div><strong>0</strong><span>STRICT / 90</span></div>
-            <div><strong>11</strong><span>EXTERNAL / 90</span></div>
-            <div><strong>0</strong><span>FALSE POSITIVE</span></div>
+            <div><strong>31</strong><span>STRICT / 90</span></div>
+            <div><strong>32</strong><span>EXTERNAL / 90</span></div>
+            <div><strong>24</strong><span>FALSE POSITIVE</span></div>
           </div>
           <p>实验级系统，不代表任务可稳定完成。</p>
         </div>
@@ -99,8 +99,8 @@
             <div class="metric-row">
               <div><span>状态修订</span><strong id="revisionMetric">—</strong></div>
               <div><span>模型请求</span><strong id="requestMetric">0</strong></div>
-              <div><span>任务</span><strong id="taskMetric">0</strong></div>
-              <div><span>证据</span><strong id="evidenceMetric">0</strong></div>
+              <div><span>直接 Action</span><strong id="actionMetric">0</strong></div>
+              <div><span>因果记录</span><strong id="causalMetric">0</strong></div>
             </div>
 
             <nav class="tabs" aria-label="运行详情">
@@ -113,12 +113,12 @@
             <div id="overviewTab" class="tab-panel active">
               <div class="overview-grid">
                 <article class="subpanel">
-                  <div class="subhead"><h3>不可变 Goal</h3><span id="goalDigest">尚未创建</span></div>
-                  <div id="criteriaList" class="criteria-list muted-copy">等待 RWKV 解析目标。</div>
+                  <div class="subhead"><h3>不可变用户请求</h3><span id="goalDigest">尚未创建</span></div>
+                  <div id="goalRequest" class="goal-request muted-copy">等待创建请求。</div>
                 </article>
                 <article class="subpanel">
-                  <div class="subhead"><h3>Task Graph</h3><span id="taskSummary">0 tasks</span></div>
-                  <div id="taskList" class="task-list muted-copy">尚无任务。</div>
+                  <div class="subhead"><h3>Action Ledger</h3><span id="actionSummary">0 actions</span></div>
+                  <div id="actionList" class="task-list muted-copy">尚无 Action。</div>
                 </article>
               </div>
               <article class="subpanel final-panel">

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import importlib.resources
 import json
@@ -26,11 +27,12 @@ from rwkv_lh.benchmark_verifier import (
 )
 from rwkv_lh.controller import ControllerResult, LongHorizonController
 from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
-from rwkv_lh.model import LongHorizonModel, ModelInvoker
+from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model_io import ModelIOError, parse_model_command
+from rwkv_lh.model_session import ModelSession
 from rwkv_lh.runtime import OpenAICompatibleRWKVClient, get_runtime_settings
 from rwkv_lh.schema import RunState, RunStatus, TaskAction
 from rwkv_lh.store import LongHorizonStore
-from rwkv_lh.temp_policy import TemperaturePolicy
 from rwkv_lh.token_budget import VOCAB_PATH
 
 
@@ -96,7 +98,7 @@ FORBIDDEN_VISIBLE_KEYS = {
     "expected",
     "expected_answer",
     "expected_result",
-    "replan_path",
+    "repair_path",
     "task_graph",
     "tasks",
 }
@@ -104,17 +106,15 @@ FORBIDDEN_VISIBLE_KEYS = {
 class InjectedPostEffectCrash(RuntimeError):
     """Simulate worker loss after a durable side effect but before result persistence."""
 
+    rwkv_lh_process_loss = True
+
 
 class FaultInjectingHarness(ActionHarness):
     """Inject unannounced transient side-effect failures without prescribing recovery."""
 
-    _required_arguments = {
-        **ActionHarness._required_arguments,
-        "mock_api": ("operation", "request_id"),
-    }
     _verifier_candidates = {
         **ActionHarness._verifier_candidates,
-        "mock_api": ("action_succeeded", "model_cross_check"),
+        "mock_api": ("action_succeeded",),
     }
 
     def __init__(
@@ -148,17 +148,38 @@ class FaultInjectingHarness(ActionHarness):
                     True,
                     30.0,
                     {
-                        "operation": "create|query|update|finalize",
-                        "request_id": "stable idempotency key",
-                        "payload": "JSON object",
+                        "operation": {
+                            "type": "string",
+                            "enum": ["create", "query", "update", "finalize"],
+                        },
+                        "request_id": {
+                            "type": "string",
+                            "description": "stable idempotency key",
+                        },
+                        "payload": {
+                            "type": "object",
+                            "description": "operation-specific JSON object",
+                            "default": {},
+                        },
                     },
                     ("action_succeeded",),
+                    required_arguments=("operation", "request_id"),
                 ),
                 self._mock_api,
             )
 
-    def workspace_manifest(self, goal, *, max_entries: int = 256) -> dict[str, Any]:
-        manifest = super().workspace_manifest(goal, max_entries=max_entries)
+    def workspace_manifest(
+        self,
+        goal,
+        *,
+        max_entries: int = 256,
+        max_tokens: int = 2048,
+    ) -> dict[str, Any]:
+        manifest = super().workspace_manifest(
+            goal,
+            max_entries=max_entries,
+            max_tokens=max_tokens,
+        )
         if not self.manifest_entrypoints:
             return manifest
         entries = [
@@ -173,8 +194,20 @@ class FaultInjectingHarness(ActionHarness):
             "discovery_policy": "entrypoints_only",
         }
 
-    def _bubblewrap_command(self, goal, cwd: Path, argv: list[str]) -> tuple[list[str], str]:
-        command, sandbox_path = super()._bubblewrap_command(goal, cwd, argv)
+    def _bubblewrap_command(
+        self,
+        goal,
+        cwd: Path,
+        argv: list[str],
+        *,
+        include_project_venv: bool = False,
+    ) -> tuple[list[str], str]:
+        command, sandbox_path = super()._bubblewrap_command(
+            goal,
+            cwd,
+            argv,
+            include_project_venv=include_project_venv,
+        )
         command = [item for item in command if item != "--share-net"]
         return command, sandbox_path
 
@@ -552,9 +585,11 @@ def _check(
 
 def _attempt_snapshot(state: RunState) -> dict[str, list[str]]:
     return {
-        task_id: list(task.attempt_ids)
-        for task_id, task in state.tasks.items()
-        if task.status.value == "completed"
+        "completed_action_ids": [
+            action.action_id
+            for action in sorted(state.actions.values(), key=lambda item: item.sequence)
+            if action.status.value in {"succeeded", "failed", "interrupted"}
+        ]
     }
 
 
@@ -688,7 +723,11 @@ def _write_run_metadata(
         "model": settings.model,
         "backend_profile": settings.backend_profile,
         "sampling": {
-            "temperature_policy": dict(TemperaturePolicy._base),
+            "sampling_policy": {
+                "scope": "all_semantic_lanes",
+                "temperature": 0.05,
+                "semantic_resample_count": 0,
+            },
             "top_p": settings.default_top_p,
             "top_k": settings.default_top_k,
             "presence_penalty": settings.default_presence_penalty,
@@ -746,7 +785,7 @@ def _json_changes(before: Any, after: Any, path: str = "$") -> list[dict[str, An
             if old is _MISSING:
                 changes.append({"op": "add", "path": child, "after": new})
             elif new is _MISSING:
-                changes.append({"op": "remove", "path": child, "before": old})
+                changes.append({"op": "remove", "path": child})
             else:
                 changes.extend(_json_changes(old, new, child))
         return changes
@@ -756,16 +795,14 @@ def _json_changes(before: Any, after: Any, path: str = "$") -> list[dict[str, An
         for index in range(shared):
             changes.extend(_json_changes(before[index], after[index], f"{path}[{index}]"))
         for index in range(shared, len(before)):
-            changes.append(
-                {"op": "remove", "path": f"{path}[{index}]", "before": before[index]}
-            )
+            changes.append({"op": "remove", "path": f"{path}[{index}]"})
         for index in range(shared, len(after)):
             changes.append(
                 {"op": "add", "path": f"{path}[{index}]", "after": after[index]}
             )
         return changes
     if before != after:
-        return [{"op": "replace", "path": path, "before": before, "after": after}]
+        return [{"op": "replace", "path": path, "after": after}]
     return []
 
 
@@ -774,14 +811,14 @@ def _state_timeline(store: LongHorizonStore, run_id: str) -> list[dict[str, Any]
     previous: Any = _MISSING
     for checkpoint in store.checkpoint_records(run_id):
         state = checkpoint["state"]
-        changes = (
-            [{"op": "initial", "path": "$", "after": state}]
-            if previous is _MISSING
-            else _json_changes(previous, state)
-        )
+        initial = previous is _MISSING
+        changes = [] if initial else _json_changes(previous, state)
+        metadata = {key: value for key, value in checkpoint.items() if key != "state"}
         timeline.append(
             {
-                **checkpoint,
+                **metadata,
+                **({"state": state} if initial else {}),
+                "snapshot_kind": "initial_exact" if initial else "delta",
                 "state_sha256": hashlib.sha256(
                     json.dumps(
                         state,
@@ -791,6 +828,7 @@ def _state_timeline(store: LongHorizonStore, run_id: str) -> list[dict[str, Any]
                     ).encode("utf-8")
                 ).hexdigest(),
                 "changes_from_previous": changes,
+                "change_digest": _canonical_digest({"changes": changes}),
             }
         )
         previous = state
@@ -823,9 +861,10 @@ def _causal_ledger(
                 "event_type": event.get("type"),
                 "event_data": event.get("data") or {},
                 "state_sha256": timeline.get("state_sha256", ""),
-                "changes_from_previous": timeline.get(
-                    "changes_from_previous", []
+                "state_change_count": len(
+                    timeline.get("changes_from_previous", [])
                 ),
+                "state_change_digest": timeline.get("change_digest", ""),
             }
         )
 
@@ -839,8 +878,8 @@ def _causal_ledger(
             request_order.append(request_id)
             requests[request_id] = {
                 "request_id": request_id,
-                "request_type": str(event.get("request_type") or ""),
-                "task_id": str(event.get("task_id") or ""),
+                "request_type": str(event.get("lane_kind") or "") + "_lane",
+                "lane_id": str(event.get("lane_id") or ""),
                 "trace_events": [],
                 "input": None,
                 "raw_output": None,
@@ -852,30 +891,22 @@ def _causal_ledger(
             {"trace_index": trace_index, "event": event}
         )
         event_type = str(event.get("type") or "")
-        if event_type == "model_request_started":
-            prompt = str(event.get("prompt") or "")
+        if event_type == "model_session_generation_started":
+            checkpoint_id = str(event.get("input_checkpoint_id") or "")
+            checkpoint = (state_payload.get("model_states") or {}).get(
+                checkpoint_id,
+                {},
+            )
+            prompt = str(checkpoint.get("transcript") or "")
             request["input"] = {
                 "prompt": prompt,
                 "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-                "sampling": {
-                    key: event.get(key)
-                    for key in (
-                        "temperature",
-                        "top_p",
-                        "top_k",
-                        "presence_penalty",
-                        "frequency_penalty",
-                        "penalty_decay",
-                        "max_tokens",
-                        "backend_profile",
-                        "seed_supported",
-                    )
-                },
+                "input_checkpoint_id": checkpoint_id,
+                "input_digest": str(event.get("input_digest") or ""),
+                "sampling": dict(event.get("sampling") or {}),
             }
         elif event_type in {
-            "model_request_returned",
-            "model_request_failed",
-            "model_request_unknown",
+            "model_session_generation_returned",
         }:
             raw_output = str(event.get("raw_output") or event.get("output") or "")
             request["raw_output"] = {
@@ -884,7 +915,10 @@ def _causal_ledger(
                 "finish_reason": str(event.get("finish_reason") or ""),
                 "terminal_type": event_type,
             }
-        elif event_type.startswith("model_protocol_"):
+        elif event_type in {
+            "model_session_candidate_rolled_back",
+            "model_session_candidate_committed",
+        }:
             request["protocol_events"].append(event)
 
     for request in requests.values():
@@ -895,68 +929,32 @@ def _causal_ledger(
             if str(row["event_data"].get("request_id") or "") == request_id
         ]
 
-    tasks_payload = state_payload.get("tasks") or {}
-    attempts_payload = state_payload.get("attempts") or {}
-    memory_payload = state_payload.get("memory_index") or {}
+    actions_payload = state_payload.get("actions") or {}
     artifacts_payload = state_payload.get("artifacts") or {}
-    claims_payload = state_payload.get("criterion_claims") or {}
-    evidence_payload = state_payload.get("criterion_evidence") or {}
-    task_lineage: dict[str, Any] = {}
-    for task_id, task in tasks_payload.items():
-        attempt_ids = [str(item) for item in task.get("attempt_ids") or []]
-        output_refs = [str(item) for item in task.get("output_refs") or []]
-        resolved_outputs = []
-        for ref in output_refs:
-            if ref in memory_payload:
-                resolved_outputs.append(
-                    {"ref": ref, "kind": "memory", "record": memory_payload[ref]}
-                )
-            elif ref in artifacts_payload:
-                resolved_outputs.append(
-                    {"ref": ref, "kind": "artifact", "record": artifacts_payload[ref]}
-                )
-            else:
-                resolved_outputs.append({"ref": ref, "kind": "unresolved"})
-        dependencies = [str(item) for item in task.get("dependencies") or []]
-        task_lineage[str(task_id)] = {
-            "task": task,
-            "dependency_outputs": {
-                dependency: list(
-                    (tasks_payload.get(dependency) or {}).get("output_refs") or []
-                )
-                for dependency in dependencies
-            },
+    action_lineage: dict[str, Any] = {}
+    for action_id, action in actions_payload.items():
+        artifact_refs = [str(item) for item in action.get("artifact_refs") or []]
+        action_lineage[str(action_id)] = {
+            "action": action,
             "model_request_ids": [
                 request_id
                 for request_id in request_order
-                if requests[request_id]["task_id"] == str(task_id)
+                if request_id == str(action.get("request_id") or "")
             ],
             "event_revisions": [
                 row
                 for row in event_revision_rows
-                if str(row["event_data"].get("task_id") or "") == str(task_id)
+                if str(row["event_data"].get("action_id") or "") == str(action_id)
             ],
-            "attempts": {
-                attempt_id: attempts_payload[attempt_id]
-                for attempt_id in attempt_ids
-                if attempt_id in attempts_payload
-            },
-            "resolved_outputs": resolved_outputs,
-            "criterion_claims": {
-                claim_id: claim
-                for claim_id, claim in claims_payload.items()
-                if claim.get("producer_task_id") == str(task_id)
-                or claim.get("subject_task_id") == str(task_id)
-            },
-            "criterion_evidence": {
-                evidence_id: item
-                for evidence_id, item in evidence_payload.items()
-                if item.get("owner_task_id") == str(task_id)
+            "artifacts": {
+                artifact_id: artifacts_payload[artifact_id]
+                for artifact_id in artifact_refs
+                if artifact_id in artifacts_payload
             },
         }
 
     return {
-        "schema_version": "rwkv-e2e.causal-ledger.v1",
+        "schema_version": "rwkv-e2e.causal-ledger.v3",
         "policy": {
             "semantic_inference": False,
             "records_rewritten": False,
@@ -965,7 +963,12 @@ def _causal_ledger(
         },
         "request_order": request_order,
         "requests": [requests[request_id] for request_id in request_order],
-        "tasks": task_lineage,
+        "actions": action_lineage,
+        "causal_events": [
+            (state_payload.get("causal_records") or {})[record_id]
+            for record_id in state_payload.get("causal_order") or []
+            if record_id in (state_payload.get("causal_records") or {})
+        ],
         "event_revision_sequence": event_revision_rows,
     }
 
@@ -1028,7 +1031,7 @@ def run_case(
     store = LongHorizonStore(case_root / "state", checkpoint_retention=100_000)
     model_trace: list[dict[str, Any]] = []
     client = OpenAICompatibleRWKVClient()
-    invoker = ModelInvoker(client=client, audit_hook=model_trace.append)
+    session = ModelSession(client=client, audit_hook=model_trace.append)
     harness = FaultInjectingHarness(
         control.get("fail_first_side_effect_actions", 0),
         crash_after_first_applied_side_effect=bool(
@@ -1039,14 +1042,14 @@ def run_case(
             str(item) for item in control.get("manifest_entrypoints") or []
         ),
     )
-    model = LongHorizonModel(invoker, harness=harness)
+    model = LongHorizonModel(session, harness=harness)
     observations: dict[str, Any] = {}
     result: ControllerResult | None = None
     failure = ""
     state: RunState | None = None
     final_output = ""
     try:
-        goal, goal_decision = model.parse_goal(
+        goal = model.create_literal_goal(
             str(task["user_request"]),
             str(workspace),
             constraints=[
@@ -1057,24 +1060,6 @@ def run_case(
             ],
         )
         state = store.create_run(goal, task_id)
-        state.temp_decisions.append(goal_decision)
-        state = store.save(
-            state,
-            event_type="goal_parsed",
-            event={
-                "request_id": goal_decision.request_id,
-                "temperature": goal_decision.temperature,
-                "top_p": goal_decision.top_p,
-                "top_k": goal_decision.top_k,
-                "presence_penalty": goal_decision.presence_penalty,
-                "frequency_penalty": goal_decision.frequency_penalty,
-                "penalty_decay": goal_decision.penalty_decay,
-                "backend_profile": goal_decision.backend_profile,
-                "seed_supported": goal_decision.seed_supported,
-                "outcome": goal_decision.outcome,
-                "source": "rwkv",
-            },
-        )
         interruption_limit = control.get("interrupt_after_transitions")
         if interruption_limit is not None:
             first = _run_controller(
@@ -1112,7 +1097,7 @@ def run_case(
                 )
             except InjectedPostEffectCrash:
                 before_resume = store.load(task_id)
-                before_attempts = len(before_resume.attempts)
+                before_actions = len(before_resume.actions)
                 result = _run_controller(
                     store,
                     model,
@@ -1121,7 +1106,7 @@ def run_case(
                     max_transitions=max_transitions,
                 )
                 observations["post_effect_crash_resumed"] = (
-                    len(result.state.attempts) >= before_attempts
+                    len(result.state.actions) >= before_actions
                     and result.state.status == RunStatus.COMPLETED
                 )
         state = result.state
@@ -1179,19 +1164,30 @@ def run_case(
     }
     agent_completed = state is not None and state.status == RunStatus.COMPLETED
     final_nonempty = bool(str(final_output or "").strip())
-    final_model_responses = [
-        item
-        for item in model_trace
-        if item.get("type") == "model_request_returned"
-        and item.get("request_type") == "final_answer"
-    ]
-    raw_final_output = (
-        str(final_model_responses[-1].get("raw_output") or "")
-        if final_model_responses
-        else ""
-    )
+    final_model_responses: list[dict[str, Any]] = []
+    for item in model_trace:
+        if (
+            item.get("type") != "model_session_generation_returned"
+            or item.get("lane_id") != "LANE:ACTION"
+        ):
+            continue
+        try:
+            candidate_command = parse_model_command(str(item.get("raw_output") or ""))
+        except ModelIOError:
+            continue
+        if candidate_command.name == "final_answer":
+            final_model_responses.append(item)
+    raw_final_output = str(final_model_responses[-1].get("raw_output") or "") if final_model_responses else ""
+    decoded_final_output = ""
+    if raw_final_output:
+        try:
+            final_command = parse_model_command(raw_final_output)
+            if final_command.name == "final_answer":
+                decoded_final_output = str(final_command.arguments.get("text") or "")
+        except ModelIOError:
+            decoded_final_output = ""
     final_output_matches_raw_rwkv = bool(final_model_responses) and (
-        final_output == raw_final_output
+        final_output == decoded_final_output
     )
     event_log = store.event_records(task_id) if state is not None else []
     verifier_failure = ""
@@ -1235,7 +1231,7 @@ def run_case(
     state_timeline = _state_timeline(store, task_id) if state is not None else []
     trace_path = case_root / "model_trace.json"
     event_path = case_root / "event_log.json"
-    timeline_path = case_root / "state_timeline.json"
+    timeline_path = case_root / "state_timeline.json.gz"
     ledger_path = case_root / "causal_ledger.json"
     trace_path.write_text(
         json.dumps(model_trace, ensure_ascii=False, indent=2) + "\n",
@@ -1245,10 +1241,9 @@ def run_case(
         json.dumps(event_log, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    timeline_path.write_text(
-        json.dumps(state_timeline, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    with gzip.open(timeline_path, "wt", encoding="utf-8", compresslevel=6) as handle:
+        handle.write(json.dumps(state_timeline, ensure_ascii=False, separators=(",", ":")))
+        handle.write("\n")
     ledger = _causal_ledger(model_trace, event_log, state_timeline, state)
     ledger_path.write_text(
         json.dumps(ledger, ensure_ascii=False, indent=2) + "\n",
@@ -1263,7 +1258,7 @@ def run_case(
         "visible_input_digest": _canonical_digest(task),
         "model_input_boundary": {
             "provided": ["user_request", "isolated_workspace", "generic_constraints", "harness_contract"],
-            "not_provided": ["acceptance", "answer", "task_graph", "actions", "completion_criteria", "replan_path"],
+            "not_provided": ["acceptance", "answer", "task_graph", "actions", "completion_criteria", "repair_path"],
         },
         "anti_cheating": {
             "visible_and_acceptance_catalogs_separate": True,
@@ -1280,6 +1275,7 @@ def run_case(
         "final_output_nonempty": final_nonempty,
         "output_non_intervention": {
             "raw_rwkv_final_output": raw_final_output,
+            "decoded_final_answer_text": decoded_final_output,
             "delivered_final_output": final_output,
             "byte_exact_match": final_output_matches_raw_rwkv,
             "policy": "observe_and_score_only; never rewrite, rank, or replace RWKV output",
@@ -1299,13 +1295,17 @@ def run_case(
                 "path": timeline_path.name,
                 "sha256": _file_sha256(timeline_path),
                 "records": len(state_timeline),
-                "policy": "all checkpoints retained; exact snapshot plus field-level delta",
+                "content_encoding": "gzip",
+                "policy": (
+                    "initial exact snapshot followed by reconstructible field-level "
+                    "deltas; every revision has a state SHA-256"
+                ),
             },
             "causal_ledger": {
                 "path": ledger_path.name,
                 "sha256": _file_sha256(ledger_path),
                 "request_records": len(ledger["requests"]),
-                "task_records": len(ledger["tasks"]),
+                "action_records": len(ledger["actions"]),
                 "policy": "linkage only; exact source records retained without semantic inference",
             },
         },
@@ -1313,9 +1313,9 @@ def run_case(
         "failure": failure,
         "verifier_failure": verifier_failure,
         "goal": state.goal.to_dict() if state is not None else None,
-        "task_graph": {
-            task_key: task_value.to_dict()
-            for task_key, task_value in (state.tasks.items() if state is not None else [])
+        "action_ledger": {
+            action_key: action_value.to_dict()
+            for action_key, action_value in (state.actions.items() if state is not None else [])
         },
         "run_state": state.to_dict() if state is not None else None,
         "model_trace": model_trace,
@@ -1341,11 +1341,16 @@ def run_case(
         "failure": failure,
         "audit": str((case_root / "audit.json").relative_to(output_root)),
         "model_requests": len(
-            [item for item in model_trace if item.get("type") == "model_request_started"]
+            [
+                item
+                for item in model_trace
+                if item.get("type") == "model_session_generation_started"
+            ]
         ),
-        "task_count": len(state.tasks) if state is not None else 0,
-        "attempt_count": len(state.attempts) if state is not None else 0,
-        "replan_count": sum(1 for item in event_log if item["type"] == "replan_applied"),
+        "action_count": len(state.actions) if state is not None else 0,
+        "protocol_rejection_count": (
+            state.protocol_rejections if state is not None else 0
+        ),
     }
 
 
@@ -1362,7 +1367,7 @@ def _write_report(
     lines = [
         f"# {suite_title}",
         "",
-        "This suite gives RWKV only a user goal, an isolated workspace, generic constraints, and the Harness contract. Task Graphs, actions, replan paths, and external acceptance are not provided to the model.",
+        "This suite gives RWKV only a user goal, an isolated workspace, generic constraints, and the Harness contract. Task Graphs, actions, repair paths, and external acceptance are not provided to the model.",
         "",
         f"- Cases run: {len(results)}",
         f"- Case concurrency: {concurrency}",
@@ -1370,15 +1375,15 @@ def _write_report(
         f"- External acceptance passed: {external}",
         f"- Strict E2E passed: {passed}",
         "",
-        "| Task | Group | Native level | Agent | External | Strict | Model requests | Tasks | Attempts | Replans |",
-        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+        "| Task | Group | Native level | Agent | External | Strict | Model requests | Actions | Protocol rejects |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
     ]
     for item in results:
         mark = lambda value: "PASS" if value else "FAIL"
         lines.append(
             f"| {item['task_id']} | {item['difficulty_group']} | {item['level']} | {mark(item['agent_completed'])} | "
             f"{mark(item['external_passed'])} | {mark(item['passed'])} | {item['model_requests']} | "
-            f"{item['task_count']} | {item['attempt_count']} | {item['replan_count']} |"
+            f"{item['action_count']} | {item['protocol_rejection_count']} |"
         )
     (output / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

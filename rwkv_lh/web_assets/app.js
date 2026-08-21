@@ -155,7 +155,7 @@ function renderRunList() {
   $("runList").innerHTML = state.runs.map((run) => `
     <button class="run-item ${run.run_id === state.selectedRun ? "active" : ""}" data-run-id="${escapeHtml(run.run_id)}" type="button">
       <div><strong>${escapeHtml(run.run_id)}</strong><span>${escapeHtml(run.status || run.phase || "queued")}</span></div>
-      <p>${escapeHtml(run.objective || run.request_preview || "正在建立目标")}</p>
+      <p>${escapeHtml(run.request_preview || "正在建立目标")}</p>
     </button>`).join("");
   document.querySelectorAll(".run-item").forEach((button) => {
     button.addEventListener("click", () => selectRun(button.dataset.runId));
@@ -221,27 +221,25 @@ function renderSummary() {
   const runState = summary.state || {};
   const status = runState.status || metadata.status || metadata.phase || "queued";
   $("runId").textContent = metadata.run_id;
-  $("runObjective").textContent = runState.objective || metadata.objective || summary.request.request;
+  $("runObjective").textContent = runState.request || summary.request.request;
   $("runStatus").textContent = status;
   $("runStatus").className = `status-pill ${status}`;
   $("revisionMetric").textContent = runState.revision ?? "—";
   $("requestMetric").textContent = runState.model_request_count ?? state.traces.filter((item) => item.type === "model_request_started").length;
-  $("taskMetric").textContent = (runState.tasks || []).length;
-  $("evidenceMetric").textContent = runState.criterion_evidence_count ?? 0;
+  $("actionMetric").textContent = (runState.actions || []).length;
+  $("causalMetric").textContent = runState.causal_record_count ?? 0;
   $("goalDigest").textContent = runState.goal_digest || "尚未创建";
   $("exportButton").href = `/api/runs/${encodeURIComponent(metadata.run_id)}/export`;
   $("stopButton").classList.toggle("hidden", !metadata.active);
   const canResume = !metadata.active && (status === "interrupted" || metadata.phase === "stopped" || metadata.phase === "failed") && metadata.state_created;
   $("resumeButton").classList.toggle("hidden", !canResume);
 
-  const criteria = runState.criteria || [];
-  $("criteriaList").innerHTML = criteria.length ? criteria.map((item) => `
-    <div class="criterion"><strong>${escapeHtml(item.criterion_id)} · ${item.required ? "required" : "optional"}</strong><p>${escapeHtml(item.description)}</p></div>`).join("") : '<p class="muted-copy">等待 RWKV 解析目标。</p>';
+  $("goalRequest").textContent = runState.request || summary.request.request;
 
-  const tasks = runState.tasks || [];
-  $("taskSummary").textContent = `${tasks.length} tasks`;
-  $("taskList").innerHTML = tasks.length ? tasks.map((task) => `
-    <div class="task ${escapeHtml(task.status)}"><strong>${escapeHtml(task.task_id)} · ${escapeHtml(task.title)}</strong><p>${escapeHtml(task.status)} · attempts ${task.attempts} · deps ${task.dependencies.join(", ") || "none"}</p></div>`).join("") : '<p class="muted-copy">尚无任务。</p>';
+  const actions = runState.actions || [];
+  $("actionSummary").textContent = `${actions.length} actions`;
+  $("actionList").innerHTML = actions.length ? actions.map((action) => `
+    <div class="task ${escapeHtml(action.status)}"><strong>${escapeHtml(action.action_id)} · ${escapeHtml(action.operation)}</strong><p>${escapeHtml(action.status)} · artifacts ${(action.artifact_refs || []).join(", ") || "none"}</p></div>`).join("") : '<p class="muted-copy">尚无 Action。</p>';
 
   const finalOutput = summary.result?.final_output ?? runState.final_output ?? "";
   $("finalOutput").textContent = finalOutput || "运行尚未产生最终输出。";

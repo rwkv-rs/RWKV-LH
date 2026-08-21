@@ -1,5 +1,5 @@
 {
-  "schema_version": "lh-control-30.v1",
+  "schema_version": "lh-control-30.v2",
   "tasks": [
     {"task_id": "LH-B01", "level": "basic", "description": "创建 UTF-8 文件并验证精确正文。", "expected_result": "文件存在且正文与请求一致。", "capabilities": ["task_execution", "file_validation"]},
     {"task_id": "LH-B02", "level": "basic", "description": "修改嵌套 JSON 字段并保留其他字段。", "expected_result": "目标字段更新，未请求字段保持不变。", "capabilities": ["structured_edit", "json_validation"]},
@@ -15,7 +15,7 @@
     {"task_id": "LH-M01", "level": "medium", "description": "更新三个配置文件后运行统一检查。", "expected_result": "三个文件均更新且检查命令退出码为 0。", "capabilities": ["multi_file", "fan_in", "command_validation"]},
     {"task_id": "LH-M02", "level": "medium", "description": "测试失败后 replan 修复实现并重新检查。", "expected_result": "失败路径保留，替代节点完成，后续检查通过。", "capabilities": ["validation_driven_repair", "replan"]},
     {"task_id": "LH-M03", "level": "medium", "description": "三个前置任务汇合生成报告。", "expected_result": "报告仅在三个依赖都完成后生成。", "capabilities": ["fan_in_dag", "report"]},
-    {"task_id": "LH-M04", "level": "medium", "description": "读取检索 fixture 的精确 span，绑定证据并由 RWKV 接口交叉验证。", "expected_result": "证据包含 source/locator/quote，交叉验证请求被记录。", "capabilities": ["evidence_binding", "cross_validation", "temperature"]},
+    {"task_id": "LH-M04", "level": "medium", "description": "读取检索 fixture 的精确 span，并通过单一 Task step 与 Goal frontier 完成链路。", "expected_result": "证据包含 source/locator/quote，Task step、Goal frontier 与 final 请求依次记录。", "capabilities": ["evidence_binding", "task_step", "goal_frontier"]},
     {"task_id": "LH-M05", "level": "medium", "description": "中断一个 running 的只读任务后恢复。", "expected_result": "旧 attempt 标为 interrupted，安全重试后完成。", "capabilities": ["interruption", "safe_retry"]},
     {"task_id": "LH-M06", "level": "medium", "description": "模型计划包含依赖环。", "expected_result": "TaskGraph 在执行任何副作用前拒绝计划。", "capabilities": ["cycle_detection", "plan_validation"]},
     {"task_id": "LH-M07", "level": "medium", "description": "缺少必要子任务时 replan 新增替代节点。", "expected_result": "原节点被 supersede，新节点产生所需产物。", "capabilities": ["missing_subtask", "replan"]},

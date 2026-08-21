@@ -1,516 +1,305 @@
+from __future__ import annotations
+
+import json
 import sqlite3
-import tempfile
-import threading
 from pathlib import Path
 
 import pytest
 
 from rwkv_lh.schema import (
-    ArtifactRevision,
-    EVIDENCE_RUN_SCHEMA_VERSION,
-    LEGACY_RUN_SCHEMA_VERSION,
-    PREVIOUS_RUN_SCHEMA_VERSION,
-    PROOF_RUN_SCHEMA_VERSION,
-    RUN_SCHEMA_VERSION,
-    CriterionClaim,
-    CriterionClaimStatus,
-    CriterionEvidence,
-    CriterionEvidenceStatus,
-    GoalCriterion,
-    GoalObligationState,
-    GoalObligationStatus,
+    ActionRecord,
+    ActionStatus,
+    ArtifactRecord,
+    CausalEvent,
+    CausalEventDraft,
     GoalState,
-    ProofExpr,
-    RecoveryState,
     RunState,
     RunStatus,
     TaskAction,
-    TaskCommitStatus,
-    TaskNode,
-    TaskStatus,
+    action_fingerprint,
+    utc_now,
 )
 from rwkv_lh.store import ConcurrentStateError, LongHorizonStore
-from rwkv_lh.task_graph import TaskGraph, TaskGraphError
 
 
-def make_goal(root: Path) -> GoalState:
+def literal(tmp_path: Path) -> GoalState:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
     return GoalState.create(
-        objective="Create a verified artifact",
-        original_request="Create a verified artifact without leaving the workspace",
-        constraints=["Only modify the scoped workspace"],
-        success_criteria=[GoalCriterion("GC1", "artifact.txt exists")],
-        workspace_root=root,
+        request="Read input.txt and write output.txt.",
+        constraints=["workspace only", "workspace only"],
+        workspace_root=workspace,
     )
 
 
-def make_task(task_id: str, dependencies=None, priority=50) -> TaskNode:
-    return TaskNode(
-        task_id=task_id,
-        title=f"Task {task_id}",
-        description=f"Execute {task_id}",
-        dependencies=list(dependencies or []),
-        priority=priority,
-        action=TaskAction("write_file", {"path": f"{task_id}.txt", "content": task_id}),
+def action_record() -> ActionRecord:
+    action = TaskAction("write_file", {"path": "out.txt", "content": "ok"})
+    return ActionRecord(
+        action_id="A00001",
+        sequence=1,
+        status=ActionStatus.SUCCEEDED,
+        action_type=action.action_type,
+        arguments=action.arguments,
+        wire_arguments=action.arguments,
+        action_fingerprint=action_fingerprint(action),
+        idempotency_key="idem-1",
+        decision_id="D-1",
+        request_id="MR-1",
+        started_at=utc_now(),
+        ended_at=utc_now(),
+        result={"action_type": "write_file", "success": True, "output": "file written"},
+        outcome_type="success",
     )
 
 
-def test_goal_digest_detects_mutation():
-    with tempfile.TemporaryDirectory() as directory:
-        goal = make_goal(Path(directory))
-        payload = goal.to_dict()
-        payload["objective"] = "A different goal"
-        with pytest.raises(ValueError, match="goal digest mismatch"):
-            GoalState.from_dict(payload)
-
-
-def test_recovery_failed_observation_state_round_trips_and_old_v2_defaults_closed():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-OBSERVATION-STATE", make_goal(Path(directory)))
-        state.recovery_states["RL-0001"] = RecoveryState(
-            lineage_id="RL-0001",
-            root_task_id="T1",
-            failed_task_id="T1",
-            subject_task_id="T1",
-            failed_observations={
-                "digest": {
-                    "validation_kind": "criterion_cross_check",
-                    "decision": "replan",
-                    "protocol_valid": True,
-                }
-            },
-            suppressed_cross_check_count=2,
-            remaining_budget=1,
-        )
-        restored = RunState.from_dict(state.to_dict())
-        lineage = restored.recovery_states["RL-0001"]
-        assert lineage.failed_observations["digest"]["decision"] == "replan"
-        assert lineage.suppressed_cross_check_count == 2
-
-        legacy_payload = state.to_dict()
-        legacy_payload["recovery_states"]["RL-0001"].pop("failed_observations")
-        legacy_payload["recovery_states"]["RL-0001"].pop(
-            "suppressed_cross_check_count"
-        )
-        legacy_lineage = RunState.from_dict(legacy_payload).recovery_states["RL-0001"]
-        assert legacy_lineage.failed_observations == {}
-        assert legacy_lineage.suppressed_cross_check_count == 0
-
-
-def test_goal_obligation_state_round_trips_with_digest_budget_and_history():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-GOAL-OBLIGATION", make_goal(Path(directory)))
-        state.goal_obligation = GoalObligationState(
-            goal_digest=state.goal.digest,
-            unresolved_criterion_ids=["GC1"],
-            status=GoalObligationStatus.UNRESOLVED,
-            generation_count=2,
-            remaining_budget=1,
-            last_observation_digest="capsule-digest",
-            task_ids=["T2", "T3"],
-            decision_history=[
-                {
-                    "type": "tasks_appended",
-                    "observation_digest": "capsule-digest",
-                    "task_ids": ["T3"],
-                }
-            ],
-        )
-
-        restored = RunState.from_dict(state.to_dict())
-
-        obligation = restored.goal_obligation
-        assert restored.schema_version == RUN_SCHEMA_VERSION
-        assert obligation is not None
-        assert obligation.goal_digest == state.goal.digest
-        assert obligation.status == GoalObligationStatus.UNRESOLVED
-        assert obligation.generation_count == 2
-        assert obligation.remaining_budget == 1
-        assert obligation.last_observation_digest == "capsule-digest"
-        assert obligation.task_ids == ["T2", "T3"]
-        assert obligation.decision_history[0]["type"] == "tasks_appended"
-
-
-def test_store_rejects_replacing_the_immutable_goal():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-GOAL-LOCK")
-        state.goal = GoalState.create(
-            objective="Changed objective",
-            original_request="Changed objective",
-            constraints=[],
-            success_criteria=[GoalCriterion("GC2", "different")],
-            workspace_root=root / "workspace",
-        )
-        with pytest.raises(ValueError, match="immutable goal digest changed"):
-            store.save(state)
-
-
-def test_task_graph_orders_ready_tasks_and_enforces_dependencies():
-    first = make_task("T1", priority=10)
-    second = make_task("T2", ["T1"], priority=100)
-    third = make_task("T3", priority=20)
-    graph = TaskGraph({task.task_id: task for task in (first, second, third)})
-    assert [task.task_id for task in graph.ready_tasks()] == ["T3", "T1"]
-    with pytest.raises(TaskGraphError, match="unmet dependencies"):
-        graph.transition("T2", TaskStatus.RUNNING)
-    graph.transition("T1", TaskStatus.RUNNING)
-    graph.transition("T1", TaskStatus.COMPLETED)
-    assert [task.task_id for task in graph.ready_tasks()] == ["T2", "T3"]
-
-
-def test_task_graph_routes_only_the_rwkv_declared_typed_outcome_edge():
-    observation = make_task("T1")
-    observation.status = TaskStatus.COMPLETED
-    observation.outcome_type = "not_found"
-    create = make_task("T2", ["T1"])
-    create.dependency_outcomes = {"T1": ["not_found"]}
-    update = make_task("T3", ["T1"])
-    update.dependency_outcomes = {"T1": ["success"]}
-    graph = TaskGraph({task.task_id: task for task in (observation, create, update)})
-
-    assert [task.task_id for task in graph.ready_tasks()] == ["T2"]
-    assert [task.task_id for task in graph.outcome_mismatched_tasks()] == ["T3"]
-
-
-def test_materialized_causal_tasks_rewrite_outcome_edges_and_reset_observation():
-    observe = make_task("observe")
-    produce = make_task("produce", ["observe"])
-    produce.dependency_outcomes = {"observe": ["not_found"]}
-    produce.outcome_type = "success"
-
-    materialized, mapping, _ = TaskGraph.materialize_model_tasks(
-        [observe, produce],
-        next_sequence=7,
-    )
-
-    rewritten = next(task for task in materialized if task.task_id == mapping["produce"])
-    assert rewritten.dependencies == [mapping["observe"]]
-    assert rewritten.dependency_outcomes == {mapping["observe"]: ["not_found"]}
-    assert rewritten.outcome_type == "pending"
-
-
-def test_task_graph_rejects_cycles_and_completed_reexecution():
-    first = make_task("T1", ["T2"])
-    second = make_task("T2", ["T1"])
-    with pytest.raises(TaskGraphError, match="cycle"):
-        TaskGraph({"T1": first, "T2": second})
-
-    graph = TaskGraph({"T3": make_task("T3")})
-    graph.transition("T3", TaskStatus.RUNNING)
-    graph.transition("T3", TaskStatus.COMPLETED)
-    with pytest.raises(TaskGraphError, match="invalid task transition"):
-        graph.transition("T3", TaskStatus.RUNNING)
-
-
-def test_store_round_trip_and_stale_revision_rejection():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-ROUNDTRIP")
-        stale = RunState.from_dict(state.to_dict())
-        state.tasks["T1"] = make_task("T1")
-        state = store.save(state, event_type="plan_saved")
-        loaded = store.load(state.run_id)
-        assert loaded.revision == 1
-        assert loaded.tasks["T1"].action.action_type == "write_file"
-        with pytest.raises(ConcurrentStateError):
-            store.save(stale)
-
-
-def test_causal_task_and_artifact_revision_ledger_round_trip():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-CAUSAL-ROUNDTRIP", make_goal(Path(directory)))
-        task = make_task("T1")
-        task.operation_kind = "produce"
-        task.subject_key = "artifact/report"
-        task.member_key = "report.txt"
-        task.phase_key = "write"
-        task.effect_targets = ["report.txt"]
-        task.expected_outcomes = ["success", "conflict"]
-        task.postcondition = "report.txt contains the requested report"
-        task.outcome_type = "success"
-        state.tasks = {"T1": task}
-        state.artifact_revisions = {
-            "report.txt": [
-                ArtifactRevision(
-                    "T1-A1-REV1",
-                    "report.txt",
-                    "T1-A1-R1",
-                    "T1",
-                    "T1-A1",
-                    "a" * 64,
-                    "success",
-                    TaskCommitStatus.COMMITTED.value,
-                )
-            ]
-        }
-
-        restored = RunState.from_dict(state.to_dict())
-
-        assert restored.tasks["T1"].subject_key == "artifact/report"
-        assert restored.tasks["T1"].outcome_type == "success"
-        revision = restored.artifact_revisions["report.txt"][0]
-        assert revision.sha256 == "a" * 64
-        assert revision.task_commit_status == "committed"
-
-
-def test_store_recovers_from_corrupt_state_snapshot():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-RECOVER")
-        state.tasks["T1"] = make_task("T1")
-        state = store.save(state, event_type="plan_saved")
-        with sqlite3.connect(store.database_path) as connection:
-            connection.execute(
-                "UPDATE runs SET state_json = ? WHERE run_id = ?",
-                ("{corrupt", state.run_id),
-            )
-        recovered = store.load(state.run_id)
-        assert recovered.revision == state.revision
-        assert "T1" in recovered.tasks
-        assert store.load(state.run_id).revision == state.revision
-
-
-def test_old_checkpoint_recovery_keeps_revisions_monotonic():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-OLD-CHECKPOINT")
-        state = store.save(state, event_type="revision_one")
-        state = store.save(state, event_type="revision_two")
-        with sqlite3.connect(store.database_path) as connection:
-            connection.execute(
-                "UPDATE runs SET state_json = ? WHERE run_id = ?",
-                ("{corrupt", state.run_id),
-            )
-            connection.execute(
-                "UPDATE checkpoints SET state_json = ? WHERE run_id = ? AND revision = ?",
-                ("{corrupt", state.run_id, state.revision),
-            )
-        recovered = store.load(state.run_id)
-        assert recovered.revision == 3
-        recovered = store.save(recovered, event_type="after_recovery")
-        assert recovered.revision == 4
-        assert [event["revision"] for event in store.event_records(state.run_id)] == [0, 1, 2, 3, 4]
-
-
-def test_controller_lease_prevents_two_writers():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-LEASE")
-        attempted = threading.Event()
-        errors = []
-
-        def contender():
-            attempted.set()
-            try:
-                with store.controller_lease(state.run_id, timeout_seconds=0.05):
-                    pass
-            except Exception as exc:
-                errors.append(exc)
-
-        with store.controller_lease(state.run_id):
-            with sqlite3.connect(store.database_path) as connection:
-                lease_count = connection.execute(
-                    "SELECT COUNT(*) FROM run_leases WHERE run_id = ?",
-                    (state.run_id,),
-                ).fetchone()[0]
-            assert lease_count == 1
-            worker = threading.Thread(target=contender)
-            worker.start()
-            attempted.wait(timeout=1)
-            worker.join(timeout=1)
-        assert len(errors) == 1
-        assert isinstance(errors[0], TimeoutError)
-
-
-def test_store_event_revisions_are_monotonic():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-EVENTS")
-        state = store.save(state, event_type="noop")
-        events = store.event_records(state.run_id)
-        assert [event["revision"] for event in events] == [0, 1]
-
-
-def test_store_projects_tasks_and_checkpoints_transactionally():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs")
-        state = store.create_run(make_goal(root / "workspace"), "LH-PROJECTION")
-        state.tasks["T1"] = make_task("T1", priority=91)
-        state = store.save(state, event_type="plan_saved")
-        with sqlite3.connect(store.database_path) as connection:
-            task_row = connection.execute(
-                "SELECT status, required, active, priority FROM task_index WHERE run_id = ?",
-                (state.run_id,),
-            ).fetchone()
-            checkpoint_count = connection.execute(
-                "SELECT COUNT(*) FROM checkpoints WHERE run_id = ?",
-                (state.run_id,),
-            ).fetchone()[0]
-        assert task_row == ("pending", 1, 1, 91)
-        assert checkpoint_count == 2
-        checkpoints = store.checkpoint_records(state.run_id)
-        assert [item["revision"] for item in checkpoints] == [0, 1]
-        assert [item["event_type"] for item in checkpoints] == [
-            "run_created",
-            "plan_saved",
-        ]
-        assert checkpoints[-1]["state"]["tasks"]["T1"]["priority"] == 91
-
-
-def test_checkpoint_retention_does_not_keep_every_planning_request():
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        store = LongHorizonStore(root / "runs", checkpoint_retention=5)
-        state = store.create_run(make_goal(root / "workspace"), "LH-RETENTION")
-        state.status = RunStatus.PLANNING
-        for index in range(12):
-            state = store.save(state, event_type="model_request_returned", event={"index": index})
-        with sqlite3.connect(store.database_path) as connection:
-            rows = connection.execute(
-                "SELECT milestone, COUNT(*) FROM checkpoints WHERE run_id = ? GROUP BY milestone",
-                (state.run_id,),
-            ).fetchall()
-        assert dict(rows) == {0: 5, 1: 1}
-
-
-def test_v1_run_migration_does_not_promote_ambiguous_goal_bindings():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-V1-MIGRATION", make_goal(Path(directory)))
-        state.tasks = {
-            "T1": TaskNode(
-                "T1",
-                "Legacy task",
-                "Legacy ambiguous criterion binding",
-                advances_criteria=["GC1"],
-                satisfies_criteria=["GC1"],
-            )
-        }
-        payload = state.to_dict()
-        payload["schema_version"] = LEGACY_RUN_SCHEMA_VERSION
-        payload.pop("criterion_evidence")
-        payload.pop("recovery_states")
-        payload.pop("model_states")
-        payload.pop("next_task_sequence")
-        payload["tasks"]["T1"]["goal_criteria"] = payload["tasks"]["T1"].pop(
-            "advances_criteria"
-        )
-        payload["tasks"]["T1"].pop("satisfies_criteria")
-
-        migrated = RunState.from_dict(payload)
-
-        assert migrated.schema_version == RUN_SCHEMA_VERSION
-        assert migrated.tasks["T1"].advances_criteria == ["GC1"]
-        assert migrated.tasks["T1"].satisfies_criteria == []
-        assert migrated.criterion_evidence == {}
-        assert migrated.next_task_sequence == 2
-
-
-@pytest.mark.parametrize(
-    ("status", "expected_status"),
-    [
-        (RunStatus.RUNNING, CriterionEvidenceStatus.LEGACY_UNVERIFIED),
-        (RunStatus.COMPLETED, CriterionEvidenceStatus.VERIFIED),
-    ],
-)
-def test_v2_evidence_requires_independent_claims_for_unfinished_runs(
-    status,
-    expected_status,
-):
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-V2-MIGRATION", make_goal(Path(directory)))
-        state.status = status
-        state.criterion_evidence["CE-GC1-T1-A1"] = CriterionEvidence(
-            "CE-GC1-T1-A1",
-            "GC1",
-            CriterionEvidenceStatus.VERIFIED,
-            "T1",
-            "T1-A1",
-        )
-        payload = state.to_dict()
-        payload["schema_version"] = EVIDENCE_RUN_SCHEMA_VERSION
-        payload.pop("criterion_claims")
-
-        migrated = RunState.from_dict(payload)
-
-        assert migrated.schema_version == RUN_SCHEMA_VERSION
-        assert migrated.criterion_claims == {}
-        assert migrated.criterion_evidence["CE-GC1-T1-A1"].status == expected_status
-
-
-def test_v3_recursive_claim_state_loads_into_v4_without_semantic_rewrite():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-V3-MIGRATION", make_goal(Path(directory)))
-        raw_claim = {
-            "criterion_id": "GC1",
-            "subject_task_id": "T1",
-            "producer_task_id": "T1",
-            "comparison": "exact_equals",
-            "actual": {"op": "literal", "goal_quote": "artifact", "value": 1},
-            "expected": {"op": "literal", "goal_quote": "artifact", "value": 1},
-        }
-        state.criterion_claims["CC-1"] = CriterionClaim(
-            claim_id="CC-1",
-            criterion_id="GC1",
-            subject_task_id="T1",
-            producer_task_id="T1",
-            attempt_id="T1-A1",
-            comparison="exact_equals",
-            actual=ProofExpr.from_dict(raw_claim["actual"]),
-            expected=ProofExpr.from_dict(raw_claim["expected"]),
-            status=CriterionClaimStatus.REJECTED,
-            passed=False,
-            raw_claim=raw_claim,
-        )
-        payload = state.to_dict()
-        payload["schema_version"] = PREVIOUS_RUN_SCHEMA_VERSION
-
-        migrated = RunState.from_dict(payload)
-
-        claim = migrated.criterion_claims["CC-1"]
-        assert migrated.schema_version == RUN_SCHEMA_VERSION
-        assert claim.claim_protocol == "proof_expr.v1"
-        assert claim.raw_claim == raw_claim
-
-
-def test_v4_proof_state_loads_into_v5_with_no_invented_goal_obligation():
-    with tempfile.TemporaryDirectory() as directory:
-        state = RunState("LH-V4-MIGRATION", make_goal(Path(directory)))
-        payload = state.to_dict()
-        payload["schema_version"] = PROOF_RUN_SCHEMA_VERSION
-        payload.pop("goal_obligation")
-
-        migrated = RunState.from_dict(payload)
-
-        assert migrated.schema_version == RUN_SCHEMA_VERSION
-        assert migrated.goal_obligation is None
-
-
-def test_model_task_ids_are_local_and_deterministically_rewritten():
-    proposals = [
-        TaskNode("T1", "Local first", "First local task"),
-        TaskNode(
-            "T9",
-            "Local second",
-            "Second local task",
-            dependencies=["T1"],
+def save_action_started(store: LongHorizonStore, state: RunState) -> RunState:
+    action = action_record()
+    action.status = ActionStatus.RUNNING
+    action.ended_at = None
+    action.result = None
+    action.outcome_type = "pending"
+    return store.save(
+        state,
+        causal_event=CausalEventDraft.create(
+            "action_started",
+            {"action_id": action.action_id, "action": action.to_dict()},
+            subject_id=action.action_id,
+            cause_id=state.causal_order[-1],
         ),
-    ]
-
-    tasks, mapping, next_sequence = TaskGraph.materialize_model_tasks(
-        proposals,
-        existing_ids={"T1", "T9"},
-        next_sequence=1,
     )
 
-    assert mapping == {"T1": "T2", "T9": "T3"}
-    assert [task.task_id for task in tasks] == ["T2", "T3"]
-    assert tasks[1].dependencies == ["T2"]
-    assert next_sequence == 4
-    assert [task.task_id for task in proposals] == ["T1", "T9"]
+
+def save_action_finished(store: LongHorizonStore, state: RunState) -> RunState:
+    action = ActionRecord.from_dict(state.actions["A00001"].to_dict())
+    action.status = ActionStatus.SUCCEEDED
+    action.ended_at = utc_now()
+    action.result = {
+        "action_type": "write_file", "success": True, "output": "file written"
+    }
+    action.outcome_type = "success"
+    return store.save(
+        state,
+        causal_event=CausalEventDraft.create(
+            "action_finished",
+            {
+                "action_id": action.action_id,
+                "action": action.to_dict(),
+                "artifacts": [],
+                "artifact_revisions": [],
+            },
+            subject_id=action.action_id,
+            cause_id=state.causal_order[-1],
+        ),
+    )
+
+
+def test_literal_request_is_immutable_and_deduplicates_constraints(tmp_path: Path) -> None:
+    goal = literal(tmp_path)
+    assert goal.request == "Read input.txt and write output.txt."
+    assert goal.constraints == ("workspace only",)
+    assert goal.verify_digest()
+    assert GoalState.from_dict(goal.to_dict()) == goal
+
+
+def test_literal_request_digest_rejects_mutation(tmp_path: Path) -> None:
+    payload = literal(tmp_path).to_dict()
+    payload["request"] = "changed"
+    with pytest.raises(ValueError, match="digest"):
+        GoalState.from_dict(payload)
+
+
+def test_run_state_round_trip_rebuilds_action_projection_from_events(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = save_action_started(store, store.create_run(literal(tmp_path), "R1"))
+    state = save_action_finished(store, state)
+    payload = state.to_dict()
+    assert "actions" in payload
+    assert "tasks" not in payload
+    assert "attempts" not in payload
+    restored = RunState.from_dict(json.loads(json.dumps(payload)))
+    assert restored.actions["A00001"].action_type == "write_file"
+    assert restored.actions["A00001"].status == ActionStatus.SUCCEEDED
+    assert restored.actions["A00001"].result == {
+        "action_type": "write_file", "success": True, "output": "file written"
+    }
+
+
+def test_old_v16_state_is_not_silently_loaded(tmp_path: Path) -> None:
+    payload = RunState(run_id="R1", goal=literal(tmp_path)).to_dict()
+    payload["schema_version"] = "long-horizon.run.v16"
+    with pytest.raises(ValueError, match="unsupported run schema"):
+        RunState.from_dict(payload)
+
+
+def test_action_fingerprint_is_key_order_stable() -> None:
+    left = TaskAction("write_json", {"path": "a.json", "value": {"a": 1, "b": 2}})
+    right = TaskAction("write_json", {"value": {"b": 2, "a": 1}, "path": "a.json"})
+    assert action_fingerprint(left) == action_fingerprint(right)
+
+
+def test_causal_event_round_trip_and_digest() -> None:
+    draft = CausalEventDraft.create(
+        "action_started",
+        {"action_id": "A00001"},
+        subject_id="A00001",
+    )
+    record = CausalEvent.create(
+        event_id="CE-000001",
+        run_id="RUN",
+        sequence=1,
+        parent_id=None,
+        draft=draft,
+        created_at="2026-08-15T00:00:00.000+00:00",
+    )
+    assert CausalEvent.from_dict(record.to_dict()) == record
+    damaged = record.to_dict()
+    damaged["payload"]["action_id"] = "A99999"
+    with pytest.raises(ValueError, match="digest"):
+        CausalEvent.from_dict(damaged)
+
+
+def test_unregistered_event_type_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unregistered"):
+        CausalEventDraft.create("invented_event", {}, subject_id="RUN")
+
+
+def test_store_writes_one_common_envelope_for_every_revision(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(literal(tmp_path), "RUN-1")
+    assert state.causal_order == ["CE-000001"]
+    state = store.save(
+        state,
+        causal_event=CausalEventDraft.create(
+            "run_started",
+            {"status": "running"},
+            subject_id=state.run_id,
+            cause_id=state.causal_order[-1],
+        ),
+    )
+    assert state.causal_order == ["CE-000001", "CE-000002"]
+    records = [state.causal_records[item] for item in state.causal_order]
+    assert records[1].parent_id == records[0].event_id
+    assert records[1].event_type == "run_started"
+    assert records[1].payload_schema == "rwkv-lh.run-started.v1"
+
+
+def test_store_action_index_contains_only_action_projection(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(literal(tmp_path), "RUN-2")
+    state = save_action_started(store, state)
+    state = save_action_finished(store, state)
+    with sqlite3.connect(store.database_path) as connection:
+        row = connection.execute(
+            "SELECT action_id, status, sequence, operation FROM action_index"
+        ).fetchone()
+        tables = {
+            item[0]
+            for item in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    assert row == ("A00001", "succeeded", 1, "write_file")
+    assert "task_index" not in tables
+
+
+def test_store_rejects_stale_revision(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    first = store.create_run(literal(tmp_path), "RUN-3")
+    stale = RunState.from_dict(first.to_dict())
+    first = store.save(
+        first,
+        causal_event=CausalEventDraft.create(
+            "state_saved", {}, subject_id=first.run_id, cause_id=first.causal_order[-1]
+        ),
+    )
+    with pytest.raises(ConcurrentStateError):
+        store.save(
+            stale,
+            causal_event=CausalEventDraft.create(
+                "state_saved", {}, subject_id=stale.run_id, cause_id=stale.causal_order[-1]
+            ),
+        )
+    assert store.load("RUN-3").revision == first.revision
+
+
+def test_store_event_and_checkpoint_sequences_align(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state", checkpoint_retention=50)
+    state = store.create_run(literal(tmp_path), "RUN-4")
+    for index in range(3):
+        state = store.save(
+            state,
+            causal_event=CausalEventDraft.create(
+                "state_saved",
+                {"index": index},
+                subject_id=state.run_id,
+                cause_id=state.causal_order[-1],
+            ),
+        )
+    events = store.event_records("RUN-4")
+    checkpoints = store.checkpoint_records("RUN-4")
+    assert [item["revision"] for item in events] == [0, 1, 2, 3]
+    assert [item["revision"] for item in checkpoints] == [0, 1, 2, 3]
+
+
+def test_artifact_record_is_rebuilt_from_finished_action_event(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = save_action_started(store, store.create_run(literal(tmp_path), "R"))
+    artifact = ArtifactRecord(
+        artifact_id="ART-1",
+        action_id="A00001",
+        path="out.txt",
+        sha256="a" * 64,
+        media_type="text/plain",
+        size_bytes=2,
+    )
+    action = ActionRecord.from_dict(state.actions["A00001"].to_dict())
+    action.status = ActionStatus.SUCCEEDED
+    action.ended_at = utc_now()
+    action.result = {
+        "action_type": "write_file", "success": True, "output": "file written"
+    }
+    action.outcome_type = "success"
+    action.artifact_refs = [artifact.artifact_id]
+    state = store.save(
+        state,
+        causal_event=CausalEventDraft.create(
+            "action_finished",
+            {
+                "action_id": action.action_id,
+                "action": action.to_dict(),
+                "artifacts": [artifact.__dict__],
+                "artifact_revisions": [],
+            },
+            subject_id=action.action_id,
+            cause_id=state.causal_order[-1],
+        ),
+    )
+    restored = RunState.from_dict(state.to_dict(include_projections=False))
+    assert restored.artifacts["ART-1"].action_id == "A00001"
+    assert restored.artifacts["ART-1"].size_bytes == 2
+
+
+def test_projection_fields_cannot_override_event_authority(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = save_action_started(store, store.create_run(literal(tmp_path), "RUN-X"))
+    state = save_action_finished(store, state)
+    payload = state.to_dict()
+    payload["actions"]["A00001"]["status"] = "running"
+    restored = RunState.from_dict(payload)
+    assert restored.actions["A00001"].status == ActionStatus.SUCCEEDED
+
+
+def test_projection_digest_tampering_is_rejected(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(literal(tmp_path), "RUN-DIGEST")
+    payload = state.to_dict(include_projections=False)
+    payload["projection_digest"] = "0" * 64
+    with pytest.raises(ValueError, match="projection digest"):
+        RunState.from_dict(payload)
+
+
+def test_causal_order_tampering_is_rejected(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = save_action_started(store, store.create_run(literal(tmp_path), "RUN-ORDER"))
+    payload = state.to_dict(include_projections=False)
+    payload["causal_order"] = list(reversed(payload["causal_order"]))
+    with pytest.raises(ValueError, match="sequence or parent"):
+        RunState.from_dict(payload)

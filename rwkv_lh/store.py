@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sqlite3
 import threading
 import time
+import zlib
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 from uuid import uuid4
 
 from rwkv_lh.runtime.settings import PROJECT_ROOT
-from rwkv_lh.schema import GoalState, RunState, RunStatus, utc_now
+from rwkv_lh.schema import CausalEvent, CausalEventDraft, GoalState, RunState, RunStatus, utc_now
 
 
 class ConcurrentStateError(RuntimeError):
@@ -40,8 +42,7 @@ class StateStore(Protocol):
         state: RunState,
         *,
         expected_revision: int | None = None,
-        event_type: str = "state_saved",
-        event: Mapping[str, Any] | None = None,
+        causal_event: CausalEventDraft,
     ) -> RunState: ...
 
     def controller_lease(
@@ -54,14 +55,14 @@ class StateStore(Protocol):
 
 
 class LongHorizonStore:
+    _compressed_json_prefix = "zlib-json-v1:"
+    _compression_threshold_bytes = 4096
     _milestone_events = {
         "run_created",
-        "plan_saved",
         "run_completed",
         "run_blocked",
         "run_failed",
         "run_interrupted",
-        "replan_saved",
         "snapshot_recovered",
     }
     def __init__(
@@ -118,8 +119,11 @@ class LongHorizonStore:
             return self.save(
                 state,
                 expected_revision=-1,
-                event_type="run_created",
-                event={"goal_digest": goal.digest},
+                causal_event=CausalEventDraft.create(
+                    "run_created",
+                    {"goal_digest": goal.digest},
+                    subject_id=identifier,
+                ),
             )
         except Exception:
             if not artifact_directory_existed:
@@ -182,15 +186,16 @@ class LongHorizonStore:
         state: RunState,
         *,
         expected_revision: int | None = None,
-        event_type: str = "state_saved",
-        event: Mapping[str, Any] | None = None,
+        causal_event: CausalEventDraft,
     ) -> RunState:
         if not state.goal.verify_digest():
             raise ValueError("goal digest mismatch")
         identifier = self._normalize_run_id(state.run_id)
         expected = state.revision if expected_revision is None else int(expected_revision)
-        saved = RunState.from_dict(state.to_dict())
-        event_name = str(event_type or "state_saved")
+        authority = state.to_dict(include_projections=False)
+        authority.pop("projection_digest", None)
+        saved = RunState.from_dict(authority)
+        event_name = causal_event.event_type
         with self._transaction() as connection:
             row = connection.execute(
                 "SELECT revision, goal_digest FROM runs WHERE run_id = ?",
@@ -205,7 +210,9 @@ class LongHorizonStore:
                 raise ValueError("immutable goal digest changed")
             saved.revision = disk_revision + 1
             saved.updated_at = utc_now()
-            state_json = self._serialize(saved.to_dict())
+            appended = self._append_causal_event(saved, causal_event)
+            saved.rebuild_projection()
+            state_json = self._serialize(saved.to_dict(include_projections=False))
             milestone = int(event_name in self._milestone_events)
             if row is None:
                 connection.execute(
@@ -260,7 +267,7 @@ class LongHorizonStore:
                     saved.updated_at,
                 ),
             )
-            self._replace_task_index(connection, saved)
+            self._replace_action_index(connection, saved)
             connection.execute(
                 """
                 INSERT INTO events (
@@ -272,7 +279,7 @@ class LongHorizonStore:
                     identifier,
                     saved.revision,
                     event_name,
-                    self._serialize(dict(event or {})),
+                    self._serialize(appended.to_dict()),
                 ),
             )
             self._prune_checkpoints(connection, identifier)
@@ -291,17 +298,21 @@ class LongHorizonStore:
                 """,
                 (identifier,),
             ).fetchall()
-        return [
-            {
-                "event_id": int(row["event_id"]),
-                "timestamp": row["timestamp"],
-                "run_id": row["run_id"],
-                "revision": int(row["revision"]),
-                "type": row["type"],
-                "data": json.loads(row["data_json"]),
-            }
-            for row in rows
-        ]
+        records = []
+        for row in rows:
+            causal = self._deserialize(row["data_json"])
+            records.append(
+                {
+                    "event_id": int(row["event_id"]),
+                    "timestamp": row["timestamp"],
+                    "run_id": row["run_id"],
+                    "revision": int(row["revision"]),
+                    "type": row["type"],
+                    "data": dict(causal.get("payload") or {}),
+                    "causal_event": causal,
+                }
+            )
+        return records
 
     def checkpoint_records(self, run_id: str) -> list[dict[str, Any]]:
         """Return retained state snapshots in causal revision order.
@@ -328,7 +339,9 @@ class LongHorizonStore:
                 "event_type": row["event_type"],
                 "milestone": bool(row["milestone"]),
                 "created_at": row["created_at"],
-                "state": json.loads(row["state_json"]),
+                "state": RunState.from_dict(
+                    self._deserialize(row["state_json"])
+                ).to_dict(),
             }
             for row in rows
         ]
@@ -400,19 +413,18 @@ class LongHorizonStore:
                     updated_at TEXT NOT NULL
                 );
 
-                CREATE TABLE IF NOT EXISTS task_index (
+                CREATE TABLE IF NOT EXISTS action_index (
                     run_id TEXT NOT NULL,
-                    task_id TEXT NOT NULL,
+                    action_id TEXT NOT NULL,
                     status TEXT NOT NULL,
-                    required INTEGER NOT NULL,
-                    active INTEGER NOT NULL,
-                    priority INTEGER NOT NULL,
-                    PRIMARY KEY (run_id, task_id),
+                    sequence INTEGER NOT NULL,
+                    operation TEXT NOT NULL,
+                    PRIMARY KEY (run_id, action_id),
                     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
                 );
 
-                CREATE INDEX IF NOT EXISTS task_index_ready
-                ON task_index(run_id, status, active, required, priority DESC);
+                CREATE INDEX IF NOT EXISTS action_index_sequence
+                ON action_index(run_id, sequence);
 
                 CREATE TABLE IF NOT EXISTS checkpoints (
                     run_id TEXT NOT NULL,
@@ -445,7 +457,7 @@ class LongHorizonStore:
                     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
                 );
 
-                PRAGMA user_version = 1;
+                PRAGMA user_version = 3;
                 """
             )
 
@@ -486,6 +498,7 @@ class LongHorizonStore:
         try:
             repaired = RunState.from_dict(state.to_dict())
             recovered_from_revision = repaired.revision
+            recovery_event: CausalEvent | None = None
             if repaired.revision < current_revision:
                 maximum_event_revision = int(
                     connection.execute(
@@ -495,7 +508,20 @@ class LongHorizonStore:
                 )
                 repaired.revision = max(current_revision, maximum_event_revision) + 1
                 repaired.updated_at = utc_now()
-            state_json = self._serialize(repaired.to_dict())
+                recovery_event = self._append_causal_event(
+                    repaired,
+                    CausalEventDraft.create(
+                        "snapshot_recovered",
+                        {
+                            "checkpoint_revision": recovered_from_revision,
+                            "corrupt_current_revision": current_revision,
+                        },
+                        subject_id=repaired.run_id,
+                        cause_id=(repaired.causal_order[-1] if repaired.causal_order else None),
+                    ),
+                )
+                repaired.rebuild_projection()
+            state_json = self._serialize(repaired.to_dict(include_projections=False))
             cursor = connection.execute(
                 """
                 UPDATE runs
@@ -514,7 +540,7 @@ class LongHorizonStore:
             )
             if cursor.rowcount != 1:
                 raise StateRecoveryError(f"run disappeared during recovery: {repaired.run_id}")
-            self._replace_task_index(connection, repaired)
+            self._replace_action_index(connection, repaired)
             if repaired.revision > current_revision:
                 connection.execute(
                     """
@@ -539,12 +565,7 @@ class LongHorizonStore:
                         repaired.updated_at,
                         repaired.run_id,
                         repaired.revision,
-                        self._serialize(
-                            {
-                                "checkpoint_revision": recovered_from_revision,
-                                "corrupt_current_revision": current_revision,
-                            }
-                        ),
+                        self._serialize(recovery_event.to_dict() if recovery_event else {}),
                     ),
                 )
                 self._prune_checkpoints(connection, repaired.run_id)
@@ -555,26 +576,45 @@ class LongHorizonStore:
             raise
 
     @staticmethod
-    def _replace_task_index(connection: sqlite3.Connection, state: RunState) -> None:
-        connection.execute("DELETE FROM task_index WHERE run_id = ?", (state.run_id,))
+    def _replace_action_index(connection: sqlite3.Connection, state: RunState) -> None:
+        connection.execute("DELETE FROM action_index WHERE run_id = ?", (state.run_id,))
         connection.executemany(
             """
-            INSERT INTO task_index (
-                run_id, task_id, status, required, active, priority
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO action_index (
+                run_id, action_id, status, sequence, operation
+            ) VALUES (?, ?, ?, ?, ?)
             """,
             [
                 (
                     state.run_id,
-                    task.task_id,
-                    task.status.value,
-                    int(task.required),
-                    int(task.active),
-                    task.priority,
+                    action.action_id,
+                    action.status.value,
+                    action.sequence,
+                    action.action_type,
                 )
-                for task in state.tasks.values()
+                for action in state.actions.values()
             ],
         )
+
+    @staticmethod
+    def _append_causal_event(
+        state: RunState,
+        draft: CausalEventDraft,
+    ) -> CausalEvent:
+        """Append exactly one typed event; no stage classification is inferred."""
+
+        sequence = len(state.causal_order) + 1
+        event_id = f"CE-{sequence:06d}"
+        record = CausalEvent.create(
+            event_id=event_id,
+            run_id=state.run_id,
+            sequence=sequence,
+            parent_id=state.causal_order[-1] if state.causal_order else None,
+            draft=draft,
+        )
+        state.causal_records[event_id] = record
+        state.causal_order.append(event_id)
+        return record
 
     def _prune_checkpoints(self, connection: sqlite3.Connection, run_id: str) -> None:
         connection.execute(
@@ -661,7 +701,7 @@ class LongHorizonStore:
         source: str,
     ) -> RunState | None:
         try:
-            state = RunState.from_dict(json.loads(raw))
+            state = RunState.from_dict(LongHorizonStore._deserialize(raw))
             if state.run_id != run_id:
                 raise ValueError("run_id mismatch")
             return state
@@ -671,12 +711,35 @@ class LongHorizonStore:
 
     @staticmethod
     def _serialize(payload: Mapping[str, Any]) -> str:
-        return json.dumps(
+        rendered = json.dumps(
             dict(payload),
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
         )
+        encoded = rendered.encode("utf-8")
+        if len(encoded) < LongHorizonStore._compression_threshold_bytes:
+            return rendered
+        compressed = zlib.compress(encoded, level=6)
+        wrapped = (
+            LongHorizonStore._compressed_json_prefix
+            + base64.b64encode(compressed).decode("ascii")
+        )
+        return wrapped if len(wrapped) < len(rendered) else rendered
+
+    @staticmethod
+    def _deserialize(raw: str) -> dict[str, Any]:
+        value = str(raw or "")
+        if value.startswith(LongHorizonStore._compressed_json_prefix):
+            encoded = value.removeprefix(LongHorizonStore._compressed_json_prefix)
+            try:
+                value = zlib.decompress(base64.b64decode(encoded)).decode("utf-8")
+            except (ValueError, zlib.error, UnicodeDecodeError) as exc:
+                raise ValueError("compressed JSON payload is corrupt") from exc
+        payload = json.loads(value)
+        if not isinstance(payload, Mapping):
+            raise ValueError("stored JSON payload must be an object")
+        return dict(payload)
 
     @staticmethod
     def _normalize_run_id(run_id: str) -> str:

@@ -14,7 +14,9 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from rwkv_lh.chunks import ChunkingError, slice_text_from_byte_cursor
 from rwkv_lh.schema import GoalState, TaskAction, ValidationSpec
+from rwkv_lh.token_budget import get_token_count
 
 
 class HarnessError(RuntimeError):
@@ -39,6 +41,58 @@ class ActionDefinition:
     # confined to deterministic workspace state. Extensions default closed;
     # an external or time-sensitive action must never opt in.
     failure_observation_cacheable: bool = False
+    required_arguments: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.name.strip() or not self.description.strip():
+            raise ValueError("action definition requires name and description")
+        if set(self.required_arguments) - set(self.argument_schema):
+            raise ValueError(
+                f"action {self.name} requires undeclared arguments: "
+                f"{sorted(set(self.required_arguments) - set(self.argument_schema))}"
+            )
+        non_schema = [
+            name
+            for name, value in self.argument_schema.items()
+            if not isinstance(value, Mapping)
+        ]
+        if non_schema:
+            raise ValueError(
+                f"action {self.name} arguments must use explicit JSON Schema: {non_schema}"
+            )
+
+    def parameters_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                name: dict(schema)
+                for name, schema in self.argument_schema.items()
+            },
+            "required": list(self.required_arguments),
+            "additionalProperties": False,
+        }
+
+    def g1i_definition(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters_schema(),
+        }
+
+    def apply_defaults(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
+        # JSON-producing models commonly emit ``null`` for an omitted optional
+        # field.  Optional null and omission have the same executable meaning in
+        # this registry; required fields (including a required arbitrary JSON
+        # value) are never removed.
+        normalized = {
+            name: value
+            for name, value in arguments.items()
+            if value is not None or name in self.required_arguments
+        }
+        for name, schema in self.argument_schema.items():
+            if name not in normalized and "default" in schema:
+                normalized[name] = schema["default"]
+        return normalized
 
 
 @dataclass
@@ -93,6 +147,13 @@ class ActionResult:
             return "invalid"
         if error_type in {"FileExistsError", "AlreadyExists", "Conflict"}:
             return "conflict"
+        if error_type in {
+            "InjectedTransientToolFailure",
+            "Transient503",
+            "ServiceUnavailable",
+            "ConnectionError",
+        }:
+            return "transient"
         if error_type in {"TimeoutExpired", "TimeoutError"}:
             return "timeout"
         if exit_code not in {None, 0} or error_type == "CommandFailed":
@@ -133,177 +194,313 @@ class ActionResult:
 
 
 class ActionHarness:
-    _required_arguments = {
-        "write_file": ("path", "content"),
-        "write_json": ("path", "value"),
-        "replace_text": ("path", "old", "new"),
-        "remove_line": ("path", "text"),
-        "append_file": ("path", "content"),
-        "delete_file": ("path",),
-        "make_directory": ("path",),
-        "copy_file": ("source", "destination"),
-        "list_directory": (),
-        "read_file": ("path",),
-        "read_json": ("path",),
-        "bind_evidence": ("path", "start_line", "end_line"),
-        "check_command": ("argv",),
-        "run_command": ("argv",),
-        "noop": (),
-    }
-    _g1i_required_arguments = {
-        "write_file": ("path", "content", "overwrite", "create_parents"),
-    }
     _verifier_candidates = {
         "write_file": (
             "action_succeeded", "file_exists", "file_contains", "file_content",
-            "hash_equals", "model_cross_check",
+            "hash_equals",
         ),
         "write_json": (
             "action_succeeded", "file_exists", "file_content", "json_field_equals",
-            "json_schema", "hash_equals", "model_cross_check",
+            "json_schema", "hash_equals",
+        ),
+        "patch_json": (
+            "action_succeeded", "file_exists", "file_content", "json_field_equals",
+            "json_schema", "hash_changed",
         ),
         "replace_text": (
             "action_succeeded", "file_exists", "file_contains", "file_not_contains",
-            "file_content", "hash_changed", "model_cross_check",
+            "file_content", "hash_changed",
         ),
         "remove_line": (
             "action_succeeded", "file_exists", "file_not_contains", "file_content",
-            "hash_changed", "model_cross_check",
+            "hash_changed",
         ),
         "append_file": (
             "action_succeeded", "file_exists", "file_contains", "file_content",
-            "hash_changed", "model_cross_check",
+            "hash_changed",
         ),
         "delete_file": ("action_succeeded", "file_absent"),
         "make_directory": ("action_succeeded", "file_exists"),
-        "copy_file": (
-            "action_succeeded", "file_exists", "model_cross_check",
-        ),
-        "list_directory": ("action_succeeded", "model_cross_check"),
-        "read_file": (
-            "action_succeeded", "file_exists", "model_cross_check",
-        ),
+        "copy_file": ("action_succeeded", "file_exists"),
+        "move_file": ("action_succeeded", "file_exists", "file_absent"),
+        "list_directory": ("action_succeeded",),
+        "file_digest": ("action_succeeded", "file_exists", "hash_equals"),
+        "read_file": ("action_succeeded", "file_exists"),
         "read_json": (
             "action_succeeded", "file_exists", "json_field_equals", "json_schema",
-            "model_cross_check",
         ),
-        "bind_evidence": ("action_succeeded", "evidence_bound", "model_cross_check"),
-        "check_command": ("action_succeeded", "command_exit_code", "model_cross_check"),
-        "run_command": ("action_succeeded", "command_exit_code", "model_cross_check"),
-        "noop": ("action_succeeded", "memory_ref_exists", "model_cross_check"),
+        "bind_evidence": ("action_succeeded", "evidence_bound"),
+        "check_command": ("action_succeeded", "command_exit_code"),
+        "run_command": ("action_succeeded", "command_exit_code"),
+        "noop": ("action_succeeded", "memory_ref_exists"),
     }
 
     _definitions = {
         "write_file": ActionDefinition(
             "write_file", "Atomically write UTF-8 text inside the workspace.", False, True, True, 30.0,
             {
-                "path": "relative path",
-                "content": "text",
+                "path": {"type": "string", "description": "relative path"},
+                "content": {"type": "string", "description": "UTF-8 text"},
                 "overwrite": {
                     "type": "boolean",
                     "const": True,
+                    "default": True,
                     "description": "must be true to preserve idempotent retry",
                 },
-                "create_parents": "boolean",
+                "create_parents": {
+                    "type": "boolean",
+                    "const": True,
+                    "default": True,
+                    "description": "missing parent directories are created",
+                },
             },
             ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("path", "content"),
         ),
         "write_json": ActionDefinition(
-            "write_json", "Atomically serialize a JSON value inside the workspace.", False, True, True, 30.0,
-            {"path": "relative path", "value": "any JSON value"}, ("file_exists",),
+            "write_json", (
+                "Create or replace a complete JSON value atomically from values already "
+                "visible in the Task or dependency observations; omitted existing fields "
+                "are deleted. RWKV must supply the entire value."
+            ), False, True, True, 30.0,
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "value": {"description": "any JSON value"},
+                "overwrite": {
+                    "type": "boolean",
+                    "const": True,
+                    "default": True,
+                    "description": "must be true; write_json atomically replaces the complete value",
+                },
+                "create_parents": {
+                    "type": "boolean",
+                    "const": True,
+                    "default": True,
+                    "description": "must be true; missing parent directories are created",
+                },
+            },
+            ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("path", "value"),
+        ),
+        "patch_json": ActionDefinition(
+            "patch_json",
+            "Update explicit top-level keys in an existing JSON object while preserving every unspecified key.",
+            False,
+            True,
+            True,
+            30.0,
+            {
+                "path": {"type": "string", "description": "relative existing JSON path"},
+                "updates": {"type": "object", "description": "explicit top-level replacements"},
+            },
+            ("file_exists",),
+            failure_observation_cacheable=True,
+            required_arguments=("path", "updates"),
         ),
         "replace_text": ActionDefinition(
             "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
             {
-                "path": "relative path",
-                "old": "exact text",
-                "new": "replacement",
+                "path": {"type": "string", "description": "relative path"},
+                "old": {"type": "string", "description": "exact text"},
+                "new": {"type": "string", "description": "replacement"},
                 "count": {
                     "type": "integer",
                     "minimum": 1,
                     "description": "positive replacement count",
                 },
+                "all": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "replace every occurrence when true",
+                },
             },
             ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("path", "old", "new"),
         ),
         "remove_line": ActionDefinition(
             "remove_line", "Remove a complete UTF-8 text line from an existing file.", False, True, True, 30.0,
-            {"path": "relative path", "text": "line text without newline", "all": "boolean"},
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "text": {"type": "string", "description": "line text without newline"},
+                "all": {"type": "boolean", "default": False},
+            },
             ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("path", "text"),
         ),
         "append_file": ActionDefinition(
             "append_file", "Append UTF-8 text; this action is non-idempotent.", False, True, False, 30.0,
-            {"path": "relative path", "content": "text"}, ("file_contains",),
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "content": {"type": "string", "description": "UTF-8 text"},
+            }, ("file_contains",),
+            required_arguments=("path", "content"),
         ),
         "delete_file": ActionDefinition(
             "delete_file", "Delete one explicitly scoped path.", False, True, True, 30.0,
-            {"path": "relative path", "missing_ok": "boolean", "recursive": "boolean"}, ("file_absent",),
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "missing_ok": {"type": "boolean", "default": False},
+                "recursive": {"type": "boolean", "default": False},
+            }, ("file_absent",),
             failure_observation_cacheable=True,
+            required_arguments=("path",),
         ),
         "make_directory": ActionDefinition(
             "make_directory", "Create a directory inside the workspace.", False, True, True, 30.0,
-            {"path": "relative path", "parents": "boolean"}, ("file_exists",),
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "parents": {"type": "boolean", "default": True},
+            }, ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("path",),
         ),
         "copy_file": ActionDefinition(
-            "copy_file", "Copy one scoped file to another scoped path.", False, True, True, 30.0,
-            {"source": "relative path", "destination": "relative path"}, ("file_exists",),
+            "copy_file", "Duplicate one existing scoped file's exact bytes to a destination; this is the file-copy action.", False, True, True, 30.0,
+            {
+                "source": {"type": "string", "description": "relative source path"},
+                "destination": {"type": "string", "description": "relative destination path"},
+            }, ("file_exists",),
             failure_observation_cacheable=True,
+            required_arguments=("source", "destination"),
+        ),
+        "move_file": ActionDefinition(
+            "move_file", (
+                "Move (rename) one existing scoped file to a destination path; after "
+                "success the destination has the exact source bytes and the source no "
+                "longer exists. This action is non-idempotent."
+            ), False, True, False, 30.0,
+            {
+                "source": {"type": "string", "description": "relative source path"},
+                "destination": {"type": "string", "description": "relative destination path"},
+            }, ("file_exists", "file_absent"),
+            required_arguments=("source", "destination"),
+        ),
+        "file_digest": ActionDefinition(
+            "file_digest", (
+                "Observe the SHA256 hex digest and byte size of one existing scoped "
+                "file; read-only and never modifies anything."
+            ), True, False, True, 30.0,
+            {
+                "path": {"type": "string", "description": "relative path"},
+            },
+            failure_observation_cacheable=True,
+            required_arguments=("path",),
         ),
         "list_directory": ActionDefinition(
             "list_directory",
-            "List bounded file and directory metadata inside the workspace without reading file contents.",
+            "List bounded path/type/size metadata only; never reads file contents and never creates or copies files.",
             True,
             False,
             True,
             30.0,
             {
-                "path": "relative directory; defaults to workspace root",
-                "recursive": "boolean",
-                "max_entries": "positive integer up to 1024",
-                "start_after": "optional prior page next_cursor path",
+                "path": {"type": "string", "default": ".", "description": "relative directory"},
+                "recursive": {"type": "boolean", "default": False},
+                "max_entries": {"type": "integer", "minimum": 1, "maximum": 1024, "default": 1024},
+                "start_after": {"type": "string", "default": "", "description": "prior page next_cursor path"},
+                "max_tokens": {"type": "integer", "minimum": 256, "maximum": 8192, "default": 4096},
             },
             failure_observation_cacheable=True,
         ),
         "read_file": ActionDefinition(
-            "read_file", "Read a UTF-8 file without modifying it.", True, False, True, 30.0,
+            "read_file", "Observe one exact tokenizer-bounded UTF-8 byte range; continue only from next_start_byte.", True, False, True, 30.0,
             {
-                "path": "relative path",
-                "start_char": "zero-based non-negative integer",
-                "max_chars": "positive integer up to 16000",
+                "path": {"type": "string", "description": "relative path"},
+                "start_byte": {"type": "integer", "minimum": 0, "default": 0},
+                "max_tokens": {"type": "integer", "minimum": 256, "maximum": 8192, "default": 4096},
             },
             failure_observation_cacheable=True,
+            required_arguments=("path",),
         ),
         "read_json": ActionDefinition(
-            "read_json", "Parse a JSON file and return normalized structured content without modifying it.",
+            "read_json", (
+                "Parse an existing JSON file and observe one exact tokenizer-bounded byte "
+                "range of its canonical compact representation. It is not applicable to "
+                "plain text or key=value content already observed by read_file."
+            ),
             True, False, True, 30.0,
-            {"path": "relative path", "max_chars": "positive integer"},
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "zero-based UTF-8 byte offset in canonical compact JSON",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                },
+            },
             failure_observation_cacheable=True,
+            required_arguments=("path",),
         ),
         "bind_evidence": ActionDefinition(
             "bind_evidence", "Read an exact line span and retain its source locator and quote.", True, False, True, 30.0,
-            {"path": "relative path", "start_line": "1-based integer", "end_line": "inclusive 1-based integer", "source": "source label or URL"},
+            {
+                "path": {"type": "string", "description": "relative path"},
+                "start_line": {"type": "integer", "minimum": 1},
+                "end_line": {"type": "integer", "minimum": 1},
+                "source": {"type": "string", "default": "", "description": "source label or URL"},
+                "max_tokens": {"type": "integer", "minimum": 128, "maximum": 4096, "default": 2048},
+            },
             ("evidence_bound",),
             failure_observation_cacheable=True,
+            required_arguments=("path", "start_line", "end_line"),
         ),
         "check_command": ActionDefinition(
-            "check_command", "Run a read-only test, linter, or inspection command with argv and shell disabled.",
+            "check_command", (
+                "Run a read-only test, linter, or inspection command with argv and shell "
+                "disabled. Set expected_exit_code explicitly when the intended observable "
+                "result is nonzero, for example grep returning 1 when no match remains."
+            ),
             True, False, True, 120.0,
-            {"argv": "non-empty string array", "cwd": "relative directory", "timeout": "seconds", "env": "explicit object"},
+            {
+                "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+                "cwd": {"type": "string", "default": ".", "description": "relative directory"},
+                "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
+                "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
+                "expected_exit_code": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "default": 0,
+                    "description": "RWKV-declared expected process exit code.",
+                },
+            },
             ("command_exit_code",),
+            required_arguments=("argv",),
         ),
         "run_command": ActionDefinition(
-            "run_command", "Run a potentially mutating command with argv and shell disabled.", False, True, False, 120.0,
-            {"argv": "non-empty string array", "cwd": "relative directory", "timeout": "seconds", "env": "explicit object"},
+            "run_command", (
+                "Run a potentially mutating command with argv and shell disabled. Set "
+                "expected_exit_code explicitly when the intended result is nonzero."
+            ), False, True, False, 120.0,
+            {
+                "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+                "cwd": {"type": "string", "default": ".", "description": "relative directory"},
+                "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
+                "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
+                "expected_exit_code": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "default": 0,
+                    "description": "RWKV-declared expected process exit code.",
+                },
+            },
             ("command_exit_code",),
+            required_arguments=("argv",),
         ),
         "noop": ActionDefinition(
             "noop", "Record an explicit no-op result for control-flow tasks.", True, False, True, 5.0,
-            {"output": "text"},
+            {"output": {"type": "string", "default": ""}},
         ),
     }
 
@@ -328,13 +525,16 @@ class ActionHarness:
         self._handlers: dict[str, Callable[[GoalState, dict[str, Any]], ActionResult]] = {
             "write_file": self._write_file,
             "write_json": self._write_json,
+            "patch_json": self._patch_json,
             "replace_text": self._replace_text,
             "remove_line": self._remove_line,
             "append_file": self._append_file,
             "delete_file": self._delete_file,
             "make_directory": self._make_directory,
             "copy_file": self._copy_file,
+            "move_file": self._move_file,
             "list_directory": self._list_directory,
+            "file_digest": self._file_digest,
             "read_file": self._read_file,
             "read_json": self._read_json,
             "bind_evidence": self._bind_evidence,
@@ -347,6 +547,7 @@ class ActionHarness:
             if name != definition.name:
                 raise HarnessError("custom action key must match definition.name")
             self.register_action(definition, handler)
+        self._validate_registry()
 
     def register_action(
         self,
@@ -398,31 +599,6 @@ class ActionHarness:
             "network": "shared only inside the command sandbox",
         }
 
-    @staticmethod
-    def _json_schema_property(specification: Any) -> dict[str, Any]:
-        """Convert the authoritative argument description into JSON Schema."""
-
-        if isinstance(specification, Mapping):
-            return dict(specification)
-        description = str(specification or "").strip()
-        lowered = description.casefold()
-        schema: dict[str, Any] = {"description": description}
-        if "any json value" in lowered:
-            return schema
-        if "boolean" in lowered:
-            schema["type"] = "boolean"
-        elif "array" in lowered:
-            schema.update({"type": "array", "items": {"type": "string"}})
-        elif "integer" in lowered:
-            schema["type"] = "integer"
-        elif "seconds" in lowered:
-            schema["type"] = "number"
-        elif "object" in lowered:
-            schema["type"] = "object"
-        else:
-            schema["type"] = "string"
-        return schema
-
     def g1i_tool_definitions(
         self,
         action_types: tuple[str, ...] | list[str] | None = None,
@@ -430,34 +606,30 @@ class ActionHarness:
         """Return the single authoritative tool list for G1i prompting."""
 
         selected = (
-            list(self._definitions)
+            [name for name in self._definitions if name != "noop"]
             if action_types is None
             else [str(item or "").strip() for item in action_types]
         )
         definitions: list[dict[str, Any]] = []
         for name in selected:
             definition = self.definition(name)
-            definitions.append(
-                {
-                    "name": name,
-                    "description": definition.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            argument: self._json_schema_property(specification)
-                            for argument, specification in definition.argument_schema.items()
-                        },
-                        "required": list(
-                            self._g1i_required_arguments.get(
-                                name,
-                                self._required_arguments.get(name, ()),
-                            )
-                        ),
-                        "additionalProperties": False,
-                    },
-                }
-            )
+            definitions.append(definition.g1i_definition())
         return definitions
+
+    def _validate_registry(self) -> None:
+        definition_names = set(self._definitions)
+        handler_names = set(self._handlers)
+        if definition_names != handler_names:
+            raise HarnessError(
+                "action registry/handler mismatch: "
+                f"missing_handlers={sorted(definition_names - handler_names)}, "
+                f"missing_definitions={sorted(handler_names - definition_names)}"
+            )
+        for name, definition in self._definitions.items():
+            if definition.name != name:
+                raise HarnessError(
+                    f"action registry key {name} differs from definition {definition.name}"
+                )
 
     def deterministic_verification_specs(
         self,
@@ -466,10 +638,19 @@ class ActionHarness:
         """Build observable postconditions for built-in actions without a model call."""
 
         name = str(action.action_type or "").strip()
-        if name not in type(self)._definitions:
+        if name not in self._definitions:
             return None
         arguments = action.arguments
         specs = [ValidationSpec("action_succeeded", {}, True)]
+        if name not in type(self)._definitions:
+            # Extensions are executable when their own registered contract is
+            # fully expressible by the generic action-success observation.
+            # Any extension requiring a richer verifier remains fail-closed.
+            if set(self._definitions[name].required_postconditions) - {
+                "action_succeeded"
+            }:
+                return None
+            return specs
         path = str(arguments.get("path") or "")
         if name == "write_file":
             specs.append(
@@ -495,7 +676,7 @@ class ActionHarness:
                     True,
                 )
             )
-        elif name in {"replace_text", "remove_line"}:
+        elif name in {"patch_json", "replace_text", "remove_line"}:
             specs.append(ValidationSpec("file_exists", {"path": path}, True))
         elif name == "append_file":
             specs.append(
@@ -517,13 +698,32 @@ class ActionHarness:
                     True,
                 )
             )
-        elif name in {"read_file", "read_json"}:
+        elif name == "move_file":
+            specs.append(
+                ValidationSpec(
+                    "file_exists",
+                    {"path": str(arguments.get("destination") or "")},
+                    True,
+                )
+            )
+            specs.append(
+                ValidationSpec(
+                    "file_absent",
+                    {"path": str(arguments.get("source") or "")},
+                    True,
+                )
+            )
+        elif name in {"read_file", "read_json", "file_digest"}:
             specs.append(ValidationSpec("file_exists", {"path": path}, True))
         elif name == "bind_evidence":
             specs.append(ValidationSpec("evidence_bound", {}, True))
         elif name in {"check_command", "run_command"}:
             specs.append(
-                ValidationSpec("command_exit_code", {"expected": 0}, True)
+                ValidationSpec(
+                    "command_exit_code",
+                    {"expected": int(arguments.get("expected_exit_code", 0))},
+                    True,
+                )
             )
         return specs
 
@@ -538,9 +738,7 @@ class ActionHarness:
             "idempotent": definition.idempotent,
             "default_timeout": definition.default_timeout,
             "arguments": definition.argument_schema,
-            "required_arguments": list(
-                self._required_arguments.get(definition.name, ())
-            ),
+            "required_arguments": list(definition.required_arguments),
             "required_postconditions": list(definition.required_postconditions),
         }
         if definition.name in {"run_command", "check_command"}:
@@ -564,7 +762,7 @@ class ActionHarness:
         arguments = action.arguments
         if not isinstance(arguments, Mapping):
             raise HarnessError("action arguments must be an object")
-        required = self._required_arguments.get(definition.name, ())
+        required = definition.required_arguments
         missing = [name for name in required if name not in arguments]
         if missing:
             raise HarnessError(
@@ -574,6 +772,14 @@ class ActionHarness:
         if unknown:
             raise HarnessError(
                 f"action {definition.name} has unknown arguments: {unknown}"
+            )
+        for argument_name, argument_value in arguments.items():
+            schema = definition.argument_schema[argument_name]
+            self._validate_argument_schema(
+                definition.name,
+                argument_name,
+                argument_value,
+                schema,
             )
         for name in ("path", "source", "destination", "cwd"):
             if name in arguments and (
@@ -586,30 +792,246 @@ class ActionHarness:
                 raise HarnessError(
                     f"action {definition.name} argument {name} must be workspace-relative"
                 )
-        if definition.name == "replace_text" and "count" in arguments:
-            count = arguments["count"]
-            if isinstance(count, bool) or not isinstance(count, int) or count < 1:
-                raise HarnessError(
-                    "action replace_text argument count must be a positive integer"
+
+    def normalize_action(self, action: TaskAction) -> TaskAction:
+        """Apply registry defaults, then validate the exact executable action."""
+
+        definition = self.definition(action.action_type)
+        explicit, _transformations = self._normalize_explicit_action_interface(
+            definition,
+            action.arguments or {},
+        )
+        normalized = TaskAction(
+            definition.name,
+            definition.apply_defaults(explicit),
+        )
+        self.validate_action_contract(normalized)
+        return normalized
+
+    def normalize_action_with_trace(
+        self,
+        action: TaskAction,
+    ) -> tuple[TaskAction, dict[str, Any]]:
+        """Normalize one action and expose every semantics-free interface edit."""
+
+        definition = self.definition(action.action_type)
+        raw_arguments = dict(action.arguments or {})
+        explicit, interface_transformations = self._normalize_explicit_action_interface(
+            definition,
+            raw_arguments,
+        )
+        normalized = TaskAction(
+            definition.name,
+            definition.apply_defaults(explicit),
+        )
+        self.validate_action_contract(normalized)
+        optional_nulls = sorted(
+            name
+            for name, value in explicit.items()
+            if value is None and name not in definition.required_arguments
+        )
+        defaults = sorted(
+            name
+            for name in normalized.arguments
+            if name not in explicit or name in optional_nulls
+        )
+        return normalized, {
+            "normalizer_version": "action-arguments.v2",
+            "raw_action": {
+                "action_type": action.action_type,
+                "arguments": raw_arguments,
+            },
+            "normalized_action": normalized.to_dict(),
+            "transformations": [
+                *interface_transformations,
+                *[f"optional_null:{name}->omitted" for name in optional_nulls],
+                *[f"registry_default:{name}" for name in defaults],
+            ],
+            "controller_semantic_fields_generated": False,
+        }
+
+    @staticmethod
+    def _normalize_explicit_action_interface(
+        definition: ActionDefinition,
+        arguments: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Convert a few common argument spellings without inventing values."""
+
+        normalized = dict(arguments)
+        transformations: list[str] = []
+
+        def move(alias: str, canonical: str) -> None:
+            if alias not in normalized:
+                return
+            if canonical in normalized:
+                if normalized[canonical] != normalized[alias]:
+                    raise HarnessError(
+                        f"action {definition.name} has conflicting {alias}/{canonical} values"
+                    )
+                normalized.pop(alias)
+                transformations.append(
+                    f"explicit_alias:{alias}=duplicate_{canonical}->omitted"
                 )
-        if definition.name in {"run_command", "check_command"}:
-            argv = arguments.get("argv")
-            if not isinstance(argv, list) or not argv or not all(
-                isinstance(item, str) and item for item in argv
-            ):
+                return
+            normalized[canonical] = normalized.pop(alias)
+            transformations.append(f"explicit_alias:{alias}->{canonical}")
+
+        if definition.name == "write_json" and "content" in normalized:
+            content = normalized.get("content")
+            if isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except json.JSONDecodeError as exc:
+                    raise HarnessError(
+                        "write_json content string must contain one valid JSON value"
+                    ) from exc
+                normalized["content"] = content
+                transformations.append("explicit_json:content_string->json_value")
+            move("content", "value")
+        if definition.name == "replace_text":
+            move("text", "new")
+            if isinstance(normalized.get("count"), str) and str(
+                normalized["count"]
+            ).casefold() == "all":
+                if normalized.get("all") not in {None, True}:
+                    raise HarnessError(
+                        "replace_text has conflicting count='all' and all=false"
+                    )
+                normalized.pop("count")
+                normalized["all"] = True
+                transformations.append("explicit_value:count=all->all=true")
+        if definition.name in {"run_command", "check_command"} and "timeout_ms" in normalized:
+            milliseconds = normalized.get("timeout_ms")
+            if not isinstance(milliseconds, (int, float)) or isinstance(milliseconds, bool):
                 raise HarnessError(
-                    f"action {definition.name} argument argv must be a non-empty string array"
+                    f"action {definition.name} timeout_ms must be a number of milliseconds"
                 )
-        if definition.name == "write_file" and arguments.get("overwrite", True) is not True:
-            raise HarnessError(
-                "action write_file argument overwrite must be true to preserve idempotent retry"
+            seconds = float(milliseconds) / 1000.0
+            if "timeout" in normalized:
+                if float(normalized["timeout"]) != seconds:
+                    raise HarnessError(
+                        f"action {definition.name} has conflicting timeout_ms/timeout values"
+                    )
+                normalized.pop("timeout_ms")
+                transformations.append(
+                    "explicit_unit:timeout_ms=duplicate_timeout->omitted"
+                )
+            else:
+                normalized.pop("timeout_ms")
+                normalized["timeout"] = seconds
+                transformations.append("explicit_unit:timeout_ms->timeout_seconds")
+        if definition.name in {"run_command", "check_command"} and "shell" in normalized:
+            if normalized["shell"] is not False:
+                raise HarnessError(
+                    f"action {definition.name} shell must be false"
+                )
+            normalized.pop("shell")
+            transformations.append("fixed_policy:shell=false->omitted")
+        if definition.name in {"run_command", "check_command"} and normalized.get("env") == []:
+            normalized["env"] = {}
+            transformations.append("empty_mapping:env=[]->{}")
+
+        # These fields are observation annotations emitted beside explicit
+        # operation values. They never select an operation or alter its data.
+        for annotation in (
+            "content_included",
+            "media_type",
+            "omission_reason",
+            "schema_version",
+            "sha256",
+            "size_bytes",
+        ):
+            if annotation in normalized and annotation not in definition.argument_schema:
+                normalized.pop(annotation)
+                transformations.append(
+                    f"nonsemantic_annotation:{annotation}->raw_audit_only"
+                )
+        return normalized, transformations
+
+    @staticmethod
+    def _validate_argument_schema(
+        action_name: str,
+        argument_name: str,
+        value: Any,
+        schema: Mapping[str, Any],
+    ) -> None:
+        """Validate the same compact JSON Schema fragment exposed to RWKV."""
+
+        expected_type = schema.get("type")
+        valid_type = True
+        if expected_type == "string":
+            valid_type = isinstance(value, str)
+        elif expected_type == "boolean":
+            valid_type = isinstance(value, bool)
+        elif expected_type == "integer":
+            valid_type = isinstance(value, int) and not isinstance(value, bool)
+        elif expected_type == "number":
+            valid_type = (
+                isinstance(value, (int, float)) and not isinstance(value, bool)
             )
+        elif expected_type == "object":
+            valid_type = isinstance(value, Mapping)
+        elif expected_type == "array":
+            valid_type = isinstance(value, list)
+        if not valid_type:
+            raise HarnessError(
+                f"action {action_name} argument {argument_name} must have type {expected_type}"
+            )
+        if "const" in schema and value != schema["const"]:
+            raise HarnessError(
+                f"action {action_name} argument {argument_name} must equal {schema['const']!r}"
+            )
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if "minimum" in schema and value < schema["minimum"]:
+                raise HarnessError(
+                    f"action {action_name} argument {argument_name} must be at least {schema['minimum']}"
+                )
+            if "maximum" in schema and value > schema["maximum"]:
+                raise HarnessError(
+                    f"action {action_name} argument {argument_name} must be at most {schema['maximum']}"
+                )
+            if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+                raise HarnessError(
+                    f"action {action_name} argument {argument_name} must be greater than {schema['exclusiveMinimum']}"
+                )
+        if isinstance(value, str) and "minLength" in schema and len(value) < int(schema["minLength"]):
+            raise HarnessError(
+                f"action {action_name} argument {argument_name} is shorter than minLength"
+            )
+        if isinstance(value, list):
+            if "minItems" in schema and len(value) < int(schema["minItems"]):
+                raise HarnessError(
+                    f"action {action_name} argument {argument_name} has too few items"
+                )
+            if "maxItems" in schema and len(value) > int(schema["maxItems"]):
+                raise HarnessError(
+                    f"action {action_name} argument {argument_name} has too many items"
+                )
+            if schema.get("uniqueItems") is True:
+                canonical_items = [
+                    json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    for item in value
+                ]
+                if len(set(canonical_items)) != len(canonical_items):
+                    raise HarnessError(
+                        f"action {action_name} argument {argument_name} items must be unique"
+                    )
+            item_schema = schema.get("items")
+            if isinstance(item_schema, Mapping):
+                for index, item in enumerate(value):
+                    ActionHarness._validate_argument_schema(
+                        action_name,
+                        f"{argument_name}[{index}]",
+                        item,
+                        item_schema,
+                    )
 
     def workspace_manifest(
         self,
         goal: GoalState,
         *,
         max_entries: int = 256,
+        max_tokens: int = 2048,
     ) -> dict[str, Any]:
         """Return a bounded metadata-only view of the scoped workspace."""
 
@@ -644,7 +1066,26 @@ class ActionHarness:
                     break
             if truncated:
                 break
-        return {"entries": entries, "truncated": truncated, "entry_count": len(entries)}
+        payload: dict[str, Any] = {
+            "entries": entries,
+            "truncated": truncated,
+            "complete": not truncated,
+            "entry_count": len(entries),
+            "next_cursor": entries[-1]["path"] if truncated and entries else "",
+        }
+        while entries and get_token_count(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        ) > max(128, int(max_tokens)):
+            entries.pop()
+            payload["entry_count"] = len(entries)
+            payload["truncated"] = True
+            payload["complete"] = False
+            payload["next_cursor"] = entries[-1]["path"] if entries else ""
+        if not entries and get_token_count(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        ) > max(128, int(max_tokens)):
+            raise HarnessError("workspace manifest metadata exceeds its token budget")
+        return payload
 
     def workspace_observation_snapshot(
         self,
@@ -785,31 +1226,12 @@ class ActionHarness:
             available.add("file_contains")
         return sorted(set(definition.required_postconditions) - available)
 
-    def verification_design_required_postconditions(
-        self,
-        action_type: str,
-    ) -> tuple[str, ...]:
-        required = list(self.definition(action_type).required_postconditions)
-        if action_type == "write_file" and "file_content" not in required:
-            required.append("file_content")
-        return tuple(required)
-
-    def missing_verification_design_postconditions(
-        self,
-        action_type: str,
-        validation_kinds: list[str] | tuple[str, ...] | set[str],
-    ) -> list[str]:
-        available = {str(item or "").strip() for item in validation_kinds}
-        missing = self.missing_required_postconditions(action_type, available)
-        if action_type == "write_file" and "file_content" not in available:
-            missing.append("file_content")
-        return sorted(set(missing))
-
     def execute(self, action: TaskAction, goal: GoalState) -> ActionResult:
         normalized = str(action.action_type or "").strip()
         self.definition(normalized)
         try:
-            result = self._handlers[normalized](goal, dict(action.arguments or {}))
+            normalized_action = self.normalize_action(action)
+            result = self._handlers[normalized](goal, normalized_action.arguments)
             if not result.outcome_type or result.outcome_type == "pending":
                 result.outcome_type = ActionResult.classify_outcome(
                     success=result.success,
@@ -859,6 +1281,26 @@ class ActionHarness:
         self._atomic_write(path, content)
         return self._file_result("write_json", goal, path, output="JSON written")
 
+    def _patch_json(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+        path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+        if not path.is_file():
+            raise HarnessError("patch_json requires a regular file")
+        current = json.loads(path.read_text(encoding="utf-8"))
+        updates = arguments.get("updates")
+        if not isinstance(current, dict):
+            raise HarnessError("patch_json requires a top-level JSON object")
+        if not isinstance(updates, Mapping):
+            raise HarnessError("patch_json updates must be an object")
+        updated = {**current, **dict(updates)}
+        content = json.dumps(updated, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        self._atomic_write(path, content)
+        return self._file_result(
+            "patch_json",
+            goal,
+            path,
+            output="top-level JSON keys updated; unspecified keys preserved",
+        )
+
     def _replace_text(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         old = str(arguments.get("old") or "")
@@ -866,7 +1308,14 @@ class ActionHarness:
         if not old:
             raise HarnessError("replace_text requires non-empty old text")
         content = path.read_text(encoding="utf-8")
-        expected = arguments.get("count", 1)
+        replace_all = bool(arguments.get("all", False))
+        expected = content.count(old) if replace_all else arguments.get("count", 1)
+        if replace_all and expected == 0:
+            if new and new in content:
+                return self._file_result(
+                    "replace_text", goal, path, output="replacement already present"
+                )
+            raise HarnessError("replace_text found no occurrence to replace")
         if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
             raise HarnessError("replace_text count must be a positive integer")
         occurrences = content.count(old)
@@ -944,6 +1393,38 @@ class ActionHarness:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
         return self._file_result("copy_file", goal, destination, output="file copied")
+
+    def _move_file(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+        source = self.resolve_path(goal, arguments.get("source", ""), must_exist=True)
+        if not source.is_file():
+            raise HarnessError("move_file source must be an existing file")
+        destination = self.resolve_path(goal, arguments.get("destination", ""))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(destination))
+        return self._file_result(
+            "move_file",
+            goal,
+            destination,
+            output="file moved; source path no longer exists",
+        )
+
+    def _file_digest(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+        path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+        if not path.is_file():
+            raise HarnessError("file_digest requires an existing file")
+        data = path.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        relative = str(path.relative_to(Path(goal.workspace_root).resolve()))
+        return ActionResult(
+            "file_digest",
+            True,
+            output=json.dumps(
+                {"path": relative, "sha256": digest, "size_bytes": len(data)},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            artifacts=[self._artifact(goal, path)],
+        )
 
     def _list_directory(
         self,
@@ -1035,14 +1516,18 @@ class ActionHarness:
             "truncated": truncated,
             "next_cursor": entries[-1]["path"] if truncated and entries else "",
         }
-        observation_limit = min(self.output_limit_chars, 16_000)
+        observation_limit = int(arguments.get("max_tokens", 4096))
         output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-        while entries and len(output) > observation_limit:
+        while entries and get_token_count(output) > observation_limit:
             entries.pop()
             payload["entry_count"] = len(entries)
             payload["truncated"] = True
             payload["next_cursor"] = entries[-1]["path"] if entries else start_after
             output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        if payload["truncated"] and not entries:
+            raise HarnessError(
+                "one directory entry exceeds list_directory max_tokens"
+            )
         return ActionResult(
             "list_directory",
             True,
@@ -1054,32 +1539,35 @@ class ActionHarness:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         if not path.is_file():
             raise HarnessError("read_file requires a regular file")
-        start = max(0, int(arguments.get("start_char", 0)))
-        limit = max(
-            1,
-            min(
-                self.output_limit_chars,
-                16_000,
-                int(arguments.get("max_chars", 16_000)),
-            ),
-        )
         content = path.read_text(encoding=str(arguments.get("encoding") or "utf-8"))
-        if start > len(content):
-            raise HarnessError("read_file start_char is past end of file")
-        end = min(len(content), start + limit)
-        truncated = end < len(content)
+        relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
+        try:
+            chunk = slice_text_from_byte_cursor(
+                relative,
+                content,
+                start_byte=int(arguments.get("start_byte", 0)),
+                max_tokens=int(arguments.get("max_tokens", 4096)),
+            )
+        except ChunkingError as exc:
+            raise HarnessError(str(exc)) from exc
+        descriptor = chunk.descriptor
+        source_size = len(content.encode("utf-8"))
+        truncated = descriptor.core_end < source_size
         return ActionResult(
             "read_file",
             True,
-            output=content[start:end],
+            output=chunk.text,
             artifacts=[self._artifact(goal, path)],
             metadata={
-                "start_char": start,
-                "end_char": end,
-                "next_start_char": end if truncated else None,
+                "chunk": descriptor.to_dict(),
+                "start_byte": descriptor.core_start,
+                "end_byte": descriptor.core_end,
+                "next_start_byte": descriptor.core_end if truncated else None,
                 "truncated": truncated,
                 "complete": not truncated,
-                "original_chars": len(content),
+                "eof": descriptor.core_end == source_size,
+                "source_size_bytes": source_size,
+                "observed_tokens": get_token_count(chunk.text),
             },
         )
 
@@ -1087,25 +1575,47 @@ class ActionHarness:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         if not path.is_file():
             raise HarnessError("read_json requires a regular file")
-        value = json.loads(path.read_text(encoding="utf-8"))
-        content = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
-        limit = max(
-            1,
-            min(
-                self.output_limit_chars,
-                int(arguments.get("max_chars", self.output_limit_chars)),
-            ),
+        source = path.read_text(encoding="utf-8")
+        value = json.loads(source)
+        content = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
         )
-        truncated = len(content) > limit
+        source_bytes = len(source.encode("utf-8"))
+        relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
+        try:
+            chunk = slice_text_from_byte_cursor(
+                relative + "#canonical-json",
+                content,
+                start_byte=int(arguments.get("start_byte", 0)),
+                max_tokens=int(arguments.get("max_tokens", 4096)),
+                media_type="application/json",
+            )
+        except ChunkingError as exc:
+            raise HarnessError(str(exc)) from exc
+        descriptor = chunk.descriptor
+        compact_size = len(content.encode("utf-8"))
+        truncated = descriptor.core_end < compact_size
         return ActionResult(
             "read_json",
             True,
-            output=content[:limit],
+            output=chunk.text,
             artifacts=[self._artifact(goal, path)],
             metadata={
+                "chunk": descriptor.to_dict(),
+                "start_byte": descriptor.core_start,
+                "end_byte": descriptor.core_end,
+                "next_start_byte": descriptor.core_end if truncated else None,
                 "truncated": truncated,
-                "original_chars": len(content),
+                "complete": not truncated,
+                "eof": descriptor.core_end == compact_size,
+                "canonical_size_bytes": compact_size,
+                "source_bytes": source_bytes,
+                "representation": "compact_lossless_json",
                 "json_type": type(value).__name__,
+                "observed_tokens": get_token_count(chunk.text),
             },
         )
 
@@ -1120,6 +1630,10 @@ class ActionHarness:
         quote = "\n".join(lines[start_line - 1 : end_line]).strip()
         if not quote:
             raise HarnessError("evidence span is empty")
+        if get_token_count(quote) > int(arguments.get("max_tokens", 2048)):
+            raise HarnessError(
+                "evidence span exceeds max_tokens; request a smaller exact line span"
+            )
         relative = str(path.relative_to(Path(goal.workspace_root).resolve()))
         source = str(arguments.get("source") or relative)
         evidence = {
@@ -1154,11 +1668,56 @@ class ActionHarness:
         resolved_argv = list(argv)
         if resolved_argv[0] == "python":
             resolved_argv[0] = str(Path(sys.executable).resolve(strict=True))
+            executable_resolution = "python_alias_to_project_runtime"
+        else:
+            executable_resolution = "unchanged"
+            executable = resolved_argv[0]
+            runtime_script: Path | None = None
+            if "/" not in executable:
+                located = shutil.which(executable)
+                if located:
+                    candidate = Path(located).absolute()
+                    project_venv = Path(sys.prefix).absolute()
+                    if candidate.is_relative_to(project_venv):
+                        runtime_script = candidate
+                if runtime_script is None:
+                    candidate = Path(sys.executable).parent / executable
+                    if candidate.is_file() and os.access(candidate, os.X_OK):
+                        runtime_script = candidate.absolute()
+            if runtime_script is not None:
+                resolved_argv = [
+                    str(Path(sys.executable).resolve(strict=True)),
+                    str(runtime_script),
+                    *resolved_argv[1:],
+                ]
+                executable_resolution = "project_runtime_console_script"
+        project_runtime_requested = executable_resolution in {
+            "python_alias_to_project_runtime",
+            "project_runtime_console_script",
+        }
+        if project_runtime_requested:
+            site_packages = (
+                Path(sys.prefix)
+                / "lib"
+                / f"python{sys.version_info.major}.{sys.version_info.minor}"
+                / "site-packages"
+            )
+            environment["PYTHONPATH"] = str(site_packages)
         command = list(resolved_argv)
         sandboxed = bool(self._bubblewrap)
         if self._bubblewrap:
-            command, sandbox_path = self._bubblewrap_command(goal, cwd, resolved_argv)
+            command, sandbox_path = self._bubblewrap_command(
+                goal,
+                cwd,
+                resolved_argv,
+                include_project_venv=project_runtime_requested,
+            )
             environment["PATH"] = sandbox_path
+            if project_runtime_requested:
+                environment["PYTHONPATH"] = (
+                    "/opt/rwkv-lh-venv/lib/"
+                    f"python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+                )
         completed = subprocess.run(
             command,
             cwd=cwd,
@@ -1172,28 +1731,34 @@ class ActionHarness:
             check=False,
         )
         output = (completed.stdout or "") + (completed.stderr or "")
+        expected_exit_code = int(arguments.get("expected_exit_code", 0))
+        exit_code_matched = completed.returncode == expected_exit_code
         return ActionResult(
             "run_command",
-            completed.returncode == 0,
-            output=output[: self.output_limit_chars],
+            exit_code_matched,
+            output=output,
             exit_code=completed.returncode,
             metadata={
                 "argv": requested_argv,
                 "resolved_argv": resolved_argv,
-                "executable_resolution": (
-                    "python_alias_to_project_runtime"
-                    if requested_argv[0] != resolved_argv[0]
-                    else "unchanged"
-                ),
+                "executable_resolution": executable_resolution,
                 "cwd": str(cwd.relative_to(Path(goal.workspace_root))),
-                "output_truncated": len(output) > self.output_limit_chars,
+                "output_truncated": False,
                 "sandboxed": sandboxed,
                 "sandbox_backend": "bubblewrap" if sandboxed else "none",
+                "expected_exit_code": expected_exit_code,
+                "exit_code_matched": exit_code_matched,
             },
             error=(
                 None
-                if completed.returncode == 0
-                else {"type": "CommandFailed", "message": f"exit code {completed.returncode}"}
+                if exit_code_matched
+                else {
+                    "type": "CommandFailed",
+                    "message": (
+                        f"exit code {completed.returncode}; expected "
+                        f"{expected_exit_code}"
+                    ),
+                }
             ),
         )
 
@@ -1202,6 +1767,8 @@ class ActionHarness:
         goal: GoalState,
         cwd: Path,
         argv: list[str],
+        *,
+        include_project_venv: bool = False,
     ) -> tuple[list[str], str]:
         """Build a read-isolated command sandbox with one writable workspace."""
 
@@ -1219,6 +1786,8 @@ class ActionHarness:
 
         runtime_root: Path | None = None
         sandbox_runtime = Path("/opt/rwkv-lh-python")
+        venv_root = Path(sys.prefix).resolve(strict=True)
+        sandbox_venv = Path("/opt/rwkv-lh-venv")
         configured_runtime_root = Path(sys.executable).resolve(strict=True).parent.parent
         if resolved_executable is not None:
             if resolved_executable.is_relative_to(workspace):
@@ -1236,6 +1805,25 @@ class ActionHarness:
                 raise HarnessError(
                     "command executable is outside the isolated system/workspace toolchain: "
                     f"{executable}"
+                )
+        for index, argument in enumerate(child_argv[1:], start=1):
+            path = Path(argument)
+            if not path.is_absolute() or not path.exists():
+                continue
+            resolved_argument = path.resolve(strict=True)
+            if resolved_argument.is_relative_to(workspace):
+                child_argv[index] = str(
+                    Path("/workspace") / resolved_argument.relative_to(workspace)
+                )
+            elif runtime_root is not None and resolved_argument.is_relative_to(
+                runtime_root
+            ):
+                child_argv[index] = str(
+                    sandbox_runtime / resolved_argument.relative_to(runtime_root)
+                )
+            elif resolved_argument.is_relative_to(venv_root):
+                child_argv[index] = str(
+                    sandbox_venv / resolved_argument.relative_to(venv_root)
                 )
 
         command = [
@@ -1271,6 +1859,8 @@ class ActionHarness:
             "--dir",
             "/opt/rwkv-lh-python",
             "--dir",
+            "/opt/rwkv-lh-venv",
+            "--dir",
             "/workspace",
             "--dir",
             "/proc",
@@ -1300,6 +1890,19 @@ class ActionHarness:
                 ]
             )
             sandbox_path = f"{sandbox_runtime / 'bin'}:{sandbox_path}"
+        if include_project_venv or any(
+            Path(argument).is_absolute()
+            and Path(argument).exists()
+            and Path(argument).resolve(strict=True).is_relative_to(venv_root)
+            for argument in argv
+        ):
+            command.extend(
+                [
+                    "--ro-bind",
+                    str(venv_root),
+                    str(sandbox_venv),
+                ]
+            )
         command.extend(["--chdir", str(sandbox_cwd), *child_argv])
         return command, sandbox_path
 

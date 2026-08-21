@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.benchmark_verifier import check_spec, run_isolated_verifier
+from rwkv_lh.schema import GoalState, TaskAction
 from rwkv_lh.store import LongHorizonStore
 from scripts.run_rwkv_e2e_benchmark import (
     FaultInjectingHarness,
@@ -214,6 +215,33 @@ def test_benchmark_agent_command_sandbox_does_not_share_network():
         )
         assert "--unshare-all" in command
         assert "--share-net" not in command
+
+
+@pytest.mark.skipif(
+    os.name != "posix" or shutil.which("bwrap") is None,
+    reason="bubblewrap verifier requires Linux and bwrap",
+)
+def test_benchmark_harness_passes_uv_python_environment_to_sandbox(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    goal = GoalState.create(
+        request="run the project Python test tool",
+        constraints=[],
+        workspace_root=workspace,
+    )
+    harness = FaultInjectingHarness()
+
+    result = harness.execute(
+        TaskAction(
+            "check_command",
+            {"argv": ["python", "-m", "pytest", "--version"]},
+        ),
+        goal,
+    )
+
+    assert result.success is True
+    assert result.output.startswith("pytest ")
+    assert result.metadata["sandbox_backend"] == "bubblewrap"
 
 
 def test_cascading_command_stage_checker_requires_ordered_failures_then_success():

@@ -92,9 +92,4 @@ class RWKVTokenizer:
     def decode(self, tokens: list[int]) -> str:
         return self.decode_bytes(tokens).decode("utf-8", errors="replace")
 
-    # Compatibility aliases used by the original RWKV tokenizer API.
-    encodeBytes = encode_bytes
-    decodeBytes = decode_bytes
-
-
 __all__ = ["RWKVTokenizer", "Trie"]

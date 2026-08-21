@@ -134,17 +134,10 @@ def model_lane(lane: str) -> Iterator[None]:
         current_model_lane.reset(token)
 
 
-# Compatibility aliases used by the architecture regression suite.
-get_llm_temperature = get_request_temperature
-get_llm_seed = get_request_seed
-
-
 __all__ = [
     "SamplingSnapshot",
     "current_model_lane",
     "current_task_id",
-    "get_llm_seed",
-    "get_llm_temperature",
     "get_request_seed",
     "get_request_id",
     "get_request_sampling",

@@ -1,4 +1,9 @@
-"""Versioned state contracts for the Long-Horizon Agent."""
+"""Versioned contracts for the single RWKV action spine.
+
+The runtime stores literal input, model calls, exact tool observations and
+artifact revisions.  It deliberately has no online plan, Task graph,
+completion criterion, reviewer state, or controller-authored semantic claim.
+"""
 
 from __future__ import annotations
 
@@ -11,26 +16,39 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-LEGACY_GOAL_SCHEMA_VERSION = "long-horizon.goal.v1"
-PREVIOUS_GOAL_SCHEMA_VERSION = "long-horizon.goal.v2"
-GOAL_SCHEMA_VERSION = "long-horizon.goal.v3"
-LEGACY_RUN_SCHEMA_VERSION = "long-horizon.run.v1"
-EVIDENCE_RUN_SCHEMA_VERSION = "long-horizon.run.v2"
-PREVIOUS_RUN_SCHEMA_VERSION = "long-horizon.run.v3"
-PROOF_RUN_SCHEMA_VERSION = "long-horizon.run.v4"
-OBLIGATION_RUN_SCHEMA_VERSION = "long-horizon.run.v5"
-CAUSAL_TASK_RUN_SCHEMA_VERSION = "long-horizon.run.v6"
-COMPACT_TASK_RUN_SCHEMA_VERSION = "long-horizon.run.v7"
-RUN_SCHEMA_VERSION = "long-horizon.run.v8"
+GOAL_SCHEMA_VERSION = "long-horizon.literal-request.v1"
+RUN_SCHEMA_VERSION = "long-horizon.run.v18"
+CAUSAL_EVENT_SCHEMA_VERSION = "rwkv-lh.causal-event.v2"
+
+CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
+    "run_created": "rwkv-lh.run-created.v1",
+    "run_started": "rwkv-lh.run-started.v1",
+    "run_completed": "rwkv-lh.run-terminal.v1",
+    "run_interrupted": "rwkv-lh.run-terminal.v1",
+    "run_failed": "rwkv-lh.run-terminal.v1",
+    "snapshot_recovered": "rwkv-lh.snapshot-recovered.v1",
+    "state_saved": "rwkv-lh.state-saved.v1",
+    "action_session_started": "rwkv-lh.action-session-started.v1",
+    "action_session_rolled_over": "rwkv-lh.action-session-rollover.v1",
+    "model_call_accepted": "rwkv-lh.model-decision.v1",
+    "model_call_rejected": "rwkv-lh.model-decision.v1",
+    "protocol_rejection_recorded": "rwkv-lh.protocol-rejection.v1",
+    "action_started": "rwkv-lh.action-started.v1",
+    "action_finished": "rwkv-lh.action-finished.v1",
+    "action_observation_appended": "rwkv-lh.model-event-appended.v1",
+    "stale_active_action_cleared": "rwkv-lh.action-recovery.v1",
+    "idempotent_action_recovered": "rwkv-lh.action-recovery.v1",
+    "model_transport_failure": "rwkv-lh.model-transport-failure.v1",
+}
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def _canonical_digest(value: Mapping[str, Any]) -> str:
+def _canonical_digest(value: Any) -> str:
     payload = json.dumps(
-        dict(value),
+        value,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -38,99 +56,39 @@ def _canonical_digest(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-class TaskStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
-    SKIPPED = "skipped"
-
-
-class TaskEffectStatus(str, Enum):
-    PENDING = "pending"
-    OBSERVED = "observed"
-    FAILED = "failed"
-
-
-class TaskCommitStatus(str, Enum):
-    PENDING = "pending"
-    COMMITTED = "committed"
-    REJECTED = "rejected"
-
-
-class AttemptStatus(str, Enum):
+class ActionStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     INTERRUPTED = "interrupted"
-    BLOCKED = "blocked"
 
 
 class RunStatus(str, Enum):
     INITIALIZED = "initialized"
-    PLANNING = "planning"
     RUNNING = "running"
-    VALIDATING = "validating"
-    REPLANNING = "replanning"
     COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
     INTERRUPTED = "interrupted"
-
-
-class CriterionEvidenceStatus(str, Enum):
-    VERIFIED = "verified"
-    INVALIDATED = "invalidated"
-    LEGACY_UNVERIFIED = "legacy_unverified"
-
-
-class CriterionClaimStatus(str, Enum):
-    VERIFIED = "verified"
-    REJECTED = "rejected"
-    INVALIDATED = "invalidated"
-
-
-class GoalObligationStatus(str, Enum):
-    UNRESOLVED = "unresolved"
-    RESOLVED = "resolved"
-    EXHAUSTED = "exhausted"
     BLOCKED = "blocked"
+    FAILED = "failed"
 
 
-@dataclass(frozen=True)
-class GoalCriterion:
-    criterion_id: str
-    description: str
-    required: bool = True
-    source_quote: str = ""
+class ModelLaneKind(str, Enum):
+    ACTION = "action"
 
-    def to_dict(self) -> dict[str, Any]:
-        """Return the only active criterion contract (legacy quote is migration-only)."""
 
-        return {
-            "criterion_id": self.criterion_id,
-            "description": self.description,
-            "required": self.required,
-        }
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "GoalCriterion":
-        return cls(
-            criterion_id=str(value.get("criterion_id") or value.get("id") or "").strip(),
-            description=str(value.get("description") or "").strip(),
-            required=bool(value.get("required", True)),
-            source_quote=str(value.get("source_quote") or ""),
-        )
+class ModelCheckpointStatus(str, Enum):
+    COMMITTED = "committed"
+    CANDIDATE = "candidate"
+    ROLLED_BACK = "rolled_back"
 
 
 @dataclass(frozen=True)
 class GoalState:
+    """Literal immutable run input; it is never produced or parsed by a model."""
+
     goal_id: str
-    objective: str
-    original_request: str
+    request: str
     constraints: tuple[str, ...]
-    success_criteria: tuple[GoalCriterion, ...]
     workspace_root: str
     created_at: str
     digest: str
@@ -140,60 +98,43 @@ class GoalState:
     def create(
         cls,
         *,
-        objective: str,
-        original_request: str,
+        request: str,
         constraints: list[str] | tuple[str, ...],
-        success_criteria: list[GoalCriterion] | tuple[GoalCriterion, ...],
         workspace_root: str | Path,
         goal_id: str = "G1",
     ) -> "GoalState":
-        normalized_constraints = tuple(
-            str(item).strip() for item in constraints if str(item).strip()
+        request_text = str(request or "").strip()
+        if not request_text:
+            raise ValueError("request must be non-empty")
+        constraint_values = tuple(
+            dict.fromkeys(
+                str(item).strip() for item in constraints if str(item).strip()
+            )
         )
-        normalized_criteria = tuple(success_criteria)
-        root = str(Path(workspace_root).expanduser().resolve())
-        created_at = utc_now()
         immutable = {
             "schema_version": GOAL_SCHEMA_VERSION,
             "goal_id": str(goal_id or "G1").strip(),
-            "objective": str(objective or "").strip(),
-            "original_request": str(original_request or "").strip(),
-            "constraints": list(normalized_constraints),
-            "success_criteria": [item.to_dict() for item in normalized_criteria],
-            "workspace_root": root,
-            "created_at": created_at,
+            "request": request_text,
+            "constraints": list(constraint_values),
+            "workspace_root": str(Path(workspace_root).expanduser().resolve()),
+            "created_at": utc_now(),
         }
-        if not immutable["objective"] or not immutable["original_request"]:
-            raise ValueError("goal requires objective and original_request")
-        if not normalized_criteria:
-            raise ValueError("goal requires at least one success criterion")
         return cls(
+            schema_version=immutable["schema_version"],
             goal_id=immutable["goal_id"],
-            objective=immutable["objective"],
-            original_request=immutable["original_request"],
-            constraints=normalized_constraints,
-            success_criteria=normalized_criteria,
-            workspace_root=root,
-            created_at=created_at,
+            request=immutable["request"],
+            constraints=constraint_values,
+            workspace_root=immutable["workspace_root"],
+            created_at=immutable["created_at"],
             digest=_canonical_digest(immutable),
         )
 
     def immutable_payload(self) -> dict[str, Any]:
-        criteria = [item.to_dict() for item in self.success_criteria]
-        if self.schema_version == LEGACY_GOAL_SCHEMA_VERSION:
-            pass
-        elif self.schema_version == PREVIOUS_GOAL_SCHEMA_VERSION:
-            criteria = [
-                {**item.to_dict(), "source_quote": item.source_quote}
-                for item in self.success_criteria
-            ]
         return {
             "schema_version": self.schema_version,
             "goal_id": self.goal_id,
-            "objective": self.objective,
-            "original_request": self.original_request,
+            "request": self.request,
             "constraints": list(self.constraints),
-            "success_criteria": criteria,
             "workspace_root": self.workspace_root,
             "created_at": self.created_at,
         }
@@ -206,34 +147,26 @@ class GoalState:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "GoalState":
-        goal = cls(
-            schema_version=str(value.get("schema_version") or GOAL_SCHEMA_VERSION),
+        literal = cls(
+            schema_version=str(value.get("schema_version") or ""),
             goal_id=str(value.get("goal_id") or "G1"),
-            objective=str(value.get("objective") or ""),
-            original_request=str(value.get("original_request") or ""),
+            request=str(value.get("request") or ""),
             constraints=tuple(str(item) for item in value.get("constraints") or []),
-            success_criteria=tuple(
-                GoalCriterion.from_dict(item)
-                for item in value.get("success_criteria") or []
-                if isinstance(item, Mapping)
-            ),
             workspace_root=str(value.get("workspace_root") or ""),
             created_at=str(value.get("created_at") or ""),
             digest=str(value.get("digest") or ""),
         )
-        if goal.schema_version not in {
-            LEGACY_GOAL_SCHEMA_VERSION,
-            PREVIOUS_GOAL_SCHEMA_VERSION,
-            GOAL_SCHEMA_VERSION,
-        }:
-            raise ValueError(f"unsupported goal schema: {goal.schema_version}")
-        if not goal.verify_digest():
-            raise ValueError("goal digest mismatch")
-        return goal
+        if literal.schema_version != GOAL_SCHEMA_VERSION:
+            raise ValueError(f"unsupported literal request schema: {literal.schema_version}")
+        if not literal.request or not literal.verify_digest():
+            raise ValueError("literal request digest mismatch")
+        return literal
 
 
 @dataclass
 class ValidationSpec:
+    """Harness-internal observable contract; never shown as a completion goal."""
+
     kind: str
     parameters: dict[str, Any] = field(default_factory=dict)
     required: bool = True
@@ -242,626 +175,257 @@ class ValidationSpec:
     def from_dict(cls, value: Mapping[str, Any]) -> "ValidationSpec":
         parameters = value.get("parameters")
         if not isinstance(parameters, Mapping):
-            parameters = {
-                key: item
-                for key, item in value.items()
-                if key not in {"kind", "required"}
-            }
+            raise ValueError("validation parameters must be an object")
         return cls(
-            kind=str(value.get("kind") or "").strip(),
+            kind=str(value.get("kind") or ""),
             parameters=dict(parameters),
             required=bool(value.get("required", True)),
         )
 
 
 @dataclass
-class RetryPolicy:
-    max_attempts: int = 3
-    backoff_seconds: float = 0.2
-    replan_after: int = 2
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | None) -> "RetryPolicy":
-        raw = value if isinstance(value, Mapping) else {}
-        return cls(
-            max_attempts=max(1, int(raw.get("max_attempts", 3) or 3)),
-            backoff_seconds=max(0.0, float(raw.get("backoff_seconds", 0.2) or 0.0)),
-            replan_after=max(1, int(raw.get("replan_after", 2) or 2)),
-        )
-
-
-@dataclass
 class TaskAction:
+    """Exact executable operation selected by RWKV.
+
+    The historical name remains only at the Harness boundary.  It is an action
+    value, not an online Task, plan node, or completion claim.
+    """
+
     action_type: str
     arguments: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any] | None) -> "TaskAction":
-        raw = value if isinstance(value, Mapping) else {}
+        if not isinstance(value, Mapping) or not isinstance(value.get("arguments"), Mapping):
+            raise ValueError("action must contain an arguments object")
         return cls(
-            action_type=str(raw.get("action_type") or raw.get("type") or "").strip(),
-            arguments=dict(raw.get("arguments") or {}),
+            action_type=str(value.get("action_type") or "").strip(),
+            arguments=dict(value["arguments"]),
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"action_type": self.action_type, "arguments": dict(self.arguments)}
 
-@dataclass
-class TaskNode:
-    task_id: str
-    title: str
-    description: str
-    status: TaskStatus = TaskStatus.PENDING
-    # Action-level effect observation and task-level semantic commitment are
-    # deliberately independent. Neither field is Goal evidence.
-    effect_observation_status: TaskEffectStatus = TaskEffectStatus.PENDING
-    postcondition_commit_status: TaskCommitStatus = TaskCommitStatus.PENDING
-    postcondition_observation_digest: str = ""
-    outcome_type: str = "pending"
-    operation_kind: str = "unspecified"
-    subject_key: str = ""
-    member_key: str = ""
-    phase_key: str = ""
-    effect_targets: list[str] = field(default_factory=list)
-    expected_outcomes: list[str] = field(default_factory=lambda: ["success"])
-    dependency_outcomes: dict[str, list[str]] = field(default_factory=dict)
-    postcondition: str = ""
-    required: bool = True
-    active: bool = True
-    dependencies: list[str] = field(default_factory=list)
-    # Planning relevance is distinct from completion evidence.
-    advances_criteria: list[str] = field(default_factory=list)
-    # Direct Goal-satisfaction claims. A claim only becomes effective after
-    # the Controller commits typed CriterionEvidence from a passed attempt.
-    satisfies_criteria: list[str] = field(default_factory=list)
-    priority: int = 50
-    inputs: list[dict[str, Any]] = field(default_factory=list)
-    action: TaskAction = field(default_factory=lambda: TaskAction(""))
-    completion_criteria: list[ValidationSpec] = field(default_factory=list)
-    retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
-    attempt_ids: list[str] = field(default_factory=list)
-    output_refs: list[str] = field(default_factory=list)
-    error: dict[str, Any] | None = None
-    superseded_by: str | None = None
-    recovery_lineage_id: str | None = None
-    subject_task_id: str | None = None
-    insertion_order: int = 0
+
+def action_fingerprint(action: TaskAction) -> str:
+    return _canonical_digest(action.to_dict())
+
+
+@dataclass(frozen=True)
+class ModelEvent:
+    event_type: str
+    event_id: str
+    scope_id: str
+    payload: dict[str, Any] = field(default_factory=dict)
+    content_refs: tuple[str, ...] = ()
+    complete: bool = True
+    continuation: dict[str, Any] | None = None
+    event_version: str = "rwkv-lh.event.v2"
+
+    def __post_init__(self) -> None:
+        if not self.event_type.strip() or not self.event_id.strip():
+            raise ValueError("model event requires event_type and event_id")
+        if not self.complete and not isinstance(self.continuation, Mapping):
+            raise ValueError("incomplete model event requires continuation metadata")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "task_id": self.task_id,
-            "title": self.title,
-            "description": self.description,
-            "status": self.status.value,
-            "effect_observation_status": self.effect_observation_status.value,
-            "postcondition_commit_status": self.postcondition_commit_status.value,
-            "postcondition_observation_digest": self.postcondition_observation_digest,
-            "outcome_type": self.outcome_type,
-            "operation_kind": self.operation_kind,
-            "subject_key": self.subject_key,
-            "member_key": self.member_key,
-            "phase_key": self.phase_key,
-            "effect_targets": list(self.effect_targets),
-            "expected_outcomes": list(self.expected_outcomes),
-            "dependency_outcomes": {
-                key: list(outcomes)
-                for key, outcomes in self.dependency_outcomes.items()
-            },
-            "postcondition": self.postcondition,
-            "required": self.required,
-            "active": self.active,
-            "dependencies": list(self.dependencies),
-            "advances_criteria": list(self.advances_criteria),
-            "satisfies_criteria": list(self.satisfies_criteria),
-            "priority": self.priority,
-            "inputs": list(self.inputs),
-            "action": {
-                "type": self.action.action_type,
-                "arguments": self.action.arguments,
-            },
-            "completion_criteria": [asdict(item) for item in self.completion_criteria],
-            "retry_policy": asdict(self.retry_policy),
-            "attempt_ids": list(self.attempt_ids),
-            "output_refs": list(self.output_refs),
-            "error": self.error,
-            "superseded_by": self.superseded_by,
-            "recovery_lineage_id": self.recovery_lineage_id,
-            "subject_task_id": self.subject_task_id,
-            "insertion_order": self.insertion_order,
+        value: dict[str, Any] = {
+            "event_type": self.event_type,
+            "event_version": self.event_version,
+            "event_id": self.event_id,
+            "scope_id": self.scope_id,
+            "payload": dict(self.payload),
+            "content_refs": list(self.content_refs),
+            "complete": self.complete,
         }
+        if self.continuation is not None:
+            value["continuation"] = dict(self.continuation)
+        return value
 
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "TaskNode":
-        return cls(
-            task_id=str(value.get("task_id") or value.get("id") or "").strip(),
-            title=str(value.get("title") or "").strip(),
-            description=str(value.get("description") or "").strip(),
-            status=TaskStatus(str(value.get("status") or TaskStatus.PENDING.value)),
-            effect_observation_status=TaskEffectStatus(
-                str(
-                    value.get("effect_observation_status")
-                    or TaskEffectStatus.PENDING.value
-                )
-            ),
-            postcondition_commit_status=TaskCommitStatus(
-                str(
-                    value.get("postcondition_commit_status")
-                    or TaskCommitStatus.PENDING.value
-                )
-            ),
-            postcondition_observation_digest=str(
-                value.get("postcondition_observation_digest") or ""
-            ),
-            outcome_type=str(value.get("outcome_type") or "pending"),
-            operation_kind=str(value.get("operation_kind") or "unspecified"),
-            subject_key=str(value.get("subject_key") or ""),
-            member_key=str(value.get("member_key") or ""),
-            phase_key=str(value.get("phase_key") or ""),
-            effect_targets=[
-                str(item) for item in value.get("effect_targets") or []
-            ],
-            expected_outcomes=[
-                str(item) for item in value.get("expected_outcomes") or ["success"]
-            ],
-            dependency_outcomes={
-                str(key): [str(item) for item in outcomes]
-                for key, outcomes in (value.get("dependency_outcomes") or {}).items()
-                if isinstance(outcomes, list)
-            },
-            postcondition=str(value.get("postcondition") or ""),
-            required=bool(value.get("required", True)),
-            active=bool(value.get("active", True)),
-            dependencies=[str(item) for item in value.get("dependencies") or []],
-            advances_criteria=[
-                str(item)
-                for item in (
-                    value.get("advances_criteria")
-                    or value.get("goal_criteria")
-                    or []
-                )
-            ],
-            satisfies_criteria=[
-                str(item) for item in value.get("satisfies_criteria") or []
-            ],
-            priority=int(value.get("priority", 50) or 50),
-            inputs=[dict(item) for item in value.get("inputs") or [] if isinstance(item, Mapping)],
-            action=TaskAction.from_dict(value.get("action")),
-            completion_criteria=[
-                ValidationSpec.from_dict(item)
-                for item in value.get("completion_criteria") or []
-                if isinstance(item, Mapping)
-            ],
-            retry_policy=RetryPolicy.from_dict(value.get("retry_policy")),
-            attempt_ids=[str(item) for item in value.get("attempt_ids") or []],
-            output_refs=[str(item) for item in value.get("output_refs") or []],
-            error=dict(value["error"]) if isinstance(value.get("error"), Mapping) else None,
-            superseded_by=(
-                str(value.get("superseded_by"))
-                if value.get("superseded_by") is not None
-                else None
-            ),
-            recovery_lineage_id=(
-                str(value.get("recovery_lineage_id"))
-                if value.get("recovery_lineage_id") is not None
-                else None
-            ),
-            subject_task_id=(
-                str(value.get("subject_task_id"))
-                if value.get("subject_task_id") is not None
-                else None
-            ),
-            insertion_order=int(value.get("insertion_order", 0) or 0),
-        )
-
-
-@dataclass
-class ValidationResult:
-    kind: str
-    passed: bool
-    required: bool
-    message: str = ""
-    evidence: dict[str, Any] = field(default_factory=dict)
-    subject_task_id: str = ""
-    criterion_ids: list[str] = field(default_factory=list)
-    evidence_refs: list[str] = field(default_factory=list)
-    failure_fingerprint: str = ""
-    checked_at: str = field(default_factory=utc_now)
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ValidationResult":
-        return cls(
-            kind=str(value.get("kind") or ""),
-            passed=bool(value.get("passed", False)),
-            required=bool(value.get("required", True)),
-            message=str(value.get("message") or ""),
-            evidence=dict(value.get("evidence") or {}),
-            subject_task_id=str(value.get("subject_task_id") or ""),
-            criterion_ids=[str(item) for item in value.get("criterion_ids") or []],
-            evidence_refs=[str(item) for item in value.get("evidence_refs") or []],
-            failure_fingerprint=str(value.get("failure_fingerprint") or ""),
-            checked_at=str(value.get("checked_at") or utc_now()),
-        )
-
-
-@dataclass
-class EvidenceRef:
-    evidence_ref_id: str
-    source_type: str
-    source_id: str
-    path: str = ""
-    selector: dict[str, Any] = field(default_factory=dict)
-    source_sha256: str = ""
-    value_sha256: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
-    captured_at: str = field(default_factory=utc_now)
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "EvidenceRef":
-        return cls(
-            evidence_ref_id=str(value.get("evidence_ref_id") or ""),
-            source_type=str(value.get("source_type") or ""),
-            source_id=str(value.get("source_id") or ""),
-            path=str(value.get("path") or ""),
-            selector=dict(value.get("selector") or {}),
-            source_sha256=str(value.get("source_sha256") or ""),
-            value_sha256=str(value.get("value_sha256") or ""),
-            metadata=dict(value.get("metadata") or {}),
-            captured_at=str(value.get("captured_at") or utc_now()),
-        )
-
-
-@dataclass
-class ProofExpr:
-    op: str
-    arguments: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"op": self.op, **self.arguments}
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ProofExpr":
-        return cls(
-            op=str(value.get("op") or "").strip(),
-            arguments={key: item for key, item in value.items() if key != "op"},
-        )
-
-
-@dataclass
-class CriterionClaim:
-    claim_id: str
-    criterion_id: str
-    subject_task_id: str
-    producer_task_id: str
-    attempt_id: str
-    comparison: str
-    actual: ProofExpr
-    expected: ProofExpr
-    status: CriterionClaimStatus
-    passed: bool
-    reason: str = ""
-    rwkv_reason: str = ""
-    proof_refs: list[EvidenceRef] = field(default_factory=list)
-    actual_value_sha256: str = ""
-    expected_value_sha256: str = ""
-    observation_digest: str = ""
-    raw_claim: dict[str, Any] = field(default_factory=dict)
-    claim_protocol: str = "proof_expr.v1"
-    normalization_trace: list[dict[str, Any]] = field(default_factory=list)
-    created_at: str = field(default_factory=utc_now)
-    invalidated_at: str | None = None
-    invalidated_reason: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "claim_id": self.claim_id,
-            "criterion_id": self.criterion_id,
-            "subject_task_id": self.subject_task_id,
-            "producer_task_id": self.producer_task_id,
-            "attempt_id": self.attempt_id,
-            "comparison": self.comparison,
-            "actual": self.actual.to_dict(),
-            "expected": self.expected.to_dict(),
-            "status": self.status.value,
-            "passed": self.passed,
-            "reason": self.reason,
-            "rwkv_reason": self.rwkv_reason,
-            "proof_refs": [asdict(item) for item in self.proof_refs],
-            "actual_value_sha256": self.actual_value_sha256,
-            "expected_value_sha256": self.expected_value_sha256,
-            "observation_digest": self.observation_digest,
-            "raw_claim": self.raw_claim,
-            "claim_protocol": self.claim_protocol,
-            "normalization_trace": self.normalization_trace,
-            "created_at": self.created_at,
-            "invalidated_at": self.invalidated_at,
-            "invalidated_reason": self.invalidated_reason,
+    def to_model_dict(self) -> dict[str, Any]:
+        value: dict[str, Any] = {
+            "event_type": self.event_type,
+            "payload": dict(self.payload),
+            "content_refs": list(self.content_refs),
+            "complete": self.complete,
         }
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "CriterionClaim":
-        return cls(
-            claim_id=str(value.get("claim_id") or ""),
-            criterion_id=str(value.get("criterion_id") or ""),
-            subject_task_id=str(value.get("subject_task_id") or ""),
-            producer_task_id=str(value.get("producer_task_id") or ""),
-            attempt_id=str(value.get("attempt_id") or ""),
-            comparison=str(value.get("comparison") or "exact_equals"),
-            actual=ProofExpr.from_dict(value.get("actual") or {}),
-            expected=ProofExpr.from_dict(value.get("expected") or {}),
-            status=CriterionClaimStatus(
-                str(value.get("status") or CriterionClaimStatus.REJECTED.value)
-            ),
-            passed=bool(value.get("passed", False)),
-            reason=str(value.get("reason") or ""),
-            rwkv_reason=str(value.get("rwkv_reason") or ""),
-            proof_refs=[
-                EvidenceRef.from_dict(item)
-                for item in value.get("proof_refs") or []
-                if isinstance(item, Mapping)
-            ],
-            actual_value_sha256=str(value.get("actual_value_sha256") or ""),
-            expected_value_sha256=str(value.get("expected_value_sha256") or ""),
-            observation_digest=str(value.get("observation_digest") or ""),
-            raw_claim=dict(value.get("raw_claim") or {}),
-            claim_protocol=str(value.get("claim_protocol") or "proof_expr.v1"),
-            normalization_trace=[
-                dict(item)
-                for item in value.get("normalization_trace") or []
-                if isinstance(item, Mapping)
-            ],
-            created_at=str(value.get("created_at") or utc_now()),
-            invalidated_at=(
-                str(value.get("invalidated_at"))
-                if value.get("invalidated_at") is not None
-                else None
-            ),
-            invalidated_reason=(
-                str(value.get("invalidated_reason"))
-                if value.get("invalidated_reason") is not None
-                else None
-            ),
-        )
-
-
-@dataclass
-class CriterionEvidence:
-    evidence_id: str
-    criterion_id: str
-    status: CriterionEvidenceStatus
-    owner_task_id: str
-    attempt_id: str
-    validation_refs: list[str] = field(default_factory=list)
-    artifact_refs: list[str] = field(default_factory=list)
-    state_ref: str | None = None
-    claim_id: str = ""
-    proof_refs: list[str] = field(default_factory=list)
-    observation_digest: str = ""
-    verified_at: str = field(default_factory=utc_now)
-    invalidated_by: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        value = asdict(self)
-        value["status"] = self.status.value
+        if self.continuation is not None:
+            value["continuation"] = dict(self.continuation)
         return value
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "CriterionEvidence":
+    def from_dict(cls, value: Mapping[str, Any]) -> "ModelEvent":
+        continuation = value.get("continuation")
         return cls(
-            evidence_id=str(value.get("evidence_id") or ""),
-            criterion_id=str(value.get("criterion_id") or ""),
-            status=CriterionEvidenceStatus(
-                str(value.get("status") or CriterionEvidenceStatus.LEGACY_UNVERIFIED.value)
-            ),
-            owner_task_id=str(value.get("owner_task_id") or ""),
-            attempt_id=str(value.get("attempt_id") or ""),
-            validation_refs=[str(item) for item in value.get("validation_refs") or []],
-            artifact_refs=[str(item) for item in value.get("artifact_refs") or []],
-            state_ref=(
-                str(value.get("state_ref"))
-                if value.get("state_ref") is not None
-                else None
-            ),
-            claim_id=str(value.get("claim_id") or ""),
-            proof_refs=[str(item) for item in value.get("proof_refs") or []],
-            observation_digest=str(value.get("observation_digest") or ""),
-            verified_at=str(value.get("verified_at") or utc_now()),
-            invalidated_by=(
-                str(value.get("invalidated_by"))
-                if value.get("invalidated_by") is not None
-                else None
-            ),
+            event_type=str(value.get("event_type") or ""),
+            event_version=str(value.get("event_version") or "rwkv-lh.event.v2"),
+            event_id=str(value.get("event_id") or ""),
+            scope_id=str(value.get("scope_id") or ""),
+            payload=dict(value.get("payload") or {}),
+            content_refs=tuple(str(item) for item in value.get("content_refs") or []),
+            complete=bool(value.get("complete", True)),
+            continuation=dict(continuation) if isinstance(continuation, Mapping) else None,
         )
 
 
 @dataclass
-class GoalObligationState:
-    goal_digest: str
-    unresolved_criterion_ids: list[str] = field(default_factory=list)
-    status: GoalObligationStatus = GoalObligationStatus.UNRESOLVED
-    generation_count: int = 0
-    remaining_budget: int = 64
-    last_observation_digest: str = ""
-    task_ids: list[str] = field(default_factory=list)
-    decision_history: list[dict[str, Any]] = field(default_factory=list)
-    created_at: str = field(default_factory=utc_now)
-    updated_at: str = field(default_factory=utc_now)
-
-    def to_dict(self) -> dict[str, Any]:
-        value = asdict(self)
-        value["status"] = self.status.value
-        return value
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "GoalObligationState":
-        return cls(
-            goal_digest=str(value.get("goal_digest") or ""),
-            unresolved_criterion_ids=[
-                str(item) for item in value.get("unresolved_criterion_ids") or []
-            ],
-            status=GoalObligationStatus(
-                str(value.get("status") or GoalObligationStatus.UNRESOLVED.value)
-            ),
-            generation_count=max(0, int(value.get("generation_count", 0) or 0)),
-            remaining_budget=max(0, int(value.get("remaining_budget", 64) or 0)),
-            last_observation_digest=str(value.get("last_observation_digest") or ""),
-            task_ids=[str(item) for item in value.get("task_ids") or []],
-            decision_history=[
-                dict(item)
-                for item in value.get("decision_history") or []
-                if isinstance(item, Mapping)
-            ],
-            created_at=str(value.get("created_at") or utc_now()),
-            updated_at=str(value.get("updated_at") or utc_now()),
-        )
-
-
-@dataclass
-class WitnessIntentState:
-    intent_id: str
-    task_id: str
-    criterion_id: str
-    subject_task_id: str
-    producer_task_id: str
-    comparison: str
-    actual_source_kind: str
-    expected_source_kind: str
-    expected_goal_literal: dict[str, Any] = field(default_factory=dict)
-    status: str = "prepared"
-    revision: int = 0
-    catalog_digest: str = ""
-    source_selection: dict[str, Any] = field(default_factory=dict)
-    selection_reason: str = ""
-    current_binding: dict[str, Any] = field(default_factory=dict)
-    binding_history: list[dict[str, Any]] = field(default_factory=list)
-    created_at: str = field(default_factory=utc_now)
-    updated_at: str = field(default_factory=utc_now)
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "WitnessIntentState":
-        return cls(
-            intent_id=str(value.get("intent_id") or ""),
-            task_id=str(value.get("task_id") or ""),
-            criterion_id=str(value.get("criterion_id") or ""),
-            subject_task_id=str(value.get("subject_task_id") or ""),
-            producer_task_id=str(value.get("producer_task_id") or ""),
-            comparison=str(value.get("comparison") or ""),
-            actual_source_kind=str(value.get("actual_source_kind") or ""),
-            expected_source_kind=str(value.get("expected_source_kind") or ""),
-            expected_goal_literal=dict(value.get("expected_goal_literal") or {}),
-            status=str(value.get("status") or "prepared"),
-            revision=max(0, int(value.get("revision", 0) or 0)),
-            catalog_digest=str(value.get("catalog_digest") or ""),
-            source_selection=dict(value.get("source_selection") or {}),
-            selection_reason=str(value.get("selection_reason") or ""),
-            current_binding=dict(value.get("current_binding") or {}),
-            binding_history=[
-                dict(item)
-                for item in value.get("binding_history") or []
-                if isinstance(item, Mapping)
-            ],
-            created_at=str(value.get("created_at") or utc_now()),
-            updated_at=str(value.get("updated_at") or utc_now()),
-        )
-
-
-@dataclass
-class RecoveryState:
-    lineage_id: str
-    root_task_id: str
-    failed_task_id: str
-    subject_task_id: str
-    failure_fingerprint: str = ""
-    same_failure_count: int = 0
-    decision_history: list[dict[str, Any]] = field(default_factory=list)
-    failed_observations: dict[str, dict[str, Any]] = field(default_factory=dict)
-    suppressed_cross_check_count: int = 0
-    remaining_budget: int = 0
-    task_ids: list[str] = field(default_factory=list)
-    created_at: str = field(default_factory=utc_now)
-    updated_at: str = field(default_factory=utc_now)
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "RecoveryState":
-        return cls(
-            lineage_id=str(value.get("lineage_id") or ""),
-            root_task_id=str(value.get("root_task_id") or ""),
-            failed_task_id=str(value.get("failed_task_id") or ""),
-            subject_task_id=str(value.get("subject_task_id") or ""),
-            failure_fingerprint=str(value.get("failure_fingerprint") or ""),
-            same_failure_count=max(0, int(value.get("same_failure_count", 0) or 0)),
-            decision_history=[
-                dict(item)
-                for item in value.get("decision_history") or []
-                if isinstance(item, Mapping)
-            ],
-            failed_observations={
-                str(key): dict(item)
-                for key, item in (value.get("failed_observations") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            suppressed_cross_check_count=max(
-                0,
-                int(value.get("suppressed_cross_check_count", 0) or 0),
-            ),
-            remaining_budget=max(0, int(value.get("remaining_budget", 0) or 0)),
-            task_ids=[str(item) for item in value.get("task_ids") or []],
-            created_at=str(value.get("created_at") or utc_now()),
-            updated_at=str(value.get("updated_at") or utc_now()),
-        )
-
-
-@dataclass
-class ModelStateRef:
-    state_id: str
-    parent_state_id: str | None
-    lane: str
+class ModelCheckpoint:
+    checkpoint_id: str
+    lane_id: str
+    lane_kind: ModelLaneKind
+    parent_checkpoint_id: str | None
     model: str
-    digest: str
+    transport: str
+    transcript: str
+    transcript_digest: str
     token_count: int
-    durable_ref: str | None
+    event_ids: list[str] = field(default_factory=list)
+    native_state_ref: str | None = None
+    status: ModelCheckpointStatus = ModelCheckpointStatus.COMMITTED
     created_at: str = field(default_factory=utc_now)
-    status: str = "active"
-    transport: str = "recurrent_handle"
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["lane_kind"] = self.lane_kind.value
+        value["status"] = self.status.value
+        return value
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ModelStateRef":
+    def from_dict(cls, value: Mapping[str, Any]) -> "ModelCheckpoint":
         return cls(
-            state_id=str(value.get("state_id") or ""),
-            parent_state_id=(
-                str(value.get("parent_state_id"))
-                if value.get("parent_state_id") is not None
+            checkpoint_id=str(value.get("checkpoint_id") or ""),
+            lane_id=str(value.get("lane_id") or ""),
+            lane_kind=ModelLaneKind(str(value.get("lane_kind") or "")),
+            parent_checkpoint_id=(
+                str(value["parent_checkpoint_id"])
+                if value.get("parent_checkpoint_id") is not None
                 else None
             ),
-            lane=str(value.get("lane") or ""),
             model=str(value.get("model") or ""),
-            digest=str(value.get("digest") or ""),
+            transport=str(value.get("transport") or "prompt_replay"),
+            transcript=str(value.get("transcript") or ""),
+            transcript_digest=str(value.get("transcript_digest") or ""),
             token_count=max(0, int(value.get("token_count", 0) or 0)),
-            durable_ref=(
-                str(value.get("durable_ref"))
-                if value.get("durable_ref") is not None
+            event_ids=[str(item) for item in value.get("event_ids") or []],
+            native_state_ref=(
+                str(value["native_state_ref"])
+                if value.get("native_state_ref") is not None
                 else None
+            ),
+            status=ModelCheckpointStatus(
+                str(value.get("status") or ModelCheckpointStatus.COMMITTED.value)
             ),
             created_at=str(value.get("created_at") or utc_now()),
-            status=str(value.get("status") or "active"),
-            transport=str(value.get("transport") or "recurrent_handle"),
+        )
+
+
+@dataclass(frozen=True)
+class DecisionRecord:
+    decision_id: str
+    request_id: str
+    lane_id: str
+    input_checkpoint_id: str
+    input_digest: str
+    visible_event_ids: tuple[str, ...]
+    raw_output: str
+    command_digest: str
+    output_checkpoint_id: str
+    output_digest: str
+    sampling: dict[str, Any]
+    model: str
+    transport: str
+    accepted: bool
+    error: str = ""
+    created_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["visible_event_ids"] = list(self.visible_event_ids)
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "DecisionRecord":
+        return cls(
+            decision_id=str(value.get("decision_id") or ""),
+            request_id=str(value.get("request_id") or ""),
+            lane_id=str(value.get("lane_id") or ""),
+            input_checkpoint_id=str(value.get("input_checkpoint_id") or ""),
+            input_digest=str(value.get("input_digest") or ""),
+            visible_event_ids=tuple(str(item) for item in value.get("visible_event_ids") or []),
+            raw_output=str(value.get("raw_output") or ""),
+            command_digest=str(value.get("command_digest") or ""),
+            output_checkpoint_id=str(value.get("output_checkpoint_id") or ""),
+            output_digest=str(value.get("output_digest") or ""),
+            sampling=dict(value.get("sampling") or {}),
+            model=str(value.get("model") or ""),
+            transport=str(value.get("transport") or "prompt_replay"),
+            accepted=bool(value.get("accepted", False)),
+            error=str(value.get("error") or ""),
+            created_at=str(value.get("created_at") or utc_now()),
+        )
+
+
+@dataclass(frozen=True)
+class ModelRolloverRecord:
+    rollover_id: str
+    lane_id: str
+    source_checkpoint_id: str
+    source_digest: str
+    source_token_count: int
+    output_checkpoint_id: str
+    output_digest: str
+    output_token_count: int
+    retained_event_ids: tuple[str, ...]
+    archived_event_ids: tuple[str, ...]
+    input_limit: int
+    semantic_request_count: int = 0
+    created_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["retained_event_ids"] = list(self.retained_event_ids)
+        value["archived_event_ids"] = list(self.archived_event_ids)
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ModelRolloverRecord":
+        return cls(
+            rollover_id=str(value.get("rollover_id") or ""),
+            lane_id=str(value.get("lane_id") or ""),
+            source_checkpoint_id=str(value.get("source_checkpoint_id") or ""),
+            source_digest=str(value.get("source_digest") or ""),
+            source_token_count=int(value.get("source_token_count", 0) or 0),
+            output_checkpoint_id=str(value.get("output_checkpoint_id") or ""),
+            output_digest=str(value.get("output_digest") or ""),
+            output_token_count=int(value.get("output_token_count", 0) or 0),
+            retained_event_ids=tuple(str(item) for item in value.get("retained_event_ids") or []),
+            archived_event_ids=tuple(str(item) for item in value.get("archived_event_ids") or []),
+            input_limit=int(value.get("input_limit", 1) or 1),
+            semantic_request_count=int(value.get("semantic_request_count", 0) or 0),
+            created_at=str(value.get("created_at") or utc_now()),
         )
 
 
 @dataclass
-class Attempt:
-    attempt_id: str
-    task_id: str
-    status: AttemptStatus
+class ActionRecord:
+    action_id: str
+    sequence: int
+    status: ActionStatus
+    action_type: str
+    arguments: dict[str, Any]
+    wire_arguments: dict[str, Any]
     action_fingerprint: str
     idempotency_key: str
+    decision_id: str
+    request_id: str
     started_at: str
     ended_at: str | None = None
-    request_ids: list[str] = field(default_factory=list)
-    tool_result: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
     artifact_refs: list[str] = field(default_factory=list)
-    witness_catalog_digest: str = ""
-    validation_results: list[ValidationResult] = field(default_factory=list)
+    workspace_digest_before: str = ""
+    workspace_digest_after: str = ""
+    failure_key: str = ""
+    observation_fingerprint: str = ""
     error: dict[str, Any] | None = None
     outcome_type: str = "pending"
 
@@ -871,28 +435,26 @@ class Attempt:
         return value
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Attempt":
+    def from_dict(cls, value: Mapping[str, Any]) -> "ActionRecord":
         return cls(
-            attempt_id=str(value.get("attempt_id") or ""),
-            task_id=str(value.get("task_id") or ""),
-            status=AttemptStatus(str(value.get("status") or AttemptStatus.RUNNING.value)),
+            action_id=str(value.get("action_id") or ""),
+            sequence=max(1, int(value.get("sequence", 1) or 1)),
+            status=ActionStatus(str(value.get("status") or ActionStatus.RUNNING.value)),
+            action_type=str(value.get("action_type") or ""),
+            arguments=dict(value.get("arguments") or {}),
+            wire_arguments=dict(value.get("wire_arguments") or {}),
             action_fingerprint=str(value.get("action_fingerprint") or ""),
             idempotency_key=str(value.get("idempotency_key") or ""),
+            decision_id=str(value.get("decision_id") or ""),
+            request_id=str(value.get("request_id") or ""),
             started_at=str(value.get("started_at") or ""),
-            ended_at=str(value.get("ended_at")) if value.get("ended_at") else None,
-            request_ids=[str(item) for item in value.get("request_ids") or []],
-            tool_result=(
-                dict(value["tool_result"])
-                if isinstance(value.get("tool_result"), Mapping)
-                else None
-            ),
+            ended_at=str(value["ended_at"]) if value.get("ended_at") else None,
+            result=dict(value["result"]) if isinstance(value.get("result"), Mapping) else None,
             artifact_refs=[str(item) for item in value.get("artifact_refs") or []],
-            witness_catalog_digest=str(value.get("witness_catalog_digest") or ""),
-            validation_results=[
-                ValidationResult.from_dict(item)
-                for item in value.get("validation_results") or []
-                if isinstance(item, Mapping)
-            ],
+            workspace_digest_before=str(value.get("workspace_digest_before") or ""),
+            workspace_digest_after=str(value.get("workspace_digest_after") or ""),
+            failure_key=str(value.get("failure_key") or ""),
+            observation_fingerprint=str(value.get("observation_fingerprint") or ""),
             error=dict(value["error"]) if isinstance(value.get("error"), Mapping) else None,
             outcome_type=str(value.get("outcome_type") or "pending"),
         )
@@ -901,12 +463,13 @@ class Attempt:
 @dataclass
 class ArtifactRecord:
     artifact_id: str
-    task_id: str
+    action_id: str
     path: str
     sha256: str
     media_type: str = "application/octet-stream"
+    size_bytes: int = 0
     summary: str = ""
-    created_at: str = field(default_factory=utc_now)
+    observed_at: str = field(default_factory=utc_now)
 
 
 @dataclass
@@ -914,26 +477,136 @@ class ArtifactRevision:
     revision_id: str
     target: str
     artifact_id: str
-    task_id: str
-    attempt_id: str
+    action_id: str
     sha256: str
     outcome_type: str
-    task_commit_status: str = TaskCommitStatus.PENDING.value
+    supersedes_revision_ids: list[str] = field(default_factory=list)
     observed_at: str = field(default_factory=utc_now)
 
 
-@dataclass
-class MemoryEntry:
-    memory_id: str
-    kind: str
-    task_id: str
-    summary: str
-    content: str = ""
-    artifact_refs: list[str] = field(default_factory=list)
-    evidence_refs: list[str] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)
-    token_estimate: int = 0
-    created_at: str = field(default_factory=utc_now)
+@dataclass(frozen=True)
+class CausalEventDraft:
+    """One explicit, typed event submitted by a runtime stage."""
+
+    event_type: str
+    payload_schema: str
+    payload: dict[str, Any]
+    subject_id: str
+    cause_id: str | None = None
+
+    @classmethod
+    def create(
+        cls,
+        event_type: str,
+        payload: Mapping[str, Any],
+        *,
+        subject_id: str,
+        cause_id: str | None = None,
+    ) -> "CausalEventDraft":
+        name = str(event_type or "")
+        payload_schema = CAUSAL_EVENT_PAYLOAD_SCHEMAS.get(name)
+        if payload_schema is None:
+            raise ValueError(f"unregistered causal event type: {name}")
+        subject = str(subject_id or "").strip()
+        if not subject:
+            raise ValueError("causal event subject_id must be non-empty")
+        return cls(
+            event_type=name,
+            payload_schema=payload_schema,
+            payload=dict(payload),
+            subject_id=subject,
+            cause_id=str(cause_id) if cause_id else None,
+        )
+
+
+@dataclass(frozen=True)
+class CausalEvent:
+    """The single append-only fact interface shared by every runtime stage."""
+
+    event_id: str
+    run_id: str
+    sequence: int
+    parent_id: str | None
+    cause_id: str | None
+    subject_id: str
+    event_type: str
+    payload_schema: str
+    payload: dict[str, Any]
+    digest: str
+    created_at: str
+    schema_version: str = CAUSAL_EVENT_SCHEMA_VERSION
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        event_id: str,
+        run_id: str,
+        sequence: int,
+        parent_id: str | None,
+        draft: CausalEventDraft,
+        created_at: str | None = None,
+    ) -> "CausalEvent":
+        timestamp = str(created_at or utc_now())
+        immutable = {
+            "schema_version": CAUSAL_EVENT_SCHEMA_VERSION,
+            "event_id": str(event_id),
+            "run_id": str(run_id),
+            "sequence": int(sequence),
+            "parent_id": str(parent_id) if parent_id is not None else None,
+            "cause_id": draft.cause_id,
+            "subject_id": draft.subject_id,
+            "event_type": draft.event_type,
+            "payload_schema": draft.payload_schema,
+            "payload": dict(draft.payload),
+            "created_at": timestamp,
+        }
+        return cls(**immutable, digest=_canonical_digest(immutable))
+
+    def immutable_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "event_id": self.event_id,
+            "run_id": self.run_id,
+            "sequence": self.sequence,
+            "parent_id": self.parent_id,
+            "cause_id": self.cause_id,
+            "subject_id": self.subject_id,
+            "event_type": self.event_type,
+            "payload_schema": self.payload_schema,
+            "payload": dict(self.payload),
+            "created_at": self.created_at,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self.immutable_payload(), "digest": self.digest}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CausalEvent":
+        record = cls(
+            schema_version=str(value.get("schema_version") or ""),
+            event_id=str(value.get("event_id") or ""),
+            run_id=str(value.get("run_id") or ""),
+            sequence=int(value.get("sequence", 0) or 0),
+            parent_id=(str(value["parent_id"]) if value.get("parent_id") is not None else None),
+            cause_id=(str(value["cause_id"]) if value.get("cause_id") is not None else None),
+            subject_id=str(value.get("subject_id") or ""),
+            event_type=str(value.get("event_type") or ""),
+            payload_schema=str(value.get("payload_schema") or ""),
+            payload=dict(value.get("payload") or {}),
+            digest=str(value.get("digest") or ""),
+            created_at=str(value.get("created_at") or ""),
+        )
+        expected_schema = CAUSAL_EVENT_PAYLOAD_SCHEMAS.get(record.event_type)
+        if record.schema_version != CAUSAL_EVENT_SCHEMA_VERSION:
+            raise ValueError("unsupported causal event schema")
+        if expected_schema is None or record.payload_schema != expected_schema:
+            raise ValueError("causal event payload schema mismatch")
+        if not record.event_id or not record.run_id or not record.subject_id:
+            raise ValueError("causal event identity is incomplete")
+        if record.digest != _canonical_digest(record.immutable_payload()):
+            raise ValueError("causal event digest mismatch")
+        return record
 
 
 @dataclass
@@ -959,258 +632,336 @@ class TempDecision:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class ChunkDescriptor:
+    """Tokenizer cursor utility used by read_file/read_json observations."""
+
+    chunk_id: str
+    source_ref: str
+    source_sha256: str
+    media_type: str
+    byte_start: int
+    byte_end: int
+    core_start: int
+    core_end: int
+    overlap_before: int
+    overlap_after: int
+    chunk_sha256: str
+    split_strategy_version: str
+    previous_chunk_id: str | None = None
+    next_chunk_id: str | None = None
+    complete_source: bool = False
+    token_start: int = 0
+    token_end: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ChunkDescriptor":
+        return cls(**dict(value))
+
+
 @dataclass
 class RunState:
     run_id: str
     goal: GoalState
     revision: int = 0
     status: RunStatus = RunStatus.INITIALIZED
-    tasks: dict[str, TaskNode] = field(default_factory=dict)
-    attempts: dict[str, Attempt] = field(default_factory=dict)
-    active_task_id: str | None = None
-    plan_generation: int = 0
-    memory_index: dict[str, MemoryEntry] = field(default_factory=dict)
+    actions: dict[str, ActionRecord] = field(default_factory=dict)
+    active_action_id: str | None = None
+    next_action_sequence: int = 1
     artifacts: dict[str, ArtifactRecord] = field(default_factory=dict)
     artifact_revisions: dict[str, list[ArtifactRevision]] = field(default_factory=dict)
-    criterion_evidence: dict[str, CriterionEvidence] = field(default_factory=dict)
-    criterion_claims: dict[str, CriterionClaim] = field(default_factory=dict)
-    witness_intents: dict[str, WitnessIntentState] = field(default_factory=dict)
-    goal_obligation: GoalObligationState | None = None
-    recovery_states: dict[str, RecoveryState] = field(default_factory=dict)
-    model_states: dict[str, ModelStateRef] = field(default_factory=dict)
-    next_task_sequence: int = 1
+    causal_records: dict[str, CausalEvent] = field(default_factory=dict)
+    causal_order: list[str] = field(default_factory=list)
+    model_states: dict[str, ModelCheckpoint] = field(default_factory=dict)
+    action_lane_checkpoint_id: str = ""
+    model_events: dict[str, ModelEvent] = field(default_factory=dict)
+    decisions: dict[str, DecisionRecord] = field(default_factory=dict)
+    rollovers: dict[str, ModelRolloverRecord] = field(default_factory=dict)
     temp_decisions: list[TempDecision] = field(default_factory=list)
+    failure_budgets: dict[str, int] = field(default_factory=dict)
+    observation_counts: dict[str, int] = field(default_factory=dict)
+    protocol_rejections: int = 0
+    final_output: str = ""
+    final_decision_id: str = ""
     errors: list[dict[str, Any]] = field(default_factory=list)
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     schema_version: str = RUN_SCHEMA_VERSION
 
-    def to_dict(self) -> dict[str, Any]:
+    def projection_payload(self) -> dict[str, Any]:
         return {
-            "schema_version": self.schema_version,
-            "run_id": self.run_id,
-            "revision": self.revision,
             "status": self.status.value,
-            "goal": self.goal.to_dict(),
-            "tasks": {key: value.to_dict() for key, value in self.tasks.items()},
-            "attempts": {key: value.to_dict() for key, value in self.attempts.items()},
-            "active_task_id": self.active_task_id,
-            "plan_generation": self.plan_generation,
-            "memory_index": {key: asdict(value) for key, value in self.memory_index.items()},
+            "actions": {key: value.to_dict() for key, value in self.actions.items()},
+            "active_action_id": self.active_action_id,
+            "next_action_sequence": self.next_action_sequence,
             "artifacts": {key: asdict(value) for key, value in self.artifacts.items()},
             "artifact_revisions": {
                 key: [asdict(item) for item in revisions]
                 for key, revisions in self.artifact_revisions.items()
             },
-            "criterion_evidence": {
-                key: value.to_dict() for key, value in self.criterion_evidence.items()
-            },
-            "criterion_claims": {
-                key: value.to_dict() for key, value in self.criterion_claims.items()
-            },
-            "witness_intents": {
-                key: value.to_dict() for key, value in self.witness_intents.items()
-            },
-            "goal_obligation": (
-                self.goal_obligation.to_dict()
-                if self.goal_obligation is not None
-                else None
-            ),
-            "recovery_states": {
-                key: asdict(value) for key, value in self.recovery_states.items()
-            },
-            "model_states": {
-                key: asdict(value) for key, value in self.model_states.items()
-            },
-            "next_task_sequence": self.next_task_sequence,
+            "model_events": {key: value.to_dict() for key, value in self.model_events.items()},
+            "decisions": {key: value.to_dict() for key, value in self.decisions.items()},
+            "rollovers": {key: value.to_dict() for key, value in self.rollovers.items()},
             "temp_decisions": [asdict(value) for value in self.temp_decisions],
+            "failure_budgets": dict(self.failure_budgets),
+            "observation_counts": dict(self.observation_counts),
+            "protocol_rejections": self.protocol_rejections,
+            "final_output": self.final_output,
+            "final_decision_id": self.final_decision_id,
             "errors": list(self.errors),
+        }
+
+    @property
+    def projection_digest(self) -> str:
+        return _canonical_digest(self.projection_payload())
+
+    def rebuild_projection(self) -> None:
+        """Fold the immutable causal chain into disposable runtime projections."""
+
+        self.status = RunStatus.INITIALIZED
+        self.actions = {}
+        self.active_action_id = None
+        self.next_action_sequence = 1
+        self.artifacts = {}
+        self.artifact_revisions = {}
+        self.model_events = {}
+        self.decisions = {}
+        self.rollovers = {}
+        self.temp_decisions = []
+        self.failure_budgets = {}
+        self.observation_counts = {}
+        self.protocol_rejections = 0
+        self.final_output = ""
+        self.final_decision_id = ""
+        self.errors = []
+
+        previous_id: str | None = None
+        seen: set[str] = set()
+        for expected_sequence, event_id in enumerate(self.causal_order, start=1):
+            event = self.causal_records.get(event_id)
+            if event is None:
+                raise ValueError(f"causal order references missing event: {event_id}")
+            if event.event_id != event_id or event.run_id != self.run_id:
+                raise ValueError("causal event identity mismatch")
+            if event.sequence != expected_sequence or event.parent_id != previous_id:
+                raise ValueError("causal event sequence or parent mismatch")
+            if event.cause_id is not None and event.cause_id not in seen:
+                raise ValueError("causal event cause must reference an earlier event")
+            previous_id = event_id
+            seen.add(event_id)
+            payload = event.payload
+
+            if event.event_type == "run_started":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.RUNNING
+            elif event.event_type == "run_completed":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.COMPLETED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_interrupted":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.INTERRUPTED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_failed":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.FAILED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "action_started":
+                action_value = payload.get("action")
+                if not isinstance(action_value, Mapping):
+                    raise ValueError("action_started requires a complete action")
+                action = ActionRecord.from_dict(action_value)
+                if event.subject_id != action.action_id:
+                    raise ValueError("action_started subject mismatch")
+                if action.status != ActionStatus.RUNNING:
+                    raise ValueError("action_started must carry running status")
+                if action.action_id in self.actions:
+                    raise ValueError("action id was started more than once")
+                if action.sequence != self.next_action_sequence:
+                    raise ValueError("action sequence is not contiguous")
+                if self.active_action_id is not None:
+                    raise ValueError("more than one action is active")
+                self.actions[action.action_id] = action
+                self.active_action_id = action.action_id
+                self.next_action_sequence += 1
+            elif event.event_type == "action_finished":
+                action_value = payload.get("action")
+                if not isinstance(action_value, Mapping):
+                    raise ValueError("action_finished requires a complete action")
+                action = ActionRecord.from_dict(action_value)
+                if event.subject_id != action.action_id:
+                    raise ValueError("action_finished subject mismatch")
+                started = self.actions.get(action.action_id)
+                if started is None or started.status != ActionStatus.RUNNING:
+                    raise ValueError("action_finished has no matching running action")
+                immutable_fields = (
+                    "action_id", "sequence", "action_type", "arguments", "wire_arguments",
+                    "action_fingerprint", "idempotency_key", "decision_id", "request_id",
+                    "started_at", "workspace_digest_before",
+                )
+                if any(
+                    getattr(started, name) != getattr(action, name)
+                    for name in immutable_fields
+                ):
+                    raise ValueError("action_finished changed started action identity")
+                if action.status == ActionStatus.RUNNING or action.result is None:
+                    raise ValueError("action_finished requires terminal status and result")
+                if str(action.result.get("action_type") or "") != action.action_type:
+                    raise ValueError("action result operation mismatch")
+                result_success = bool(action.result.get("success", False))
+                if result_success != (action.status == ActionStatus.SUCCEEDED):
+                    raise ValueError("action result success/status mismatch")
+                artifact_values = payload.get("artifacts") or []
+                artifact_ids = [str(item.get("artifact_id") or "") for item in artifact_values]
+                if action.artifact_refs != artifact_ids:
+                    raise ValueError("action artifact projection mismatch")
+                self.actions[action.action_id] = action
+                if self.active_action_id == action.action_id:
+                    self.active_action_id = None
+                for item in artifact_values:
+                    artifact = ArtifactRecord(**dict(item))
+                    if artifact.action_id != action.action_id:
+                        raise ValueError("artifact action mismatch")
+                    self.artifacts[artifact.artifact_id] = artifact
+                for item in payload.get("artifact_revisions") or []:
+                    revision = ArtifactRevision(**dict(item))
+                    if (
+                        revision.action_id != action.action_id
+                        or revision.artifact_id not in artifact_ids
+                    ):
+                        raise ValueError("artifact revision action mismatch")
+                    self.artifact_revisions.setdefault(revision.target, []).append(revision)
+                if action.observation_fingerprint:
+                    self.observation_counts[action.observation_fingerprint] = (
+                        self.observation_counts.get(action.observation_fingerprint, 0) + 1
+                    )
+                if action.failure_key:
+                    self.failure_budgets[action.failure_key] = (
+                        self.failure_budgets.get(action.failure_key, 0) + 1
+                    )
+            elif event.event_type in {"model_call_accepted", "model_call_rejected"}:
+                decision_value = payload.get("decision")
+                if not isinstance(decision_value, Mapping):
+                    raise ValueError("model decision event requires the complete decision")
+                decision = DecisionRecord.from_dict(decision_value)
+                if event.subject_id != decision.decision_id:
+                    raise ValueError("model decision subject mismatch")
+                if decision.decision_id in self.decisions:
+                    raise ValueError("model decision id was recorded more than once")
+                self.decisions[decision.decision_id] = decision
+                temp_value = payload.get("temp_decision")
+                if isinstance(temp_value, Mapping):
+                    self.temp_decisions.append(TempDecision(**dict(temp_value)))
+            elif event.event_type == "action_observation_appended":
+                model_event_value = payload.get("model_event")
+                if not isinstance(model_event_value, Mapping):
+                    raise ValueError("observation append requires the complete model event")
+                model_event = ModelEvent.from_dict(model_event_value)
+                if event.subject_id != model_event.event_id:
+                    raise ValueError("model event subject mismatch")
+                if model_event.event_id in self.model_events:
+                    raise ValueError("model event id was recorded more than once")
+                self.model_events[model_event.event_id] = model_event
+            elif event.event_type == "action_session_rolled_over":
+                rollover_value = payload.get("rollover")
+                if not isinstance(rollover_value, Mapping):
+                    raise ValueError("rollover event requires the complete rollover")
+                rollover = ModelRolloverRecord.from_dict(rollover_value)
+                self.rollovers[rollover.rollover_id] = rollover
+            elif event.event_type == "protocol_rejection_recorded":
+                self.protocol_rejections += 1
+                error_record = payload.get("error_record")
+                if isinstance(error_record, Mapping):
+                    self.errors.append(dict(error_record))
+
+        if len(seen) != len(self.causal_records):
+            raise ValueError("causal record set contains unordered events")
+
+    def to_dict(self, *, include_projections: bool = True) -> dict[str, Any]:
+        value = {
+            "schema_version": self.schema_version,
+            "run_id": self.run_id,
+            "revision": self.revision,
+            "goal": self.goal.to_dict(),
+            "causal_records": {
+                key: value.to_dict() for key, value in self.causal_records.items()
+            },
+            "causal_order": list(self.causal_order),
+            "model_states": {key: value.to_dict() for key, value in self.model_states.items()},
+            "action_lane_checkpoint_id": self.action_lane_checkpoint_id,
+            "projection_digest": self.projection_digest,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        if include_projections:
+            value.update(self.projection_payload())
+        return value
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "RunState":
         schema_version = str(value.get("schema_version") or "")
-        if schema_version not in {
-            LEGACY_RUN_SCHEMA_VERSION,
-            EVIDENCE_RUN_SCHEMA_VERSION,
-            PREVIOUS_RUN_SCHEMA_VERSION,
-            PROOF_RUN_SCHEMA_VERSION,
-            OBLIGATION_RUN_SCHEMA_VERSION,
-            CAUSAL_TASK_RUN_SCHEMA_VERSION,
-            COMPACT_TASK_RUN_SCHEMA_VERSION,
-            RUN_SCHEMA_VERSION,
-        }:
+        if schema_version != RUN_SCHEMA_VERSION:
             raise ValueError(f"unsupported run schema: {schema_version}")
         state = cls(
-            schema_version=RUN_SCHEMA_VERSION,
+            schema_version=schema_version,
             run_id=str(value.get("run_id") or ""),
             revision=int(value.get("revision", 0) or 0),
-            status=RunStatus(str(value.get("status") or RunStatus.INITIALIZED.value)),
             goal=GoalState.from_dict(value.get("goal") or {}),
-            tasks={
-                str(key): TaskNode.from_dict(item)
-                for key, item in (value.get("tasks") or {}).items()
+            causal_records={
+                str(key): CausalEvent.from_dict(item)
+                for key, item in (value.get("causal_records") or {}).items()
                 if isinstance(item, Mapping)
             },
-            attempts={
-                str(key): Attempt.from_dict(item)
-                for key, item in (value.get("attempts") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            active_task_id=(
-                str(value.get("active_task_id"))
-                if value.get("active_task_id") is not None
-                else None
-            ),
-            plan_generation=int(value.get("plan_generation", 0) or 0),
-            memory_index={
-                str(key): MemoryEntry(**dict(item))
-                for key, item in (value.get("memory_index") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            artifacts={
-                str(key): ArtifactRecord(**dict(item))
-                for key, item in (value.get("artifacts") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            artifact_revisions={
-                str(key): [
-                    ArtifactRevision(**dict(item))
-                    for item in revisions
-                    if isinstance(item, Mapping)
-                ]
-                for key, revisions in (value.get("artifact_revisions") or {}).items()
-                if isinstance(revisions, list)
-            },
-            criterion_evidence={
-                str(key): CriterionEvidence.from_dict(item)
-                for key, item in (value.get("criterion_evidence") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            criterion_claims={
-                str(key): CriterionClaim.from_dict(item)
-                for key, item in (value.get("criterion_claims") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            witness_intents={
-                str(key): WitnessIntentState.from_dict(item)
-                for key, item in (value.get("witness_intents") or {}).items()
-                if isinstance(item, Mapping)
-            },
-            goal_obligation=(
-                GoalObligationState.from_dict(value["goal_obligation"])
-                if isinstance(value.get("goal_obligation"), Mapping)
-                else None
-            ),
-            recovery_states={
-                str(key): RecoveryState.from_dict(item)
-                for key, item in (value.get("recovery_states") or {}).items()
-                if isinstance(item, Mapping)
-            },
+            causal_order=[str(item) for item in value.get("causal_order") or []],
             model_states={
-                str(key): ModelStateRef.from_dict(item)
+                str(key): ModelCheckpoint.from_dict(item)
                 for key, item in (value.get("model_states") or {}).items()
                 if isinstance(item, Mapping)
             },
-            next_task_sequence=max(1, int(value.get("next_task_sequence", 1) or 1)),
-            temp_decisions=[
-                TempDecision(**dict(item))
-                for item in value.get("temp_decisions") or []
-                if isinstance(item, Mapping)
-            ],
-            errors=[dict(item) for item in value.get("errors") or [] if isinstance(item, Mapping)],
+            action_lane_checkpoint_id=str(value.get("action_lane_checkpoint_id") or ""),
             created_at=str(value.get("created_at") or ""),
             updated_at=str(value.get("updated_at") or ""),
         )
-        if schema_version == LEGACY_RUN_SCHEMA_VERSION:
-            # V1 task goal_criteria were ambiguous planning declarations. They
-            # are deliberately not promoted to verified completion evidence.
-            # Already-completed runs remain readable; unfinished runs fail
-            # closed until new v2 evidence is established.
-            for task in state.tasks.values():
-                task.satisfies_criteria = []
-            state.next_task_sequence = _next_task_sequence(state.tasks)
-        elif (
-            schema_version == EVIDENCE_RUN_SCHEMA_VERSION
-            and state.status != RunStatus.COMPLETED
-        ):
-            # V2 had no independent CriterionClaim/proof provenance. An
-            # unfinished run must not carry those legacy pass records into a
-            # independent completion decision. Historical completed runs remain
-            # read-only loadable because Controller.run returns immediately.
-            for evidence in state.criterion_evidence.values():
-                if evidence.status == CriterionEvidenceStatus.VERIFIED:
-                    evidence.status = CriterionEvidenceStatus.LEGACY_UNVERIFIED
-        if schema_version != RUN_SCHEMA_VERSION:
-            # Historical schemas used TaskStatus.COMPLETED as the only task
-            # commit bit. Preserve resumability without manufacturing Goal
-            # evidence; new attempts must populate the split states directly.
-            for task in state.tasks.values():
-                if task.status == TaskStatus.COMPLETED:
-                    task.effect_observation_status = TaskEffectStatus.OBSERVED
-                    task.postcondition_commit_status = TaskCommitStatus.COMMITTED
+        state.rebuild_projection()
+        expected_projection_digest = str(value.get("projection_digest") or "")
+        if expected_projection_digest and expected_projection_digest != state.projection_digest:
+            raise ValueError("run projection digest mismatch")
         return state
 
 
-def _next_task_sequence(tasks: Mapping[str, TaskNode]) -> int:
-    highest = 0
-    for task_id in tasks:
-        if task_id.startswith("T") and task_id[1:].isdigit():
-            highest = max(highest, int(task_id[1:]))
-    return highest + 1
-
-
-def action_fingerprint(action: TaskAction) -> str:
-    return _canonical_digest(
-        {
-            "type": action.action_type,
-            "arguments": action.arguments,
-        }
-    )
-
-
 __all__ = [
+    "ActionRecord",
+    "ActionStatus",
     "ArtifactRecord",
     "ArtifactRevision",
-    "Attempt",
-    "AttemptStatus",
-    "CriterionEvidence",
-    "CriterionEvidenceStatus",
-    "CriterionClaim",
-    "CriterionClaimStatus",
-    "CAUSAL_TASK_RUN_SCHEMA_VERSION",
-    "COMPACT_TASK_RUN_SCHEMA_VERSION",
-    "EVIDENCE_RUN_SCHEMA_VERSION",
-    "GoalObligationState",
-    "GoalObligationStatus",
-    "WitnessIntentState",
-    "EvidenceRef",
+    "CAUSAL_EVENT_PAYLOAD_SCHEMAS",
+    "CAUSAL_EVENT_SCHEMA_VERSION",
+    "CausalEvent",
+    "CausalEventDraft",
+    "ChunkDescriptor",
+    "DecisionRecord",
     "GOAL_SCHEMA_VERSION",
-    "LEGACY_GOAL_SCHEMA_VERSION",
-    "GoalCriterion",
     "GoalState",
-    "MemoryEntry",
-    "ModelStateRef",
-    "LEGACY_RUN_SCHEMA_VERSION",
-    "PREVIOUS_RUN_SCHEMA_VERSION",
-    "PREVIOUS_GOAL_SCHEMA_VERSION",
-    "PROOF_RUN_SCHEMA_VERSION",
-    "OBLIGATION_RUN_SCHEMA_VERSION",
-    "ProofExpr",
+    "ModelCheckpoint",
+    "ModelCheckpointStatus",
+    "ModelEvent",
+    "ModelLaneKind",
+    "ModelRolloverRecord",
     "RUN_SCHEMA_VERSION",
-    "RetryPolicy",
-    "RecoveryState",
     "RunState",
     "RunStatus",
     "TaskAction",
-    "TaskCommitStatus",
-    "TaskEffectStatus",
-    "TaskNode",
-    "TaskStatus",
     "TempDecision",
-    "ValidationResult",
     "ValidationSpec",
     "action_fingerprint",
     "utc_now",

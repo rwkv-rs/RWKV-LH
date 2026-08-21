@@ -11,7 +11,8 @@ from typing import Any, Mapping
 
 from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionHarness
-from rwkv_lh.model import LongHorizonModel, ModelInvoker
+from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model_session import ModelSession
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
 
@@ -26,8 +27,7 @@ def append_jsonl(path: Path, event: Mapping[str, Any]) -> None:
 
 
 def result_payload(state: Any, final_output: str, transitions: int) -> dict[str, Any]:
-    final = state.memory_index.get("M-FINAL")
-    persisted_final = final.content if final else ""
+    persisted_final = state.final_output
     return {
         "schema_version": "rwkv-lh.manual-web-result.v1",
         "generated_at": utc_now(),
@@ -35,10 +35,9 @@ def result_payload(state: Any, final_output: str, transitions: int) -> dict[str,
         "status": state.status.value,
         "revision": state.revision,
         "transitions": transitions,
-        "task_count": len(state.tasks),
-        "attempt_count": len(state.attempts),
+        "action_count": len(state.actions),
+        "causal_record_count": len(state.causal_order),
         "artifact_count": len(state.artifacts),
-        "criterion_evidence_count": len(state.criterion_evidence),
         "model_request_count": len(state.temp_decisions),
         "final_output": final_output,
         "persisted_final_output": persisted_final,
@@ -58,9 +57,9 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     workspace = (run_root / "workspace").resolve()
     store = LongHorizonStore(run_root / "state", checkpoint_retention=100_000)
     trace_path = run_root / "model_trace.jsonl"
-    invoker = ModelInvoker(audit_hook=lambda event: append_jsonl(trace_path, event))
+    session = ModelSession(audit_hook=lambda event: append_jsonl(trace_path, event))
     harness = ActionHarness()
-    model = LongHorizonModel(invoker, harness=harness)
+    model = LongHorizonModel(session, harness=harness)
     controller = LongHorizonController(
         store,
         model=model,
@@ -70,7 +69,7 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     update_metadata(
         run_root,
         active=True,
-        phase="resuming" if resume else "parsing_goal",
+        phase="resuming" if resume else "creating_literal_request",
         pid=os.getpid(),
         worker_started_at=utc_now(),
         error="",
@@ -78,34 +77,17 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     if resume:
         result = controller.resume(run_id)
     else:
-        goal, goal_decision = model.parse_goal(
+        goal = model.create_literal_goal(
             str(request["request"]),
             str(workspace),
             constraints=[str(item) for item in request.get("constraints") or []],
         )
         state = store.create_run(goal, run_id)
-        state.temp_decisions.append(goal_decision)
-        state = store.save(
-            state,
-            event_type="goal_parsed",
-            event={
-                "request_id": goal_decision.request_id,
-                "temperature": goal_decision.temperature,
-                "top_p": goal_decision.top_p,
-                "top_k": goal_decision.top_k,
-                "presence_penalty": goal_decision.presence_penalty,
-                "frequency_penalty": goal_decision.frequency_penalty,
-                "penalty_decay": goal_decision.penalty_decay,
-                "backend_profile": goal_decision.backend_profile,
-                "seed_supported": goal_decision.seed_supported,
-                "outcome": goal_decision.outcome,
-            },
-        )
         update_metadata(
             run_root,
             state_created=True,
             phase="controller_running",
-            objective=state.goal.objective,
+            request=state.goal.request,
             goal_digest=state.goal.digest,
         )
         result = controller.run(run_id)
