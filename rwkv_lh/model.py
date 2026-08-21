@@ -146,11 +146,20 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         event: ModelEvent | None = None,
+        events: Sequence[ModelEvent] = (),
         max_output_tokens: int = 1800,
     ) -> ActionDecision:
+        if event is not None and events:
+            raise ValueError("pass either event or events, not both")
         checkpoint = self._checkpoint(state, persist)
-        if event is not None:
-            checkpoint = self._append_event(state, checkpoint, event, persist)
+        pending_events = tuple(events) if events else ((event,) if event is not None else ())
+        for pending_event in pending_events:
+            checkpoint = self._append_event(
+                state,
+                checkpoint,
+                pending_event,
+                persist,
+            )
         checkpoint = self._rollover_if_needed(
             state,
             checkpoint,

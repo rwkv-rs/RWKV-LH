@@ -1,24 +1,34 @@
 # RWKV-LH
 
-RWKV-LH 是面向基础续写 RWKV 的持久化 Agent 运行时。当前实验架构只保留一个 RWKV
-语义会话：模型直接选择注册工具，Harness 执行其明确参数，并把真实 Observation 返回同一
-会话。Runtime 保存事实和恢复状态，但不替 RWKV 选择工具、生成任务、判断业务答案或改写
-Final。
+RWKV-LH 是面向基础续写 RWKV 的持久化 Agent 运行时。当前分支已恢复到 R126 执行基线，
+并加入默认关闭的 Hybrid v1 边界：RWKV 仍直接选择注册工具，Harness 执行明确参数；可选的
+强模型 Supervisor 只负责一次结构化规划和完成候选检查，不执行工具，也不改写 RWKV Final。
 
 > 当前版本仍是实验候选。正式能力只能由冻结源码下的真实 RWKV E2E 给出；单元测试通过
 > 只证明结构可运行。
 
-## 当前唯一架构
+## 当前架构
+
+运行时有两种明确区分的模式：
+
+- 默认模式是字节路径兼容的 R126 `single-rwkv-direct-action.v1`，不调用 Supervisor。
+- 只有构造 `LongHorizonController` 时显式传入 `SupervisorClient`，才启用
+  `strong-supervisor-rwkv-worker.v1`。规划一次；每个 RWKV 完成候选检查一次；默认最多返修
+  一次。Supervisor 不可用、返回非法结构或返修耗尽时 fail-closed，不把结果标为完成。
 
 ```mermaid
 flowchart LR
-    U["用户原始请求 + 工作区"] --> S["单一 RWKV Action session"]
+    U["用户原始请求 + 工作区"] --> P["可选 Strong Supervisor: Plan"]
+    U --> S["单一 RWKV Action session"]
+    P -->|"结构化计划；无执行权"| S
     S -->|"operation-specific {function, params}"| H["ActionDefinition registry + Harness"]
     H -->|"exact ActionResult / artifact revision"| S
-    S -->|"final_answer(text)"| F["原始 RWKV Final"]
+    S -->|"final_answer(text)"| R["可选 Supervisor: PASS / REVISE"]
+    R -->|"REVISE，次数有上限"| S
+    R -->|"PASS；不改写文本"| F["原始 RWKV Final"]
     S <--> M["ModelSession checkpoint / prompt replay"]
-    S & H & F --> E["append-only CausalEvent v2"]
-    E --> P["Action / artifact / recovery / UI projections"]
+    P & S & H & R & F --> E["append-only CausalEvent v2"]
+    E --> Q["Action / artifact / recovery / UI projections"]
     E & M <--> DB["SQLite revision CAS + checkpoints + lease"]
 ```
 
@@ -26,7 +36,8 @@ flowchart LR
 
 - 不解析自然语言为在线 Goal schema、criterion 或 Task DAG。用户请求只作为不可变原文。
 - 模型边界直接显示 `read_file`、`write_file`、`write_json`、`run_command` 等具体工具及
-  `final_answer`；没有 `lh_task_call(operation, operation_args)`、selector 或 reviewer。
+  `final_answer`；没有 `lh_task_call(operation, operation_args)` 或 selector。默认模式没有
+  reviewer；Hybrid 模式的 reviewer 只有 PASS/REVISE 权限。
 - 一次回合只接受一个明确工具调用。Controller 不选择 operation，不补参数，不读取隐藏验收。
 - 简单格式层只归一化常见调用外壳与 Markdown JSON fence；operation 参数仍由对应
   ActionDefinition 校验。被拒调用不执行。
@@ -40,7 +51,8 @@ flowchart LR
 - SQLite snapshot 和 ModelSession transcript 是带 digest 的恢复/transport cache。加载时重新
   fold 事件并校验 projection digest；旧 v16 及更早状态不静默迁移。
 - 当前后端只有可审计 `prompt_replay`，没有把 prompt cache 宣称为 native RWKV recurrent state。
-- Final 无论对错都来自同一 RWKV session 的 `final_answer(text)`，Runtime 不改写文本。
+- Final 文本始终来自同一 RWKV session 的 `final_answer(text)`。默认模式直接交付；Hybrid
+  模式只有 Supervisor PASS 后才标记完成，但 Runtime 和 Supervisor 都不改写文本。
 
 主要模块：
 
@@ -49,6 +61,7 @@ flowchart LR
 - `rwkv_lh/model.py`：单 Action lane、具体工具定义与精确 schema rejection feedback。
 - `rwkv_lh/harness.py`：唯一 ActionDefinition 注册表、sandbox 与执行。
 - `rwkv_lh/controller.py`：直接 Action→Observation→Final 循环和 crash recovery。
+- `rwkv_lh/supervisor.py`：provider-neutral 规划/检查契约、严格校验和返修上限策略。
 - `rwkv_lh/schema.py` / `store.py`：v17 CausalEvent 权威链、投影与 SQLite 事务。
 - `rwkv_lh/web_ui.py`：同一 Controller 的本地测试界面，不增加第二条执行路径。
 
@@ -94,6 +107,11 @@ uv run rwkv-lh-web
 ```
 
 打开 `http://127.0.0.1:8765`。界面只展示和驱动同一 Controller。
+
+当前命令行和本地界面仍默认运行纯 R126。强模型 API 尚未绑定具体厂商；接入方实现
+`SupervisorClient.create_plan()` 与 `review_final()` 并在构造 Controller 时显式注入即可。
+接口、失败语义和审计字段见
+[Hybrid Supervisor v1](docs/HYBRID_SUPERVISOR_V1.zh-CN.md)。
 
 ## 验证
 

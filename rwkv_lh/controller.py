@@ -1,4 +1,4 @@
-"""Persistent controller for the single RWKV direct-action spine."""
+"""Persistent RWKV executor with an optional bounded supervisor boundary."""
 
 from __future__ import annotations
 
@@ -12,13 +12,14 @@ from uuid import uuid4
 from rwkv_lh.harness import ActionHarness, ActionResult
 from rwkv_lh.model import ActionDecision, LongHorizonModel, ModelProtocolError, PersistCallback
 from rwkv_lh.runtime.protocol import RWKVRuntimeError
-from rwkv_lh.model_io import canonical_digest
+from rwkv_lh.model_io import canonical_digest, parse_model_command, validate_final_answer
 from rwkv_lh.schema import (
     ActionRecord,
     ActionStatus,
     ArtifactRecord,
     ArtifactRevision,
     CausalEventDraft,
+    DecisionRecord,
     ModelEvent,
     RunState,
     RunStatus,
@@ -27,6 +28,16 @@ from rwkv_lh.schema import (
     utc_now,
 )
 from rwkv_lh.store import LongHorizonStore, StateStore
+from rwkv_lh.supervisor import (
+    ReviewDisposition,
+    SupervisorClient,
+    SupervisorPlan,
+    SupervisorPlanRequest,
+    SupervisorPolicy,
+    SupervisorReview,
+    SupervisorReviewRequest,
+    supervisor_identity,
+)
 
 
 @dataclass
@@ -37,7 +48,7 @@ class ControllerResult:
 
 
 class LongHorizonController:
-    """Execute exactly the operations emitted by one persistent RWKV session."""
+    """Execute RWKV operations; optionally gate planning and completion externally."""
 
     _MAX_PROTOCOL_REJECTIONS = 12
     _MAX_IDENTICAL_FAILURES = 5
@@ -51,12 +62,16 @@ class LongHorizonController:
         *,
         model: LongHorizonModel | None = None,
         harness: ActionHarness | None = None,
+        supervisor: SupervisorClient | None = None,
+        supervisor_policy: SupervisorPolicy | None = None,
         max_transitions: int = 500,
         **_removed_options: Any,
     ) -> None:
         self.store = store or LongHorizonStore()
         self.harness = harness or ActionHarness()
         self.model = model or LongHorizonModel(harness=self.harness)
+        self.supervisor = supervisor
+        self.supervisor_policy = supervisor_policy or SupervisorPolicy()
         self.max_transitions = max(1, int(max_transitions))
 
     def run(self, run_id: str) -> ControllerResult:
@@ -66,32 +81,120 @@ class LongHorizonController:
                 return ControllerResult(state, state.final_output, 0)
             if not state.goal.verify_digest():
                 raise ValueError("literal request digest mismatch")
+            if self.supervisor is None and self._run_requires_supervisor(state):
+                return self._missing_supervisor_configuration(state)
 
             transitions = 0
             self._recover_active_action(state)
             if state.status != RunStatus.RUNNING:
                 state.status = RunStatus.RUNNING
+                hybrid = self.supervisor is not None
                 self._persist(
                     state,
                     "run_started",
                     {
-                        "architecture": "single-rwkv-direct-action.v1",
+                        "architecture": (
+                            "strong-supervisor-rwkv-worker.v1"
+                            if hybrid
+                            else "single-rwkv-direct-action.v1"
+                        ),
                         "online_task_graph": False,
-                        "reviewer": False,
+                        "reviewer": hybrid,
+                        **(
+                            {"supervisor": supervisor_identity(self.supervisor)}
+                            if self.supervisor is not None
+                            else {}
+                        ),
                     },
                 )
 
-            pending_event = self._first_unappended_action_observation(state)
+            plan: SupervisorPlan | None = None
+            pending_events: list[ModelEvent] = []
+            if self.supervisor is not None:
+                try:
+                    plan = self._committed_supervisor_plan(state)
+                    if plan is None:
+                        requested = self.supervisor.create_plan(
+                            self._supervisor_plan_request(state)
+                        )
+                        if not isinstance(requested, SupervisorPlan):
+                            raise TypeError("supervisor returned an invalid plan object")
+                        plan = SupervisorPlan.from_dict(requested.to_dict())
+                except Exception as exc:
+                    return self._supervisor_plan_failure(state, exc)
+                if self._committed_supervisor_plan(state) is None:
+                    self._persist(
+                        state,
+                        "supervisor_plan_committed",
+                        {
+                            "plan_id": plan.plan_id,
+                            "plan": plan.to_dict(),
+                            "request_digest": state.goal.digest,
+                            "supervisor": supervisor_identity(self.supervisor),
+                            "rwkv_action_authority": True,
+                        },
+                    )
+                plan_event = self._supervisor_plan_event(plan)
+                if plan_event.event_id not in state.model_events:
+                    pending_events.append(plan_event)
+
+                review_boundary = self._recover_supervisor_review_boundary(
+                    state,
+                    plan,
+                )
+                if isinstance(review_boundary, ControllerResult):
+                    return review_boundary
+                if review_boundary is not None:
+                    pending_events.append(review_boundary)
+                else:
+                    recovered_decision = self._unreviewed_supervisor_decision(state)
+                    if recovered_decision is not None:
+                        wire_command = parse_model_command(recovered_decision.raw_output)
+                        validate_final_answer(wire_command)
+                        checkpoint = state.model_states.get(
+                            recovered_decision.output_checkpoint_id
+                        )
+                        if checkpoint is None:
+                            raise ValueError(
+                                "unreviewed supervisor candidate checkpoint is missing"
+                            )
+                        recovered_boundary = self._review_supervisor_candidate(
+                            state,
+                            plan,
+                            ActionDecision(
+                                wire_command=wire_command,
+                                command=wire_command,
+                                checkpoint=checkpoint,
+                                decision=recovered_decision,
+                                argument_normalization={},
+                            ),
+                            str(wire_command.arguments["text"]),
+                            0,
+                        )
+                        if isinstance(recovered_boundary, ControllerResult):
+                            return recovered_boundary
+                        pending_events.append(recovered_boundary)
+
+            pending_action_event = self._first_unappended_action_observation(state)
+            if pending_action_event is not None:
+                pending_events.append(pending_action_event)
             terminal_reason = ""
             transport_failures = 0
             while transitions < self.max_transitions:
                 try:
-                    decision = self.model.next_command(
-                        state,
-                        self._persist_callback,
-                        event=pending_event,
-                    )
-                    pending_event = None
+                    if len(pending_events) > 1:
+                        decision = self.model.next_command(
+                            state,
+                            self._persist_callback,
+                            events=tuple(pending_events),
+                        )
+                    else:
+                        decision = self.model.next_command(
+                            state,
+                            self._persist_callback,
+                            event=(pending_events[0] if pending_events else None),
+                        )
+                    pending_events = []
                     transport_failures = 0
                 except RWKVRuntimeError as exc:
                     transport_failures += 1
@@ -125,7 +228,7 @@ class LongHorizonController:
                     if state.protocol_rejections >= self._MAX_PROTOCOL_REJECTIONS:
                         terminal_reason = "protocol_rejection_budget_exhausted"
                         break
-                    pending_event = ModelEvent(
+                    pending_events = [ModelEvent(
                         event_type="protocol_rejection",
                         event_id=f"EV-REJECT-{uuid4().hex[:16]}",
                         scope_id=self.model.ACTION_LANE_ID,
@@ -145,12 +248,26 @@ class LongHorizonController:
                                 "explicit parameter object. No operation or value was inferred."
                             ),
                         },
-                    )
+                    )]
                     continue
 
                 transitions += 1
                 if decision.wire_command.name == "final_answer":
                     output = str(decision.wire_command.arguments["text"])
+                    if self.supervisor is not None:
+                        if plan is None:
+                            raise RuntimeError("hybrid run has no committed supervisor plan")
+                        review_boundary = self._review_supervisor_candidate(
+                            state,
+                            plan,
+                            decision,
+                            output,
+                            transitions,
+                        )
+                        if isinstance(review_boundary, ControllerResult):
+                            return review_boundary
+                        pending_events = [review_boundary]
+                        continue
                     state.final_output = output
                     state.final_decision_id = decision.decision.decision_id
                     state.status = RunStatus.COMPLETED
@@ -171,7 +288,7 @@ class LongHorizonController:
                     return ControllerResult(state, output, transitions)
 
                 action = self._execute_decision(state, decision)
-                pending_event = self._action_observation_event(state, action)
+                pending_events = [self._action_observation_event(state, action)]
                 if (
                     action.failure_key
                     and state.failure_budgets.get(action.failure_key, 0)
@@ -182,11 +299,467 @@ class LongHorizonController:
 
             if not terminal_reason:
                 terminal_reason = "transition_budget_exhausted"
-            output = self._terminal_output(state, terminal_reason, pending_event)
+            output = self._terminal_output(
+                state,
+                terminal_reason,
+                (pending_events[-1] if pending_events else None),
+            )
             return ControllerResult(state, output, transitions)
 
     def resume(self, run_id: str) -> ControllerResult:
         return self.run(run_id)
+
+    def _supervisor_plan_request(self, state: RunState) -> SupervisorPlanRequest:
+        return SupervisorPlanRequest(
+            run_id=state.run_id,
+            request=state.goal.request,
+            request_digest=state.goal.digest,
+            constraints=tuple(state.goal.constraints),
+            workspace_manifest=self.harness.workspace_manifest(
+                state.goal,
+                max_entries=256,
+                max_tokens=1800,
+            ),
+        )
+
+    @staticmethod
+    def _run_requires_supervisor(state: RunState) -> bool:
+        return any(
+            event.event_type == "supervisor_plan_committed"
+            or (
+                event.event_type == "run_started"
+                and str(event.payload.get("architecture") or "")
+                == "strong-supervisor-rwkv-worker.v1"
+            )
+            for event in state.causal_records.values()
+        )
+
+    def _missing_supervisor_configuration(self, state: RunState) -> ControllerResult:
+        if state.status in {
+            RunStatus.FAILED,
+            RunStatus.INTERRUPTED,
+            RunStatus.BLOCKED,
+        }:
+            return ControllerResult(state, state.final_output, 0)
+        self._persist(
+            state,
+            "supervisor_configuration_missing",
+            {
+                "reason": "hybrid_run_requires_supervisor_client",
+                "fail_closed": True,
+                "action_executed": False,
+                "at": utc_now(),
+            },
+        )
+        self._persist(
+            state,
+            "run_interrupted",
+            {
+                "reason": "supervisor_configuration_missing",
+                "decision_id": state.final_decision_id,
+                "final_output_sha256": hashlib.sha256(
+                    state.final_output.encode("utf-8")
+                ).hexdigest(),
+                "output_source": "previous_persisted_output",
+                "controller_rewritten": False,
+                "final_output": state.final_output,
+            },
+        )
+        return ControllerResult(state, state.final_output, 0)
+
+    @staticmethod
+    def _committed_supervisor_plan(state: RunState) -> SupervisorPlan | None:
+        payloads = [
+            state.causal_records[event_id].payload
+            for event_id in state.causal_order
+            if state.causal_records[event_id].event_type == "supervisor_plan_committed"
+        ]
+        if len(payloads) > 1:
+            raise ValueError("run contains more than one committed supervisor plan")
+        if not payloads:
+            return None
+        value = payloads[0].get("plan")
+        if not isinstance(value, Mapping):
+            raise ValueError("committed supervisor plan is incomplete")
+        return SupervisorPlan.from_dict(value)
+
+    def _supervisor_plan_event(self, plan: SupervisorPlan) -> ModelEvent:
+        return ModelEvent(
+            event_type="supervisor_plan",
+            event_id=f"EV-SUPERVISOR-{plan.plan_id}",
+            scope_id=self.model.ACTION_LANE_ID,
+            payload={
+                "source": "external_strong_model_supervisor",
+                "authority": "planning_and_completion_review_only",
+                "plan": plan.to_dict(),
+                "instruction": (
+                    "Use this bounded plan as guidance. You remain the only component that "
+                    "selects and executes direct operations. Verify tool results and return "
+                    "final_answer only after the completion checks are satisfied."
+                ),
+            },
+        )
+
+    def _supervisor_plan_failure(
+        self,
+        state: RunState,
+        exc: BaseException,
+    ) -> ControllerResult:
+        self._persist(
+            state,
+            "supervisor_call_failed",
+            {
+                "phase": "plan",
+                "supervisor": (
+                    supervisor_identity(self.supervisor)
+                    if self.supervisor is not None
+                    else {}
+                ),
+                "error": {"type": type(exc).__name__, "message": str(exc)[:2000]},
+                "fail_closed": True,
+                "at": utc_now(),
+            },
+        )
+        self._persist(
+            state,
+            "run_failed",
+            {
+                "reason": "supervisor_plan_unavailable",
+                "output_source": "none",
+                "controller_rewritten": False,
+                "final_output_sha256": hashlib.sha256(b"").hexdigest(),
+                "final_output": "",
+            },
+        )
+        return ControllerResult(state, "", 0)
+
+    def _supervisor_review_request(
+        self,
+        state: RunState,
+        plan: SupervisorPlan,
+        decision: ActionDecision,
+        output: str,
+    ) -> SupervisorReviewRequest:
+        actions: list[dict[str, Any]] = []
+        ordered = sorted(state.actions.values(), key=lambda item: item.sequence)
+        for action in ordered[-96:]:
+            result = dict(action.result or {})
+            observed_output = str(result.get("output") or "")
+            if len(observed_output) > 4000:
+                result["output"] = observed_output[:4000]
+                result["output_projection"] = {
+                    "truncated": True,
+                    "original_chars": len(observed_output),
+                    "retained_chars": 4000,
+                }
+            actions.append(
+                {
+                    "action_id": action.action_id,
+                    "sequence": action.sequence,
+                    "operation": action.action_type,
+                    "arguments": dict(action.arguments),
+                    "status": action.status.value,
+                    "result": result,
+                    "artifact_refs": list(action.artifact_refs),
+                }
+            )
+        artifacts = tuple(
+            {
+                "artifact_id": artifact.artifact_id,
+                "action_id": artifact.action_id,
+                "path": artifact.path,
+                "sha256": artifact.sha256,
+                "media_type": artifact.media_type,
+                "size_bytes": artifact.size_bytes,
+                "summary": artifact.summary,
+            }
+            for artifact in state.artifacts.values()
+        )
+        return SupervisorReviewRequest(
+            run_id=state.run_id,
+            request=state.goal.request,
+            request_digest=state.goal.digest,
+            plan=plan,
+            candidate_output=output,
+            candidate_decision_id=decision.decision.decision_id,
+            action_count=len(ordered),
+            actions=tuple(actions),
+            artifacts=artifacts,
+            workspace_manifest=self.harness.workspace_manifest(
+                state.goal,
+                max_entries=256,
+                max_tokens=1800,
+            ),
+        )
+
+    @staticmethod
+    def _unreviewed_supervisor_decision(state: RunState) -> DecisionRecord | None:
+        reviewed = {
+            str(event.payload.get("candidate_decision_id") or "")
+            for event in state.causal_records.values()
+            if event.event_type == "supervisor_review_recorded"
+        }
+        candidate = None
+        for event_id in state.causal_order:
+            event = state.causal_records[event_id]
+            if (
+                event.event_type == "model_call_accepted"
+                and str(event.payload.get("operation") or "") == "final_answer"
+            ):
+                decision_id = str(event.payload.get("decision_id") or "")
+                if decision_id and decision_id not in reviewed:
+                    candidate = state.decisions.get(decision_id)
+        return candidate
+
+    def _review_supervisor_candidate(
+        self,
+        state: RunState,
+        plan: SupervisorPlan,
+        decision: ActionDecision,
+        output: str,
+        transitions: int,
+    ) -> ControllerResult | ModelEvent:
+        if self.supervisor is None:
+            raise RuntimeError("supervisor review requested without a supervisor")
+        request = self._supervisor_review_request(state, plan, decision, output)
+        try:
+            returned = self.supervisor.review_final(request)
+            if not isinstance(returned, SupervisorReview):
+                raise TypeError("supervisor returned an invalid review object")
+            review = SupervisorReview.from_dict(returned.to_dict())
+        except Exception as exc:
+            return self._supervisor_review_failure(
+                state,
+                decision,
+                output,
+                exc,
+                transitions,
+            )
+
+        prior_repairs = len(self._supervisor_revision_payloads(state))
+        self._persist(
+            state,
+            "supervisor_review_recorded",
+            {
+                "review_id": review.review_id,
+                "review": review.to_dict(),
+                "plan_id": plan.plan_id,
+                "candidate_decision_id": decision.decision.decision_id,
+                "candidate_output": output,
+                "candidate_output_sha256": hashlib.sha256(
+                    output.encode("utf-8")
+                ).hexdigest(),
+                "review_attempt": prior_repairs + 1,
+                "supervisor": supervisor_identity(self.supervisor),
+                "rwkv_output_rewritten": False,
+            },
+        )
+        if review.disposition == ReviewDisposition.PASS:
+            return self._complete_supervised_candidate(
+                state,
+                decision.decision.decision_id,
+                decision.decision.request_id,
+                output,
+                review,
+                transitions,
+            )
+        if prior_repairs >= self.supervisor_policy.max_review_repairs:
+            return self._interrupt_supervised_candidate(
+                state,
+                decision.decision.decision_id,
+                output,
+                review,
+                transitions,
+            )
+        return self._supervisor_review_event(
+            review,
+            decision.decision.decision_id,
+            repair_number=prior_repairs + 1,
+        )
+
+    @staticmethod
+    def _supervisor_revision_payloads(state: RunState) -> list[Mapping[str, Any]]:
+        revisions: list[Mapping[str, Any]] = []
+        for event_id in state.causal_order:
+            event = state.causal_records[event_id]
+            if event.event_type != "supervisor_review_recorded":
+                continue
+            review = event.payload.get("review")
+            if (
+                isinstance(review, Mapping)
+                and str(review.get("disposition") or "")
+                == ReviewDisposition.REVISE.value
+            ):
+                revisions.append(event.payload)
+        return revisions
+
+    def _supervisor_review_event(
+        self,
+        review: SupervisorReview,
+        candidate_decision_id: str,
+        *,
+        repair_number: int,
+    ) -> ModelEvent:
+        return ModelEvent(
+            event_type="supervisor_review",
+            event_id=f"EV-SUPERVISOR-REVIEW-{candidate_decision_id}",
+            scope_id=self.model.ACTION_LANE_ID,
+            payload={
+                "source": "external_strong_model_supervisor",
+                "candidate_decision_id": candidate_decision_id,
+                "repair_number": repair_number,
+                "review": review.to_dict(),
+                "instruction": (
+                    "The completion candidate was not accepted. Address every concrete issue "
+                    "using direct operations and observed facts. Return final_answer again only "
+                    "after the issues and original completion checks are satisfied."
+                ),
+            },
+        )
+
+    def _recover_supervisor_review_boundary(
+        self,
+        state: RunState,
+        plan: SupervisorPlan,
+    ) -> ControllerResult | ModelEvent | None:
+        payload: Mapping[str, Any] | None = None
+        for event_id in state.causal_order:
+            event = state.causal_records[event_id]
+            if event.event_type == "supervisor_review_recorded":
+                payload = event.payload
+        if payload is None:
+            return None
+        review_value = payload.get("review")
+        if not isinstance(review_value, Mapping):
+            raise ValueError("recorded supervisor review is incomplete")
+        review = SupervisorReview.from_dict(review_value)
+        candidate_decision_id = str(payload.get("candidate_decision_id") or "")
+        output = str(payload.get("candidate_output") or "")
+        if not candidate_decision_id:
+            raise ValueError("recorded supervisor review has no candidate decision")
+        if str(payload.get("plan_id") or "") != plan.plan_id:
+            raise ValueError("recorded supervisor review references another plan")
+        if review.disposition == ReviewDisposition.PASS:
+            decision = state.decisions.get(candidate_decision_id)
+            request_id = decision.request_id if decision is not None else ""
+            return self._complete_supervised_candidate(
+                state,
+                candidate_decision_id,
+                request_id,
+                output,
+                review,
+                0,
+            )
+        revision_count = len(self._supervisor_revision_payloads(state))
+        if revision_count > self.supervisor_policy.max_review_repairs:
+            return self._interrupt_supervised_candidate(
+                state,
+                candidate_decision_id,
+                output,
+                review,
+                0,
+            )
+        model_event = self._supervisor_review_event(
+            review,
+            candidate_decision_id,
+            repair_number=revision_count,
+        )
+        if model_event.event_id not in state.model_events:
+            return model_event
+        return None
+
+    def _complete_supervised_candidate(
+        self,
+        state: RunState,
+        decision_id: str,
+        request_id: str,
+        output: str,
+        review: SupervisorReview,
+        transitions: int,
+    ) -> ControllerResult:
+        self._persist(
+            state,
+            "run_completed",
+            {
+                "decision_id": decision_id,
+                "request_id": request_id,
+                "final_output_sha256": hashlib.sha256(
+                    output.encode("utf-8")
+                ).hexdigest(),
+                "output_source": "rwkv_explicit_final_answer_text",
+                "controller_rewritten": False,
+                "supervisor_review_id": review.review_id,
+                "supervisor_disposition": review.disposition.value,
+                "final_output": output,
+            },
+        )
+        return ControllerResult(state, output, transitions)
+
+    def _interrupt_supervised_candidate(
+        self,
+        state: RunState,
+        decision_id: str,
+        output: str,
+        review: SupervisorReview,
+        transitions: int,
+    ) -> ControllerResult:
+        self._persist(
+            state,
+            "run_interrupted",
+            {
+                "reason": "supervisor_revision_budget_exhausted",
+                "decision_id": decision_id,
+                "final_output_sha256": hashlib.sha256(
+                    output.encode("utf-8")
+                ).hexdigest(),
+                "output_source": "rwkv_candidate_not_approved_by_supervisor",
+                "controller_rewritten": False,
+                "supervisor_review_id": review.review_id,
+                "supervisor_disposition": review.disposition.value,
+                "final_output": output,
+            },
+        )
+        return ControllerResult(state, output, transitions)
+
+    def _supervisor_review_failure(
+        self,
+        state: RunState,
+        decision: ActionDecision,
+        output: str,
+        exc: BaseException,
+        transitions: int,
+    ) -> ControllerResult:
+        self._persist(
+            state,
+            "supervisor_call_failed",
+            {
+                "phase": "review",
+                "candidate_decision_id": decision.decision.decision_id,
+                "supervisor": (
+                    supervisor_identity(self.supervisor)
+                    if self.supervisor is not None
+                    else {}
+                ),
+                "error": {"type": type(exc).__name__, "message": str(exc)[:2000]},
+                "fail_closed": True,
+                "at": utc_now(),
+            },
+        )
+        self._persist(
+            state,
+            "run_interrupted",
+            {
+                "reason": "supervisor_review_unavailable",
+                "decision_id": decision.decision.decision_id,
+                "final_output_sha256": hashlib.sha256(
+                    output.encode("utf-8")
+                ).hexdigest(),
+                "output_source": "rwkv_candidate_supervisor_unavailable",
+                "controller_rewritten": False,
+                "final_output": output,
+            },
+        )
+        return ControllerResult(state, output, transitions)
 
     def _execute_decision(
         self,
@@ -571,6 +1144,8 @@ class LongHorizonController:
             "action_observation_appended": "event_id",
             "stale_active_action_cleared": "action_id",
             "idempotent_action_recovered": "action_id",
+            "supervisor_plan_committed": "plan_id",
+            "supervisor_review_recorded": "review_id",
         }
         subject_key = subject_keys.get(event_type)
         subject_id = str(event.get(subject_key) or state.run_id) if subject_key else state.run_id

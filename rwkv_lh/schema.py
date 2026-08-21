@@ -1,8 +1,9 @@
-"""Versioned contracts for the single RWKV action spine.
+"""Versioned facts for the RWKV action spine and optional hybrid supervision.
 
 The runtime stores literal input, model calls, exact tool observations and
-artifact revisions.  It deliberately has no online plan, Task graph,
-completion criterion, reviewer state, or controller-authored semantic claim.
+artifact revisions.  The default R126 path has no online plan or reviewer.  In
+hybrid mode, external plans and reviews are attributed causal facts; they do not
+become mutable controller-authored task state or gain Harness execution authority.
 """
 
 from __future__ import annotations
@@ -39,6 +40,10 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "stale_active_action_cleared": "rwkv-lh.action-recovery.v1",
     "idempotent_action_recovered": "rwkv-lh.action-recovery.v1",
     "model_transport_failure": "rwkv-lh.model-transport-failure.v1",
+    "supervisor_plan_committed": "rwkv-lh.supervisor-plan-committed.v1",
+    "supervisor_review_recorded": "rwkv-lh.supervisor-review-recorded.v1",
+    "supervisor_call_failed": "rwkv-lh.supervisor-call-failed.v1",
+    "supervisor_configuration_missing": "rwkv-lh.supervisor-configuration-missing.v1",
 }
 
 

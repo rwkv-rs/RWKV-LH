@@ -381,6 +381,7 @@ def test_causal_event_chain_is_contiguous_across_model_action_observation_final(
         "model_call_accepted", "action_started", "action_finished",
         "action_observation_appended", "run_completed",
     }
+    assert not any(item.event_type.startswith("supervisor_") for item in records)
 
 
 def test_custom_registered_action_is_exposed_and_executed_directly(tmp_path: Path) -> None:
