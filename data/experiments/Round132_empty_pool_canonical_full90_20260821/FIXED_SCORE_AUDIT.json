@@ -1,0 +1,127 @@
+{
+  "schema_version": "rwkv-lh.round132-fixed-score-audit.v1",
+  "round": "Round132_empty_pool_canonical_full90_20260821",
+  "generated_on": "2026-08-21",
+  "verdict": "REVERT",
+  "terminal_success": false,
+  "confirmation_run": {
+    "required": false,
+    "status": "SKIPPED_PRECONDITION_FAILED",
+    "reason": "The source-frozen Full90 has FP 30, above the locked FP <= 24 terminal threshold."
+  },
+  "run": {
+    "count": 90,
+    "categories": {
+      "TP": 34,
+      "FP": 30,
+      "FN": 0,
+      "OTHER": 26
+    },
+    "agent_completed": 64,
+    "interrupted": 26,
+    "running": 0,
+    "model_requests": 3504,
+    "actions": 3171,
+    "protocol_rejections": 235,
+    "nonempty_finals": 90,
+    "raw_rwkv_final_matches": 90
+  },
+  "groups": {
+    "basic": {
+      "TP": 23,
+      "FP": 7,
+      "FN": 0,
+      "OTHER": 0
+    },
+    "medium": {
+      "TP": 8,
+      "FP": 16,
+      "FN": 0,
+      "OTHER": 6
+    },
+    "hard_including_long_horizon": {
+      "TP": 3,
+      "FP": 7,
+      "FN": 0,
+      "OTHER": 20
+    }
+  },
+  "byte_precision": {
+    "passed": 5,
+    "total": 5,
+    "failures": []
+  },
+  "retention": {
+    "r126_official_reconstructed": {
+      "retained": 33,
+      "total": 36,
+      "required": "at most two losses (>=34/36; operationalization of locked 32/34 intent)",
+      "losses": [
+        "E2E-LH09",
+        "E2E-M06",
+        "E2E-M24"
+      ]
+    },
+    "r128_registered_proxy": {
+      "retained": 28,
+      "total": 31,
+      "required": ">=29/31",
+      "losses": [
+        "E2E-B29",
+        "E2E-M11",
+        "E2E-M24"
+      ]
+    }
+  },
+  "churn_vs_r130_repaired_canonical": {
+    "TP_to_TP": 32,
+    "TP_to_FP": 1,
+    "TP_to_OTHER": 2,
+    "FP_to_FP": 25,
+    "FP_to_OTHER": 4,
+    "OTHER_to_TP": 2,
+    "OTHER_to_FP": 4,
+    "OTHER_to_OTHER": 20
+  },
+  "default_off_integrity": {
+    "confidence_events": 3504,
+    "confidence_enabled": 0,
+    "confidence_deferrals": 0,
+    "ensemble_events": 3504,
+    "ensemble_enabled": 0,
+    "noncanonical_generations": 0,
+    "generation_returns": 3504,
+    "logprobs_requested": 0,
+    "logprobs_returned": 0,
+    "transcript_overrides": 0
+  },
+  "gates": {
+    "G1_byte_5_of_5": "PASS",
+    "G2_strict_at_least_confirmed_floor_34": "PASS",
+    "G3_fn_at_most_1_and_other_not_risen": "FAIL (FN 0; OTHER 26 > official baseline 24 and confirmatory baseline 25)",
+    "G4_90_valid_and_zero_running": "PASS",
+    "G5_r126_tp_retention": "FAIL (33/36 and proxy 28/31; three losses in both sets)",
+    "G6_strict_at_least_best_single_prior_36": "FAIL (34 < 36; composition interaction attribution is not applicable because the ingredient pool was empty)"
+  },
+  "terminal_thresholds": {
+    "strict_greater_than_31": "PASS (34)",
+    "fp_at_most_24": "FAIL (30; gap 6)",
+    "fn_at_most_1": "PASS (0)",
+    "valid_90_and_zero_running": "PASS"
+  },
+  "source_and_regression": {
+    "source_tree_sha256": "4a51629f4387160d86fb30e29aa59277b3b1fab50b29ec1a7fe521099b82864b",
+    "source_manifest_checked": 67,
+    "source_manifest_mismatches": 0,
+    "output_source_manifest_matches_frozen_source_files": true,
+    "bootstrap_sha256": "5225e07a0d686b343072e7c6cb446b04dc80fa5983e1aee4362efedfac922564",
+    "bootstrap_byte_equal_to_r130_repaired": true,
+    "pytest": "121 passed in 32.64s",
+    "compileall": "passed"
+  },
+  "artifacts": {
+    "results_sha256": "4ce04752b1969549dd9332a9701fcadb0afd0ad2b9aa43083d7735bf8d3ece3c",
+    "output_source_tree_manifest_sha256": "76d759d6277d0a87803480194292ec65aa01eeb0d756dfeb0a096e56d032d9df",
+    "frozen_source_manifest_sha256": "6c119930e7459b26b802d8e25511c4c372a902020c79389175a7136260f09778"
+  }
+}

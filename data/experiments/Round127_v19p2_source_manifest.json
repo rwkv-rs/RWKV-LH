@@ -1,0 +1,318 @@
+{
+  "schema_version": "rwkv-lh.experiment-source-manifest.v2",
+  "experiment": "Round127 v19-P2 Request-Contract Decomposition (verbatim immutable_request lifted OUT of the JSON payload — where R126 kept it as the last field, one homogeneous peer among workspace_manifest/recent_exact_action_records — and rendered as a single standalone trailing block 'immutable_request:\\n<request>' nearest the continuation; one copy only, no per-turn re-injection, no second decision; request bytes and instruction text byte-identical to R126, only framing changes JSON-field->trailing-block)",
+  "baseline": "Round126 v19-P1 (Strict 36 official / 34 confirmatory, FP 30, FN 0 — current historical best); only rwkv_lh/model.py changes vs R126 baseline",
+  "frozen_at_utc": "2026-08-17T04:36:46+00:00",
+  "environment": {
+    "distribution": "WSL UbuntuRecovered",
+    "kernel": "6.18.33.1-microsoft-standard-WSL2",
+    "uv": "uv 0.12.5 (x86_64-unknown-linux-gnu)",
+    "python": "Python 3.13.11"
+  },
+  "git": {
+    "branch": "chase/g1i-tool-protocol",
+    "head": "14d864d71bf670b479a33f4fdb63b4772b69d3c8",
+    "working_tree": "dirty historical tree; per-file hashes are authoritative",
+    "tracked_binary_diff_sha256": "2ce763a3db8ab7af54853a4db681de421a05c1c2dad18b9742f109d042890192",
+    "porcelain_status_with_untracked_sha256": "b7475dcd3f31d1a1c37154f14d0630fae2f821670369f1a5bff3a83413b42343"
+  },
+  "protocol": {
+    "path": "data/experiments/Round127_V19P2_REQUEST_CONTRACT_DECOMPOSITION_PROTOCOL.md",
+    "size_bytes": 7124,
+    "sha256": "c7026d1371765ae75f3fca7a66d5f951883c505079e9919ad20292c895062530"
+  },
+  "architecture": {
+    "run_schema": "long-horizon.run.v18",
+    "causal_event_schema": "rwkv-lh.causal-event.v2",
+    "online_semantic_lanes": [
+      "LANE:ACTION"
+    ],
+    "direct_registered_operations": 17,
+    "terminal_operation": "final_answer",
+    "online_task_graph": false,
+    "reviewer": false,
+    "sampling_policy": {
+      "version": "r119-byte-exact (unchanged this round)",
+      "default": {
+        "temperature": 0.05,
+        "top_p": 1.0,
+        "top_k": 0
+      },
+      "seed_supported": false
+    },
+    "request_contract_decomposition": {
+      "version": "request-contract-decomposition.v1",
+      "change": "_assignment returns json.dumps({protocol, constraints, workspace_manifest, recent_exact_action_records, instruction}) + '\\n\\nimmutable_request:\\n' + request; request lifted out of the JSON, single copy, rendered last nearest the continuation",
+      "persisted": true,
+      "per_turn_reinjection": false,
+      "token_delta_vs_R126": 0,
+      "second_decision_added": false,
+      "task_text_parsed": false,
+      "hidden_acceptance_read": false
+    },
+    "prompt_render_changed_vs_baseline": "assignment: immutable_request lifted out of the JSON into a trailing standalone block (same request bytes, one copy); append chain unchanged",
+    "transport": "prompt_replay"
+  },
+  "offline_verification": {
+    "pytest": "107 passed",
+    "e2e_catalog": {
+      "selected": 90,
+      "total": 90,
+      "catalog_valid": true
+    },
+    "compileall": "passed",
+    "changed_files_vs_R126": [
+      "rwkv_lh/model.py"
+    ],
+    "render_smoke": "assignment ends with 'immutable_request:\\n<request>' as the last block; JSON context no longer contains an immutable_request key; request appears exactly once"
+  },
+  "source_bundle_sha256": "9dc3cfdad59a0006a28eb0aab1425fd07859a62e96a2bfadb057a87cc7736ce5",
+  "source_files": [
+    {
+      "path": "README.md",
+      "size_bytes": 5439,
+      "sha256": "fe6cef3695396828d91fcb060109c4059c7ed49fe439e0cbc9cf9db60b98a81f"
+    },
+    {
+      "path": "docs/G1I_TOOL_PROTOCOL.zh-CN.md",
+      "size_bytes": 3343,
+      "sha256": "323d7b1d2e65209bfb9a842097db24cff2ae3d8f4d01f04065f324005a3aa839"
+    },
+    {
+      "path": "docs/LOCAL_WEB_UI.zh-CN.md",
+      "size_bytes": 3723,
+      "sha256": "ab826e3efaa1f2f1f8f6fd9507092856705c43b08971615082a99359f2a17a5f"
+    },
+    {
+      "path": "docs/LONG_HORIZON_AGENT_DESIGN.zh-CN.md",
+      "size_bytes": 4613,
+      "sha256": "8366fd48d9b8dbc273eb9802efa201125d08c48c7df0b31411722719a8208ada"
+    },
+    {
+      "path": "pyproject.toml",
+      "size_bytes": 1203,
+      "sha256": "0a4df06e48493a08370875851dad844eaa3c201b4bdb849b5596aeabd55907da"
+    },
+    {
+      "path": "rwkv_lh/__init__.py",
+      "size_bytes": 642,
+      "sha256": "1e41df5e45a5fa17814d3278a488304e4742f1d1c4a019e54152aefafbae1e78"
+    },
+    {
+      "path": "rwkv_lh/benchmark_verifier.py",
+      "size_bytes": 30029,
+      "sha256": "635f6e6b6bc4e01e5f94844ba479194ea6e2e740c183211cd7c57f66b606cdce"
+    },
+    {
+      "path": "rwkv_lh/chunks.py",
+      "size_bytes": 12956,
+      "sha256": "6d1018e921708ac6d410dcd21925f4c5d81ee284f4b83e32a7d767c60b95b29c"
+    },
+    {
+      "path": "rwkv_lh/controller.py",
+      "size_bytes": 23235,
+      "sha256": "f1d849279c564b2f6088ebd5b9d655018a69b75023159a45525aee5812f19c57"
+    },
+    {
+      "path": "rwkv_lh/harness.py",
+      "size_bytes": 82470,
+      "sha256": "1bb75f457bc033d8f27ac0f45159b0138d69c7435639090867feb6fffd46d252"
+    },
+    {
+      "path": "rwkv_lh/model.py",
+      "size_bytes": 19915,
+      "sha256": "05d138167f64befb0c212adb7256a5da26890e890a406c7326f22708a71e48d0"
+    },
+    {
+      "path": "rwkv_lh/model_io.py",
+      "size_bytes": 8634,
+      "sha256": "8a4f92c7f44c949901529cebcdd3c9deac6aa7de6e8fbfac6e3824db7341b922"
+    },
+    {
+      "path": "rwkv_lh/model_session.py",
+      "size_bytes": 18017,
+      "sha256": "f4c9a6a3dfa3dda1d816d1b1066770ff1a253b26519962ee12f051ccfb93f45c"
+    },
+    {
+      "path": "rwkv_lh/runtime/__init__.py",
+      "size_bytes": 1109,
+      "sha256": "db116df06dc6be233966d7640d2ddad9d263dcc9dcb1ce052535a7f4293663c4"
+    },
+    {
+      "path": "rwkv_lh/runtime/openai_compat.py",
+      "size_bytes": 19128,
+      "sha256": "fc3d7d6d9aad46c4da18a941826e07ae815ebc98f3e93de3d1fe9189924ab5ac"
+    },
+    {
+      "path": "rwkv_lh/runtime/protocol.py",
+      "size_bytes": 10771,
+      "sha256": "ab0cf60f92b9a23781ff7510749a33b8e0a9617a7d593b7752753b00c6534cd7"
+    },
+    {
+      "path": "rwkv_lh/runtime/sampling.py",
+      "size_bytes": 4694,
+      "sha256": "96e9e9ec2d039b98d77a488e6ac95bff37291b93a8c51f6bd9e016e6cefb71c1"
+    },
+    {
+      "path": "rwkv_lh/runtime/settings.py",
+      "size_bytes": 8155,
+      "sha256": "891f86ebb443d91d25d8cc7b2722ec0fec2cf3fa2daf945e2a44af832f844b55"
+    },
+    {
+      "path": "rwkv_lh/schema.py",
+      "size_bytes": 39283,
+      "sha256": "8b3729040b3c60bc48dc76a0cba378f89a37420f2f5ef0729c0d7f3423212f14"
+    },
+    {
+      "path": "rwkv_lh/store.py",
+      "size_bytes": 28298,
+      "sha256": "c503e9424f9124d59f42b1647227bb5629933a7e5830fd2a67290d506a73f6b7"
+    },
+    {
+      "path": "rwkv_lh/token_budget.py",
+      "size_bytes": 1070,
+      "sha256": "5479983bcf79b3df007668c16a28a76bf865d08474f5b6178eada476b6694260"
+    },
+    {
+      "path": "rwkv_lh/tokenizer.py",
+      "size_bytes": 3630,
+      "sha256": "67b83e2ec297f02e80e041b719ecf64595a37920ce95b6650546b612b351fe06"
+    },
+    {
+      "path": "rwkv_lh/web_ui.py",
+      "size_bytes": 32143,
+      "sha256": "d2c4e78a463946b31887d0ce7132cdaa6245dad29f47001e8fe316bc0c123a20"
+    },
+    {
+      "path": "rwkv_lh/web_worker.py",
+      "size_bytes": 4652,
+      "sha256": "5359f9f45367ea49b785e2907116ab2e3fa600340943099ecd0e649361ea8c8d"
+    },
+    {
+      "path": "scripts/__init__.py",
+      "size_bytes": 45,
+      "sha256": "ccc1f277a01338f589cad553fe1609990933c7ee3e6e8641d1be74cec555d22e"
+    },
+    {
+      "path": "scripts/run_lh_control_benchmark.py",
+      "size_bytes": 1672,
+      "sha256": "446951b425978305dbcd25a78a2658b1a44943e473c8276113407e8a1fc85492"
+    },
+    {
+      "path": "scripts/run_long_horizon.py",
+      "size_bytes": 3682,
+      "sha256": "ba214a1917176a24c3f1e9fc9697022ed78e55d10b1bb67fa4a7177ab9562f36"
+    },
+    {
+      "path": "scripts/run_rwkv_e2e_benchmark.py",
+      "size_bytes": 61669,
+      "sha256": "c33d3168c126bbeaac8056fe2c3c950c7653a5bb7b0f791b43cc2bfe0302fabf"
+    },
+    {
+      "path": "scripts/run_web_ui.py",
+      "size_bytes": 155,
+      "sha256": "67d701a4a9163f97efb40fa56ead823ead35a65ed4d2226e3f1c0c3402938644"
+    },
+    {
+      "path": "scripts/runtime_smoke.py",
+      "size_bytes": 2401,
+      "sha256": "19d269130e083b3d749408ba7a47644e190672af1e69f078745a2320742fd881"
+    },
+    {
+      "path": "tests/test_chunks.py",
+      "size_bytes": 4523,
+      "sha256": "0478ba402dd7ea9fb6909c6a7290b0f5158085af85571bf16cfc2714eafa67f7"
+    },
+    {
+      "path": "tests/test_e2e_benchmark_fixture.py",
+      "size_bytes": 1163,
+      "sha256": "b4c807ee605b5b6ffe416ac9f58b0854362b74c961e15433e1141841fea21cac"
+    },
+    {
+      "path": "tests/test_long_horizon_state.py",
+      "size_bytes": 11042,
+      "sha256": "d801aa0b28302e97565a97ed98a89a88fc3f22db662660f67e979e471c9886e8"
+    },
+    {
+      "path": "tests/test_model_session.py",
+      "size_bytes": 7522,
+      "sha256": "b13e530853871b8025aba72f474422c7d4e22188e0135d216f7402d9af13d789"
+    },
+    {
+      "path": "tests/test_openai_compat_runtime.py",
+      "size_bytes": 9625,
+      "sha256": "6e72da3e740eaccd4ad9bd005382bf9a2861e6efcc47594b5a81a3b683500c72"
+    },
+    {
+      "path": "tests/test_round119_fact_integrity.py",
+      "size_bytes": 9944,
+      "sha256": "80cdfbc1123592e00b7a01eb683e28238545da111e62c9d8cb1750f2394177fd"
+    },
+    {
+      "path": "tests/test_rwkv_e2e_suite.py",
+      "size_bytes": 12783,
+      "sha256": "47f5898b61d535cbef5e770ed563277215a09a13d467dda942af43c317a60331"
+    },
+    {
+      "path": "tests/test_unified_controller.py",
+      "size_bytes": 15274,
+      "sha256": "2b29330950b6ee8bd1529d6fbca46ebbacefa0bdeba5b4bbca25978c5125f928"
+    },
+    {
+      "path": "tests/test_web_ui.py",
+      "size_bytes": 6655,
+      "sha256": "bc135e8ad38de69f3aaca53ca821be9dc1e423a23759634c632360fba029907c"
+    },
+    {
+      "path": "uv.lock",
+      "size_bytes": 51413,
+      "sha256": "7b8d55f6f9e0b29343fa16f9ad70a9ea10185dd74414e1824826a1d6c0b0b3e8"
+    }
+  ],
+  "dataset_files": [
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_30/tasks.json",
+      "size_bytes": 21363,
+      "sha256": "0bf73c9a86bd014f5a94e5686ffe744bbef6c560f4227e37d0b753b900481c4c"
+    },
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_30/acceptance.json",
+      "size_bytes": 9365,
+      "sha256": "c4953c556a9ba2e080493f34bb2261db349080542376c4e94f08d5227e0f74cd"
+    },
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/tasks.json",
+      "size_bytes": 16839,
+      "sha256": "d813a7bc3a42e27ee3573ea342a918bd7ee5347ca8b0e893c04fded262457a5e"
+    },
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/acceptance.json",
+      "size_bytes": 9748,
+      "sha256": "976e075bcc81780ed38ce7b9fe8c6c19c1b239bb72595ce176308f2760a0cd9f"
+    },
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_extension48/tasks.json",
+      "size_bytes": 36596,
+      "sha256": "384d52b5395dbcb31947dbfd1cfe63167ccbe68ed8b03e675fddc32ffd25ec7b"
+    },
+    {
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_extension48/acceptance.json",
+      "size_bytes": 16289,
+      "sha256": "395e1651f52259de7e56a63476504891f136edd2d4dd5a8263064077741ede12"
+    },
+    {
+      "path": "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json",
+      "size_bytes": 23327,
+      "sha256": "947a4b495951374b4d83a1029a2e3196e98c277e2c5d815919bdc58bf482d89b"
+    }
+  ],
+  "endpoint": {
+    "url": "http://127.0.0.1:29610/v1/models",
+    "model": "rwkv7-g1i-13.3b-20260805-ctx16384",
+    "owner": "vllm",
+    "max_model_len": 16384
+  },
+  "outputs": {
+    "official": "data/experiments/Round127_v19p2_full90"
+  }
+}
