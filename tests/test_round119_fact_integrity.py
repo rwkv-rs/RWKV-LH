@@ -64,6 +64,7 @@ def settings() -> RuntimeSettings:
         max_model_len=16384,
         context_safety_margin=32,
         bos_token_count=1,
+        tool_disclosure_mode="full",
     )
 
 

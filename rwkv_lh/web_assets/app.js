@@ -61,6 +61,15 @@ async function loadCapabilities() {
     $("runtimeLabel").textContent = `${runtime.model} · ${runtime.backend_profile}`;
     $("canList").innerHTML = state.capabilities.can.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     $("cannotList").innerHTML = state.capabilities.cannot.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    const diagnostic = state.capabilities.latest_diagnostic;
+    if (diagnostic) {
+      $("scoreLabel").textContent = diagnostic.label;
+      $("scoreName").textContent = diagnostic.name;
+      $("scoreStrict").textContent = diagnostic.strict_passed;
+      $("scoreCompleted").textContent = diagnostic.completed;
+      $("scoreSearch").textContent = diagnostic.web_search_passed;
+      $("scoreNote").textContent = diagnostic.note;
+    }
   } catch (error) {
     $("runtimeLabel").textContent = error.message;
   }
@@ -99,6 +108,10 @@ function addSeedFile(path = "", content = "") {
 function resetForm() {
   $("runForm").reset();
   $("maxTransitions").value = 200;
+  $("networkPolicy").value = "auto_public";
+  $("supervisorMode").value = "contract_graph";
+  $("publicWorkspacePaths").value = "";
+  $("approveWorkspaceEgress").checked = false;
   $("seedFiles").innerHTML = "";
   $("formMessage").textContent = "";
   $("requestInput").focus();
@@ -123,6 +136,14 @@ async function submitRun(event) {
       request: $("requestInput").value,
       constraints: $("constraintInput").value.split("\n").map((item) => item.trim()).filter(Boolean),
       max_transitions: Number($("maxTransitions").value),
+      retrieval_policy: {
+        mode: $("networkPolicy").value,
+        explicit_approval: $("approveWorkspaceEgress").checked,
+        public_workspace_paths: $("publicWorkspacePaths").value
+          .split("\n").map((item) => item.trim()).filter(Boolean),
+      },
+      supervisor_mode: $("supervisorMode").value,
+      state_router_shadow: false,
       seed_files: collectSeedFiles(),
     };
     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });

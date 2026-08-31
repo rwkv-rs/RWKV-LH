@@ -1,0 +1,489 @@
+{
+  "schema_version": "rwkv-agent-capability-ladder-v1.acceptance.v1",
+  "suite": "RWKV-LH-AGENT-CAPABILITY-LADDER-V1",
+  "cases": {
+    "AGENT-LADDER-L1-FIX01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport math\nfrom pathlib import Path\n\nfrom pricing import final_price\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    cases = [\n        ((100, 15), 85.0),\n        ((19.99, 25), 14.99),\n        ((8.335, 0), 8.34),\n        ((10, 100), 0.0),\n    ]\n    for arguments, expected in cases:\n        actual = final_price(*arguments)\n        require(isinstance(actual, float), \"final_price must return float\")\n        require(math.isclose(actual, expected, abs_tol=1e-9), f\"{arguments}: {actual}\")\n    for arguments in [(-1, 5), (10, -1), (10, 101), (True, 10), (10, False)]:\n        try:\n            final_price(*arguments)\n        except (TypeError, ValueError):\n            pass\n        else:\n            raise AssertionError(f\"invalid input accepted: {arguments}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"python verify_project.py\" in readme, \"README verification command missing\")\n    require(\"discount\" in readme.casefold(), \"README behavior missing\")\n    print(\"AGENT-LADDER-L1-FIX01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "pricing.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L1-DATA01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    source = json.loads((ROOT / \"transactions.json\").read_text(encoding=\"utf-8\"))\n    actual = json.loads((ROOT / \"summary.json\").read_text(encoding=\"utf-8\"))\n    month = source[\"month\"]\n    rows = [item for item in source[\"transactions\"] if item[\"date\"].startswith(month)]\n    income = round(sum(item[\"amount\"] for item in rows if item[\"type\"] == \"income\"), 2)\n    expense = round(sum(item[\"amount\"] for item in rows if item[\"type\"] == \"expense\"), 2)\n    categories: dict[str, float] = {}\n    for item in rows:\n        if item[\"type\"] == \"expense\":\n            categories[item[\"category\"]] = round(categories.get(item[\"category\"], 0) + item[\"amount\"], 2)\n    expected = {\n        \"month\": month,\n        \"transaction_count\": len(rows),\n        \"income\": income,\n        \"expense\": expense,\n        \"balance\": round(income - expense, 2),\n        \"expense_by_category\": dict(sorted(categories.items())),\n    }\n    require(actual == expected, f\"summary mismatch: {actual!r} != {expected!r}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"transactions.json\" in readme and \"summary.json\" in readme, \"README inputs/outputs missing\")\n    require(\"python verify_project.py\" in readme, \"README verification command missing\")\n    print(\"AGENT-LADDER-L1-DATA01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "summary.json",
+            "transactions.json",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L2-CLI01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nfrom notes_store import add_note, list_notes, load_notes, remove_note\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef run_cli(*arguments: str) -> object:\n    completed = subprocess.run(\n        [sys.executable, \"notes_cli.py\", *arguments],\n        cwd=ROOT,\n        text=True,\n        encoding=\"utf-8\",\n        errors=\"replace\",\n        capture_output=True,\n        timeout=20,\n        check=False,\n    )\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    return json.loads(completed.stdout.strip().splitlines()[-1])\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        db = Path(directory) / \"notes.json\"\n        require(load_notes(db) == [], \"missing database must load as empty\")\n        first = add_note(db, \"book train\", [\"travel\", \"urgent\"])\n        second = add_note(db, \"send report\", [\"work\"])\n        require(first[\"id\"] == \"N0001\" and second[\"id\"] == \"N0002\", \"stable ids required\")\n        require([item[\"id\"] for item in list_notes(db)] == [\"N0001\", \"N0002\"], \"insertion order lost\")\n        require([item[\"id\"] for item in list_notes(db, tag=\"travel\")] == [\"N0001\"], \"tag filter failed\")\n        require(remove_note(db, \"N0001\") is True, \"existing note was not removed\")\n        require(remove_note(db, \"N9999\") is False, \"unknown remove must be false\")\n        require([item[\"id\"] for item in load_notes(db)] == [\"N0002\"], \"persistence mismatch\")\n\n        cli_db = str(Path(directory) / \"cli.json\")\n        added = run_cli(\"--db\", cli_db, \"add\", \"call bank\", \"--tag\", \"finance\", \"--tag\", \"urgent\")\n        require(added[\"id\"] == \"N0001\", f\"CLI add mismatch: {added}\")\n        listed = run_cli(\"--db\", cli_db, \"list\", \"--tag\", \"finance\")\n        require(isinstance(listed, list) and listed[0][\"text\"] == \"call bank\", \"CLI list mismatch\")\n        removed = run_cli(\"--db\", cli_db, \"remove\", \"N0001\")\n        require(removed == {\"removed\": True, \"id\": \"N0001\"}, \"CLI remove mismatch\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"notes_cli.py\" in readme and \"--db\" in readme, \"README CLI usage missing\")\n    print(\"AGENT-LADDER-L2-CLI01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "notes_cli.py",
+            "notes_store.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L2-REPAIR01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport tempfile\nfrom pathlib import Path\n\nfrom inventory import InsufficientStock, InventoryService\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"stock.json\"\n        service = InventoryService(path)\n        service.set_stock(\"A\", 10)\n        require(service.reserve(\"A\", 4) == 6, \"reserve result mismatch\")\n        require(InventoryService(path).stock(\"A\") == 6, \"reserve was not persisted\")\n        before = path.read_bytes()\n        try:\n            service.reserve(\"A\", 7)\n        except InsufficientStock:\n            pass\n        else:\n            raise AssertionError(\"insufficient reservation was accepted\")\n        require(path.read_bytes() == before and service.stock(\"A\") == 6, \"failed reserve was not atomic\")\n        require(service.release(\"A\", 3) == 9, \"release result mismatch\")\n        require(InventoryService(path).stock(\"A\") == 9, \"release was not persisted\")\n        for method, arguments in [\n            (service.set_stock, (\"A\", -1)),\n            (service.reserve, (\"A\", 0)),\n            (service.release, (\"A\", -2)),\n        ]:\n            try:\n                method(*arguments)\n            except (TypeError, ValueError):\n                pass\n            else:\n                raise AssertionError(f\"invalid amount accepted by {method.__name__}\")\n        value = json.loads(path.read_text(encoding=\"utf-8\"))\n        require(value == {\"stock\": {\"A\": 9}}, f\"unexpected durable schema: {value}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"atomic\" in readme.casefold() and \"python verify_project.py\" in readme, \"README contract missing\")\n    print(\"AGENT-LADDER-L2-REPAIR01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "inventory/__init__.py",
+            "inventory/service.py",
+            "inventory/storage.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L3-WEB01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nfrom html.parser import HTMLParser\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\nclass Parser(HTMLParser):\n    def __init__(self) -> None:\n        super().__init__()\n        self.ids: set[str] = set()\n        self.assets: set[str] = set()\n\n    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:\n        values = {key: value or \"\" for key, value in attrs}\n        if values.get(\"id\"):\n            self.ids.add(values[\"id\"])\n        if tag == \"link\" and values.get(\"href\"):\n            self.assets.add(values[\"href\"])\n        if tag == \"script\" and values.get(\"src\"):\n            self.assets.add(values[\"src\"])\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    html = (ROOT / \"index.html\").read_text(encoding=\"utf-8\")\n    css = (ROOT / \"styles.css\").read_text(encoding=\"utf-8\")\n    js = (ROOT / \"app.js\").read_text(encoding=\"utf-8\")\n    parser = Parser()\n    parser.feed(html)\n    required_ids = {\"search-input\", \"category-filter\", \"item-list\", \"empty-state\", \"edit-dialog\", \"edit-form\"}\n    require(required_ids <= parser.ids, f\"missing ids: {sorted(required_ids - parser.ids)}\")\n    require({\"styles.css\", \"app.js\"} <= parser.assets, \"assets not wired\")\n    for token in (\"@media\", \":focus\", \"grid\", \"border-radius\", \"--\"):\n        require(token in css, f\"CSS token missing: {token}\")\n    require(len(css) >= 900, \"responsive styling is incomplete\")\n    for token in (\"localStorage\", \"CatalogApp\", \"filterItems\", \"editItem\", \"importItems\", \"exportItems\"):\n        require(token in js, f\"JavaScript token missing: {token}\")\n    node_test = r\"\"\"\nconst fs=require(\"fs\"), vm=require(\"vm\");\nglobal.window={}; global.document=undefined;\nglobal.localStorage={values:new Map(),getItem(k){return this.values.get(k)||null},setItem(k,v){this.values.set(k,String(v))}};\nvm.runInThisContext(fs.readFileSync(\"app.js\",\"utf8\"),{filename:\"app.js\"});\nconst api=window.CatalogApp;\nfor (const name of [\"normalizeItems\",\"filterItems\",\"editItem\",\"importItems\",\"exportItems\"]) if(typeof api[name]!==\"function\") throw new Error(name);\nconst items=api.normalizeItems([{id:\"a\",name:\"Blue Pen\",category:\"Office\",note:\"Fine\"},{id:\"b\",name:\"Mug\",category:\"Home\",note:\"Blue\"}]);\nif(api.filterItems(items,\"blue\",\"\").length!==2) throw new Error(\"query filter\");\nif(api.filterItems(items,\"\",\"Office\").map(x=>x.id).join()!==\"a\") throw new Error(\"category filter\");\nconst edited=api.editItem(items,\"a\",{name:\"Black Pen\"});\nif(edited[0].name!==\"Black Pen\"||items[0].name!==\"Blue Pen\") throw new Error(\"immutable edit\");\nconst encoded=api.exportItems(edited), decoded=api.importItems(encoded);\nif(JSON.stringify(decoded)!==JSON.stringify(edited)) throw new Error(\"import/export\");\nconsole.log(JSON.stringify({ok:true,count:decoded.length}));\n\"\"\"\n    completed = subprocess.run([\"node\", \"-e\", node_test], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=30, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    require(json.loads(completed.stdout.strip().splitlines()[-1]) == {\"ok\": True, \"count\": 2}, \"Node result mismatch\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"python verify_project.py\" in readme and \"localStorage\" in readme, \"README incomplete\")\n    print(\"AGENT-LADDER-L3-WEB01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "app.js",
+            "index.html",
+            "styles.css",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L3-QUEUE01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport tempfile\nfrom pathlib import Path\n\nfrom queue_app import DurableQueue\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"queue.json\"\n        queue = DurableQueue(path, max_attempts=2)\n        first = queue.enqueue({\"name\": \"A\"})\n        second = queue.enqueue({\"name\": \"B\"})\n        require((first[\"id\"], second[\"id\"]) == (\"J0001\", \"J0002\"), \"stable ids missing\")\n        claimed = queue.claim()\n        require(claimed and claimed[\"id\"] == \"J0001\", \"claim is not FIFO\")\n        require(DurableQueue(path, 2).stats()[\"inflight\"] == 1, \"claim was not persisted\")\n        require(queue.fail(\"J0001\") == \"queued\", \"first failure must retry\")\n        require(queue.claim()[\"id\"] == \"J0002\", \"retry must move to queue tail\")\n        require(queue.ack(\"J0002\") is True, \"ack failed\")\n        restarted = DurableQueue(path, max_attempts=2)\n        retried = restarted.claim()\n        require(retried and retried[\"id\"] == \"J0001\" and retried[\"attempts\"] == 1, \"retry state lost\")\n        require(restarted.fail(\"J0001\") == \"failed\", \"max attempts must dead-letter\")\n        require(restarted.claim() is None, \"failed job was reclaimed\")\n        require(restarted.ack(\"missing\") is False, \"unknown ack must be false\")\n        require(restarted.stats() == {\"queued\": 0, \"inflight\": 0, \"failed\": 1, \"completed\": 1}, \"stats mismatch\")\n        try:\n            restarted.enqueue([])\n        except TypeError:\n            pass\n        else:\n            raise AssertionError(\"non-object payload accepted\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"FIFO\" in readme and \"retry\" in readme.casefold(), \"README queue semantics missing\")\n    require(\"python verify_project.py\" in readme, \"README verifier command missing\")\n    print(\"AGENT-LADDER-L3-QUEUE01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "queue_app/__init__.py",
+            "queue_app/queue.py",
+            "queue_app/storage.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L4-LEDGER01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nfrom html.parser import HTMLParser\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\nclass Parser(HTMLParser):\n    def __init__(self) -> None:\n        super().__init__()\n        self.ids: set[str] = set()\n        self.labels = 0\n        self.assets: set[str] = set()\n\n    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:\n        values = {key: value or \"\" for key, value in attrs}\n        if values.get(\"id\"):\n            self.ids.add(values[\"id\"])\n        if tag == \"label\":\n            self.labels += 1\n        if tag == \"link\" and values.get(\"href\"):\n            self.assets.add(values[\"href\"])\n        if tag == \"script\" and values.get(\"src\"):\n            self.assets.add(values[\"src\"])\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    html = (ROOT / \"index.html\").read_text(encoding=\"utf-8\")\n    css = (ROOT / \"styles.css\").read_text(encoding=\"utf-8\")\n    js = (ROOT / \"app.js\").read_text(encoding=\"utf-8\")\n    parser = Parser(); parser.feed(html)\n    ids = {\"entry-form\", \"entry-type\", \"entry-amount\", \"entry-date\", \"entry-note\", \"month-picker\", \"month-income\", \"month-expense\", \"month-balance\", \"entry-list\", \"empty-state\"}\n    require(ids <= parser.ids, f\"missing ids: {sorted(ids-parser.ids)}\")\n    require(parser.labels >= 4 and {\"styles.css\", \"app.js\"} <= parser.assets, \"accessible form/assets missing\")\n    require(\"viewport\" in html and ('lang=\"zh-CN\"' in html or \"lang='zh-CN'\" in html), \"responsive Chinese document missing\")\n    for token in (\"--\", \"@media\", \":focus\", \"grid\", \"border-radius\"):\n        require(token in css, f\"CSS token missing: {token}\")\n    require(len(css) >= 1200, \"polished responsive CSS incomplete\")\n    for token in (\"localStorage\", \"JSON.parse\", \"JSON.stringify\", \"calculateMonthlySummary\", \"loadRecords\", \"saveRecords\", \"addRecord\", \"deleteRecord\", \"window.LedgerApp\"):\n        require(token in js, f\"JavaScript contract missing: {token}\")\n    node_test = r\"\"\"\nconst fs=require(\"fs\"),vm=require(\"vm\"); global.window={}; global.document=undefined;\nglobal.localStorage={values:new Map(),getItem(k){return this.values.has(k)?this.values.get(k):null},setItem(k,v){this.values.set(k,String(v))},removeItem(k){this.values.delete(k)}};\nvm.runInThisContext(fs.readFileSync(\"app.js\",\"utf8\"),{filename:\"app.js\"}); const api=window.LedgerApp;\nfor(const n of [\"calculateMonthlySummary\",\"loadRecords\",\"saveRecords\",\"addRecord\",\"deleteRecord\"]) if(typeof api[n]!==\"function\") throw new Error(n);\nconst rows=[{id:\"r1\",type:\"income\",amount:1500,date:\"2026-08-03\",note:\"salary\"},{id:\"r2\",type:\"expense\",amount:200,date:\"2026-08-04\",note:\"food\"},{id:\"r3\",type:\"expense\",amount:25.5,date:\"2026-08-09\",note:\"train\"},{id:\"r4\",type:\"income\",amount:99,date:\"2026-07-31\",note:\"old\"}];\nconst summary=api.calculateMonthlySummary(rows,\"2026-08\");\nif(JSON.stringify(summary)!==JSON.stringify({income:1500,expense:225.5,balance:1274.5})) throw new Error(JSON.stringify(summary));\napi.saveRecords(rows,localStorage); if(JSON.stringify(api.loadRecords(localStorage))!==JSON.stringify(rows)) throw new Error(\"storage\");\nconst added=api.addRecord(rows,{id:\"r5\",type:\"expense\",amount:10,date:\"2026-08-10\",note:\"tea\"}); if(added.length!==5||rows.length!==4) throw new Error(\"add\");\nconst deleted=api.deleteRecord(added,\"r2\"); if(deleted.length!==4||deleted.some(x=>x.id===\"r2\")) throw new Error(\"delete\");\nconsole.log(JSON.stringify({summary,ok:true}));\n\"\"\"\n    completed = subprocess.run([\"node\", \"-e\", node_test], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=30, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    require(json.loads(completed.stdout.strip().splitlines()[-1])[\"ok\"] is True, \"Node verification failed\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"localStorage\" in readme and \"python verify_project.py\" in readme, \"README incomplete\")\n    print(\"AGENT-LADDER-L4-LEDGER01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "app.js",
+            "index.html",
+            "styles.css",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L4-TRACKER01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nfrom tracker import IssueTracker\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef cli(*arguments: str) -> object:\n    completed = subprocess.run([sys.executable, \"tracker_cli.py\", *arguments], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=20, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    return json.loads(completed.stdout.strip().splitlines()[-1])\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"issues.json\"\n        tracker = IssueTracker(path)\n        one = tracker.create(\"Broken login\", \"high\")\n        two = tracker.create(\"Update copy\", \"low\")\n        require((one[\"id\"], two[\"id\"]) == (\"I0001\", \"I0002\"), \"stable ids missing\")\n        require(tracker.close(\"I0001\") is True and tracker.close(\"missing\") is False, \"close behavior wrong\")\n        require([item[\"id\"] for item in tracker.list(status=\"open\")] == [\"I0002\"], \"status filter wrong\")\n        require(tracker.stats() == {\"total\": 2, \"open\": 1, \"closed\": 1, \"high\": 1, \"medium\": 0, \"low\": 1}, \"stats wrong\")\n        export_path = Path(directory) / \"export.json\"\n        require(tracker.export(export_path) == 2 and export_path.is_file(), \"export failed\")\n        imported_path = Path(directory) / \"imported.json\"\n        imported = IssueTracker(imported_path)\n        require(imported.import_file(export_path) == 2, \"import count wrong\")\n        require(imported.stats() == tracker.stats(), \"import round trip wrong\")\n        try:\n            tracker.create(\"bad\", \"urgent\")\n        except ValueError:\n            pass\n        else:\n            raise AssertionError(\"invalid priority accepted\")\n\n        cli_db = str(Path(directory) / \"cli.json\")\n        created = cli(\"--db\", cli_db, \"create\", \"CLI issue\", \"--priority\", \"medium\")\n        require(created[\"id\"] == \"I0001\", \"CLI create wrong\")\n        listed = cli(\"--db\", cli_db, \"list\", \"--status\", \"open\")\n        require([item[\"id\"] for item in listed] == [\"I0001\"], \"CLI list wrong\")\n        stats = cli(\"--db\", cli_db, \"stats\")\n        require(stats[\"open\"] == 1 and stats[\"total\"] == 1, \"CLI stats wrong\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    for token in (\"create\", \"close\", \"list\", \"stats\", \"export\", \"import\", \"python verify_project.py\"):\n        require(token in readme, f\"README token missing: {token}\")\n    print(\"AGENT-LADDER-L4-TRACKER01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "tracker/__init__.py",
+            "tracker/service.py",
+            "tracker/store.py",
+            "tracker_cli.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L5-PACKAGING01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport sys\nimport tomllib\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    value = tomllib.loads((ROOT / \"pyproject.toml\").read_text(encoding=\"utf-8\"))\n    build = value.get(\"build-system\", {})\n    project = value.get(\"project\", {})\n    require(isinstance(build.get(\"requires\"), list) and build[\"requires\"], \"build requirements missing\")\n    require(build.get(\"build-backend\") == \"setuptools.build_meta\", \"setuptools backend missing\")\n    require(project.get(\"name\") == \"evidence-demo\" and project.get(\"version\") == \"0.1.0\", \"project identity wrong\")\n    require(project.get(\"requires-python\") == \">=3.11\", \"Python requirement wrong\")\n    require(project.get(\"readme\") == \"README.md\", \"README metadata wrong\")\n    require(project.get(\"scripts\", {}).get(\"evidence-demo\") == \"evidence_demo.cli:main\", \"CLI entry point wrong\")\n    sys.path.insert(0, str(ROOT / \"src\"))\n    from evidence_demo import greet\n    require(greet(\"Ada\") == \"Hello, Ada!\", \"package function wrong\")\n    try:\n        greet(\"\")\n    except ValueError:\n        pass\n    else:\n        raise AssertionError(\"empty name accepted\")\n    sources = (ROOT / \"SOURCES.md\").read_text(encoding=\"utf-8\")\n    require(\"https://packaging.python.org/\" in sources, \"official packaging URL missing\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"evidence-demo\" in readme and \"python verify_project.py\" in readme, \"README usage missing\")\n    print(\"AGENT-LADDER-L5-PACKAGING01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "SOURCES.md",
+            "pyproject.toml",
+            "src/evidence_demo/__init__.py",
+            "src/evidence_demo/cli.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "network_evidence_grounding",
+          "operations": [
+            "web_search",
+            "connector_lookup"
+          ],
+          "paths": [
+            "SOURCES.md"
+          ],
+          "required_hosts": [
+            "packaging.python.org"
+          ],
+          "min_successful_actions": 1,
+          "min_records": 1,
+          "min_cited_urls": 1
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "auto_public",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "AGENT-LADDER-L5-RWKV01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nfrom html.parser import HTMLParser\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\nclass Parser(HTMLParser):\n    def __init__(self) -> None:\n        super().__init__(); self.ids: set[str] = set(); self.assets: set[str] = set()\n\n    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:\n        values = {key: value or \"\" for key, value in attrs}\n        if values.get(\"id\"): self.ids.add(values[\"id\"])\n        if tag == \"link\" and values.get(\"href\"): self.assets.add(values[\"href\"])\n        if tag == \"script\" and values.get(\"src\"): self.assets.add(values[\"src\"])\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition: raise AssertionError(message)\n\n\ndef main() -> None:\n    html = (ROOT / \"index.html\").read_text(encoding=\"utf-8\")\n    css = (ROOT / \"styles.css\").read_text(encoding=\"utf-8\")\n    js = (ROOT / \"app.js\").read_text(encoding=\"utf-8\")\n    data = json.loads((ROOT / \"data.json\").read_text(encoding=\"utf-8\"))\n    sources = (ROOT / \"SOURCES.md\").read_text(encoding=\"utf-8\")\n    require(isinstance(data, list) and len(data) >= 3, \"at least three resources required\")\n    require(all(set(item) == {\"title\", \"category\", \"url\", \"summary\"} for item in data), \"resource schema wrong\")\n    require(len({item[\"url\"] for item in data}) == len(data), \"resource URLs must be unique\")\n    require(len({item[\"category\"] for item in data}) >= 2, \"at least two categories required\")\n    for item in data:\n        require(item[\"url\"].startswith(\"https://github.com/BlinkDL/\"), f\"non-official URL: {item['url']}\")\n        require(item[\"url\"] in sources and len(item[\"summary\"].strip()) >= 20, \"source citation/summary missing\")\n    parser = Parser(); parser.feed(html)\n    require({\"search-input\", \"category-filter\", \"resource-list\", \"empty-state\"} <= parser.ids, \"UI ids missing\")\n    require({\"styles.css\", \"app.js\"} <= parser.assets and \"viewport\" in html, \"assets/viewport missing\")\n    require(len(css) >= 900 and \"@media\" in css and \":focus\" in css and \"grid\" in css, \"responsive CSS incomplete\")\n    node_test = r\"\"\"\nconst fs=require(\"fs\"),vm=require(\"vm\"); global.window={}; global.document=undefined;\nvm.runInThisContext(fs.readFileSync(\"app.js\",\"utf8\"),{filename:\"app.js\"}); const api=window.RWKVResources;\nif(!api||typeof api.filterResources!==\"function\") throw new Error(\"API missing\");\nconst rows=JSON.parse(fs.readFileSync(\"data.json\",\"utf8\"));\nif(api.filterResources(rows,\"rwkv\",\"\").length<1) throw new Error(\"query filter\");\nconst category=rows[0].category; if(api.filterResources(rows,\"\",category).some(x=>x.category!==category)) throw new Error(\"category filter\");\nconsole.log(JSON.stringify({ok:true,count:rows.length}));\n\"\"\"\n    completed = subprocess.run([\"node\", \"-e\", node_test], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=30, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    require(json.loads(completed.stdout.strip().splitlines()[-1])[\"ok\"] is True, \"Node verification failed\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"python verify_project.py\" in readme and \"SOURCES.md\" in readme, \"README verification/source usage missing\")\n    print(\"AGENT-LADDER-L5-RWKV01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "SOURCES.md",
+            "app.js",
+            "data.json",
+            "index.html",
+            "styles.css",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "network_evidence_grounding",
+          "operations": [
+            "web_search",
+            "connector_lookup"
+          ],
+          "paths": [
+            "data.json",
+            "SOURCES.md"
+          ],
+          "required_hosts": [
+            "github.com"
+          ],
+          "min_successful_actions": 1,
+          "min_records": 2,
+          "min_cited_urls": 2
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "auto_public",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    }
+  }
+}

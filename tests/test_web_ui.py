@@ -46,6 +46,18 @@ def test_manual_repository_records_source_version_purpose_and_seed_hash(tmp_path
     assert (repository.run_root(metadata["run_id"]) / "workspace/input.txt").read_text() == "alpha\n"
 
 
+def test_manual_repository_persists_boolean_shadow_selection(tmp_path: Path) -> None:
+    repository = ManualRunRepository(tmp_path)
+    metadata = repository.create(
+        {"request": "test", "state_router_shadow": True, "seed_files": []}
+    )
+    assert repository.request_document(metadata["run_id"])["state_router_shadow"] is True
+    with pytest.raises(ValueError, match="boolean"):
+        repository.create(
+            {"request": "test", "state_router_shadow": "true", "seed_files": []}
+        )
+
+
 @pytest.mark.parametrize("value", ["../secret", "/etc/passwd", "a/../../b", "", "C:\\secret"])
 def test_workspace_relative_path_rejects_escape(value: str) -> None:
     with pytest.raises(ValueError):
@@ -156,6 +168,9 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         status, capabilities = request_json(base + "/api/capabilities")
         assert status == 200
         assert capabilities["latest_formal"]["strict"] == "31/90"
+        assert capabilities["latest_diagnostic"]["strict_passed"] == 0
+        assert capabilities["latest_diagnostic"]["strict_total"] == 3
+        assert capabilities["latest_diagnostic"]["web_search_passed"] == 7
         assert capabilities["experimental"] is True
         status, created = request_json(
             base + "/api/runs",
@@ -168,8 +183,12 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         status, summary = request_json(base + f"/api/runs/{run_id}")
         assert status == 200
         assert summary["request"]["request"] == "Create hello.txt"
+        assert summary["request"]["retrieval_policy"]["mode"] == "offline"
         assert Path(summary["request"]["run_id"]).name == run_id
         assert repository.run_root(run_id).parent == (tmp_path / "runs").resolve()
+        status, shadow = request_json(base + f"/api/runs/{run_id}/shadow")
+        assert status == 200
+        assert shadow == {"events": [], "next_offset": 0, "total": 0}
     finally:
         server.shutdown()
         server.server_close()

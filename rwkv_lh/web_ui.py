@@ -15,6 +15,8 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import urllib.error
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -24,12 +26,24 @@ from typing import Any, Mapping
 from urllib.parse import parse_qs, unquote, urlparse
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+from rwkv_lh.exact_tool_selector.network_client import (
+    NetworkExactToolSelectorSettings,
+)
+from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
+from rwkv_lh.state_router.shadow import read_shadow_records
 from rwkv_lh.store import LongHorizonStore, StateRecoveryError
+from rwkv_lh.supervisor_openai import SupervisorAPISettings
+from rwkv_lh.trace_projection import project_run_activity
 
 
 SCHEMA_VERSION = "rwkv-lh.manual-web-run.v1"
-ASSET_ROOT = Path(__file__).resolve().parent / "web_assets"
+ASSET_ROOT = Path(
+    os.environ.get(
+        "RWKV_LH_WEB_ASSET_ROOT",
+        str(Path(__file__).resolve().parent / "goal_web_assets"),
+    )
+).expanduser().resolve()
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 TERMINAL_PHASES = {"finished", "failed", "stopped"}
 MAX_REQUEST_BYTES = 6 * 1024 * 1024
@@ -129,6 +143,16 @@ class ManualRunRepository:
         constraints = [str(item).strip() for item in raw_constraints if str(item).strip()]
         if any(len(item) > 5_000 for item in constraints):
             raise ValueError("one constraint exceeds 5,000 characters")
+        raw_retrieval = payload.get("retrieval_policy") or {}
+        if not isinstance(raw_retrieval, Mapping):
+            raise ValueError("retrieval_policy must be an object")
+        retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
+        supervisor_mode = str(payload.get("supervisor_mode") or "none").strip()
+        if supervisor_mode not in {"none", "contract_graph"}:
+            raise ValueError("supervisor_mode must be none or contract_graph")
+        state_router_shadow = payload.get("state_router_shadow", False)
+        if not isinstance(state_router_shadow, bool):
+            raise ValueError("state_router_shadow must be a boolean")
         try:
             max_transitions = int(payload.get("max_transitions", 200))
         except (TypeError, ValueError) as exc:
@@ -175,6 +199,10 @@ class ManualRunRepository:
             "run_id": run_id,
             "request": request,
             "constraints": constraints,
+            "retrieval_policy": retrieval.to_dict(),
+            "supervisor_mode": supervisor_mode,
+            "state_router_shadow": state_router_shadow,
+            "execution_mode": "goal",
             "max_transitions": max_transitions,
             "seed_files": [
                 {
@@ -244,27 +272,23 @@ class ManualRunRepository:
             except StateRecoveryError as exc:
                 output["state_error"] = f"{type(exc).__name__}: {exc}"
             else:
+                activity = project_run_activity(state)
                 output["state"] = {
                     "run_id": state.run_id,
                     "revision": state.revision,
                     "status": state.status.value,
                     "request": state.goal.request,
                     "goal_digest": state.goal.digest,
-                    "actions": [
-                        {
-                            "action_id": action.action_id,
-                            "sequence": action.sequence,
-                            "operation": action.action_type,
-                            "status": action.status.value,
-                            "artifact_refs": list(action.artifact_refs),
-                        }
-                        for action in sorted(
-                            state.actions.values(), key=lambda item: item.sequence
-                        )
-                    ],
+                    "actions": activity["actions"],
+                    "direct_action_count": len(activity["direct_actions"]),
+                    "atom_action_count": len(activity["atom_actions"]),
                     "artifact_count": len(state.artifacts),
                     "causal_record_count": len(state.causal_order),
-                    "model_request_count": len(state.temp_decisions),
+                    "model_request_count": activity["rwkv_model_requests"],
+                    "direct_model_request_count": activity[
+                        "direct_model_requests"
+                    ],
+                    "atom_model_request_count": activity["atom_model_requests"],
                     "errors": state.errors[-8:],
                     "final_output": state.final_output,
                 }
@@ -308,6 +332,15 @@ class ManualRunRepository:
             if isinstance(value, dict):
                 records.append(value)
         return {"events": records, "next_offset": start + len(selected), "total": len(lines)}
+
+    def shadow(self, run_id: str, *, after: int = 0, limit: int = 300) -> dict[str, Any]:
+        self.metadata(run_id)
+        return read_shadow_records(
+            self.run_root(run_id),
+            run_id,
+            after=after,
+            limit=limit,
+        )
 
     def files(self, run_id: str) -> list[dict[str, Any]]:
         self.metadata(run_id)
@@ -575,7 +608,7 @@ class WebHandler(BaseHTTPRequestHandler):
                 settings = get_runtime_settings()
                 self.send_json(
                     {
-                        "product": "RWKV-LH Local Lab",
+                        "product": "RWKV Goal Studio",
                         "experimental": True,
                         "runtime": {
                             "model": settings.model,
@@ -584,17 +617,19 @@ class WebHandler(BaseHTTPRequestHandler):
                             "max_model_len": settings.max_model_len,
                         },
                         "can": [
-                            "曾完整做过：创建精确文本文件并检查内容",
-                            "曾完整做过：修改 JSON 指定字段，同时保留无关字段",
-                            "曾完整做过：筛选、排序、合并本地 JSON 数据并写出结果",
-                            "曾完整做过：计算本地文件 SHA-256，并生成 manifest",
-                            "曾完整做过：复制文件、建立子目录和配套清单",
-                            "可以尝试：在隔离工作区内修改小型代码或配置，并运行受限检查命令",
-                            "可以审计：查看每次模型输入、原始输出、格式转换、文件变化和失败位置",
+                            "已验证：公开检索质量冻结集 9/9；本轮真实联网题 7/7 次 web_search 成功",
+                            "已验证：2.9B S60 静态分类数据面超过 96%（不等同于真实多步成功率）",
+                            "已验证：G3/G6 按 task 的联网策略绑定，三题 run 内 state switch 均为 0",
+                            "已验证：强 Planner/Reviewer 本轮 21 次请求无 transport failure，并能拒绝证据不足",
+                            "可以尝试：隔离工作区内的 bug 修复、小中型项目创建、受限命令与公开检索",
+                            "可以审计：查看每次模型输入、242 份原始输出、Selector logits、文件变化和失败位置",
+                            "可以恢复：不完整多写根事务不会合并，失败半成品不会污染权威工作区",
                         ],
                         "cannot": [
-                            "不能像成熟 Coding Agent 一样稳定完成仓库级开发；最新已上传 Strict 是 31/90",
-                            "不能搜索网页、操作浏览器、调用外部网站或自动研究资料",
+                            "当前不是第一正式版本：最新三题真实 canary 的 completed/external/strict 均为 0/3",
+                            "不能稳定闭环通用 bug 修复或中型网页项目；真实轨迹仍会误选工具并漏写文件",
+                            "联网检索成功不等于联网项目成功；证据到项目文件的执行链仍未通过",
+                            "不能操作浏览器或隐式外发工作区数据；敏感数据和未知来源策略拒绝",
                             "不能直接管理真实 Git 仓库、提交、PR、部署或云服务",
                             "不能处理图片、PDF、Word、Excel、幻灯片等专用文档工作流",
                             "不能安装系统软件，也不能任意执行 shell 或访问隔离工作区外文件",
@@ -608,6 +643,21 @@ class WebHandler(BaseHTTPRequestHandler):
                             "false_positive": 24,
                             "false_negative": 1,
                         },
+                        "latest_diagnostic": {
+                            "label": "当前链路诊断",
+                            "name": "CANARY V1",
+                            "strict_passed": 0,
+                            "strict_total": 3,
+                            "completed": 0,
+                            "external_passed": 0,
+                            "web_search_passed": 7,
+                            "web_search_total": 7,
+                            "note": "检索可用；项目闭环尚未通过。",
+                            "result": (
+                                "data/experiments/FAST_AGENT_CAPABILITY_CANARY_V1_20260831/"
+                                "RESULT.md"
+                            ),
+                        },
                     }
                 )
                 return
@@ -618,6 +668,86 @@ class WebHandler(BaseHTTPRequestHandler):
                 finally:
                     client.close()
                 self.send_json(health)
+                return
+            if path == "/api/runtime/topology":
+                executor_client = OpenAICompatibleRWKVClient()
+                try:
+                    executor = executor_client.health().to_dict()
+                finally:
+                    executor_client.close()
+                selector_settings = NetworkExactToolSelectorSettings.from_env()
+                selector: dict[str, Any]
+                if selector_settings is None:
+                    selector = {
+                        "available": False,
+                        "error": "Selector identity is not configured",
+                    }
+                else:
+                    try:
+                        with urllib.request.urlopen(
+                            selector_settings.base_url.rstrip("/") + "/healthz",
+                            timeout=3,
+                        ) as response:
+                            selector_health = json.loads(
+                                response.read().decode("utf-8")
+                            )
+                        actual_identity = selector_health.get("runtime_identity")
+                        expected_identity = selector_settings.runtime_identity()
+                        selector = {
+                            "available": (
+                                selector_health.get("status") == "ok"
+                                and actual_identity == expected_identity
+                            ),
+                            "model": selector_settings.model,
+                            "profile": selector_settings.state_profile_id,
+                            "input_protocol": selector_settings.input_protocol,
+                            "identity_verified": actual_identity == expected_identity,
+                        }
+                    except (OSError, ValueError, urllib.error.URLError) as exc:
+                        selector = {
+                            "available": False,
+                            "model": selector_settings.model,
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+                try:
+                    supervisor_settings = SupervisorAPISettings.from_env()
+                    supervisor = {
+                        "configured": True,
+                        "model": supervisor_settings.model,
+                        "mode": "contract_graph",
+                        "fallback_count": len(supervisor_settings.fallback_models),
+                    }
+                except (OSError, ValueError) as exc:
+                    supervisor = {
+                        "configured": False,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                self.send_json(
+                    {
+                        "schema_version": "rwkv-lh.goal-ui-topology.v1",
+                        "supervisor": supervisor,
+                        "selector": {
+                            **selector,
+                            "device": os.environ.get(
+                                "RWKV_LH_SELECTOR_DEVICE_LABEL", "local GPU0"
+                            ),
+                        },
+                        "executor": {
+                            **executor,
+                            "profile": os.environ.get(
+                                "RWKV_STATE_PROFILE_ID", ""
+                            ),
+                            "device": os.environ.get(
+                                "RWKV_LH_EXECUTOR_DEVICE_LABEL", "remote GPU0"
+                            ),
+                        },
+                        "harness": {
+                            "available": True,
+                            "scope": "isolated workspace",
+                            "audit": "append-only CausalEvent",
+                        },
+                    }
+                )
                 return
             if path == "/api/runs":
                 rows = []
@@ -646,6 +776,14 @@ class WebHandler(BaseHTTPRequestHandler):
                 elif suffix == "trace":
                     self.send_json(
                         self.server.repository.trace(
+                            run_id,
+                            after=int(query.get("after", ["0"])[0]),
+                            limit=int(query.get("limit", ["300"])[0]),
+                        )
+                    )
+                elif suffix == "shadow":
+                    self.send_json(
+                        self.server.repository.shadow(
                             run_id,
                             after=int(query.get("after", ["0"])[0]),
                             limit=int(query.get("limit", ["300"])[0]),
@@ -727,8 +865,11 @@ def build_server(host: str, port: int, root: Path) -> WebServer:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the local RWKV-LH manual test UI")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data" / "manual_runs"))
+    parser.add_argument("--port", type=int, default=8766)
+    parser.add_argument(
+        "--data-root",
+        default=str(PROJECT_ROOT / "data" / "goal_ui_preview"),
+    )
     parser.add_argument(
         "--allow-remote",
         action="store_true",

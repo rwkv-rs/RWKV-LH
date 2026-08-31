@@ -13,8 +13,13 @@ from rwkv_lh.model_session import ModelSession
 from rwkv_lh.runtime.settings import RuntimeSettings
 from rwkv_lh.schema import RunStatus
 from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.trace_projection import unresolved_supervisor_pending
 from rwkv_lh.supervisor import (
+    DirectiveDisposition,
+    DirectiveReviewStatus,
     ReviewDisposition,
+    SupervisorDirective,
+    SupervisorDirectiveRequest,
     SupervisorPlan,
     SupervisorPlanRequest,
     SupervisorPolicy,
@@ -68,11 +73,52 @@ class FakeSupervisor:
             raise AssertionError("unexpected supervisor review")
         return self.reviews.pop(0)
 
+    def next_directive(
+        self, request: SupervisorDirectiveRequest
+    ) -> SupervisorDirective:
+        raise AssertionError("unexpected online supervisor directive")
+
+
+class OnlineFakeSupervisor(FakeSupervisor):
+    def __init__(self, directives: list[dict]):
+        super().__init__([])
+        self.directives = list(directives)
+        self.directive_requests: list[SupervisorDirectiveRequest] = []
+
+    def create_plan(self, request: SupervisorPlanRequest) -> SupervisorPlan:
+        raise AssertionError("online supervisor must not create a static plan")
+
+    def next_directive(
+        self, request: SupervisorDirectiveRequest
+    ) -> SupervisorDirective:
+        self.directive_requests.append(request)
+        if not self.directives:
+            raise AssertionError("unexpected online supervisor directive")
+        value = self.directives.pop(0)
+        return SupervisorDirective.create(
+            directive_index=request.directive_index,
+            outcome_ref=request.outcome_ref,
+            **value,
+        )
+
 
 class FailingPlanSupervisor(FakeSupervisor):
     def create_plan(self, request: SupervisorPlanRequest) -> SupervisorPlan:
         self.plan_requests.append(request)
         raise RuntimeError("provider unavailable")
+
+
+class RecoveringPlanSupervisor(FakeSupervisor):
+    def __init__(self, reviews: list[SupervisorReview]):
+        super().__init__(reviews)
+        self.fail_once = True
+
+    def create_plan(self, request: SupervisorPlanRequest) -> SupervisorPlan:
+        if self.fail_once:
+            self.fail_once = False
+            self.plan_requests.append(request)
+            raise RuntimeError("transient provider outage")
+        return super().create_plan(request)
 
 
 class ProcessLossDuringReviewSupervisor(FakeSupervisor):
@@ -90,11 +136,11 @@ class ProcessLossDuringReviewSupervisor(FakeSupervisor):
         return self.reviews.pop(0)
 
 
-def call(name: str, **arguments):
-    return {"function": name, "params": arguments}
+def call(operation: str, **arguments):
+    return {"function": operation, "params": arguments}
 
 
-def settings() -> RuntimeSettings:
+def settings(*, tool_disclosure_mode: str = "full") -> RuntimeSettings:
     return RuntimeSettings(
         base_url="http://127.0.0.1:1/v1",
         api_key="",
@@ -102,6 +148,7 @@ def settings() -> RuntimeSettings:
         max_model_len=16384,
         context_safety_margin=32,
         bos_token_count=1,
+        tool_disclosure_mode=tool_disclosure_mode,
     )
 
 
@@ -111,13 +158,17 @@ def build(
     supervisor: FakeSupervisor,
     *,
     policy: SupervisorPolicy | None = None,
+    tool_disclosure_mode: str = "full",
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     harness = ActionHarness(sandbox_commands=False)
     client = QueueClient(calls)
     model = LongHorizonModel(
-        ModelSession(client, settings=settings()),
+        ModelSession(
+            client,
+            settings=settings(tool_disclosure_mode=tool_disclosure_mode),
+        ),
         harness=harness,
     )
     store = LongHorizonStore(tmp_path / "state", checkpoint_retention=1000)
@@ -136,6 +187,38 @@ def build(
         max_transitions=20,
     )
     return controller, store, workspace, client
+
+
+def test_supervisor_guidance_preserves_progressive_select_then_call_protocol(
+    tmp_path: Path,
+) -> None:
+    passed = SupervisorReview.create(
+        ReviewDisposition.PASS,
+        summary="The write and read-back support completion.",
+    )
+    supervisor = FakeSupervisor([passed])
+    controller, _, workspace, client = build(
+        tmp_path,
+        [
+            call("select_tool", name="write_file"),
+            call("write_file", path="hello.txt", content="hello"),
+            call("select_tool", name="read_file"),
+            call("read_file", path="hello.txt"),
+            call("select_tool", name="final_answer"),
+            call("final_answer", text="Created and verified hello.txt."),
+        ],
+        supervisor,
+        tool_disclosure_mode="progressive",
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status == RunStatus.COMPLETED
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert len(client.prompts) == 6
+    assert '"function":"select_tool"' in client.prompts[0]
+    assert "when it asks for select_tool" in client.prompts[0]
+    assert "selected_operation" in client.prompts[1]
 
 
 def test_supervisor_plan_and_pass_wrap_rwkv_without_rewriting_output(
@@ -174,6 +257,250 @@ def test_supervisor_plan_and_pass_wrap_rwkv_without_rewriting_output(
     assert completed.payload["output_source"] == "rwkv_explicit_final_answer_text"
     assert completed.payload["controller_rewritten"] is False
     assert store.load("RUN").final_output == result.final_output
+
+
+def test_online_supervisor_reviews_rwkv_action_wave_instead_of_each_tool_call(
+    tmp_path: Path,
+) -> None:
+    supervisor = OnlineFakeSupervisor(
+        [
+            {
+                "disposition": DirectiveDisposition.CONTINUE,
+                "review_status": DirectiveReviewStatus.INITIAL,
+                "review_summary": "Start with one bounded artifact microtask.",
+                "microtask_objective": "Create and verify hello.txt.",
+                "completion_checks": ("hello.txt contains hello.",),
+                "constraints": ("Use observed workspace evidence.",),
+            },
+            {
+                "disposition": DirectiveDisposition.ACCEPT_FINAL,
+                "review_status": DirectiveReviewStatus.SATISFIED,
+                "review_summary": "The RWKV actions and exact candidate support completion.",
+            },
+        ]
+    )
+    controller, _, workspace, client = build(
+        tmp_path,
+        [
+            call("write_file", path="hello.txt", content="hello"),
+            call("read_file", path="hello.txt"),
+            call("final_answer", text="Created and verified hello.txt."),
+        ],
+        supervisor,
+        policy=SupervisorPolicy(
+            mode="online_microtask",
+            max_online_directives=8,
+            online_actions_per_directive=6,
+        ),
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status == RunStatus.COMPLETED
+    assert result.final_output == "Created and verified hello.txt."
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert len(client.prompts) == 3
+    assert len(supervisor.directive_requests) == 2
+    assert supervisor.plan_requests == []
+    final_request = supervisor.directive_requests[-1]
+    assert final_request.worker_outcome is not None
+    assert final_request.worker_outcome["type"] == "microtask_report"
+    assert final_request.worker_outcome["action_ids"] == ["A00001", "A00002"]
+    assert final_request.action_count == 2
+    event_types = [
+        result.state.causal_records[event_id].event_type
+        for event_id in result.state.causal_order
+    ]
+    assert event_types.count("supervisor_directive_committed") == 2
+    assert "supervisor_plan_committed" not in event_types
+
+
+def test_online_supervisor_reviews_early_after_repeated_zero_progress_action(
+    tmp_path: Path,
+) -> None:
+    supervisor = OnlineFakeSupervisor(
+        [
+            {
+                "disposition": "continue",
+                "review_status": "initial",
+                "review_summary": "Start the requested change.",
+                "microtask_objective": "Create hello.txt.",
+                "completion_checks": ("hello.txt exists with the requested content.",),
+            },
+            {
+                "disposition": "continue",
+                "review_status": "needs_correction",
+                "review_summary": "Two identical reads made no workspace progress.",
+                "issues": ("Stop repeating the failed read and create the requested file.",),
+                "microtask_objective": "Create hello.txt now, then report the result.",
+                "completion_checks": ("A write changes the workspace digest.",),
+            },
+            {
+                "disposition": "accept_final",
+                "review_status": "satisfied",
+                "review_summary": "The corrective write supports the exact RWKV Final.",
+            },
+        ]
+    )
+    controller, _, workspace, _ = build(
+        tmp_path,
+        [
+            call("read_file", path="hello.txt"),
+            call("read_file", path="hello.txt"),
+            call("write_file", path="hello.txt", content="hello"),
+            call("final_answer", text="Created hello.txt."),
+        ],
+        supervisor,
+        policy=SupervisorPolicy(
+            mode="online_microtask",
+            max_online_directives=8,
+            online_actions_per_directive=6,
+        ),
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status == RunStatus.COMPLETED
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert len(supervisor.directive_requests) == 3
+    correction = supervisor.directive_requests[1]
+    assert correction.worker_outcome is not None
+    assert correction.worker_outcome["type"] == "action_batch"
+    assert correction.worker_outcome["action_ids"] == ["A00001", "A00002"]
+    assert correction.action_count == 2
+    final = supervisor.directive_requests[2]
+    assert final.worker_outcome is not None
+    assert final.worker_outcome["action_ids"] == ["A00003"]
+
+
+def test_online_correction_remains_reachable_after_legacy_failure_budget(
+    tmp_path: Path,
+) -> None:
+    supervisor = OnlineFakeSupervisor(
+        [
+            {
+                "disposition": "continue",
+                "review_status": "initial",
+                "review_summary": "Start the requested change.",
+                "microtask_objective": "Create hello.txt.",
+                "completion_checks": ("hello.txt exists with hello content.",),
+            },
+            {
+                "disposition": "continue",
+                "review_status": "needs_correction",
+                "review_summary": "The repeated read failed and made no progress.",
+                "issues": ("Use a side-effecting operation to create the file.",),
+                "microtask_objective": "Create hello.txt instead of rereading it.",
+                "completion_checks": ("The workspace digest changes after creation.",),
+            },
+            {
+                "disposition": "continue",
+                "review_status": "needs_correction",
+                "review_summary": "The worker has still not applied the correction.",
+                "issues": ("Stop the failed read loop and write the file.",),
+                "microtask_objective": "Write hello.txt now.",
+                "completion_checks": ("hello.txt contains hello.",),
+            },
+            {
+                "disposition": "accept_final",
+                "review_status": "satisfied",
+                "review_summary": "The later RWKV write and exact Final satisfy the goal.",
+            },
+        ]
+    )
+    controller, _, workspace, _ = build(
+        tmp_path,
+        [
+            call("read_file", path="hello.txt"),
+            call("read_file", path="hello.txt"),
+            call("read_file", path="hello.txt"),
+            call("read_file", path="hello.txt"),
+            call("read_file", path="hello.txt"),
+            call("write_file", path="hello.txt", content="hello"),
+            call("final_answer", text="Created hello.txt after correction."),
+        ],
+        supervisor,
+        policy=SupervisorPolicy(
+            mode="online_microtask",
+            max_online_directives=8,
+            online_actions_per_directive=6,
+        ),
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status == RunStatus.COMPLETED
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert len(supervisor.directive_requests) == 4
+    assert result.state.failure_budgets
+    assert max(result.state.failure_budgets.values()) == 5
+
+
+def test_online_supervisor_reviews_bounded_protocol_rejection_batch(
+    tmp_path: Path,
+) -> None:
+    supervisor = OnlineFakeSupervisor(
+        [
+            {
+                "disposition": "continue",
+                "review_status": "initial",
+                "review_summary": "Start the requested change.",
+                "microtask_objective": "Create hello.txt.",
+                "completion_checks": ("hello.txt contains hello.",),
+            },
+            {
+                "disposition": "continue",
+                "review_status": "needs_correction",
+                "review_summary": "Two attempted calls violated the displayed schema.",
+                "issues": ("Use only arguments present in the current tool contract.",),
+                "microtask_objective": "Create hello.txt using a valid direct operation.",
+                "completion_checks": ("The operation executes and changes the workspace.",),
+            },
+            {
+                "disposition": "accept_final",
+                "review_status": "satisfied",
+                "review_summary": "The valid RWKV action and Final satisfy the request.",
+            },
+        ]
+    )
+    controller, _, workspace, _ = build(
+        tmp_path,
+        [
+            call(
+                "write_file",
+                path="hello.txt",
+                content="hello",
+                unknown_argument=True,
+            ),
+            call(
+                "write_file",
+                path="hello.txt",
+                content="hello",
+                unknown_argument=True,
+            ),
+            call("write_file", path="hello.txt", content="hello"),
+            call("final_answer", text="Created hello.txt."),
+        ],
+        supervisor,
+        policy=SupervisorPolicy(
+            mode="online_microtask",
+            max_online_directives=8,
+            online_actions_per_directive=6,
+            online_protocol_rejections_per_directive=2,
+        ),
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status == RunStatus.COMPLETED
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert result.state.protocol_rejections == 2
+    assert len(supervisor.directive_requests) == 3
+    correction = supervisor.directive_requests[1]
+    assert correction.worker_outcome is not None
+    assert correction.worker_outcome["type"] == "protocol_batch"
+    assert len(correction.worker_outcome["rejection_refs"]) == 2
+    assert correction.worker_outcome["action_ids"] == []
 
 
 def test_supervisor_revision_returns_bounded_feedback_to_same_rwkv_lane(
@@ -262,7 +589,7 @@ def test_supervisor_plan_failure_is_audited_and_fails_closed(tmp_path: Path) -> 
 
     result = controller.run("RUN")
 
-    assert result.state.status == RunStatus.FAILED
+    assert result.state.status == RunStatus.INTERRUPTED
     assert result.final_output == ""
     assert client.prompts == []
     failures = [
@@ -273,6 +600,90 @@ def test_supervisor_plan_failure_is_audited_and_fails_closed(tmp_path: Path) -> 
     assert len(failures) == 1
     assert failures[0].payload["phase"] == "plan"
     assert failures[0].payload["fail_closed"] is True
+    pending = [
+        event
+        for event in result.state.causal_records.values()
+        if event.event_type == "supervisor_call_pending"
+    ]
+    assert len(pending) == 1
+    assert pending[0].payload["phase"] == "plan"
+    assert pending[0].payload["retry_trigger"] == "resume_or_proactive_scheduler"
+
+
+def test_pending_supervisor_plan_retries_from_committed_state_on_resume(
+    tmp_path: Path,
+) -> None:
+    supervisor = RecoveringPlanSupervisor(
+        [SupervisorReview.create(ReviewDisposition.PASS, summary="supported")]
+    )
+    controller, _, _, client = build(
+        tmp_path,
+        [call("final_answer", text="Exact recovered candidate.")],
+        supervisor,
+    )
+
+    first = controller.run("RUN")
+    recovered = controller.resume("RUN")
+
+    assert first.state.status == RunStatus.INTERRUPTED
+    assert recovered.state.status == RunStatus.COMPLETED
+    assert recovered.final_output == "Exact recovered candidate."
+    assert len(supervisor.plan_requests) == 2
+    assert len(client.prompts) == 1
+    assert unresolved_supervisor_pending(recovered.state) == ()
+    resolved = [
+        event
+        for event in recovered.state.causal_records.values()
+        if event.event_type == "supervisor_call_resolved"
+    ]
+    assert len(resolved) == 1
+    assert resolved[0].payload["phase"] == "plan"
+
+
+def test_pending_resolution_recovers_if_process_stops_after_plan_commit(
+    tmp_path: Path,
+) -> None:
+    supervisor = RecoveringPlanSupervisor(
+        [SupervisorReview.create(ReviewDisposition.PASS, summary="supported")]
+    )
+    controller, store, _, client = build(
+        tmp_path,
+        [call("final_answer", text="Exact recovered candidate.")],
+        supervisor,
+    )
+    first = controller.run("RUN")
+    assert first.state.status == RunStatus.INTERRUPTED
+    original_save = store.save
+    lost_once = False
+
+    def stop_before_resolution(state, *, expected_revision=None, causal_event):
+        nonlocal lost_once
+        if causal_event.event_type == "supervisor_call_resolved" and not lost_once:
+            lost_once = True
+            raise RuntimeError("simulated process loss before pending resolution")
+        return original_save(
+            state,
+            expected_revision=expected_revision,
+            causal_event=causal_event,
+        )
+
+    store.save = stop_before_resolution  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="before pending resolution"):
+        controller.resume("RUN")
+    store.save = original_save  # type: ignore[method-assign]
+    committed = store.load("RUN")
+    assert any(
+        event.event_type == "supervisor_plan_committed"
+        for event in committed.causal_records.values()
+    )
+    assert len(unresolved_supervisor_pending(committed)) == 1
+
+    recovered = controller.resume("RUN")
+
+    assert recovered.state.status == RunStatus.COMPLETED
+    assert unresolved_supervisor_pending(recovered.state) == ()
+    assert len(supervisor.plan_requests) == 2
+    assert len(client.prompts) == 1
 
 
 def test_passed_review_is_recovered_without_repeating_either_model_call(

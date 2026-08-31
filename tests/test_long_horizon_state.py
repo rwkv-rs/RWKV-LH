@@ -12,6 +12,7 @@ from rwkv_lh.schema import (
     ArtifactRecord,
     CausalEvent,
     CausalEventDraft,
+    DecisionRecord,
     GoalState,
     RunState,
     RunStatus,
@@ -54,6 +55,32 @@ def action_record() -> ActionRecord:
 
 def save_action_started(store: LongHorizonStore, state: RunState) -> RunState:
     action = action_record()
+    if action.decision_id not in state.decisions:
+        decision = DecisionRecord(
+            decision_id=action.decision_id,
+            request_id=action.request_id,
+            lane_id="executor",
+            input_checkpoint_id="",
+            input_digest="",
+            visible_event_ids=(),
+            raw_output="<RWKV raw output fixture>",
+            command_digest="fixture-command-digest",
+            output_checkpoint_id="",
+            output_digest="",
+            sampling={},
+            model="rwkv-fixture",
+            transport="fixture",
+            accepted=True,
+        )
+        state = store.save(
+            state,
+            causal_event=CausalEventDraft.create(
+                "model_call_accepted",
+                {"decision": decision.to_dict()},
+                subject_id=decision.decision_id,
+                cause_id=state.causal_order[-1],
+            ),
+        )
     action.status = ActionStatus.RUNNING
     action.ended_at = None
     action.result = None
@@ -67,6 +94,53 @@ def save_action_started(store: LongHorizonStore, state: RunState) -> RunState:
             cause_id=state.causal_order[-1],
         ),
     )
+
+
+def test_decision_record_legacy_projection_is_byte_shape_compatible() -> None:
+    decision = DecisionRecord(
+        decision_id="D-LEGACY",
+        request_id="MR-LEGACY",
+        lane_id="executor",
+        input_checkpoint_id="",
+        input_digest="",
+        visible_event_ids=(),
+        raw_output="raw",
+        command_digest="digest",
+        output_checkpoint_id="",
+        output_digest="",
+        sampling={},
+        model="rwkv",
+        transport="fixture",
+        accepted=True,
+    )
+    projected = decision.to_dict()
+    assert "tool_selection_id" not in projected
+    assert "selected_operation" not in projected
+    assert "atom_execution_contract_digest" not in projected
+    assert DecisionRecord.from_dict(projected) == decision
+
+
+def test_decision_record_exact_selection_binding_round_trips() -> None:
+    decision = DecisionRecord(
+        decision_id="D-BOUND",
+        request_id="MR-BOUND",
+        lane_id="executor",
+        input_checkpoint_id="",
+        input_digest="",
+        visible_event_ids=(),
+        raw_output="raw",
+        command_digest="digest",
+        output_checkpoint_id="",
+        output_digest="",
+        sampling={},
+        model="rwkv",
+        transport="fixture",
+        accepted=True,
+        tool_selection_id="SEL-1",
+        selected_operation="write_file",
+        atom_execution_contract_digest="a" * 64,
+    )
+    assert DecisionRecord.from_dict(decision.to_dict()) == decision
 
 
 def save_action_finished(store: LongHorizonStore, state: RunState) -> RunState:

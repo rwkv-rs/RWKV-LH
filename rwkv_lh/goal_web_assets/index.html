@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>RWKV Goal Studio</title>
+    <meta name="description" content="强模型规划、RWKV 执行、证据驱动验收的自主项目工作台">
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <div class="ambient ambient-a" aria-hidden="true"></div>
+    <div class="ambient ambient-b" aria-hidden="true"></div>
+
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="RWKV Goal Studio 首页">
+        <span class="brand-glyph">R</span>
+        <span><strong>RWKV Goal</strong><small>自主项目工作台</small></span>
+      </a>
+      <div class="header-actions">
+        <button id="topologyButton" class="system-pill" type="button">
+          <span id="systemDot" class="live-dot pending"></span>
+          <span id="systemLabel">正在连接双 RWKV 运行栈</span>
+        </button>
+        <button id="newGoalButton" class="button button-primary" type="button">新建目标</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="history-rail">
+        <div class="rail-heading">
+          <span>项目记录</span><strong id="runCount">0</strong>
+        </div>
+        <div id="runList" class="run-list"></div>
+        <div class="rail-foot">
+          <span>LOCAL · PRIVATE</span>
+          <p>所有产物仅写入隔离工作区。</p>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <section id="createView" class="create-view">
+          <div class="hero-copy">
+            <p class="kicker"><span></span> STRONG PLAN · RWKV BUILD</p>
+            <h1>说出目标，<br><em>让项目自己生长。</em></h1>
+            <p>强模型理解与拆解，两个独立 RWKV lane 负责选择和执行，最终结果由真实证据验收。</p>
+          </div>
+
+          <form id="goalForm" class="goal-composer">
+            <label for="goalInput">你想创建什么？</label>
+            <textarea id="goalInput" required maxlength="100000" placeholder="例如：帮我做一个简洁的个人记账网页，可以记录收入支出并显示本月统计。"></textarea>
+            <div class="suggestions" aria-label="示例目标">
+              <button type="button" data-goal="帮我做一个简洁的个人记账网页，可以记录收入和支出，自动显示本月统计，刷新后数据还在。">个人记账</button>
+              <button type="button" data-goal="帮我做一个适合手机使用的习惯打卡网页，能够记录连续打卡天数和今天的完成情况。">习惯打卡</button>
+              <button type="button" data-goal="帮我做一个有质感的个人作品展示网页，包含项目介绍、技能和联系方式。">作品主页</button>
+            </div>
+
+            <details class="advanced-settings">
+              <summary>项目设置 <span>可选</span></summary>
+              <div class="settings-grid">
+                <label>网络
+                  <select id="networkPolicy">
+                    <option value="offline">离线创建</option>
+                    <option value="auto_public">允许检索公开资料</option>
+                  </select>
+                </label>
+                <label>执行预算
+                  <select id="transitionBudget">
+                    <option value="300">标准</option>
+                    <option value="500">深度</option>
+                    <option value="160">快速预览</option>
+                  </select>
+                </label>
+              </div>
+              <label for="constraintInput">补充要求</label>
+              <textarea id="constraintInput" class="small-textarea" placeholder="例如：不要使用外部依赖；页面优先适配手机。"></textarea>
+              <div class="seed-heading"><span>已有文件</span><button id="addSeedButton" type="button">添加</button></div>
+              <div id="seedFiles" class="seed-files"></div>
+            </details>
+
+            <div class="composer-footer">
+              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>Contract Graph · 自动验收</small></div>
+              <button id="startButton" class="launch-button" type="submit"><span>开始创建</span><b>→</b></button>
+            </div>
+            <p id="formMessage" class="form-message" role="status"></p>
+          </form>
+
+          <section class="topology-preview">
+            <div class="section-heading"><p>当前运行架构</p><span>LIVE TOPOLOGY</span></div>
+            <div id="topologyCards" class="topology-cards">
+              <article><span class="node-index">01</span><strong>Planner</strong><p>连接中</p></article>
+              <article><span class="node-index">02</span><strong>Selector</strong><p>连接中</p></article>
+              <article><span class="node-index">03</span><strong>Executor</strong><p>连接中</p></article>
+              <article><span class="node-index">04</span><strong>Harness</strong><p>本地证据层</p></article>
+            </div>
+          </section>
+        </section>
+
+        <section id="runView" class="run-view hidden">
+          <header class="run-header">
+            <div class="run-title">
+              <p id="runId" class="kicker">GOAL —</p>
+              <h2 id="runObjective">正在读取目标…</h2>
+            </div>
+            <div class="run-controls">
+              <span id="runStatus" class="status-chip">QUEUED</span>
+              <button id="resumeButton" class="button hidden" type="button">恢复</button>
+              <button id="stopButton" class="button button-danger hidden" type="button">停止</button>
+              <a id="exportButton" class="button" href="#">下载审计包</a>
+            </div>
+          </header>
+
+          <div class="phase-track" aria-label="目标执行阶段">
+            <div data-phase="understand"><span>1</span><strong>理解目标</strong><small>Planner</small></div>
+            <i></i><div data-phase="plan"><span>2</span><strong>拆解计划</strong><small>Contract Graph</small></div>
+            <i></i><div data-phase="build"><span>3</span><strong>自主创建</strong><small>RWKV</small></div>
+            <i></i><div data-phase="verify"><span>4</span><strong>证据验收</strong><small>Reviewer</small></div>
+            <i></i><div data-phase="complete"><span>5</span><strong>交付结果</strong><small>Artifacts</small></div>
+          </div>
+
+          <div class="metric-strip">
+            <div><span>义务进度</span><strong id="obligationMetric">0 / 0</strong></div>
+            <div><span>RWKV Actions</span><strong id="actionMetric">0</strong></div>
+            <div><span>证据记录</span><strong id="evidenceMetric">0</strong></div>
+            <div><span>生成文件</span><strong id="fileMetric">0</strong></div>
+            <div><span>模型请求</span><strong id="requestMetric">0</strong></div>
+          </div>
+
+          <nav class="run-tabs" aria-label="运行内容">
+            <button class="active" data-tab="overview" type="button">总览</button>
+            <button data-tab="contract" type="button">目标与计划 <span id="contractCount">0</span></button>
+            <button data-tab="execution" type="button">RWKV 执行 <span id="executionCount">0</span></button>
+            <button data-tab="evidence" type="button">证据与验收 <span id="evidenceCount">0</span></button>
+            <button data-tab="artifacts" type="button">项目产物 <span id="artifactCount">0</span></button>
+            <button data-tab="raw" type="button">完整审计 <span id="rawCount">0</span></button>
+          </nav>
+
+          <div id="overviewTab" class="tab-panel active">
+            <div class="overview-layout">
+              <article class="surface progress-surface">
+                <div class="surface-heading"><h3>当前进展</h3><span id="currentPhaseLabel">正在启动</span></div>
+                <div id="liveActivity" class="live-activity"><p class="empty-copy">等待第一个因果事件。</p></div>
+              </article>
+              <article class="surface result-surface">
+                <div class="surface-heading"><h3>最终交付</h3><span id="acceptanceBadge" class="review-badge pending">等待验收</span></div>
+                <pre id="finalOutput">项目仍在创建中。</pre>
+              </article>
+            </div>
+            <article id="errorPanel" class="surface error-surface hidden">
+              <div class="surface-heading"><h3>需要注意</h3></div><pre id="errorOutput"></pre>
+            </article>
+          </div>
+
+          <div id="contractTab" class="tab-panel">
+            <article class="surface goal-surface">
+              <div class="surface-heading"><h3>不可变 Goal</h3><code id="goalDigest">—</code></div>
+              <p id="goalRequest"></p>
+            </article>
+            <div id="obligationBoard" class="obligation-board"><p class="empty-copy">Planner 尚未提交义务。</p></div>
+            <article class="surface graph-surface"><div class="surface-heading"><h3>执行图节点</h3><span id="nodeCount">0 nodes</span></div><div id="graphNodes" class="graph-nodes"></div></article>
+          </div>
+
+          <div id="executionTab" class="tab-panel">
+            <div class="lane-banner">
+              <div><span>SELECTOR LANE</span><strong>S60 · 2.9B · GPU2</strong><small>只选择 operation</small></div>
+              <b>→</b>
+              <div><span>EXECUTOR LANE</span><strong>G3 · 13.3B · GPU1</strong><small>参数、执行与 Final</small></div>
+            </div>
+            <div id="actionList" class="action-grid"><p class="empty-copy">等待 RWKV Action。</p></div>
+          </div>
+
+          <div id="evidenceTab" class="tab-panel">
+            <div id="reviewSummary" class="review-summary"></div>
+            <div id="evidenceTimeline" class="evidence-timeline"><p class="empty-copy">尚未产生验收证据。</p></div>
+          </div>
+
+          <div id="artifactsTab" class="tab-panel">
+            <div class="artifact-layout">
+              <div id="fileList" class="file-list"><p class="empty-copy">工作区尚无文件。</p></div>
+              <article class="surface file-preview">
+                <div class="surface-heading"><h3 id="filePreviewName">选择文件预览</h3><span id="filePreviewMeta"></span></div>
+                <pre id="filePreview">生成的文本、代码和 JSON 会显示在这里。</pre>
+              </article>
+            </div>
+          </div>
+
+          <div id="rawTab" class="tab-panel">
+            <div class="audit-toolbar">
+              <div><button class="active" data-audit="trace" type="button">RWKV / Supervisor I/O</button><button data-audit="events" type="button">CausalEvent</button></div>
+              <span>原始记录 · 不改写</span>
+            </div>
+            <div id="rawTimeline" class="raw-timeline"><p class="empty-copy">等待审计记录。</p></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="topologyDialog" class="topology-dialog">
+      <div class="dialog-heading"><div><p class="kicker">LIVE RUNTIME</p><h2>运行栈详情</h2></div><button id="closeTopologyButton" type="button">×</button></div>
+      <div id="topologyDetail" class="topology-detail"></div>
+    </dialog>
+
+    <template id="seedTemplate">
+      <div class="seed-file">
+        <div><input class="seed-path" type="text" placeholder="文件路径"><button class="remove-seed" type="button" aria-label="移除">×</button></div>
+        <textarea class="seed-content small-textarea" placeholder="文件内容"></textarea>
+      </div>
+    </template>
+
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

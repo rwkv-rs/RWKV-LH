@@ -6,15 +6,28 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+import re
 from urllib.parse import urlparse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env.local"
+_STATE_PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
-def load_local_env(path: str | Path = DEFAULT_ENV_FILE) -> None:
-    """Load an ignored env file without overriding process-level settings."""
+def load_local_env(
+    path: str | Path = DEFAULT_ENV_FILE,
+    *,
+    allowed_prefixes: tuple[str, ...] | None = None,
+) -> None:
+    """Load an ignored env file without overriding process-level settings.
+
+    ``allowed_prefixes`` keeps component-specific env files from leaking
+    unrelated settings into a long-lived process.  A ``None`` value preserves
+    the product runtime's existing behavior of loading the complete local
+    deployment file.
+    """
 
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -27,6 +40,8 @@ def load_local_env(path: str | Path = DEFAULT_ENV_FILE) -> None:
         key, separator, value = line.partition("=")
         key = key.strip()
         if not separator or not key:
+            continue
+        if allowed_prefixes is not None and not key.startswith(allowed_prefixes):
             continue
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
@@ -62,7 +77,8 @@ class RuntimeSettings:
     base_url: str
     api_key: str
     model: str
-    backend_profile: str = "vllm-rwkv-rapid"
+    model_sha256: str = ""
+    backend_profile: str = "vllm-rwkv-native"
     cf_access_client_id: str = ""
     cf_access_client_secret: str = ""
     proxy_url: str = ""
@@ -82,6 +98,11 @@ class RuntimeSettings:
     return_token_ids: bool = False
     trust_environment_proxies: bool = False
     verify_tls: bool = True
+    tool_disclosure_mode: str = "progressive"
+    state_transport: str = "prompt_replay"
+    state_profile_id: str = ""
+    state_profile_sha256: str = ""
+    state_profile_delivery: str = "request"
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
@@ -93,9 +114,10 @@ class RuntimeSettings:
                 "RWKV_MODEL",
                 "rwkv7-g1i-13.3b-20260805-ctx16384",
             ).strip(),
+            model_sha256=os.environ.get("RWKV_MODEL_SHA256", "").strip().casefold(),
             backend_profile=os.environ.get(
                 "RWKV_BACKEND_PROFILE",
-                "vllm-rwkv-rapid",
+                "vllm-rwkv-native",
             ).strip(),
             cf_access_client_id=os.environ.get(
                 "RWKV_CF_ACCESS_CLIENT_ID",
@@ -119,9 +141,29 @@ class RuntimeSettings:
             max_model_len=_int("RWKV_MAX_MODEL_LEN", 16384),
             context_safety_margin=_int("RWKV_CONTEXT_SAFETY_MARGIN", 32),
             bos_token_count=_int("RWKV_BOS_TOKEN_COUNT", 1),
-            return_token_ids=_bool("RWKV_RETURN_TOKEN_IDS", False),
+            return_token_ids=_bool("RWKV_RETURN_TOKEN_IDS", True),
             trust_environment_proxies=_bool("RWKV_TRUST_ENV", False),
             verify_tls=_bool("RWKV_VERIFY_TLS", True),
+            tool_disclosure_mode=os.environ.get(
+                "RWKV_TOOL_DISCLOSURE_MODE",
+                "progressive",
+            ).strip().casefold(),
+            state_transport=os.environ.get(
+                "RWKV_STATE_TRANSPORT",
+                "prompt_replay",
+            ).strip().casefold(),
+            state_profile_id=os.environ.get(
+                "RWKV_STATE_PROFILE_ID",
+                "",
+            ).strip(),
+            state_profile_sha256=os.environ.get(
+                "RWKV_STATE_PROFILE_SHA256",
+                "",
+            ).strip().casefold(),
+            state_profile_delivery=os.environ.get(
+                "RWKV_STATE_PROFILE_DELIVERY",
+                "request",
+            ).strip().casefold(),
         )
         settings.validate()
         return settings
@@ -132,13 +174,49 @@ class RuntimeSettings:
             raise ValueError("RWKV_BASE_URL must be an absolute HTTP(S) URL")
         if not self.model:
             raise ValueError("RWKV_MODEL must not be empty")
+        if self.model_sha256 and not _SHA256_PATTERN.fullmatch(self.model_sha256):
+            raise ValueError("RWKV_MODEL_SHA256 must be lowercase SHA-256")
+        if self.tool_disclosure_mode not in {"full", "progressive"}:
+            raise ValueError(
+                "RWKV_TOOL_DISCLOSURE_MODE must be full or progressive"
+            )
+        if self.state_transport not in {
+            "prompt_replay",
+            "auto",
+            "native_required",
+        }:
+            raise ValueError(
+                "RWKV_STATE_TRANSPORT must be prompt_replay, auto, or native_required"
+            )
+        if bool(self.state_profile_id) != bool(self.state_profile_sha256):
+            raise ValueError(
+                "RWKV_STATE_PROFILE_ID and RWKV_STATE_PROFILE_SHA256 "
+                "must be configured together"
+            )
+        if self.state_profile_id and not _STATE_PROFILE_ID_PATTERN.fullmatch(
+            self.state_profile_id
+        ):
+            raise ValueError("RWKV_STATE_PROFILE_ID is invalid")
+        if self.state_profile_sha256 and not _SHA256_PATTERN.fullmatch(
+            self.state_profile_sha256
+        ):
+            raise ValueError("RWKV_STATE_PROFILE_SHA256 must be lowercase SHA-256")
+        if self.state_profile_delivery not in {"request", "process_attested"}:
+            raise ValueError(
+                "RWKV_STATE_PROFILE_DELIVERY must be request or process_attested"
+            )
+        if self.state_profile_delivery == "process_attested" and not self.state_profile_id:
+            raise ValueError(
+                "process_attested state delivery requires an explicit profile identity"
+            )
         if self.backend_profile not in {
             "vllm-rwkv-rapid",
+            "vllm-rwkv-native",
             "rwkv-lightning-native",
         }:
             raise ValueError(
-                "RWKV_BACKEND_PROFILE must be vllm-rwkv-rapid or "
-                "rwkv-lightning-native"
+                "RWKV_BACKEND_PROFILE must be vllm-rwkv-rapid, "
+                "vllm-rwkv-native, or rwkv-lightning-native"
             )
         if bool(self.cf_access_client_id) != bool(self.cf_access_client_secret):
             raise ValueError(
@@ -153,10 +231,13 @@ class RuntimeSettings:
             raise ValueError("RWKV timeouts must be positive")
         if self.retry_attempts < 1:
             raise ValueError("RWKV_RETRY_ATTEMPTS must be at least 1")
-        if not 1e-5 <= self.default_temperature <= 2:
+        minimum_temperature = (
+            0.0 if self.backend_profile == "vllm-rwkv-native" else 1e-5
+        )
+        if not minimum_temperature <= self.default_temperature <= 2:
             raise ValueError(
-                "RWKV_DEFAULT_TEMPERATURE must be between 1e-5 and 2 for "
-                "vllm-rwkv rapid-sampling"
+                "RWKV_DEFAULT_TEMPERATURE must be between "
+                f"{minimum_temperature:g} and 2 for {self.backend_profile}"
             )
         if not 0 < self.default_top_p <= 1:
             raise ValueError("RWKV_DEFAULT_TOP_P must be in (0, 1]")

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -42,6 +45,18 @@ class ActionDefinition:
     # an external or time-sensitive action must never opt in.
     failure_observation_cacheable: bool = False
     required_arguments: tuple[str, ...] = ()
+    # Capability metadata is part of the same authoritative registration as
+    # the model schema and handler.  Existing local definitions derive a safe
+    # default from their effect contract; external extensions must declare
+    # their network and data boundaries explicitly.
+    capability_class: str = ""
+    network_access: str = "none"
+    data_boundary: str = "workspace"
+    side_effect_class: str = ""
+    result_schema: str = "rwkv-lh.action-result.v1"
+    cache_policy: str = "default"
+    recovery_policy: str = ""
+    evidence_output: bool = False
 
     def __post_init__(self) -> None:
         if not self.name.strip() or not self.description.strip():
@@ -60,6 +75,43 @@ class ActionDefinition:
             raise ValueError(
                 f"action {self.name} arguments must use explicit JSON Schema: {non_schema}"
             )
+        if self.network_access not in {"none", "public_web", "structured_source"}:
+            raise ValueError(
+                f"action {self.name} has unsupported network_access: "
+                f"{self.network_access}"
+            )
+        if not self.capability_class:
+            derived_capability = (
+                "local.workspace_read"
+                if self.read_only and not self.side_effect
+                else "local.workspace_mutation"
+            )
+            object.__setattr__(self, "capability_class", derived_capability)
+        if not self.side_effect_class:
+            derived_effect = (
+                "read_only"
+                if self.read_only and not self.side_effect
+                else "workspace_mutation"
+            )
+            object.__setattr__(self, "side_effect_class", derived_effect)
+        if not self.recovery_policy:
+            object.__setattr__(
+                self,
+                "recovery_policy",
+                "replay_same_action_id" if self.idempotent else "do_not_replay_unknown",
+            )
+        for field_name in (
+            "capability_class",
+            "data_boundary",
+            "side_effect_class",
+            "result_schema",
+            "cache_policy",
+            "recovery_policy",
+        ):
+            if not str(getattr(self, field_name) or "").strip():
+                raise ValueError(
+                    f"action {self.name} requires non-empty {field_name} metadata"
+                )
 
     def parameters_schema(self) -> dict[str, Any]:
         return {
@@ -143,8 +195,14 @@ class ActionResult:
             "TypeError",
             "HarnessError",
             "ScopeViolation",
+            "NetworkPolicyRejected",
+            "ExternalEvidenceContractError",
         }:
-            return "invalid"
+            return (
+                "policy_rejected"
+                if error_type == "NetworkPolicyRejected"
+                else "invalid"
+            )
         if error_type in {"FileExistsError", "AlreadyExists", "Conflict"}:
             return "conflict"
         if error_type in {
@@ -224,6 +282,7 @@ class ActionHarness:
         "copy_file": ("action_succeeded", "file_exists"),
         "move_file": ("action_succeeded", "file_exists", "file_absent"),
         "list_directory": ("action_succeeded",),
+        "search_text": ("action_succeeded",),
         "file_digest": ("action_succeeded", "file_exists", "hash_equals"),
         "read_file": ("action_succeeded", "file_exists"),
         "read_json": (
@@ -406,6 +465,75 @@ class ActionHarness:
             },
             failure_observation_cacheable=True,
         ),
+        "search_text": ActionDefinition(
+            "search_text",
+            (
+                "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; "
+                "mode=literal is exact. Returns bounded ordered locators/cursor and never "
+                "ranks urgency."
+            ),
+            True,
+            False,
+            True,
+            30.0,
+            {
+                "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression",
+                },
+                "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["literal", "regex"],
+                    "default": "regex",
+                },
+                "case_sensitive": {"type": "boolean", "default": True},
+                "recursive": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "recurse when path is a directory",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100,
+                },
+                "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                },
+                "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100_000_000,
+                    "default": 5_000_000,
+                    "description": "skip larger files and report them",
+                },
+                "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters",
+                },
+            },
+            failure_observation_cacheable=True,
+            required_arguments=("pattern",),
+            result_schema="rwkv-lh.search-text-result.v1",
+        ),
         "read_file": ActionDefinition(
             "read_file", "Observe one exact tokenizer-bounded UTF-8 byte range; continue only from next_start_byte.", True, False, True, 30.0,
             {
@@ -476,6 +604,9 @@ class ActionHarness:
             },
             ("command_exit_code",),
             required_arguments=("argv",),
+            capability_class="local.process_read",
+            data_boundary="workspace_process",
+            side_effect_class="local_process_read_only",
         ),
         "run_command": ActionDefinition(
             "run_command", (
@@ -497,6 +628,9 @@ class ActionHarness:
             },
             ("command_exit_code",),
             required_arguments=("argv",),
+            capability_class="local.process_mutation",
+            data_boundary="workspace_process",
+            side_effect_class="local_process_mutation",
         ),
         "noop": ActionDefinition(
             "noop", "Record an explicit no-op result for control-flow tasks.", True, False, True, 5.0,
@@ -514,6 +648,11 @@ class ActionHarness:
             tuple[
                 ActionDefinition,
                 Callable[[GoalState, dict[str, Any]], ActionResult],
+            ]
+            | tuple[
+                ActionDefinition,
+                Callable[[GoalState, dict[str, Any]], ActionResult],
+                Callable[[GoalState, dict[str, Any]], ActionResult | None],
             ],
         ]
         | None = None,
@@ -534,6 +673,7 @@ class ActionHarness:
             "copy_file": self._copy_file,
             "move_file": self._move_file,
             "list_directory": self._list_directory,
+            "search_text": self._search_text,
             "file_digest": self._file_digest,
             "read_file": self._read_file,
             "read_json": self._read_json,
@@ -542,17 +682,34 @@ class ActionHarness:
             "run_command": self._run_command,
             "noop": self._noop,
         }
+        self._recovery_handlers: dict[
+            str, Callable[[GoalState, dict[str, Any]], ActionResult | None]
+        ] = {}
         for name, item in (actions or {}).items():
-            definition, handler = item
+            if len(item) == 2:
+                definition, handler = item
+                recovery_handler = None
+            elif len(item) == 3:
+                definition, handler, recovery_handler = item
+            else:
+                raise HarnessError("custom action tuple must contain 2 or 3 items")
             if name != definition.name:
                 raise HarnessError("custom action key must match definition.name")
-            self.register_action(definition, handler)
+            self.register_action(
+                definition,
+                handler,
+                recovery_handler=recovery_handler,
+            )
         self._validate_registry()
 
     def register_action(
         self,
         definition: ActionDefinition,
         handler: Callable[[GoalState, dict[str, Any]], ActionResult],
+        *,
+        recovery_handler: (
+            Callable[[GoalState, dict[str, Any]], ActionResult | None] | None
+        ) = None,
     ) -> None:
         """Register one explicit extension action with recovery metadata."""
 
@@ -563,8 +720,12 @@ class ActionHarness:
             raise HarnessError(f"action is already registered: {name}")
         if not callable(handler):
             raise HarnessError(f"action handler is not callable: {name}")
+        if recovery_handler is not None and not callable(recovery_handler):
+            raise HarnessError(f"action recovery handler is not callable: {name}")
         self._definitions[name] = definition
         self._handlers[name] = handler
+        if recovery_handler is not None:
+            self._recovery_handlers[name] = recovery_handler
 
     def definition(self, action_type: str) -> ActionDefinition:
         normalized = str(action_type or "").strip()
@@ -630,6 +791,11 @@ class ActionHarness:
                 raise HarnessError(
                     f"action registry key {name} differs from definition {definition.name}"
                 )
+        unknown_recovery = set(self._recovery_handlers) - definition_names
+        if unknown_recovery:
+            raise HarnessError(
+                f"action recovery handler has no definition: {sorted(unknown_recovery)}"
+            )
 
     def deterministic_verification_specs(
         self,
@@ -740,6 +906,14 @@ class ActionHarness:
             "arguments": definition.argument_schema,
             "required_arguments": list(definition.required_arguments),
             "required_postconditions": list(definition.required_postconditions),
+            "capability_class": definition.capability_class,
+            "network_access": definition.network_access,
+            "data_boundary": definition.data_boundary,
+            "side_effect_class": definition.side_effect_class,
+            "result_schema": definition.result_schema,
+            "cache_policy": definition.cache_policy,
+            "recovery_policy": definition.recovery_policy,
+            "evidence_output": definition.evidence_output,
         }
         if definition.name in {"run_command", "check_command"}:
             contract["runtime_capabilities"] = self.runtime_capabilities()
@@ -980,6 +1154,11 @@ class ActionHarness:
         if "const" in schema and value != schema["const"]:
             raise HarnessError(
                 f"action {action_name} argument {argument_name} must equal {schema['const']!r}"
+            )
+        if "enum" in schema and value not in schema["enum"]:
+            raise HarnessError(
+                f"action {action_name} argument {argument_name} must be one of "
+                f"{list(schema['enum'])!r}"
             )
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             if "minimum" in schema and value < schema["minimum"]:
@@ -1246,6 +1425,51 @@ class ActionHarness:
                 error={"type": type(exc).__name__, "message": str(exc)[:2000]},
             )
 
+    def recover_committed_action(
+        self,
+        action: TaskAction,
+        goal: GoalState,
+    ) -> ActionResult | None:
+        """Read a committed external snapshot without replaying its provider call."""
+        normalized = str(action.action_type or "").strip()
+        definition = self.definition(normalized)
+        if (
+            definition.recovery_policy
+            != "resume_committed_snapshot_or_do_not_replay_unknown"
+        ):
+            return None
+        handler = self._recovery_handlers.get(normalized)
+        if handler is None:
+            return None
+        try:
+            normalized_action = self.normalize_action(action)
+            result = handler(goal, normalized_action.arguments)
+            if result is not None and (
+                not result.outcome_type or result.outcome_type == "pending"
+            ):
+                result.outcome_type = ActionResult.classify_outcome(
+                    success=result.success,
+                    exit_code=result.exit_code,
+                    error=result.error,
+                )
+            return result
+        except Exception as exc:
+            return ActionResult(
+                action_type=normalized,
+                success=False,
+                error={
+                    "type": "CommittedSnapshotRecoveryError",
+                    "message": f"{type(exc).__name__}: {exc}"[:2000],
+                },
+            )
+
+    @contextmanager
+    def action_transaction(self, goal: GoalState):
+        """Serialize a complete observe→execute→observe unit when a wrapper requires it."""
+
+        del goal
+        yield
+
     def resolve_path(
         self,
         goal: GoalState,
@@ -1256,6 +1480,11 @@ class ActionHarness:
         root = Path(goal.workspace_root).resolve(strict=True)
         raw = Path(str(value or "").strip())
         candidate = raw if raw.is_absolute() else root / raw
+        lexical = Path(os.path.abspath(candidate))
+        try:
+            lexical.relative_to(root)
+        except ValueError as exc:
+            raise ScopeViolation(f"path escapes goal workspace: {value}") from exc
         resolved = candidate.resolve(strict=must_exist)
         try:
             resolved.relative_to(root)
@@ -1532,7 +1761,351 @@ class ActionHarness:
             "list_directory",
             True,
             output=output,
-            metadata=dict(payload),
+            # The independent Selector sees only bounded operation/outcome
+            # metadata, never this result body.  Keep the completion bit
+            # explicit and shape-compatible with every other cursor-bounded
+            # local observation.  Omitting it made persistent long-chain
+            # inputs differ from the frozen prefix features after the first
+            # directory listing even when that listing was complete.
+            metadata={
+                **payload,
+                "complete": not bool(payload["truncated"]),
+            },
+        )
+
+    @staticmethod
+    def _search_cursor(
+        contract_digest: str,
+        key: tuple[str, int, int, int],
+    ) -> str:
+        payload = json.dumps(
+            {
+                "contract": contract_digest,
+                "key": [key[0], key[1], key[2], key[3]],
+                "version": 1,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+        return f"search-v1.{encoded}"
+
+    @staticmethod
+    def _parse_search_cursor(
+        value: str,
+        contract_digest: str,
+    ) -> tuple[str, int, int, int] | None:
+        selected = str(value or "").strip()
+        if not selected:
+            return None
+        prefix = "search-v1."
+        if not selected.startswith(prefix):
+            raise HarnessError("search_text start_after is not a v1 search cursor")
+        encoded = selected[len(prefix):]
+        try:
+            padding = "=" * (-len(encoded) % 4)
+            decoded = base64.urlsafe_b64decode((encoded + padding).encode("ascii"))
+            payload = json.loads(decoded.decode("utf-8"))
+        except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
+            raise HarnessError("search_text start_after is malformed") from exc
+        if not isinstance(payload, Mapping) or payload.get("version") != 1:
+            raise HarnessError("search_text start_after has an unsupported version")
+        if payload.get("contract") != contract_digest:
+            raise HarnessError("search_text start_after belongs to a different search contract")
+        key = payload.get("key")
+        if (
+            not isinstance(key, list)
+            or len(key) != 4
+            or not isinstance(key[0], str)
+            or any(
+                not isinstance(item, int) or isinstance(item, bool) or item < 1
+                for item in key[1:]
+            )
+        ):
+            raise HarnessError("search_text start_after key is malformed")
+        return key[0], key[1], key[2], key[3]
+
+    @staticmethod
+    def _search_line_excerpt(
+        line: str,
+        start: int,
+        end: int,
+        max_chars: int,
+    ) -> tuple[str, int, bool]:
+        if len(line) <= max_chars:
+            return line, 1, False
+        left = max(0, start - max_chars // 3)
+        right = min(len(line), left + max_chars)
+        if end > right:
+            right = min(len(line), end)
+            left = max(0, right - max_chars)
+        return line[left:right], left + 1, True
+
+    def _search_text(
+        self,
+        goal: GoalState,
+        arguments: dict[str, Any],
+    ) -> ActionResult:
+        pattern = str(arguments.get("pattern") or "")
+        if not pattern:
+            raise HarnessError("search_text requires a non-empty pattern")
+        if len(pattern) > 4096:
+            raise HarnessError("search_text pattern exceeds 4096 characters")
+        mode = str(arguments.get("mode") or "regex")
+        case_sensitive = bool(arguments.get("case_sensitive", True))
+        flags = 0 if case_sensitive else re.IGNORECASE
+        expression = pattern if mode == "regex" else re.escape(pattern)
+        try:
+            matcher = re.compile(expression, flags)
+        except re.error as exc:
+            raise HarnessError(f"search_text regular expression is invalid: {exc}") from exc
+
+        root = Path(goal.workspace_root).resolve(strict=True)
+        raw_path = Path(str(arguments.get("path") or "."))
+        probe = root
+        symlink_component = False
+        for part in raw_path.parts:
+            if part in {"", "."}:
+                continue
+            probe /= part
+            if probe.is_symlink():
+                symlink_component = True
+                break
+
+        recursive = bool(arguments.get("recursive", True))
+        max_results = int(arguments.get("max_results", 100))
+        max_tokens = int(arguments.get("max_tokens", 4096))
+        max_file_bytes = int(arguments.get("max_file_bytes", 5_000_000))
+        max_line_chars = int(arguments.get("max_line_chars", 800))
+        normalized_path = raw_path.as_posix() or "."
+        contract = {
+            "case_sensitive": case_sensitive,
+            "max_file_bytes": max_file_bytes,
+            "mode": mode,
+            "path": normalized_path,
+            "pattern": pattern,
+            "recursive": recursive,
+        }
+        contract_digest = hashlib.sha256(
+            json.dumps(
+                contract,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        cursor_key = self._parse_search_cursor(
+            str(arguments.get("start_after") or ""),
+            contract_digest,
+        )
+
+        candidates: list[Path] = []
+        skipped: list[dict[str, str]] = []
+        skipped_count = 0
+        excluded_directories: list[str] = []
+        if symlink_component:
+            skipped_count = 1
+            skipped.append({"path": normalized_path, "reason": "symlink"})
+        else:
+            target = self.resolve_path(goal, raw_path, must_exist=True)
+            normalized_path = target.relative_to(root).as_posix() or "."
+            contract["path"] = normalized_path
+            refreshed_digest = hashlib.sha256(
+                json.dumps(
+                    contract,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            if refreshed_digest != contract_digest:
+                contract_digest = refreshed_digest
+                cursor_key = self._parse_search_cursor(
+                    str(arguments.get("start_after") or ""),
+                    contract_digest,
+                )
+            if target.is_file():
+                candidates = [target]
+            elif target.is_dir():
+                excluded = {".git", ".venv", "node_modules", "__pycache__"}
+                if recursive:
+                    for current, directory_names, file_names in os.walk(
+                        target,
+                        topdown=True,
+                        followlinks=False,
+                    ):
+                        current_path = Path(current)
+                        retained: list[str] = []
+                        for name in sorted(directory_names):
+                            directory_path = current_path / name
+                            relative = directory_path.relative_to(root).as_posix()
+                            if name in excluded:
+                                excluded_directories.append(relative)
+                            elif directory_path.is_symlink():
+                                skipped_count += 1
+                                if len(skipped) < 20:
+                                    skipped.append({"path": relative, "reason": "symlink"})
+                            else:
+                                retained.append(name)
+                        directory_names[:] = retained
+                        candidates.extend(current_path / name for name in sorted(file_names))
+                else:
+                    candidates = [
+                        path
+                        for path in target.iterdir()
+                        if path.is_file() or path.is_symlink()
+                    ]
+            else:
+                raise HarnessError("search_text path must be a file or directory")
+
+        candidates = sorted(
+            candidates,
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+        matches: list[dict[str, Any]] = []
+        match_keys: list[tuple[str, int, int, int]] = []
+        files_searched = 0
+        has_more = False
+        stop_scan = False
+        for candidate in candidates:
+            relative = candidate.relative_to(root).as_posix()
+            try:
+                if candidate.is_symlink():
+                    skipped_count += 1
+                    if len(skipped) < 20:
+                        skipped.append({"path": relative, "reason": "symlink"})
+                    continue
+                resolved = candidate.resolve(strict=True)
+                resolved.relative_to(root)
+                stat = resolved.stat()
+                if not resolved.is_file():
+                    continue
+                if stat.st_size > max_file_bytes:
+                    skipped_count += 1
+                    if len(skipped) < 20:
+                        skipped.append({"path": relative, "reason": "oversized"})
+                    continue
+                data = resolved.read_bytes()
+            except (FileNotFoundError, OSError, ValueError):
+                skipped_count += 1
+                if len(skipped) < 20:
+                    skipped.append({"path": relative, "reason": "read_error"})
+                continue
+            if b"\x00" in data:
+                skipped_count += 1
+                if len(skipped) < 20:
+                    skipped.append({"path": relative, "reason": "binary_nul"})
+                continue
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError:
+                skipped_count += 1
+                if len(skipped) < 20:
+                    skipped.append({"path": relative, "reason": "invalid_utf8"})
+                continue
+            files_searched += 1
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                for found in matcher.finditer(line):
+                    key = (
+                        relative,
+                        line_number,
+                        found.start() + 1,
+                        found.end() + 1,
+                    )
+                    if cursor_key is not None and key <= cursor_key:
+                        continue
+                    if len(matches) >= max_results:
+                        has_more = True
+                        stop_scan = True
+                        break
+                    excerpt, excerpt_start, line_truncated = self._search_line_excerpt(
+                        line,
+                        found.start(),
+                        found.end(),
+                        max_line_chars,
+                    )
+                    matched_text = found.group(0)
+                    matches.append(
+                        {
+                            "path": relative,
+                            "line_number": line_number,
+                            "column": found.start() + 1,
+                            "end_column": found.end() + 1,
+                            "match_text": matched_text[:max_line_chars],
+                            "match_text_truncated": len(matched_text) > max_line_chars,
+                            "line_text": excerpt,
+                            "line_text_start_column": excerpt_start,
+                            "line_text_truncated": line_truncated,
+                        }
+                    )
+                    match_keys.append(key)
+                if stop_scan:
+                    break
+            if stop_scan:
+                break
+
+        excluded_directory_count = len(excluded_directories)
+
+        def render_payload() -> dict[str, Any]:
+            truncated = has_more
+            return {
+                "schema_version": "rwkv-lh.search-text-result.v1",
+                "path": normalized_path,
+                "pattern": pattern,
+                "mode": mode,
+                "case_sensitive": case_sensitive,
+                "recursive": recursive,
+                "matches": matches,
+                "match_count": len(matches),
+                "files_considered": len(candidates),
+                "files_searched": files_searched,
+                "skipped_file_count": skipped_count,
+                "skipped_files": skipped,
+                "excluded_directory_count": excluded_directory_count,
+                "excluded_directories": excluded_directories[:20],
+                "truncated": truncated,
+                "complete": not truncated,
+                "next_cursor": (
+                    self._search_cursor(contract_digest, match_keys[-1])
+                    if truncated and match_keys
+                    else ""
+                ),
+            }
+
+        payload = render_payload()
+        output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        while get_token_count(output) > max_tokens and skipped:
+            skipped.pop()
+            payload = render_payload()
+            output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        while get_token_count(output) > max_tokens and excluded_directories:
+            excluded_directories.pop()
+            payload = render_payload()
+            output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        while get_token_count(output) > max_tokens and matches:
+            matches.pop()
+            match_keys.pop()
+            has_more = True
+            payload = render_payload()
+            output = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        if get_token_count(output) > max_tokens or (has_more and not matches):
+            raise HarnessError("one search_text result exceeds max_tokens")
+        return ActionResult(
+            "search_text",
+            True,
+            output=output,
+            metadata={
+                "contract_digest": contract_digest,
+                "match_count": len(matches),
+                "files_considered": len(candidates),
+                "files_searched": files_searched,
+                "skipped_file_count": skipped_count,
+                "truncated": bool(payload["truncated"]),
+                "complete": bool(payload["complete"]),
+                "next_cursor": str(payload["next_cursor"]),
+                "observed_tokens": get_token_count(output),
+            },
         )
 
     def _read_file(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:

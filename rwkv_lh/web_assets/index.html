@@ -27,16 +27,16 @@
         <div>
           <p class="eyebrow">REAL RWKV · NO ANSWER REWRITE</p>
           <h1>让每一步都<br><span>看得见。</span></h1>
-          <p class="lede">输入一个任务，观察不可变 Goal、Task Graph、工具调用、失败恢复和最终输出。界面只展示真实链路，不替模型做决定。</p>
+          <p class="lede">输入一个任务，观察不可变 Goal、Task Graph、2.9B 工具选择、13.3B 执行、失败恢复和最终输出。界面只展示真实链路，不替模型做决定。</p>
         </div>
-        <div class="score-card" aria-label="Round46 最新已上传正式结果">
-          <div class="score-head"><span>最新已上传基线</span><strong>ROUND 46</strong></div>
+        <div class="score-card" aria-label="当前真实 Agent 能力诊断">
+          <div class="score-head"><span id="scoreLabel">当前链路诊断</span><strong id="scoreName">CANARY V1</strong></div>
           <div class="score-grid">
-            <div><strong>31</strong><span>STRICT / 90</span></div>
-            <div><strong>32</strong><span>EXTERNAL / 90</span></div>
-            <div><strong>24</strong><span>FALSE POSITIVE</span></div>
+            <div><strong id="scoreStrict">0</strong><span>STRICT / 3</span></div>
+            <div><strong id="scoreCompleted">0</strong><span>COMPLETED / 3</span></div>
+            <div><strong id="scoreSearch">7</strong><span>WEB SEARCH / 7</span></div>
           </div>
-          <p>实验级系统，不代表任务可稳定完成。</p>
+          <p id="scoreNote">检索可用；项目闭环尚未通过。</p>
         </div>
       </section>
 
@@ -57,6 +57,26 @@
               <label for="maxTransitions">最大 transitions</label>
               <input id="maxTransitions" type="number" min="1" max="500" value="200">
             </div>
+
+            <label for="networkPolicy">联网策略</label>
+            <select id="networkPolicy">
+              <option value="offline">离线</option>
+              <option value="auto_public" selected>允许 RWKV 自主选择公开检索（默认）</option>
+              <option value="explicit_egress">允许显式公开工作区数据外发</option>
+            </select>
+
+            <label for="supervisorMode">规划模式</label>
+            <select id="supervisorMode">
+              <option value="none">RWKV 单模型直接执行</option>
+              <option value="contract_graph" selected>强模型 Contract Graph + RWKV 执行（默认）</option>
+            </select>
+
+            <label for="publicWorkspacePaths">公开工作区路径 <span>每行一条；仅 explicit_egress</span></label>
+            <textarea id="publicWorkspacePaths" class="compact" placeholder="public/&#10;release-manifest.json"></textarea>
+            <label class="checkbox-row">
+              <input id="approveWorkspaceEgress" type="checkbox">
+              <span>批准以上已声明路径的数据外发</span>
+            </label>
 
             <div class="seed-heading">
               <label>初始文件 <span>可选</span></label>

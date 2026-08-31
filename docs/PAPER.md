@@ -1,5 +1,10 @@
 # RWKV-LH 研究与复现指南
 
+> 历史快照说明：本文主体冻结在 2026-08-20 的 R126 单会话研究结论。2026-08-29 当前产品已
+> 启用“2.9B 独立工具 Selector + 13.3B Executor + 本地联网”链路；请先读
+> [当前状态](CURRENT_STATUS.zh-CN.md) 与 [当前交接](CURRENT_HANDOFF.zh-CN.md)。本文中的
+> “最终架构”仅表示当时轮次的最佳历史基线。
+
 > 这不是一篇只汇报最好分数的论文，而是一份 Research Notes + Engineering Guide +
 > Reproduction Manual。目标是解释为什么这样设计、哪些路线已经失败、当前系统如何工作，
 > 以及后来者如何复现而不重复踩坑。
@@ -449,7 +454,7 @@ rtk cp .env.example .env.local
 RWKV_BASE_URL=http://127.0.0.1:29610/v1
 RWKV_API_KEY=<local-key>
 RWKV_MODEL=rwkv7-g1i-13.3b-20260805-ctx16384
-RWKV_BACKEND_PROFILE=vllm-rwkv-rapid
+RWKV_BACKEND_PROFILE=vllm-rwkv-native
 RWKV_MAX_MODEL_LEN=16384
 ```
 

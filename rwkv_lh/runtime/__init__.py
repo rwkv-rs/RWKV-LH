@@ -11,6 +11,12 @@ from rwkv_lh.runtime.protocol import (
     RWKVTransportError,
     RuntimeCapabilities,
 )
+from rwkv_lh.runtime.native_state import (
+    NATIVE_STATE_PROTOCOL_VERSION,
+    NativeRWKVStateClient,
+    NativeStateCandidate,
+    NativeStateSnapshot,
+)
 from rwkv_lh.runtime.sampling import (
     current_model_lane,
     current_task_id,
@@ -21,10 +27,19 @@ from rwkv_lh.runtime.sampling import (
     sampling_parameters,
 )
 from rwkv_lh.runtime.settings import RuntimeSettings, get_runtime_settings
+from rwkv_lh.runtime.executor_profiles import (
+    EXECUTOR_PROFILE_ROUTING_DISABLED,
+    EXECUTOR_PROFILE_ROUTING_V1,
+    ExecutorProfileBinding,
+    executor_profile_binding_for_run,
+)
 
 
 __all__ = [
     "CompletionResponse",
+    "EXECUTOR_PROFILE_ROUTING_DISABLED",
+    "EXECUTOR_PROFILE_ROUTING_V1",
+    "ExecutorProfileBinding",
     "HealthStatus",
     "OpenAICompatibleRWKVClient",
     "RWKVHTTPError",
@@ -33,6 +48,10 @@ __all__ = [
     "RWKVRuntimeError",
     "RWKVTransportError",
     "RuntimeCapabilities",
+    "NATIVE_STATE_PROTOCOL_VERSION",
+    "NativeRWKVStateClient",
+    "NativeStateCandidate",
+    "NativeStateSnapshot",
     "RuntimeSettings",
     "current_model_lane",
     "current_task_id",
@@ -41,5 +60,6 @@ __all__ = [
     "get_request_sampling",
     "get_request_temperature",
     "get_runtime_settings",
+    "executor_profile_binding_for_run",
     "sampling_parameters",
 ]

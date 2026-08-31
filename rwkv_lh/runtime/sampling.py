@@ -16,6 +16,9 @@ _request_temperature: ContextVar[float | None] = ContextVar(
     "rwkv_lh_request_temperature", default=None
 )
 _request_id: ContextVar[str] = ContextVar("rwkv_lh_request_id", default="")
+_request_seed: ContextVar[int | None] = ContextVar(
+    "rwkv_lh_request_seed", default=None
+)
 _request_top_p: ContextVar[float | None] = ContextVar("rwkv_lh_request_top_p", default=None)
 _request_top_k: ContextVar[int | None] = ContextVar("rwkv_lh_request_top_k", default=None)
 _request_presence_penalty: ContextVar[float | None] = ContextVar(
@@ -38,6 +41,7 @@ class SamplingSnapshot:
     frequency_penalty: float
     penalty_decay: float
     request_id: str
+    seed: int | None
     task_id: str
     lane: str
 
@@ -52,9 +56,9 @@ def get_request_temperature() -> float:
 
 
 def get_request_seed() -> int | None:
-    """Compatibility shim: vllm-rwkv rapid-sampling has no request seed."""
+    """Return the request-local seed for sampler profiles that support it."""
 
-    return None
+    return _request_seed.get()
 
 
 def get_request_id() -> str:
@@ -83,6 +87,7 @@ def get_request_sampling() -> SamplingSnapshot:
             else float(_request_penalty_decay.get())
         ),
         request_id=get_request_id(),
+        seed=get_request_seed(),
         task_id=current_task_id.get(),
         lane=current_model_lane.get(),
     )
@@ -105,13 +110,16 @@ def sampling_parameters(
     penalty_decay: float | None = None,
 ) -> Iterator[None]:
     selected = float(temperature)
-    if seed is not None:
-        raise ValueError("seed is unsupported by vllm-rwkv rapid-sampling")
-    if not 1e-5 <= selected <= 2:
-        raise ValueError("request temperature must be between 1e-5 and 2")
+    if not 0 <= selected <= 2:
+        raise ValueError("request temperature must be between 0 and 2")
+    if seed is not None and (
+        not isinstance(seed, int) or isinstance(seed, bool)
+    ):
+        raise ValueError("request seed must be an integer or null")
     tokens = [
         (_request_temperature, _request_temperature.set(selected)),
         (_request_id, _request_id.set(str(request_id or ""))),
+        (_request_seed, _request_seed.set(seed)),
         (_request_top_p, _request_top_p.set(top_p)),
         (_request_top_k, _request_top_k.set(top_k)),
         (_request_presence_penalty, _request_presence_penalty.set(presence_penalty)),

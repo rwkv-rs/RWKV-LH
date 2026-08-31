@@ -20,6 +20,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ SUPPORTED_CHECK_KINDS = frozenset(
         "json_exact_keys",
         "mock_api_finalized",
         "mock_api_state",
+        "network_evidence_grounding",
         "no_scope_violation_events",
         "path_absent",
         "post_effect_crash_resumed",
@@ -103,6 +105,65 @@ def _json_file(workspace: Path, value: str) -> Any:
 
 def _event_count(events: Sequence[Mapping[str, Any]], event_type: str) -> int:
     return sum(1 for item in events if str(item.get("type") or "") == event_type)
+
+
+def _nested_mappings(value: Any, *, depth: int = 0):
+    """Yield JSON objects, including objects serialized in action output strings."""
+
+    if depth > 32:
+        return
+    if isinstance(value, Mapping):
+        yield value
+        for item in value.values():
+            yield from _nested_mappings(item, depth=depth + 1)
+        return
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _nested_mappings(item, depth=depth + 1)
+        return
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text[0] not in "[{" or text[-1] not in "]}":
+            return
+        try:
+            decoded = json.loads(text)
+        except (TypeError, ValueError):
+            return
+        yield from _nested_mappings(decoded, depth=depth + 1)
+
+
+def _valid_evidence_record(value: Mapping[str, Any]) -> tuple[str, str] | None:
+    if str(value.get("schema_version") or "") != "rwkv-lh.evidence-record.v1":
+        return None
+    record_id = str(value.get("evidence_record_id") or "").strip()
+    digest = str(value.get("snapshot_digest") or "").strip()
+    url = str(value.get("url") or "").strip()
+    parsed = urlparse(url)
+    spans = value.get("exact_spans")
+    structured = value.get("structured_fields")
+    has_authority = (
+        isinstance(spans, list) and bool(spans)
+    ) or (
+        isinstance(structured, Mapping) and bool(structured)
+    )
+    if (
+        not record_id
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or not has_authority
+    ):
+        return None
+    return record_id, url
+
+
+def _host_matches(host: str, required_hosts: Sequence[str]) -> bool:
+    normalized = str(host or "").strip().casefold().rstrip(".")
+    return any(
+        normalized == required or normalized.endswith(f".{required}")
+        for required in required_hosts
+    )
 
 
 def check_spec(
@@ -439,6 +500,135 @@ def check_spec(
                 kind,
                 actual <= target,
                 {"event_type": event_type, "actual": actual, "maximum": target},
+            )
+        if kind == "network_evidence_grounding":
+            raw_operations = spec.get("operations") or [
+                "web_search",
+                "connector_lookup",
+            ]
+            if not isinstance(raw_operations, list) or not raw_operations:
+                raise ValueError("network_evidence_grounding requires operations")
+            operations = {
+                str(item).strip() for item in raw_operations if str(item).strip()
+            }
+            raw_hosts = spec.get("required_hosts") or []
+            if not isinstance(raw_hosts, list):
+                raise ValueError("required_hosts must be an array")
+            required_hosts = tuple(
+                dict.fromkeys(
+                    str(item).strip().casefold().rstrip(".")
+                    for item in raw_hosts
+                    if str(item).strip()
+                )
+            )
+            raw_paths = spec.get("paths")
+            if raw_paths is None and spec.get("path") is not None:
+                raw_paths = [spec.get("path")]
+            if not isinstance(raw_paths, list) or not raw_paths:
+                raise ValueError("network_evidence_grounding requires paths")
+            paths = [str(item) for item in raw_paths]
+            artifact_text = "\n".join(
+                _workspace_path(workspace, path, must_exist=True).read_text(
+                    encoding="utf-8"
+                )
+                for path in paths
+            )
+
+            action_identities: set[str] = set()
+            records: dict[str, str] = {}
+            rejected_hosts: set[str] = set()
+            for event in events:
+                data = event.get("data") or {}
+                for candidate in _nested_mappings(data):
+                    operation = str(
+                        candidate.get("operation")
+                        or candidate.get("action_type")
+                        or ""
+                    ).strip()
+                    if operation not in operations:
+                        continue
+                    result = candidate.get("result")
+                    result_mapping = result if isinstance(result, Mapping) else {}
+                    success = candidate.get("success") is True or result_mapping.get(
+                        "success"
+                    ) is True
+                    status = str(candidate.get("status") or "").casefold()
+                    if not success or status not in {
+                        "",
+                        "completed",
+                        "success",
+                        "succeeded",
+                    }:
+                        continue
+
+                    route_ids = sorted(
+                        {
+                            str(item.get("route_id") or "")
+                            for item in _nested_mappings(candidate)
+                            if str(item.get("schema_version") or "")
+                            == "rwkv-lh.external-evidence.v1"
+                            and str(item.get("route_id") or "")
+                        }
+                    )
+                    identity_payload = {
+                        "operation": operation,
+                        "routes": route_ids,
+                        "attempt_id": str(candidate.get("attempt_id") or ""),
+                        "action_id": str(candidate.get("action_id") or ""),
+                        "arguments": candidate.get("arguments") or {},
+                    }
+                    if route_ids:
+                        identity_payload = {
+                            "operation": operation,
+                            "routes": route_ids,
+                        }
+                    action_identities.add(
+                        hashlib.sha256(
+                            json.dumps(
+                                identity_payload,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                                default=str,
+                            ).encode("utf-8")
+                        ).hexdigest()
+                    )
+                    for item in _nested_mappings(candidate):
+                        valid = _valid_evidence_record(item)
+                        if valid is None:
+                            continue
+                        record_id, url = valid
+                        host = str(urlparse(url).hostname or "").casefold()
+                        if required_hosts and not _host_matches(host, required_hosts):
+                            rejected_hosts.add(host)
+                            continue
+                        records[record_id] = url
+
+            cited_urls = sorted({url for url in records.values() if url in artifact_text})
+            minimum_actions = int(spec.get("min_successful_actions", 1))
+            minimum_records = int(spec.get("min_records", 1))
+            minimum_cited = int(spec.get("min_cited_urls", 1))
+            passed = (
+                len(action_identities) >= minimum_actions
+                and len(records) >= minimum_records
+                and len(cited_urls) >= minimum_cited
+            )
+            return CheckResult(
+                kind,
+                passed,
+                {
+                    "paths": paths,
+                    "operations": sorted(operations),
+                    "required_hosts": list(required_hosts),
+                    "successful_action_count": len(action_identities),
+                    "minimum_successful_actions": minimum_actions,
+                    "valid_record_count": len(records),
+                    "minimum_records": minimum_records,
+                    "cited_url_count": len(cited_urls),
+                    "minimum_cited_urls": minimum_cited,
+                    "cited_urls": cited_urls,
+                    "rejected_hosts": sorted(rejected_hosts),
+                },
             )
         if kind == "command_exit_stages":
             target_argv = [str(item) for item in spec.get("argv") or []]

@@ -5,15 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 import traceback
 from pathlib import Path
 from typing import Any, Mapping
 
-from rwkv_lh.controller import LongHorizonController
-from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
-from rwkv_lh.model_session import ModelSession
+from rwkv_lh.product_runtime import build_product_controller
+from rwkv_lh.retrieval import (
+    RetrievalRuntimeConfig,
+    retrieval_policy_from_goal,
+    runtime_policy_document,
+)
 from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.run_lifecycle import goal_self_termination_only
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
 
 
@@ -57,15 +62,11 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     workspace = (run_root / "workspace").resolve()
     store = LongHorizonStore(run_root / "state", checkpoint_retention=100_000)
     trace_path = run_root / "model_trace.jsonl"
-    session = ModelSession(audit_hook=lambda event: append_jsonl(trace_path, event))
-    harness = ActionHarness()
-    model = LongHorizonModel(session, harness=harness)
-    controller = LongHorizonController(
-        store,
-        model=model,
-        harness=harness,
-        max_transitions=max_transitions,
-    )
+    if resume:
+        state = store.load(run_id)
+        config = retrieval_policy_from_goal(state.goal)
+    else:
+        config = RetrievalRuntimeConfig.from_dict(request.get("retrieval_policy"))
     update_metadata(
         run_root,
         active=True,
@@ -74,13 +75,19 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
         worker_started_at=utc_now(),
         error="",
     )
-    if resume:
-        result = controller.resume(run_id)
-    else:
-        goal = model.create_literal_goal(
+    if not resume:
+        goal = LongHorizonModel.create_literal_goal(
             str(request["request"]),
             str(workspace),
             constraints=[str(item) for item in request.get("constraints") or []],
+            runtime_policy=runtime_policy_document(
+                config,
+                supervisor_mode=str(request.get("supervisor_mode") or "none"),
+                state_router_mode=(
+                    "shadow" if bool(request.get("state_router_shadow", False)) else "disabled"
+                ),
+                execution_mode=str(request.get("execution_mode") or "bounded"),
+            ),
         )
         state = store.create_run(goal, run_id)
         update_metadata(
@@ -90,8 +97,45 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
             request=state.goal.request,
             goal_digest=state.goal.digest,
         )
-        result = controller.run(run_id)
+
+    def append_model_trace(event: Mapping[str, Any]) -> None:
+        append_jsonl(trace_path, {**dict(event), "source": "rwkv"})
+
+    def append_supervisor_trace(event: Mapping[str, Any]) -> None:
+        append_jsonl(trace_path, {**dict(event), "source": "strong_supervisor"})
+
+    controller = build_product_controller(
+        store,
+        state,
+        state_root=run_root,
+        max_transitions=max_transitions,
+        model_audit_hook=append_model_trace,
+        supervisor_audit_hook=append_supervisor_trace,
+    )
+    result = controller.resume(run_id) if resume else controller.run(run_id)
+    continuation_count = 0
+    while goal_self_termination_only(result.state.goal) and result.state.status.value == "running":
+        continuation_count += 1
+        payload = result_payload(result.state, result.final_output, result.transitions)
+        payload["continuation_count"] = continuation_count
+        atomic_write_json(run_root / "result.json", payload)
+        latest = result.state.causal_records[result.state.causal_order[-1]]
+        reason = str(latest.payload.get("reason") or "goal_continuation")
+        update_metadata(
+            run_root,
+            active=True,
+            phase="goal_continuing",
+            status=result.state.status.value,
+            revision=result.state.revision,
+            continuation_count=continuation_count,
+            continuation_reason=reason,
+            error="",
+        )
+        if reason.endswith("_unavailable") or reason.endswith("_failure"):
+            time.sleep(min(60.0, float(2 ** min(continuation_count - 1, 6))))
+        result = controller.resume(run_id)
     payload = result_payload(result.state, result.final_output, result.transitions)
+    payload["continuation_count"] = continuation_count
     atomic_write_json(run_root / "result.json", payload)
     update_metadata(
         run_root,

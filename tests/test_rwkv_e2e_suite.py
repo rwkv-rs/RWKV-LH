@@ -8,17 +8,183 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.benchmark_verifier import check_spec, run_isolated_verifier
-from rwkv_lh.schema import GoalState, TaskAction
+from rwkv_lh.exact_tool_selector.network_protocol import (
+    NETWORK_ABSTAIN_LABEL,
+    NETWORK_EXACT_TOOL_LABELS,
+)
+from rwkv_lh.controller import ControllerResult
+from rwkv_lh.schema import (
+    CausalEvent,
+    CausalEventDraft,
+    GoalState,
+    RunState,
+    RunStatus,
+    TaskAction,
+)
 from rwkv_lh.store import LongHorizonStore
 from scripts.run_rwkv_e2e_benchmark import (
     FaultInjectingHarness,
     FORBIDDEN_VISIBLE_KEYS,
+    UnsupportedIndependentSelectorOperation,
     VISIBLE_TASK_KEYS,
     _check,
+    _resume_current_supervisor_pending,
+    case_runner_exception_result,
+    current_architecture_retrieval_actions,
     difficulty_group,
     load_suite,
+    load_supervisor_failure_case_ids,
     materialize_workspace,
+    run_case,
+    supervisor_failure_summary,
+    write_supervisor_retry_manifest,
 )
+
+
+def _append_causal_event(state: RunState, event_type: str, payload: dict) -> None:
+    sequence = len(state.causal_order) + 1
+    event = CausalEvent.create(
+        event_id=f"CE-{sequence:06d}",
+        run_id=state.run_id,
+        sequence=sequence,
+        parent_id=(state.causal_order[-1] if state.causal_order else None),
+        draft=CausalEventDraft.create(
+            event_type,
+            payload,
+            subject_id=state.run_id,
+        ),
+    )
+    state.causal_records[event.event_id] = event
+    state.causal_order.append(event.event_id)
+
+
+def test_benchmark_pending_resume_uses_only_current_unresolved_boundary(
+    tmp_path: Path,
+) -> None:
+    state = RunState(
+        run_id="RUN-PENDING",
+        goal=GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path,
+        ),
+        status=RunStatus.INTERRUPTED,
+    )
+    _append_causal_event(
+        state,
+        "supervisor_call_pending",
+        {
+            "pending_id": "SUP-PENDING-contract_plan-0001",
+            "phase": "contract_plan",
+        },
+    )
+    calls = 0
+
+    def resume() -> ControllerResult:
+        nonlocal calls
+        calls += 1
+        _append_causal_event(
+            state,
+            "supervisor_call_resolved",
+            {
+                "pending_id": "SUP-PENDING-contract_plan-0001",
+                "phase": "contract_plan",
+            },
+        )
+        return ControllerResult(state, "", 0)
+
+    recovered, attempts = _resume_current_supervisor_pending(
+        ControllerResult(state, "", 0),
+        max_attempts=3,
+        resume=resume,
+    )
+    assert recovered.state is state
+    assert attempts == 1
+    assert calls == 1
+
+    unchanged, attempts = _resume_current_supervisor_pending(
+        recovered,
+        max_attempts=3,
+        resume=resume,
+    )
+    assert unchanged is recovered
+    assert attempts == 0
+    assert calls == 1
+
+
+def test_case_runner_exception_is_recorded_without_aborting_or_synthesizing(
+    tmp_path: Path,
+):
+    task = {"task_id": "E2E-LH09", "level": "long_horizon"}
+    try:
+        raise ValueError("unsupported operation contract: mock_api")
+    except ValueError as exc:
+        result = case_runner_exception_result(task, tmp_path, exc)
+
+    audit = json.loads((tmp_path / result["audit"]).read_text(encoding="utf-8"))
+    assert result["task_id"] == "E2E-LH09"
+    assert result["status"] == "runner_error"
+    assert result["passed"] is False
+    assert result["action_count"] == 0
+    assert audit["exception_type"] == "ValueError"
+    assert audit["model_output_rewritten"] is False
+    assert audit["model_output_deleted"] is False
+    assert audit["synthetic_action_added"] is False
+
+
+def test_fixed_selector_mock_api_boundary_is_recorded_as_explicit_unsupported(
+    tmp_path: Path,
+):
+    task = {"task_id": "E2E-LH09", "level": "long_horizon"}
+    try:
+        raise UnsupportedIndependentSelectorOperation("mock_api")
+    except UnsupportedIndependentSelectorOperation as exc:
+        result = case_runner_exception_result(task, tmp_path, exc)
+
+    audit = json.loads((tmp_path / result["audit"]).read_text(encoding="utf-8"))
+    assert result["status"] == "unsupported_operation_contract"
+    assert result["unsupported_operation"] == "mock_api"
+    assert result["expected_capability_boundary"] is True
+    assert result["model_requests"] == 0
+    assert result["action_count"] == 0
+    assert audit["unsupported_operation"] == "mock_api"
+    assert audit["expected_capability_boundary"] is True
+    assert audit["model_output_rewritten"] is False
+    assert audit["model_output_deleted"] is False
+    assert audit["synthetic_action_added"] is False
+
+
+def test_independent_selector_stops_before_model_for_mock_api_fixture(
+    tmp_path: Path,
+):
+    task = {"task_id": "E2E-LH09", "level": "long_horizon"}
+    acceptance = {"runner_control": {"enable_mock_api": True}}
+
+    with pytest.raises(UnsupportedIndependentSelectorOperation) as captured:
+        run_case(
+            task,
+            acceptance,
+            tmp_path,
+            max_transitions=10,
+            independent_selector=True,
+        )
+
+    assert captured.value.operation == "mock_api"
+    assert not (tmp_path / "cases/E2E-LH09").exists()
+
+
+def test_current_architecture_runner_menu_matches_25_class_selector(tmp_path):
+    harness = FaultInjectingHarness(
+        actions=current_architecture_retrieval_actions(tmp_path / "snapshots")
+    )
+    executable = {item["name"] for item in harness.g1i_tool_definitions()}
+    expected = set(NETWORK_EXACT_TOOL_LABELS) - {
+        "final_answer",
+        NETWORK_ABSTAIN_LABEL,
+    }
+
+    assert executable == expected
+    assert len(executable) == 23
 
 
 def test_rwkv_e2e_catalog_has_30_balanced_model_visible_tasks():
@@ -105,6 +271,333 @@ def test_extension_catalog_completes_fixed_90_case_difficulty_groups():
     for task in all_tasks:
         assert set(task) <= VISIBLE_TASK_KEYS
         assert not (set(task) & FORBIDDEN_VISIBLE_KEYS)
+
+
+def test_agent_v1_project_suite_keeps_acceptance_hidden_and_verifier_frozen():
+    tasks, acceptance = load_suite("agentv1")
+    assert len(tasks) == len(acceptance) == 1
+    task = tasks[0]
+    assert task["task_id"] == "AGENT-V1-WEB01"
+    assert task["level"] == "project"
+    assert set(task) <= VISIBLE_TASK_KEYS
+    assert not (set(task) & FORBIDDEN_VISIBLE_KEYS)
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory) / "workspace"
+        materialize_workspace(task, workspace)
+        assert (workspace / "verify_app.py").is_file()
+        assert not (workspace / "acceptance.json").exists()
+        frozen = next(
+            item
+            for item in acceptance["AGENT-V1-WEB01"]["checks"]
+            if item["kind"] == "file_content" and item["path"] == "verify_app.py"
+        )
+        assert (workspace / "verify_app.py").read_text(encoding="utf-8") == frozen["content"]
+
+
+def test_agent_capability_ladder_v1_is_frozen_balanced_and_model_clean(
+    tmp_path: Path,
+):
+    tasks, acceptance = load_suite("agentladderv1")
+    expected_levels = {
+        "tier1_closed_loop": 2,
+        "tier2_small_workflow": 2,
+        "tier3_cross_file": 2,
+        "tier4_medium_project": 2,
+        "tier5_networked_project": 2,
+    }
+
+    assert len(tasks) == len(acceptance) == 10
+    assert {
+        level: sum(task["level"] == level for task in tasks)
+        for level in expected_levels
+    } == expected_levels
+    assert {
+        difficulty_group(level) for level in expected_levels
+    } == {"basic", "medium", "hard"}
+    for index, task in enumerate(tasks):
+        assert set(task) <= VISIBLE_TASK_KEYS
+        assert not (set(task) & FORBIDDEN_VISIBLE_KEYS)
+        assert "runner_control" not in task
+        workspace = tmp_path / f"case-{index:02d}"
+        materialize_workspace(task, workspace)
+        assert not (workspace / "acceptance.json").exists()
+        for path in workspace.rglob("*.py"):
+            compile(path.read_text(encoding="utf-8"), str(path), "exec")
+        frozen = next(
+            item
+            for item in acceptance[task["task_id"]]["checks"]
+            if item["kind"] == "file_content"
+            and item["path"] == "verify_project.py"
+        )
+        assert (workspace / "verify_project.py").read_text(encoding="utf-8") == frozen["content"]
+
+
+def test_agent_capability_ladder_binds_retrieval_policy_once_per_task():
+    tasks, acceptance = load_suite("agentladderv1")
+    levels = {task["task_id"]: task["level"] for task in tasks}
+
+    for task_id, case in acceptance.items():
+        control = case["runner_control"]
+        expected = (
+            "auto_public"
+            if levels[task_id] == "tier5_networked_project"
+            else "offline"
+        )
+        assert control == {
+            "network_policy": expected,
+            "network_explicit_approval": False,
+            "network_public_workspace_paths": [],
+        }
+        grounding = [
+            check
+            for check in case["checks"]
+            if check["kind"] == "network_evidence_grounding"
+        ]
+        assert bool(grounding) == (expected == "auto_public")
+
+
+def _network_evidence_event(url: str) -> list[dict[str, object]]:
+    record = {
+        "schema_version": "rwkv-lh.evidence-record.v1",
+        "evidence_record_id": "E-test-record",
+        "source_object": {
+            "schema_version": "rwkv-lh.source-object.v1",
+            "source_object_id": "public_web_page:test",
+            "source_object_type": "public_web_page",
+            "source_record_id": "a" * 64,
+        },
+        "snapshot_digest": "b" * 64,
+        "exact_spans": [
+            {
+                "schema_version": "rwkv-lh.evidence-span.v1",
+                "span_id": "SPAN-test",
+                "text": "official packaging guidance",
+                "locator": {"snapshot_digest": "b" * 64},
+            }
+        ],
+        "structured_fields": {},
+        "url": url,
+        "title": "Official guide",
+        "published": "",
+        "retrieved_at": "2026-08-30T00:00:00+00:00",
+    }
+    envelope = {
+        "schema_version": "rwkv-lh.external-evidence.v1",
+        "route_id": "ROUTE-test",
+        "tool": "web_search",
+        "records": [record],
+    }
+    return [
+        {
+            "type": "atom_outcome_committed",
+            "data": {
+                "outcome": {
+                    "actions": [
+                        {
+                            "action_id": "A00001",
+                            "operation": "web_search",
+                            "arguments": {"query": "official packaging guide"},
+                            "status": "succeeded",
+                            "result": {
+                                "success": True,
+                                "output": json.dumps(envelope),
+                                "evidence": [record],
+                                "metadata": {"external_evidence": envelope},
+                            },
+                        }
+                    ]
+                }
+            },
+        }
+    ]
+
+
+def test_network_evidence_grounding_requires_committed_url_in_artifact(
+    tmp_path: Path,
+):
+    url = "https://packaging.python.org/en/latest/guides/writing-pyproject-toml/"
+    (tmp_path / "SOURCES.md").write_text(f"Source: {url}\n", encoding="utf-8")
+    spec = {
+        "kind": "network_evidence_grounding",
+        "operations": ["web_search"],
+        "paths": ["SOURCES.md"],
+        "required_hosts": ["packaging.python.org"],
+        "min_successful_actions": 1,
+        "min_records": 1,
+        "min_cited_urls": 1,
+    }
+
+    result = check_spec(spec, tmp_path, _network_evidence_event(url), {})
+
+    assert result.passed
+    assert result.observation["successful_action_count"] == 1
+    assert result.observation["valid_record_count"] == 1
+    assert result.observation["cited_urls"] == [url]
+
+
+def test_network_evidence_grounding_rejects_fabricated_artifact_url(
+    tmp_path: Path,
+):
+    committed = "https://packaging.python.org/en/latest/guides/writing-pyproject-toml/"
+    (tmp_path / "SOURCES.md").write_text(
+        "Source: https://packaging.python.org/fabricated\n", encoding="utf-8"
+    )
+
+    result = check_spec(
+        {
+            "kind": "network_evidence_grounding",
+            "operations": ["web_search"],
+            "paths": ["SOURCES.md"],
+            "required_hosts": ["packaging.python.org"],
+            "min_successful_actions": 1,
+            "min_records": 1,
+            "min_cited_urls": 1,
+        },
+        tmp_path,
+        _network_evidence_event(committed),
+        {},
+    )
+
+    assert not result.passed
+    assert result.observation["valid_record_count"] == 1
+    assert result.observation["cited_url_count"] == 0
+
+
+def test_supervisor_failure_summary_preserves_retry_semantics_and_resolution():
+    unresolved = supervisor_failure_summary(
+        [
+            {
+                "type": "supervisor_request_failed",
+                "phase": "contract_plan",
+                "run_id": "E2E-M01",
+                "request_digest": "digest-1",
+                "http_status": 403,
+                "error": "SupervisorTransportError: supervisor HTTP 403",
+            }
+        ]
+    )
+    assert unresolved == {
+        "failed": True,
+        "category": "authorization",
+        "retryable": False,
+        "http_status": 403,
+        "phase": "contract_plan",
+        "error": "SupervisorTransportError: supervisor HTTP 403",
+        "unresolved_request_count": 1,
+    }
+
+    resolved = supervisor_failure_summary(
+        [
+            {
+                "type": "supervisor_request_failed",
+                "phase": "contract_plan",
+                "run_id": "E2E-M01",
+                "request_digest": "digest-1",
+                "http_status": 503,
+            },
+            {
+                "type": "supervisor_request_returned",
+                "phase": "contract_plan",
+                "run_id": "E2E-M01",
+                "request_digest": "digest-1",
+            },
+        ]
+    )
+    assert resolved["failed"] is False
+
+
+def test_supervisor_failure_summary_includes_local_semantic_failures_and_resolution():
+    failed_event = {
+        "type": "supervisor_call_failed",
+        "data": {
+            "phase": "contract_plan",
+            "resumable": True,
+            "error": {
+                "type": "ValueError",
+                "message": "mutation requires a dependent verify node",
+            },
+        },
+    }
+
+    unresolved = supervisor_failure_summary([], [failed_event])
+
+    assert unresolved == {
+        "failed": True,
+        "category": "semantic_validation",
+        "retryable": True,
+        "http_status": 0,
+        "phase": "contract_plan",
+        "error": "ValueError: mutation requires a dependent verify node",
+        "unresolved_request_count": 1,
+    }
+    resolved = supervisor_failure_summary(
+        [],
+        [failed_event, {"type": "contract_graph_patch_committed", "data": {}}],
+    )
+    assert resolved["failed"] is False
+
+
+def test_supervisor_retry_manifest_round_trips_failed_and_not_started_cases(tmp_path):
+    output = tmp_path / "run"
+    output.mkdir()
+    selected = [{"task_id": "E2E-B01"}, {"task_id": "E2E-B02"}]
+    results = [
+        {
+            "task_id": "E2E-B01",
+            "supervisor_failure": {
+                "failed": True,
+                "category": "authorization",
+                "retryable": False,
+                "http_status": 403,
+                "phase": "contract_plan",
+                "error": "denied",
+            },
+        }
+    ]
+
+    write_supervisor_retry_manifest(output, selected=selected, results=results)
+
+    assert load_supervisor_failure_case_ids(output) == ("E2E-B01", "E2E-B02")
+    manifest = json.loads((output / "retry_manifest.json").read_text())
+    assert manifest["non_retryable_case_count"] == 1
+    assert manifest["cases"][1]["category"] == "not_started"
+
+
+def test_load_supervisor_failures_from_legacy_results_and_case_audit(tmp_path):
+    output = tmp_path / "legacy"
+    case_root = output / "cases" / "E2E-B01"
+    case_root.mkdir(parents=True)
+    (case_root / "audit.json").write_text(
+        json.dumps(
+            {
+                "supervisor_trace": [
+                    {
+                        "type": "supervisor_request_failed",
+                        "phase": "contract_review",
+                        "run_id": "E2E-B01",
+                        "request_digest": "digest",
+                        "http_status": 500,
+                        "error": "SupervisorTransportError: supervisor HTTP 500",
+                    }
+                ]
+            }
+        )
+    )
+    (output / "results.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "rwkv-e2e.results.v1",
+                "results": [
+                    {
+                        "task_id": "E2E-B01",
+                        "audit": "cases/E2E-B01/audit.json",
+                    }
+                ],
+            }
+        )
+    )
+
+    assert load_supervisor_failure_case_ids(output) == ("E2E-B01",)
 
 
 def test_extension_seeded_python_files_compile():

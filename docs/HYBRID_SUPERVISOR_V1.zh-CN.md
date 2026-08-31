@@ -38,7 +38,8 @@ Hybrid v1 在已验证的 R126 单 RWKV Action lane 外增加一个可选强模�
 
 ## API 适配契约
 
-具体厂商 API 暂未绑定。适配器必须实现 `rwkv_lh.supervisor.SupervisorClient`：
+OpenAI-compatible 适配器位于 `rwkv_lh.supervisor_openai`，并实现
+`rwkv_lh.supervisor.SupervisorClient`：
 
 ```python
 class SupervisorClient:
@@ -54,9 +55,9 @@ class SupervisorClient:
 未经校验的 dict。计划必须至少有一个 step 和 completion check；REVISE 必须有具体 issue；
 PASS 不得同时携带 issue。
 
-建议后续 API 适配器具备：连接/读取超时、有限 transport retry、请求/响应摘要审计、密钥只从
-环境或 secret store 读取、严格 JSON schema 输出、provider rate-limit 分类。API 重试不能重复
-提交已落盘计划或检查。
+当前适配器具备连接/读取超时、有限 transport retry、请求/响应摘要审计、ignored `.env` 密钥、
+严格 JSON schema 输出和 provider rate-limit 分类。API 读取超时或连接中断按 outcome unknown
+fail-closed，不盲目重复生成。已落盘计划或检查由 Controller 恢复，不会再次调用 provider。
 
 ## 失败与恢复语义
 
@@ -79,6 +80,28 @@ PASS 不得同时携带 issue。
 已完成：provider-neutral 数据契约、Controller 可选接线、一次规划、PASS/REVISE 检查、返修硬
 上限、fail-closed、因果审计、关键 crash recovery 和专项测试。
 
-尚未完成：具体强模型 HTTP/API 适配器、CLI/本地 UI 配置入口、真实 API 联调、固定数据集上的
-Hybrid 对照实验、费用/延迟预算和生产密钥管理。这些必须在拿到 API 的协议、模型名、限额和
-输出能力后完成，不能由当前代码猜测。
+已完成：OpenAI-compatible 强模型 HTTP 适配器、E2E CLI 配置入口、真实 JSON-schema API
+联调。尚未完成：本地 UI 配置入口、固定数据集上的 Hybrid Full90、费用/延迟预算和生产密钥
+轮换管理。
+
+## v1.1 在线微任务控制面
+
+Round134 验证的是上述“一次静态 Plan + 终局 Review”，不等于在线指导。可选
+`SupervisorPolicy(mode="online_microtask")` / CLI `--supervisor-strategy online_microtask`
+使用独立生命周期：
+
+1. GPT-5.4 初始只给一个带验收条件的微任务，不输出 Harness 调用或参数。
+2. RWKV 在同一持久 Action lane 中连续选择并执行工具。正常每 6 个 actions 形成一个执行波次；
+   两次相同且 workspace digest 不变的 action 会提前结束波次。
+3. 连续 2 个没有执行 action 的协议拒绝也形成一个有界波次，让 GPT 聚焦纠正工具契约理解；
+   schema 本身不放宽，GPT 仍不构造调用参数。
+4. GPT-5.4 用一次 `next_directive` 同时验收最新波次并布置下一件微任务。RWKV 用
+   `final_answer` 报告当前微任务完成；Supervisor 可以接受为顶层 Final，也可以继续派工。
+5. 每题默认最多 64 个 directive，失败和预算耗尽均 fail-closed。每个 directive、所验收的
+   action ids、provider/model、usage 和 digest 都写入审计；GPT action count 恒为零。
+6. 独立 workspace 的 case 由 runner process pool 并发，所有底层工具调用仍来自 RWKV。
+   同一 workspace 暂时保持单一 mutation lane，避免并发写覆盖或破坏 RWKV state 连续性。
+
+这一模式的目标是让 GPT 成为低频 Planner/Reviewer，让低成本 RWKV 承担大量工具动作和并发
+执行。它不把 GPT verdict 当成训练真值；正式标签仍由 frozen isolated verifier 与 workspace
+evidence 决定。
