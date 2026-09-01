@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 import torch
 
 from rwkv_lh.exact_tool_selector.network_client import (
@@ -29,6 +30,7 @@ from rwkv_lh.exact_tool_selector.network_service import (
     NetworkSelectorService,
     NetworkSelectorStateStore,
     TorchNetworkSelectorHead,
+    _extractor_state_profile_settings,
 )
 
 
@@ -232,6 +234,42 @@ def _settings() -> NetworkExactToolSelectorSettings:
         state_profile_manifest_sha256="c" * 64,
         input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     )
+
+
+def test_manifest_free_selector_accepts_only_exact_zero_state() -> None:
+    assert _extractor_state_profile_settings(
+        profile_manifest=None,
+        profile_manifest_sha256="0" * 64,
+        profile_id="zero",
+        profile_sha256="0" * 64,
+    ) == {
+        "state_profile_manifest": None,
+        "state_profile_manifest_sha256": "",
+        "state_profile_id": "",
+        "state_profile_sha256": "",
+    }
+
+
+@pytest.mark.parametrize(
+    ("manifest_sha256", "profile_id", "profile_sha256"),
+    (
+        ("1" * 64, "zero", "0" * 64),
+        ("0" * 64, "trained", "0" * 64),
+        ("0" * 64, "zero", "1" * 64),
+    ),
+)
+def test_manifest_free_selector_rejects_nonzero_identity(
+    manifest_sha256: str,
+    profile_id: str,
+    profile_sha256: str,
+) -> None:
+    with pytest.raises(ValueError, match="exact zero-State identity"):
+        _extractor_state_profile_settings(
+            profile_manifest=None,
+            profile_manifest_sha256=manifest_sha256,
+            profile_id=profile_id,
+            profile_sha256=profile_sha256,
+        )
 
 
 def _input(index: int) -> NetworkSelectorInput:

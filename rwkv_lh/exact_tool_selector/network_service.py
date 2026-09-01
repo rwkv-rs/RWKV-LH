@@ -993,6 +993,39 @@ def _handler(service: NetworkSelectorService):
     return Handler
 
 
+def _extractor_state_profile_settings(
+    *,
+    profile_manifest: Path | None,
+    profile_manifest_sha256: str,
+    profile_id: str,
+    profile_sha256: str,
+) -> dict[str, object]:
+    """Keep zero-State deployments independent of trained State manifests."""
+
+    zero_sha256 = "0" * 64
+    if profile_manifest is None:
+        if (
+            profile_manifest_sha256 != zero_sha256
+            or profile_id != "zero"
+            or profile_sha256 != zero_sha256
+        ):
+            raise ValueError(
+                "a manifest-free Selector must use the exact zero-State identity"
+            )
+        return {
+            "state_profile_manifest": None,
+            "state_profile_manifest_sha256": "",
+            "state_profile_id": "",
+            "state_profile_sha256": "",
+        }
+    return {
+        "state_profile_manifest": profile_manifest,
+        "state_profile_manifest_sha256": profile_manifest_sha256,
+        "state_profile_id": profile_id,
+        "state_profile_sha256": profile_sha256,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
@@ -1010,10 +1043,10 @@ def main() -> int:
         "--input-protocol",
         default="rwkv-lh.exact-tool-selector-input.v3",
     )
-    parser.add_argument("--profile-manifest", type=Path, required=True)
-    parser.add_argument("--profile-manifest-sha256", required=True)
-    parser.add_argument("--profile-id", required=True)
-    parser.add_argument("--profile-sha256", required=True)
+    parser.add_argument("--profile-manifest", type=Path)
+    parser.add_argument("--profile-manifest-sha256", default="0" * 64)
+    parser.add_argument("--profile-id", default="zero")
+    parser.add_argument("--profile-sha256", default="0" * 64)
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("--runtime-temp", type=Path, required=True)
     args = parser.parse_args()
@@ -1030,6 +1063,12 @@ def main() -> int:
         state_profile_manifest_sha256=args.profile_manifest_sha256,
         input_protocol=args.input_protocol,
     )
+    extractor_profile_settings = _extractor_state_profile_settings(
+        profile_manifest=args.profile_manifest,
+        profile_manifest_sha256=args.profile_manifest_sha256,
+        profile_id=args.profile_id,
+        profile_sha256=args.profile_sha256,
+    )
     extractor = PersistentVLLMRWKVExtractor(
         LocalVLLMRWKVSettings(
             engine_root=args.engine_root,
@@ -1041,10 +1080,7 @@ def main() -> int:
             wkv_mode="fp16",
             runtime_temp=args.runtime_temp,
             compatibility_sha256="0" * 64,
-            state_profile_manifest=args.profile_manifest,
-            state_profile_manifest_sha256=args.profile_manifest_sha256,
-            state_profile_id=args.profile_id,
-            state_profile_sha256=args.profile_sha256,
+            **extractor_profile_settings,
         )
     )
     service = NetworkSelectorService(
