@@ -421,6 +421,7 @@ class GoalPlanRequest:
     workspace_manifest: Mapping[str, Any]
     latest_stage_review: Mapping[str, Any] | None = None
     recent_action_facts: tuple[Mapping[str, Any], ...] = ()
+    local_validation_repair: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _non_empty(self.run_id, "run_id")
@@ -430,11 +431,25 @@ class GoalPlanRequest:
             raise ValueError("Goal plan revision must be non-negative")
         if len(self.recent_action_facts) > 12:
             raise ValueError("Goal Planner request exposes at most twelve action facts")
+        if self.local_validation_repair is not None:
+            repair = dict(self.local_validation_repair)
+            attempt = repair.get("attempt")
+            if isinstance(attempt, bool) or attempt != 1:
+                raise ValueError("Goal Planner supports exactly one semantic repair")
+            _non_empty(str(repair.get("error") or ""), "local_validation_repair.error")
+            rejected_patch = repair.get("rejected_patch")
+            if rejected_patch is not None and not isinstance(
+                rejected_patch, Mapping
+            ):
+                raise ValueError(
+                    "Goal Planner rejected_patch repair material must be an object"
+                )
+            object.__setattr__(self, "local_validation_repair", repair)
 
     def to_dict(self) -> dict[str, Any]:
         # Materials first; the one current planning requirement is deliberately
         # the final field next to the strong model's continuation point.
-        return {
+        value = {
             "run_id": self.run_id,
             "goal_digest": self.goal_digest,
             "plan_revision": self.plan_revision,
@@ -451,6 +466,11 @@ class GoalPlanRequest:
             "recent_action_facts": [dict(item) for item in self.recent_action_facts],
             "current_requirement": self.immutable_request,
         }
+        if self.local_validation_repair is not None:
+            value["local_validation_repair"] = dict(
+                self.local_validation_repair
+            )
+        return value
 
 
 class GoalStageReviewVerdict(str, Enum):

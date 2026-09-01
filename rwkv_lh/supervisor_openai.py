@@ -2461,6 +2461,15 @@ class OpenAICompatibleSupervisorClient:
                 "obsolete open work or adding one later repair stage."
             )
         )
+        if request.local_validation_repair is not None:
+            system_prompt += (
+                " The immediately preceding patch was rejected by the Controller's "
+                "rolling-plan validator. local_validation_repair is the authoritative "
+                "final instruction. Return one fresh complete patch that fixes its exact "
+                "error against active_plan. Do not reuse an existing id in add_stages, "
+                "do not put one id in both replace_stages and discard_step_ids, and do "
+                "not leave a retained step dependent on a discarded step."
+            )
         value = self._request_json(
             phase="goal_plan",
             run_id=request.run_id,

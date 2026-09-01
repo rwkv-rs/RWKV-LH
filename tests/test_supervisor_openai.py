@@ -918,6 +918,67 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert set(step_schema["required"]) == set(step_schema["properties"])
 
 
+def test_goal_planner_places_controller_semantic_repair_at_input_tail():
+    value = {
+        "add_stages": [
+            {
+                "stage": 2,
+                "steps": [
+                    {
+                        "step_id": "S2",
+                        "objective": "Read the current configuration.",
+                        "depends_on": ["S1"],
+                        "success_evidence": ["configuration content is observed"],
+                        "read_roots": ["config.json"],
+                        "write_roots": [],
+                        "constraints": [],
+                    }
+                ],
+            }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Use a fresh id and retain the completed dependency.",
+    }
+    fake = FakeSession([response(value)])
+    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+    request = GoalPlanRequest(
+        run_id="RUN-GOAL-PLAN-REPAIR",
+        immutable_request="Inspect and correct config.json.",
+        goal_digest="goal-digest",
+        plan_revision=1,
+        active_plan={
+            "stages": [
+                {
+                    "stage": 1,
+                    "steps": [{"step_id": "S1", "status": "completed"}],
+                }
+            ]
+        },
+        latest_audit=None,
+        workspace_manifest={"entries": [{"path": "config.json"}]},
+        local_validation_repair={
+            "attempt": 1,
+            "previous_response_rejected": True,
+            "error": "ValueError: Goal PlanPatch cannot reuse existing id S1",
+            "instruction": "Return one fresh complete GoalPlanPatch.",
+        },
+    )
+
+    client.plan_goal_patch(request)
+
+    posted = fake.posts[0]["json"]
+    payload = json.loads(posted["messages"][1]["content"])
+    assert list(payload)[-1] == "local_validation_repair"
+    assert payload["local_validation_repair"]["attempt"] == 1
+    assert "cannot reuse existing id S1" in payload["local_validation_repair"][
+        "error"
+    ]
+    assert "immediately preceding patch was rejected" in posted["messages"][0][
+        "content"
+    ]
+
+
 def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
     fake = FakeSession(
         [response({"verdict": "advance", "gaps": [], "reason": "coherent"})]

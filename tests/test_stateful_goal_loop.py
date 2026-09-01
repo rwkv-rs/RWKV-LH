@@ -202,6 +202,22 @@ class _StrongPlanner:
         )
 
 
+class _ScriptedStrongPlanner(_StrongPlanner):
+    def __init__(self, outcomes: tuple[GoalPlanPatch | Exception, ...]):
+        super().__init__()
+        self.outcomes = outcomes
+
+    def plan_goal_patch(self, request):
+        self.requests.append(request)
+        index = len(self.requests) - 1
+        if index >= len(self.outcomes):
+            raise AssertionError("test planner has no configured outcome")
+        outcome = self.outcomes[index]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
 def _strong_patch(state) -> GoalPlanPatch:
     return GoalPlanPatch(
         patch_id="GPP-initial",
@@ -233,6 +249,43 @@ def _strong_correction_patch(state) -> GoalPlanPatch:
         discard_step_ids=(),
         reason="Replace the failed unfinished step with one bounded observation",
     )
+
+
+def _strong_readback_correction_patch(state) -> GoalPlanPatch:
+    del state
+    return GoalPlanPatch(
+        patch_id="GPP-readback-correction",
+        base_revision=1,
+        add_steps=(),
+        replace_steps=(GoalPlanStep(
+            step_id="S1",
+            objective="Read result.txt after the mutation",
+            success_evidence=("the current result.txt content is observed",),
+            read_roots=("result.txt",),
+        ),),
+        discard_step_ids=(),
+        reason="Replace the unfinished mutation step with one bounded readback",
+    )
+
+
+def _strong_invalid_dependency_correction_patch(state) -> GoalPlanPatch:
+    del state
+    return GoalPlanPatch(
+        patch_id="GPP-invalid-dependency-correction",
+        base_revision=1,
+        add_steps=(GoalPlanStep(
+            step_id="S2",
+            objective="Read result.txt after an unknown prerequisite",
+            depends_on=("missing-prerequisite",),
+            success_evidence=("the current result.txt content is observed",),
+            read_roots=("result.txt",),
+        ),),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Intentionally invalid controller-validation regression fixture",
+    )
+
+
 def _settings(*, progressive: bool = False) -> RuntimeSettings:
     return RuntimeSettings(
         base_url="http://127.0.0.1:1/v1",
@@ -968,6 +1021,164 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
     completed = result.state.causal_records[result.state.causal_order[-1]].payload
     assert completed["audit_id"].startswith("AUD-")
     assert completed["rwkv_audit_accepted"] is True
+
+
+def test_planner_semantic_repair_reaches_stage_checker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "PLANNER-SEMANTIC-REPAIR")
+    session = ModelSession(
+        _QueueClient(
+            [
+                json.dumps(
+                    {
+                        "function": "write_file",
+                        "params": {"path": "result.txt", "content": "verified"},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=["result.txt still requires a readback"],
+                        reason="the mutation succeeded but the current bytes were not read",
+                    )
+                ),
+                json.dumps(
+                    {
+                        "function": "read_file",
+                        "params": {"path": "result.txt"},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the current result.txt bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {
+                        "function": "final_answer",
+                        "params": {"text": "Created and read back result.txt."},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the repaired plan and final candidate are evidence-bound",
+                    )
+                ),
+            ]
+        ),
+        settings=_settings(progressive=True),
+    )
+    model = LongHorizonModel(
+        session,
+        tool_selector=_selector(["write_file", "read_file", "final_answer"]),
+    )
+    planner = _ScriptedStrongPlanner(
+        (
+            _strong_patch(state),
+            _strong_invalid_dependency_correction_patch(state),
+            _strong_readback_correction_patch(state),
+        )
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    )
+
+    result = controller.run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert [request.plan_revision for request in planner.requests] == [0, 1, 1]
+    assert planner.requests[1].local_validation_repair is None
+    repair = planner.requests[2].local_validation_repair
+    assert repair is not None
+    assert repair["attempt"] == 1
+    assert "dependent on discarded or unknown steps" in repair["error"]
+    assert repair["rejected_patch"]["patch_id"] == (
+        "GPP-invalid-dependency-correction"
+    )
+    assert len(planner.stage_review_requests) == 1
+    event_types = [
+        result.state.causal_records[event_id].event_type
+        for event_id in result.state.causal_order
+    ]
+    assert event_types.count("strong_planner_patch_rejected") == 1
+    assert event_types.count("strong_planner_call_failed") == 0
+    assert event_types.count("goal_plan_patch_committed") == 2
+    assert event_types.count("goal_stage_review_committed") == 1
+    assert event_types.index("strong_planner_patch_rejected") < event_types.index(
+        "goal_stage_review_committed"
+    )
+
+
+def test_planner_semantic_repair_is_bounded_and_not_reported_unavailable(
+    tmp_path: Path,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "PLANNER-SEMANTIC-REPAIR-EXHAUSTED")
+    session = ModelSession(
+        _QueueClient([]),
+        settings=_settings(progressive=True),
+    )
+    model = LongHorizonModel(session, tool_selector=_selector([]))
+    planner = _ScriptedStrongPlanner(
+        (
+            ValueError("Goal PlanPatch cannot replace and discard the same step"),
+            ValueError("Goal PlanPatch cannot reuse an existing step id"),
+        )
+    )
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=4,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "interrupted"
+    assert len(planner.requests) == 2
+    assert planner.requests[1].local_validation_repair is not None
+    rejected = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "strong_planner_patch_rejected"
+    ]
+    assert len(rejected) == 2
+    assert rejected[0].payload["repair_scheduled"] is True
+    assert rejected[1].payload["repair_scheduled"] is False
+    assert not any(
+        result.state.causal_records[event_id].event_type
+        == "strong_planner_call_failed"
+        for event_id in result.state.causal_order
+    )
+    terminal = result.state.causal_records[result.state.causal_order[-1]]
+    assert terminal.payload["reason"] == "strong_planner_semantic_invalid"
 
 
 def test_rwkv_repair_audit_requests_strong_planner_correction_without_reviewer(

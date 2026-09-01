@@ -51,6 +51,7 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     ),
     "action_observation_appended": "rwkv-lh.model-event-appended.v1",
     "goal_plan_patch_committed": "rwkv-lh.goal-plan-patch-committed.v1",
+    "strong_planner_patch_rejected": "rwkv-lh.strong-planner-patch-rejected.v1",
     "strong_planner_call_failed": "rwkv-lh.strong-planner-call-failed.v1",
     "goal_stage_review_committed": "rwkv-lh.goal-stage-review-committed.v1",
     "strong_stage_checker_call_failed": "rwkv-lh.strong-stage-checker-failed.v1",

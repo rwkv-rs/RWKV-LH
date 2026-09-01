@@ -355,45 +355,108 @@ class StatefulGoalLoopController(LongHorizonController):
                 },
             )
             return self._yield(state, "strong_planner_unavailable", transitions)
-        request = GoalPlanRequest(
-            run_id=state.run_id,
-            immutable_request=state.goal.request,
-            goal_digest=state.goal.digest,
-            plan_revision=len(plan.patch_ids),
-            active_plan=plan.to_model_dict(),
-            latest_audit=(audit.to_dict() if audit is not None else None),
-            latest_stage_review=(
+        request_materials = {
+            "run_id": state.run_id,
+            "immutable_request": state.goal.request,
+            "goal_digest": state.goal.digest,
+            "plan_revision": len(plan.patch_ids),
+            "active_plan": plan.to_model_dict(),
+            "latest_audit": audit.to_dict() if audit is not None else None,
+            "latest_stage_review": (
                 stage_review.to_dict() if stage_review is not None else None
             ),
-            workspace_manifest=self.harness.workspace_manifest(
+            "workspace_manifest": self.harness.workspace_manifest(
                 state.goal,
                 max_entries=256,
                 max_tokens=1800,
             ),
-            recent_action_facts=self._recent_action_facts(state),
-        )
-        try:
-            returned = method(request)
-            if not isinstance(returned, GoalPlanPatch):
-                raise TypeError("Strong Planner returned an invalid Goal PlanPatch")
-            patch = GoalPlanPatch.from_dict(returned.to_dict())
-            # Validate the complete replacement/discard result before it becomes
-            # causal authority. This mutates only the reconstructed local view.
-            plan.apply_goal_patch(patch)
-        except Exception as exc:
+            "recent_action_facts": self._recent_action_facts(state),
+        }
+        local_validation_repair: Mapping[str, Any] | None = None
+        patch: GoalPlanPatch | None = None
+        for semantic_attempt in range(2):
+            request = GoalPlanRequest(
+                **request_materials,
+                local_validation_repair=local_validation_repair,
+            )
+            rejected_patch: Mapping[str, Any] | None = None
+            semantic_error: Exception | None = None
+            try:
+                returned = method(request)
+            except ValueError as exc:
+                semantic_error = exc
+            except Exception as exc:
+                self._persist(
+                    state,
+                    "strong_planner_call_failed",
+                    {
+                        "phase": "goal_plan",
+                        "error": {
+                            "type": type(exc).__name__,
+                            "message": str(exc)[:2000],
+                        },
+                        "resumable": True,
+                    },
+                )
+                return self._yield(
+                    state, "strong_planner_unavailable", transitions
+                )
+            else:
+                try:
+                    if not isinstance(returned, GoalPlanPatch):
+                        raise TypeError(
+                            "Strong Planner returned an invalid Goal PlanPatch"
+                        )
+                    patch = GoalPlanPatch.from_dict(returned.to_dict())
+                    rejected_patch = patch.to_dict()
+                    # Validate the complete replacement/discard result before it
+                    # becomes causal authority. The reconstructed view is mutated
+                    # only after all candidate invariants pass.
+                    plan.apply_goal_patch(patch)
+                except (TypeError, ValueError) as exc:
+                    semantic_error = exc
+
+            if semantic_error is None:
+                break
+            repair_scheduled = semantic_attempt == 0
+            error_text = (
+                f"{type(semantic_error).__name__}: {semantic_error}"
+            )[:2000]
             self._persist(
                 state,
-                "strong_planner_call_failed",
+                "strong_planner_patch_rejected",
                 {
                     "phase": "goal_plan",
+                    "attempt": semantic_attempt + 1,
                     "error": {
-                        "type": type(exc).__name__,
-                        "message": str(exc)[:2000],
+                        "type": type(semantic_error).__name__,
+                        "message": str(semantic_error)[:2000],
                     },
+                    "rejected_patch": (
+                        dict(rejected_patch) if rejected_patch is not None else None
+                    ),
+                    "repair_scheduled": repair_scheduled,
                     "resumable": True,
                 },
             )
-            return self._yield(state, "strong_planner_unavailable", transitions)
+            if not repair_scheduled:
+                return self._yield(
+                    state, "strong_planner_semantic_invalid", transitions
+                )
+            local_validation_repair = {
+                "attempt": 1,
+                "previous_response_rejected": True,
+                "error": error_text,
+                "instruction": (
+                    "Return one fresh complete GoalPlanPatch that satisfies the "
+                    "current active_plan and the exact local invariant."
+                ),
+            }
+            if rejected_patch is not None:
+                local_validation_repair["rejected_patch"] = dict(rejected_patch)
+
+        if patch is None:
+            raise RuntimeError("Goal Planner semantic repair produced no patch")
         self._persist(
             state,
             "goal_plan_patch_committed",
