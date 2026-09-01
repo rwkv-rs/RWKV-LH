@@ -861,6 +861,9 @@ class OpenAICompatibleSupervisorClient:
         self._route_lock = threading.RLock()
         self._model_failures: dict[str, int] = {}
         self._model_opened_at: dict[str, float] = {}
+        self._pending_goal_plan_cache: dict[
+            str, tuple[Path | None, dict[str, Any], str, str, str]
+        ] = {}
 
     @property
     def model_name(self) -> str:
@@ -1961,21 +1964,42 @@ class OpenAICompatibleSupervisorClient:
         )
         return patch
 
-    def _contract_plan_cache_path(
+    def _validated_response_cache_path(
         self,
-        request: ContractPlanRequest,
         *,
+        phase: str,
+        cache_schema: str,
+        request_payload: Mapping[str, Any],
         system_prompt: str,
         schema: Mapping[str, Any],
     ) -> Path | None:
         if not self.settings.plan_cache_enabled:
             return None
-        payload = request.to_dict()
+        payload = deepcopy(dict(request_payload))
         payload.pop("run_id", None)
+        if phase in {"goal_plan", "goal_stage_review"}:
+            # Goal identity includes the per-run workspace path. The Strong
+            # response depends on the literal request, content manifest, plan,
+            # and facts below, not the durable run identifier.
+            payload.pop("goal_digest", None)
+            active_plan = payload.get("active_plan")
+            if isinstance(active_plan, dict):
+                active_plan.pop("goal_digest", None)
+            latest_audit = payload.get("latest_audit")
+            if isinstance(latest_audit, dict):
+                latest_audit.pop("audit_id", None)
+            latest_stage_review = payload.get("latest_stage_review")
+            if isinstance(latest_stage_review, dict):
+                latest_stage_review.pop("review_id", None)
+            local_repair = payload.get("local_validation_repair")
+            if isinstance(local_repair, dict):
+                rejected_patch = local_repair.get("rejected_patch")
+                if isinstance(rejected_patch, dict):
+                    rejected_patch.pop("patch_id", None)
         cache_key = hashlib.sha256(
             json.dumps(
                 {
-                    "cache_schema": "rwkv-lh.validated-contract-plan-cache.v1",
+                    "cache_schema": cache_schema,
                     "models": [self.model_name, *self.settings.fallback_models],
                     "system_prompt": system_prompt,
                     "request": payload,
@@ -1988,11 +2012,13 @@ class OpenAICompatibleSupervisorClient:
         ).hexdigest()
         return Path(self.settings.plan_cache_dir) / f"{cache_key}.json"
 
-    def _load_contract_plan_cache(
+    def _load_validated_response_cache(
         self,
         path: Path | None,
         *,
-        request: ContractPlanRequest,
+        phase: str,
+        run_id: str,
+        request_digest: str,
     ) -> dict[str, Any] | None:
         if path is None or not path.is_file():
             return None
@@ -2006,21 +2032,24 @@ class OpenAICompatibleSupervisorClient:
         self._emit(
             {
                 "type": "supervisor_plan_cache_hit",
-                "phase": "contract_plan",
-                "run_id": request.run_id,
-                "request_digest": request.request_digest,
+                "phase": phase,
+                "run_id": run_id,
+                "request_digest": request_digest,
                 "cache_key": path.stem,
                 "validated": True,
             }
         )
         return value
 
-    def _store_contract_plan_cache(
+    def _store_validated_response_cache(
         self,
         path: Path | None,
         value: Mapping[str, Any],
         *,
-        request: ContractPlanRequest,
+        phase: str,
+        cache_schema: str,
+        run_id: str,
+        request_digest: str,
     ) -> None:
         if path is None:
             return
@@ -2030,7 +2059,7 @@ class OpenAICompatibleSupervisorClient:
             temporary.write_text(
                 json.dumps(
                     {
-                        "schema_version": "rwkv-lh.validated-contract-plan-cache.v1",
+                        "schema_version": cache_schema,
                         "value": dict(value),
                     },
                     ensure_ascii=False,
@@ -2044,9 +2073,9 @@ class OpenAICompatibleSupervisorClient:
             self._emit(
                 {
                     "type": "supervisor_plan_cache_write_failed",
-                    "phase": "contract_plan",
-                    "run_id": request.run_id,
-                    "request_digest": request.request_digest,
+                    "phase": phase,
+                    "run_id": run_id,
+                    "request_digest": request_digest,
                     "error": f"{type(exc).__name__}: {exc}"[:500],
                 }
             )
@@ -2054,9 +2083,9 @@ class OpenAICompatibleSupervisorClient:
         self._emit(
             {
                 "type": "supervisor_plan_cache_stored",
-                "phase": "contract_plan",
-                "run_id": request.run_id,
-                "request_digest": request.request_digest,
+                "phase": phase,
+                "run_id": run_id,
+                "request_digest": request_digest,
                 "cache_key": path.stem,
             }
         )
@@ -2122,10 +2151,20 @@ class OpenAICompatibleSupervisorClient:
                     "complete response using local_validation_repair.error."
                 )
             schema = self._contract_plan_schema(request)
-            cache_path = self._contract_plan_cache_path(
-                request, system_prompt=prompt, schema=schema
+            contract_cache_schema = "rwkv-lh.validated-contract-plan-cache.v1"
+            cache_path = self._validated_response_cache_path(
+                phase="contract_plan",
+                cache_schema=contract_cache_schema,
+                request_payload=request.to_dict(),
+                system_prompt=prompt,
+                schema=schema,
             )
-            value = self._load_contract_plan_cache(cache_path, request=request)
+            value = self._load_validated_response_cache(
+                cache_path,
+                phase="contract_plan",
+                run_id=request.run_id,
+                request_digest=request.request_digest,
+            )
             cache_hit = value is not None
             if value is None:
                 value = self._request_json(
@@ -2315,8 +2354,13 @@ class OpenAICompatibleSupervisorClient:
                         }
                     )
                 if not cache_hit:
-                    self._store_contract_plan_cache(
-                        cache_path, value, request=request
+                    self._store_validated_response_cache(
+                        cache_path,
+                        value,
+                        phase="contract_plan",
+                        cache_schema=contract_cache_schema,
+                        run_id=request.run_id,
+                        request_digest=request.request_digest,
                     )
                 return patch
             except (TypeError, ValueError) as exc:
@@ -2458,7 +2502,11 @@ class OpenAICompatibleSupervisorClient:
                 if initial
                 else "This is a correction patch: make only the smallest change needed "
                 "for latest_audit or latest_stage_review, replacing or discarding "
-                "obsolete open work or adding one later repair stage."
+                "obsolete open work or adding one later repair stage. When "
+                "latest_stage_review.verdict is repair and active_plan still has a "
+                "frontier, the patch must replace or discard at least one current "
+                "frontier step so the gap is addressed before unrelated downstream "
+                "work; merely appending a later stage is invalid."
             )
         )
         if request.local_validation_repair is not None:
@@ -2470,15 +2518,33 @@ class OpenAICompatibleSupervisorClient:
                 "do not put one id in both replace_stages and discard_step_ids, and do "
                 "not leave a retained step dependent on a discarded step."
             )
-        value = self._request_json(
+        request_payload = request.to_dict()
+        schema = self._goal_plan_patch_schema()
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v1"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
             phase="goal_plan",
             run_id=request.run_id,
             request_digest=request.goal_digest,
-            system_prompt=system_prompt,
-            request_payload=request.to_dict(),
-            schema=self._goal_plan_patch_schema(),
-            max_tokens=self.settings.max_contract_plan_tokens,
         )
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_plan",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                max_tokens=self.settings.max_contract_plan_tokens,
+            )
         patch = GoalPlanPatch.from_model_value(
             value,
             patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
@@ -2490,7 +2556,42 @@ class OpenAICompatibleSupervisorClient:
             )
         if initial and not patch.add_steps:
             raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
+        if not cache_hit:
+            # Cross-step ids, dependencies, replacement legality, and completed
+            # evidence are validated by the Controller against its reconstructed
+            # durable plan. Keep this response provisional until that succeeds.
+            with self._route_lock:
+                self._pending_goal_plan_cache[patch.patch_id] = (
+                    cache_path,
+                    dict(value),
+                    cache_schema,
+                    request.run_id,
+                    request.goal_digest,
+                )
         return patch
+
+    def accept_goal_plan_cache_candidate(self, patch_id: str) -> None:
+        """Store a GoalPlan response only after Controller semantic validation."""
+
+        with self._route_lock:
+            pending = self._pending_goal_plan_cache.pop(str(patch_id), None)
+        if pending is None:
+            return
+        cache_path, value, cache_schema, run_id, request_digest = pending
+        self._store_validated_response_cache(
+            cache_path,
+            value,
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            run_id=run_id,
+            request_digest=request_digest,
+        )
+
+    def discard_goal_plan_cache_candidate(self, patch_id: str) -> None:
+        """Discard a response rejected by the durable rolling-plan validator."""
+
+        with self._route_lock:
+            self._pending_goal_plan_cache.pop(str(patch_id), None)
 
     @staticmethod
     def _goal_stage_review_schema() -> dict[str, Any]:
@@ -2533,31 +2634,64 @@ class OpenAICompatibleSupervisorClient:
                 for ref in item.get("accepted_evidence_refs") or ()
             )
         )
-        value = self._request_json(
+        system_prompt = (
+            "You are only the read-only Strong stage checker for an RWKV Goal "
+            "loop. Check whether the completed steps in this one stage are "
+            "mutually coherent, cover their stated evidence criteria, and leave "
+            "no contradiction that should block the next stage. Harness and RWKV "
+            "Audit facts are immutable. Judge only the stated objectives and "
+            "success_evidence of stage_steps. Never require artifacts, verifier "
+            "success, or other outcomes assigned to a future stage merely because "
+            "the immutable request eventually requires them. Do not plan steps, "
+            "call tools, invent "
+            "evidence, rewrite artifacts, or answer the user. Return advance with "
+            "an empty gaps array when the stage may proceed; otherwise return "
+            "repair with concrete gaps. Return exactly the three schema fields."
+        )
+        request_payload = request.to_dict()
+        schema = self._goal_stage_review_schema()
+        cache_schema = "rwkv-lh.validated-goal-stage-review-cache.v1"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_stage_review",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
             phase="goal_stage_review",
             run_id=request.run_id,
             request_digest=request.goal_digest,
-            system_prompt=(
-                "You are only the read-only Strong stage checker for an RWKV Goal "
-                "loop. Check whether the completed steps in this one stage are "
-                "mutually coherent, cover their stated evidence criteria, and leave "
-                "no contradiction that should block the next stage. Harness and RWKV "
-                "Audit facts are immutable. Do not plan steps, call tools, invent "
-                "evidence, rewrite artifacts, or answer the user. Return advance with "
-                "an empty gaps array when the stage may proceed; otherwise return "
-                "repair with concrete gaps. Return exactly the three schema fields."
-            ),
-            request_payload=request.to_dict(),
-            schema=self._goal_stage_review_schema(),
-            max_tokens=self.settings.max_contract_review_tokens,
         )
-        return GoalStageReview.from_model_value(
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_stage_review",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                max_tokens=self.settings.max_contract_review_tokens,
+            )
+        review = GoalStageReview.from_model_value(
             value,
             review_id=f"GSR-{uuid.uuid4().hex[:16]}",
             stage=request.stage,
             reviewed_step_ids=step_ids,
             evidence_refs=evidence_refs,
         )
+        if not cache_hit:
+            self._store_validated_response_cache(
+                cache_path,
+                value,
+                phase="goal_stage_review",
+                cache_schema=cache_schema,
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+            )
+        return review
 
     def review_contract_graph(
         self,

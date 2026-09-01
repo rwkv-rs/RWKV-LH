@@ -28,6 +28,7 @@ from scripts.run_rwkv_e2e_benchmark import (
     UnsupportedIndependentSelectorOperation,
     VISIBLE_TASK_KEYS,
     _check,
+    _continue_stateful_goal_within_budget,
     _resume_current_supervisor_pending,
     _write_report,
     case_runner_exception_result,
@@ -112,6 +113,125 @@ def test_benchmark_pending_resume_uses_only_current_unresolved_boundary(
     assert unchanged is recovered
     assert attempts == 0
     assert calls == 1
+
+
+def test_goal_benchmark_continues_checkpoint_until_audited_completion(
+    tmp_path: Path,
+) -> None:
+    state = RunState(
+        run_id="RUN-GOAL-CONTINUE",
+        goal=GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path,
+        ),
+        status=RunStatus.RUNNING,
+    )
+    _append_causal_event(
+        state,
+        "run_yielded",
+        {
+            "reason": "strong_planner_semantic_invalid",
+            "resumable": True,
+            "termination_permitted": False,
+            "continuation": "controller_resume",
+        },
+    )
+    remaining_budgets: list[int] = []
+
+    def resume(remaining: int) -> ControllerResult:
+        remaining_budgets.append(remaining)
+        state.status = RunStatus.COMPLETED
+        _append_causal_event(
+            state,
+            "run_completed",
+            {
+                "decision_id": "D-final",
+                "audit_id": "AUD-final",
+                "rwkv_audit_accepted": True,
+            },
+        )
+        return ControllerResult(state, "audited final", 3)
+
+    result, continuations, consumed = _continue_stateful_goal_within_budget(
+        ControllerResult(state, "", 2),
+        max_total_transitions=10,
+        resume=resume,
+    )
+
+    assert result.state.status is RunStatus.COMPLETED
+    assert result.final_output == "audited final"
+    assert continuations == 1
+    assert consumed == 5
+    assert remaining_budgets == [8]
+
+
+def test_goal_benchmark_bounds_zero_transition_checkpoints_and_defers_unavailable(
+    tmp_path: Path,
+) -> None:
+    state = RunState(
+        run_id="RUN-GOAL-BOUNDED",
+        goal=GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path,
+        ),
+        status=RunStatus.RUNNING,
+    )
+    _append_causal_event(
+        state,
+        "run_yielded",
+        {
+            "reason": "controller_slice_exhausted",
+            "termination_permitted": False,
+        },
+    )
+    calls = 0
+
+    def zero_transition_resume(remaining: int) -> ControllerResult:
+        nonlocal calls
+        del remaining
+        calls += 1
+        _append_causal_event(
+            state,
+            "run_yielded",
+            {
+                "reason": "controller_slice_exhausted",
+                "termination_permitted": False,
+            },
+        )
+        return ControllerResult(state, "", 0)
+
+    result, continuations, consumed = _continue_stateful_goal_within_budget(
+        ControllerResult(state, "", 0),
+        max_total_transitions=3,
+        resume=zero_transition_resume,
+    )
+
+    assert result.state.status is RunStatus.RUNNING
+    assert continuations == calls == 2
+    assert consumed == 3
+
+    _append_causal_event(
+        state,
+        "run_yielded",
+        {
+            "reason": "strong_planner_unavailable",
+            "termination_permitted": False,
+        },
+    )
+    unavailable, continuations, consumed = (
+        _continue_stateful_goal_within_budget(
+            ControllerResult(state, "", 0),
+            max_total_transitions=3,
+            resume=lambda remaining: (_ for _ in ()).throw(
+                AssertionError(f"unexpected resume with {remaining}")
+            ),
+        )
+    )
+    assert unavailable.state.status is RunStatus.RUNNING
+    assert continuations == 0
+    assert consumed == 1
 
 
 def test_case_runner_exception_is_recorded_without_aborting_or_synthesizing(

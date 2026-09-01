@@ -1192,6 +1192,41 @@ def _path_covers_root(path: object, root: str) -> bool:
     return bool(target and root_parts and target[: len(root_parts)] == root_parts)
 
 
+def action_mutates_root(action: Any, root: str) -> bool:
+    """Return whether one Harness action mechanically targets a write root."""
+
+    if action.action_type not in PATH_MUTATION_OPERATIONS:
+        return False
+    return any(
+        _path_covers_root(action.arguments.get(name), root)
+        for name in PATH_MUTATION_ARGUMENTS.get(action.action_type, ())
+    )
+
+
+def action_observes_root(action: Any, root: str) -> bool:
+    """Return whether one Harness action mechanically observes a read root."""
+
+    if action.action_type == "check_command":
+        return True
+    if action.action_type == "list_directory":
+        raw_path = action.arguments.get("path", ".")
+        if str(root).replace("\\", "/") == ".":
+            return str(raw_path or ".").replace("\\", "/") == "."
+        return _relative_parts(raw_path) == _relative_parts(root)
+    if action.action_type in {
+        "bind_evidence",
+        "file_digest",
+        "read_file",
+        "read_json",
+        "search_text",
+    }:
+        return _path_covers_root(
+            action.arguments.get("path", action.arguments.get("root", "")),
+            root,
+        )
+    return False
+
+
 def _evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]:
     revisions = {
         revision.revision_id: revision
@@ -1264,17 +1299,7 @@ def _validate_completed_step_evidence(
 
     uncovered_writes: list[str] = []
     for root in step.write_roots:
-        covered = False
-        for action in actions:
-            argument_names = PATH_MUTATION_ARGUMENTS.get(action.action_type, ())
-            if action.action_type not in PATH_MUTATION_OPERATIONS:
-                continue
-            if any(
-                _path_covers_root(action.arguments.get(name), root)
-                for name in argument_names
-            ):
-                covered = True
-                break
+        covered = any(action_mutates_root(action, root) for action in actions)
         if not covered:
             uncovered_writes.append(root)
     if uncovered_writes:
@@ -1285,30 +1310,7 @@ def _validate_completed_step_evidence(
 
     uncovered_reads: list[str] = []
     for root in step.read_roots:
-        covered = False
-        for action in actions:
-            if action.action_type == "check_command":
-                covered = True
-                break
-            if action.action_type == "list_directory":
-                raw_path = action.arguments.get("path", ".")
-                if str(root).replace("\\", "/") == ".":
-                    covered = str(raw_path or ".").replace("\\", "/") == "."
-                else:
-                    covered = _relative_parts(raw_path) == _relative_parts(root)
-            elif action.action_type in {
-                "bind_evidence",
-                "file_digest",
-                "read_file",
-                "read_json",
-                "search_text",
-            }:
-                covered = _path_covers_root(
-                    action.arguments.get("path", action.arguments.get("root", "")),
-                    root,
-                )
-            if covered:
-                break
+        covered = any(action_observes_root(action, root) for action in actions)
         if not covered:
             uncovered_reads.append(root)
     if uncovered_reads:
@@ -1418,6 +1420,8 @@ __all__ = [
     "GoalStageReviewVerdict",
     "RollingGoalPlan",
     "available_evidence_refs",
+    "action_mutates_root",
+    "action_observes_root",
     "goal_step_action_bindings",
     "goal_step_action_assignments",
     "parse_json_object",

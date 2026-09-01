@@ -1524,6 +1524,36 @@ def _run_controller(
     ).run(run_id)
 
 
+def _continue_stateful_goal_within_budget(
+    initial: ControllerResult,
+    *,
+    max_total_transitions: int,
+    resume: Callable[[int], ControllerResult],
+) -> tuple[ControllerResult, int, int]:
+    """Mirror the product Goal worker without turning checkpoints into terminals."""
+
+    limit = max(1, int(max_total_transitions))
+    current = initial
+    consumed = max(0, int(current.transitions))
+    if current.state.status is RunStatus.RUNNING:
+        consumed = max(1, consumed)
+    continuation_count = 0
+    while current.state.status is RunStatus.RUNNING and consumed < limit:
+        if not current.state.causal_order:
+            break
+        latest = current.state.causal_records[current.state.causal_order[-1]]
+        if latest.event_type != "run_yielded":
+            break
+        reason = str(latest.payload.get("reason") or "")
+        if reason.endswith("_unavailable") or reason.endswith("_failure"):
+            break
+        remaining = limit - consumed
+        current = resume(remaining)
+        continuation_count += 1
+        consumed += max(1, int(current.transitions))
+    return current, continuation_count, min(consumed, limit)
+
+
 def _resume_current_supervisor_pending(
     result: ControllerResult,
     *,
@@ -1769,6 +1799,38 @@ def run_case(
                     len(result.state.actions) >= before_actions
                     and result.state.status == RunStatus.COMPLETED
                 )
+        should_continue_goal = (
+            stateful_goal
+            and result is not None
+            and (
+                interruption_limit is None
+                or bool(control.get("resume_to_completion", True))
+            )
+        )
+        if should_continue_goal:
+            result, goal_continuations, consumed_transitions = (
+                _continue_stateful_goal_within_budget(
+                    result,
+                    max_total_transitions=max_transitions,
+                    resume=lambda remaining: _run_controller(
+                        store,
+                        model,
+                        harness,
+                        task_id,
+                        max_transitions=remaining,
+                        supervisor=supervisor_client,
+                        supervisor_policy=supervisor_policy,
+                        atom_worker_pool=atom_worker_pool,
+                        stateful_goal=True,
+                    ),
+                )
+            )
+            observations["goal_continuation_count"] = goal_continuations
+            observations["goal_transition_budget_consumed"] = consumed_transitions
+            observations["goal_transition_budget_exhausted"] = bool(
+                result.state.status is RunStatus.RUNNING
+                and consumed_transitions >= max_transitions
+            )
         if result is not None and supervisor_pending_resume_attempts:
             result, pending_resume_count = _resume_current_supervisor_pending(
                 result,

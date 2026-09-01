@@ -1009,6 +1009,9 @@ def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
     assert set(schema["properties"]) == {"verdict", "gaps", "reason"}
     payload = json.loads(posted["messages"][1]["content"])
     assert list(payload)[-1] == "current_requirement"
+    assert "Never require artifacts, verifier success" in posted["messages"][0][
+        "content"
+    ]
 
 
 def test_contract_plan_schema_requires_explicit_obligation_phase():
@@ -2024,3 +2027,202 @@ def test_validated_contract_plan_cache_avoids_second_api_call(tmp_path):
     assert second_patch.patch_id == first_patch.patch_id
     assert second_session.posts == []
     assert any(item["type"] == "supervisor_plan_cache_hit" for item in audit)
+
+
+def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
+    cache_dir = tmp_path / "goal-plan-cache"
+    configured = replace(
+        settings(),
+        plan_cache_enabled=True,
+        plan_cache_dir=str(cache_dir.resolve()),
+    )
+    value = {
+        "add_stages": [
+            {
+                "stage": 1,
+                "steps": [
+                    {
+                        "step_id": "S1",
+                        "objective": "Inspect config.json.",
+                        "depends_on": [],
+                        "success_evidence": ["config.json is observed"],
+                        "read_roots": ["config.json"],
+                        "write_roots": [],
+                        "constraints": [],
+                    }
+                ],
+            }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Start with one observation step.",
+    }
+    first_request = GoalPlanRequest(
+        run_id="RUN-GOAL-CACHE-1",
+        immutable_request="Inspect config.json.",
+        goal_digest="goal-digest-1",
+        plan_revision=0,
+        active_plan={"goal_digest": "goal-digest-1", "stages": []},
+        latest_audit={
+            "audit_id": "AUD-per-run-1",
+            "verdict": "repair",
+            "step_id": "S0",
+            "evidence_refs": ["A00001"],
+            "gaps": ["configuration still needs inspection"],
+            "reason": "repair is required",
+        },
+        latest_stage_review={
+            "review_id": "GSR-per-run-1",
+            "stage": 1,
+            "verdict": "repair",
+            "reviewed_step_ids": ["S0"],
+            "evidence_refs": ["A00001"],
+            "gaps": ["configuration still needs inspection"],
+            "reason": "repair is required",
+        },
+        workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
+    )
+    second_request = GoalPlanRequest(
+        run_id="RUN-GOAL-CACHE-2",
+        immutable_request="Inspect config.json.",
+        goal_digest="goal-digest-2",
+        plan_revision=0,
+        active_plan={"goal_digest": "goal-digest-2", "stages": []},
+        latest_audit={
+            "audit_id": "AUD-per-run-2",
+            "verdict": "repair",
+            "step_id": "S0",
+            "evidence_refs": ["A00001"],
+            "gaps": ["configuration still needs inspection"],
+            "reason": "repair is required",
+        },
+        latest_stage_review={
+            "review_id": "GSR-per-run-2",
+            "stage": 1,
+            "verdict": "repair",
+            "reviewed_step_ids": ["S0"],
+            "evidence_refs": ["A00001"],
+            "gaps": ["configuration still needs inspection"],
+            "reason": "repair is required",
+        },
+        workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
+    )
+    first_session = FakeSession([response(value)])
+    first = OpenAICompatibleSupervisorClient(configured, session=first_session)
+    first_patch = first.plan_goal_patch(first_request)
+    first.accept_goal_plan_cache_candidate(first_patch.patch_id)
+    audit: list[dict] = []
+    second_session = FakeSession([])
+    second = OpenAICompatibleSupervisorClient(
+        configured, session=second_session, audit_hook=audit.append
+    )
+
+    second_patch = second.plan_goal_patch(second_request)
+
+    assert second_patch.add_steps == first_patch.add_steps
+    assert second_session.posts == []
+    assert any(
+        item["type"] == "supervisor_plan_cache_hit"
+        and item["phase"] == "goal_plan"
+        for item in audit
+    )
+
+
+def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
+    cache_dir = tmp_path / "rejected-goal-plan-cache"
+    configured = replace(
+        settings(),
+        plan_cache_enabled=True,
+        plan_cache_dir=str(cache_dir.resolve()),
+    )
+    value = {
+        "add_stages": [
+            {
+                "stage": 1,
+                "steps": [
+                    {
+                        "step_id": "S1",
+                        "objective": "Inspect config.json.",
+                        "depends_on": [],
+                        "success_evidence": ["config.json is observed"],
+                        "read_roots": ["config.json"],
+                        "write_roots": [],
+                        "constraints": [],
+                    }
+                ],
+            }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Candidate requires Controller validation.",
+    }
+    request = GoalPlanRequest(
+        run_id="RUN-GOAL-REJECTED-CACHE",
+        immutable_request="Inspect config.json.",
+        goal_digest="goal-digest",
+        plan_revision=0,
+        active_plan={"goal_digest": "goal-digest", "stages": []},
+        latest_audit=None,
+        workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
+    )
+    fake = FakeSession([response(value), response(value)])
+    client = OpenAICompatibleSupervisorClient(configured, session=fake)
+
+    rejected = client.plan_goal_patch(request)
+    client.discard_goal_plan_cache_candidate(rejected.patch_id)
+    replacement = client.plan_goal_patch(request)
+
+    assert replacement.add_steps == rejected.add_steps
+    assert len(fake.posts) == 2
+    assert list(cache_dir.glob("*.json")) == []
+
+
+def test_validated_goal_stage_review_cache_ignores_per_run_identity(tmp_path):
+    cache_dir = tmp_path / "goal-stage-cache"
+    configured = replace(
+        settings(),
+        plan_cache_enabled=True,
+        plan_cache_dir=str(cache_dir.resolve()),
+    )
+    first_request = GoalStageReviewRequest(
+        run_id="RUN-STAGE-CACHE-1",
+        immutable_request="Inspect config.json.",
+        goal_digest="goal-digest-1",
+        stage=1,
+        stage_steps=(
+            {
+                "step_id": "S1",
+                "objective": "Inspect config.json",
+                "accepted_evidence_refs": ["A00001"],
+            },
+        ),
+        workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
+    )
+    second_request = GoalStageReviewRequest(
+        run_id="RUN-STAGE-CACHE-2",
+        immutable_request="Inspect config.json.",
+        goal_digest="goal-digest-2",
+        stage=1,
+        stage_steps=first_request.stage_steps,
+        workspace_manifest=first_request.workspace_manifest,
+    )
+    first_session = FakeSession(
+        [response({"verdict": "advance", "gaps": [], "reason": "coherent"})]
+    )
+    first = OpenAICompatibleSupervisorClient(configured, session=first_session)
+    first_review = first.review_goal_stage(first_request)
+    audit: list[dict] = []
+    second_session = FakeSession([])
+    second = OpenAICompatibleSupervisorClient(
+        configured, session=second_session, audit_hook=audit.append
+    )
+
+    second_review = second.review_goal_stage(second_request)
+
+    assert second_review.verdict == first_review.verdict
+    assert second_session.posts == []
+    assert any(
+        item["type"] == "supervisor_plan_cache_hit"
+        and item["phase"] == "goal_stage_review"
+        for item in audit
+    )

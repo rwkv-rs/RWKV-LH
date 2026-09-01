@@ -279,6 +279,20 @@ class LongHorizonModel:
     def action_definitions(self) -> list[dict[str, Any]]:
         return deepcopy(self._action_definitions)
 
+    def goal_action_operations(self, state: RunState) -> tuple[str, ...]:
+        """Return the policy-authorized Harness menu without Goal completion."""
+
+        return tuple(
+            str(definition["name"])
+            for definition in self._action_definitions
+            if operation_allowed_by_retrieval_policy(
+                state.goal,
+                network_access=self.harness.definition(
+                    str(definition["name"])
+                ).network_access,
+            )
+        )
+
     def next_command(
         self,
         state: RunState,

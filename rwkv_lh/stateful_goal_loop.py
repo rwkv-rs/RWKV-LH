@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -22,6 +23,8 @@ from rwkv_lh.goal_loop_protocol import (
     GoalStageReviewRequest,
     GoalStageReviewVerdict,
     RollingGoalPlan,
+    action_mutates_root,
+    action_observes_root,
     goal_step_action_bindings,
     rolling_goal_plan,
 )
@@ -53,8 +56,14 @@ class StatefulGoalLoopController(LongHorizonController):
             )
 
     @staticmethod
-    def _recent_action_facts(state: Any) -> tuple[Mapping[str, Any], ...]:
-        """Expose bounded Harness facts to Planner without Executor text."""
+    def _recent_action_facts(
+        state: Any,
+        *,
+        action_ids: tuple[str, ...] | None = None,
+        max_actions: int = 12,
+        result_limit: int = 2400,
+    ) -> tuple[Mapping[str, Any], ...]:
+        """Expose bounded Harness facts without any Executor prose."""
 
         def summary(value: Any, limit: int) -> tuple[str, bool]:
             text = json.dumps(
@@ -69,11 +78,19 @@ class StatefulGoalLoopController(LongHorizonController):
                 return text, False
             return encoded[:limit].decode("utf-8", errors="ignore"), True
 
-        actions = sorted(state.actions.values(), key=lambda item: item.sequence)[-12:]
+        allowed = set(action_ids) if action_ids is not None else None
+        actions = sorted(
+            (
+                action
+                for action in state.actions.values()
+                if allowed is None or action.action_id in allowed
+            ),
+            key=lambda item: item.sequence,
+        )[-max_actions:]
         projected: list[Mapping[str, Any]] = []
         for action in actions:
             arguments_summary, arguments_truncated = summary(action.arguments, 1200)
-            result_summary, result_truncated = summary(action.result, 2400)
+            result_summary, result_truncated = summary(action.result, result_limit)
             projected.append({
                 "action_id": action.action_id,
                 "operation": action.action_type,
@@ -110,24 +127,81 @@ class StatefulGoalLoopController(LongHorizonController):
             ),
             key=lambda item: item.sequence,
         )
-        # One action id per transaction preserves provenance for multi-file steps
-        # within the frozen Audit protocol's eight-reference ceiling.  Remaining
-        # slots expose exact artifact/revision facts without dropping an action.
-        refs = [action.action_id for action in actions]
-        if len(refs) > 8:
-            refs = refs[-8:]
-        for action in reversed(actions):
-            extras = [*action.artifact_refs]
-            extras.extend(
-                revision.revision_id
-                for revisions in state.artifact_revisions.values()
-                for revision in revisions
-                if revision.action_id == action.action_id
+        if not actions:
+            return ()
+
+        # Preserve the current boundary plus the newest successful action that
+        # covers each Planner root. A plain latest-eight window can irreversibly
+        # discard the only read/write proof after unrelated repeated actions.
+        selected: list[Any] = [actions[-1]]
+        step = rolling_goal_plan(state).steps.get(step_id)
+        if step is not None:
+            root_checks = (
+                *((root, action_mutates_root) for root in step.write_roots),
+                *((root, action_observes_root) for root in step.read_roots),
             )
-            for ref in extras:
-                if ref not in refs and len(refs) < 8:
-                    refs.append(ref)
-        return tuple(refs)
+            for root, covers in root_checks:
+                match = next(
+                    (
+                        action
+                        for action in reversed(actions)
+                        if action.status is ActionStatus.SUCCEEDED
+                        and bool((action.result or {}).get("success"))
+                        and covers(action, root)
+                    ),
+                    None,
+                )
+                if match is not None and match not in selected:
+                    selected.append(match)
+                if len(selected) >= 8:
+                    break
+
+        # Root-free semantic steps still need at least one successful Harness
+        # fact when the latest boundary is a failure.
+        if len(selected) < 8 and not any(
+            action.status is ActionStatus.SUCCEEDED
+            and bool((action.result or {}).get("success"))
+            for action in selected
+        ):
+            latest_success = next(
+                (
+                    action
+                    for action in reversed(actions)
+                    if action.status is ActionStatus.SUCCEEDED
+                    and bool((action.result or {}).get("success"))
+                ),
+                None,
+            )
+            if latest_success is not None and latest_success not in selected:
+                selected.append(latest_success)
+
+        return tuple(
+            action.action_id
+            for action in sorted(selected, key=lambda item: item.sequence)
+        )
+
+    def _goal_step_operations(self, state: Any, step: Any) -> tuple[str, ...]:
+        """Compile the Harness menu for one Planner step without choosing a tool."""
+
+        operations = (
+            tuple(
+                operation
+                for operation in step.allowed_operations
+                if operation != "final_answer"
+            )
+            if step.allowed_operations
+            else self.model.goal_action_operations(state)
+        )
+        if step.write_roots:
+            return operations
+        return tuple(
+            operation
+            for operation in operations
+            if not (
+                (definition := self.harness.definition(operation)).side_effect
+                and definition.side_effect_class == "workspace_mutation"
+            )
+        )
 
     def _assign_action_to_step(
         self,
@@ -293,6 +367,75 @@ class StatefulGoalLoopController(LongHorizonController):
             subject_id=boundary_id,
         )
 
+    def _resolve_protocol_invalid_audit_boundary(
+        self,
+        state: Any,
+        pending: Mapping[str, Any],
+        error: ModelProtocolError,
+    ) -> None:
+        """Release one exhausted Audit gate without granting audit authority."""
+
+        boundary_id = str(pending.get("audit_boundary_id") or "")
+        boundary_kind = str(pending.get("boundary_kind") or "")
+        if not boundary_id or boundary_kind not in {"action", "pre_final"}:
+            raise ValueError("invalid pending Goal Audit boundary")
+        for event_id in state.causal_order:
+            event = state.causal_records[event_id]
+            if (
+                event.event_type == "goal_audit_boundary_resolved"
+                and event.subject_id == boundary_id
+            ):
+                return
+
+        error_text = str(error)[:2000]
+        if boundary_kind == "pre_final":
+            decision_id = str(pending.get("decision_id") or "")
+            decision_record = state.decisions.get(decision_id)
+            if decision_record is None or not decision_record.accepted:
+                raise ValueError("pending final Audit has no accepted decision")
+            final_command = parse_model_command(decision_record.raw_output)
+            if final_command.name != "final_answer":
+                raise ValueError("pending final Audit decision is not final_answer")
+            output = str(final_command.arguments.get("text") or "")
+            self._persist(
+                state,
+                "goal_final_rejected",
+                {
+                    "audit_id": "",
+                    "audit_boundary_id": boundary_id,
+                    "decision_id": decision_id,
+                    "verdict": "protocol_invalid",
+                    "gaps": [error_text],
+                    "candidate_output_sha256": hashlib.sha256(
+                        output.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_rewritten": False,
+                    "step_completed": False,
+                    "kernel_validated": False,
+                    "at": utc_now(),
+                },
+            )
+
+        self._persist(
+            state,
+            "goal_audit_boundary_resolved",
+            {
+                "audit_boundary_id": boundary_id,
+                "audit_id": "",
+                "verdict": "protocol_invalid",
+                "boundary_kind": boundary_kind,
+                "active_step_id": str(pending.get("active_step_id") or ""),
+                "action_id": str(pending.get("action_id") or ""),
+                "decision_id": str(pending.get("decision_id") or ""),
+                "protocol_error": error_text,
+                "step_completed": False,
+                "kernel_validated": False,
+                "completion_authority": False,
+                "authorizes_new_action": True,
+            },
+            subject_id=boundary_id,
+        )
+
     def _link_action_audit(
         self,
         state: Any,
@@ -409,15 +552,37 @@ class StatefulGoalLoopController(LongHorizonController):
                         )
                     patch = GoalPlanPatch.from_dict(returned.to_dict())
                     rejected_patch = patch.to_dict()
-                    # Validate the complete replacement/discard result before it
-                    # becomes causal authority. The reconstructed view is mutated
-                    # only after all candidate invariants pass.
-                    plan.apply_goal_patch(patch)
+                    # Validate against an isolated candidate. A rejected repair
+                    # must not contaminate the base used by the bounded semantic
+                    # retry in this same call.
+                    candidate_plan = deepcopy(plan)
+                    candidate_plan.apply_goal_patch(patch)
+                    self._validate_stage_repair_patch(
+                        plan,
+                        candidate_plan,
+                        patch,
+                        stage_review,
+                    )
+                    accept_cache = getattr(
+                        self.supervisor,
+                        "accept_goal_plan_cache_candidate",
+                        None,
+                    )
+                    if callable(accept_cache):
+                        accept_cache(patch.patch_id)
                 except (TypeError, ValueError) as exc:
                     semantic_error = exc
 
             if semantic_error is None:
                 break
+            if patch is not None:
+                discard_cache = getattr(
+                    self.supervisor,
+                    "discard_goal_plan_cache_candidate",
+                    None,
+                )
+                if callable(discard_cache):
+                    discard_cache(patch.patch_id)
             repair_scheduled = semantic_attempt == 0
             error_text = (
                 f"{type(semantic_error).__name__}: {semantic_error}"
@@ -480,48 +645,63 @@ class StatefulGoalLoopController(LongHorizonController):
         return None
 
     @staticmethod
-    def _pending_plan_repair_feedback(
-        state: Any,
-    ) -> tuple[GoalAuditDecision | None, GoalStageReview | None]:
-        """Replay repair feedback that has not yet produced a committed patch."""
+    def _validate_stage_repair_patch(
+        prior_plan: RollingGoalPlan,
+        candidate_plan: RollingGoalPlan,
+        patch: GoalPlanPatch,
+        stage_review: GoalStageReview | None,
+    ) -> None:
+        """Require a stage repair to change the next executable work."""
 
-        repaired_audit_ids: set[str] = set()
+        if (
+            stage_review is None
+            or stage_review.verdict is not GoalStageReviewVerdict.REPAIR
+        ):
+            return
+        prior_frontier_ids = {step.step_id for step in prior_plan.frontier}
+        if not prior_frontier_ids:
+            # A repair after the final planned stage necessarily adds new work.
+            if not candidate_plan.frontier:
+                raise ValueError(
+                    "Goal stage repair must add executable repair work"
+                )
+            return
+        changed_frontier_ids = {
+            step.step_id for step in patch.replace_steps
+        } | set(patch.discard_step_ids)
+        if prior_frontier_ids.isdisjoint(changed_frontier_ids):
+            raise ValueError(
+                "Goal stage repair must replace or discard at least one currently "
+                "open frontier step; appending only later work does not repair the "
+                "rejected stage boundary"
+            )
+
+    @staticmethod
+    def _pending_stage_repair_feedback(
+        state: Any,
+    ) -> GoalStageReview | None:
+        """Replay a Stage Checker repair not yet linked to a Planner patch."""
+
         repaired_stage_review_ids: set[str] = set()
-        candidates: list[
-            tuple[int, GoalAuditDecision | None, GoalStageReview | None]
-        ] = []
+        candidates: list[tuple[int, GoalStageReview]] = []
         for sequence, event_id in enumerate(state.causal_order):
             event = state.causal_records[event_id]
             if event.event_type == "goal_plan_patch_committed":
-                audit_id = str(event.payload.get("source_audit_id") or "")
                 review_id = str(
                     event.payload.get("source_stage_review_id") or ""
                 )
-                if audit_id:
-                    repaired_audit_ids.add(audit_id)
                 if review_id:
                     repaired_stage_review_ids.add(review_id)
-            elif event.event_type == "goal_audit_accepted":
-                raw = event.payload.get("audit")
-                if isinstance(raw, Mapping):
-                    audit = GoalAuditDecision.from_dict(raw)
-                    if audit.verdict is GoalAuditVerdict.REPAIR:
-                        candidates.append((sequence, audit, None))
             elif event.event_type == "goal_stage_review_committed":
                 raw = event.payload.get("review")
                 if isinstance(raw, Mapping):
                     review = GoalStageReview.from_dict(raw)
                     if review.verdict is GoalStageReviewVerdict.REPAIR:
-                        candidates.append((sequence, None, review))
-        for _sequence, audit, review in reversed(candidates):
-            if audit is not None and audit.audit_id not in repaired_audit_ids:
-                return audit, None
-            if (
-                review is not None
-                and review.review_id not in repaired_stage_review_ids
-            ):
-                return None, review
-        return None, None
+                        candidates.append((sequence, review))
+        for _sequence, review in reversed(candidates):
+            if review.review_id not in repaired_stage_review_ids:
+                return review
+        return None
 
     @staticmethod
     def _reviewed_stage_boundary_keys(state: Any) -> frozenset[str]:
@@ -570,6 +750,13 @@ class StatefulGoalLoopController(LongHorizonController):
             )
             return self._yield(state, "strong_stage_checker_unavailable", transitions)
         steps = plan.stage_steps(stage)
+        stage_evidence_refs = tuple(
+            dict.fromkeys(
+                ref
+                for step in steps
+                for ref in plan.completed_evidence[step.step_id]
+            )
+        )
         request = GoalStageReviewRequest(
             run_id=state.run_id,
             immutable_request=state.goal.request,
@@ -594,7 +781,15 @@ class StatefulGoalLoopController(LongHorizonController):
                 max_entries=256,
                 max_tokens=1800,
             ),
-            recent_action_facts=self._recent_action_facts(state),
+            # A stage checker receives only the Harness records accepted for
+            # this stage. Unrelated history increases cost and can make a small
+            # stage look responsible for downstream work.
+            recent_action_facts=self._recent_action_facts(
+                state,
+                action_ids=stage_evidence_refs,
+                max_actions=8,
+                result_limit=6000,
+            ),
         )
         try:
             returned = method(request)
@@ -610,13 +805,7 @@ class StatefulGoalLoopController(LongHorizonController):
                 reason=returned.reason,
             )
             expected_step_ids = tuple(step.step_id for step in steps)
-            expected_refs = tuple(
-                dict.fromkeys(
-                    ref
-                    for step in steps
-                    for ref in plan.completed_evidence[step.step_id]
-                )
-            )
+            expected_refs = stage_evidence_refs
             if review.stage != stage:
                 raise ValueError("Strong stage review changed the bound stage")
             if review.reviewed_step_ids != expected_step_ids:
@@ -738,20 +927,6 @@ class StatefulGoalLoopController(LongHorizonController):
                             self._resolve_audit_boundary(state, pending_audit, audit)
                             pending_observation = None
                             protocol_failures = 0
-                            plan = rolling_goal_plan(state)
-                            if (
-                                audit.verdict is GoalAuditVerdict.REPAIR
-                                and not plan.complete
-                            ):
-                                boundary = self._issue_strong_plan_patch(
-                                    state,
-                                    plan=plan,
-                                    audit=audit,
-                                    transitions=transitions,
-                                )
-                                if boundary is not None:
-                                    return boundary
-                                transitions += 1
                             continue
 
                         if str(pending_audit.get("boundary_kind") or "") != "pre_final":
@@ -786,6 +961,7 @@ class StatefulGoalLoopController(LongHorizonController):
                             self._resolve_audit_boundary(state, pending_audit, audit)
                             protocol_failures = 0
                             continue
+                        self._resolve_audit_boundary(state, pending_audit, audit)
                         state.final_output = output
                         state.final_decision_id = decision_id
                         state.status = RunStatus.COMPLETED
@@ -859,17 +1035,11 @@ class StatefulGoalLoopController(LongHorizonController):
                         pending_observation = None
                         continue
 
-                    pending_audit_repair, pending_stage_repair = (
-                        self._pending_plan_repair_feedback(state)
-                    )
-                    if (
-                        pending_audit_repair is not None
-                        or pending_stage_repair is not None
-                    ):
+                    pending_stage_repair = self._pending_stage_repair_feedback(state)
+                    if pending_stage_repair is not None:
                         boundary = self._issue_strong_plan_patch(
                             state,
                             plan=plan,
-                            audit=pending_audit_repair,
                             stage_review=pending_stage_repair,
                             transitions=transitions,
                         )
@@ -950,10 +1120,8 @@ class StatefulGoalLoopController(LongHorizonController):
                                 ),
                             },
                         )
-                        eligible_operations = (
-                            tuple(frontier.allowed_operations)
-                            if frontier.allowed_operations
-                            else None
+                        eligible_operations = self._goal_step_operations(
+                            state, frontier
                         )
                         selector_stage_context = goal_frontier_selector_context(
                             state,
@@ -1045,6 +1213,7 @@ class StatefulGoalLoopController(LongHorizonController):
                 except ModelProtocolError as exc:
                     protocol_failures += 1
                     transitions += 1
+                    pending_protocol_audit = self._pending_audit_boundary(state)
                     self._persist(
                         state,
                         "protocol_rejection_recorded",
@@ -1060,10 +1229,34 @@ class StatefulGoalLoopController(LongHorizonController):
                                 "message": str(exc)[:2000],
                                 "at": utc_now(),
                             },
+                            "protocol_scope": (
+                                "goal_audit"
+                                if pending_protocol_audit is not None
+                                else "action"
+                            ),
+                            "audit_boundary_id": (
+                                str(
+                                    pending_protocol_audit.get(
+                                        "audit_boundary_id"
+                                    )
+                                    or ""
+                                )
+                                if pending_protocol_audit is not None
+                                else ""
+                            ),
                             "rejection_count": state.protocol_rejections + 1,
                             "action_executed": False,
                         },
                     )
+                    if pending_protocol_audit is not None:
+                        self._resolve_protocol_invalid_audit_boundary(
+                            state,
+                            pending_protocol_audit,
+                            exc,
+                        )
+                        pending_observation = None
+                        protocol_failures = 0
+                        continue
                     if protocol_failures >= self._MAX_PROTOCOL_REJECTIONS:
                         return self._yield(
                             state,
