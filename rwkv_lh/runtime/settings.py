@@ -9,6 +9,13 @@ from pathlib import Path
 import re
 from urllib.parse import urlparse
 
+from rwkv_lh.runtime.role_config import (
+    role_bool,
+    role_env,
+    role_float,
+    role_int,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env.local"
@@ -49,29 +56,6 @@ def load_local_env(
         os.environ.setdefault(key, value)
 
 
-def _float(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, default))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be a number") from exc
-
-
-def _int(name: str, default: int) -> int:
-    try:
-        return int(os.environ.get(name, default))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be an integer") from exc
-
-
-def _bool(name: str, default: bool) -> bool:
-    value = str(os.environ.get(name, str(default))).strip().casefold()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be a boolean")
-
-
 @dataclass(frozen=True)
 class RuntimeSettings:
     base_url: str
@@ -99,7 +83,7 @@ class RuntimeSettings:
     trust_environment_proxies: bool = False
     verify_tls: bool = True
     tool_disclosure_mode: str = "progressive"
-    state_transport: str = "prompt_replay"
+    state_transport: str = "native_required"
     state_profile_id: str = ""
     state_profile_sha256: str = ""
     state_profile_delivery: str = "request"
@@ -108,72 +92,274 @@ class RuntimeSettings:
     def from_env(cls) -> "RuntimeSettings":
         load_local_env()
         settings = cls(
-            base_url=os.environ.get("RWKV_BASE_URL", "http://127.0.0.1:29613/v1").rstrip("/"),
-            api_key=os.environ.get("RWKV_API_KEY", ""),
-            model=os.environ.get(
-                "RWKV_MODEL",
-                "rwkv7-g1i-13.3b-20260805-ctx16384",
-            ).strip(),
-            model_sha256=os.environ.get("RWKV_MODEL_SHA256", "").strip().casefold(),
-            backend_profile=os.environ.get(
-                "RWKV_BACKEND_PROFILE",
-                "vllm-rwkv-native",
-            ).strip(),
-            cf_access_client_id=os.environ.get(
-                "RWKV_CF_ACCESS_CLIENT_ID",
-                "",
-            ).strip(),
-            cf_access_client_secret=os.environ.get(
-                "RWKV_CF_ACCESS_CLIENT_SECRET",
-                "",
-            ).strip(),
-            proxy_url=os.environ.get("RWKV_PROXY_URL", "").strip(),
-            connect_timeout_seconds=_float("RWKV_CONNECT_TIMEOUT", 10.0),
-            read_timeout_seconds=_float("RWKV_READ_TIMEOUT", 300.0),
-            retry_attempts=_int("RWKV_RETRY_ATTEMPTS", 2),
-            retry_backoff_seconds=_float("RWKV_RETRY_BACKOFF", 0.5),
-            default_temperature=_float("RWKV_DEFAULT_TEMPERATURE", 0.1),
-            default_top_p=_float("RWKV_DEFAULT_TOP_P", 1.0),
-            default_top_k=_int("RWKV_DEFAULT_TOP_K", 0),
-            default_presence_penalty=_float("RWKV_DEFAULT_PRESENCE_PENALTY", 0.0),
-            default_frequency_penalty=_float("RWKV_DEFAULT_FREQUENCY_PENALTY", 0.0),
-            default_penalty_decay=_float("RWKV_DEFAULT_PENALTY_DECAY", 0.996),
-            max_model_len=_int("RWKV_MAX_MODEL_LEN", 16384),
-            context_safety_margin=_int("RWKV_CONTEXT_SAFETY_MARGIN", 32),
-            bos_token_count=_int("RWKV_BOS_TOKEN_COUNT", 1),
-            return_token_ids=_bool("RWKV_RETURN_TOKEN_IDS", True),
-            trust_environment_proxies=_bool("RWKV_TRUST_ENV", False),
-            verify_tls=_bool("RWKV_VERIFY_TLS", True),
-            tool_disclosure_mode=os.environ.get(
-                "RWKV_TOOL_DISCLOSURE_MODE",
-                "progressive",
-            ).strip().casefold(),
-            state_transport=os.environ.get(
-                "RWKV_STATE_TRANSPORT",
-                "prompt_replay",
-            ).strip().casefold(),
-            state_profile_id=os.environ.get(
-                "RWKV_STATE_PROFILE_ID",
-                "",
-            ).strip(),
-            state_profile_sha256=os.environ.get(
-                "RWKV_STATE_PROFILE_SHA256",
-                "",
-            ).strip().casefold(),
-            state_profile_delivery=os.environ.get(
-                "RWKV_STATE_PROFILE_DELIVERY",
-                "request",
-            ).strip().casefold(),
+            base_url=role_env(
+                "executor",
+                "base_url",
+                legacy="RWKV_BASE_URL",
+                default="http://127.0.0.1:29613/v1",
+            ).rstrip("/"),
+            api_key=role_env("executor", "api_key", legacy="RWKV_API_KEY"),
+            model=role_env("executor", "model", legacy="RWKV_MODEL"),
+            model_sha256=role_env(
+                "executor", "model_sha256", legacy="RWKV_MODEL_SHA256"
+            ).casefold(),
+            backend_profile=role_env(
+                "executor",
+                "backend_profile",
+                legacy="RWKV_BACKEND_PROFILE",
+                default="vllm-rwkv-native",
+            ),
+            cf_access_client_id=role_env(
+                "executor",
+                "cf_access_client_id",
+                legacy="RWKV_CF_ACCESS_CLIENT_ID",
+            ),
+            cf_access_client_secret=role_env(
+                "executor",
+                "cf_access_client_secret",
+                legacy="RWKV_CF_ACCESS_CLIENT_SECRET",
+            ),
+            proxy_url=role_env(
+                "executor", "proxy_url", legacy="RWKV_PROXY_URL"
+            ),
+            connect_timeout_seconds=role_float(
+                "executor", "connect_timeout", legacy="RWKV_CONNECT_TIMEOUT", default=10.0
+            ),
+            read_timeout_seconds=role_float(
+                "executor", "read_timeout", legacy="RWKV_READ_TIMEOUT", default=300.0
+            ),
+            retry_attempts=role_int(
+                "executor", "retry_attempts", legacy="RWKV_RETRY_ATTEMPTS", default=2
+            ),
+            retry_backoff_seconds=role_float(
+                "executor", "retry_backoff", legacy="RWKV_RETRY_BACKOFF", default=0.5
+            ),
+            default_temperature=role_float(
+                "executor",
+                "default_temperature",
+                legacy="RWKV_DEFAULT_TEMPERATURE",
+                default=0.1,
+            ),
+            default_top_p=role_float(
+                "executor", "default_top_p", legacy="RWKV_DEFAULT_TOP_P", default=1.0
+            ),
+            default_top_k=role_int(
+                "executor", "default_top_k", legacy="RWKV_DEFAULT_TOP_K", default=0
+            ),
+            default_presence_penalty=role_float(
+                "executor",
+                "default_presence_penalty",
+                legacy="RWKV_DEFAULT_PRESENCE_PENALTY",
+                default=0.0,
+            ),
+            default_frequency_penalty=role_float(
+                "executor",
+                "default_frequency_penalty",
+                legacy="RWKV_DEFAULT_FREQUENCY_PENALTY",
+                default=0.0,
+            ),
+            default_penalty_decay=role_float(
+                "executor",
+                "default_penalty_decay",
+                legacy="RWKV_DEFAULT_PENALTY_DECAY",
+                default=0.996,
+            ),
+            max_model_len=role_int(
+                "executor", "max_model_len", legacy="RWKV_MAX_MODEL_LEN", default=16384
+            ),
+            context_safety_margin=role_int(
+                "executor",
+                "context_safety_margin",
+                legacy="RWKV_CONTEXT_SAFETY_MARGIN",
+                default=32,
+            ),
+            bos_token_count=role_int(
+                "executor", "bos_token_count", legacy="RWKV_BOS_TOKEN_COUNT", default=1
+            ),
+            return_token_ids=role_bool(
+                "executor", "return_token_ids", legacy="RWKV_RETURN_TOKEN_IDS", default=True
+            ),
+            trust_environment_proxies=role_bool(
+                "executor", "trust_env", legacy="RWKV_TRUST_ENV", default=False
+            ),
+            verify_tls=role_bool(
+                "executor", "verify_tls", legacy="RWKV_VERIFY_TLS", default=True
+            ),
+            tool_disclosure_mode=role_env(
+                "executor",
+                "tool_disclosure_mode",
+                legacy="RWKV_TOOL_DISCLOSURE_MODE",
+                default="progressive",
+            ).casefold(),
+            state_transport=role_env(
+                "executor",
+                "state_transport",
+                legacy="RWKV_STATE_TRANSPORT",
+                default="native_required",
+            ).casefold(),
+            state_profile_id=role_env(
+                "executor", "state_profile_id", legacy="RWKV_STATE_PROFILE_ID"
+            ),
+            state_profile_sha256=role_env(
+                "executor",
+                "state_profile_sha256",
+                legacy="RWKV_STATE_PROFILE_SHA256",
+            ).casefold(),
+            state_profile_delivery=role_env(
+                "executor",
+                "state_profile_delivery",
+                legacy="RWKV_STATE_PROFILE_DELIVERY",
+                default="request",
+            ).casefold(),
         )
         settings.validate()
         return settings
 
-    def validate(self) -> None:
+    @classmethod
+    def for_role(
+        cls,
+        role: str,
+        *,
+        fallback: "RuntimeSettings",
+    ) -> "RuntimeSettings":
+        """Bind one replaceable RWKV role without inheriting another role's State.
+
+        Missing role fields inherit deployment properties from ``fallback``.  A
+        role-specific State profile is opt-in and never inherited.  The caller
+        must still construct a distinct :class:`ModelSession`; this method shares
+        configuration defaults, never a recurrent State or checkpoint.
+        """
+
+        normalized = str(role or "").strip().casefold()
+        if not normalized or not re.fullmatch(r"[a-z][a-z0-9_]*", normalized):
+            raise ValueError("RWKV role must be a lowercase identifier")
+        prefix = f"RWKV_LH_{normalized.upper()}_"
+        load_local_env(allowed_prefixes=(prefix,))
+
+        def text(suffix: str, field: str) -> str:
+            return role_env(
+                normalized,
+                suffix,
+                default=str(getattr(fallback, field)),
+            )
+
+        settings = cls(
+            base_url=text("base_url", "base_url").rstrip("/"),
+            api_key=text("api_key", "api_key"),
+            model=text("model", "model"),
+            model_sha256=text("model_sha256", "model_sha256").casefold(),
+            backend_profile=text("backend_profile", "backend_profile"),
+            cf_access_client_id=text(
+                "cf_access_client_id", "cf_access_client_id"
+            ),
+            cf_access_client_secret=text(
+                "cf_access_client_secret", "cf_access_client_secret"
+            ),
+            proxy_url=text("proxy_url", "proxy_url"),
+            connect_timeout_seconds=role_float(
+                normalized,
+                "connect_timeout",
+                default=fallback.connect_timeout_seconds,
+            ),
+            read_timeout_seconds=role_float(
+                normalized,
+                "read_timeout",
+                default=fallback.read_timeout_seconds,
+            ),
+            retry_attempts=role_int(
+                normalized,
+                "retry_attempts",
+                default=fallback.retry_attempts,
+            ),
+            retry_backoff_seconds=role_float(
+                normalized,
+                "retry_backoff",
+                default=fallback.retry_backoff_seconds,
+            ),
+            default_temperature=role_float(
+                normalized,
+                "default_temperature",
+                default=fallback.default_temperature,
+            ),
+            default_top_p=role_float(
+                normalized,
+                "default_top_p",
+                default=fallback.default_top_p,
+            ),
+            default_top_k=role_int(
+                normalized,
+                "default_top_k",
+                default=fallback.default_top_k,
+            ),
+            default_presence_penalty=role_float(
+                normalized,
+                "default_presence_penalty",
+                default=fallback.default_presence_penalty,
+            ),
+            default_frequency_penalty=role_float(
+                normalized,
+                "default_frequency_penalty",
+                default=fallback.default_frequency_penalty,
+            ),
+            default_penalty_decay=role_float(
+                normalized,
+                "default_penalty_decay",
+                default=fallback.default_penalty_decay,
+            ),
+            max_model_len=role_int(
+                normalized,
+                "max_model_len",
+                default=fallback.max_model_len,
+            ),
+            context_safety_margin=role_int(
+                normalized,
+                "context_safety_margin",
+                default=fallback.context_safety_margin,
+            ),
+            bos_token_count=role_int(
+                normalized,
+                "bos_token_count",
+                default=fallback.bos_token_count,
+            ),
+            return_token_ids=role_bool(
+                normalized,
+                "return_token_ids",
+                default=fallback.return_token_ids,
+            ),
+            trust_environment_proxies=role_bool(
+                normalized,
+                "trust_env",
+                default=fallback.trust_environment_proxies,
+            ),
+            verify_tls=role_bool(
+                normalized,
+                "verify_tls",
+                default=fallback.verify_tls,
+            ),
+            tool_disclosure_mode=text(
+                "tool_disclosure_mode", "tool_disclosure_mode"
+            ).casefold(),
+            state_transport=text("state_transport", "state_transport").casefold(),
+            state_profile_id=role_env(normalized, "state_profile_id"),
+            state_profile_sha256=role_env(
+                normalized,
+                "state_profile_sha256",
+            ).casefold(),
+            state_profile_delivery=role_env(
+                normalized,
+                "state_profile_delivery",
+                default="request",
+            ).casefold(),
+        )
+        settings.validate(role=normalized)
+        return settings
+
+    def validate(self, *, role: str = "executor") -> None:
         parsed = urlparse(self.base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("RWKV_BASE_URL must be an absolute HTTP(S) URL")
         if not self.model:
-            raise ValueError("RWKV_MODEL must not be empty")
+            raise ValueError(f"RWKV_LH_{role.upper()}_MODEL must not be empty")
         if self.model_sha256 and not _SHA256_PATTERN.fullmatch(self.model_sha256):
             raise ValueError("RWKV_MODEL_SHA256 must be lowercase SHA-256")
         if self.tool_disclosure_mode not in {"full", "progressive"}:

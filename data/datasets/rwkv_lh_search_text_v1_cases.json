@@ -1,0 +1,100 @@
+{
+  "schema_version": "rwkv-lh.search-text-cases.v1",
+  "source": "manually specified synthetic repository fixtures",
+  "version": "1.0.0",
+  "purpose": "Validate native workspace text search across literal, regex, case, Unicode, recursion, exclusion, empty-result, and single-file scenarios.",
+  "generation": "Each case freezes UTF-8 file bytes, explicit search arguments, and exact one-based locator tuples before implementation.",
+  "cases": [
+    {
+      "case_id": "ST-01-literal",
+      "workspace_files": [
+        {"path": "src/main.py", "content": "alpha\n# TODO: implement parser\nomega\n"},
+        {"path": "README.md", "content": "No marker here.\n"}
+      ],
+      "arguments": {"pattern": "TODO", "path": ".", "mode": "literal", "case_sensitive": true, "recursive": true},
+      "expected": [
+        {"path": "src/main.py", "line_number": 2, "column": 3, "end_column": 7, "match_text": "TODO"}
+      ]
+    },
+    {
+      "case_id": "ST-02-regex",
+      "workspace_files": [
+        {"path": "a.txt", "content": "TODO first\nFIXME second\n"},
+        {"path": "nested/b.txt", "content": "prefix TODO and FIXME suffix\n"}
+      ],
+      "arguments": {"pattern": "TODO|FIXME", "path": ".", "mode": "regex", "case_sensitive": true, "recursive": true},
+      "expected": [
+        {"path": "a.txt", "line_number": 1, "column": 1, "end_column": 5, "match_text": "TODO"},
+        {"path": "a.txt", "line_number": 2, "column": 1, "end_column": 6, "match_text": "FIXME"},
+        {"path": "nested/b.txt", "line_number": 1, "column": 8, "end_column": 12, "match_text": "TODO"},
+        {"path": "nested/b.txt", "line_number": 1, "column": 17, "end_column": 22, "match_text": "FIXME"}
+      ]
+    },
+    {
+      "case_id": "ST-03-case-insensitive",
+      "workspace_files": [
+        {"path": "case.txt", "content": "todo lower\nToDo mixed\nTODO upper\n"}
+      ],
+      "arguments": {"pattern": "todo", "path": ".", "mode": "literal", "case_sensitive": false, "recursive": true},
+      "expected": [
+        {"path": "case.txt", "line_number": 1, "column": 1, "end_column": 5, "match_text": "todo"},
+        {"path": "case.txt", "line_number": 2, "column": 1, "end_column": 5, "match_text": "ToDo"},
+        {"path": "case.txt", "line_number": 3, "column": 1, "end_column": 5, "match_text": "TODO"}
+      ]
+    },
+    {
+      "case_id": "ST-04-unicode",
+      "workspace_files": [
+        {"path": "中文/记录.md", "content": "甲乙待办：核对状态\n没有标记\n"}
+      ],
+      "arguments": {"pattern": "待办", "path": ".", "mode": "literal", "case_sensitive": true, "recursive": true},
+      "expected": [
+        {"path": "中文/记录.md", "line_number": 1, "column": 3, "end_column": 5, "match_text": "待办"}
+      ]
+    },
+    {
+      "case_id": "ST-05-no-match",
+      "workspace_files": [
+        {"path": "clean.txt", "content": "all work is complete\n"}
+      ],
+      "arguments": {"pattern": "TODO", "path": ".", "mode": "literal", "case_sensitive": true, "recursive": true},
+      "expected": []
+    },
+    {
+      "case_id": "ST-06-nonrecursive",
+      "workspace_files": [
+        {"path": "root.txt", "content": "TODO root\n"},
+        {"path": "nested/child.txt", "content": "TODO child\n"}
+      ],
+      "arguments": {"pattern": "TODO", "path": ".", "mode": "literal", "case_sensitive": true, "recursive": false},
+      "expected": [
+        {"path": "root.txt", "line_number": 1, "column": 1, "end_column": 5, "match_text": "TODO"}
+      ]
+    },
+    {
+      "case_id": "ST-07-standard-exclusions",
+      "workspace_files": [
+        {"path": "src/visible.py", "content": "# TODO visible\n"},
+        {"path": ".git/hidden.txt", "content": "TODO git\n"},
+        {"path": ".venv/hidden.txt", "content": "TODO venv\n"},
+        {"path": "node_modules/pkg/hidden.js", "content": "TODO dependency\n"},
+        {"path": "__pycache__/hidden.txt", "content": "TODO cache\n"}
+      ],
+      "arguments": {"pattern": "TODO", "path": ".", "mode": "literal", "case_sensitive": true, "recursive": true},
+      "expected": [
+        {"path": "src/visible.py", "line_number": 1, "column": 3, "end_column": 7, "match_text": "TODO"}
+      ]
+    },
+    {
+      "case_id": "ST-08-single-file",
+      "workspace_files": [
+        {"path": "one.txt", "content": "FIXME one\n"},
+        {"path": "two.txt", "content": "FIXME two\n"}
+      ],
+      "arguments": {"pattern": "FIXME", "path": "two.txt", "mode": "literal", "case_sensitive": true, "recursive": true},
+      "expected": [
+        {"path": "two.txt", "line_number": 1, "column": 1, "end_column": 6, "match_text": "FIXME"}
+      ]
+    }
+  ]
+}

@@ -29,6 +29,7 @@ from scripts.run_rwkv_e2e_benchmark import (
     VISIBLE_TASK_KEYS,
     _check,
     _resume_current_supervisor_pending,
+    _write_report,
     case_runner_exception_result,
     current_architecture_retrieval_actions,
     difficulty_group,
@@ -36,6 +37,7 @@ from scripts.run_rwkv_e2e_benchmark import (
     load_supervisor_failure_case_ids,
     materialize_workspace,
     run_case,
+    stateful_goal_protocol_metadata,
     supervisor_failure_summary,
     write_supervisor_retry_manifest,
 )
@@ -185,6 +187,55 @@ def test_current_architecture_runner_menu_matches_25_class_selector(tmp_path):
 
     assert executable == expected
     assert len(executable) == 23
+
+
+def test_stateful_report_names_strong_planner_and_rwkv_audit_without_reviewer(
+    tmp_path: Path,
+) -> None:
+    _write_report(
+        tmp_path,
+        [
+            {
+                "task_id": "STATEFUL-1",
+                "difficulty_group": "hard",
+                "level": "tier4_medium_project",
+                "agent_completed": False,
+                "external_passed": False,
+                "passed": False,
+                "model_requests": 1,
+                "supervisor_request_count": 1,
+                "action_count": 0,
+                "protocol_rejection_count": 0,
+                "supervisor_enabled": True,
+                "stateful_goal": True,
+            }
+        ],
+    )
+
+    report = (tmp_path / "REPORT.md").read_text(encoding="utf-8")
+    assert "Strong Model is the required Planner" in report
+    assert "isolated RWKV Auditor" in report
+    assert "no Strong Reviewer is called" in report
+    assert "plan/review feedback" not in report
+
+
+def test_stateful_run_protocol_records_required_strong_planner_without_reviewer() -> None:
+    metadata = stateful_goal_protocol_metadata(
+        enabled=True, strong_planner_available=True
+    )
+
+    assert metadata == {
+        "enabled": True,
+        "persistent_executor_state_count": 1,
+        "selector_tool_decisions_per_action": 1,
+        "auditor_state_isolated": True,
+        "rwkv_audit_required": True,
+        "audit_wkv_merge": False,
+        "strong_model_dependency": True,
+        "strong_planner_required": True,
+        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v1",
+        "strong_reviewer_enabled": False,
+    }
 
 
 def test_rwkv_e2e_catalog_has_30_balanced_model_visible_tasks():

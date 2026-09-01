@@ -564,6 +564,9 @@ class NetworkSelectorService:
             self.input_protocol.task_prefix,
         )
         expected_task_fields = (
+            {"schema_version"}
+            if self.input_protocol.frontier_only_in_step
+            else
             {"schema_version", "task_request_sha256"}
             if (
                 self.input_protocol.current_requirement_in_step
@@ -626,7 +629,23 @@ class NetworkSelectorService:
                 raise NetworkSelectorServiceError(
                     "network Selector parent bootstrap is missing"
                 )
-        if self.input_protocol.current_question_in_step:
+        if self.input_protocol.frontier_only_in_step:
+            current_question = str(step.get("current_question") or "")
+            marker = "Current requirement: "
+            if marker not in current_question:
+                raise NetworkSelectorServiceError(
+                    "network Selector frontier question is missing its requirement"
+                )
+            stage_objective = current_question.rsplit(marker, 1)[1].strip()
+            if not stage_objective:
+                raise NetworkSelectorServiceError(
+                    "network Selector frontier requirement is empty"
+                )
+            # V8 deliberately carries no complete Goal semantics. This local
+            # value exists only to satisfy the common immutable input object;
+            # the v8 bootstrap renderer ignores it.
+            task_request = stage_objective
+        elif self.input_protocol.current_question_in_step:
             current_question = step.get("current_question")
             if not isinstance(current_question, Mapping) or set(current_question) != {
                 "complete_requirement",
@@ -655,7 +674,7 @@ class NetworkSelectorService:
         if (
             self.input_protocol.current_requirement_in_step
             or self.input_protocol.current_question_in_step
-        ) and hashlib.sha256(
+        ) and not self.input_protocol.frontier_only_in_step and hashlib.sha256(
             task_request.encode("utf-8")
         ).hexdigest() != bootstrap.get("task_request_sha256"):
             raise NetworkSelectorServiceError(

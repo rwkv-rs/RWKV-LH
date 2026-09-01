@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from rwkv_lh.atom_execution import (
     AtomExecutionBinding,
@@ -22,6 +23,21 @@ SELECTOR_STAGE_PROJECTION_VERSION = "rwkv-lh.current-direct-selector-stage.v1"
 SELECTOR_CONTRACT_STAGE_PROJECTION_VERSION = (
     "rwkv-lh.current-direct-selector-stage.v2"
 )
+SELECTOR_COMPACT_CONTRACT_STAGE_PROJECTION_VERSION = (
+    "rwkv-lh.current-direct-selector-stage.v3"
+)
+
+
+@dataclass(frozen=True)
+class SelectorStageContext:
+    """One explicit Planner-owned semantic stage passed to the Selector lane."""
+
+    stage_objective: str
+    stage_role: str = "work"
+
+    def __post_init__(self) -> None:
+        if not self.stage_objective.strip() or not self.stage_role.strip():
+            raise ValueError("Selector stage context requires objective and role")
 
 
 def _latest_action_fact(actions: Sequence[object]) -> dict[str, object] | None:
@@ -86,15 +102,61 @@ def selector_stage_objective(state: RunState) -> str:
     """Project only bounded operation/outcome facts, never result content."""
 
     actions = sorted(state.actions.values(), key=lambda item: item.sequence)
-    progress = selector_contract_progress(state)
-    if progress is not None:
-        return "CurrentDirectStageV2: " + json.dumps(
-            progress,
+    binding = AtomExecutionBinding.from_goal(state.goal)
+    if binding is not None:
+        progress = atom_contract_progress(state, binding=binding)
+        if progress is None:  # Defensive: an explicit binding always projects.
+            raise RuntimeError("atom execution binding produced no contract progress")
+        # S60 is an exact raw-logit classifier, not a contract interpreter.  The
+        # former V2 envelope placed dozens of bookkeeping counters between the
+        # atom meaning and the immutable requirement, causing a real Planner
+        # context to shift list_directory into search_text.  Keep completion
+        # authority in the eligibility gate and expose only bounded state+1
+        # facts plus the immutable Planner-authored atom objective.  No paths,
+        # arguments, result text, tool choice, or generated semantic field is
+        # introduced here.
+        return "CurrentDirectStageV3: " + json.dumps(
+            {
+                "schema_version": (
+                    SELECTOR_COMPACT_CONTRACT_STAGE_PROJECTION_VERSION
+                ),
+                "action_index": progress.action_count,
+                "completion_ready": progress.completion_ready,
+                "latest_action": (
+                    dict(progress.latest_action)
+                    if progress.latest_action is not None
+                    else None
+                ),
+                # Keep the model-owned semantic question last in this stage.
+                "atom_objective": binding.contract.atom.objective,
+            },
             ensure_ascii=False,
-            sort_keys=True,
+            sort_keys=False,
             separators=(",", ":"),
         )
     return render_selector_stage_objective(_latest_action_fact(actions))
+
+
+def goal_frontier_selector_context(
+    state: RunState,
+    frontier: Mapping[str, object],
+) -> SelectorStageContext:
+    """Expose only the current Planner objective to the tool-intent role."""
+
+    step_id = str(frontier.get("step_id") or "").strip()
+    objective = str(frontier.get("objective") or "").strip()
+    if not step_id or not objective:
+        raise ValueError("Goal frontier Selector context requires step_id and objective")
+    step_revision = int(frontier.get("step_revision", 1) or 1)
+    if step_revision < 1:
+        raise ValueError("Goal frontier Selector context requires a positive revision")
+    # The v8 renderer adds bounded progress before this value and places the
+    # resulting one-step question at the continuation edge. The complete Goal,
+    # other plan nodes, audit gaps, and Executor text are intentionally absent.
+    return SelectorStageContext(
+        stage_objective=objective,
+        stage_role="tool_intent",
+    )
 
 
 def selector_final_answer_eligible(
@@ -115,6 +177,7 @@ def build_network_selector_input(
     parent: ModelCheckpoint | None,
     *,
     eligible_labels: Sequence[str] | None = None,
+    stage_context: SelectorStageContext | None = None,
 ) -> NetworkSelectorInput:
     """Create one causal delta for the Selector's independent persistent state."""
 
@@ -135,10 +198,22 @@ def build_network_selector_input(
         if item.status is not ActionStatus.SUCCEEDED
     )
     binding = AtomExecutionBinding.from_goal(state.goal)
+    selected_stage_objective = (
+        stage_context.stage_objective
+        if stage_context is not None
+        else selector_stage_objective(state)
+    )
+    selected_stage_role = (
+        stage_context.stage_role
+        if stage_context is not None
+        else binding.contract.atom.role.value
+        if binding
+        else "work"
+    )
     return NetworkSelectorInput.create(
         task_request=state.goal.request,
-        stage_objective=selector_stage_objective(state),
-        stage_role=(binding.contract.atom.role.value if binding else "work"),
+        stage_objective=selected_stage_objective,
+        stage_role=selected_stage_role,
         progress=NetworkSelectorProgress(
             completed_stage_count=len(actions),
             action_index=(actions[-1].sequence if actions else 0),
@@ -156,8 +231,12 @@ def build_network_selector_input(
 
 __all__ = [
     "SELECTOR_CONTRACT_STAGE_PROJECTION_VERSION",
+    "SELECTOR_COMPACT_CONTRACT_STAGE_PROJECTION_VERSION",
+    "SELECTOR_GOAL_FRONTIER_STAGE_PROJECTION_VERSION",
     "SELECTOR_STAGE_PROJECTION_VERSION",
+    "SelectorStageContext",
     "build_network_selector_input",
+    "goal_frontier_selector_context",
     "render_selector_stage_objective",
     "selector_contract_progress",
     "selector_final_answer_eligible",

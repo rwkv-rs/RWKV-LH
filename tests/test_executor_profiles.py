@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,7 @@ def _settings() -> RuntimeSettings:
         api_key="",
         model="rwkv-13.3b",
         model_sha256=MODEL_SHA,
+        state_transport="prompt_replay",
         state_profile_id="executor-general",
         state_profile_sha256=GENERAL_SHA,
         state_profile_delivery="request",
@@ -148,7 +150,7 @@ def test_resume_rejects_task_level_profile_switch_before_model_use(
         )
 
 
-def test_product_main_and_atom_executors_share_one_task_binding(
+def test_product_executor_and_auditor_share_deployment_binding_not_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,7 +162,16 @@ def test_product_main_and_atom_executors_share_one_task_binding(
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime._product_tool_selector",
-        lambda: None,
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        "rwkv_lh.product_runtime.RuntimeSettings.for_role",
+        lambda role, *, fallback: replace(
+            fallback,
+            state_profile_id="",
+            state_profile_sha256="",
+            state_profile_delivery="request",
+        ),
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime.OpenAICompatibleSupervisorClient",
@@ -178,7 +189,7 @@ def test_product_main_and_atom_executors_share_one_task_binding(
         workspace_root=workspace,
         runtime_policy=runtime_policy_document(
             RetrievalRuntimeConfig(mode=NetworkPolicyMode.AUTO_PUBLIC),
-            supervisor_mode="contract_graph",
+            supervisor_mode="stateful_goal",
         ),
     )
     store = LongHorizonStore(tmp_path / "state")
@@ -189,9 +200,10 @@ def test_product_main_and_atom_executors_share_one_task_binding(
         state_root=tmp_path / "runtime",
     )
     assert controller.model.session.settings.state_profile_id == "executor-network"
-    atom_model = controller.atom_worker_pool.model_factory(
-        None,
-        controller.harness,
+    assert controller.model.auditor_session.settings is not (
+        controller.model.session.settings
     )
-    assert atom_model.session.settings is controller.model.session.settings
-    assert atom_model.session.settings.state_profile_sha256 == NETWORK_SHA
+    assert controller.model.auditor_session.settings.state_profile_id == ""
+    assert controller.model.auditor_session.settings.state_profile_sha256 == ""
+    assert controller.model.auditor_session is not controller.model.session
+    assert controller.atom_worker_pool is None

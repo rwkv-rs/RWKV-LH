@@ -236,6 +236,7 @@ class RuntimeCapabilities:
     recurrent_state_rollback: bool = False
     recurrent_state_export: bool = False
     recurrent_state_import: bool = False
+    recurrent_state_protocol: str = ""
     error: str = ""
 
     @property
@@ -265,7 +266,7 @@ class RuntimeCapabilities:
         raw_tools = tools if isinstance(tools, Mapping) else {}
         return cls(
             source=source,
-            prompt_replay=True,
+            prompt_replay=bool(value.get("prompt_replay", True)),
             native_tool_calls_declared=bool(raw_tools.get("native_tool_calls", False)),
             recurrent_state_create=bool(raw_state.get("create", False)),
             recurrent_state_resume=bool(raw_state.get("resume", False)),
@@ -274,6 +275,7 @@ class RuntimeCapabilities:
             recurrent_state_rollback=bool(raw_state.get("rollback", False)),
             recurrent_state_export=bool(raw_state.get("export", False)),
             recurrent_state_import=bool(raw_state.get("import", False)),
+            recurrent_state_protocol=str(raw_state.get("protocol") or ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -289,6 +291,7 @@ class RuntimeCapabilities:
                 "rollback": self.recurrent_state_rollback,
                 "export": self.recurrent_state_export,
                 "import": self.recurrent_state_import,
+                "protocol": self.recurrent_state_protocol,
                 "durable": self.durable_recurrent_state,
             },
             "error": self.error,

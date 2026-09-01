@@ -94,7 +94,7 @@ def _selection_record(
     )
     return ToolSelectionRecord(
         selection_id=selection_id,
-        status=ToolSelectionStatus.COMMITTED,
+        status=ToolSelectionStatus.STAGED,
         selected_operation=raw.selected_operation,
         selector_checkpoint_id=selector.checkpoint_id,
         selector_state_ref=str(selector.native_state_ref),
@@ -149,7 +149,7 @@ def test_selection_is_durable_before_executor_and_consumed_once(
     state = store.save(
         state,
         causal_event=CausalEventDraft.create(
-            "exact_tool_selection_committed",
+            "exact_tool_selection_staged",
             {"selection_id": selection.selection_id, "selection": selection.to_dict()},
             subject_id=selection.selection_id,
         ),
@@ -158,6 +158,7 @@ def test_selection_is_durable_before_executor_and_consumed_once(
     recovered = store.load(state.run_id)
     assert recovered.pending_selection_id == selection.selection_id
     assert recovered.tool_selections[selection.selection_id] == selection
+    assert selection.authorizes_execution is False
     consumed = replace(
         selection,
         status=ToolSelectionStatus.CONSUMED,
@@ -185,7 +186,7 @@ def test_unconsumed_selection_cannot_be_silently_replaced(tmp_path: Path) -> Non
     state = store.save(
         state,
         causal_event=CausalEventDraft.create(
-            "exact_tool_selection_committed",
+            "exact_tool_selection_staged",
             {"selection_id": first.selection_id, "selection": first.to_dict()},
             subject_id=first.selection_id,
         ),
@@ -196,7 +197,7 @@ def test_unconsumed_selection_cannot_be_silently_replaced(tmp_path: Path) -> Non
         store.save(
             state,
             causal_event=CausalEventDraft.create(
-                "exact_tool_selection_committed",
+                "exact_tool_selection_staged",
                 {"selection_id": second.selection_id, "selection": second.to_dict()},
                 subject_id=second.selection_id,
             ),

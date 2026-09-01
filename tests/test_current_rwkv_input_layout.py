@@ -192,8 +192,20 @@ def test_selector_v2_closes_final_over_harness_write_root_progress(
     assert selector_final_answer_eligible(state) is True
 
     selector_input = build_network_selector_input(state, None)
-    assert selector_input.stage_objective.startswith("CurrentDirectStageV2: ")
-    assert "hello.txt" not in selector_input.stage_objective
+    assert selector_input.stage_objective.startswith("CurrentDirectStageV3: ")
+    compact_stage = json.loads(
+        selector_input.stage_objective.removeprefix("CurrentDirectStageV3: ")
+    )
+    assert list(compact_stage) == [
+        "schema_version",
+        "action_index",
+        "completion_ready",
+        "latest_action",
+        "atom_objective",
+    ]
+    assert compact_stage["atom_objective"] == atom.objective
+    assert compact_stage["action_index"] == 2
+    assert compact_stage["completion_ready"] is True
     assert '"content"' not in selector_input.stage_objective
     assert selector_input.task_request == requirement
 

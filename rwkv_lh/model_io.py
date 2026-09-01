@@ -14,7 +14,7 @@ class ModelIOError(ValueError):
     """A generated response is not exactly one explicit function call."""
 
 
-MODEL_COMMAND_NORMALIZER_VERSION = "direct-call-envelope.v1"
+MODEL_COMMAND_NORMALIZER_VERSION = "direct-call-envelope.v2"
 
 TOOL_SELECTION_OPERATION = "select_tool"
 INDEPENDENT_EXECUTOR_PROTOCOL = "independent-selector-executor.v1"
@@ -99,6 +99,25 @@ class ModelCommand:
     @property
     def digest(self) -> str:
         return canonical_digest(self.to_dict())
+
+
+@dataclass(frozen=True)
+class RankedToolChoice:
+    """One non-authoritative operation choice inside a frozen Selector Top-K."""
+
+    selected_operation: str
+    protocol_form: str
+    discarded_argument_fields: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.selected_operation.strip():
+            raise ModelIOError("ranked tool choice operation must be non-empty")
+        if self.protocol_form not in {
+            "select_tool_envelope",
+            "direct_candidate_call",
+            "direct_candidate_name",
+        }:
+            raise ModelIOError("unsupported ranked tool choice protocol form")
 
 
 @dataclass(frozen=True)
@@ -355,6 +374,65 @@ def parse_tool_selection(raw_output: str) -> str:
     return name
 
 
+def parse_ranked_tool_choice(
+    raw_output: str,
+    candidate_operations: Sequence[str],
+) -> RankedToolChoice:
+    """Parse a 13.3B operation choice without accepting action authority.
+
+    Existing Executor states naturally emit direct function calls.  At this
+    boundary their operation name is authoritative only inside the frozen
+    Top-K; any prematurely generated parameters are discarded and regenerated
+    after the selected operation's exact schema is disclosed.
+    """
+
+    candidates = tuple(str(item) for item in candidate_operations)
+    if not candidates or len(set(candidates)) != len(candidates):
+        raise ModelIOError("ranked tool candidates must be non-empty and unique")
+    text, _transformations = _extract_json(raw_output)
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ModelIOError(f"model output is not one JSON object: {exc}") from exc
+    if not isinstance(value, Mapping):
+        raise ModelIOError("ranked tool choice must be one JSON object")
+
+    if set(value) == {"function"}:
+        selected = value.get("function")
+        if (
+            not isinstance(selected, str)
+            or not selected.strip()
+            or selected != selected.strip()
+        ):
+            raise ModelIOError(
+                "ranked tool choice function must be a trimmed non-empty string"
+            )
+        choice = RankedToolChoice(
+            selected_operation=selected,
+            protocol_form="direct_candidate_name",
+        )
+    else:
+        command, _normalization = parse_model_command_with_trace(raw_output)
+        if command.name == TOOL_SELECTION_OPERATION:
+            selected = parse_tool_selection(raw_output)
+            choice = RankedToolChoice(
+                selected_operation=selected,
+                protocol_form="select_tool_envelope",
+            )
+        else:
+            choice = RankedToolChoice(
+                selected_operation=command.name,
+                protocol_form="direct_candidate_call",
+                discarded_argument_fields=tuple(sorted(command.arguments)),
+            )
+
+    if choice.selected_operation not in candidates:
+        raise ModelIOError(
+            f"operation {choice.selected_operation!r} is outside Selector Top-K"
+        )
+    return choice
+
+
 def render_event_append(
     event: ModelEvent,
     visible_definitions: Sequence[Mapping[str, Any]] = (),
@@ -488,39 +566,75 @@ def parse_model_command_with_trace(
         raise ModelIOError("function call must be one JSON object")
     input_payload = dict(value)
 
-    name_keys = [key for key in ("function", "name", "tool") if key in value]
-    argument_keys = [
-        key
-        for key in ("params", "parameters", "arguments", "args", "function_args")
-        if key in value
-    ]
-    if not name_keys and not argument_keys and len(value) == 1:
-        name, arguments = next(iter(value.items()))
-        if not isinstance(name, str) or not name.strip():
-            raise ModelIOError("single-key call requires a non-empty operation name")
-        if not isinstance(arguments, Mapping):
-            raise ModelIOError("single-key call requires an argument object")
-        transformations.append("call_envelope:single_key_object->function+params")
-    else:
-        if len(name_keys) != 1 or len(argument_keys) != 1:
+    if set(value) == {"function_call"}:
+        call = value["function_call"]
+        if not isinstance(call, Mapping) or set(call) != {"name", "arguments"}:
             raise ModelIOError(
-                "function call requires exactly one function/name/tool and one "
-                "params/parameters/arguments/args/function_args key"
+                "function_call envelope requires exactly name and arguments"
             )
-        if set(value) != {name_keys[0], argument_keys[0]}:
-            raise ModelIOError(
-                "function call contains fields outside its call envelope"
+        name = call["name"]
+        arguments = call["arguments"]
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as exc:
+                raise ModelIOError(
+                    f"function_call arguments are not one JSON object: {exc}"
+                ) from exc
+            transformations.append(
+                "call_envelope:function_call.arguments_json_decoded"
             )
-        name = value[name_keys[0]]
-        arguments = value[argument_keys[0]]
         if not isinstance(name, str) or not name.strip() or name != name.strip():
             raise ModelIOError("function name must be a trimmed non-empty string")
         if not isinstance(arguments, Mapping):
             raise ModelIOError("function parameters must be an object")
-        if (name_keys[0], argument_keys[0]) != ("function", "params"):
-            transformations.append(
-                f"call_envelope:{name_keys[0]}+{argument_keys[0]}->function+params"
+        transformations.append(
+            "call_envelope:function_call.name+arguments->function+params"
+        )
+    else:
+        name_keys = [key for key in ("function", "name", "tool") if key in value]
+        argument_keys = [
+            key
+            for key in (
+                "params",
+                "parameters",
+                "arguments",
+                "args",
+                "function_args",
             )
+            if key in value
+        ]
+        if not name_keys and not argument_keys and len(value) == 1:
+            name, arguments = next(iter(value.items()))
+            if not isinstance(name, str) or not name.strip():
+                raise ModelIOError(
+                    "single-key call requires a non-empty operation name"
+                )
+            if not isinstance(arguments, Mapping):
+                raise ModelIOError("single-key call requires an argument object")
+            transformations.append(
+                "call_envelope:single_key_object->function+params"
+            )
+        else:
+            if len(name_keys) != 1 or len(argument_keys) != 1:
+                raise ModelIOError(
+                    "function call requires exactly one function/name/tool and one "
+                    "params/parameters/arguments/args/function_args key"
+                )
+            if set(value) != {name_keys[0], argument_keys[0]}:
+                raise ModelIOError(
+                    "function call contains fields outside its call envelope"
+                )
+            name = value[name_keys[0]]
+            arguments = value[argument_keys[0]]
+            if not isinstance(name, str) or not name.strip() or name != name.strip():
+                raise ModelIOError("function name must be a trimmed non-empty string")
+            if not isinstance(arguments, Mapping):
+                raise ModelIOError("function parameters must be an object")
+            if (name_keys[0], argument_keys[0]) != ("function", "params"):
+                transformations.append(
+                    f"call_envelope:{name_keys[0]}+{argument_keys[0]}->function+params"
+                )
 
     normalized = {"function": name, "params": dict(arguments)}
     return ModelCommand(str(name), dict(arguments)), ModelCommandNormalization(
@@ -560,10 +674,12 @@ __all__ = [
     "ModelCommand",
     "ModelCommandNormalization",
     "ModelIOError",
+    "RankedToolChoice",
     "canonical_digest",
     "canonical_json",
     "parse_model_command",
     "parse_model_command_with_trace",
+    "parse_ranked_tool_choice",
     "parse_tool_selection",
     "render_bootstrap",
     "render_event_append",

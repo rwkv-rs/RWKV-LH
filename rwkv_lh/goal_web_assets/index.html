@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>RWKV Goal Studio</title>
-    <meta name="description" content="强模型规划、RWKV 执行、证据驱动验收的自主项目工作台">
+    <meta name="description" content="Strong Planner、独立 RWKV 角色 State 与证据驱动验收的自主项目工作台">
     <link rel="stylesheet" href="/assets/styles.css">
   </head>
   <body>
@@ -43,7 +43,7 @@
           <div class="hero-copy">
             <p class="kicker"><span></span> STRONG PLAN · RWKV BUILD</p>
             <h1>说出目标，<br><em>让项目自己生长。</em></h1>
-            <p>强模型理解与拆解，两个独立 RWKV lane 负责选择和执行，最终结果由真实证据验收。</p>
+            <p>强模型只规划，2.9B 只选择工具意图，13.3B 只执行，独立 Auditor State 根据真实证据审核。</p>
           </div>
 
           <form id="goalForm" class="goal-composer">
@@ -91,7 +91,8 @@
               <article><span class="node-index">01</span><strong>Planner</strong><p>连接中</p></article>
               <article><span class="node-index">02</span><strong>Selector</strong><p>连接中</p></article>
               <article><span class="node-index">03</span><strong>Executor</strong><p>连接中</p></article>
-              <article><span class="node-index">04</span><strong>Harness</strong><p>本地证据层</p></article>
+              <article><span class="node-index">04</span><strong>Auditor</strong><p>独立审核 State</p></article>
+              <article><span class="node-index">05</span><strong>Harness</strong><p>本地证据层</p></article>
             </div>
           </section>
         </section>
@@ -105,21 +106,20 @@
             <div class="run-controls">
               <span id="runStatus" class="status-chip">QUEUED</span>
               <button id="resumeButton" class="button hidden" type="button">恢复</button>
-              <button id="stopButton" class="button button-danger hidden" type="button">停止</button>
               <a id="exportButton" class="button" href="#">下载审计包</a>
             </div>
           </header>
 
           <div class="phase-track" aria-label="目标执行阶段">
             <div data-phase="understand"><span>1</span><strong>理解目标</strong><small>Planner</small></div>
-            <i></i><div data-phase="plan"><span>2</span><strong>拆解计划</strong><small>Contract Graph</small></div>
+            <i></i><div data-phase="plan"><span>2</span><strong>拆解计划</strong><small>Goal PlanPatch</small></div>
             <i></i><div data-phase="build"><span>3</span><strong>自主创建</strong><small>RWKV</small></div>
             <i></i><div data-phase="verify"><span>4</span><strong>证据验收</strong><small>Reviewer</small></div>
             <i></i><div data-phase="complete"><span>5</span><strong>交付结果</strong><small>Artifacts</small></div>
           </div>
 
           <div class="metric-strip">
-            <div><span>义务进度</span><strong id="obligationMetric">0 / 0</strong></div>
+            <div><span>步骤进度</span><strong id="obligationMetric">0 / 0</strong></div>
             <div><span>RWKV Actions</span><strong id="actionMetric">0</strong></div>
             <div><span>证据记录</span><strong id="evidenceMetric">0</strong></div>
             <div><span>生成文件</span><strong id="fileMetric">0</strong></div>
@@ -157,7 +157,7 @@
               <p id="goalRequest"></p>
             </article>
             <div id="obligationBoard" class="obligation-board"><p class="empty-copy">Planner 尚未提交义务。</p></div>
-            <article class="surface graph-surface"><div class="surface-heading"><h3>执行图节点</h3><span id="nodeCount">0 nodes</span></div><div id="graphNodes" class="graph-nodes"></div></article>
+            <article class="surface graph-surface"><div class="surface-heading"><h3>当前滚动步骤</h3><span id="nodeCount">0 steps</span></div><div id="graphNodes" class="graph-nodes"></div></article>
           </div>
 
           <div id="executionTab" class="tab-panel">

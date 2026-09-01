@@ -156,8 +156,7 @@ async function submitGoal(event) {
         explicit_approval: false,
         public_workspace_paths: [],
       },
-      supervisor_mode: "contract_graph",
-      state_router_shadow: false,
+      supervisor_mode: "stateful_goal",
       seed_files: seedFiles(),
     };
     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });
@@ -235,15 +234,33 @@ async function pollRun() {
 }
 
 function contractData() {
-  const patches = app.events.filter((item) => item.type === "contract_graph_patch_committed").map((item) => item.data?.patch || {});
-  const obligations = patches.flatMap((patch) => patch.new_obligations || []);
-  const nodes = patches.flatMap((patch) => patch.new_nodes || []);
-  const reviews = app.events.filter((item) => item.type === "contract_graph_review_committed").map((item) => item.data?.review || {});
+  const patches = app.events.filter((item) => item.type === "goal_plan_patch_committed").map((item) => item.data?.patch || {});
+  const activeSteps = new Map();
+  const stagedSteps = (patch, field) => (patch[field] || []).flatMap((stage) =>
+    (stage.steps || []).map((step) => ({ ...step, stage: stage.stage }))
+  );
+  patches.forEach((patch) => {
+    (patch.discard_step_ids || []).forEach((stepId) => activeSteps.delete(stepId));
+    [...(patch.replace_steps || []), ...stagedSteps(patch, "replace_stages")]
+      .forEach((step) => activeSteps.set(step.step_id, step));
+    [...(patch.add_steps || []), ...stagedSteps(patch, "add_stages")]
+      .forEach((step) => activeSteps.set(step.step_id, step));
+  });
+  const reviews = app.events.filter((item) => item.type === "goal_audit_accepted").map((item) => item.data?.audit || {});
   const latestReview = reviews.at(-1) || {};
-  const verdicts = Object.fromEntries((latestReview.verdicts || []).map((verdict) => [verdict.obligation_id, verdict]));
-  const outcomes = Object.fromEntries(app.events
-    .filter((item) => item.type === "atom_outcome_committed")
-    .map((item) => [item.data?.atom_id, item.data?.outcome || {}]));
+  const verdicts = {};
+  reviews.forEach((audit) => {
+    (audit.completed_steps || []).forEach((step) => {
+      verdicts[step.step_id] = { obligation_id: step.step_id, status: "satisfied", evidence_refs: step.evidence_refs || [] };
+    });
+    if (audit.verdict === "repair" && audit.step_id) {
+      verdicts[audit.step_id] = { obligation_id: audit.step_id, status: "insufficient", gaps: audit.gaps || [] };
+    }
+  });
+  const steps = [...activeSteps.values()];
+  const obligations = steps.map((step) => ({ obligation_id: step.step_id, predicate: step.objective }));
+  const nodes = steps.map((step) => ({ node_id: step.step_id, atom: { ...step, atom_id: step.step_id } }));
+  const outcomes = Object.fromEntries(steps.map((step) => [step.step_id, { status: verdicts[step.step_id]?.status || "pending" }]));
   return { patches, obligations, nodes, reviews, latestReview, verdicts, outcomes };
 }
 
@@ -272,7 +289,6 @@ function renderRun() {
   $("runStatus").className = `status-chip ${status}`;
   $("runStatus").textContent = status;
   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
-  $("stopButton").classList.toggle("hidden", !metadata.active);
   const resumable = !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
@@ -340,12 +356,11 @@ function renderContract(summary, contract) {
     const status = verdict.status || "open";
     return `<article class="obligation ${escapeHtml(status)}"><header><code>${escapeHtml(item.obligation_id)}</code><span>${escapeHtml(status)}</span></header><p>${escapeHtml(item.predicate || item.request_clause || "待解析义务")}</p></article>`;
   }).join("") : '<p class="empty-copy">Planner 尚未提交义务。</p>';
-  $("nodeCount").textContent = `${contract.nodes.length} nodes`;
+  $("nodeCount").textContent = `${contract.nodes.length} steps`;
   $("graphNodes").innerHTML = contract.nodes.length ? contract.nodes.map((node) => {
     const atom = node.atom || {};
     const outcome = contract.outcomes[atom.atom_id || node.node_id] || {};
-    const operations = atom.allowed_operations || (atom.operation ? [atom.operation] : []);
-    return `<article class="graph-node"><header><code>${escapeHtml(node.node_id || atom.atom_id)}</code><span>${escapeHtml(outcome.status || "pending")}</span></header><strong>${escapeHtml(operations.join(" · ") || atom.atom_kind || "RWKV atom")}</strong><p>依赖：${escapeHtml((atom.depends_on || node.depends_on || []).join(", ") || "无")}</p></article>`;
+    return `<article class="graph-node"><header><code>${escapeHtml(node.node_id || atom.atom_id)}</code><span>${escapeHtml(outcome.status || "pending")}</span></header><strong>${escapeHtml(atom.objective || "RWKV step")}</strong><p>依赖：${escapeHtml((atom.depends_on || node.depends_on || []).join(", ") || "无")}</p></article>`;
   }).join("") : '<p class="empty-copy">执行图尚未生成。</p>';
 }
 
@@ -360,7 +375,7 @@ function renderActions(actions) {
 }
 
 function isEvidenceEvent(item) {
-  return /review|evidence|artifact|action_finished|atom_outcome|run_completed/.test(item.type || "");
+  return /audit|evidence|artifact|action_finished|run_completed/.test(item.type || "");
 }
 
 function renderEvidence(contract, events) {
@@ -434,7 +449,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("goalForm").addEventListener("submit", submitGoal);
   $("newGoalButton").addEventListener("click", newGoal);
   $("addSeedButton").addEventListener("click", () => addSeedFile());
-  $("stopButton").addEventListener("click", () => runAction("stop"));
   $("resumeButton").addEventListener("click", () => runAction("resume"));
   $("topologyButton").addEventListener("click", () => $("topologyDialog").showModal());
   $("closeTopologyButton").addEventListener("click", () => $("topologyDialog").close());

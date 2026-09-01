@@ -9,17 +9,18 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.schema import GoalState, RunState
+from rwkv_lh.schema import CausalEventDraft, GoalState, RunState, RunStatus
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.web_ui import (
     ManualRunRepository,
     build_server,
     normalize_relative_path,
 )
-from rwkv_lh.web_worker import result_payload
+from rwkv_lh.web_worker import result_payload, run as run_web_worker
 
 
 def create_repository_run(root: Path, run_id: str = "UI-TEST") -> tuple[ManualRunRepository, dict]:
@@ -42,19 +43,20 @@ def test_manual_repository_records_source_version_purpose_and_seed_hash(tmp_path
     assert request["source"] == "local web UI user input"
     assert request["version"] == "manual-v1"
     assert "transparent" in request["purpose"]
+    assert request["execution_mode"] == "goal"
     assert request["seed_files"][0]["sha256"]
     assert (repository.run_root(metadata["run_id"]) / "workspace/input.txt").read_text() == "alpha\n"
 
 
-def test_manual_repository_persists_boolean_shadow_selection(tmp_path: Path) -> None:
+def test_manual_repository_rejects_retired_architecture_selection(tmp_path: Path) -> None:
     repository = ManualRunRepository(tmp_path)
-    metadata = repository.create(
-        {"request": "test", "state_router_shadow": True, "seed_files": []}
-    )
-    assert repository.request_document(metadata["run_id"])["state_router_shadow"] is True
-    with pytest.raises(ValueError, match="boolean"):
+    with pytest.raises(ValueError, match="retired"):
         repository.create(
-            {"request": "test", "state_router_shadow": "true", "seed_files": []}
+            {"request": "test", "state_router_shadow": True, "seed_files": []}
+        )
+    with pytest.raises(ValueError, match="stateful_goal"):
+        repository.create(
+            {"request": "test", "supervisor_mode": "contract_graph"}
         )
 
 
@@ -99,6 +101,57 @@ def test_result_payload_preserves_controller_final_output_exactly(tmp_path: Path
     assert payload["final_output_matches_persisted_rwkv"] is True
 
 
+def test_goal_worker_waits_for_runtime_recovery_instead_of_stopping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-RETRY")
+    run_root = repository.run_root(metadata["run_id"])
+    attempts = 0
+
+    class _RecoveredController:
+        def run(self, run_id: str):
+            store = LongHorizonStore(run_root / "state")
+            state = store.load(run_id)
+            state = store.save(
+                state,
+                causal_event=CausalEventDraft.create(
+                    "run_completed",
+                    {
+                        "decision_id": "D-RWKV-RECOVERED",
+                        "output_source": "rwkv_explicit_final_answer_text",
+                        "final_output": "RWKV completed after recovery.",
+                    },
+                    subject_id=run_id,
+                ),
+            )
+            return SimpleNamespace(
+                state=state,
+                final_output=state.final_output,
+                transitions=1,
+            )
+
+    def build(*_args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("native state service unavailable")
+        return _RecoveredController()
+
+    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
+    monkeypatch.setattr("rwkv_lh.web_worker.time.sleep", lambda _seconds: None)
+
+    assert run_web_worker(run_root, resume=False, max_transitions=2) == 0
+    assert attempts == 2
+    result = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
+    assert result["status"] == "completed"
+    assert result["continuation_count"] == 1
+    metadata_after = repository.metadata("UI-GOAL-RETRY")
+    assert metadata_after["phase"] == "finished"
+    stored = LongHorizonStore(run_root / "state").load("UI-GOAL-RETRY")
+    assert stored.status is RunStatus.COMPLETED
+
+
 def test_export_contains_consistent_sqlite_snapshot_and_full_state_exports(tmp_path: Path) -> None:
     repository, metadata = create_repository_run(tmp_path, "UI-EXPORT")
     run_root = repository.run_root(metadata["run_id"])
@@ -135,10 +188,6 @@ class FakeManager:
     def launch(self, run_id: str, *, resume: bool = False) -> dict:
         self.launched.append(run_id)
         return self.repository.metadata(run_id)
-
-    def stop(self, run_id: str) -> dict:
-        return self.repository.metadata(run_id)
-
 
 def request_json(url: str, *, method: str = "GET", payload: dict | None = None) -> tuple[int, dict]:
     body = json.dumps(payload).encode() if payload is not None else None
@@ -189,6 +238,13 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         status, shadow = request_json(base + f"/api/runs/{run_id}/shadow")
         assert status == 200
         assert shadow == {"events": [], "next_offset": 0, "total": 0}
+        status, missing = request_json(
+            base + f"/api/runs/{run_id}/stop",
+            method="POST",
+            payload={},
+        )
+        assert status == 404
+        assert missing["error"] == "not found"
     finally:
         server.shutdown()
         server.server_close()

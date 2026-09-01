@@ -15,6 +15,7 @@ from rwkv_lh.contract_graph import (
     ContractReviewRequest,
     ResultCapsule,
 )
+from rwkv_lh.goal_loop_protocol import GoalPlanRequest, GoalStageReviewRequest
 from rwkv_lh.supervisor import (
     SupervisorDirectiveRequest,
     SupervisorPlanRequest,
@@ -22,9 +23,12 @@ from rwkv_lh.supervisor import (
     SupervisorStageRequest,
 )
 from rwkv_lh.supervisor_openai import (
+    CONTRACT_PLAN_RESPONSE_SCHEMA,
     OpenAICompatibleSupervisorClient,
     SupervisorAPISettings,
+    SupervisorProtocolError,
     SupervisorTransportError,
+    _decode_supervisor_json_content,
     supervisor_policy_from_env,
 )
 
@@ -320,7 +324,7 @@ def test_contract_compiler_synthesizes_missing_structural_finalizer():
     assert finalizer.obligation_ids == ("OBL-result",)
     assert finalizer.atom.depends_on == ("NODE-write", "NODE-verify")
     assert finalizer.atom.write_roots == ()
-    assert finalizer.atom.read_roots == ("result.txt",)
+    assert finalizer.atom.read_roots == (".",)
     assert finalizer.atom.allowed_operations
     assert finalizer.atom.operation_allowset_source
     assert finalizer.atom.minimum_actions == 1
@@ -637,7 +641,7 @@ def test_controller_synthesizes_missing_mutation_verifier_without_reprompt():
     )
 
 
-def test_contract_correction_repairs_unreachable_existing_dependency():
+def test_contract_correction_rewires_unreachable_existing_dependency():
     immutable_request = "Create result.txt containing exact text ok."
     request_digest = "digest-unreachable-correction"
     initial_request = ContractPlanRequest(
@@ -721,14 +725,12 @@ def test_contract_correction_repairs_unreachable_existing_dependency():
     patch = client.plan_contract_graph(correction_request)
 
     assert patch.new_nodes[0].atom.depends_on == ()
-    assert len(fake.posts) == 2
-    repair_payload = json.loads(fake.posts[1]["json"]["messages"][1]["content"])
-    assert "can never become ready" in repair_payload[
-        "local_validation_repair"
-    ]["error"]
+    assert len(fake.posts) == 1
     assert any(
-        item.get("type") == "supervisor_semantic_response_rejected"
-        and "can never become ready" in str(item.get("error") or "")
+        item.get("type") == "supervisor_contract_plan_normalized"
+        and item.get("normalization")
+        == "rewired_unreachable_correction_dependencies"
+        and item.get("controller_semantic_fields_generated") is False
         for item in audit
     )
 
@@ -867,6 +869,135 @@ def settings() -> SupervisorAPISettings:
     )
 
 
+def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role():
+    value = {
+        "add_stages": [
+            {
+                "stage": 1,
+                "steps": [
+                    {
+                        "step_id": "S1",
+                        "objective": "Inspect the current configuration.",
+                        "depends_on": [],
+                        "success_evidence": ["configuration content is observed"],
+                        "read_roots": ["config.json"],
+                        "write_roots": [],
+                        "constraints": [],
+                    }
+                ],
+            }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Start with one bounded observation.",
+    }
+    fake = FakeSession([response(value)])
+    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+    request = GoalPlanRequest(
+        run_id="RUN-GOAL-PLAN",
+        immutable_request="Inspect and correct config.json.",
+        goal_digest="goal-digest",
+        plan_revision=0,
+        active_plan={"stages": []},
+        latest_audit=None,
+        workspace_manifest={"entries": [{"path": "config.json"}]},
+    )
+
+    patch = client.plan_goal_patch(request)
+
+    assert patch.add_steps[0].allowed_operations == ()
+    posted = fake.posts[0]["json"]
+    payload = json.loads(posted["messages"][1]["content"])
+    assert list(payload)[-1] == "current_requirement"
+    assert payload["current_requirement"] == request.immutable_request
+    step_schema = posted["response_format"]["json_schema"]["schema"][
+        "properties"
+    ]["add_stages"]["items"]["properties"]["steps"]["items"]
+    assert "allowed_operations" not in step_schema["properties"]
+    assert "stage" not in step_schema["properties"]
+    assert set(step_schema["required"]) == set(step_schema["properties"])
+
+
+def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
+    fake = FakeSession(
+        [response({"verdict": "advance", "gaps": [], "reason": "coherent"})]
+    )
+    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+    request = GoalStageReviewRequest(
+        run_id="RUN-STAGE-REVIEW",
+        immutable_request="Inspect and correct config.json.",
+        goal_digest="goal-digest",
+        stage=1,
+        stage_steps=(
+            {
+                "step_id": "S1",
+                "objective": "Inspect config.json",
+                "accepted_evidence_refs": ["A00001"],
+            },
+        ),
+        workspace_manifest={"entries": [{"path": "config.json"}]},
+    )
+
+    review = client.review_goal_stage(request)
+
+    assert review.stage == 1
+    assert review.reviewed_step_ids == ("S1",)
+    assert review.evidence_refs == ("A00001",)
+    posted = fake.posts[0]["json"]
+    schema = posted["response_format"]["json_schema"]["schema"]
+    assert set(schema["properties"]) == {"verdict", "gaps", "reason"}
+    payload = json.loads(posted["messages"][1]["content"])
+    assert list(payload)[-1] == "current_requirement"
+
+
+def test_contract_plan_schema_requires_explicit_obligation_phase():
+    obligation = CONTRACT_PLAN_RESPONSE_SCHEMA["properties"]["new_obligations"][
+        "items"
+    ]
+
+    assert "phase" in obligation["required"]
+    assert obligation["properties"]["phase"]["enum"] == [
+        "execution_evidence",
+        "final_presentation",
+    ]
+
+
+@pytest.mark.parametrize("tag", ("analysis", "think"))
+def test_supervisor_content_accepts_known_provider_reasoning_envelope(tag):
+    content = f"<{tag}>private provider reasoning</{tag}>\n" + json.dumps(
+        {"summary": "valid"}
+    )
+
+    value, normalization = _decode_supervisor_json_content(content)
+
+    assert value == {"summary": "valid"}
+    assert normalization is not None
+    assert normalization["normalization"] == f"provider_{tag}_prefix_removed"
+    assert normalization["controller_semantic_fields_generated"] is False
+    assert "private provider reasoning" not in json.dumps(normalization)
+
+
+def test_supervisor_content_accepts_bare_json_without_normalization():
+    value, normalization = _decode_supervisor_json_content('{"summary":"valid"}')
+
+    assert value == {"summary": "valid"}
+    assert normalization is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        'provider prose\n{"summary":"valid"}',
+        '<analysis>unclosed\n{"summary":"valid"}',
+        '<analysis>reasoning</analysis>\n{"summary":"valid"}\ntrailing prose',
+        '<analysis>reasoning</analysis>\n[]',
+    ),
+)
+def test_supervisor_content_rejects_unknown_or_malformed_envelopes(content):
+    with pytest.raises(SupervisorProtocolError):
+        _decode_supervisor_json_content(content)
+
+
 def test_supervisor_env_loading_does_not_pollute_rwkv_namespace(
     tmp_path,
     monkeypatch,
@@ -885,6 +1016,9 @@ def test_supervisor_env_loading_does_not_pollute_rwkv_namespace(
         encoding="utf-8",
     )
     for key in (
+        "RWKV_LH_PLANNER_BASE_URL",
+        "RWKV_LH_PLANNER_API_KEY",
+        "RWKV_LH_PLANNER_MODEL",
         "SUPERVISOR_BASE_URL",
         "SUPERVISOR_API_KEY",
         "SUPERVISOR_MODEL",
@@ -1146,7 +1280,11 @@ def test_contract_planner_and_reviewer_receive_results_without_rwkv_process():
     assert all("evidence_requirements" not in item for item in branch_properties)
     assert all(item["write_roots"]["maxItems"] == 8 for item in branch_properties)
     assert "assertions" not in obligation_schema["properties"]
-    assert "phase" not in obligation_schema["properties"]
+    assert obligation_schema["properties"]["phase"]["enum"] == [
+        "execution_evidence",
+        "final_presentation",
+    ]
+    assert "phase" in obligation_schema["required"]
     assert [item["kind"]["enum"] for item in branch_properties] == [
         ["investigate"],
         ["mutate"],

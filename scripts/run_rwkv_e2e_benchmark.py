@@ -38,7 +38,7 @@ from rwkv_lh.exact_tool_selector.network_client import (
 )
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelIOError, parse_model_command
-from rwkv_lh.model_session import ModelSession
+from rwkv_lh.model_session import create_model_session
 from rwkv_lh.parallel_atoms import AtomWorkerPool, ThreadedRWKVAtomPool
 from rwkv_lh.retrieval.actions import build_retrieval_actions
 from rwkv_lh.retrieval.gateway import build_live_retrieval_backend
@@ -53,6 +53,10 @@ from rwkv_lh.runtime.executor_profiles import executor_profile_binding_for_run
 from rwkv_lh.runtime.settings import load_local_env
 from rwkv_lh.schema import RunState, RunStatus, TaskAction
 from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.stateful_goal_loop import (
+    STATEFUL_GOAL_LOOP_ARCHITECTURE,
+    StatefulGoalLoopController,
+)
 from rwkv_lh.supervisor import SupervisorClient, SupervisorPolicy
 from rwkv_lh.supervisor_openai import (
     OpenAICompatibleSupervisorClient,
@@ -942,6 +946,27 @@ def _source_tree_manifest(repository: Path) -> list[dict[str, Any]]:
     return manifest
 
 
+def stateful_goal_protocol_metadata(
+    *, enabled: bool, strong_planner_available: bool
+) -> dict[str, Any]:
+    """Return the executable Stateful v2 authority topology for RUN_PROTOCOL."""
+
+    return {
+        "enabled": bool(enabled),
+        "persistent_executor_state_count": 1 if enabled else 0,
+        "selector_tool_decisions_per_action": 1,
+        "auditor_state_isolated": bool(enabled),
+        "rwkv_audit_required": bool(enabled),
+        "audit_wkv_merge": False,
+        "strong_model_dependency": bool(enabled and strong_planner_available),
+        "strong_planner_required": bool(enabled),
+        "strong_planner_protocol": (
+            "rwkv-lh.goal-plan-patch.v1" if enabled else ""
+        ),
+        "strong_reviewer_enabled": False,
+    }
+
+
 def _write_run_metadata(
     output: Path,
     *,
@@ -1051,7 +1076,9 @@ def _write_run_metadata(
         "backend_profile": settings.backend_profile,
         "tool_disclosure_mode": settings.tool_disclosure_mode,
         "architecture": (
-            CONTRACT_GRAPH_ARCHITECTURE
+            STATEFUL_GOAL_LOOP_ARCHITECTURE
+            if arguments.stateful_goal
+            else CONTRACT_GRAPH_ARCHITECTURE
             if supervisor_health
             and arguments.supervisor_strategy == "contract_graph"
             else
@@ -1072,6 +1099,12 @@ def _write_run_metadata(
             "enabled": bool(supervisor_health),
             "provider": str((supervisor_health or {}).get("provider") or ""),
             "model": str((supervisor_health or {}).get("model") or ""),
+            "role": "planner" if arguments.stateful_goal else "planner_reviewer",
+            "planner_protocol": (
+                "rwkv-lh.contract-graph-planner.v2"
+                if arguments.stateful_goal
+                else ""
+            ),
             "policy": {
                 "mode": arguments.supervisor_strategy,
                 "max_review_repairs": int(
@@ -1160,16 +1193,25 @@ def _write_run_metadata(
             },
             "independent_terminal_review": bool(
                 supervisor_health
+                and not arguments.stateful_goal
+                and arguments.supervisor_strategy
+                in {"parallel_atoms", "contract_graph"}
+            ),
+            "strong_reviewer_enabled": bool(
+                supervisor_health
+                and not arguments.stateful_goal
                 and arguments.supervisor_strategy
                 in {"parallel_atoms", "contract_graph"}
             ),
             "parent_atom_action_projection": bool(
                 supervisor_health
+                and not arguments.stateful_goal
                 and arguments.supervisor_strategy
                 in {"parallel_atoms", "contract_graph"}
             ),
             "result_capsules_only": bool(
                 supervisor_health
+                and not arguments.stateful_goal
                 and arguments.supervisor_strategy == "contract_graph"
             ),
             "finalizer_min_actions": (
@@ -1183,6 +1225,10 @@ def _write_run_metadata(
             "tool_execution_authority": False,
             "rwkv_output_rewritten": False,
         },
+        "stateful_goal": stateful_goal_protocol_metadata(
+            enabled=bool(arguments.stateful_goal),
+            strong_planner_available=bool(supervisor_health),
+        ),
         "sampling": {
             "sampling_policy": {
                 "scope": "all_semantic_lanes",
@@ -1462,8 +1508,12 @@ def _run_controller(
     supervisor: SupervisorClient | None = None,
     supervisor_policy: SupervisorPolicy | None = None,
     atom_worker_pool: AtomWorkerPool | None = None,
+    stateful_goal: bool = False,
 ) -> ControllerResult:
-    return LongHorizonController(
+    controller_type = (
+        StatefulGoalLoopController if stateful_goal else LongHorizonController
+    )
+    return controller_type(
         store,
         model=model,
         harness=harness,
@@ -1510,6 +1560,7 @@ def run_case(
     supervisor_strategy: str = "static",
     independent_selector: bool = False,
     supervisor_pending_resume_attempts: int = 0,
+    stateful_goal: bool = False,
 ) -> dict[str, Any]:
     if shutil.which("bwrap") is None:
         raise RuntimeError(
@@ -1546,11 +1597,14 @@ def run_case(
     runtime_policy = runtime_policy_document(
         retrieval_config,
         supervisor_mode=(
-            "contract_graph"
+            "stateful_goal"
+            if stateful_goal
+            else "contract_graph"
             if supervisor_mode == "openai"
             and supervisor_strategy == "contract_graph"
             else "none"
         ),
+        execution_mode=("goal" if stateful_goal else "bounded"),
     )
     goal = LongHorizonModel.create_literal_goal(
         str(task["user_request"]),
@@ -1566,7 +1620,7 @@ def run_case(
     state = store.create_run(goal, task_id)
     executor_binding = executor_profile_binding_for_run(state)
     rwkv_client = OpenAICompatibleRWKVClient(executor_binding.settings)
-    session = ModelSession(
+    session = create_model_session(
         client=rwkv_client,
         settings=executor_binding.settings,
         audit_hook=model_trace.append,
@@ -1615,7 +1669,7 @@ def run_case(
         tool_selector=tool_selector,
     )
     atom_worker_pool: AtomWorkerPool | None = None
-    if supervisor_strategy in {"parallel_atoms", "contract_graph"}:
+    if not stateful_goal and supervisor_strategy in {"parallel_atoms", "contract_graph"}:
         def atom_model_factory(contract, scoped_harness):
             def append_atom_trace(event: Mapping[str, Any]) -> None:
                 model_trace.append(
@@ -1627,7 +1681,7 @@ def run_case(
                 )
 
             return LongHorizonModel(
-                ModelSession(
+                create_model_session(
                     client=rwkv_client,
                     settings=executor_binding.settings,
                     audit_hook=append_atom_trace,
@@ -1661,6 +1715,7 @@ def run_case(
                 supervisor=supervisor_client,
                 supervisor_policy=supervisor_policy,
                 atom_worker_pool=atom_worker_pool,
+                stateful_goal=stateful_goal,
             )
             before = _attempt_snapshot(first.state)
             observations["interrupted_status"] = first.state.status.value
@@ -1674,6 +1729,7 @@ def run_case(
                     supervisor=supervisor_client,
                     supervisor_policy=supervisor_policy,
                     atom_worker_pool=atom_worker_pool,
+                    stateful_goal=stateful_goal,
                 )
                 after = _attempt_snapshot(result.state)
                 observations["resume_no_repeated_completed_attempts"] = all(
@@ -1693,6 +1749,7 @@ def run_case(
                     supervisor=supervisor_client,
                     supervisor_policy=supervisor_policy,
                     atom_worker_pool=atom_worker_pool,
+                    stateful_goal=stateful_goal,
                 )
             except InjectedPostEffectCrash:
                 before_resume = store.load(task_id)
@@ -1706,6 +1763,7 @@ def run_case(
                     supervisor=supervisor_client,
                     supervisor_policy=supervisor_policy,
                     atom_worker_pool=atom_worker_pool,
+                    stateful_goal=stateful_goal,
                 )
                 observations["post_effect_crash_resumed"] = (
                     len(result.state.actions) >= before_actions
@@ -1724,6 +1782,7 @@ def run_case(
                     supervisor=supervisor_client,
                     supervisor_policy=supervisor_policy,
                     atom_worker_pool=atom_worker_pool,
+                    stateful_goal=stateful_goal,
                 ),
             )
             observations["supervisor_pending_resume_count"] = pending_resume_count
@@ -1755,6 +1814,7 @@ def run_case(
                 supervisor=supervisor_client,
                 supervisor_policy=supervisor_policy,
                 atom_worker_pool=atom_worker_pool,
+                stateful_goal=stateful_goal,
             )
             after_hash = _file_sha256(target_path) if target_path.is_file() else ""
             observations["completed_resume_is_noop"] = (
@@ -2017,14 +2077,19 @@ def run_case(
             ]
         ),
         "action_count": (
-            sum(int(item.get("action_count", 0) or 0) for item in parallel_outcomes)
+            len(state.actions)
+            if stateful_goal and state is not None
+            else sum(
+                int(item.get("action_count", 0) or 0)
+                for item in parallel_outcomes
+            )
             if supervisor_strategy in {"parallel_atoms", "contract_graph"}
-            else len(state.actions)
-            if state is not None
-            else 0
+            else len(state.actions) if state is not None else 0
         ),
         "protocol_rejection_count": (
-            sum(
+            state.protocol_rejections
+            if stateful_goal and state is not None
+            else sum(
                 int(item.get("protocol_rejections", 0) or 0)
                 for item in parallel_outcomes
             )
@@ -2033,6 +2098,7 @@ def run_case(
             if state is not None
             else 0
         ),
+        "stateful_goal": bool(stateful_goal),
         "supervisor_enabled": supervisor_client is not None,
         "supervisor_failure": supervisor_failure,
         "supervisor_request_count": len(
@@ -2062,10 +2128,17 @@ def _write_report(
     completed = sum(1 for item in results if item["agent_completed"])
     external = sum(1 for item in results if item["external_passed"])
     supervisor_enabled = any(item.get("supervisor_enabled") for item in results)
+    stateful_goal = any(item.get("stateful_goal") for item in results)
     supervisor_requests = sum(
         int(item.get("supervisor_request_count", 0)) for item in results
     )
     model_boundary = (
+        "The Strong Model is the required Planner and emits GoalPlanPatch. The "
+        "2.9B Selector decides one exact tool, one persistent 13.3B RWKV Executor "
+        "State fills parameters and executes, and an isolated RWKV Auditor reviews "
+        "each boundary; no Strong Reviewer is called."
+        if stateful_goal
+        else
         "RWKV receives only the user goal, isolated workspace, generic constraints, "
         "Harness contract, and bounded supervisor plan/review feedback. The supervisor "
         "does not receive hidden external acceptance and cannot execute actions."
@@ -2239,6 +2312,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--stateful-goal",
+        action="store_true",
+        help=(
+            "run RWKV Stateful Goal Loop v2: one 13.3B action State, one exact "
+            "Selector decision, and a separate non-merged RWKV Auditor State"
+        ),
+    )
+    parser.add_argument(
         "--supervisor-pending-resume-attempts",
         type=int,
         default=0,
@@ -2266,6 +2347,16 @@ def main() -> int:
         raise ValueError(
             f"{arguments.supervisor_strategy} strategy requires --supervisor openai"
         )
+    if arguments.stateful_goal and (
+        arguments.supervisor != "openai"
+        or arguments.supervisor_strategy != "contract_graph"
+    ):
+        raise ValueError(
+            "--stateful-goal requires --supervisor openai "
+            "--supervisor-strategy contract_graph"
+        )
+    if arguments.stateful_goal and not arguments.independent_selector:
+        raise ValueError("--stateful-goal requires --independent-selector")
     if (
         arguments.supervisor == "none"
         and arguments.supervisor_pending_resume_attempts
@@ -2447,6 +2538,7 @@ def main() -> int:
                     supervisor_pending_resume_attempts=(
                         arguments.supervisor_pending_resume_attempts
                     ),
+                    stateful_goal=arguments.stateful_goal,
                 )
             except Exception as exc:
                 result = case_runner_exception_result(task, output, exc)
@@ -2484,6 +2576,7 @@ def main() -> int:
                     supervisor_pending_resume_attempts=(
                         arguments.supervisor_pending_resume_attempts
                     ),
+                    stateful_goal=arguments.stateful_goal,
                 )
                 futures[future] = task
             for future in as_completed(futures):

@@ -25,6 +25,12 @@ from rwkv_lh.runtime.protocol import (
     normalize_stop,
     normalize_stop_token_ids,
 )
+from rwkv_lh.runtime.native_state import (
+    NATIVE_STATE_PROTOCOL_VERSION,
+    NativeStateCacheBinding,
+    NativeStateCandidate,
+    NativeStateSnapshot,
+)
 from rwkv_lh.runtime.sampling import get_request_sampling
 from rwkv_lh.runtime.settings import RuntimeSettings, get_runtime_settings
 
@@ -532,6 +538,201 @@ class OpenAICompatibleRWKVClient:
                 source="prompt_replay_fallback",
                 error=f"{type(exc).__name__}: {exc}"[:500],
             )
+
+    @staticmethod
+    def _native_snapshot(
+        value: Mapping[str, Any],
+        *,
+        expected_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        raw = value.get("snapshot")
+        selected = raw if isinstance(raw, Mapping) else value
+        export_record = selected.get("export_record")
+        if not isinstance(export_record, Mapping):
+            raise RWKVProtocolError("native state response has no export record")
+        snapshot = NativeStateSnapshot(
+            state_ref=str(selected.get("state_ref") or ""),
+            state_digest=str(selected.get("state_digest") or ""),
+            export_record=dict(export_record),
+            state_format_version=str(selected.get("state_format_version") or ""),
+            server_build=str(selected.get("server_build") or ""),
+            tokenizer_build=str(selected.get("tokenizer_build") or ""),
+            cache_binding_digest=str(selected.get("cache_binding_digest") or ""),
+            protocol_version=str(
+                selected.get("protocol_version") or NATIVE_STATE_PROTOCOL_VERSION
+            ),
+        )
+        if snapshot.cache_binding_digest != expected_binding.digest:
+            raise RWKVProtocolError("native state response cache binding mismatch")
+        return snapshot
+
+    def _native_payload(
+        self,
+        cache_binding: NativeStateCacheBinding,
+        **values: Any,
+    ) -> dict[str, Any]:
+        return self._attach_state_profile(
+            {
+                "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
+                "model": self.model_name,
+                "cache_binding": cache_binding.to_dict(),
+                **values,
+            }
+        )
+
+    def state_create(
+        self,
+        *,
+        lane_id: str,
+        text: str,
+        cache_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/create",
+            payload=self._native_payload(
+                cache_binding,
+                lane_id=str(lane_id),
+                delta=str(text),
+            ),
+        )
+        return self._native_snapshot(data, expected_binding=cache_binding)
+
+    def state_append(
+        self,
+        *,
+        parent_state_ref: str,
+        lane_id: str,
+        text: str,
+        cache_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/append",
+            payload=self._native_payload(
+                cache_binding,
+                parent_state_ref=str(parent_state_ref),
+                lane_id=str(lane_id),
+                delta=str(text),
+            ),
+        )
+        return self._native_snapshot(data, expected_binding=cache_binding)
+
+    def state_fork(
+        self,
+        *,
+        parent_state_ref: str,
+        lane_id: str,
+        text: str,
+        cache_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/fork",
+            payload=self._native_payload(
+                cache_binding,
+                parent_state_ref=str(parent_state_ref),
+                lane_id=str(lane_id),
+                delta=str(text),
+            ),
+        )
+        return self._native_snapshot(data, expected_binding=cache_binding)
+
+    def state_generate(
+        self,
+        *,
+        parent_state_ref: str,
+        request_id: str,
+        max_tokens: int,
+        stop: Sequence[str],
+        sampling: Mapping[str, Any],
+        parent_cache_binding_digest: str,
+    ) -> NativeStateCandidate:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/generate",
+            payload=self._attach_state_profile(
+                {
+                    "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
+                    "model": self.model_name,
+                    "parent_state_ref": str(parent_state_ref),
+                    "parent_cache_binding_digest": str(
+                        parent_cache_binding_digest
+                    ),
+                    "request_id": str(request_id),
+                    "max_tokens": max(1, int(max_tokens)),
+                    "stop": [str(item) for item in stop],
+                    "sampling": dict(sampling),
+                }
+            ),
+            generation=True,
+        )
+        raw = data.get("candidate")
+        selected = raw if isinstance(raw, Mapping) else data
+        metadata = selected.get("metadata")
+        candidate = NativeStateCandidate(
+            state_ref=str(selected.get("state_ref") or ""),
+            state_digest=str(selected.get("state_digest") or ""),
+            content=str(selected.get("content") or ""),
+            finish_reason=str(selected.get("finish_reason") or "stop"),
+            metadata=dict(metadata) if isinstance(metadata, Mapping) else {},
+            parent_state_digest=str(selected.get("parent_state_digest") or ""),
+            parent_cache_binding_digest=str(
+                selected.get("parent_cache_binding_digest") or ""
+            ),
+        )
+        if candidate.parent_cache_binding_digest != parent_cache_binding_digest:
+            raise RWKVProtocolError("native candidate parent cache binding mismatch")
+        return candidate
+
+    def state_commit(
+        self,
+        *,
+        candidate_state_ref: str,
+        cache_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/commit",
+            payload=self._native_payload(
+                cache_binding,
+                candidate_state_ref=str(candidate_state_ref),
+            ),
+        )
+        return self._native_snapshot(data, expected_binding=cache_binding)
+
+    def state_rollback(
+        self,
+        *,
+        candidate_state_ref: str,
+        parent_state_ref: str,
+    ) -> None:
+        self._request_json(
+            "POST",
+            "/state/rollback",
+            payload={
+                "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
+                "model": self.model_name,
+                "candidate_state_ref": str(candidate_state_ref),
+                "parent_state_ref": str(parent_state_ref),
+            },
+        )
+
+    def state_import(
+        self,
+        *,
+        export_record: Mapping[str, Any],
+        cache_binding: NativeStateCacheBinding,
+    ) -> NativeStateSnapshot:
+        data, _, _ = self._request_json(
+            "POST",
+            "/state/import",
+            payload=self._native_payload(
+                cache_binding,
+                export_record=dict(export_record),
+            ),
+        )
+        return self._native_snapshot(data, expected_binding=cache_binding)
 
     def close(self) -> None:
         self._main_session.close()

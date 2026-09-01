@@ -277,7 +277,7 @@ def operation_allowed_by_retrieval_policy(
 def runtime_policy_document(
     config: RetrievalRuntimeConfig,
     *,
-    supervisor_mode: str = "none",
+    supervisor_mode: str = "stateful_goal",
     state_router_mode: str = "disabled",
     execution_mode: str = "bounded",
 ) -> dict[str, Any]:
@@ -287,9 +287,11 @@ def runtime_policy_document(
         run_lifecycle_policy_document,
     )
 
-    selected_supervisor = str(supervisor_mode or "none").strip()
-    if selected_supervisor not in {"none", "contract_graph"}:
-        raise ValueError("supervisor mode must be none or contract_graph")
+    selected_supervisor = str(supervisor_mode or "stateful_goal").strip()
+    if selected_supervisor not in {"stateful_goal", "none", "contract_graph"}:
+        raise ValueError(
+            "supervisor mode must be stateful_goal, none, or contract_graph"
+        )
     document = {
         "retrieval": config.to_dict(),
         "supervisor": {"mode": selected_supervisor},

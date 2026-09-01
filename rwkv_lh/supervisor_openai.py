@@ -28,6 +28,7 @@ try:
 except ImportError:  # pragma: no cover - project runtime is WSL/Linux
     fcntl = None
 
+from rwkv_lh.runtime.role_config import role_bool, role_env, role_float, role_int
 from rwkv_lh.runtime.settings import PROJECT_ROOT, load_local_env
 from rwkv_lh.contract_graph import (
     ContractAssertion,
@@ -149,62 +150,149 @@ class SupervisorAPISettings:
         cls,
         path: str | Path = DEFAULT_SUPERVISOR_ENV_FILE,
     ) -> "SupervisorAPISettings":
-        load_local_env(path, allowed_prefixes=("SUPERVISOR_",))
+        load_local_env(
+            path,
+            allowed_prefixes=("RWKV_LH_PLANNER_", "SUPERVISOR_"),
+        )
         settings = cls(
-            base_url=os.environ.get("SUPERVISOR_BASE_URL", "").rstrip("/"),
-            api_key=os.environ.get("SUPERVISOR_API_KEY", ""),
-            model=os.environ.get("SUPERVISOR_MODEL", "").strip(),
-            connect_timeout_seconds=_float_env("SUPERVISOR_CONNECT_TIMEOUT", 10.0),
-            read_timeout_seconds=_float_env("SUPERVISOR_READ_TIMEOUT", 60.0),
-            retry_attempts=_int_env("SUPERVISOR_RETRY_ATTEMPTS", 2),
-            retry_backoff_seconds=_float_env("SUPERVISOR_RETRY_BACKOFF", 0.5),
-            temperature=_float_env("SUPERVISOR_TEMPERATURE", 0.1),
-            verify_tls=_bool_env("SUPERVISOR_VERIFY_TLS", True),
-            max_plan_tokens=_int_env("SUPERVISOR_MAX_PLAN_TOKENS", 1800),
-            max_review_tokens=_int_env("SUPERVISOR_MAX_REVIEW_TOKENS", 1400),
-            max_directive_tokens=_int_env(
-                "SUPERVISOR_MAX_DIRECTIVE_TOKENS", 1200
+            base_url=role_env(
+                "planner", "base_url", legacy="SUPERVISOR_BASE_URL"
+            ).rstrip("/"),
+            api_key=role_env(
+                "planner", "api_key", legacy="SUPERVISOR_API_KEY"
             ),
-            max_contract_plan_tokens=_int_env(
-                "SUPERVISOR_MAX_CONTRACT_PLAN_TOKENS", 4000
+            model=role_env("planner", "model", legacy="SUPERVISOR_MODEL"),
+            connect_timeout_seconds=role_float(
+                "planner",
+                "connect_timeout",
+                legacy="SUPERVISOR_CONNECT_TIMEOUT",
+                default=10.0,
             ),
-            max_contract_review_tokens=_int_env(
-                "SUPERVISOR_MAX_CONTRACT_REVIEW_TOKENS", 2400
+            read_timeout_seconds=role_float(
+                "planner",
+                "read_timeout",
+                legacy="SUPERVISOR_READ_TIMEOUT",
+                default=60.0,
             ),
-            reasoning_effort=os.environ.get(
-                "SUPERVISOR_REASONING_EFFORT", ""
-            ).strip().casefold(),
-            contract_plan_reasoning_effort=os.environ.get(
-                "SUPERVISOR_CONTRACT_PLAN_REASONING_EFFORT", ""
-            ).strip().casefold(),
-            contract_review_reasoning_effort=os.environ.get(
-                "SUPERVISOR_CONTRACT_REVIEW_REASONING_EFFORT", ""
-            ).strip().casefold(),
-            semantic_repair_attempts=_int_env(
-                "SUPERVISOR_SEMANTIC_REPAIR_ATTEMPTS", 1
+            retry_attempts=role_int(
+                "planner",
+                "retry_attempts",
+                legacy="SUPERVISOR_RETRY_ATTEMPTS",
+                default=2,
             ),
-            serialize_requests=_bool_env(
-                "SUPERVISOR_SERIALIZE_REQUESTS", False
+            retry_backoff_seconds=role_float(
+                "planner",
+                "retry_backoff",
+                legacy="SUPERVISOR_RETRY_BACKOFF",
+                default=0.5,
             ),
-            request_lock_path=os.environ.get(
-                "SUPERVISOR_REQUEST_LOCK_PATH",
-                "/tmp/rwkv-lh-supervisor.lock",
+            temperature=role_float(
+                "planner",
+                "temperature",
+                legacy="SUPERVISOR_TEMPERATURE",
+                default=0.1,
+            ),
+            verify_tls=role_bool(
+                "planner",
+                "verify_tls",
+                legacy="SUPERVISOR_VERIFY_TLS",
+                default=True,
+            ),
+            max_plan_tokens=role_int(
+                "planner",
+                "max_plan_tokens",
+                legacy="SUPERVISOR_MAX_PLAN_TOKENS",
+                default=1800,
+            ),
+            max_review_tokens=role_int(
+                "planner",
+                "max_review_tokens",
+                legacy="SUPERVISOR_MAX_REVIEW_TOKENS",
+                default=1400,
+            ),
+            max_directive_tokens=role_int(
+                "planner",
+                "max_directive_tokens",
+                legacy="SUPERVISOR_MAX_DIRECTIVE_TOKENS",
+                default=1200,
+            ),
+            max_contract_plan_tokens=role_int(
+                "planner",
+                "max_contract_plan_tokens",
+                legacy="SUPERVISOR_MAX_CONTRACT_PLAN_TOKENS",
+                default=4000,
+            ),
+            max_contract_review_tokens=role_int(
+                "planner",
+                "max_contract_review_tokens",
+                legacy="SUPERVISOR_MAX_CONTRACT_REVIEW_TOKENS",
+                default=2400,
+            ),
+            reasoning_effort=role_env(
+                "planner",
+                "reasoning_effort",
+                legacy="SUPERVISOR_REASONING_EFFORT",
+            ).casefold(),
+            contract_plan_reasoning_effort=role_env(
+                "planner",
+                "contract_plan_reasoning_effort",
+                legacy="SUPERVISOR_CONTRACT_PLAN_REASONING_EFFORT",
+            ).casefold(),
+            contract_review_reasoning_effort=role_env(
+                "planner",
+                "contract_review_reasoning_effort",
+                legacy="SUPERVISOR_CONTRACT_REVIEW_REASONING_EFFORT",
+            ).casefold(),
+            semantic_repair_attempts=role_int(
+                "planner",
+                "semantic_repair_attempts",
+                legacy="SUPERVISOR_SEMANTIC_REPAIR_ATTEMPTS",
+                default=1,
+            ),
+            serialize_requests=role_bool(
+                "planner",
+                "serialize_requests",
+                legacy="SUPERVISOR_SERIALIZE_REQUESTS",
+                default=False,
+            ),
+            request_lock_path=role_env(
+                "planner",
+                "request_lock_path",
+                legacy="SUPERVISOR_REQUEST_LOCK_PATH",
+                default="/tmp/rwkv-lh-supervisor.lock",
             ),
             fallback_models=tuple(
                 item.strip()
-                for item in os.environ.get("SUPERVISOR_FALLBACK_MODELS", "").split(",")
+                for item in role_env(
+                    "planner",
+                    "fallback_models",
+                    legacy="SUPERVISOR_FALLBACK_MODELS",
+                ).split(",")
                 if item.strip()
             ),
-            circuit_breaker_failures=_int_env(
-                "SUPERVISOR_CIRCUIT_BREAKER_FAILURES", 2
+            circuit_breaker_failures=role_int(
+                "planner",
+                "circuit_breaker_failures",
+                legacy="SUPERVISOR_CIRCUIT_BREAKER_FAILURES",
+                default=2,
             ),
-            circuit_breaker_cooldown_seconds=_float_env(
-                "SUPERVISOR_CIRCUIT_BREAKER_COOLDOWN", 30.0
+            circuit_breaker_cooldown_seconds=role_float(
+                "planner",
+                "circuit_breaker_cooldown",
+                legacy="SUPERVISOR_CIRCUIT_BREAKER_COOLDOWN",
+                default=30.0,
             ),
-            plan_cache_enabled=_bool_env("SUPERVISOR_PLAN_CACHE_ENABLED", True),
-            plan_cache_dir=os.environ.get(
-                "SUPERVISOR_PLAN_CACHE_DIR",
-                str(PROJECT_ROOT / "data" / "cache" / "supervisor_plans"),
+            plan_cache_enabled=role_bool(
+                "planner",
+                "plan_cache_enabled",
+                legacy="SUPERVISOR_PLAN_CACHE_ENABLED",
+                default=True,
+            ),
+            plan_cache_dir=role_env(
+                "planner",
+                "plan_cache_dir",
+                legacy="SUPERVISOR_PLAN_CACHE_DIR",
+                default=str(PROJECT_ROOT / "data" / "cache" / "supervisor_plans"),
             ),
         )
         settings.validate()
@@ -213,11 +301,14 @@ class SupervisorAPISettings:
     def validate(self) -> None:
         parsed = urlparse(self.base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("SUPERVISOR_BASE_URL must be an absolute HTTP(S) URL")
+            raise ValueError(
+                "RWKV_LH_PLANNER_BASE_URL (legacy SUPERVISOR_BASE_URL) must be "
+                "an absolute HTTP(S) URL"
+            )
         if not self.api_key:
-            raise ValueError("SUPERVISOR_API_KEY must be configured")
+            raise ValueError("RWKV_LH_PLANNER_API_KEY must be configured")
         if not self.model:
-            raise ValueError("SUPERVISOR_MODEL must be configured")
+            raise ValueError("RWKV_LH_PLANNER_MODEL must be configured")
         if self.connect_timeout_seconds <= 0 or self.read_timeout_seconds <= 0:
             raise ValueError("supervisor timeouts must be positive")
         if not 1 <= self.retry_attempts <= 5:
@@ -500,6 +591,10 @@ _CONTRACT_OBLIGATION_SCHEMA: dict[str, Any] = {
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
         },
         "predicate": {"type": "string", "minLength": 1},
+        "phase": {
+            "type": "string",
+            "enum": ["execution_evidence", "final_presentation"],
+        },
         "evidence_kinds": {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
@@ -507,7 +602,7 @@ _CONTRACT_OBLIGATION_SCHEMA: dict[str, Any] = {
             "maxItems": 8,
         },
     },
-    "required": ["obligation_id", "predicate", "evidence_kinds"],
+    "required": ["obligation_id", "predicate", "phase", "evidence_kinds"],
     "additionalProperties": False,
 }
 
@@ -690,6 +785,60 @@ def _supervisor_http_error(status_code: int, phase: str) -> SupervisorTransportE
 
 class SupervisorProtocolError(RuntimeError):
     """The supervisor provider response violated the local JSON contract."""
+
+
+def _decode_supervisor_json_content(
+    content: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Decode one JSON object, tolerating only a known reasoning envelope.
+
+    Some OpenAI-compatible providers serialize their private reasoning before
+    the schema-constrained JSON as an ``analysis`` or ``think`` XML element.
+    Removing that provider-owned envelope is a transport normalization: it
+    neither repairs nor synthesizes fields in the supervisor object.  Any
+    other prefix, malformed envelope, trailing prose, or non-object JSON stays
+    a hard protocol error.
+    """
+
+    stripped = content.strip()
+    try:
+        value = json.loads(stripped)
+    except json.JSONDecodeError as direct_error:
+        for tag in ("analysis", "think"):
+            opening = f"<{tag}>"
+            closing = f"</{tag}>"
+            if not stripped.startswith(opening):
+                continue
+            closing_offset = stripped.find(closing, len(opening))
+            if closing_offset < 0:
+                break
+            prefix_end = closing_offset + len(closing)
+            prefix = stripped[:prefix_end]
+            payload = stripped[prefix_end:].strip()
+            try:
+                value = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise SupervisorProtocolError(
+                    "supervisor content is not one JSON object"
+                ) from exc
+            if not isinstance(value, dict):
+                raise SupervisorProtocolError(
+                    "supervisor content must be one JSON object"
+                )
+            return value, {
+                "normalization": f"provider_{tag}_prefix_removed",
+                "prefix_chars": len(prefix),
+                "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                "controller_semantic_fields_generated": False,
+            }
+        raise SupervisorProtocolError(
+            "supervisor content is not one JSON object"
+        ) from direct_error
+    if not isinstance(value, dict):
+        raise SupervisorProtocolError(
+            "supervisor content must be one JSON object"
+        )
+    return value, None
 
 
 class OpenAICompatibleSupervisorClient:
@@ -891,7 +1040,9 @@ class OpenAICompatibleSupervisorClient:
     ) -> dict[str, Any]:
         call_id = f"SUP-{uuid.uuid4().hex[:20]}"
         schema_revision = (
-            "v8"
+            "v1"
+            if phase == "goal_plan"
+            else "v8"
             if phase == "contract_plan"
             else "v2"
             if phase == "contract_review"
@@ -915,7 +1066,7 @@ class OpenAICompatibleSupervisorClient:
             ),
         }
         reasoning_effort = self.settings.reasoning_effort
-        if phase == "contract_plan":
+        if phase in {"contract_plan", "goal_plan"}:
             reasoning_effort = (
                 self.settings.contract_plan_reasoning_effort or reasoning_effort
             )
@@ -1012,15 +1163,17 @@ class OpenAICompatibleSupervisorClient:
                     raise SupervisorProtocolError(
                         "supervisor response has empty JSON content"
                     )
-                try:
-                    value = json.loads(content)
-                except json.JSONDecodeError as exc:
-                    raise SupervisorProtocolError(
-                        "supervisor content is not one JSON object"
-                    ) from exc
-                if not isinstance(value, dict):
-                    raise SupervisorProtocolError(
-                        "supervisor content must be one JSON object"
+                value, content_normalization = _decode_supervisor_json_content(content)
+                if content_normalization is not None:
+                    self._emit(
+                        {
+                            "type": "supervisor_content_envelope_normalized",
+                            "call_id": call_id,
+                            "phase": phase,
+                            "run_id": run_id,
+                            "request_digest": request_digest,
+                            **content_normalization,
+                        }
                     )
                 self._emit(
                     {
@@ -1491,10 +1644,54 @@ class OpenAICompatibleSupervisorClient:
                 value,
             )
         )
+        existing_atom_by_id = {
+            str(item.get("node_id") or ""): item.get("atom")
+            for item in request.nodes
+            if isinstance(item, Mapping)
+            and str(item.get("node_id") or "")
+            and isinstance(item.get("atom"), Mapping)
+        }
+
+        def reachable_dependency_frontier(
+            dependency: str,
+            visiting: frozenset[str] = frozenset(),
+        ) -> tuple[str, ...]:
+            """Replace an unavailable old node with its completed frontier."""
+
+            if dependency not in existing_atom_by_id:
+                return (dependency,)
+            status = request.node_statuses.get(dependency)
+            if status == "completed" or status is None:
+                return (dependency,)
+            if dependency in visiting:
+                return ()
+            atom = existing_atom_by_id[dependency]
+            assert isinstance(atom, Mapping)
+            frontier: list[str] = []
+            for predecessor in atom.get("depends_on") or ():
+                frontier.extend(
+                    reachable_dependency_frontier(
+                        str(predecessor),
+                        visiting | {dependency},
+                    )
+                )
+            return tuple(dict.fromkeys(frontier))
+
         for item in normalized_node_values:
             atom_value = item.get("atom")
             if not isinstance(atom_value, Mapping):
                 raise ValueError("contract graph node has no atom")
+            atom_value = dict(atom_value)
+            if request.graph_revision > 0:
+                atom_value["depends_on"] = list(
+                    dict.fromkeys(
+                        dependency
+                        for raw_dependency in atom_value.get("depends_on") or ()
+                        for dependency in reachable_dependency_frontier(
+                            str(raw_dependency)
+                        )
+                    )
+                )
             obligation_ids = tuple(
                 str(identifier) for identifier in item.get("obligation_ids") or ()
             )
@@ -1622,20 +1819,11 @@ class OpenAICompatibleSupervisorClient:
                 while finalizer_id in occupied_ids:
                     finalizer_id = f"NODE-frozen-finalizer-{suffix}"
                     suffix += 1
-                read_roots = tuple(
-                    sorted(
-                        {
-                            root
-                            for node in work_nodes
-                            for root in (
-                                *node.atom.write_roots,
-                                *node.atom.read_roots,
-                            )
-                        }
-                    )
-                ) or (".",)
-                if len(read_roots) > 16:
-                    read_roots = (".",)
+                # Work atoms and the execution Reviewer already establish the
+                # accepted content/effects.  A finalizer owns presentation, so
+                # its one action observes the current workspace revision at
+                # the root instead of replaying every predecessor read.
+                read_roots = (".",)
                 evidence_kinds = ("current_workspace",)
                 source_preferences = ("workspace",)
                 projection = project_contract_capabilities(
@@ -1713,6 +1901,7 @@ class OpenAICompatibleSupervisorClient:
                     continue
                 atom_value = node.atom.to_dict()
                 atom_value["depends_on"] = list(desired_finalizer_dependencies)
+                atom_value["read_roots"] = ["."]
                 normalized_nodes.append(
                     ContractGraphNode.create(
                         node_id=node.node_id,
@@ -1902,6 +2091,12 @@ class OpenAICompatibleSupervisorClient:
             "Return one JSON object matching the supplied strict schema. "
             + state_contract
             + " Convert every explicit user requirement into an observable obligation, "
+            "classifying workspace effects and tool-observable facts as "
+            "phase=execution_evidence, but classifying requirements whose truth depends "
+            "on the final user-visible candidate (wording, format, content, or answer-only "
+            "constraints) as phase=final_presentation. A final-presentation obligation is "
+            "reviewed only after the frozen finalizer produces a candidate; never require "
+            "its text in an execution result capsule. "
             "then create a coherent dependency graph using only the stage kinds allowed "
             "by the schema. Keep obligation IDs and node references consistent. Use "
             "workspace-relative paths from the request and manifest, with one real path per "
@@ -1953,6 +2148,45 @@ class OpenAICompatibleSupervisorClient:
                     and isinstance(item.get("atom"), Mapping)
                     and str(item.get("atom", {}).get("atom_id") or "")
                 }
+                dependency_rewires = []
+                for node in patch.new_nodes:
+                    raw_atom = raw_atom_by_id.get(node.node_id)
+                    if raw_atom is None or request.graph_revision == 0:
+                        continue
+                    raw_dependencies = tuple(
+                        str(item) for item in raw_atom.get("depends_on") or ()
+                    )
+                    compiled_dependencies = node.atom.depends_on
+                    if raw_dependencies == compiled_dependencies:
+                        continue
+                    blocked_dependencies = [
+                        dependency
+                        for dependency in raw_dependencies
+                        if dependency in request.node_statuses
+                        and request.node_statuses[dependency] != "completed"
+                    ]
+                    if blocked_dependencies:
+                        dependency_rewires.append(
+                            {
+                                "atom_id": node.node_id,
+                                "removed_unavailable_dependencies": blocked_dependencies,
+                                "compiled_dependencies": list(compiled_dependencies),
+                            }
+                        )
+                if dependency_rewires:
+                    self._emit(
+                        {
+                            "type": "supervisor_contract_plan_normalized",
+                            "phase": "contract_plan",
+                            "run_id": request.run_id,
+                            "request_digest": request.request_digest,
+                            "normalization": (
+                                "rewired_unreachable_correction_dependencies"
+                            ),
+                            "nodes": dependency_rewires,
+                            "controller_semantic_fields_generated": False,
+                        }
+                    )
                 compiled_fields = [
                     {
                         "atom_id": node.node_id,
@@ -2100,6 +2334,221 @@ class OpenAICompatibleSupervisorClient:
                 if semantic_attempt >= total_attempts:
                     raise
         raise SupervisorProtocolError("contract planner repair loop exhausted")
+
+    @staticmethod
+    def _goal_plan_patch_schema() -> dict[str, Any]:
+        step = {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                "objective": {"type": "string", "minLength": 1, "maxLength": 800},
+                "depends_on": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "uniqueItems": True,
+                    "maxItems": 5,
+                },
+                "success_evidence": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 300},
+                    "uniqueItems": True,
+                    "minItems": 1,
+                    "maxItems": 5,
+                },
+                "read_roots": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 512},
+                    "uniqueItems": True,
+                    "maxItems": 8,
+                },
+                "write_roots": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 512},
+                    "uniqueItems": True,
+                    "maxItems": 8,
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 300},
+                    "uniqueItems": True,
+                    "maxItems": 8,
+                },
+            },
+            "required": [
+                "step_id",
+                "objective",
+                "depends_on",
+                "success_evidence",
+                "read_roots",
+                "write_roots",
+                "constraints",
+            ],
+            "additionalProperties": False,
+        }
+        stage = {
+            "type": "object",
+            "properties": {
+                "stage": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "steps": {
+                    "type": "array",
+                    "items": step,
+                    "minItems": 1,
+                    "maxItems": 5,
+                },
+            },
+            "required": ["stage", "steps"],
+            "additionalProperties": False,
+        }
+        return {
+            "type": "object",
+            "properties": {
+                "add_stages": {"type": "array", "items": stage, "maxItems": 5},
+                "replace_stages": {
+                    "type": "array",
+                    "items": stage,
+                    "maxItems": 5,
+                },
+                "discard_step_ids": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "uniqueItems": True,
+                    "maxItems": 5,
+                },
+                "reason": {"type": "string", "minLength": 1, "maxLength": 800},
+            },
+            "required": [
+                "add_stages",
+                "replace_stages",
+                "discard_step_ids",
+                "reason",
+            ],
+            "additionalProperties": False,
+        }
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        """Produce one native rolling-plan delta and nothing else."""
+
+        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+
+        if not isinstance(request, GoalPlanRequest):
+            raise TypeError("goal planner requires GoalPlanRequest")
+        initial = request.plan_revision == 0
+        system_prompt = (
+            "You are only the Strong Planner for an RWKV execution loop. "
+            "Do not execute tools, choose or restrict tool names, fill parameters, "
+            "audit evidence, "
+            "or write a final answer. Return exactly one JSON object matching the "
+            "schema. Plan only the next one to five clear steps. Each step gives the "
+            "RWKV Executor one coherent responsibility; split unrelated files, "
+            "implementation, and verification when their evidence differs. Read an "
+            "available verifier or specification before the mutation it constrains. "
+            "Return nested stages, each containing its peer steps; do not repeat the "
+            "stage number inside a step. Same-stage steps are independent: "
+            "they cannot depend on each other and their read/write roots cannot conflict. "
+            "Dependencies must point to an earlier stage. A stage is a barrier: all of "
+            "its steps are audited and checked before the next stage starts. "
+            "Completed steps in active_plan are immutable. Open steps may be replaced "
+            "in replace_stages or removed in discard_step_ids; do not retain stale work "
+            "merely to preserve append-only history. New ids belong in add_stages. "
+            "Dependencies may refer only to steps that remain active or are added by "
+            "this patch. success_evidence must be observable and concise. "
+            + (
+                "This is the initial patch: replace_stages and discard_step_ids are "
+                "empty, and add_stages contains the first executable stages."
+                if initial
+                else "This is a correction patch: make only the smallest change needed "
+                "for latest_audit or latest_stage_review, replacing or discarding "
+                "obsolete open work or adding one later repair stage."
+            )
+        )
+        value = self._request_json(
+            phase="goal_plan",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+            system_prompt=system_prompt,
+            request_payload=request.to_dict(),
+            schema=self._goal_plan_patch_schema(),
+            max_tokens=self.settings.max_contract_plan_tokens,
+        )
+        patch = GoalPlanPatch.from_model_value(
+            value,
+            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+            base_revision=request.plan_revision,
+        )
+        if initial and (patch.replace_steps or patch.discard_step_ids):
+            raise SupervisorProtocolError(
+                "initial Goal PlanPatch cannot replace or discard steps"
+            )
+        if initial and not patch.add_steps:
+            raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
+        return patch
+
+    @staticmethod
+    def _goal_stage_review_schema() -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "verdict": {
+                    "type": "string",
+                    "enum": ["advance", "repair"],
+                },
+                "gaps": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 300},
+                    "uniqueItems": True,
+                    "maxItems": 8,
+                },
+                "reason": {"type": "string", "minLength": 1, "maxLength": 800},
+            },
+            "required": ["verdict", "gaps", "reason"],
+            "additionalProperties": False,
+        }
+
+    def review_goal_stage(self, request: Any) -> Any:
+        """Check one completed stage without planning or changing facts."""
+
+        from rwkv_lh.goal_loop_protocol import (
+            GoalStageReview,
+            GoalStageReviewRequest,
+        )
+
+        if not isinstance(request, GoalStageReviewRequest):
+            raise TypeError("goal stage checker requires GoalStageReviewRequest")
+        step_ids = tuple(
+            str(item.get("step_id") or "") for item in request.stage_steps
+        )
+        evidence_refs = tuple(
+            dict.fromkeys(
+                str(ref)
+                for item in request.stage_steps
+                for ref in item.get("accepted_evidence_refs") or ()
+            )
+        )
+        value = self._request_json(
+            phase="goal_stage_review",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+            system_prompt=(
+                "You are only the read-only Strong stage checker for an RWKV Goal "
+                "loop. Check whether the completed steps in this one stage are "
+                "mutually coherent, cover their stated evidence criteria, and leave "
+                "no contradiction that should block the next stage. Harness and RWKV "
+                "Audit facts are immutable. Do not plan steps, call tools, invent "
+                "evidence, rewrite artifacts, or answer the user. Return advance with "
+                "an empty gaps array when the stage may proceed; otherwise return "
+                "repair with concrete gaps. Return exactly the three schema fields."
+            ),
+            request_payload=request.to_dict(),
+            schema=self._goal_stage_review_schema(),
+            max_tokens=self.settings.max_contract_review_tokens,
+        )
+        return GoalStageReview.from_model_value(
+            value,
+            review_id=f"GSR-{uuid.uuid4().hex[:16]}",
+            stage=request.stage,
+            reviewed_step_ids=step_ids,
+            evidence_refs=evidence_refs,
+        )
 
     def review_contract_graph(
         self,

@@ -15,6 +15,9 @@ from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
     NetworkExactToolSelectorSettings,
 )
+from rwkv_lh.exact_tool_selector.input_protocol import (
+    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+)
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
     NetworkExactToolSelection,
@@ -62,11 +65,15 @@ class _ExecutorQueue:
 
 
 class _SelectorResponse:
-    status_code = 200
-    text = ""
-
-    def __init__(self, value: Mapping[str, Any]) -> None:
+    def __init__(
+        self,
+        value: Mapping[str, Any],
+        *,
+        status_code: int = 200,
+    ) -> None:
+        self.status_code = status_code
         self.content = json.dumps(value, ensure_ascii=False).encode("utf-8")
+        self.text = self.content.decode("utf-8")
 
 
 class _SelectorHTTP:
@@ -74,10 +81,14 @@ class _SelectorHTTP:
         self,
         settings: NetworkExactToolSelectorSettings,
         operations: list[str],
+        *,
+        missing_parent_once: bool = False,
     ) -> None:
         self.settings = settings
         self.operations = list(operations)
         self.payloads: list[dict[str, Any]] = []
+        self.missing_parent_once = bool(missing_parent_once)
+        self.parent_miss_emitted = False
 
     def post(
         self,
@@ -89,6 +100,19 @@ class _SelectorHTTP:
         assert url.endswith("/v3/select")
         payload = dict(json)
         self.payloads.append(payload)
+        if (
+            self.missing_parent_once
+            and payload.get("parent") is not None
+            and not self.parent_miss_emitted
+        ):
+            self.parent_miss_emitted = True
+            return _SelectorResponse(
+                {
+                    "error": "NetworkSelectorServiceError",
+                    "message": "network Selector parent state is missing",
+                },
+                status_code=400,
+            )
         if not self.operations:
             raise AssertionError("unexpected Selector call")
         global_peak = self.operations.pop(0)
@@ -200,6 +224,7 @@ def _selector_settings() -> NetworkExactToolSelectorSettings:
         state_profile_id="selector-zero-v1",
         state_profile_sha256="d" * 64,
         state_profile_manifest_sha256="e" * 64,
+        input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     )
 
 
@@ -227,6 +252,7 @@ def _build(
     active_operations: tuple[str, ...] | None = None,
     selector_min_actions: int = 0,
     goal_retrieval_mode: NetworkPolicyMode = NetworkPolicyMode.OFFLINE,
+    missing_selector_parent_once: bool = False,
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -248,7 +274,11 @@ def _build(
         ]
     )
     selector_settings = _selector_settings()
-    selector_http = _SelectorHTTP(selector_settings, selector_operations)
+    selector_http = _SelectorHTTP(
+        selector_settings,
+        selector_operations,
+        missing_parent_once=missing_selector_parent_once,
+    )
     selector = NetworkExactToolSelectorClient(
         selector_settings,
         session=selector_http,
@@ -505,10 +535,44 @@ def test_independent_selector_preserves_current_harness_and_raw_outputs(
         result.state.causal_records[event_id].event_type
         for event_id in result.state.causal_order
     ]
-    assert event_types.count("exact_tool_selection_committed") == 2
+    assert event_types.count("exact_tool_selection_staged") == 2
+    assert event_types.count("exact_tool_selection_committed") == 0
+    assert all(item.authorizes_execution is False for item in selections)
     assert event_types.count("tool_selection_accepted") == 0
     assert event_types.count("tool_schema_disclosed") == 2
     assert event_types.count("model_call_accepted") == 2
+
+
+def test_selector_cache_miss_rebuilds_from_current_authoritative_projection(
+    tmp_path: Path,
+) -> None:
+    controller, _, workspace, _, selector_http = _build(
+        tmp_path,
+        selector_operations=["write_file", "final_answer"],
+        active_operations=("write_file",),
+        missing_selector_parent_once=True,
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status is RunStatus.COMPLETED
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    assert len(selector_http.payloads) == 3
+    assert selector_http.payloads[1]["parent"] is not None
+    assert selector_http.payloads[2]["parent"] is None
+    assert selector_http.payloads[2]["bootstrap"].startswith("SelectorMenuV3: ")
+    rebuilt = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "selector_state_cache_rebuilt"
+    ]
+    assert len(rebuilt) == 1
+    assert rebuilt[0].payload["source"] == (
+        "authoritative_goal_action_projection"
+    )
+    assert rebuilt[0].payload["historical_prompt_replayed"] is False
+    assert rebuilt[0].payload["cache_authority"] is False
 
 
 def test_goal_policy_enables_network_selector_classes_without_changing_class_order(

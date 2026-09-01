@@ -14,6 +14,10 @@ from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
 from rwkv_lh.model import LongHorizonModel, ModelProtocolError
 from rwkv_lh.model_session import ModelSession
 from rwkv_lh.runtime.settings import RuntimeSettings
+from rwkv_lh.run_lifecycle import (
+    RUN_LIFECYCLE_POLICY_KEY,
+    run_lifecycle_policy_document,
+)
 from rwkv_lh.schema import (
     ActionStatus,
     CausalEventDraft,
@@ -76,6 +80,7 @@ def build(
     max_actions: int | None = None,
     min_actions: int = 0,
     tool_disclosure_mode: str = "full",
+    runtime_policy: dict | None = None,
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -91,6 +96,7 @@ def build(
         "Complete the requested workspace change.",
         str(workspace),
         constraints=["Operate only inside the workspace"],
+        runtime_policy=runtime_policy,
     )
     state = store.create_run(goal, "RUN")
     controller = LongHorizonController(
@@ -102,6 +108,47 @@ def build(
         min_actions=min_actions,
     )
     return controller, store, workspace, client, model
+
+
+def test_goal_mode_transition_boundary_yields_without_coercing_final(
+    tmp_path: Path,
+) -> None:
+    controller, store, workspace, client, _ = build(
+        tmp_path,
+        [
+            call("write_file", path="partial.txt", content="partial"),
+            call("final_answer", text="model chose to finish after continuation"),
+        ],
+        max_transitions=1,
+        runtime_policy={
+            RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document("goal")
+        },
+    )
+
+    first = controller.run("RUN")
+
+    assert first.state.status is RunStatus.RUNNING
+    assert first.final_output == ""
+    assert first.state.final_output == ""
+    assert (workspace / "partial.txt").read_text(encoding="utf-8") == "partial"
+    assert len(client.prompts) == 1
+    assert not any(
+        event.event_type in {"run_interrupted", "run_failed", "run_blocked"}
+        for event in first.state.causal_records.values()
+    )
+    yielded = [
+        event
+        for event in first.state.causal_records.values()
+        if event.event_type == "run_yielded"
+    ]
+    assert yielded[-1].payload["reason"] == "transition_budget_exhausted"
+    assert yielded[-1].payload["termination_permitted"] is False
+
+    resumed = controller.resume("RUN")
+
+    assert resumed.state.status is RunStatus.COMPLETED
+    assert resumed.final_output == "model chose to finish after continuation"
+    assert store.load("RUN").status is RunStatus.COMPLETED
 
 
 def test_direct_write_then_final_has_one_session_and_one_action(tmp_path: Path) -> None:

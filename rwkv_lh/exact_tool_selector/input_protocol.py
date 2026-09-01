@@ -11,6 +11,7 @@ from rwkv_lh.exact_tool_selector import (
     compact_protocol_v5,
     compact_protocol_v6,
     compact_protocol_v7,
+    compact_protocol_v8,
 )
 
 
@@ -29,6 +30,7 @@ class NetworkSelectorInputProtocol:
     render_step: Callable[[Any], str]
     current_requirement_in_step: bool = False
     current_question_in_step: bool = False
+    frontier_only_in_step: bool = False
 
 
 _PROTOCOLS = {
@@ -100,6 +102,20 @@ _PROTOCOLS = {
         render_step=compact_protocol_v7.render_compact_selector_step,
         current_question_in_step=True,
     ),
+    compact_protocol_v8.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION: NetworkSelectorInputProtocol(
+        schema_version=compact_protocol_v8.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION,
+        endpoint="/v8/select",
+        menu_prefix="SelectorMenuV8: ",
+        task_marker="\nSelectorRoleV8: ",
+        task_prefix="SelectorRoleV8: ",
+        step_prefix="SelectorStepV8: ",
+        bootstrap_payload=compact_protocol_v8.compact_selector_bootstrap_payload,
+        input_digest=compact_protocol_v8.compact_selector_input_digest,
+        menu_digest=compact_protocol_v8.compact_selector_menu_digest,
+        render_bootstrap=compact_protocol_v8.render_compact_selector_bootstrap,
+        render_step=compact_protocol_v8.render_compact_selector_step,
+        frontier_only_in_step=True,
+    ),
 }
 
 DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL = (
@@ -117,6 +133,9 @@ CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL = (
 REQUIREMENT_BYTE_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL = (
     compact_protocol_v7.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION
 )
+FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL = (
+    compact_protocol_v8.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION
+)
 SUPPORTED_NETWORK_SELECTOR_INPUT_PROTOCOLS = frozenset(_PROTOCOLS)
 
 
@@ -131,6 +150,7 @@ __all__ = [
     "DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
+    "FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "REQUIREMENT_BYTE_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "SUPPORTED_NETWORK_SELECTOR_INPUT_PROTOCOLS",

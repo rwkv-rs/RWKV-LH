@@ -62,6 +62,10 @@ from rwkv_lh.parallel_atoms import (
 )
 from rwkv_lh.runtime.protocol import RWKVRuntimeError
 from rwkv_lh.retrieval.runtime import operation_allowed_by_retrieval_policy
+from rwkv_lh.run_lifecycle import (
+    goal_self_termination_only,
+    model_voluntary_completion,
+)
 from rwkv_lh.schema import (
     ActionRecord,
     ActionStatus,
@@ -184,6 +188,47 @@ class LongHorizonController:
             )
         return contract.atom.action_budget, contract.minimum_actions
 
+    @staticmethod
+    def _goal_self_termination_only(state: RunState) -> bool:
+        """Apply Goal lifecycle semantics only to the parent run, not its atoms."""
+
+        return (
+            AtomExecutionBinding.from_goal(state.goal) is None
+            and goal_self_termination_only(state.goal)
+        )
+
+    def _goal_epoch_start_sequence(self, state: RunState) -> int:
+        if not self._goal_self_termination_only(state):
+            return 0
+        return next(
+            (
+                state.causal_records[event_id].sequence
+                for event_id in reversed(state.causal_order)
+                if state.causal_records[event_id].event_type == "run_yielded"
+            ),
+            0,
+        )
+
+    def _goal_epoch_event_count(self, state: RunState, event_type: str) -> int:
+        start = self._goal_epoch_start_sequence(state)
+        return sum(
+            event.event_type == event_type and event.sequence > start
+            for event in state.causal_records.values()
+        )
+
+    def _lifecycle_budget_count(
+        self,
+        state: RunState,
+        *,
+        event_type: str,
+        bounded_total: int,
+    ) -> int:
+        """Make controller budgets per-continuation in Goal mode."""
+
+        if self._goal_self_termination_only(state):
+            return self._goal_epoch_event_count(state, event_type)
+        return bounded_total
+
     @property
     def max_actions(self) -> int | None:
         """Compatibility surface for non-atom top-level runs only."""
@@ -303,7 +348,7 @@ class LongHorizonController:
                                 "type": type(exc).__name__,
                                 "message": str(exc)[:2000],
                             },
-                            "terminalized": True,
+                            "terminalized": not self._goal_self_termination_only(state),
                             "at": utc_now(),
                         },
                     )
@@ -395,6 +440,16 @@ class LongHorizonController:
                         action_budget is not None
                         and len(state.actions) >= action_budget
                     )
+                    if action_budget_reached and not final_answer_eligible(
+                        state,
+                        legacy_minimum_actions=minimum_actions,
+                    ):
+                        # The immutable atom cannot legally execute another
+                        # operation.  Do not force Final and then reject it in a
+                        # protocol loop; return the incomplete outcome to the
+                        # contract graph so its Planner can issue a correction.
+                        terminal_reason = "atom_contract_action_budget_exhausted"
+                        break
                     if forced_terminal_event is not None:
                         decision = self.model.terminal_answer(
                             state,
@@ -911,7 +966,11 @@ class LongHorizonController:
                 )
                 if presentation_review is None:
                     if (
-                        len(presentation_reviews)
+                        self._lifecycle_budget_count(
+                            state,
+                            event_type="contract_final_presentation_review_committed",
+                            bounded_total=len(presentation_reviews),
+                        )
                         >= self.supervisor_policy.max_reviewer_rounds
                     ):
                         return self._interrupt_contract_graph(
@@ -949,7 +1008,11 @@ class LongHorizonController:
                 failed_presentation_capsules = review_capsules
 
             if not patches:
-                if len(patches) >= self.supervisor_policy.max_graph_patches:
+                if self._lifecycle_budget_count(
+                    state,
+                    event_type="contract_graph_patch_committed",
+                    bounded_total=len(patches),
+                ) >= self.supervisor_policy.max_graph_patches:
                     return self._interrupt_contract_graph(
                         state,
                         reason="contract_graph_patch_budget_exhausted",
@@ -1000,7 +1063,11 @@ class LongHorizonController:
                 continue
 
             if current_review is None:
-                if len(reviews) >= self.supervisor_policy.max_reviewer_rounds:
+                if self._lifecycle_budget_count(
+                    state,
+                    event_type="contract_graph_review_committed",
+                    bounded_total=len(reviews),
+                ) >= self.supervisor_policy.max_reviewer_rounds:
                     return self._interrupt_contract_graph(
                         state,
                         reason="contract_graph_reviewer_budget_exhausted",
@@ -1022,7 +1089,12 @@ class LongHorizonController:
 
             if (
                 current_review_record is not None
-                and current_review_record[2]
+                and current_review_record[2] > 0
+                and self._lifecycle_budget_count(
+                    state,
+                    event_type="contract_graph_review_committed",
+                    bounded_total=current_review_record[2],
+                )
                 >= self.supervisor_policy.max_graph_stagnant_rounds
             ):
                 return self._interrupt_contract_graph(
@@ -1038,7 +1110,11 @@ class LongHorizonController:
                 finalizers_only=True,
             )
             finalizer_required = all_satisfied and not eligible_finalizers
-            if len(patches) >= self.supervisor_policy.max_graph_patches:
+            if self._lifecycle_budget_count(
+                state,
+                event_type="contract_graph_patch_committed",
+                bounded_total=len(patches),
+            ) >= self.supervisor_policy.max_graph_patches:
                 return self._interrupt_contract_graph(
                     state,
                     reason="contract_graph_patch_budget_exhausted",
@@ -2434,6 +2510,7 @@ class LongHorizonController:
         transitions: int,
         planning_review: ContractGraphReview | None = None,
         planning_capsules: tuple[ResultCapsule, ...] | None = None,
+        node_statuses: Mapping[str, str] | None = None,
     ) -> ControllerResult | None:
         correction_signature = ""
         if patches and not finalizer_required and reviews:
@@ -2449,6 +2526,8 @@ class LongHorizonController:
                 for event_id in state.causal_order
                 if state.causal_records[event_id].event_type
                 == "contract_correction_signature_committed"
+                and state.causal_records[event_id].sequence
+                > self._goal_epoch_start_sequence(state)
             }
             if correction_signature in committed_signatures:
                 self._persist(
@@ -2505,10 +2584,13 @@ class LongHorizonController:
             available_operations=self._contract_operation_catalog(state.goal),
             workspace_manifest=workspace_manifest,
             node_statuses={
-                node_id: (
-                    outcomes[node_id].status.value
-                    if node_id in outcomes
-                    else "pending"
+                node_id: str(
+                    (node_statuses or {}).get(
+                        node_id,
+                        outcomes[node_id].status.value
+                        if node_id in outcomes
+                        else "pending",
+                    )
                 )
                 for node_id in nodes
             },
@@ -5518,6 +5600,26 @@ class LongHorizonController:
         reason: str,
         pending_event: ModelEvent | None,
     ) -> str:
+        if self._goal_self_termination_only(state):
+            # A controller boundary is not permission to coerce a Final in Goal
+            # mode.  Persist a resumable checkpoint; the next slice restores the
+            # same RWKV lane and appends the pending action observation.
+            self._persist(
+                state,
+                "run_interrupted",
+                {
+                    "reason": reason,
+                    "decision_id": "",
+                    "output_source": "none",
+                    "controller_rewritten": False,
+                    "final_output_sha256": hashlib.sha256(b"").hexdigest(),
+                    "final_output": "",
+                    "pending_event_id": (
+                        pending_event.event_id if pending_event is not None else ""
+                    ),
+                },
+            )
+            return ""
         last_raw = ""
         event = ModelEvent(
             event_type="terminal_boundary",
@@ -5736,16 +5838,56 @@ class LongHorizonController:
         *,
         subject_id: str | None = None,
     ) -> None:
+        selected_event_type = str(event_type)
+        selected_event = dict(event)
+        if self._goal_self_termination_only(state):
+            if selected_event_type == "run_completed" and not model_voluntary_completion(
+                selected_event
+            ):
+                raise ValueError(
+                    "Goal mode completion must reference an explicit RWKV final decision"
+                )
+            if selected_event_type in {
+                "run_interrupted",
+                "run_failed",
+                "run_blocked",
+            }:
+                candidate_output = str(selected_event.get("final_output") or "")
+                selected_event = {
+                    "reason": str(
+                        selected_event.get("reason")
+                        or selected_event_type.removeprefix("run_")
+                    ),
+                    "boundary_type": selected_event_type,
+                    "resumable": True,
+                    "termination_permitted": False,
+                    "continuation": "controller_resume",
+                    "candidate_decision_id": str(
+                        selected_event.get("decision_id") or ""
+                    ),
+                    "candidate_output_source": str(
+                        selected_event.get("output_source") or "none"
+                    ),
+                    "candidate_output_sha256": hashlib.sha256(
+                        candidate_output.encode("utf-8")
+                    ).hexdigest(),
+                    "candidate_output": candidate_output,
+                    "at": utc_now(),
+                }
+                selected_event_type = "run_yielded"
         subject_keys = {
             "action_session_started": "lane_id",
             "action_session_rolled_over": "rollover_id",
+            "selector_state_cache_rebuilt": "checkpoint_id",
             "model_call_accepted": "decision_id",
             "model_call_rejected": "decision_id",
             "tool_selection_accepted": "decision_id",
             "tool_selection_rejected": "decision_id",
             "tool_schema_disclosed": "checkpoint_id",
             "exact_tool_selection_committed": "selection_id",
+            "exact_tool_selection_staged": "selection_id",
             "exact_tool_selection_consumed": "selection_id",
+            "exact_tool_selection_discarded": "selection_id",
             "exact_tool_selection_rejected": "selection_id",
             "protocol_rejection_recorded": "decision_id",
             "action_started": "action_id",
@@ -5762,17 +5904,17 @@ class LongHorizonController:
             "atom_outcome_committed": "atom_id",
             "supervisor_review_recorded": "review_id",
         }
-        subject_key = subject_keys.get(event_type)
+        subject_key = subject_keys.get(selected_event_type)
         selected_subject = (
             str(subject_id)
             if subject_id is not None
-            else str(event.get(subject_key) or state.run_id)
+            else str(selected_event.get(subject_key) or state.run_id)
             if subject_key
             else state.run_id
         )
         draft = CausalEventDraft.create(
-            event_type,
-            event,
+            selected_event_type,
+            selected_event,
             subject_id=selected_subject,
             cause_id=(state.causal_order[-1] if state.causal_order else None),
         )

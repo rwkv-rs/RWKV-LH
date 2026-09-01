@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 
 
@@ -24,11 +23,6 @@ S40_REPORT = (
     / "run_s40_full_variant_matched_prefix_locked_test/TEST_REPORT.json"
 )
 S41_REPORT = EXPERIMENT / "run_s41_v3_product_shadow_canary/CANARY_REPORT.json"
-CURRENT_LAUNCH = (
-    ROOT / "scripts/run_network_selector_s60_requirement_byte_tail_zero_service.sh"
-)
-
-
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -93,51 +87,29 @@ def test_s39_s41_release_is_content_addressed_and_all_gates_pass() -> None:
     assert s41["executor_model_call_count"] == 0
 
 
-def test_current_release_launch_and_example_pin_s60_zero_state_identity() -> None:
-    assert os.access(CURRENT_LAUNCH, os.X_OK)
-    launch = CURRENT_LAUNCH.read_text(encoding="utf-8")
-    for required in (
-        "CUDA_VISIBLE_DEVICES=0",
-        "--port \"$SERVICE_PORT\"",
-        "--profile-id zero",
-        "--profile-sha256 \"$ZERO_SHA256\"",
-        "721669ce8733b590b3aa6c910d8bc13d744612f1fee884d5276a3f0d96d0d441",
-        "205f995690232aef9c442b19a009fb2eda4c6be4e524e3fc903bb2dd17d72f9e",
-    ):
-        assert required in launch
-
+def test_current_example_uses_replaceable_selector_role_and_v8_frontier() -> None:
     selector_values: dict[str, str] = {}
     for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines():
-        if line.startswith("RWKV_SELECTOR_"):
+        if line.startswith("RWKV_LH_SELECTOR_"):
             key, value = line.split("=", 1)
             selector_values[key] = value
     assert selector_values == {
-        "RWKV_SELECTOR_BASE_URL": "http://127.0.0.1:29621",
-        "RWKV_SELECTOR_MODEL": "rwkv7-g1i-2.9b-vllm-v1",
-        "RWKV_SELECTOR_MODEL_SHA256": (
-            "01f39dd59fc402fbe8ba49765a1997ee9dbc82427bf0ece6a4fac520e9eb8044"
-        ),
-        "RWKV_SELECTOR_HEAD_SHA256": (
-            "721669ce8733b590b3aa6c910d8bc13d744612f1fee884d5276a3f0d96d0d441"
-        ),
-        "RWKV_SELECTOR_HEAD_HASH": (
-            "205f995690232aef9c442b19a009fb2eda4c6be4e524e3fc903bb2dd17d72f9e"
-        ),
-        "RWKV_SELECTOR_FEATURE_PROTOCOL": (
+        "RWKV_LH_SELECTOR_BASE_URL": "http://127.0.0.1:29621",
+        "RWKV_LH_SELECTOR_MODEL": "",
+        "RWKV_LH_SELECTOR_MODEL_SHA256": "",
+        "RWKV_LH_SELECTOR_HEAD_SHA256": "",
+        "RWKV_LH_SELECTOR_HEAD_HASH": "",
+        "RWKV_LH_SELECTOR_FEATURE_PROTOCOL": (
             "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1"
         ),
-        "RWKV_SELECTOR_INPUT_PROTOCOL": (
-            "rwkv-lh.exact-tool-selector-input.v7-requirement-byte-tail"
+        "RWKV_LH_SELECTOR_INPUT_PROTOCOL": (
+            "rwkv-lh.exact-tool-selector-input.v8-frontier-question-tail"
         ),
-        "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
-        "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
-        "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": (
-            "706ff62cc8ae5851f9c918509911d4ee701f9db5d00bef16f24d2a568e3a0b47"
-        ),
-            "RWKV_SELECTOR_CONNECT_TIMEOUT": "10",
-            "RWKV_SELECTOR_READ_TIMEOUT": "120",
-            "RWKV_SELECTOR_LAUNCHER": (
-                "/home/chase/GitHub/RWKV-LH/scripts/"
-                "run_network_selector_s60_requirement_byte_tail_zero_service.sh"
-            ),
-        }
+        "RWKV_LH_SELECTOR_STATE_PROFILE_ID": "zero",
+        "RWKV_LH_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
+        "RWKV_LH_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "",
+        "RWKV_LH_SELECTOR_CONNECT_TIMEOUT": "10",
+        "RWKV_LH_SELECTOR_READ_TIMEOUT": "120",
+        "RWKV_LH_SELECTOR_LAUNCHER": "",
+        "RWKV_LH_SELECTOR_CUDA_VISIBLE_DEVICES": "",
+    }

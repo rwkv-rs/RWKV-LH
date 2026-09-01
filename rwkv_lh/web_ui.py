@@ -10,7 +10,6 @@ import mimetypes
 import os
 import re
 import secrets
-import signal
 import sqlite3
 import subprocess
 import sys
@@ -147,12 +146,13 @@ class ManualRunRepository:
         if not isinstance(raw_retrieval, Mapping):
             raise ValueError("retrieval_policy must be an object")
         retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
-        supervisor_mode = str(payload.get("supervisor_mode") or "none").strip()
-        if supervisor_mode not in {"none", "contract_graph"}:
-            raise ValueError("supervisor_mode must be none or contract_graph")
-        state_router_shadow = payload.get("state_router_shadow", False)
-        if not isinstance(state_router_shadow, bool):
-            raise ValueError("state_router_shadow must be a boolean")
+        supervisor_mode = str(
+            payload.get("supervisor_mode") or "stateful_goal"
+        ).strip()
+        if supervisor_mode != "stateful_goal":
+            raise ValueError("supervisor_mode must be stateful_goal")
+        if payload.get("state_router_shadow", False) is not False:
+            raise ValueError("state_router_shadow is retired")
         try:
             max_transitions = int(payload.get("max_transitions", 200))
         except (TypeError, ValueError) as exc:
@@ -201,7 +201,6 @@ class ManualRunRepository:
             "constraints": constraints,
             "retrieval_policy": retrieval.to_dict(),
             "supervisor_mode": supervisor_mode,
-            "state_router_shadow": state_router_shadow,
             "execution_mode": "goal",
             "max_transitions": max_transitions,
             "seed_files": [
@@ -487,25 +486,6 @@ class ManualRunManager:
         expected_root = str(self.repository.run_root(run_id))
         return "rwkv_lh.web_worker" in command and expected_root in command
 
-    def stop(self, run_id: str) -> dict[str, Any]:
-        metadata = self.repository.metadata(run_id)
-        with self._lock:
-            process = self._processes.get(run_id)
-            if process is not None and process.poll() is None:
-                pid = process.pid
-            elif self._managed_pid_alive(run_id, metadata.get("pid")):
-                pid = int(metadata["pid"])
-            else:
-                raise RuntimeError("run is not active")
-            os.killpg(pid, signal.SIGTERM)
-        return update_metadata(
-            self.repository.run_root(run_id),
-            active=False,
-            phase="stopped",
-            pid=None,
-            stopped_at=utc_now(),
-        )
-
     def refresh_metadata(self, run_id: str) -> dict[str, Any]:
         metadata = self.repository.metadata(run_id)
         with self._lock:
@@ -714,7 +694,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     supervisor = {
                         "configured": True,
                         "model": supervisor_settings.model,
-                        "mode": "contract_graph",
+                        "mode": "stateful_goal",
                         "fallback_count": len(supervisor_settings.fallback_models),
                     }
                 except (OSError, ValueError) as exc:
@@ -828,16 +808,12 @@ class WebHandler(BaseHTTPRequestHandler):
                 launched = self.server.manager.launch(str(metadata["run_id"]))
                 self.send_json({"run": launched}, HTTPStatus.CREATED)
                 return
-            match = re.fullmatch(r"/api/runs/([^/]+)/(resume|stop)", path)
+            match = re.fullmatch(r"/api/runs/([^/]+)/resume", path)
             if not match:
                 self.send_error_json(404, "not found")
                 return
             run_id = normalize_run_id(unquote(match.group(1)))
-            action = match.group(2)
-            if action == "resume":
-                self.send_json({"run": self.server.manager.launch(run_id, resume=True)})
-            else:
-                self.send_json({"run": self.server.manager.stop(run_id)})
+            self.send_json({"run": self.server.manager.launch(run_id, resume=True)})
         except FileNotFoundError as exc:
             self.send_error_json(404, str(exc))
         except (ValueError, json.JSONDecodeError) as exc:

@@ -19,6 +19,8 @@ from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+from rwkv_lh.runtime.role_config import role_env, role_int
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorSettings,
 )
@@ -80,22 +82,33 @@ class RuntimeStackSettings:
     def from_env(cls) -> "RuntimeStackSettings":
         load_local_env()
         settings = cls(
-            mode=os.environ.get("RWKV_RUNTIME_MODE", "managed-remote")
+            mode=os.environ.get("RWKV_RUNTIME_MODE", "external")
             .strip()
             .casefold(),
             state_dir=Path(
                 os.environ.get("RWKV_RUNTIME_STATE_DIR", PROJECT_ROOT / "data/runtime")
             ).expanduser(),
-            remote_ssh_alias=os.environ.get(
-                "RWKV_REMOTE_SSH_ALIAS", "rwkv-8222"
-            ).strip(),
-            remote_service=os.environ.get(
-                "RWKV_REMOTE_SERVICE",
-                "helicopter-vllm-g1i-13p3b-rwkv-lh-stage1-selector-gpu0.service",
-            ).strip(),
-            remote_port=int(os.environ.get("RWKV_REMOTE_PORT", "18070")),
-            main_base_url=os.environ.get(
-                "RWKV_BASE_URL", "http://127.0.0.1:29613/v1"
+            remote_ssh_alias=role_env(
+                "executor",
+                "remote_ssh_alias",
+                legacy="RWKV_REMOTE_SSH_ALIAS",
+            ),
+            remote_service=role_env(
+                "executor",
+                "remote_service",
+                legacy="RWKV_REMOTE_SERVICE",
+            ),
+            remote_port=role_int(
+                "executor",
+                "remote_port",
+                legacy="RWKV_REMOTE_PORT",
+                default=18070,
+            ),
+            main_base_url=role_env(
+                "executor",
+                "base_url",
+                legacy="RWKV_BASE_URL",
+                default="http://127.0.0.1:29613/v1",
             ).rstrip("/"),
         )
         settings.validate()
@@ -109,10 +122,20 @@ class RuntimeStackSettings:
             raise ValueError("main RWKV URL must be absolute HTTP(S)")
         if not 1 <= self.remote_port <= 65535:
             raise ValueError("RWKV remote port is invalid")
-        if (
+        if self.mode == "managed-remote" and (
+            not self.remote_ssh_alias or not self.remote_service
+        ):
+            raise ValueError(
+                "managed-remote requires RWKV_LH_EXECUTOR_REMOTE_SSH_ALIAS and "
+                "RWKV_LH_EXECUTOR_REMOTE_SERVICE"
+            )
+        if self.remote_ssh_alias and (
             not SAFE_SSH_ALIAS.fullmatch(self.remote_ssh_alias)
             or self.remote_ssh_alias.startswith("-")
-            or not SAFE_UNIT.fullmatch(self.remote_service)
+        ):
+            raise ValueError("RWKV remote SSH alias is invalid")
+        if self.remote_service and (
+            not SAFE_UNIT.fullmatch(self.remote_service)
             or self.remote_service.startswith("-")
         ):
             raise ValueError("RWKV remote SSH alias/service is invalid")
@@ -309,7 +332,20 @@ class RuntimeStackManager:
     def _main_health(self) -> dict[str, Any]:
         client = OpenAICompatibleRWKVClient()
         try:
-            return client.health().to_dict()
+            health = client.health().to_dict()
+            capabilities = client.capabilities()
+            health["capabilities"] = capabilities.to_dict()
+            if client.settings.state_transport == "native_required" and not (
+                capabilities.durable_recurrent_state
+                and capabilities.recurrent_state_protocol
+                == NATIVE_STATE_PROTOCOL_VERSION
+            ):
+                health["available"] = False
+                health["error"] = (
+                    "configured Goal runtime lacks the attested native "
+                    "state+delta cache protocol"
+                )
+            return health
         finally:
             client.close()
 
@@ -381,6 +417,11 @@ class RuntimeStackManager:
             }
         if parsed.port is None:
             raise ValueError("loopback RWKV_BASE_URL must include an explicit port")
+        if not self.settings.remote_ssh_alias:
+            raise RuntimeError(
+                "loopback Executor is unavailable; start it locally or configure "
+                "RWKV_LH_EXECUTOR_REMOTE_SSH_ALIAS for a tunnel"
+            )
         environment = dict(os.environ)
         record = self._spawn(
             "tunnel",
@@ -417,13 +458,17 @@ class RuntimeStackManager:
                 "health": health,
                 **({"process": record} if owned else {}),
             }
-        launcher = Path(
-            os.environ.get(
-                "RWKV_SELECTOR_LAUNCHER",
-                PROJECT_ROOT
-                / "scripts/run_network_selector_s60_requirement_byte_tail_zero_service.sh",
+        launcher_value = role_env(
+            "selector",
+            "launcher",
+            legacy="RWKV_SELECTOR_LAUNCHER",
+        )
+        if not launcher_value:
+            raise RuntimeError(
+                "Selector is configured but unavailable; set "
+                "RWKV_LH_SELECTOR_LAUNCHER or start the endpoint externally"
             )
-        ).expanduser().resolve()
+        launcher = Path(launcher_value).expanduser().resolve()
         if not launcher.is_file() or not os.access(launcher, os.X_OK):
             raise RuntimeError(
                 f"network Selector launcher is missing or not executable: {launcher}"
@@ -433,7 +478,13 @@ class RuntimeStackManager:
         environment["PYTHONPATH"] = os.pathsep.join(
             [str(PROJECT_ROOT), *([existing] if existing else [])]
         )
-        environment["CUDA_VISIBLE_DEVICES"] = "0"
+        selector_devices = role_env(
+            "selector",
+            "cuda_visible_devices",
+            legacy="RWKV_SELECTOR_CUDA_VISIBLE_DEVICES",
+        )
+        if selector_devices:
+            environment["CUDA_VISIBLE_DEVICES"] = selector_devices
         record = self._spawn(
             "selector",
             [str(launcher)],

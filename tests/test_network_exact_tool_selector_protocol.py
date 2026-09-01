@@ -4,6 +4,11 @@ import json
 
 import pytest
 
+from rwkv_lh.exact_tool_selector.compact_protocol_v8 import (
+    compact_selector_step_payload,
+    render_compact_selector_bootstrap,
+    render_compact_selector_step,
+)
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_ABSTAIN_LABEL,
     NETWORK_EXACT_TOOL_LABELS,
@@ -46,6 +51,28 @@ def test_network_selector_v2_excludes_executor_state_and_results() -> None:
     assert '"result"' not in value.render()
     assert '"reasoning"' not in value.render()
     assert '"parameters"' not in value.render()
+
+
+def test_selector_v8_sees_only_one_frontier_question_at_the_byte_tail() -> None:
+    value = NetworkSelectorInput.create(
+        task_request="Complete Goal text that must not enter the Selector.",
+        stage_objective="Read the current configuration file.",
+        stage_role="tool_intent",
+        progress=NetworkSelectorProgress(action_index=2),
+    )
+
+    bootstrap = render_compact_selector_bootstrap(value)
+    step = render_compact_selector_step(value)
+    payload = compact_selector_step_payload(value)
+
+    assert value.task_request not in bootstrap + step
+    assert list(payload)[-1] == "current_question"
+    assert step.count(value.stage_objective) == 1
+    assert step.endswith(
+        "Current requirement: Read the current configuration file.\"}"
+    )
+    assert "plan" in payload["current_question"]
+    assert '"parameters"' not in bootstrap + step
 
 
 def test_network_selector_v2_rejects_schema_leak() -> None:
@@ -93,6 +120,40 @@ def test_network_selector_v2_preserves_all_raw_logits() -> None:
     assert raw["postprocessed"] is False
     assert raw["generated_text"] is False
     assert NetworkExactToolSelection.from_dict(raw) == value
+
+
+def test_network_selector_exposes_deterministic_top_k_without_new_inference() -> None:
+    logits = [0.0] * len(NETWORK_EXACT_TOOL_LABELS)
+    logits[NETWORK_EXACT_TOOL_LABELS.index("read_file")] = 4.0
+    logits[NETWORK_EXACT_TOOL_LABELS.index("search_text")] = 3.0
+    logits[NETWORK_EXACT_TOOL_LABELS.index("list_directory")] = 2.0
+    value = NetworkExactToolSelection(
+        selection_id="SEL-TOP-K",
+        trace_id="TRACE-TOP-K",
+        selected_operation="read_file",
+        logits=tuple(logits),
+        temperature=1.0,
+        input_digest="1" * 64,
+        menu_digest="2" * 64,
+        selector_checkpoint_id="SCP-TOP-K",
+        selector_state_ref="STATE-TOP-K",
+        selector_state_digest="3" * 64,
+        selector_parent_state_digest="",
+        token_position=1,
+        model="rwkv-2.9b",
+        model_sha256="4" * 64,
+        head_sha256="5" * 64,
+        profile_id="selector",
+        profile_sha256="6" * 64,
+    )
+
+    ranked = value.ranked_operations(3)
+    assert [item[0] for item in ranked] == [
+        "read_file",
+        "search_text",
+        "list_directory",
+    ]
+    assert [item[1] for item in ranked] == [4.0, 3.0, 2.0]
 
 
 def test_network_selector_v3_selects_raw_argmax_only_inside_eligibility_domain() -> None:

@@ -45,9 +45,9 @@ def _parser() -> argparse.ArgumentParser:
     start.add_argument("--run-id", default=None)
     start.add_argument(
         "--supervisor",
-        choices=("none", "contract_graph"),
-        default="none",
-        help="Use the configured strong model for contract planning/review",
+        choices=("stateful_goal",),
+        default="stateful_goal",
+        help="Use the current RWKV Stateful Goal Loop v2 product architecture",
     )
     start.add_argument(
         "--network-policy",
@@ -66,12 +66,6 @@ def _parser() -> argparse.ArgumentParser:
         default=[],
         help="Workspace-relative file or directory explicitly declared public (repeatable)",
     )
-    start.add_argument(
-        "--state-router-shadow",
-        action="store_true",
-        help="Record advisory State Router predictions without affecting execution",
-    )
-
     resume = subparsers.add_parser("resume", help="Resume an existing run")
     resume.add_argument("run_id")
 
@@ -93,9 +87,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     enqueue.add_argument("--approve-workspace-egress", action="store_true")
     enqueue.add_argument("--public-workspace-path", action="append", default=[])
-    enqueue.add_argument("--state-router-shadow", action="store_true")
     enqueue.add_argument(
-        "--supervisor", choices=("none", "contract_graph"), default="contract_graph"
+        "--supervisor",
+        choices=("stateful_goal",),
+        default="stateful_goal",
     )
     enqueue.add_argument("--due-at", default="", help="ISO-8601 time; default now")
     enqueue.add_argument("--interval-seconds", type=int, default=0)
@@ -168,9 +163,7 @@ def _scheduled_payload(arguments: argparse.Namespace) -> dict[str, Any]:
         "runtime_policy": runtime_policy_document(
             _retrieval_config(arguments),
             supervisor_mode=arguments.supervisor,
-            state_router_mode=(
-                "shadow" if bool(arguments.state_router_shadow) else "disabled"
-            ),
+            state_router_mode="disabled",
         ),
         "max_transitions": max(1, min(int(arguments.max_transitions), 500)),
     }
@@ -355,9 +348,7 @@ def main() -> int:
         runtime_policy=runtime_policy_document(
             config,
             supervisor_mode=arguments.supervisor,
-            state_router_mode=(
-                "shadow" if bool(arguments.state_router_shadow) else "disabled"
-            ),
+            state_router_mode="disabled",
         ),
     )
     state = store.create_run(goal, arguments.run_id)

@@ -1,87 +1,145 @@
-# RWKV-LH 单会话直接行动架构
+# RWKV-LH 长程 Agent：state+delta、权威链与自终止
 
 ## 设计目标
 
-当前系统的目标不是让 Controller 代替弱模型做对任务，而是让 RWKV 的正确决定不被接口
-阻塞，并且不放大其错误决定。用户请求以原文进入一个持续 RWKV Action session；系统不先
-要求模型生成 Goal、验收条件、Task DAG 或 evidence contract。
-
-在线链路只有：
+系统不让 Controller 代替 RWKV 决策，也不要求 16K 窗口反复容纳全部历史。用户请求作为
+不可变 Goal；2.9B Selector 暂存 operation 候选；13.3B Executor 生成完整调用参数、决定继续
+或 Final；Harness 只校验并执行已接受调用。
 
 ```text
-immutable user request
-  -> one RWKV Action session
-  -> one operation-specific registered call OR final_answer
-  -> exact Harness ActionResult + artifact revision
-  -> the same RWKV Action session
+immutable Goal + folded causal facts
+  -> Selector WKV state + bounded selector delta
+  -> exact_tool_selection_staged (non-authoritative)
+  -> Executor reauthorization + one operation schema
+  -> Executor WKV state + current delta
+  -> accepted direct call OR explicit final_answer
+  -> action_started -> Harness -> action_finished
+  -> bounded observation delta -> same Executor state chain
 ```
 
-RWKV 决定 operation、全部显式参数、是否继续行动和 Final 文本。Runtime 只负责作用域、
-sandbox、schema 校验、执行、Observation、持久化和恢复。
+## 16K 与 state+delta
 
-## 模型边界
+`NativeRWKVModelSession` 首次把 bootstrap 送入 `/state/create`，以后只发送：
 
-bootstrap 显示 ActionDefinition 注册表投影出的具体工具 schema 和 `final_answer`。每次候选
-只能是一个 `{function, params}` 调用。历史调用只存在于 committed transcript；格式失败会
-rollback，不会执行半个 Action。
+- `parent_state_ref`；
+- 本步新 event、schema 或 Observation 的 delta；
+- 当前采样参数和输出上限。
 
-转换层只处理 call envelope 的常见等价拼写和 Markdown JSON fence。operation 参数由其
-ActionDefinition 校验。若候选已经明确选择一个已注册 operation、但参数不合法，系统把原始
-错误和该 operation 的完整当前 schema 作为最近 Observation 返回同一 session。它不把
-`max_start_byte` 猜成其他字段，也不丢弃未知参数。
+服务返回新的 state ref/digest。候选先是 forked candidate，只有 parser、operation visibility、
+ActionDefinition schema 和所有 identity binding 通过后才 commit；否则 rollback 到精确父 state。
+
+健康 native lane 不因为累计历史超过 16K 而 rollover 成 prompt replay。16K 只限制单次 bootstrap、
+单步 delta 与输出余量。WKV 是模型对历史的递归压缩，不是精确事实数据库；文件正文、ActionResult、
+证据和完成状态继续存在 CausalEvent/Artifact 中。cache miss 时系统从当前权威投影重建一个有界
+bootstrap，不发额外语义模型请求，也不把全部旧 prompt 重放。
+
+`ModelSession` prompt replay 仍保留作显式 bounded 消融。产品 Goal 强制 `native_required`；服务未
+声明精确 `rwkv-lh.native-state.v1` 时 fail closed。
+
+## WKV 只是一层 cache
+
+每个 native checkpoint 带 `NativeStateCacheBinding`：lane、lane kind、模型和 SHA、state profile、
+state-chain digest、本步 delta digest、event-ID digest、父 state digest。序列化值固定：
+
+```json
+{"cache_role":"disposable_acceleration","authoritative":false}
+```
+
+这层 cache 不能：
+
+- 宣布 Action 已执行；
+- 宣布 Goal 已完成；
+- 覆盖 Goal、Decision、Action 或 causal ledger；
+- 因为 state ref 存在就跳过当前工具/权限校验。
+
+导入时若模型/profile/build/delta/event/binding 任一身份不一致，cache 被拒绝。Executor cache 丢失
+时 staged selection 会被 discard，随后从权威 Goal/Action 投影重建并重新选择；Selector cache
+丢失时同样从当前投影重建，不重放历史 Selector prompt。
+
+## Selector 不是 execution authority
+
+Selector 输出 `exact_tool_selection_staged`，其 `authorizes_execution` 必须为 `false`。Executor
+使用它之前机械复核：
+
+1. Selector 父 state 和 Executor 父 checkpoint；
+2. Selector/Executor 模型、SHA、profile；
+3. eligible labels、menu digest 和唯一工具定义 digest；
+4. 当前 atom execution contract digest。
+
+随后只披露一个工具 schema。13.3B 必须自己生成同一 operation 的直接调用和全部参数。有效
+candidate 形成 accepted `DecisionRecord`，selection 变为 consumed；但 selection 本身仍不授权。
+Controller 只有在 accepted Decision、Goal policy、ActionDefinition 和当前 contract 全部匹配后，
+才先持久化 `action_started`，再调用 Harness。
+
+`exact_tool_selection_committed` 仅作为历史 ledger 的读取兼容事件保留，不由在线链路产生。
 
 ## CausalEvent 是唯一业务事实源
 
-v17 不再把通用 envelope 作为现有状态旁边的审计副本。每次持久化只追加一个：
+每次持久化只追加一个版本化事件：
 
 ```text
 schema_version / event_id / run_id / sequence / parent_id / cause_id /
 subject_id / event_type / payload_schema / payload / digest / created_at
 ```
 
-- `event_type` 来自显式注册表，并绑定版本化 `payload_schema`。
-- `parent_id` 给出全局追加顺序；`cause_id` 指向直接原因；`subject_id` 聚合同一
-  request/action/artifact/session。
-- digest 覆盖事件身份、关系、payload schema、payload 和时间。
-- Action 开始和结束是两个不可变事件。finish 必须匹配 start 的 operation、参数、fingerprint、
-  decision、request、sequence 和 workspace-before digest。
-- model decision、protocol rejection、ModelEvent append、artifact revision、rollover 和 Final
-  进入同一事件协议。
+`RunState.actions`、artifact heads、failure budget、lane heads、Final、UI 状态与 SQLite action index
+都是事件 fold 的 disposable projection。Store 保存前后均重新 fold，并校验 sequence、parent、
+cause、event digest 和 projection digest。
 
-`RunState.actions`、artifact heads、failure budget、active action、Final、UI 步骤和 SQLite
-action index 都是事件 fold 的 disposable projection。Store 保存前先丢弃调用方的 projection，
-追加事件，再从权威链重建；加载时也重新 fold，并校验 parent、cause、sequence、event digest
-和 projection digest。因此调用方修改旧对象引用不能改变已保存事实。
+权威层次为：
 
-ModelSession checkpoint/transcript 仍作为 transport cache 保存，因为当前后端只能
-prompt replay。它不拥有业务完成语义；未来 native recurrent state 也必须保持相同事件边界。
+```text
+Goal policy
+  + append-only CausalEvent
+  + accepted RWKV Decision
+  + committed Harness Action/Result
+  = current executable truth
 
-## 副作用与恢复
+WKV / transcript / staged selection / retrieval snapshot / isolated workspace
+  = cache or candidate only
+```
 
-Harness 执行前先持久化 `action_started`。正常结束后追加 `action_finished`，其中包含完整
-ActionResult、artifact 与 revision。
+## Action、副作用与恢复
 
-- 幂等 Action 在 started 后进程丢失时，可用同一 action id 和显式参数恢复。
-- 非幂等 Action 不自动重放；追加 interrupted finish，让同一 RWKV session看到未知副作用事实。
-- 相同失败预算从 finished 事件的稳定 causal key 投影，不能通过 Task ID 或 replacement 重置。
-- artifact revision 只记录时序事实，不判断新内容是否满足用户意图。
+Harness 执行前先提交 `action_started`；结束后追加 `action_finished`，包含完整 ActionResult、artifact
+与 revision。幂等 Action 可在进程丢失后用同一 action id 恢复；非幂等 Action 不自动重放未知
+副作用。相同失败预算由稳定 causal key 投影，不能通过新 Task ID 清零。
 
-## Final
+当前默认 Stateful Goal Loop 不创建 Contract Graph atom workspace；Strong Planner 只编译义务与
+证据门，唯一 13.3B 主 State 串行执行，RWKV Audit Fork 自审核。旧 Contract Graph atom 模式仍在
+隔离 workspace 中执行，只有 contract 通过、声明写根完整覆盖后才事务合并；它不属于默认闭环。
 
-正常完成由 RWKV 显式调用 `final_answer(text)`。转换后的 `text` 字段按原始值交付，不做
-事实纠正。达到 transition、protocol 或相同失败预算时，系统仍从同一 Action session请求一个
-terminal `final_answer`；如果模型不能遵守 Final schema，则保留最后一份原始 RWKV 输出并
-标记 failed。
+## Goal 只能由 RWKV 自己停止
 
-Agent completed 与 External acceptance 必须分别报告。Final 非空不等于任务正确，Harness
-动作成功也不等于用户目标满足。
+Goal Studio 写入固定 lifecycle policy：
 
-## 当前明确不做
+```json
+{
+  "mode":"goal",
+  "self_termination_only":true,
+  "budget_boundary":"checkpoint_and_continue",
+  "completion_authority":"rwkv_explicit_final_answer"
+}
+```
 
-- 在线 Goal/criterion 解析、Task DAG、selector、reviewer、completion gate。
-- Controller 语义验证、候选排序、答案修复或 hidden acceptance 反馈。
-- 递归 subagent、MCP、服务插件和多模型 handoff。
-- 在 Basic 链路过门前加入 workset、collection reduce 或效率型 prompt 压缩实验。
+transition、action、protocol、重复或图预算只是 worker slice 边界；运行时、Selector、Supervisor、
+state service 故障只是等待恢复边界。Controller 把所有内部 `run_interrupted/run_failed/run_blocked`
+尝试转成 `run_yielded`，状态保持 running。web worker 重建 adapter、指数退避并继续。
 
-这些能力若以后需要，必须作为新的单变量协议建立在同一 CausalEvent 权威链之上，不能建立
-第二套进度或恢复状态机。
+唯一完成路径是已接受的 RWKV `final_answer(text)`，其 completion event 必须带明确 decision id 和
+`output_source=rwkv_explicit_final_answer_text`（Contract Graph finalizer 使用对应的显式 RWKV source）。
+外部杀死进程只停止计算，不改变持久 Goal 的语义状态。
+
+bounded CLI 与历史实验仍可选择 interrupted/failed 语义或显式 prompt-replay 消融；它们不能改变
+Goal mode 的不变量。
+
+## 当前部署边界
+
+代码、协议夹具和真实项目 Harness 验收已经覆盖 state+delta 与生命周期；13.3B 生产 tunnel
+`29613` 也已声明并通过完整 create/resume/fork/generate/commit/rollback/export/import 验收。
+固定 capability、续写 token 和 lifecycle exact 指标均为 1.0，产品客户端确认
+`native_rwkv`、`prompt_replay=false`、精确 rollback，并在真实项目母路径执行只读 Action 后以
+Observation delta 推进 child state。
+
+这证明 live 原生 WKV transport 已上线，不代表多步 Agent 能力已经达标。固定三题模型能力结果仍为
+0/3；后续能力优化必须继续使用固定数据、参数、阈值和 verifier。

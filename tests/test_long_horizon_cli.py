@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from rwkv_lh.proactive import JobStatus, ProactiveJob
 from rwkv_lh.schema import (
     CausalEvent,
@@ -15,7 +17,7 @@ from scripts import run_long_horizon
 from scripts.run_long_horizon import _parser, _proactive_handler, _scheduled_payload
 
 
-def test_start_and_enqueue_accept_explicit_state_router_shadow(tmp_path) -> None:
+def test_start_and_enqueue_expose_only_latest_product_architecture(tmp_path) -> None:
     parser = _parser()
     start = parser.parse_args(
         [
@@ -26,10 +28,9 @@ def test_start_and_enqueue_accept_explicit_state_router_shadow(tmp_path) -> None
             "test",
             "--workspace",
             str(tmp_path / "start-workspace"),
-            "--state-router-shadow",
         ]
     )
-    assert start.state_router_shadow is True
+    assert start.supervisor == "stateful_goal"
 
     enqueue = parser.parse_args(
         [
@@ -38,14 +39,22 @@ def test_start_and_enqueue_accept_explicit_state_router_shadow(tmp_path) -> None
             "test",
             "--workspace",
             str(tmp_path / "enqueue-workspace"),
-            "--state-router-shadow",
         ]
     )
     policy = _scheduled_payload(enqueue)["runtime_policy"]
-    assert policy["state_router"] == {
-        "schema_version": "rwkv-lh.state-router-runtime-policy.v1",
-        "mode": "shadow",
-    }
+    assert "state_router" not in policy
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "start",
+                "--request",
+                "test",
+                "--workspace",
+                str(tmp_path / "old-workspace"),
+                "--supervisor",
+                "contract_graph",
+            ]
+        )
 
 
 def test_resolved_historical_supervisor_pending_does_not_retry_later_stop(

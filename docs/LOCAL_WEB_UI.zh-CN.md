@@ -7,13 +7,14 @@
 ## 当前可以测试什么
 
 - 用户请求逐字保存为 immutable request，不经模型解析或重写。
-- strong Planner/Reviewer 只产生和审核 Contract Graph；2.9B Selector 只从名称/描述中提交一个
-  operation；13.3B Executor 只接收该 operation 的完整 schema，生成参数、推进执行并产生 final。
+- strong Planner/Reviewer 只产生和审核 Contract Graph；2.9B Selector 只从名称/描述中暂存一个
+  非权威 operation；13.3B Executor 复核当前绑定后接收该 schema，生成参数、推进执行并产生 final。
 - 在每个运行独立的 workspace 中读取、创建、修改、复制和删除 UTF-8/JSON 文件，或执行 Harness 允许的 scoped command。
-- 查看从 CausalEvent 权威链投影出的 Action、Artifact、ModelSession checkpoint、
+- 查看从 CausalEvent 权威链投影出的 Action、Artifact，以及非权威 WKV checkpoint、
   Controller event 和每个模型请求的采样参数。
 - 查看发给 RWKV 的精确 G1i transcript、原始候选、commit/rollback 和 typed event。
-- 停止 worker，从 SQLite 恢复 interrupted/stopped run，并导出包含 workspace、trace、event 和一致 SQLite snapshot 的 ZIP。
+- 可以停止计算进程并从 SQLite 恢复；这不把 Goal 标记为 stopped/failed。Goal 语义仍保持 running，
+  直到 RWKV 自己提交 Final。导出包包含 workspace、trace、event 和一致 SQLite snapshot。
 - 可按运行选择 `offline/auto_public/explicit_egress`；页面默认 `auto_public + contract_graph`，
   联网结果冻结为可回定位 exact evidence。CLI/API 未显式选择时仍安全地默认 offline。
 
@@ -36,7 +37,8 @@ Controller 连接正确，不是新的能力分数。
 - 不能用 Codex、Judge 或其他模型替 RWKV 选择工具、决定完成或修改答案。
 - 模型输出不是一个 canonical G1i call、参数不满足注册表或 lane 命令无效时会 rollback 并 fail closed，不重新采样语义。
 - 不提供多用户认证或安全公网托管；默认只允许 loopback。
-- 推理服务未声明完整 recurrent-state create/resume/fork/commit/rollback/export/import 时，模型上下文使用可审计 prompt replay。
+- 推理服务未声明完整 `rwkv-lh.native-state.v1` 时，Goal fail closed 并显示等待运行时恢复；不会
+  回退 prompt replay。当前 29613 的 capability endpoint 为 404，因此必须先补齐 serving 协议。
 
 ## 启动
 

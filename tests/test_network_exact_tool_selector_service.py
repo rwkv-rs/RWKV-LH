@@ -14,6 +14,7 @@ from rwkv_lh.exact_tool_selector.network_client import (
 )
 from rwkv_lh.exact_tool_selector.input_protocol import (
     CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
     REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
 )
@@ -229,6 +230,7 @@ def _settings() -> NetworkExactToolSelectorSettings:
         state_profile_id="selector-zero-s0",
         state_profile_sha256="b" * 64,
         state_profile_manifest_sha256="c" * 64,
+        input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     )
 
 

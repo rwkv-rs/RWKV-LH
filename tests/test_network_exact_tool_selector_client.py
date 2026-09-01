@@ -16,6 +16,7 @@ from rwkv_lh.exact_tool_selector.network_client import (
 )
 from rwkv_lh.exact_tool_selector.input_protocol import (
     REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
@@ -53,10 +54,7 @@ class _Session:
         timeout: tuple[float, float],
     ) -> _Response:
         assert url.endswith(
-            "/v4/select"
-            if self.settings.input_protocol
-            == REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL
-            else "/v3/select"
+            network_selector_input_protocol(self.settings.input_protocol).endpoint
         )
         assert timeout == (10.0, 120.0)
         payload = dict(json)
@@ -136,17 +134,34 @@ def test_network_selector_client_keeps_a_separate_causal_lane() -> None:
     assert first_checkpoint.model == settings.model
     assert second_checkpoint.parent_checkpoint_id == first_checkpoint.checkpoint_id
     assert second.selector_parent_state_digest == first.selector_state_digest
-    assert session.payloads[0]["bootstrap"].startswith("SelectorMenuV3: ")
-    assert "\nSelectorTaskV3: " in session.payloads[0]["bootstrap"]
-    assert session.payloads[0]["step"].startswith("SelectorStepV3: ")
+    assert session.payloads[0]["bootstrap"].startswith("SelectorMenuV8: ")
+    assert "\nSelectorRoleV8: " in session.payloads[0]["bootstrap"]
+    assert session.payloads[0]["step"].startswith("SelectorStepV8: ")
+    assert "Query the exact repository release record." not in json.dumps(
+        session.payloads[0], ensure_ascii=False
+    )
+    assert session.payloads[0]["step"].endswith(
+        "Current requirement: Use the structured public source for owner/repository.\"}"
+    )
     assert session.payloads[1]["bootstrap"] == ""
     assert session.payloads[1]["parent"]["state_ref"] == first.selector_state_ref
+    assert second_checkpoint.transcript == session.payloads[1]["step"]
+    assert first_checkpoint.native_state_metadata["cache_role"] == (
+        "disposable_acceleration"
+    )
+    assert first_checkpoint.native_state_metadata["authoritative"] is False
+    assert second_checkpoint.native_state_metadata["parent_state_digest"] == (
+        first.selector_state_digest
+    )
+    assert len(second_checkpoint.native_state_metadata["state_chain_digest"]) == 64
     assert first_checkpoint.native_state_metadata["generated_rwkv_text"] is False
     assert (
         first_checkpoint.native_state_metadata["input_protocol"]
         == NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL
     )
-    assert first_checkpoint.transport == "native_rwkv_hidden_mlp_selector_v3"
+    assert first_checkpoint.transport == (
+        "native_rwkv_hidden_mlp_selector_v8_frontier_question_tail"
+    )
     wire = json.dumps(session.payloads, ensure_ascii=False)
     assert '"parameters"' not in wire
     assert '"arguments"' not in wire

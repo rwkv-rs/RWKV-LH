@@ -12,6 +12,7 @@ from rwkv_lh.model_io import (
     ModelIOError,
     parse_model_command,
     parse_model_command_with_trace,
+    parse_ranked_tool_choice,
     parse_tool_selection,
     render_bootstrap,
     render_event_append,
@@ -29,10 +30,11 @@ from rwkv_lh.model_session import (
     NativeStateUnavailableError,
     create_model_session,
 )
+from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.runtime.native_state import NativeStateCandidate, NativeStateSnapshot
 from rwkv_lh.runtime.protocol import RuntimeCapabilities
 from rwkv_lh.runtime.settings import RuntimeSettings
-from rwkv_lh.schema import ModelEvent, ModelLaneKind
+from rwkv_lh.schema import GoalState, ModelEvent, ModelLaneKind, RunState
 
 
 @dataclass
@@ -75,9 +77,10 @@ class FakeNativeStateClient:
             recurrent_state_rollback=self.durable,
             recurrent_state_export=self.durable,
             recurrent_state_import=self.durable,
+            recurrent_state_protocol="rwkv-lh.native-state.v1",
         )
 
-    def _snapshot(self, text: str, *, ref: str | None = None):
+    def _snapshot(self, text: str, cache_binding, *, ref: str | None = None):
         if ref is None:
             self.counter += 1
             ref = f"STATE-{self.counter}"
@@ -89,38 +92,64 @@ class FakeNativeStateClient:
             state_format_version="fake-state-v1",
             server_build="fake-server-1",
             tokenizer_build="fake-tokenizer-1",
+            cache_binding_digest=cache_binding.digest,
         )
 
-    def state_create(self, *, lane_id: str, text: str):
+    def state_create(self, *, lane_id: str, text: str, cache_binding):
         self.calls.append(("create", text))
-        return self._snapshot(text)
+        return self._snapshot(text, cache_binding)
 
-    def state_append(self, *, parent_state_ref: str, lane_id: str, text: str):
+    def state_append(
+        self, *, parent_state_ref: str, lane_id: str, text: str, cache_binding
+    ):
         self.calls.append(("append", text))
-        return self._snapshot(self.states[parent_state_ref] + text)
+        return self._snapshot(self.states[parent_state_ref] + text, cache_binding)
 
-    def state_fork(self, *, parent_state_ref: str, lane_id: str, text: str):
+    def state_fork(
+        self, *, parent_state_ref: str, lane_id: str, text: str, cache_binding
+    ):
         self.calls.append(("fork", text))
-        return self._snapshot(self.states[parent_state_ref] + text)
+        return self._snapshot(self.states[parent_state_ref] + text, cache_binding)
 
     def state_generate(
-        self, *, parent_state_ref: str, request_id: str, max_tokens: int, stop, sampling
+        self,
+        *,
+        parent_state_ref: str,
+        request_id: str,
+        max_tokens: int,
+        stop,
+        sampling,
+        parent_cache_binding_digest: str,
     ):
         raw = self.outputs.pop(0)
-        snapshot = self._snapshot(self.states[parent_state_ref] + raw)
+        parent_text = self.states[parent_state_ref]
+        self.counter += 1
+        candidate_ref = f"STATE-{self.counter}"
+        candidate_text = parent_text + raw
+        self.states[candidate_ref] = candidate_text
         self.calls.append(("generate", parent_state_ref))
-        return NativeStateCandidate(snapshot.state_ref, snapshot.state_digest, raw)
+        return NativeStateCandidate(
+            candidate_ref,
+            hashlib.sha256(candidate_text.encode()).hexdigest(),
+            raw,
+            parent_state_digest=hashlib.sha256(parent_text.encode()).hexdigest(),
+            parent_cache_binding_digest=parent_cache_binding_digest,
+        )
 
-    def state_commit(self, *, candidate_state_ref: str):
+    def state_commit(self, *, candidate_state_ref: str, cache_binding):
         self.calls.append(("commit", candidate_state_ref))
-        return self._snapshot(self.states[candidate_state_ref], ref=candidate_state_ref)
+        return self._snapshot(
+            self.states[candidate_state_ref],
+            cache_binding,
+            ref=candidate_state_ref,
+        )
 
     def state_rollback(self, *, candidate_state_ref: str, parent_state_ref: str):
         self.calls.append(("rollback", candidate_state_ref))
 
-    def state_import(self, *, export_record):
+    def state_import(self, *, export_record, cache_binding):
         self.calls.append(("import", ""))
-        return self._snapshot(str(export_record["text"]))
+        return self._snapshot(str(export_record["text"]), cache_binding)
 
 
 def settings(
@@ -153,6 +182,14 @@ def settings(
         '{"name":"read_file","arguments":{"path":"a.txt"}}',
         '{"tool":"read_file","parameters":{"path":"a.txt"}}',
         '{"read_file":{"path":"a.txt"}}',
+        (
+            '{"function_call":{"arguments":"{\\"path\\":\\"a.txt\\"}",'
+            '"name":"read_file"}}'
+        ),
+        (
+            '{"function_call":{"name":"read_file",'
+            '"arguments":{"path":"a.txt"}}}'
+        ),
         '```json\n{"function":"read_file","params":{"path":"a.txt"}}\n```',
     ],
 )
@@ -176,6 +213,12 @@ def test_common_envelopes_preserve_explicit_operation_and_arguments(raw: str) ->
         '{"function":"read_file","params":{},"path":"a.txt"}',
         '{"function":"read_file","name":"read_file","params":{}}',
         '{"function":"read_file","params":[],"arguments":{}}',
+        '{"function_call":{"name":"read_file","arguments":"not-json"}}',
+        '{"function_call":{"name":"read_file","arguments":[]}}',
+        (
+            '{"function_call":{"name":"read_file","arguments":{},'
+            '"extra":true}}'
+        ),
         '```python\n{"function":"read_file","params":{}}\n```',
         '```json\n{"function":"read_file","params":{}}',
     ],
@@ -324,6 +367,36 @@ def test_tool_selection_requires_exact_selector_envelope() -> None:
         )
     with pytest.raises(ModelIOError, match="select_tool"):
         parse_tool_selection('{"function":"read_file","params":{"path":"a"}}')
+
+
+def test_ranked_tool_choice_accepts_executor_native_call_without_action_authority() -> None:
+    choice = parse_ranked_tool_choice(
+        '{"function":"read_file","params":{"path":"guessed.txt"}}',
+        ("read_file", "search_text", "list_directory"),
+    )
+    assert choice.selected_operation == "read_file"
+    assert choice.protocol_form == "direct_candidate_call"
+    assert choice.discarded_argument_fields == ("path",)
+
+    name_only = parse_ranked_tool_choice(
+        '{"function":"list_directory"}',
+        ("read_file", "search_text", "list_directory"),
+    )
+    assert name_only.selected_operation == "list_directory"
+    assert name_only.protocol_form == "direct_candidate_name"
+
+
+def test_ranked_tool_choice_rejects_outside_top_k_and_repeated_json() -> None:
+    with pytest.raises(ModelIOError, match="outside Selector Top-K"):
+        parse_ranked_tool_choice(
+            '{"function":"write_file","params":{"path":"x","content":"y"}}',
+            ("read_file", "search_text", "list_directory"),
+        )
+    with pytest.raises(ModelIOError, match="not one JSON object"):
+        parse_ranked_tool_choice(
+            '{"function":"read_file"}\n{"function":"read_file"}',
+            ("read_file",),
+        )
 
 
 def test_event_append_uses_one_generic_observation_envelope() -> None:
@@ -623,6 +696,91 @@ def test_native_session_commits_and_recovers_durable_recurrent_state() -> None:
     assert started["input_digest"] == checkpoint.native_state_digest
 
 
+def test_native_session_advances_only_the_new_delta_and_marks_cache_non_authoritative() -> None:
+    client = FakeNativeStateClient([])
+    session = NativeRWKVModelSession(client, settings=settings())
+    bootstrap = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "Inspect a real workspace file.",
+        [FINAL_ANSWER_DEFINITION],
+        lane_id="LANE:DELTA",
+    )
+    event = ModelEvent(
+        "action_result",
+        "EV-DELTA-1",
+        "LANE:DELTA",
+        {"action_id": "A-1", "result": {"success": True, "output": "ok"}},
+    )
+
+    appended = session.append(bootstrap, event)
+
+    assert [name for name, _ in client.calls] == ["create", "append"]
+    assert client.calls[1][1] == render_event_append(event)
+    assert bootstrap.transcript not in client.calls[1][1]
+    assert appended.transcript == client.calls[1][1]
+    assert appended.native_state_metadata is not None
+    assert appended.native_state_metadata["authoritative"] is False
+    assert appended.native_state_metadata["cache_role"] == "disposable_acceleration"
+    binding = appended.native_state_metadata["cache_binding"]
+    assert binding["parent_state_digest"] == bootstrap.native_state_digest
+    assert binding["delta_digest"] == appended.transcript_digest
+    assert binding["state_chain_digest"] != (
+        bootstrap.native_state_metadata or {}
+    )["cache_binding"]["state_chain_digest"]
+
+
+def test_native_session_rejects_cache_that_claims_authority_before_import() -> None:
+    client = FakeNativeStateClient([])
+    session = NativeRWKVModelSession(client, settings=settings())
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "finish",
+        [FINAL_ANSWER_DEFINITION],
+    )
+    exported = session.export(checkpoint)
+    exported["native_state_metadata"]["authoritative"] = True
+
+    with pytest.raises(ModelSessionError, match="cannot be authoritative"):
+        session.import_checkpoint(exported)
+
+    assert [name for name, _ in client.calls] == ["create"]
+
+
+def test_long_horizon_model_rebuilds_missing_native_cache_from_goal_projection(
+    tmp_path,
+) -> None:
+    client = FakeNativeStateClient([])
+    session = NativeRWKVModelSession(client, settings=settings())
+    model = LongHorizonModel(session)
+    state = RunState(
+        run_id="RUN-CACHE-REBUILD",
+        goal=GoalState.create(
+            request="Inspect this workspace and report the result.",
+            constraints=[],
+            workspace_root=tmp_path,
+        ),
+    )
+    persisted: list[tuple[str, dict]] = []
+
+    def persist(_state, event_type, payload):
+        persisted.append((event_type, dict(payload)))
+
+    original = model._checkpoint(state, persist)
+    assert original.native_state_metadata is not None
+    original.native_state_metadata["authoritative"] = True
+
+    rebuilt = model._checkpoint(state, persist)
+
+    assert rebuilt.checkpoint_id != original.checkpoint_id
+    assert state.lane_head("executor") == rebuilt.checkpoint_id
+    assert [name for name, _ in client.calls] == ["create", "create"]
+    rollover = persisted[-1]
+    assert rollover[0] == "action_session_rolled_over"
+    assert rollover[1]["reason"] == "wkv_cache_miss_deterministic_rebuild"
+    assert rollover[1]["cache_authority"] is False
+    assert rollover[1]["semantic_request_count"] == 0
+
+
 def test_native_snapshot_keeps_model_and_profile_identity_metadata() -> None:
     selected = settings(
         state_transport="auto",
@@ -640,14 +798,18 @@ def test_native_snapshot_keeps_model_and_profile_identity_metadata() -> None:
         [FINAL_ANSWER_DEFINITION],
     )
 
-    assert checkpoint.native_state_metadata == {
-        "model_sha256": "b" * 64,
-        "state_profile_delivery": "request",
-        "protocol_version": "rwkv-lh.native-state.v1",
-        "state_format_version": "fake-state-v1",
-        "server_build": "fake-server-1",
-        "tokenizer_build": "fake-tokenizer-1",
-    }
+    assert checkpoint.native_state_metadata is not None
+    assert checkpoint.native_state_metadata["model_sha256"] == "b" * 64
+    assert checkpoint.native_state_metadata["state_profile_delivery"] == "request"
+    assert checkpoint.native_state_metadata["protocol_version"] == (
+        "rwkv-lh.native-state.v1"
+    )
+    assert checkpoint.native_state_metadata["state_format_version"] == "fake-state-v1"
+    assert checkpoint.native_state_metadata["server_build"] == "fake-server-1"
+    assert checkpoint.native_state_metadata["tokenizer_build"] == "fake-tokenizer-1"
+    assert checkpoint.native_state_metadata["cache_role"] == "disposable_acceleration"
+    assert checkpoint.native_state_metadata["authoritative"] is False
+    assert checkpoint.native_state_metadata["cache_binding"]["authoritative"] is False
     recovered = session.import_checkpoint(session.export(checkpoint))
     assert recovered.native_state_metadata == checkpoint.native_state_metadata
 
@@ -683,6 +845,38 @@ def test_session_factory_selects_native_only_with_complete_capability() -> None:
         settings=settings(state_transport="auto"),
     )
     assert isinstance(session, NativeRWKVModelSession)
+
+
+def test_session_factory_rejects_incompatible_native_protocol_attestation() -> None:
+    class IncompatibleProtocolClient(FakeNativeStateClient):
+        def capabilities(self):
+            return RuntimeCapabilities(
+                recurrent_state_create=True,
+                recurrent_state_resume=True,
+                recurrent_state_fork=True,
+                recurrent_state_commit=True,
+                recurrent_state_rollback=True,
+                recurrent_state_export=True,
+                recurrent_state_import=True,
+                recurrent_state_protocol="rwkv-lh.native-state.v0",
+            )
+
+    client = IncompatibleProtocolClient([])
+    audits: list[dict] = []
+    fallback = create_model_session(
+        client,
+        settings=settings(state_transport="auto"),
+        audit_hook=audits.append,
+    )
+    assert type(fallback) is ModelSession
+    assert audits[-1]["selected_transport"] == "prompt_replay"
+    assert "incompatible" in audits[-1]["reason"]
+
+    with pytest.raises(NativeStateUnavailableError, match="incompatible"):
+        create_model_session(
+            client,
+            settings=settings(state_transport="native_required"),
+        )
 
 
 def test_session_factory_native_required_fails_without_adapter() -> None:

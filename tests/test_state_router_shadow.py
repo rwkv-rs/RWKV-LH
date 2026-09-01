@@ -289,19 +289,12 @@ def test_disabled_wrapper_returns_original_and_invalid_policy_is_rejected(tmp_pa
         shadow_enabled(RunState(run_id="BROKEN", goal=broken_goal))
 
 
-def test_shared_product_controller_entry_wraps_only_explicit_shadow_runs(tmp_path: Path) -> None:
+def test_product_controller_rejects_retired_shadow_architecture(tmp_path: Path) -> None:
     state = _state(tmp_path, run_id="PRODUCT-SHADOW")
     store = LongHorizonStore(tmp_path / "product-state")
     state = store.create_run(state.goal, state.run_id)
-    assert isinstance(
-        build_product_controller(store, state, state_root=tmp_path),
-        ShadowController,
-    )
-
-    disabled = _state(tmp_path, mode="disabled", run_id="PRODUCT-DISABLED")
-    disabled = store.create_run(disabled.goal, disabled.run_id)
-    controller = build_product_controller(store, disabled, state_root=tmp_path)
-    assert not isinstance(controller, ShadowController)
+    with pytest.raises(ValueError, match="state_router shadow is retired"):
+        build_product_controller(store, state, state_root=tmp_path)
 
 
 def test_shadow_logs_are_run_isolated_and_concurrent_appends_are_valid(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-"""Transactional RWKV model sessions with exact prompt-replay semantics."""
+"""Transactional RWKV sessions with replay and state+delta transports."""
 
 from __future__ import annotations
 
@@ -23,7 +23,9 @@ from rwkv_lh.model_io import (
 )
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.runtime.native_state import (
+    NATIVE_STATE_PROTOCOL_VERSION,
     NativeRWKVStateClient,
+    NativeStateCacheBinding,
     NativeStateCandidate,
     NativeStateSnapshot,
 )
@@ -68,6 +70,14 @@ SessionAuditHook = Callable[[Mapping[str, Any]], None]
 
 def _digest_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _digest_items(values: Sequence[str]) -> str:
+    return _digest_text("\0".join(str(item) for item in values))
+
+
+def _next_state_chain_digest(parent_digest: str, delta: str) -> str:
+    return _digest_text(f"{parent_digest}\0{_digest_text(delta)}")
 
 
 @dataclass(frozen=True)
@@ -133,8 +143,10 @@ class CandidateGeneration:
 class ModelSession:
     """One bounded causal lane.
 
-    The deployed backend currently supports only prompt replay. Candidate
-    checkpoints are immutable and become visible only through ``commit``.
+    Candidate checkpoints are immutable and become visible only through
+    ``commit``. This base implementation is the explicit bounded
+    prompt-replay ablation; production Goal runs require
+    :class:`NativeRWKVModelSession` and its recurrent state+delta transport.
     """
 
     transport = "prompt_replay"
@@ -712,7 +724,7 @@ class ModelSession:
 
 
 class NativeRWKVModelSession(ModelSession):
-    """Transactional session backed by an explicitly declared native state API."""
+    """Transactional state+delta session over disposable verified WKV caches."""
 
     transport = "native_rwkv"
 
@@ -728,15 +740,43 @@ class NativeRWKVModelSession(ModelSession):
             raise NativeStateUnavailableError(
                 "native state requires declared create/resume/fork/commit/rollback/export/import"
             )
+        if capabilities.recurrent_state_protocol != NATIVE_STATE_PROTOCOL_VERSION:
+            raise NativeStateUnavailableError(
+                "native state server did not attest the required cache-binding protocol"
+            )
         super().__init__(client, settings=settings, audit_hook=audit_hook)  # type: ignore[arg-type]
         self.native_client = client
         self.capabilities = capabilities
+
+    def _cache_binding(
+        self,
+        checkpoint: ModelCheckpoint,
+        *,
+        state_chain_digest: str,
+        delta: str,
+        parent_state_digest: str = "",
+    ) -> NativeStateCacheBinding:
+        return NativeStateCacheBinding(
+            lane_id=checkpoint.lane_id,
+            lane_kind=checkpoint.lane_kind.value,
+            model=checkpoint.model,
+            model_sha256=self.settings.model_sha256,
+            state_profile_id=checkpoint.state_profile_id,
+            state_profile_sha256=checkpoint.state_profile_sha256,
+            state_chain_digest=state_chain_digest,
+            delta_digest=_digest_text(delta),
+            event_ids_digest=_digest_items(checkpoint.event_ids),
+            parent_state_digest=parent_state_digest,
+        )
 
     @staticmethod
     def _bind_snapshot(
         checkpoint: ModelCheckpoint,
         snapshot: NativeStateSnapshot,
+        cache_binding: NativeStateCacheBinding,
     ) -> ModelCheckpoint:
+        if snapshot.cache_binding_digest != cache_binding.digest:
+            raise ModelSessionError("native state cache binding mismatch")
         checkpoint.native_state_ref = snapshot.state_ref
         checkpoint.native_state_digest = snapshot.state_digest
         checkpoint.native_state_export = dict(snapshot.export_record)
@@ -746,8 +786,53 @@ class NativeRWKVModelSession(ModelSession):
             "state_format_version": snapshot.state_format_version,
             "server_build": snapshot.server_build,
             "tokenizer_build": snapshot.tokenizer_build,
+            "cache_role": "disposable_acceleration",
+            "authoritative": False,
+            "cache_binding": cache_binding.to_dict(),
+            "cache_binding_digest": cache_binding.digest,
         }
         return checkpoint
+
+    def _binding_from_checkpoint(
+        self,
+        checkpoint: ModelCheckpoint,
+    ) -> NativeStateCacheBinding:
+        metadata = checkpoint.native_state_metadata or {}
+        raw = metadata.get("cache_binding")
+        if not isinstance(raw, Mapping):
+            raise ModelSessionError("native checkpoint has no cache binding")
+        binding = NativeStateCacheBinding.from_mapping(raw)
+        if metadata.get("cache_role") != "disposable_acceleration":
+            raise ModelSessionError("native checkpoint cache role is invalid")
+        if metadata.get("authoritative") is not False:
+            raise ModelSessionError("native WKV state cannot be authoritative")
+        if str(metadata.get("cache_binding_digest") or "") != binding.digest:
+            raise ModelSessionError("native checkpoint cache binding digest mismatch")
+        expected = (
+            checkpoint.lane_id,
+            checkpoint.lane_kind.value,
+            checkpoint.model,
+            checkpoint.state_profile_id,
+            checkpoint.state_profile_sha256,
+            _digest_items(checkpoint.event_ids),
+        )
+        observed = (
+            binding.lane_id,
+            binding.lane_kind,
+            binding.model,
+            binding.state_profile_id,
+            binding.state_profile_sha256,
+            binding.event_ids_digest,
+        )
+        if observed != expected:
+            raise ModelSessionError("native checkpoint cache identity mismatch")
+        if binding.delta_digest != checkpoint.transcript_digest:
+            raise ModelSessionError("native checkpoint delta window digest mismatch")
+        return binding
+
+    def _require_checkpoint_identity(self, checkpoint: ModelCheckpoint) -> None:
+        super()._require_checkpoint_identity(checkpoint)
+        self._binding_from_checkpoint(checkpoint)
 
     @staticmethod
     def _state_ref(checkpoint: ModelCheckpoint) -> str:
@@ -777,18 +862,27 @@ class NativeRWKVModelSession(ModelSession):
                 progressive_tool_disclosure=progressive_tool_disclosure,
             )
         )
-        snapshot = self.native_client.state_create(lane_id=identifier, text=transcript)
-        checkpoint = self._bind_snapshot(
-            self._checkpoint(
-                lane_id=identifier,
-                lane_kind=lane_kind,
-                parent_checkpoint_id=None,
-                transcript=transcript,
-                event_ids=event_ids,
-                status=ModelCheckpointStatus.COMMITTED,
-            ),
-            snapshot,
+        checkpoint = self._checkpoint(
+            lane_id=identifier,
+            lane_kind=lane_kind,
+            parent_checkpoint_id=None,
+            transcript=transcript,
+            event_ids=event_ids,
+            status=ModelCheckpointStatus.COMMITTED,
         )
+        if checkpoint.token_count > self.settings.max_prompt_tokens(1):
+            raise InputBudgetError("native RWKV bootstrap exceeds the 16K input boundary")
+        binding = self._cache_binding(
+            checkpoint,
+            state_chain_digest=_next_state_chain_digest("", transcript),
+            delta=transcript,
+        )
+        snapshot = self.native_client.state_create(
+            lane_id=identifier,
+            text=transcript,
+            cache_binding=binding,
+        )
+        checkpoint = self._bind_snapshot(checkpoint, snapshot, binding)
         self._emit(
             {
                 "type": "model_session_bootstrapped",
@@ -812,22 +906,33 @@ class NativeRWKVModelSession(ModelSession):
         event_ids: Sequence[str],
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
+        if get_token_count(suffix) > self.settings.max_prompt_tokens(1):
+            raise InputBudgetError("native RWKV continuation delta exceeds 16K")
+        parent_binding = self._binding_from_checkpoint(checkpoint)
+        appended = self._checkpoint(
+            lane_id=checkpoint.lane_id,
+            lane_kind=checkpoint.lane_kind,
+            parent_checkpoint_id=checkpoint.checkpoint_id,
+            transcript=suffix,
+            event_ids=event_ids,
+            status=ModelCheckpointStatus.COMMITTED,
+        )
+        binding = self._cache_binding(
+            appended,
+            state_chain_digest=_next_state_chain_digest(
+                parent_binding.state_chain_digest,
+                suffix,
+            ),
+            delta=suffix,
+            parent_state_digest=str(checkpoint.native_state_digest or ""),
+        )
         snapshot = self.native_client.state_append(
             parent_state_ref=self._state_ref(checkpoint),
             lane_id=checkpoint.lane_id,
             text=suffix,
+            cache_binding=binding,
         )
-        return self._bind_snapshot(
-            self._checkpoint(
-                lane_id=checkpoint.lane_id,
-                lane_kind=checkpoint.lane_kind,
-                parent_checkpoint_id=checkpoint.checkpoint_id,
-                transcript=checkpoint.transcript + suffix,
-                event_ids=event_ids,
-                status=ModelCheckpointStatus.COMMITTED,
-            ),
-            snapshot,
-        )
+        return self._bind_snapshot(appended, snapshot, binding)
 
     def disclose_tool(
         self,
@@ -856,7 +961,7 @@ class NativeRWKVModelSession(ModelSession):
                 "operation": str(definition.get("name") or ""),
                 "parent_checkpoint_id": checkpoint.checkpoint_id,
                 "checkpoint_id": disclosed.checkpoint_id,
-                "new_tokens": disclosed.token_count - checkpoint.token_count,
+                "new_tokens": get_token_count(disclosure),
                 "request_last_closed_payload": current_requirement is not None,
                 "state_transport": self.transport,
             }
@@ -904,7 +1009,7 @@ class NativeRWKVModelSession(ModelSession):
                 ),
                 "parent_checkpoint_id": checkpoint.checkpoint_id,
                 "checkpoint_id": appended.checkpoint_id,
-                "new_event_tokens": appended.token_count - checkpoint.token_count,
+                "new_event_tokens": get_token_count(suffix),
                 "state_transport": self.transport,
                 "static_replay_tokens": 0,
             }
@@ -916,11 +1021,29 @@ class NativeRWKVModelSession(ModelSession):
         checkpoint: ModelCheckpoint,
         event: ModelEvent,
     ) -> ModelCheckpoint:
-        projected = super().acknowledge_projected_event(checkpoint, event)
-        projected.native_state_ref = checkpoint.native_state_ref
-        projected.native_state_digest = checkpoint.native_state_digest
-        projected.native_state_export = dict(checkpoint.native_state_export)
-        projected.native_state_metadata = dict(checkpoint.native_state_metadata)
+        self._require_committed(checkpoint)
+        if event.event_id in checkpoint.event_ids:
+            raise ModelSessionError(f"event already visible: {event.event_id}")
+        # The event bytes were already included in a deterministic projection.
+        # Append an empty delta so the cache service can attest a new binding for
+        # the enlarged authoritative event-ID set without replaying any prompt.
+        projected = self._append_text(
+            checkpoint,
+            "",
+            event_ids=(*checkpoint.event_ids, event.event_id),
+        )
+        self._emit(
+            {
+                "type": "model_session_projected_event_acknowledged",
+                "lane_id": projected.lane_id,
+                "event_id": event.event_id,
+                "parent_checkpoint_id": checkpoint.checkpoint_id,
+                "checkpoint_id": projected.checkpoint_id,
+                "new_event_tokens": 0,
+                "static_replay_tokens": 0,
+                "state_transport": self.transport,
+            }
+        )
         return projected
 
     def rollover(
@@ -949,21 +1072,25 @@ class NativeRWKVModelSession(ModelSession):
         event_ids = tuple(event.event_id for event in selected_events)
         if get_token_count(transcript) > max(1, int(input_limit)):
             raise InputBudgetError("minimal native rollover exceeds the input limit")
+        compact = self._checkpoint(
+            lane_id=checkpoint.lane_id,
+            lane_kind=checkpoint.lane_kind,
+            parent_checkpoint_id=checkpoint.checkpoint_id,
+            transcript=transcript,
+            event_ids=event_ids,
+            status=ModelCheckpointStatus.COMMITTED,
+        )
+        binding = self._cache_binding(
+            compact,
+            state_chain_digest=_next_state_chain_digest("", transcript),
+            delta=transcript,
+        )
         snapshot = self.native_client.state_create(
             lane_id=checkpoint.lane_id,
             text=transcript,
+            cache_binding=binding,
         )
-        compact = self._bind_snapshot(
-            self._checkpoint(
-                lane_id=checkpoint.lane_id,
-                lane_kind=checkpoint.lane_kind,
-                parent_checkpoint_id=checkpoint.checkpoint_id,
-                transcript=transcript,
-                event_ids=event_ids,
-                status=ModelCheckpointStatus.COMMITTED,
-            ),
-            snapshot,
-        )
+        compact = self._bind_snapshot(compact, snapshot, binding)
         self._emit(
             {
                 "type": "model_session_rolled_over",
@@ -990,21 +1117,34 @@ class NativeRWKVModelSession(ModelSession):
         self._require_committed(checkpoint)
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
         suffix = render_event_append(assignment, visible_definitions)
+        parent_binding = self._binding_from_checkpoint(checkpoint)
+        child = self._checkpoint(
+            lane_id=identifier,
+            lane_kind=lane_kind,
+            parent_checkpoint_id=checkpoint.checkpoint_id,
+            transcript=suffix,
+            event_ids=(*checkpoint.event_ids, assignment.event_id),
+            status=ModelCheckpointStatus.COMMITTED,
+        )
+        binding = self._cache_binding(
+            child,
+            state_chain_digest=_next_state_chain_digest(
+                parent_binding.state_chain_digest,
+                suffix,
+            ),
+            delta=suffix,
+            parent_state_digest=str(checkpoint.native_state_digest or ""),
+        )
         snapshot = self.native_client.state_fork(
             parent_state_ref=self._state_ref(checkpoint),
             lane_id=identifier,
             text=suffix,
+            cache_binding=binding,
         )
         child = self._bind_snapshot(
-            self._checkpoint(
-                lane_id=identifier,
-                lane_kind=lane_kind,
-                parent_checkpoint_id=checkpoint.checkpoint_id,
-                transcript=checkpoint.transcript + suffix,
-                event_ids=(*checkpoint.event_ids, assignment.event_id),
-                status=ModelCheckpointStatus.COMMITTED,
-            ),
+            child,
             snapshot,
+            binding,
         )
         self._emit(
             {
@@ -1046,28 +1186,50 @@ class NativeRWKVModelSession(ModelSession):
         task_token = current_task_id.set(checkpoint.lane_id)
         lane_token = current_model_lane.set(f"{checkpoint.lane_kind.value}_lane")
         try:
+            parent_binding = self._binding_from_checkpoint(checkpoint)
             returned = self.native_client.state_generate(
                 parent_state_ref=self._state_ref(checkpoint),
                 request_id=request_id,
                 max_tokens=output_limit,
                 stop=JSON_CALL_STOP_SUFFIXES if json_output else (),
                 sampling=selected.to_dict(),
+                parent_cache_binding_digest=parent_binding.digest,
             )
         finally:
             current_model_lane.reset(lane_token)
             current_task_id.reset(task_token)
         if not isinstance(returned, NativeStateCandidate):
             raise ModelSessionError("native state server returned an invalid candidate")
+        if returned.parent_state_digest != checkpoint.native_state_digest:
+            raise ModelSessionError("native candidate parent state digest mismatch")
+        if returned.parent_cache_binding_digest != parent_binding.digest:
+            raise ModelSessionError("native candidate parent cache binding mismatch")
         candidate_checkpoint = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
-            transcript=checkpoint.transcript + returned.content,
+            transcript=returned.content,
             event_ids=checkpoint.event_ids,
             status=ModelCheckpointStatus.CANDIDATE,
         )
         candidate_checkpoint.native_state_ref = returned.state_ref
         candidate_checkpoint.native_state_digest = returned.state_digest
+        candidate_binding = self._cache_binding(
+            candidate_checkpoint,
+            state_chain_digest=_next_state_chain_digest(
+                parent_binding.state_chain_digest,
+                returned.content,
+            ),
+            delta=returned.content,
+            parent_state_digest=str(checkpoint.native_state_digest or ""),
+        )
+        candidate_checkpoint.native_state_metadata = {
+            **dict(checkpoint.native_state_metadata or {}),
+            "cache_role": "disposable_acceleration",
+            "authoritative": False,
+            "cache_binding": candidate_binding.to_dict(),
+            "cache_binding_digest": candidate_binding.digest,
+        }
         candidate = CandidateGeneration(
             request_id=request_id,
             candidate_id=f"CAND-{uuid4().hex[:16]}",
@@ -1112,15 +1274,17 @@ class NativeRWKVModelSession(ModelSession):
         self._require_checkpoint_identity(candidate.checkpoint)
         if parse_model_command(candidate.raw_output) != command:
             raise ModelIOError("accepted command differs from candidate output")
+        binding = self._binding_from_checkpoint(candidate.checkpoint)
         snapshot = self.native_client.state_commit(
-            candidate_state_ref=self._state_ref(candidate.checkpoint)
+            candidate_state_ref=self._state_ref(candidate.checkpoint),
+            cache_binding=binding,
         )
         if snapshot.state_digest != candidate.checkpoint.native_state_digest:
             raise ModelSessionError("native commit changed candidate state digest")
         committed = ModelCheckpoint.from_dict(
             {**candidate.checkpoint.to_dict(), "status": "committed"}
         )
-        self._bind_snapshot(committed, snapshot)
+        self._bind_snapshot(committed, snapshot, binding)
         self._emit(
             {
                 "type": "model_session_candidate_committed",
@@ -1171,7 +1335,8 @@ class NativeRWKVModelSession(ModelSession):
         if _digest_text(checkpoint.transcript) != checkpoint.transcript_digest:
             raise ModelSessionError("checkpoint transcript digest mismatch")
         snapshot = self.native_client.state_import(
-            export_record=checkpoint.native_state_export
+            export_record=checkpoint.native_state_export,
+            cache_binding=self._binding_from_checkpoint(checkpoint),
         )
         if snapshot.state_digest != checkpoint.native_state_digest:
             raise ModelSessionError("imported native state digest mismatch")
@@ -1184,7 +1349,11 @@ class NativeRWKVModelSession(ModelSession):
         }
         if any(expected.get(key) != value for key, value in observed.items()):
             raise ModelSessionError("imported native state build metadata mismatch")
-        return self._bind_snapshot(checkpoint, snapshot)
+        return self._bind_snapshot(
+            checkpoint,
+            snapshot,
+            self._binding_from_checkpoint(checkpoint),
+        )
 
 
 def create_model_session(
@@ -1226,6 +1395,7 @@ def create_model_session(
         not missing
         and capabilities is not None
         and capabilities.durable_recurrent_state
+        and capabilities.recurrent_state_protocol == NATIVE_STATE_PROTOCOL_VERSION
     ):
         return NativeRWKVModelSession(
             selected_client,  # type: ignore[arg-type]
@@ -1235,6 +1405,10 @@ def create_model_session(
     reason = (
         f"native state client methods unavailable: {', '.join(missing)}"
         if missing
+        else "runtime recurrent-state protocol is absent or incompatible"
+        if capabilities is not None
+        and capabilities.durable_recurrent_state
+        and capabilities.recurrent_state_protocol != NATIVE_STATE_PROTOCOL_VERSION
         else "runtime did not declare the complete durable recurrent-state capability"
     )
     if mode == "native_required":

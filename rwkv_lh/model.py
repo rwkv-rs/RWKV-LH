@@ -11,16 +11,26 @@ from uuid import uuid4
 from rwkv_lh.atom_execution import atom_execution_contract_digest
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
+    NetworkExactToolSelectorError,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_ABSTAIN_LABEL,
     NETWORK_EXACT_TOOL_LABELS,
 )
 from rwkv_lh.exact_tool_selector.runtime_projection import (
+    SelectorStageContext,
     build_network_selector_input,
     selector_final_answer_eligible,
 )
 from rwkv_lh.harness import ActionHarness, HarnessError
+from rwkv_lh.goal_loop_protocol import (
+    GOAL_AUDIT_DEFINITION,
+    GoalAuditDecision,
+    RollingGoalPlan,
+    available_evidence_refs,
+    rolling_goal_plan,
+    validate_audit_authority,
+)
 from rwkv_lh.model_io import (
     FINAL_ANSWER_DEFINITION,
     INDEPENDENT_EXECUTOR_INSTRUCTION,
@@ -38,10 +48,13 @@ from rwkv_lh.model_io import (
 )
 from rwkv_lh.model_session import (
     CandidateGeneration,
+    InputBudgetError,
     ModelSession,
+    ModelSessionError,
     SessionSampling,
     create_model_session,
 )
+from rwkv_lh.runtime.protocol import RWKVRuntimeError
 from rwkv_lh.retrieval.runtime import operation_allowed_by_retrieval_policy
 from rwkv_lh.schema import (
     DecisionRecord,
@@ -148,10 +161,12 @@ class LongHorizonModel:
         *,
         harness: ActionHarness | None = None,
         tool_selector: NetworkExactToolSelectorClient | None = None,
+        auditor_session: ModelSession | None = None,
         selector_min_actions: int | None = None,
     ) -> None:
         self.harness = harness or ActionHarness()
         self.session = session or create_model_session()
+        self.auditor_session = auditor_session or self.session
         self.tool_selector = tool_selector
         if (
             selector_min_actions is not None
@@ -272,13 +287,35 @@ class LongHorizonModel:
         event: ModelEvent | None = None,
         events: Sequence[ModelEvent] = (),
         max_output_tokens: int = 1800,
+        eligible_operations: Sequence[str] | None = None,
+        selector_stage_context: SelectorStageContext | None = None,
+        current_requirement: str | None = None,
     ) -> ActionDecision:
         if event is not None and events:
             raise ValueError("pass either event or events, not both")
         checkpoint = self._checkpoint(state, persist)
+        selected_requirement = str(
+            state.goal.request
+            if current_requirement is None
+            else current_requirement
+        ).strip()
+        if not selected_requirement:
+            raise ValueError("Executor current requirement must be non-empty")
         pending_events = (
             tuple(events) if events else ((event,) if event is not None else ())
         )
+        selected_eligible = (
+            None
+            if eligible_operations is None
+            else tuple(dict.fromkeys(str(item) for item in eligible_operations))
+        )
+        if selected_eligible is not None:
+            unknown = set(selected_eligible) - set(self._definitions_by_name)
+            if not selected_eligible or unknown:
+                raise ModelProtocolError(
+                    "active Strong Planner frontier has an empty or unauthorized "
+                    f"operation allowset: {sorted(unknown)}"
+                )
         if self.tool_selector is not None and state.pending_selection_id:
             if pending_events:
                 raise ModelProtocolError(
@@ -289,6 +326,7 @@ class LongHorizonModel:
                 checkpoint,
                 persist,
                 max_output_tokens=max_output_tokens,
+                current_requirement=selected_requirement,
             )
         retry_operation = self._progressive_retry_operation(
             pending_events,
@@ -304,16 +342,19 @@ class LongHorizonModel:
             if self.tool_selector is not None
             else self._TOOL_SELECTION_MAX_OUTPUT_TOKENS
         )
-        mode_rollover_required = (
+        state_delta_transport = self.session.transport == "native_rwkv"
+        mode_rollover_required = not state_delta_transport and (
+            (
             self._progressive_tool_disclosure
             and not retry_operation
             and (
                 "System: Tools:" in checkpoint.transcript
                 or "selected_tool_contract" in checkpoint.transcript
             )
-        ) or (
+            ) or (
             not self._progressive_tool_disclosure
             and "Available operation menu" in checkpoint.transcript
+            )
         )
         if mode_rollover_required:
             pending_token_reserve = sum(
@@ -402,7 +443,7 @@ class LongHorizonModel:
                     input_reserve_tokens=get_token_count(
                         render_independent_executor_tool_disclosure(
                             definition,
-                            state.goal.request,
+                            selected_requirement,
                         )
                         if self.tool_selector is not None
                         else render_tool_disclosure(definition)
@@ -413,6 +454,7 @@ class LongHorizonModel:
                     checkpoint,
                     persist,
                     definition,
+                    current_requirement=selected_requirement,
                 )
             return self._generate(
                 state,
@@ -422,6 +464,7 @@ class LongHorizonModel:
                 max_output_tokens=max_output_tokens,
                 disclosed_operation=retry_operation,
                 inherited_selection_id=retry_selection_id,
+                current_requirement=selected_requirement,
             )
         active_definitions = (
             ()
@@ -448,6 +491,8 @@ class LongHorizonModel:
                 state,
                 checkpoint,
                 persist,
+                eligible_labels_override=selected_eligible,
+                stage_context=selector_stage_context,
             )
             definition = self._definitions_by_name[selected_operation]
             handoff = (
@@ -461,6 +506,7 @@ class LongHorizonModel:
                 persist,
                 definition,
                 selection=handoff,
+                current_requirement=selected_requirement,
             )
             return self._generate(
                 state,
@@ -469,13 +515,22 @@ class LongHorizonModel:
                 definitions=(definition,),
                 max_output_tokens=max_output_tokens,
                 disclosed_operation=selected_operation,
+                current_requirement=selected_requirement,
             )
+        direct_definitions = (
+            self._all_definitions
+            if selected_eligible is None
+            else tuple(
+                self._definitions_by_name[name] for name in selected_eligible
+            )
+        )
         return self._generate(
             state,
             checkpoint,
             persist,
-            definitions=self._all_definitions,
+            definitions=direct_definitions,
             max_output_tokens=max_output_tokens,
+            current_requirement=selected_requirement,
         )
 
     def terminal_answer(
@@ -562,6 +617,399 @@ class LongHorizonModel:
         validate_final_answer(decision.wire_command)
         return decision
 
+    def audit_goal_boundary(
+        self,
+        state: RunState,
+        persist: PersistCallback,
+        *,
+        boundary: str,
+        audit_boundary_id: str = "",
+        event: ModelEvent | None = None,
+        final_candidate: bool = False,
+        active_step_id: str = "",
+        relevant_evidence_refs: Sequence[str] | None = None,
+        max_output_tokens: int = 400,
+        max_attempts: int = 3,
+    ) -> GoalAuditDecision:
+        """Audit one boundary in a role-pure State that never enters Executor WKV."""
+
+        if state.pending_selection_id:
+            raise ModelProtocolError(
+                "Audit cannot replace an unconsumed Selector handoff"
+            )
+        if (
+            isinstance(max_attempts, bool)
+            or not isinstance(max_attempts, int)
+            or not 1 <= max_attempts <= 3
+        ):
+            raise ValueError("Audit max_attempts must be an integer from one to three")
+        checkpoint = self._checkpoint(state, persist)
+        selected_boundary_id = str(audit_boundary_id or "").strip()
+        if event is not None:
+            checkpoint = self._append_event(
+                state,
+                checkpoint,
+                event,
+                persist,
+            )
+        plan = rolling_goal_plan(state)
+        selected_step_id = str(active_step_id or "").strip()
+        if selected_step_id and selected_step_id not in plan.steps:
+            raise ModelProtocolError(
+                "Audit active step is outside the committed Strong Planner graph"
+            )
+        if not selected_step_id and not final_candidate and plan.frontier:
+            selected_step_id = plan.frontier[0].step_id
+        fact_refs = {
+            *state.actions,
+            *state.artifacts,
+            *(
+                revision.revision_id
+                for values in state.artifact_revisions.values()
+                for revision in values
+            ),
+        }
+        if relevant_evidence_refs is None:
+            bounded_evidence_refs = tuple(sorted(fact_refs))
+        else:
+            bounded_evidence_refs = tuple(
+                dict.fromkeys(str(item) for item in relevant_evidence_refs)
+            )
+            unknown_projection = set(bounded_evidence_refs) - available_evidence_refs(
+                state
+            )
+            if unknown_projection:
+                raise ModelProtocolError(
+                    "Audit input contains unknown evidence refs: "
+                    f"{sorted(unknown_projection)}"
+                )
+        active_step = None
+        if selected_step_id:
+            active_step = {
+                **plan.steps[selected_step_id].to_dict(),
+                "step_revision": plan.step_revisions.get(selected_step_id, 1),
+            }
+        completed_steps = [
+            {
+                **plan.steps[step_id].to_dict(),
+                "step_revision": plan.step_revisions.get(step_id, 1),
+            }
+            for step_id in sorted(plan.completed_step_ids)
+        ]
+        evidence_records = self._audit_evidence_records(
+            state,
+            bounded_evidence_refs,
+        )
+        prior_error = ""
+        last_request_id = ""
+        last_error: ValueError | None = None
+        for attempt in range(1, max_attempts + 1):
+            audit_id = f"AUD-{uuid4().hex[:16]}"
+            audit_materials: dict[str, Any] = {
+                "protocol": "rwkv-lh.role-pure-goal-audit.v1",
+                "role": "auditor",
+                "boundary": str(boundary),
+                "available_evidence_refs": list(bounded_evidence_refs),
+                "output_contract": {
+                    "operation": "audit_decision",
+                    "required_parameter_fields": [
+                        "verdict",
+                        "step_id",
+                        "step_complete",
+                        "evidence_refs",
+                        "gaps",
+                        "reason",
+                    ],
+                    "constraints": [
+                        "no fields other than the six required fields",
+                        "all evidence refs copied from available_evidence_refs",
+                        "step_complete only when the disclosed done checks pass",
+                        "repair has at least one gap",
+                    ],
+                },
+                "role_limits": [
+                    "audit only",
+                    "do not plan or replan",
+                    "do not select a tool",
+                    "do not fill tool parameters",
+                    "do not execute work",
+                    "do not write a user-facing final answer",
+                    "never invent evidence",
+                ],
+                "evidence_records": evidence_records,
+            }
+            if prior_error:
+                audit_materials["prior_rejection"] = prior_error
+            if final_candidate:
+                audit_materials["completed_steps"] = completed_steps
+                current_question = (
+                    "Audit only whether the committed evidence and completed steps "
+                    "satisfy the immutable Goal. Return ready_for_final only when "
+                    "they do; otherwise return repair with exact gaps.\n"
+                    f"Immutable Goal: {state.goal.request}"
+                )
+            else:
+                audit_materials["active_step"] = active_step
+                current_question = (
+                    "Audit only this active step against its disclosed done checks. "
+                    "Return continue when it is complete or repair with exact gaps "
+                    "when it is not; never inspect or advance another step.\n"
+                    f"Current step: {selected_step_id}"
+                )
+            audit_materials["current_question"] = current_question
+            if list(audit_materials)[-1:] != ["current_question"]:
+                raise RuntimeError("Auditor current question is not at the byte tail")
+            assignment = json.dumps(
+                audit_materials,
+                ensure_ascii=False,
+                sort_keys=False,
+                separators=(",", ":"),
+            )
+            audit_definition = deepcopy(GOAL_AUDIT_DEFINITION)
+            audit_definition["parameters"]["properties"]["verdict"]["enum"] = (
+                ["repair", "ready_for_final"]
+                if final_candidate
+                else ["continue", "repair"]
+            )
+            audit_checkpoint = self.auditor_session.bootstrap(
+                ModelLaneKind.AUDIT,
+                assignment,
+                (audit_definition,),
+                lane_id=(
+                    f"LANE:AUDIT:{state.run_id}:"
+                    f"{selected_boundary_id or str(boundary)}:{attempt}"
+                ),
+            )
+            state.model_states[audit_checkpoint.checkpoint_id] = audit_checkpoint
+            state.set_lane_head("auditor", audit_checkpoint.checkpoint_id)
+            persist(
+                state,
+                "goal_auditor_session_started",
+                {
+                    "audit_id": audit_id,
+                    "boundary": str(boundary),
+                    "audit_boundary_id": selected_boundary_id,
+                    "attempt": attempt,
+                    "checkpoint_id": audit_checkpoint.checkpoint_id,
+                    "model": audit_checkpoint.model,
+                    "executor_checkpoint_id": checkpoint.checkpoint_id,
+                    "executor_state_inherited": False,
+                    "wkv_merged": False,
+                },
+            )
+            candidate = self.auditor_session.generate(
+                audit_checkpoint,
+                sampling=self._SAMPLING,
+                max_output_tokens=max_output_tokens,
+            )
+            last_request_id = candidate.request_id
+            audit: GoalAuditDecision | None = None
+            deterministic_bindings: tuple[str, ...] = ()
+            try:
+                audit, deterministic_bindings = (
+                    GoalAuditDecision.parse_with_bindings(
+                        candidate.raw_output,
+                        audit_id=audit_id,
+                    )
+                )
+            except ValueError as exc:
+                last_error = exc
+                self.auditor_session.rollback(candidate, error=str(exc))
+                persist(
+                    state,
+                    "goal_audit_recorded",
+                    {
+                        "audit_id": audit_id,
+                        "boundary": str(boundary),
+                        "audit_boundary_id": selected_boundary_id,
+                        "attempt": attempt,
+                        "request_id": candidate.request_id,
+                        "audit_checkpoint_id": audit_checkpoint.checkpoint_id,
+                        "auditor_model": audit_checkpoint.model,
+                        "raw_generation": candidate.raw_record(),
+                        "parsed": False,
+                        "authorizes_execution": False,
+                        "executor_state_inherited": False,
+                        "wkv_merged": False,
+                    },
+                )
+            else:
+                # Auditor WKV is always discarded.  Only this kernel-validated
+                # bounded fact may be appended to the Executor State.
+                self.auditor_session.rollback(
+                    candidate, error="auditor_state_non_authoritative"
+                )
+                persist(
+                    state,
+                    "goal_audit_recorded",
+                    {
+                        "audit_id": audit.audit_id,
+                        "audit": audit.to_dict(),
+                        "audit_digest": audit.digest,
+                        "boundary": str(boundary),
+                        "audit_boundary_id": selected_boundary_id,
+                        "attempt": attempt,
+                        "request_id": candidate.request_id,
+                        "audit_checkpoint_id": audit_checkpoint.checkpoint_id,
+                        "auditor_model": audit_checkpoint.model,
+                        "raw_generation": candidate.raw_record(),
+                        "parsed": True,
+                        "deterministic_protocol_bindings": list(
+                            deterministic_bindings
+                        ),
+                        "authorizes_execution": False,
+                        "executor_state_inherited": False,
+                        "wkv_merged": False,
+                    },
+                )
+                try:
+                    validate_audit_authority(
+                        state,
+                        plan,
+                        audit,
+                        final_candidate=final_candidate,
+                        active_step_id=selected_step_id,
+                        allowed_evidence_refs=bounded_evidence_refs,
+                    )
+                except ValueError as exc:
+                    last_error = exc
+                else:
+                    accepted_event = ModelEvent(
+                        event_type="goal_audit_decision",
+                        event_id=f"EV-AUDIT-ACCEPT-{audit.audit_id}",
+                        scope_id=self.ACTION_LANE_ID,
+                        payload={
+                            "boundary": str(boundary),
+                            "audit_boundary_id": selected_boundary_id,
+                            "attempt": attempt,
+                            "audit": audit.to_dict(),
+                            "kernel_validated": True,
+                            "wkv_merged": False,
+                            "auditor_model": audit_checkpoint.model,
+                        },
+                        content_refs=audit.evidence_refs,
+                    )
+                    checkpoint = self._append_event(
+                        state,
+                        checkpoint,
+                        accepted_event,
+                        persist,
+                    )
+                    persist(
+                        state,
+                        "goal_audit_accepted",
+                        {
+                            "audit_id": audit.audit_id,
+                            "audit_digest": audit.digest,
+                            "audit": audit.to_dict(),
+                            "boundary": str(boundary),
+                            "audit_boundary_id": selected_boundary_id,
+                            "attempt": attempt,
+                            "request_id": candidate.request_id,
+                            "main_checkpoint_id": checkpoint.checkpoint_id,
+                            "kernel_validated": True,
+                            "authorizes_execution": False,
+                            "executor_state_inherited": False,
+                            "wkv_merged": False,
+                        },
+                    )
+                    return audit
+
+            assert last_error is not None
+            rejection_payload = {
+                "audit_id": audit_id,
+                "audit_digest": audit.digest if audit is not None else "",
+                "boundary": str(boundary),
+                "audit_boundary_id": selected_boundary_id,
+                "attempt": attempt,
+                "error": str(last_error)[:2000],
+                "request_id": candidate.request_id,
+                "retry_scheduled": attempt < max_attempts,
+            }
+            persist(state, "goal_audit_rejected", rejection_payload)
+            if attempt == max_attempts:
+                break
+            prior_error = str(last_error)[:1000]
+
+        assert last_error is not None
+        raise ModelProtocolError(
+            str(last_error), request_id=last_request_id
+        ) from last_error
+
+    @classmethod
+    def _audit_evidence_records(
+        cls,
+        state: RunState,
+        evidence_refs: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """Project bounded Harness facts so the Auditor can resolve every ref."""
+
+        revisions = {
+            revision.revision_id: revision
+            for values in state.artifact_revisions.values()
+            for revision in values
+        }
+        records: list[dict[str, Any]] = []
+        for evidence_ref in evidence_refs:
+            artifact = state.artifacts.get(evidence_ref)
+            revision = revisions.get(evidence_ref)
+            action_id = (
+                evidence_ref
+                if evidence_ref in state.actions
+                else artifact.action_id
+                if artifact is not None
+                else revision.action_id
+                if revision is not None
+                else ""
+            )
+            action = state.actions.get(action_id)
+            if action is None:
+                raise ModelProtocolError(
+                    f"Audit evidence {evidence_ref!r} has no Harness action fact"
+                )
+            result = cls._project_action_result(action.result or {})
+            output = str(result.get("output") or "")
+            if len(output) > 1600:
+                result["output"] = output[:1600]
+                metadata = dict(result.get("metadata") or {})
+                metadata.update(
+                    {
+                        "complete": False,
+                        "projection_truncated": True,
+                        "original_output_chars": len(output),
+                    }
+                )
+                result["metadata"] = metadata
+            related_artifacts = [
+                dict(vars(item))
+                for artifact_id in action.artifact_refs
+                if (item := state.artifacts.get(artifact_id)) is not None
+            ]
+            related_revisions = [
+                dict(vars(item))
+                for item in revisions.values()
+                if item.action_id == action.action_id
+            ]
+            record: dict[str, Any] = {
+                "evidence_ref": evidence_ref,
+                "action": {
+                    "action_id": action.action_id,
+                    "operation": action.action_type,
+                    "status": action.status.value,
+                    "outcome_type": action.outcome_type,
+                    "result": result,
+                    "artifact_refs": list(action.artifact_refs),
+                },
+                "related_artifacts": related_artifacts,
+                "related_revisions": related_revisions,
+            }
+            if artifact is not None:
+                record["referenced_artifact"] = dict(vars(artifact))
+            if revision is not None:
+                record["referenced_revision"] = dict(vars(revision))
+            records.append(record)
+        return records
+
     def _checkpoint(
         self,
         state: RunState,
@@ -572,7 +1020,42 @@ class LongHorizonModel:
             checkpoint = state.model_states.get(checkpoint_id)
             if checkpoint is None:
                 raise ModelProtocolError("action lane checkpoint is missing")
-            return self.session.import_checkpoint(checkpoint.to_dict())
+            try:
+                return self.session.import_checkpoint(checkpoint.to_dict())
+            except (ModelSessionError, RWKVRuntimeError) as exc:
+                if self.session.transport != "native_rwkv":
+                    raise
+                if state.pending_selection_id:
+                    selection = state.tool_selections.get(state.pending_selection_id)
+                    if (
+                        selection is None
+                        or selection.status is not ToolSelectionStatus.STAGED
+                    ):
+                        raise ModelProtocolError(
+                            "pending Selector handoff cannot be discarded safely"
+                        ) from exc
+                    discarded = replace(
+                        selection,
+                        status=ToolSelectionStatus.DISCARDED,
+                        discarded_at=utc_now(),
+                        discard_reason="executor_wkv_cache_unavailable",
+                    )
+                    persist(
+                        state,
+                        "exact_tool_selection_discarded",
+                        {
+                            "selection_id": discarded.selection_id,
+                            "selection": discarded.to_dict(),
+                            "reason": discarded.discard_reason,
+                            "authorizes_execution": False,
+                        },
+                    )
+                return self._rebuild_native_executor_cache(
+                    state,
+                    checkpoint,
+                    persist,
+                    cause=exc,
+                )
         assignment = self._assignment(
             state,
             recent_limit=0,
@@ -608,6 +1091,74 @@ class LongHorizonModel:
             },
         )
         return checkpoint
+
+    def _rebuild_native_executor_cache(
+        self,
+        state: RunState,
+        source: ModelCheckpoint,
+        persist: PersistCallback,
+        *,
+        cause: Exception,
+    ) -> ModelCheckpoint:
+        """Rebuild one missing disposable cache from causal authority."""
+
+        definitions = (
+            self._menu_definitions
+            if self._progressive_tool_disclosure
+            else self._all_definitions
+        )
+        last_budget_error: Exception | None = None
+        for recent_limit in (12, 8, 4, 2, 0):
+            try:
+                rebuilt = self.session.bootstrap(
+                    ModelLaneKind.ACTION,
+                    self._assignment(
+                        state,
+                        recent_limit=recent_limit,
+                        executor_only=self.tool_selector is not None,
+                    ),
+                    definitions,
+                    lane_id=self.ACTION_LANE_ID,
+                    event_ids=(),
+                    progressive_tool_disclosure=self._progressive_tool_disclosure,
+                    independent_tool_selector=self.tool_selector is not None,
+                )
+            except InputBudgetError as exc:
+                last_budget_error = exc
+                continue
+            state.model_states[rebuilt.checkpoint_id] = rebuilt
+            state.set_lane_head("executor", rebuilt.checkpoint_id)
+            rollover_id = f"RO-{uuid4().hex[:16]}"
+            record = ModelRolloverRecord(
+                rollover_id=rollover_id,
+                lane_id=self.ACTION_LANE_ID,
+                source_checkpoint_id=source.checkpoint_id,
+                source_digest=source.transcript_digest,
+                source_token_count=source.token_count,
+                output_checkpoint_id=rebuilt.checkpoint_id,
+                output_digest=rebuilt.transcript_digest,
+                output_token_count=rebuilt.token_count,
+                retained_event_ids=(),
+                archived_event_ids=tuple(source.event_ids),
+                input_limit=self.session.settings.max_prompt_tokens(1),
+            )
+            state.rollovers[record.rollover_id] = record
+            persist(
+                state,
+                "action_session_rolled_over",
+                {
+                    "rollover_id": record.rollover_id,
+                    "rollover": record.to_dict(),
+                    "reason": "wkv_cache_miss_deterministic_rebuild",
+                    "cache_authority": False,
+                    "semantic_request_count": 0,
+                    "source_error_type": type(cause).__name__,
+                },
+            )
+            return rebuilt
+        raise ModelProtocolError(
+            "authoritative state projection exceeds native RWKV bootstrap boundary"
+        ) from last_budget_error
 
     def _append_event(
         self,
@@ -774,6 +1325,7 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         eligible_labels_override: Sequence[str] | None = None,
+        stage_context: SelectorStageContext | None = None,
     ) -> tuple[str, ModelCheckpoint]:
         if self.tool_selector is None:
             raise ModelProtocolError("independent Selector is not configured")
@@ -817,16 +1369,58 @@ class LongHorizonModel:
             state,
             parent,
             eligible_labels=eligible_labels,
+            stage_context=stage_context,
         )
-        selection, selector_checkpoint = self.tool_selector.select(
-            selector_input,
-            run_id=state.run_id,
-            parent=parent,
-        )
+        try:
+            selection, selector_checkpoint = self.tool_selector.select(
+                selector_input,
+                run_id=state.run_id,
+                parent=parent,
+            )
+        except NetworkExactToolSelectorError as exc:
+            if parent is None or not exc.cache_rebuild_allowed:
+                raise
+            # The recurrent tensor is a disposable cache.  Rebuild it from the
+            # current authoritative Goal/Action projection without replaying the
+            # historical selector transcript or changing execution authority.
+            selection, selector_checkpoint = self.tool_selector.select(
+                selector_input,
+                run_id=state.run_id,
+                parent=None,
+            )
+            state.model_states[selector_checkpoint.checkpoint_id] = (
+                selector_checkpoint
+            )
+            state.set_lane_head("selector", selector_checkpoint.checkpoint_id)
+            persist(
+                state,
+                "selector_state_cache_rebuilt",
+                {
+                    "checkpoint_id": selector_checkpoint.checkpoint_id,
+                    "replaced_checkpoint_id": parent.checkpoint_id,
+                    "replaced_state_digest": str(parent.native_state_digest or ""),
+                    "state_digest": str(
+                        selector_checkpoint.native_state_digest or ""
+                    ),
+                    "reason": "selector_wkv_cache_unavailable",
+                    "source": "authoritative_goal_action_projection",
+                    "historical_prompt_replayed": False,
+                    "cache_authority": False,
+                },
+            )
         state.model_states[selector_checkpoint.checkpoint_id] = selector_checkpoint
         state.set_lane_head("selector", selector_checkpoint.checkpoint_id)
 
         selected_operation = selection.selected_operation
+        if selected_operation not in eligible:
+            raise ModelProtocolError(
+                "independent Selector returned an operation outside the active "
+                "Strong Planner frontier",
+                decision_id=selection.selection_id,
+                request_id=selection.trace_id,
+                selection_id=selection.selection_id,
+                selected_operation=selected_operation,
+            )
         definition = self._definitions_by_name.get(selected_operation)
         if selected_operation == NETWORK_ABSTAIN_LABEL or definition is None:
             persist(
@@ -854,9 +1448,17 @@ class LongHorizonModel:
                 selected_operation=selected_operation,
             )
 
+        raw_selection = selection.raw_record()
+        raw_selection.update(
+            {
+                "selection_rule": "eligible_raw_logit_argmax",
+                "selector_has_exclusive_tool_authority": True,
+                "executor_reselected_operation": False,
+            }
+        )
         handoff = ToolSelectionRecord(
             selection_id=selection.selection_id,
-            status=ToolSelectionStatus.COMMITTED,
+            status=ToolSelectionStatus.STAGED,
             selected_operation=selected_operation,
             selector_checkpoint_id=selector_checkpoint.checkpoint_id,
             selector_state_ref=str(selector_checkpoint.native_state_ref or ""),
@@ -876,20 +1478,22 @@ class LongHorizonModel:
             executor_model_sha256=executor_model_sha256,
             executor_profile_id=executor_profile_id,
             executor_profile_sha256=executor_profile_sha256,
-            raw_selection=selection.raw_record(),
+            raw_selection=raw_selection,
             atom_execution_contract_digest=atom_execution_contract_digest(
                 state.goal
             ),
         )
         persist(
             state,
-            "exact_tool_selection_committed",
+            "exact_tool_selection_staged",
             {
                 "selection_id": handoff.selection_id,
                 "selected_operation": handoff.selected_operation,
                 "selection": handoff.to_dict(),
                 "raw_logits_preserved": True,
                 "generated_rwkv_text": False,
+                "selector_has_exclusive_tool_authority": True,
+                "executor_reselected_operation": False,
                 "executor_checkpoint_unchanged": True,
             },
         )
@@ -902,13 +1506,40 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         max_output_tokens: int,
+        current_requirement: str,
     ) -> ActionDecision:
         selection = state.tool_selections.get(state.pending_selection_id)
-        if selection is None or selection.status is not ToolSelectionStatus.COMMITTED:
+        if selection is None or selection.status is not ToolSelectionStatus.STAGED:
             raise ModelProtocolError("pending tool selection handoff is missing")
         definition = self._definitions_by_name.get(selection.selected_operation)
         if definition is None:
             raise ModelProtocolError("pending tool selection is not executable")
+        executor_parent = state.model_states.get(
+            selection.executor_parent_checkpoint_id
+        )
+        executor_metadata = (
+            executor_parent.native_state_metadata or {}
+            if executor_parent is not None
+            else {}
+        )
+        if (
+            selection.authorizes_execution is not False
+            or selection.tool_definition_digest != canonical_digest(definition)
+            or selection.atom_execution_contract_digest
+            != atom_execution_contract_digest(state.goal)
+            or executor_parent is None
+            or executor_parent.lane_kind is not ModelLaneKind.ACTION
+            or executor_parent.transcript_digest != selection.executor_parent_digest
+            or executor_parent.model != selection.executor_model
+            or executor_metadata.get("model_sha256")
+            != selection.executor_model_sha256
+            or executor_parent.state_profile_id != selection.executor_profile_id
+            or executor_parent.state_profile_sha256
+            != selection.executor_profile_sha256
+        ):
+            raise ModelProtocolError(
+                "pending Selector handoff failed Executor/Harness reauthorization"
+            )
         if checkpoint.checkpoint_id == selection.executor_parent_checkpoint_id:
             checkpoint = self._disclose_selected_tool(
                 state,
@@ -916,6 +1547,7 @@ class LongHorizonModel:
                 persist,
                 definition,
                 selection=selection,
+                current_requirement=current_requirement,
             )
         else:
             metadata = checkpoint.native_state_metadata or {}
@@ -936,6 +1568,7 @@ class LongHorizonModel:
             definitions=(definition,),
             max_output_tokens=max_output_tokens,
             disclosed_operation=selection.selected_operation,
+            current_requirement=current_requirement,
         )
 
     def _select_tool(
@@ -943,9 +1576,18 @@ class LongHorizonModel:
         state: RunState,
         checkpoint: ModelCheckpoint,
         persist: PersistCallback,
+        *,
+        eligible_labels_override: Sequence[str] | None = None,
+        stage_context: SelectorStageContext | None = None,
     ) -> tuple[str, ModelCheckpoint]:
         if self.tool_selector is not None:
-            return self._select_tool_independently(state, checkpoint, persist)
+            return self._select_tool_independently(
+                state,
+                checkpoint,
+                persist,
+                eligible_labels_override=eligible_labels_override,
+                stage_context=stage_context,
+            )
         candidate = self.session.generate(
             checkpoint,
             sampling=self._SAMPLING,
@@ -978,6 +1620,14 @@ class LongHorizonModel:
             if selected_operation not in self._definitions_by_name:
                 raise ModelIOError(
                     f"operation {selected_operation!r} is not displayed in the tool menu"
+                )
+            if (
+                eligible_labels_override is not None
+                and selected_operation not in set(eligible_labels_override)
+            ):
+                raise ModelIOError(
+                    f"operation {selected_operation!r} is outside the active Strong "
+                    "Planner frontier"
                 )
             committed = self.session.commit(candidate, wire_command)
         except (ModelIOError, ValueError) as exc:
@@ -1055,12 +1705,18 @@ class LongHorizonModel:
         definition: Mapping[str, Any],
         *,
         selection: ToolSelectionRecord | None = None,
+        current_requirement: str | None = None,
     ) -> ModelCheckpoint:
+        selected_requirement = str(
+            state.goal.request
+            if current_requirement is None
+            else current_requirement
+        ).strip()
         disclosed = self.session.disclose_tool(
             checkpoint,
             definition,
             current_requirement=(
-                state.goal.request if self.tool_selector is not None else None
+                selected_requirement if self.tool_selector is not None else None
             ),
         )
         if selection is not None:
@@ -1099,12 +1755,18 @@ class LongHorizonModel:
         max_output_tokens: int,
         disclosed_operation: str = "",
         inherited_selection_id: str = "",
+        current_requirement: str | None = None,
     ) -> ActionDecision:
         if self.tool_selector is not None:
+            selected_requirement = str(
+                state.goal.request
+                if current_requirement is None
+                else current_requirement
+            ).strip()
             try:
                 validate_independent_executor_generation_input(
                     checkpoint.transcript,
-                    state.goal.request,
+                    selected_requirement,
                 )
             except ModelIOError as exc:
                 raise ModelProtocolError(str(exc)) from exc
@@ -1118,7 +1780,7 @@ class LongHorizonModel:
         if handoff is not None:
             metadata = checkpoint.native_state_metadata or {}
             if (
-                handoff.status is not ToolSelectionStatus.COMMITTED
+                handoff.status is not ToolSelectionStatus.STAGED
                 or disclosed_operation != handoff.selected_operation
                 or metadata.get("tool_selection_id") != handoff.selection_id
                 or metadata.get("tool_definition_digest")
@@ -1243,6 +1905,13 @@ class LongHorizonModel:
                     if inherited_handoff is not None
                     else ""
                 ),
+                tool_selection_binding_kind=(
+                    "consumed_handoff"
+                    if handoff is not None
+                    else "non_authoritative_lineage"
+                    if inherited_handoff is not None
+                    else ""
+                ),
             )
             state.decisions[record.decision_id] = record
             consumed = (
@@ -1335,6 +2004,13 @@ class LongHorizonModel:
                 if inherited_handoff is not None
                 else ""
             ),
+            tool_selection_binding_kind=(
+                "consumed_handoff"
+                if handoff is not None
+                else "non_authoritative_lineage"
+                if inherited_handoff is not None
+                else ""
+            ),
         )
         state.decisions[record.decision_id] = record
         consumed = (
@@ -1402,6 +2078,7 @@ class LongHorizonModel:
         selected_operation: str = "",
         contract_digest: str = "",
         tool_selection_id: str = "",
+        tool_selection_binding_kind: str = "",
     ) -> DecisionRecord:
         metadata_views = (
             candidate.parent.native_state_metadata or {},
@@ -1460,6 +2137,7 @@ class LongHorizonModel:
             tool_selection_id=tool_selection_id or bound_selection_id,
             selected_operation=selected_operation or bound_operation,
             atom_execution_contract_digest=contract_digest or bound_contract,
+            tool_selection_binding_kind=tool_selection_binding_kind,
         )
 
     def _rollover_if_needed(
@@ -1473,6 +2151,11 @@ class LongHorizonModel:
         force: bool = False,
         input_reserve_tokens: int = 0,
     ) -> ModelCheckpoint:
+        # A native RWKV lane is already the complete prefix state. Its next
+        # transition consumes only a bounded delta; context size must never
+        # turn a healthy cache hit back into prompt replay.
+        if self.session.transport == "native_rwkv":
+            return checkpoint
         input_limit = self.session.settings.max_prompt_tokens(max_output_tokens) - max(
             0, int(input_reserve_tokens)
         )

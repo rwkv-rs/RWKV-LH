@@ -82,10 +82,10 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
             constraints=[str(item) for item in request.get("constraints") or []],
             runtime_policy=runtime_policy_document(
                 config,
-                supervisor_mode=str(request.get("supervisor_mode") or "none"),
-                state_router_mode=(
-                    "shadow" if bool(request.get("state_router_shadow", False)) else "disabled"
+                supervisor_mode=str(
+                    request.get("supervisor_mode") or "stateful_goal"
                 ),
+                state_router_mode="disabled",
                 execution_mode=str(request.get("execution_mode") or "bounded"),
             ),
         )
@@ -104,17 +104,50 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     def append_supervisor_trace(event: Mapping[str, Any]) -> None:
         append_jsonl(trace_path, {**dict(event), "source": "strong_supervisor"})
 
-    controller = build_product_controller(
-        store,
-        state,
-        state_root=run_root,
-        max_transitions=max_transitions,
-        model_audit_hook=append_model_trace,
-        supervisor_audit_hook=append_supervisor_trace,
-    )
-    result = controller.resume(run_id) if resume else controller.run(run_id)
+    goal_mode = goal_self_termination_only(state.goal)
     continuation_count = 0
-    while goal_self_termination_only(result.state.goal) and result.state.status.value == "running":
+    next_call_is_resume = resume
+    controller = None
+    result = None
+    while True:
+        try:
+            if controller is None:
+                state = store.load(run_id)
+                controller = build_product_controller(
+                    store,
+                    state,
+                    state_root=run_root,
+                    max_transitions=max_transitions,
+                    model_audit_hook=append_model_trace,
+                    supervisor_audit_hook=append_supervisor_trace,
+                )
+            result = (
+                controller.resume(run_id)
+                if next_call_is_resume
+                else controller.run(run_id)
+            )
+            next_call_is_resume = True
+        except Exception as exc:
+            if not goal_mode:
+                raise
+            # Runtime/service failure is a wait boundary, never a Goal terminal
+            # authority.  Rebuild product adapters on the next attempt so a
+            # restored native-state service can be adopted without user action.
+            continuation_count += 1
+            controller = None
+            update_metadata(
+                run_root,
+                active=True,
+                phase="goal_waiting_runtime",
+                status=store.load(run_id).status.value,
+                continuation_count=continuation_count,
+                continuation_reason=f"{type(exc).__name__}: {exc}"[:1000],
+                error="",
+            )
+            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
+            continue
+        if not goal_mode or result.state.status.value != "running":
+            break
         continuation_count += 1
         payload = result_payload(result.state, result.final_output, result.transitions)
         payload["continuation_count"] = continuation_count
@@ -132,8 +165,9 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
             error="",
         )
         if reason.endswith("_unavailable") or reason.endswith("_failure"):
-            time.sleep(min(60.0, float(2 ** min(continuation_count - 1, 6))))
-        result = controller.resume(run_id)
+            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
+    if result is None:
+        raise RuntimeError("worker produced no controller result")
     payload = result_payload(result.state, result.final_output, result.transitions)
     payload["continuation_count"] = continuation_count
     atomic_write_json(run_root / "result.json", payload)

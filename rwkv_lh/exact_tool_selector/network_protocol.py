@@ -437,6 +437,42 @@ class NetworkExactToolSelection:
             NETWORK_EXACT_TOOL_LABELS.index(self.selected_operation)
         ]
 
+    def ranked_operations(
+        self,
+        k: int,
+        *,
+        exclude: Sequence[str] = (),
+    ) -> tuple[tuple[str, float, float], ...]:
+        """Return deterministic eligible Top-K labels with raw logit/probability.
+
+        This is a projection of the already frozen 25 logits.  It performs no
+        second model call and does not grant any candidate execution authority.
+        """
+
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError("network Selector Top-K must be a positive integer")
+        excluded = {str(item) for item in exclude}
+        eligible = set(self.eligible_labels) - excluded
+        if not eligible:
+            raise ValueError("network Selector Top-K has no eligible labels")
+        probabilities = self.probabilities
+        indices = sorted(
+            (
+                index
+                for index, label in enumerate(NETWORK_EXACT_TOOL_LABELS)
+                if label in eligible
+            ),
+            key=lambda index: (-self.logits[index], index),
+        )[:k]
+        return tuple(
+            (
+                NETWORK_EXACT_TOOL_LABELS[index],
+                float(self.logits[index]),
+                float(probabilities[index]),
+            )
+            for index in indices
+        )
+
     @property
     def logits_sha256(self) -> str:
         return canonical_digest(list(self.logits))

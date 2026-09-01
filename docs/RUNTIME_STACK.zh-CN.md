@@ -1,105 +1,97 @@
-# RWKV-LH 分进程运行栈
+# RWKV-LH 当前运行栈
 
-当前产品运行栈严格对应已经验证的职责边界，不再部署 0.4B State Router Shadow。
+更新时间：2026-09-01（Asia/Shanghai）
+
+## 产品拓扑
 
 ```text
-strong Planner/Reviewer（外部 OpenAI-compatible API）
-                     │ contract graph / review
-                     ▼
-本地 GPU0：2.9B S60 Selector（只选一个 operation）
-                     │ 已提交 operation
-                     ▼
-远端物理 GPU0：13.3B G3/G6 Executor（参数、执行推进、总结）
-                     │
-                     ▼
-本地 Harness + Web UI + proactive worker
+Strong model endpoint
+  ├─ Planner structured call
+  └─ read-only Stage Checker structured call
+
+2.9B RWKV Selector service
+  └─ one eligible raw-argmax operation
+
+13.3B RWKV service
+  ├─ persistent Executor session/State
+  └─ clean Auditor sessions/States（默认复用权重，不复用 State）
+
+Controller + Harness + SQLite Causal Ledger + workspace
 ```
 
-0.4B Shadow 没有通过毕业门，和已经训练、静态分类超过 96% 的 2.9B Selector 职责重复，
-因此不启动、不进入前端、不参与路由或能力评价。旧源码和实验目录只作为历史审计证据保留。
+旧 Contract Graph Reviewer、Atom worker pool、0.4B State Router 和 Top-K Executor 复选不属于当前产品拓扑。
 
-## 当前固定身份
+## `.env.local` 角色配置
 
-- Selector：`rwkv7-g1i-2.9b-vllm-v1`，S60 requirement-byte-tail，zero state，
-  Hidden(mean+last)+h64 MLP；本地物理 GPU0；HTTP `127.0.0.1:29621`。
-- Executor：`rwkv7-g1i-13.3b-exe-g3-g6-deterministic-cmix-r7-multiprofile-ctx2496`；
-  远端物理 GPU0，服务端口 `18075`，本地 tunnel `127.0.0.1:29613`。
-- offline task：`EXE-G3-MULTISTAGE-STEP2000`。
-- network task：`EXE-G6-NETWORK-RECOVERY-STEP1500`。
-- Planner/Reviewer：`gpt-5.4-mini`、strict JSON、reasoning `none`、无 fallback。
-- Web：`127.0.0.1:8766`，静态资源为 Goal Studio；主动 worker 与 Web 使用同一 Product Controller。
+```dotenv
+RWKV_LH_PLANNER_BASE_URL=https://planner.example/v1
+RWKV_LH_PLANNER_MODEL=strong-model
 
-G3/G6 根据不可变 retrieval policy 在 task 开始时只绑定一次，通过每个请求携带的 profile
-ID/SHA 交给本地修改并验证过的 vllm-rwkv；run 内 profile switch 必须为 0。
+RWKV_LH_SELECTOR_BASE_URL=http://127.0.0.1:29621
+RWKV_LH_SELECTOR_MODEL=rwkv7-g1j-2.9b
+RWKV_LH_SELECTOR_MODEL_SHA256=...
+RWKV_LH_SELECTOR_HEAD_SHA256=...
+RWKV_LH_SELECTOR_INPUT_PROTOCOL=rwkv-lh.exact-tool-selector-input.v8-frontier-only
 
-## 启动与状态
+RWKV_LH_EXECUTOR_BASE_URL=http://127.0.0.1:29613/v1
+RWKV_LH_EXECUTOR_MODEL=rwkv7-g1j-13.3b
+RWKV_LH_EXECUTOR_MODEL_SHA256=...
+RWKV_LH_EXECUTOR_STATE_TRANSPORT=native_required
 
-先让远端 13.3B 服务和本地 `29613` tunnel 可达，再运行：
+# 不配置 Auditor override 时复用 Executor 部署，但创建独立 session/clean State。
+# RWKV_LH_AUDITOR_BASE_URL=http://127.0.0.1:29614/v1
+# RWKV_LH_AUDITOR_MODEL=another-rwkv-model
+```
+
+模型名、代际和端口只是配置。生产装配不得依赖固定 G1I/G1J 名称。
+
+## 健康和身份
+
+普通 `/v1/models` 可达不等于 Goal 可运行。`native_required` 还必须验证：
+
+- recurrent state protocol 与客户端精确一致；
+- create/append/generate/commit/rollback/import capability 完整；
+- parent state、model/profile/build 和 cache binding 回显一致；
+- WKV/cache 标记 `authoritative=false`；
+- Selector model/head/input protocol/profile portable identity 精确匹配。
+
+identity 或 capability 失配时 fail closed，不静默回退 prompt replay，也不跨模型复用 Selector Head 或 State profile。
+
+## 本轮 G1J 临时测试服务
+
+服务器 `rwkv-8222` 本轮只允许本任务使用 GPU 0 和 3：
+
+| GPU | 临时端口 | 模型 | 用途 |
+|---:|---:|---|---|
+| 0 | `18230` | G1J 13.3B | Executor/Auditor zero-State 对照 |
+| 3 | `18232` | G1J 2.9B | Selector 权重与后续 v8 Head 适配 |
+
+GPU 1/2 是用户的其他实验，不得探测、停止或复用其服务。7.2B 对照已经完成并停止；当前结果不支持为 Auditor 额外常驻 7.2B。
+
+最终交接复核时 `18230/18232` 均未监听，GPU 0/3 无本任务计算进程。GPU 2 上约
+17.9 GiB 的 VLLM 进程属于用户实验，未操作。后续继续测试时应在 GPU 0/3 重新启动并复核
+模型 SHA、`/v1/models` 和 native-state capability，不能把上表端口当作仍存活的事实。
+
+这些端口不是产品默认值。每次实验都必须记录实际 `/v1/models`、权重 SHA、Head SHA、输入协议、State identity、GPU UUID 和原始结果。
+
+## 启动和状态
 
 ```bash
 uv run rwkv-lh-stack up --web --worker
 uv run rwkv-lh-stack status
-```
-
-`deploy --web --worker` 仍可作为同义的一命令入口；当前产品没有独立本地 engine prepare，
-因此不会安装或启动 0.4B。
-
-```bash
-uv run rwkv-lh-stack deploy --web --worker
-```
-
-停止项目拥有的本地进程：
-
-```bash
 uv run rwkv-lh-stack down
 ```
 
-`down` 只停止 PID、进程启动时钟、进程组和命令摘要共同匹配的项目进程。外部 13.3B 服务、
-已采用的 SSH tunnel 和启动前已经存在的服务不会被停止。Selector launcher 调用 `exec(2)` 后，
-manager 会在健康证明完成时以相同 PID/start time 刷新命令摘要，避免健康服务被误报为 orphan。
+`down` 只能停止 manager 记录且 PID、start ticks、process group 和 command digest 全部匹配的本项目进程；外部模型服务、用户已有进程和 GPU 1/2 上的实验不属于该命令的删除范围。
 
-## `.env.local` 关键配置
+## 恢复语义
 
-```dotenv
-RWKV_RUNTIME_MODE=external
-RWKV_BASE_URL=http://127.0.0.1:29613/v1
-RWKV_MODEL=rwkv7-g1i-13.3b-exe-g3-g6-deterministic-cmix-r7-multiprofile-ctx2496
-RWKV_STATE_PROFILE_ID=EXE-G3-MULTISTAGE-STEP2000
-RWKV_STATE_PROFILE_DELIVERY=request
-RWKV_EXECUTOR_PROFILE_ROUTING=retrieval-policy-v1
-RWKV_NETWORK_EXECUTOR_STATE_PROFILE_ID=EXE-G6-NETWORK-RECOVERY-STEP1500
-RWKV_TOOL_DISCLOSURE_MODE=progressive
-RWKV_SELECTOR_BASE_URL=http://127.0.0.1:29621
-RWKV_SELECTOR_LAUNCHER=/home/chase/GitHub/RWKV-LH/scripts/run_network_selector_s60_requirement_byte_tail_zero_service.sh
-```
+- 模型服务暂不可用：记录 resumable failure，Goal 保持可恢复；
+- WKV cache 丢失：从 Goal/CausalEvent/Action 权威投影重建；
+- Selector handoff identity 失配：discard 后重选；
+- Audit 或 Stage repair 的 Planner 调用失败：durable feedback 保留，恢复后先提交关联 patch；
+- 只有显式 13.3B `final_answer` 且 final RWKV Audit 通过才能完成 Goal。
 
-完整 SHA-256、超时和强 Planner 配置见 [`.env.example`](../.env.example)。真实 API key 只放
-ignored `.env`/`.env.local`，不进入文档、结果或运行日志。
+## 当前并发限制
 
-Supervisor `.env` 只允许把 `SUPERVISOR_*` 注入进程；不能再覆盖 `RWKV_*`。这是组件级配置
-命名空间边界，不依赖调用顺序或 Web 进程是否已经读取 topology。
-
-## 健康证明
-
-`rwkv-lh-stack status` 分别验证：
-
-- 13.3B `/v1/models` 中的 served model；
-- 2.9B `/healthz` 返回的 model、base SHA、head SHA、input protocol 和 state profile；
-- manager 进程所有权与当前 PID 身份；
-- 进程和健康拓扑中不存在 0.4B Router 项；历史进程记录只会在 `down` 时被安全清理。
-
-部署烟测 `UI-20260830-233140-0dadf4` 已通过 Web POST 验证
-`progressive → calculator → final_answer`，最终 `4` 与持久 RWKV 输出一致；完整回归为
-`706 passed, 1 warning`。该烟测只证明服务链路，不替代 Agent Ladder。
-
-前端的 `/api/runtime/topology` 另外展示 Planner、Selector、Executor 与 Harness 的真实拓扑；
-它不把单元测试或历史 Round 分数伪装成当前服务健康。
-
-## 已知边界
-
-- OpenAI-compatible Executor 尚未声明完整 durable recurrent-state
-  create/resume/fork/commit/rollback/export/import，因此会话上下文仍使用可审计 prompt replay；
-  G3/G6 initial state 的 per-request 绑定已经独立生效。
-- 静态 Selector 超过 96% 不等于真实多步 Harness 的同等成功率；发布能力必须看固定 Agent
-  Ladder 的 completed/external/strict 三项结果。
-- 远端 `18070` 是旧产品连续性服务，不能被本运行栈停止、替换或解释成 G3/G6 实验结果。
+推理服务本身可高并发不等于 Controller 已实现安全阶段并发。当前产品只有一条 Executor lane 和一个未决 Audit boundary，阶段内仍顺序运行。并发版本必须使用每步隔离 State、独立 Audit boundary，并只合并 Harness/Evidence 事实；不得在线程间共享可变 `RunState` 或合并 WKV。

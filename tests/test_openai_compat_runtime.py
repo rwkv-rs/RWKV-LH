@@ -5,6 +5,7 @@ import pytest
 import requests
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+from rwkv_lh.runtime.native_state import NativeStateCacheBinding
 from rwkv_lh.runtime.protocol import RWKVOutcomeUnknownError, RWKVProtocolError
 from rwkv_lh.runtime.sampling import (
     get_request_seed,
@@ -55,6 +56,20 @@ def settings(**overrides):
     }
     values.update(overrides)
     return RuntimeSettings(**values)
+
+
+def _cache_binding() -> NativeStateCacheBinding:
+    return NativeStateCacheBinding(
+        lane_id="LANE:ACTION",
+        lane_kind="action",
+        model="rwkv-test",
+        model_sha256="a" * 64,
+        state_profile_id="",
+        state_profile_sha256="",
+        state_chain_digest="b" * 64,
+        delta_digest="c" * 64,
+        event_ids_digest="d" * 64,
+    )
 
 
 def test_request_level_rapid_sampling_profile_reaches_wire(monkeypatch):
@@ -333,6 +348,7 @@ def test_runtime_capabilities_require_explicit_recurrent_state_declaration(monke
                 {
                     "tools": {"native_tool_calls": True},
                     "recurrent_state": {
+                        "protocol": "rwkv-lh.native-state.v1",
                         "create": True,
                         "resume": True,
                         "fork": True,
@@ -351,6 +367,7 @@ def test_runtime_capabilities_require_explicit_recurrent_state_declaration(monke
     capabilities = client.capabilities()
 
     assert capabilities.durable_recurrent_state is True
+    assert capabilities.recurrent_state_protocol == "rwkv-lh.native-state.v1"
     assert capabilities.native_tool_calls_declared is True
     assert capabilities.prompt_replay is True
     assert fake.calls[0][1].endswith("/v1/capabilities")
@@ -367,6 +384,100 @@ def test_runtime_capabilities_fail_closed_to_prompt_replay(monkeypatch):
     assert capabilities.durable_recurrent_state is False
     assert capabilities.source == "prompt_replay_fallback"
     assert "HTTP 404" in capabilities.error
+
+
+def test_runtime_capabilities_preserve_server_native_state_transport(monkeypatch):
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "prompt_replay": False,
+                    "recurrent_state": {
+                        "protocol": "rwkv-lh.native-state.v1",
+                        "create": True,
+                        "resume": True,
+                        "fork": True,
+                        "commit": True,
+                        "rollback": True,
+                        "export": True,
+                        "import": True,
+                    },
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+
+    capabilities = client.capabilities()
+
+    assert capabilities.prompt_replay is False
+    assert capabilities.durable_recurrent_state is True
+
+
+def test_native_state_create_uses_state_endpoint_and_verifies_cache_binding(monkeypatch):
+    binding = _cache_binding()
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "state_ref": "WKV-1",
+                    "state_digest": "e" * 64,
+                    "export_record": {"locator": "cache:WKV-1"},
+                    "state_format_version": "rwkv7-wkv-v1",
+                    "server_build": "server-1",
+                    "tokenizer_build": "tokenizer-1",
+                    "cache_binding_digest": binding.digest,
+                    "protocol_version": "rwkv-lh.native-state.v1",
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(
+        settings(model_sha256="a" * 64, state_transport="native_required")
+    )
+
+    snapshot = client.state_create(
+        lane_id="LANE:ACTION",
+        text="delta only",
+        cache_binding=binding,
+    )
+
+    assert snapshot.state_ref == "WKV-1"
+    method, endpoint, arguments = fake.calls[0]
+    assert method == "POST"
+    assert endpoint.endswith("/v1/state/create")
+    assert arguments["json"]["delta"] == "delta only"
+    assert arguments["json"]["cache_binding"]["authoritative"] is False
+
+
+def test_native_state_response_cannot_change_cache_binding(monkeypatch):
+    binding = _cache_binding()
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "state_ref": "WKV-1",
+                    "state_digest": "e" * 64,
+                    "export_record": {"locator": "cache:WKV-1"},
+                    "state_format_version": "rwkv7-wkv-v1",
+                    "server_build": "server-1",
+                    "tokenizer_build": "tokenizer-1",
+                    "cache_binding_digest": "f" * 64,
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+
+    with pytest.raises(RWKVProtocolError, match="cache binding mismatch"):
+        client.state_create(
+            lane_id="LANE:ACTION",
+            text="delta only",
+            cache_binding=binding,
+        )
 
 
 def test_health_requires_configured_model_to_be_served(monkeypatch):

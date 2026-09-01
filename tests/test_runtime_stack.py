@@ -5,9 +5,11 @@ import os
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from rwkv_lh.runtime.stack import RuntimeStackManager, RuntimeStackSettings
+from rwkv_lh.runtime.settings import PROJECT_ROOT
 
 
 class _HealthResponse:
@@ -150,7 +152,7 @@ def test_stack_prepare_and_goal_studio_web_binding(
         "--port",
         "8766",
         "--data-root",
-        str(Path("/home/chase/GitHub/RWKV-LH/data/goal_ui_preview")),
+        str(PROJECT_ROOT / "data/goal_ui_preview"),
     ]
     assert captured["environment"]["RWKV_LH_WEB_ASSET_ROOT"].endswith(
         "/rwkv_lh/goal_web_assets"
@@ -206,3 +208,77 @@ def test_stack_attests_configured_independent_selector_health(
         "enabled": True,
         "runtime_identity": expected,
     }
+
+
+def test_main_health_fails_closed_when_native_state_protocol_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class _Client:
+        def __init__(self) -> None:
+            self.settings = SimpleNamespace(state_transport="native_required")
+            self.closed = False
+
+        def health(self):
+            return SimpleNamespace(to_dict=lambda: {"available": True})
+
+        def capabilities(self):
+            return SimpleNamespace(
+                durable_recurrent_state=False,
+                recurrent_state_protocol="",
+                to_dict=lambda: {
+                    "durable_recurrent_state": False,
+                    "recurrent_state_protocol": "",
+                },
+            )
+
+        def close(self) -> None:
+            self.closed = True
+
+    client = _Client()
+    monkeypatch.setattr(
+        "rwkv_lh.runtime.stack.OpenAICompatibleRWKVClient",
+        lambda: client,
+    )
+
+    health = RuntimeStackManager(settings(tmp_path))._main_health()
+
+    assert health["available"] is False
+    assert "native state+delta" in health["error"]
+    assert health["capabilities"]["recurrent_state_protocol"] == ""
+    assert client.closed is True
+
+
+def test_main_health_accepts_exact_native_state_protocol(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class _Client:
+        def __init__(self) -> None:
+            self.settings = SimpleNamespace(state_transport="native_required")
+
+        def health(self):
+            return SimpleNamespace(to_dict=lambda: {"available": True})
+
+        def capabilities(self):
+            return SimpleNamespace(
+                durable_recurrent_state=True,
+                recurrent_state_protocol="rwkv-lh.native-state.v1",
+                to_dict=lambda: {
+                    "durable_recurrent_state": True,
+                    "recurrent_state_protocol": "rwkv-lh.native-state.v1",
+                },
+            )
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "rwkv_lh.runtime.stack.OpenAICompatibleRWKVClient",
+        _Client,
+    )
+
+    health = RuntimeStackManager(settings(tmp_path))._main_health()
+
+    assert health["available"] is True
+    assert "error" not in health

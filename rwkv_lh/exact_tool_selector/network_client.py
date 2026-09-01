@@ -16,7 +16,7 @@ from uuid import uuid4
 import requests
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
-    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.model_v2 import (
@@ -27,6 +27,7 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NetworkSelectorInput,
 )
 from rwkv_lh.runtime.protocol import RWKVRuntimeError
+from rwkv_lh.runtime.role_config import role_env, role_float
 from rwkv_lh.schema import ModelCheckpoint, ModelCheckpointStatus, ModelLaneKind
 
 
@@ -36,7 +37,9 @@ NETWORK_SELECTOR_SERVICE_REQUEST_SCHEMA = (
 NETWORK_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
     "rwkv-lh.network-exact-tool-selector-service-response.v3"
 )
-NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL = DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL
+NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL = (
+    FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL
+)
 NETWORK_SELECTOR_LANE_ID = "LANE:SELECTOR"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
@@ -44,6 +47,15 @@ _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 class NetworkExactToolSelectorError(RWKVRuntimeError):
     """The 25-class Selector service violated its frozen contract."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        cache_rebuild_allowed: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.cache_rebuild_allowed = bool(cache_rebuild_allowed)
 
 
 class _HTTPResponse(Protocol):
@@ -103,42 +115,66 @@ class NetworkExactToolSelectorSettings:
     @classmethod
     def from_env(cls) -> "NetworkExactToolSelectorSettings | None":
         names = {
-            "base_url": "RWKV_SELECTOR_BASE_URL",
-            "model": "RWKV_SELECTOR_MODEL",
-            "model_sha256": "RWKV_SELECTOR_MODEL_SHA256",
-            "head_sha256": "RWKV_SELECTOR_HEAD_SHA256",
-            "head_hash": "RWKV_SELECTOR_HEAD_HASH",
-            "feature_protocol": "RWKV_SELECTOR_FEATURE_PROTOCOL",
-            "state_profile_id": "RWKV_SELECTOR_STATE_PROFILE_ID",
-            "state_profile_sha256": "RWKV_SELECTOR_STATE_PROFILE_SHA256",
+            "base_url": ("BASE_URL", "RWKV_SELECTOR_BASE_URL"),
+            "model": ("MODEL", "RWKV_SELECTOR_MODEL"),
+            "model_sha256": ("MODEL_SHA256", "RWKV_SELECTOR_MODEL_SHA256"),
+            "head_sha256": ("HEAD_SHA256", "RWKV_SELECTOR_HEAD_SHA256"),
+            "head_hash": ("HEAD_HASH", "RWKV_SELECTOR_HEAD_HASH"),
+            "feature_protocol": (
+                "FEATURE_PROTOCOL",
+                "RWKV_SELECTOR_FEATURE_PROTOCOL",
+            ),
+            "state_profile_id": (
+                "STATE_PROFILE_ID",
+                "RWKV_SELECTOR_STATE_PROFILE_ID",
+            ),
+            "state_profile_sha256": (
+                "STATE_PROFILE_SHA256",
+                "RWKV_SELECTOR_STATE_PROFILE_SHA256",
+            ),
             "state_profile_manifest_sha256": (
-                "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256"
+                "STATE_PROFILE_MANIFEST_SHA256",
+                "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256",
             ),
         }
-        values = {key: os.environ.get(name, "").strip() for key, name in names.items()}
-        values["base_url"] = values["base_url"].rstrip("/")
-        if not any(values.values()):
+        configured = any(
+            env_name in os.environ and os.environ[env_name].strip()
+            for suffix, legacy in names.values()
+            for env_name in (f"RWKV_LH_SELECTOR_{suffix}", legacy)
+        )
+        if not configured:
             return None
+        values = {
+            key: role_env("selector", suffix, legacy=legacy)
+            for key, (suffix, legacy) in names.items()
+        }
+        values["base_url"] = values["base_url"].rstrip("/")
         if any(not value for value in values.values()):
             raise ValueError(
-                "all 25-class RWKV_SELECTOR_* identity settings are required"
+                "all 25-class RWKV_LH_SELECTOR_* identity settings are required "
+                "(legacy RWKV_SELECTOR_* is accepted)"
             )
-        try:
-            connect_timeout = float(
-                os.environ.get("RWKV_SELECTOR_CONNECT_TIMEOUT", "10")
-            )
-            read_timeout = float(os.environ.get("RWKV_SELECTOR_READ_TIMEOUT", "120"))
-        except ValueError as exc:
-            raise ValueError("RWKV Selector timeouts must be numbers") from exc
         return cls(
             **values,
-            input_protocol=os.environ.get(
-                "RWKV_SELECTOR_INPUT_PROTOCOL",
-                NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL,
-            ).strip()
+            input_protocol=role_env(
+                "selector",
+                "input_protocol",
+                legacy="RWKV_SELECTOR_INPUT_PROTOCOL",
+                default=NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL,
+            )
             or NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL,
-            connect_timeout_seconds=connect_timeout,
-            read_timeout_seconds=read_timeout,
+            connect_timeout_seconds=role_float(
+                "selector",
+                "connect_timeout",
+                legacy="RWKV_SELECTOR_CONNECT_TIMEOUT",
+                default=10.0,
+            ),
+            read_timeout_seconds=role_float(
+                "selector",
+                "read_timeout",
+                legacy="RWKV_SELECTOR_READ_TIMEOUT",
+                default=120.0,
+            ),
         )
 
     def runtime_identity(self) -> dict[str, str]:
@@ -188,9 +224,16 @@ class NetworkExactToolSelectorClient:
             or metadata.get("feature_protocol") != self.settings.feature_protocol
             or metadata.get("profile_manifest_sha256")
             != self.settings.state_profile_manifest_sha256
+            or metadata.get("cache_role") != "disposable_acceleration"
+            or metadata.get("authoritative") is not False
+            or metadata.get("delta_digest") != parent.transcript_digest
+            or not _SHA256_PATTERN.fullmatch(
+                str(metadata.get("state_chain_digest") or "")
+            )
         ):
             raise NetworkExactToolSelectorError(
-                "network Selector parent checkpoint identity mismatch"
+                "network Selector parent checkpoint identity mismatch",
+                cache_rebuild_allowed=True,
             )
 
     def _request_payload(
@@ -257,8 +300,13 @@ class NetworkExactToolSelectorClient:
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         if response.status_code != 200:
+            parent_cache_failure = (
+                response.status_code == 400
+                and "network Selector parent " in response.text
+            )
             raise NetworkExactToolSelectorError(
-                f"network Selector HTTP {response.status_code}: {response.text[:1000]}"
+                f"network Selector HTTP {response.status_code}: {response.text[:1000]}",
+                cache_rebuild_allowed=parent_cache_failure,
             )
         try:
             value = json.loads(response.content.decode("utf-8"))
@@ -326,12 +374,28 @@ class NetworkExactToolSelectorClient:
         parent: ModelCheckpoint | None,
     ) -> ModelCheckpoint:
         suffix = self.input_protocol.render_step(selector_input)
-        transcript = (
+        delta = (
             self.input_protocol.render_bootstrap(selector_input) + "\n" + suffix
             if parent is None
-            else parent.transcript + "\n" + suffix
+            else suffix
         )
-        transcript_digest = hashlib.sha256(transcript.encode("utf-8")).hexdigest()
+        delta_digest = hashlib.sha256(delta.encode("utf-8")).hexdigest()
+        parent_chain_digest = (
+            str((parent.native_state_metadata or {}).get("state_chain_digest") or "")
+            if parent is not None
+            else ""
+        )
+        state_chain_digest = hashlib.sha256(
+            json.dumps(
+                {
+                    "parent_state_chain_digest": parent_chain_digest,
+                    "delta_digest": delta_digest,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
         if not math.isfinite(selection.confidence):
             raise NetworkExactToolSelectorError(
                 "network Selector confidence is non-finite"
@@ -345,7 +409,11 @@ class NetworkExactToolSelectorClient:
             transport=(
                 "native_rwkv_hidden_mlp_selector_"
                 + (
-                    "v7_requirement_byte_tail"
+                    "v8_frontier_question_tail"
+                    if self.settings.input_protocol.endswith(
+                        "v8-frontier-question-tail"
+                    )
+                    else "v7_requirement_byte_tail"
                     if self.settings.input_protocol.endswith(
                         "v7-requirement-byte-tail"
                     )
@@ -358,8 +426,10 @@ class NetworkExactToolSelectorClient:
                     else "v3"
                 )
             ),
-            transcript=transcript,
-            transcript_digest=transcript_digest,
+            # This is the bounded delta sent for this transition, not a replayable
+            # semantic transcript.  The WKV tensor is disposable acceleration.
+            transcript=delta,
+            transcript_digest=delta_digest,
             token_count=selection.token_position,
             event_ids=list(parent.event_ids) if parent is not None else [],
             native_state_ref=selection.selector_state_ref,
@@ -369,6 +439,10 @@ class NetworkExactToolSelectorClient:
                 "state_ref": selection.selector_state_ref,
                 "state_digest": selection.selector_state_digest,
                 "parent_state_digest": selection.selector_parent_state_digest,
+                "state_chain_digest": state_chain_digest,
+                "delta_digest": delta_digest,
+                "cache_role": "disposable_acceleration",
+                "authoritative": False,
                 "token_position": selection.token_position,
             },
             native_state_metadata={
@@ -385,6 +459,12 @@ class NetworkExactToolSelectorClient:
                 ),
                 "generated_rwkv_text": False,
                 "postprocessed": False,
+                "cache_role": "disposable_acceleration",
+                "authoritative": False,
+                "parent_state_digest": selection.selector_parent_state_digest,
+                "parent_state_chain_digest": parent_chain_digest,
+                "state_chain_digest": state_chain_digest,
+                "delta_digest": delta_digest,
             },
             state_profile_id=self.settings.state_profile_id,
             state_profile_sha256=self.settings.state_profile_sha256,
