@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train the sole preregistered fresh G1J Selector-Intent MLP Head."""
+"""Train the sole preregistered persistent-causal G1J Selector Head v2."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from rwkv_lh.model_io import canonical_digest
 
 
 ROOT = Path("/home/chase/GitHub/RWKV-LH")
-SEED = 20260902
+SEED = 20260904
 EPOCHS = 200
 BATCH_SIZE = 64
 HIDDEN_DIM = 64
@@ -36,6 +36,8 @@ WEIGHT_DECAY = 0.0001
 DROPOUT = 0.05
 ZERO_SHA256 = "0" * 64
 MODEL_WEIGHTS_SHA256 = "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c"
+DATASET_ID = "rwkv_lh_g1j_selector_persistent_head_v2"
+GPU_UUID = "GPU-7367aa85-43ac-ee32-6599-b8500f23bc48"
 
 
 def _sha256(path: Path) -> str:
@@ -77,17 +79,17 @@ def _metrics(predictions, labels) -> dict[str, Any]:
 
 
 def _gpu_identity() -> dict[str, str]:
-    if os.environ.get("CUDA_VISIBLE_DEVICES") != "3":
-        raise RuntimeError("G1J Selector Head training is pinned to physical GPU 3")
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "0":
+        raise RuntimeError("G1J Selector Head v2 training is pinned to WSL physical GPU 0")
     output = subprocess.run(
-        ["nvidia-smi", "-i", "3", "--query-gpu=index,uuid,name", "--format=csv,noheader,nounits"],
+        ["nvidia-smi", "-i", "0", "--query-gpu=index,uuid,name", "--format=csv,noheader,nounits"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
     index, uuid, name = [item.strip() for item in output.split(",")]
-    if index != "3" or uuid != "GPU-a9570da2-547a-c2b3-0cab-7bbdc1a8a8b0":
-        raise RuntimeError("physical GPU 3 identity changed")
+    if index != "0" or uuid != GPU_UUID:
+        raise RuntimeError("WSL physical GPU 0 identity changed")
     return {"index": index, "uuid": uuid, "name": name}
 
 
@@ -105,8 +107,15 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
     gpu = _gpu_identity()
     feature_manifest_path = features_directory / "FEATURE_MANIFEST.json"
     feature_manifest = json.loads(feature_manifest_path.read_text(encoding="utf-8"))
-    if feature_manifest.get("sealed_rows_read") != 0 or feature_manifest.get("feature_shape") != [400, 5120]:
-        raise ValueError("feature manifest is not the frozen train/dev zero-State matrix")
+    if (
+        feature_manifest.get("dataset_id") != DATASET_ID
+        or feature_manifest.get("sealed_rows_read") != 0
+        or feature_manifest.get("feature_shape") != [400, 5120]
+        or feature_manifest.get("sequence_count") != 200
+        or feature_manifest.get("state_reset_rows") != 200
+        or feature_manifest.get("continued_rows") != 200
+    ):
+        raise ValueError("feature manifest is not the frozen persistent train/dev matrix")
     if feature_manifest.get("model_weights_sha256") != MODEL_WEIGHTS_SHA256:
         raise ValueError("feature model identity changed")
     portable_identity = feature_manifest.get("portable_feature_identity")
@@ -137,6 +146,15 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
     dev_indices = torch.tensor([index for index, row in enumerate(records) if row["split"] == "dev"])
     if tuple(train_indices.shape) != (300,) or tuple(dev_indices.shape) != (100,):
         raise ValueError("Head split counts changed")
+    transition_indices = torch.tensor(
+        [
+            index
+            for index, row in enumerate(records)
+            if row["split"] == "dev" and row["sequence_position"] == 1
+        ]
+    )
+    if tuple(transition_indices.shape) != (50,):
+        raise ValueError("Head dev transition count changed")
     x_cpu = torch.from_numpy(features)
     mean = x_cpu.index_select(0, train_indices).mean(dim=0)
     std = x_cpu.index_select(0, train_indices).std(dim=0, unbiased=False).clamp_min(1e-6)
@@ -194,6 +212,41 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
         predictions = logits.argmax(dim=1).cpu()
     train_metrics = _metrics(predictions.index_select(0, train_indices), labels.index_select(0, train_indices))
     dev_metrics = _metrics(predictions.index_select(0, dev_indices), labels.index_select(0, dev_indices))
+    transition_accuracy = float(
+        (
+            predictions.index_select(0, transition_indices)
+            == labels.index_select(0, transition_indices)
+        )
+        .float()
+        .mean()
+    )
+    final_index = label_to_index["final_answer"]
+    abstain_index = label_to_index["ABSTAIN"]
+    dev_final_errors = int(
+        (
+            predictions.index_select(0, dev_indices)[
+                labels.index_select(0, dev_indices) == final_index
+            ]
+            != final_index
+        ).sum()
+    )
+    dev_abstain_errors = int(
+        (
+            predictions.index_select(0, dev_indices)[
+                labels.index_select(0, dev_indices) == abstain_index
+            ]
+            != abstain_index
+        ).sum()
+    )
+    threshold_passed = bool(
+        dev_metrics["accuracy"] >= 0.90
+        and dev_metrics["macro_f1"] >= 0.90
+        and min(item["recall"] for item in dev_metrics["by_label"].values())
+        >= 0.75
+        and transition_accuracy >= 0.90
+        and dev_final_errors == 0
+        and dev_abstain_errors == 0
+    )
 
     portable_identity = dict(portable_identity)
     metadata = {
@@ -204,6 +257,9 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
         "labels": list(NETWORK_EXACT_TOOL_LABELS),
         "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
         "portable_feature_identity": portable_identity,
+        "dataset_id": DATASET_ID,
+        "training_sequence_count": 150,
+        "dev_sequence_count": 50,
         "base_state_profile": "zero",
         "state_tuned": False,
         "fresh_xavier_initialization": True,
@@ -218,7 +274,7 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
         "sealed_rows_accessed": 0,
         "feature_manifest_sha256": _sha256(feature_manifest_path),
         "preregistration_sha256": _sha256(preregistration),
-        "training_device": "cuda:physical-gpu3",
+        "training_device": "cuda:wsl-physical-gpu0",
         "physical_gpu_uuid": gpu["uuid"],
     }
     state = model.state_dict()
@@ -249,7 +305,7 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
     head_path.write_bytes(_json_line(artifact))
     prediction_rows = [
         {
-            "schema_version": "rwkv-lh.g1j-selector-intent-head-dev-prediction.v1",
+            "schema_version": "rwkv-lh.g1j-selector-head-dev-prediction.v2",
             "sample_id": records[index]["sample_id"],
             "label": records[index]["label"],
             "prediction": NETWORK_EXACT_TOOL_LABELS[int(predictions[index])],
@@ -260,19 +316,29 @@ def train(*, features_directory: Path, preregistration: Path, output: Path) -> N
     (pending / "DEV_PREDICTIONS.jsonl").write_bytes(b"".join(_json_line(row) for row in prediction_rows))
     (pending / "TRAINING_HISTORY.json").write_bytes(_json_line({"epochs": history}))
     result = {
-        "schema_version": "rwkv-lh.g1j-selector-intent-head-result.v1",
+        "schema_version": "rwkv-lh.g1j-selector-head-result.v2",
         "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
         "head_hash": artifact["head_hash"],
         "head_file_sha256": _sha256(head_path),
         "train_metrics": train_metrics,
         "dev_metrics": dev_metrics,
+        "dev_transition_position_accuracy": transition_accuracy,
+        "dev_final_answer_errors": dev_final_errors,
+        "dev_abstain_errors": dev_abstain_errors,
+        "preregistered_thresholds_passed": threshold_passed,
         "sealed_rows_accessed": 0,
         "selected_epoch": EPOCHS,
         "candidate_count": 1,
         "gpu": gpu,
-        "status": "frozen",
+        "status": "frozen" if threshold_passed else "failed_thresholds",
     }
     (pending / "HEAD_RESULT.json").write_bytes(_json_line(result))
+    if not threshold_passed:
+        head_path.unlink()
+        os.replace(pending, output)
+        raise RuntimeError(
+            "G1J Selector Head v2 missed preregistered thresholds; artifact was not published"
+        )
     os.replace(pending, output)
 
 
