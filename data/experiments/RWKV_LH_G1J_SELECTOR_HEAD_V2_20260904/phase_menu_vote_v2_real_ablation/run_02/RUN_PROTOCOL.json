@@ -1,0 +1,169 @@
+{
+  "schema_version": "rwkv-lh.round-run-protocol.v1",
+  "started_at": "2026-09-04T08:39:54.100637+00:00",
+  "round": "run_02",
+  "suite": "RWKV-LH-AGENT-CAPABILITY-LADDER-V1",
+  "total_catalog_cases": 10,
+  "selected_case_count": 1,
+  "selected_case_ids": [
+    "AGENT-LADDER-L1-FIX01"
+  ],
+  "retry_failures_from": "",
+  "difficulty_groups": {
+    "basic": 1,
+    "medium": 0,
+    "hard": 0
+  },
+  "max_transitions": 240,
+  "concurrency": 1,
+  "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+  "backend_profile": "vllm-rwkv-native",
+  "tool_disclosure_mode": "progressive",
+  "architecture": "rwkv-stateful-goal-loop.v4",
+  "supervisor": {
+    "enabled": true,
+    "provider": "openai_compatible",
+    "model": "gpt-5.6-sol",
+    "role": "planner",
+    "planner_protocol": "rwkv-lh.goal-plan-patch.v3",
+    "policy": {
+      "mode": "goal_stages",
+      "max_review_repairs": 1,
+      "max_online_directives": 64,
+      "online_actions_per_directive": 6,
+      "online_protocol_rejections_per_directive": 2,
+      "max_parallel_stages": 16,
+      "max_parallel_atoms": 4,
+      "atom_max_transitions": 40,
+      "max_graph_patches": 12,
+      "max_reviewer_rounds": 12,
+      "max_graph_atoms": 64,
+      "max_graph_stagnant_rounds": 2,
+      "semantic_repair_attempts": 1,
+      "transport_retry_attempts": 2,
+      "pending_resume_attempts": 0,
+      "serialize_requests": false
+    },
+    "independent_terminal_review": false,
+    "strong_reviewer_enabled": false,
+    "parent_atom_action_projection": false,
+    "result_capsules_only": false,
+    "finalizer_min_actions": 0,
+    "hidden_acceptance_visible": false,
+    "tool_execution_authority": false,
+    "rwkv_output_rewritten": false
+  },
+  "stateful_goal": {
+    "enabled": true,
+    "persistent_executor_state_count": 0,
+    "executor_state_scope": "one_selected_action",
+    "selector_tool_decisions_per_action": 1,
+    "selector_model_evaluations_per_action": 3,
+    "selector_state_count_per_step": 3,
+    "selector_menu_order_ids": [
+      "canonical",
+      "rotate_8",
+      "rotate_17"
+    ],
+    "selector_vote_rule": "three_menu_order_vote_v1",
+    "auditor_state_isolated": true,
+    "rwkv_audit_required": true,
+    "audit_wkv_merge": false,
+    "strong_model_dependency": true,
+    "strong_planner_required": true,
+    "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v3",
+    "strong_reviewer_enabled": false
+  },
+  "sampling": {
+    "sampling_policy": {
+      "scope": "all_semantic_lanes",
+      "temperature": 0.05,
+      "semantic_resample_count": 0
+    },
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "source_resources": [
+    {
+      "suite": "core30",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_30/tasks.json",
+      "sha256": "0bf73c9a86bd014f5a94e5686ffe744bbef6c560f4227e37d0b753b900481c4c"
+    },
+    {
+      "suite": "core30",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_30/acceptance.json",
+      "sha256": "c4953c556a9ba2e080493f34bb2261db349080542376c4e94f08d5227e0f74cd"
+    },
+    {
+      "suite": "lh12",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/tasks.json",
+      "sha256": "d813a7bc3a42e27ee3573ea342a918bd7ee5347ca8b0e893c04fded262457a5e"
+    },
+    {
+      "suite": "lh12",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_lh12/acceptance.json",
+      "sha256": "976e075bcc81780ed38ce7b9fe8c6c19c1b239bb72595ce176308f2760a0cd9f"
+    },
+    {
+      "suite": "extension48",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_extension48/tasks.json",
+      "sha256": "384d52b5395dbcb31947dbfd1cfe63167ccbe68ed8b03e675fddc32ffd25ec7b"
+    },
+    {
+      "suite": "extension48",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_e2e_extension48/acceptance.json",
+      "sha256": "395e1651f52259de7e56a63476504891f136edd2d4dd5a8263064077741ede12"
+    },
+    {
+      "suite": "agentv1",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_v1/tasks.json",
+      "sha256": "87f54fabcf2584ebc74840559e4abb86b31e5e9744c4037d052c318e884c176f"
+    },
+    {
+      "suite": "agentv1",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_v1/acceptance.json",
+      "sha256": "0fae91dfd7ed78afc0139ba4fea6f0566d1288d33acfb62097ed88d1d6f6a19f"
+    },
+    {
+      "suite": "agentladderv1",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_capability_ladder_v1/tasks.json",
+      "sha256": "23cf009831fb38dd05bd3fad69e246a822a59ab6bd725833c6df2aaaf45c93bb"
+    },
+    {
+      "suite": "agentladderv1",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_capability_ladder_v1/acceptance.json",
+      "sha256": "f95da0b4085cdee3bc4555255dfb4f09d9272c00982634c72a040361c5774e06"
+    }
+  ],
+  "codex_reference_answers": {
+    "path": "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json",
+    "sha256": "947a4b495951374b4d83a1029a2e3196e98c277e2c5d815919bdc58bf482d89b",
+    "runtime_visibility": "forbidden; post-run comparison only"
+  },
+  "code": {
+    "commit": "4d31f894592c9d50b34c941a82c123357048f1a9",
+    "status": [],
+    "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runner_sha256": "f79ca13f44402e2f5f7f6397ffcbe8c3353723ee4450664941ae2aa55aeb9da9",
+    "source_tree_file_count": 155,
+    "source_tree_manifest_sha256": "1faf8f97036b663309ba670bb1edaeac78b2394006dfcbdabc3c3da84d8bc1d9"
+  },
+  "non_intervention": {
+    "final_output": "byte-exact raw RWKV response",
+    "semantic_answer_filtering": false,
+    "hidden_acceptance_available_during_generation": false
+  }
+}

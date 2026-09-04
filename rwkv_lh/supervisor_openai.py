@@ -1054,25 +1054,26 @@ class OpenAICompatibleSupervisorClient:
     ) -> tuple[str, dict[str, Any], str]:
         transport = self._transport_for_phase(phase)
         if transport == "responses":
+            body: dict[str, Any] = {
+                "model": selected_model,
+                "instructions": system_prompt,
+                # The relay's Responses converter rejects a JSON-looking
+                # top-level input string and typed input_text blocks, but
+                # accepts the official easy user-message envelope. Keep
+                # the serialized Planner payload byte-for-byte unchanged
+                # inside that transport-only wrapper.
+                "input": [
+                    {
+                        "role": "user",
+                        "content": _RESPONSES_JSON_INPUT_PREFIX + payload_text,
+                    }
+                ],
+                "max_output_tokens": int(max_tokens),
+                "text": {"format": {"type": "json_object"}},
+            }
             return (
                 self.settings.base_url + "/responses",
-                {
-                    "model": selected_model,
-                    "instructions": system_prompt,
-                    # The relay's Responses converter rejects a JSON-looking
-                    # top-level input string and typed input_text blocks, but
-                    # accepts the official easy user-message envelope. Keep
-                    # the serialized Planner payload byte-for-byte unchanged
-                    # inside that transport-only wrapper.
-                    "input": [
-                        {
-                            "role": "user",
-                            "content": _RESPONSES_JSON_INPUT_PREFIX + payload_text,
-                        }
-                    ],
-                    "max_output_tokens": int(max_tokens),
-                    "text": {"format": {"type": "json_object"}},
-                },
+                body,
                 transport,
             )
         return (
@@ -1251,7 +1252,7 @@ class OpenAICompatibleSupervisorClient:
     ) -> dict[str, Any]:
         call_id = f"SUP-{uuid.uuid4().hex[:20]}"
         schema_revision = (
-            "v1"
+            "v3"
             if phase == "goal_plan"
             else "v8"
             if phase == "contract_plan"
@@ -2715,27 +2716,32 @@ class OpenAICompatibleSupervisorClient:
             raise TypeError("goal planner requires GoalPlanRequest")
         initial = request.plan_revision == 0
         system_prompt = (
-            "You are only the Strong Planner for an RWKV execution loop. "
-            "Do not execute tools, choose or restrict tool names, fill parameters, "
-            "audit evidence, "
-            "or write a final answer. Return exactly one JSON object matching the "
-            "schema. Plan only the next one to five clear steps. Each step gives the "
-            "RWKV Executor one coherent responsibility and exactly one phase. Use "
-            "observe for workspace/public-source inspection, mutate for direct file "
-            "changes, execute for local command invocation, and derive_evidence for "
-            "calculation, time/date derivation, or evidence binding. The phase only "
-            "narrows the Selector menu; never name a concrete tool. Split unrelated "
-            "files, observation, mutation, command execution, and verification when "
-            "their evidence differs. Read an "
-            "available verifier or specification before the mutation it constrains. "
-            "The root arrays follow an exact phase contract: local observe uses "
-            "read_roots and write_roots=[]; public-source observe uses both arrays "
-            "empty; mutate uses read_roots=[] and non-empty write_roots; execute "
-            "always uses read_roots=[] and declares write_roots only when the command "
-            "is intended to mutate those roots; derive_evidence uses both arrays "
-            "empty. A mutate, execute, or derive_evidence step consumes earlier "
-            "inspection only through depends_on; never repeat its files in "
-            "read_roots. "
+            "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "Plan; never execute tools, select or restrict tool names, fill tool "
+            "parameters, audit evidence, mark completion, or write a final answer. "
+            "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
+            "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
+            "The exact top-level keys are add_stages, replace_stages, "
+            "discard_step_ids, and reason. Each stage has exactly stage and steps. "
+            "Each step has exactly step_id, objective, phase, depends_on, "
+            "success_evidence, read_roots, write_roots, and constraints. Plan only "
+            "the next one to five clear steps. Each step gives the RWKV Executor one "
+            "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
+            "means workspace or public-source inspection; mutate means direct file "
+            "changes; execute means local command invocation; derive_evidence means "
+            "calculation, time/date derivation, or evidence binding. A phase only "
+            "narrows the Selector menu; never name a concrete tool. The root arrays "
+            "are exact: local observe => read_roots non-empty, write_roots=[]; "
+            "public-source observe => read_roots=[], write_roots=[]; mutate => "
+            "read_roots=[], write_roots non-empty; read-only execute => "
+            "read_roots=[], write_roots=[]; mutating execute => read_roots=[], "
+            "write_roots contains only intended mutation targets; derive_evidence => "
+            "read_roots=[], write_roots=[]. Never put a file in read_roots for "
+            "mutate, execute, or derive_evidence. Such a step consumes earlier "
+            "inspection only through depends_on. Split unrelated files, observation, "
+            "mutation, command execution, and verification when their evidence "
+            "differs. Read an available verifier or specification in a prior observe "
+            "step before the mutation it constrains. "
             "Return nested stages, each containing its peer steps; do not repeat the "
             "stage number inside a step. Same-stage steps are independent: "
             "they cannot depend on each other and their read/write roots cannot conflict. "
@@ -2745,10 +2751,10 @@ class OpenAICompatibleSupervisorClient:
             "in replace_stages or removed in discard_step_ids; do not retain stale work "
             "merely to preserve append-only history. New ids belong in add_stages. "
             "Dependencies may refer only to steps that remain active or are added by "
-            "this patch. success_evidence defines future observable acceptance "
-            "criteria only; it never claims evidence was already read or produced, "
-            "and the Planner never marks a step complete. Only the RWKV Auditor can "
-            "accept runtime evidence after execution. "
+            "this patch. EVIDENCE AUTHORITY: success_evidence simply describes what "
+            "later successful Actions must prove; it does not report that work is "
+            "already complete. Planner text is never completion evidence. Only the "
+            "RWKV Auditor can accept runtime Action evidence. "
             "The Controller has already fixed the one project mother path. You have "
             "no authority to name, infer, replace, expand, or emit that mother path. "
             "Every read_roots and write_roots item is only a project-relative file "
@@ -2756,17 +2762,15 @@ class OpenAICompatibleSupervisorClient:
             "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
             "absolute path, never invent a '/workspace' prefix, never use a backslash, "
             "and never use '..'. "
-            "The complete JSON structure is fixed and stages must contain their "
-            "steps exactly in this nested shape: "
+            "FORMAT EXAMPLE (shape only; replace every example value): "
             '{"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
             '"objective":"one coherent responsibility","phase":"observe",'
             '"depends_on":[],'
-            '"success_evidence":["one observable result"],'
+            '"success_evidence":["successful action evidence covers the required read"],'
             '"read_roots":["."],"write_roots":[],'
             '"constraints":[]}]}],"replace_stages":[],'
             '"discard_step_ids":[],"reason":"concise planning reason"}. '
-            "Return only that JSON object with real values; do not use Markdown, "
-            "do not flatten steps, and do not add top-level or step fields. "
+            "Return the same nested shape with real values; do not flatten steps. "
             + (
                 "This is the initial patch: replace_stages and discard_step_ids are "
                 "empty, and add_stages contains the first executable stages."

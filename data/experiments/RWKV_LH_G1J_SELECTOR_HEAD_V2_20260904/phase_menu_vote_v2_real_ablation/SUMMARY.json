@@ -1,0 +1,158 @@
+{
+  "schema_version": "rwkv-lh.phase-menu-vote-real-ablation-summary.v2",
+  "task_id": "AGENT-LADDER-L1-FIX01",
+  "global_invocation_count": 3,
+  "strict_pass_count": 0,
+  "best_observed_run": "run_03",
+  "selection_rule_for_best_run": "highest audited completed-step count, then action count, then fewer protocol rejections",
+  "runs": [
+    {
+      "run": "../phase_menu_vote_v1_real_ablation/run_01",
+      "valid_ablation_sample": false,
+      "planner_structured_outputs": 2,
+      "planner_protocol_rejections": 2,
+      "planner_transport_failure": "retryable HTTP 500 after the semantic repair budget",
+      "selector_requests": 0,
+      "executor_requests": 0,
+      "actions": 0,
+      "strict_passed": false,
+      "first_divergence": "Planner prompt did not state that every non-observe phase must emit read_roots=[]."
+    },
+    {
+      "run": "run_02",
+      "valid_ablation_sample": false,
+      "run_protocol_sha256": "aff443f93f05d7159ba9e971b92b08f5ded87e270eca441e89d873a541b62276",
+      "results_sha256": "9d2e0a86c21234dc068188b37210e67922131517c10bdeb7444369f220507bcb",
+      "planner_transport_failure": "retryable HTTP 500 on both Goal Plan HTTP attempts",
+      "planner_protocol_rejections": 0,
+      "selector_requests": 0,
+      "executor_requests": 0,
+      "actions": 0,
+      "strict_passed": false,
+      "first_divergence": "External Planner provider transport failed before a plan response."
+    },
+    {
+      "run": "run_03",
+      "valid_ablation_sample": true,
+      "run_protocol_sha256": "c382684d536c91342ca8159aed0ee5bc288522cc189a2a8141d95aefef289da1",
+      "results_sha256": "7709fedbf1b66179ed7977d20c0c03cb493b78cbb97cc77b9deef12253c162c9",
+      "planner": {
+        "model": "gpt-5.6-sol",
+        "transport": "responses",
+        "http_attempts": 1,
+        "protocol_valid": true,
+        "stage_count": 3,
+        "phase_sequence": [
+          "observe",
+          "mutate",
+          "execute"
+        ],
+        "root_contract_valid": true,
+        "input_tokens": 2060,
+        "output_tokens": 1526,
+        "reasoning_tokens_reported_by_provider": 710,
+        "total_tokens": 3586,
+        "project_requested_reasoning_parameter": false
+      },
+      "selector": {
+        "action_decision_count": 5,
+        "model_evaluation_count": 15,
+        "canonical_token_positions": [
+          1322,
+          2454,
+          3292,
+          4130,
+          5268
+        ],
+        "aggregate_operations": [
+          "search_text",
+          "read_json",
+          "read_json",
+          "search_text",
+          "search_text"
+        ],
+        "votes": [
+          {
+            "action": 1,
+            "canonical": "search_text",
+            "rotate_8": "search_text",
+            "rotate_17": "search_text",
+            "aggregate": "search_text"
+          },
+          {
+            "action": 2,
+            "canonical": "read_json",
+            "rotate_8": "file_digest",
+            "rotate_17": "search_text",
+            "aggregate": "read_json",
+            "decision": "fixed three-way tie break"
+          },
+          {
+            "action": 3,
+            "canonical": "read_file",
+            "rotate_8": "search_text",
+            "rotate_17": "read_json",
+            "aggregate": "read_json",
+            "decision": "fixed three-way tie break"
+          },
+          {
+            "action": 4,
+            "canonical": "search_text",
+            "rotate_8": "search_text",
+            "rotate_17": "search_text",
+            "aggregate": "search_text"
+          },
+          {
+            "action": 5,
+            "canonical": "search_text",
+            "rotate_8": "search_text",
+            "rotate_17": "search_text",
+            "aggregate": "search_text"
+          }
+        ],
+        "abstain_was_eligible": false,
+        "state_updated": true,
+        "state_update_evidence": "Every lane advanced recurrent token position and input/state digests changed across action decisions; the chosen label also changed before returning to search_text."
+      },
+      "executor": {
+        "request_count": 5,
+        "accepted_canonical_json_count": 5,
+        "action_protocol_rejection_count": 0,
+        "selected_operation_mismatch_count": 0,
+        "successful_actions": [
+          "A00001: search_text with zero matches",
+          "A00004: identical search_text with zero matches",
+          "A00005: identical search_text with zero matches"
+        ],
+        "failed_actions": [
+          "A00002: read_json(pricing.py) -> JSONDecodeError",
+          "A00003: read_json(pricing.py) -> identical JSONDecodeError"
+        ]
+      },
+      "goal_state": {
+        "audited_completed_step_count": 0,
+        "remaining_read_roots": [
+          "pricing.py",
+          "verify_project.py"
+        ],
+        "terminal_status": "blocked",
+        "block_reason": "identical_success_budget_exhausted",
+        "false_completion": false,
+        "strict_passed": false
+      },
+      "first_divergence": "The initial three Selector lanes unanimously chose search_text instead of reading the declared Python files."
+    }
+  ],
+  "fixed_metric_result": {
+    "success_threshold_met": false,
+    "reference_similarity": "not applicable because no final answer or target artifacts were produced",
+    "metric_changed_after_run": false
+  },
+  "diagnosis": {
+    "planner": "The explicit phase/root prompt produced a valid three-stage plan in run_03. Planner success_evidence wording has no completion authority and did not bypass mechanical evidence gates.",
+    "selector": "The three-order ensemble removed ABSTAIN termination but did not restore the required read_file policy. The recurrent state advanced, so this trace does not support a reset/stale-state root cause. Correlated wrong votes and Python-as-JSON choices point to Head/runtime-input out-of-distribution behavior. This experiment cannot separate the 2.9B backbone from its trained Head because the Head is the only decision decoder.",
+    "executor": "For every selected operation, the 13.3B Executor emitted valid canonical JSON with the selected name and valid schema parameters. It correctly obeyed the selection even when the selected operation was semantically unsuitable. Mutation and command phases were never reached, so they remain unmeasured here.",
+    "controller": "The Controller preserved correct global/local state: it did not mark S1 complete, retained both missing read roots, rejected no valid action protocol, and stopped after three identical successful zero-progress searches."
+  },
+  "post_run_change": "After the three-invocation cap, the Planner instruction was reorganized to state the exact JSON shape and phase/root contract in concise language. No further real run was made, no reasoning-effort parameter was added, and no StateTune data or weights were changed."
+}

@@ -158,9 +158,11 @@ run terminal or resumable status
 }
 ```
 
-不允许 Markdown、工具调用、最终答案或额外字段。Controller 绑定 `patch_id`、`base_revision` 和 schema version。
+不允许 Markdown、解释文本、思维过程、工具调用、最终答案或额外字段。当前项目不向 Planner 请求传入 `reasoning` 参数，也没有在项目侧开启或固定长 CoT 档位；Controller 绑定 `patch_id`、`base_revision` 和 schema version。
 
-`phase` 只能是 `observe`、`mutate`、`execute` 或 `derive_evidence`。一个 step 只能承担一种职责；新计划中的读取、修改、命令执行和证据推导必须拆开，并用前一 stage 的 dependency 传递已提交事实。Planner 不得输出具体 operation 名。
+`phase` 只能是 `observe`、`mutate`、`execute` 或 `derive_evidence`。一个 step 只能承担一种职责；新计划中的读取、修改、命令执行和证据推导必须拆开，并用前一 stage 的 dependency 传递已提交事实。精确 roots 合同是：本地 `observe` 只填 `read_roots`，公开来源 `observe` 两者为空，`mutate` 只填非空 `write_roots`，只读 `execute` 两者为空，会修改文件的 `execute` 只填 `write_roots`，`derive_evidence` 两者为空。Planner 不得输出具体 operation 名。
+
+`success_evidence` 只是说明后续成功 Action 需要证明什么，不表示工作已经完成。即使 Planner 的自然语言使用了完成时态，Controller 也不会据此完成 step；完成权仍只属于机械覆盖检查和 RWKV Auditor。
 
 ### 4.2 2.9B Selector + Head
 
@@ -681,8 +683,8 @@ data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
 
 | 环节 | 当前问题 | 归类 | 完成门禁 |
 |---|---|---|---|
-| Selector 决策 | Head v2 未训练三种 menu order 与 `GoalFrontierStateV2`；投票效果尚需真实固定集验证 | Head 泛化/输入分布问题，不能据此归因于 2.9B 基座 | 固定真实 holdout 与顺序敏感性指标达标 |
-| Planner phase | 新 v3 patch 依赖 Planner 正确拆开观察、修改、执行和证据推导 | Planner 输入合同与语义验证已实现，真实计划质量待回归 | 固定 Planner 集的 phase、依赖和根目录全通过 |
+| Selector 决策 | 固定真实链路中三路先一致误选 `search_text`，随后两次三路分歧被裁决为 `read_json(pricing.py)`，最后又一致回到 `search_text`；State token position 从 1322 增至 5268 | State 确实更新；主要证据指向 Head/完整输入域外泛化与三路相关误差，不能仅归因于 2.9B 基座 | 用相同 full-serving transcript 训练后，固定真实 holdout 的工具准确率、顺序一致性和整链通过率达标 |
+| Planner phase | 真实 run_03 已产生合法 `observe -> mutate -> execute` 三阶段及正确 roots；提示词已用简短说明明确 JSON 形状、职责和证据权限 | 单例通过，完整 Planner 固定集仍待验证 | 固定 Planner 集的格式、phase、依赖和根目录全通过 |
 | Executor 状态遵循 | 完整事实输入中会重复已完成对象，未服从 remaining state | 输入合同与 zero-State 能力共同待验证 | 固定完整链路集达标 |
 | Executor JSON | `replace_text` 场景会生成 Python dict 形式 | 模型格式遵循问题 | canonical JSON 全通过 |
 | Executor operation identity | 命令场景会把 schema/role 名写成 function | 模型显式 operation 遵循问题 | function 与 selected operation 全相等 |

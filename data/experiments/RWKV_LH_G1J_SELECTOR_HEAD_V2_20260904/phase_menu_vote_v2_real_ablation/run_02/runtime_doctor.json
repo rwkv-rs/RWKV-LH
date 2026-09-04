@@ -1,0 +1,118 @@
+{
+  "schema_version": "rwkv-lh.runtime-doctor.v1",
+  "captured_at": "2026-09-04T08:39:54.097822+00:00",
+  "health": {
+    "available": true,
+    "endpoint": "http://127.0.0.1:29613/v1",
+    "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "models": [
+      "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+    ],
+    "latency_ms": 86.0,
+    "error": ""
+  },
+  "capabilities": {
+    "source": "http://127.0.0.1:29613/v1/capabilities",
+    "prompt_replay": false,
+    "native_tool_calls_declared": false,
+    "recurrent_state": {
+      "create": true,
+      "resume": true,
+      "fork": true,
+      "commit": true,
+      "rollback": true,
+      "export": true,
+      "import": true,
+      "protocol": "rwkv-lh.native-state.v1",
+      "durable": true
+    },
+    "error": ""
+  },
+  "settings": {
+    "base_url": "http://127.0.0.1:29613/v1",
+    "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "backend_profile": "vllm-rwkv-native",
+    "api_key_configured": false,
+    "proxy_configured": false,
+    "connect_timeout_seconds": 10.0,
+    "read_timeout_seconds": 300.0,
+    "retry_attempts": 2,
+    "max_model_len": 16384,
+    "return_token_ids": true,
+    "tool_disclosure_mode": "progressive",
+    "state_profile_id": "zero",
+    "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "state_profile_delivery": "request"
+  },
+  "independent_selector": {
+    "enabled": true,
+    "runtime_identity": {
+      "input_protocol": "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1",
+      "model": "rwkv7-g1j-2.9b-vllm-v1",
+      "model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+      "head_sha256": "49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a",
+      "head_hash": "ef83fd7bf9340977f2ae16d95899690addf3446467ea43a138c61f0926c69bdd",
+      "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1",
+      "profile_id": "zero",
+      "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "profile_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "supervisor": {
+    "enabled": true,
+    "health": {
+      "available": true,
+      "provider": "openai_compatible",
+      "endpoint": "https://next-token.cc/v1",
+      "model": "gpt-5.6-sol",
+      "model_present": true,
+      "planner_model": "gpt-5.6-sol",
+      "planner_model_present": true,
+      "stage_checker_model": "gpt-5.6-sol",
+      "stage_checker_model_present": true,
+      "latency_ms": 13450.4,
+      "catalog_available": true,
+      "completion_available": true,
+      "planner_transport": "responses",
+      "planner_transport_available": true,
+      "stage_checker_transport": "chat_completions",
+      "stage_checker_transport_available": true,
+      "probe": "models_responses_and_chat_completions"
+    },
+    "settings": {
+      "base_url": "https://next-token.cc/v1",
+      "model": "gpt-5.6-sol",
+      "stage_checker_model": "gpt-5.6-sol",
+      "api_key_configured": true,
+      "connect_timeout_seconds": 10.0,
+      "read_timeout_seconds": 300.0,
+      "retry_attempts": 2,
+      "retry_backoff_seconds": 0.5,
+      "verify_tls": true,
+      "max_plan_tokens": 1800,
+      "max_review_tokens": 1400,
+      "max_directive_tokens": 1200,
+      "max_contract_plan_tokens": 4000,
+      "max_contract_review_tokens": 2400,
+      "semantic_repair_attempts": 1,
+      "serialize_requests": true,
+      "request_lock_path": "/tmp/rwkv-lh-supervisor.lock",
+      "fallback_models": [],
+      "circuit_breaker_failures": 2,
+      "circuit_breaker_cooldown_seconds": 30.0,
+      "plan_cache_enabled": false,
+      "plan_cache_dir": "/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans"
+    }
+  },
+  "tokenizer": {
+    "path": "rwkv_lh/data/rwkv_vocab_v20230424.txt",
+    "sha256": "e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89"
+  },
+  "environment": {
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.13.11 (main, Dec 17 2025, 21:08:16) [Clang 21.1.4 ]",
+    "executable": "/home/chase/GitHub/RWKV-LH/.venv/bin/python",
+    "wsl_distro": "UbuntuRecovered"
+  },
+  "credential_values_recorded": false
+}
