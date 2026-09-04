@@ -554,7 +554,7 @@ uv run rwkv-lh-stack status
 uv run rwkv-lh-runtime-smoke
 ```
 
-当前运行模式是 `external`。13.3B 端点健康并声明完整 recurrent-state 能力。Selector 端点返回的 Head 身份与 `.env.local` 要求不一致，因此当前产品状态为不可用；这不是 Selector 工具表缺失。
+当前运行模式是 `external`。13.3B 端点健康并声明完整 recurrent-state 能力。Selector 端点已经加载 Head v2，模型、Head、协议和 zero-State 身份一致。Selector 仍不能通过真实 frontier 能力门禁，因为明确的 `read_file` 场景仍被判为 `ABSTAIN`；这不是工具表缺失或部署身份错误。
 
 ## 8. 推理引擎与服务启动
 
@@ -573,11 +573,17 @@ revision: 67f0c5996c50dca0ad779da545cb491527de988f
 build_profile: rwkv
 ```
 
-引擎目录与 Python：
+13.3B 原生 State 服务的引擎目录与 Python：
 
 ```text
 /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50
 /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python
+```
+
+Selector 使用同仓库、同 revision 的干净 checkout，以满足 Head 特征身份门禁；它复用上述 Python 环境：
+
+```text
+/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50-selector-clean
 ```
 
 准备引擎：
@@ -627,29 +633,38 @@ feature protocol: rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1
 input protocol: rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1
 ```
 
-Selector 必须使用 `.env.local` 中登记且通过 holdout 的 Head 文件、file SHA 和 logical hash。启动入口：
+Selector 必须使用以下唯一 Head v2 身份：
+
+```text
+Head: data/experiments/RWKV_LH_G1J_SELECTOR_HEAD_V2_20260904/selector_intent/head/selector_head.json
+file SHA-256: 49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a
+logical hash: ef83fd7bf9340977f2ae16d95899690addf3446467ea43a138c61f0926c69bdd
+```
+
+启动入口：
 
 ```bash
 cd /home/chase/GitHub/RWKV-LH
+PYTHONPATH=/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50-selector-clean \
 CUDA_VISIBLE_DEVICES=3 \
 data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
   -m rwkv_lh.exact_tool_selector.network_service \
   --host 127.0.0.1 \
   --port 18231 \
-  --engine-root /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50 \
+  --engine-root /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50-selector-clean \
   --engine-revision 67f0c5996c50dca0ad779da545cb491527de988f \
   --engine-python /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
   --model-artifact /home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-2.9b-vllm-v1 \
   --model-name rwkv7-g1j-2.9b-vllm-v1 \
   --model-sha256 c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c \
-  --head '<validated-head.json>' \
-  --head-sha256 '<validated-file-sha256>' \
-  --head-hash '<validated-logical-hash>' \
+  --head /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_LH_G1J_SELECTOR_HEAD_V2_20260904/selector_intent/head/selector_head.json \
+  --head-sha256 49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a \
+  --head-hash ef83fd7bf9340977f2ae16d95899690addf3446467ea43a138c61f0926c69bdd \
   --input-protocol rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1 \
   --profile-id zero \
   --profile-sha256 0000000000000000000000000000000000000000000000000000000000000000 \
-  --state-dir /home/chase/GitHub/RWKV-LH/data/runtime/selector_state \
-  --runtime-temp /home/chase/GitHub/RWKV-LH/temp/selector_runtime
+  --state-dir /home/chase/GitHub/RWKV-LH/data/runtime/selector_state/head_v2_zero \
+  --runtime-temp /home/chase/GitHub/RWKV-LH/temp/selector_runtime_head_v2
 ```
 
 使用非零 Selector State 时，必须同时提供 profile manifest 及其 SHA。
@@ -658,14 +673,13 @@ data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
 
 | 环节 | 当前问题 | 归类 | 完成门禁 |
 |---|---|---|---|
-| Selector 部署 | 服务 Head 身份与 `.env.local` 不一致 | 工程部署问题 | `rwkv-lh-stack status` 全身份相等 |
 | Selector 决策 | 当前 Head 在真实中文、多工具 frontier 会错误选择 `ABSTAIN` | Head 泛化/输入分布问题，尚不能归因于 2.9B 基座 | 固定真实 holdout 达标 |
 | Executor 状态遵循 | 完整事实输入中会重复已完成对象，未服从 remaining state | 输入合同与 zero-State 能力共同待验证 | 固定完整链路集达标 |
 | Executor JSON | `replace_text` 场景会生成 Python dict 形式 | 模型格式遵循问题 | canonical JSON 全通过 |
 | Executor operation identity | 命令场景会把 schema/role 名写成 function | 模型显式 operation 遵循问题 | function 与 selected operation 全相等 |
 | StateTune 输入 | 数据生成尚未与完整 serving transcript 共用同一个 renderer | 工程协议问题 | 每行 bytes 和 token IDs 双一致 |
 | Executor State 路由 | 当前没有按四类 operation 选择 State profile | 尚未实现的实验方向 | 消融通过后再接入确定性映射 |
-| 推理引擎 | 当前未发现 native State 或 transport 缺陷 | 无已知缺陷 | 保持锁定 revision 并回归 |
+| 推理引擎发布 | 13.3B native-State 修改尚未封装成可复现的干净引擎 revision；Selector 只能使用干净基础 checkout | 工程发布问题；当前未发现 native State 行为缺陷 | 固定 native-State 引擎 commit，并验证 13.3B 与 Selector 特征身份 |
 
 协议拒绝上限 12 是整条任务的自动熔断预算，不是 12 种错误。一个 selection 最多进行一次同工具参数修复；达到预算后记录 `run_blocked(reason="protocol_rejection_budget_exhausted")`。相同失败第 5 次、相同只读零进展第 3 次也会停止自动执行。
 

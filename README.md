@@ -16,7 +16,7 @@ Strong Planner
 
 这些名称表示同一条链中的职责边界，不是多套架构。全局权威状态始终是 append-only causal ledger；各模型角色使用独立 WKV，避免角色间状态污染。
 
-当前尚不能发布为可靠 Agent：13.3B 推理服务和 native recurrent State 健康，但 Selector 服务身份未与本地配置对齐，Selector Head 的真实 frontier 泛化、Executor 的显式状态遵循、以及训练输入与线上完整输入的一致性仍需通过固定门禁。
+当前尚不能发布为可靠 Agent：13.3B 推理服务和 native recurrent State 健康，Selector 服务身份已经对齐；Selector Head 的真实 frontier 泛化、Executor 的显式状态遵循、以及训练输入与线上完整输入的一致性仍需通过固定门禁。
 
 ## 文档
 

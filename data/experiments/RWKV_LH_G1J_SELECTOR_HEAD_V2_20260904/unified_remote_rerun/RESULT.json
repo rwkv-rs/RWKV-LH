@@ -1,0 +1,46 @@
+{
+  "schema_version": "rwkv-lh.g1j-selector-unified-remote-rerun.v1",
+  "run_id": "SELECTOR-HEAD-V2-UNIFIED-CANARY-20260904",
+  "deployment_revision": "a8df8d4c25489f652b168839f078820b01ebb559",
+  "code_tree_sha256": "0a82de41bdc69d03a76426a082b399a3fd7a2bded354d79a33199f55109bed7f",
+  "input_case": "AGENT-LADDER-L1-FIX01 first read-only frontier",
+  "expected_operation": "read_file",
+  "selected_operation": "ABSTAIN",
+  "confidence": 0.8989018217214444,
+  "eligible_logits": {
+    "list_directory": -0.4411598742008209,
+    "search_text": -1.3690893650054932,
+    "read_file": 0.7171491980552673,
+    "read_json": -3.2075002193450928,
+    "file_digest": 1.0698201656341553,
+    "bind_evidence": -0.32633066177368164,
+    "check_command": -0.7819237112998962,
+    "calculator": 0.42739567160606384,
+    "date_diff": 1.1523339748382568,
+    "current_time": -2.2739768028259277,
+    "ABSTAIN": 5.8864426612854
+  },
+  "token_position": 1485,
+  "selector_state_digest": "03b6f65d75c324ff5e6504f0f44d186a03a208ada6d4764e055345d2ef5fff93",
+  "checkpoint_id": "NSCP-c2891e9ef247c04bc4eccf21",
+  "runtime_identity": {
+    "model": "rwkv7-g1j-2.9b-vllm-v1",
+    "model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+    "head_sha256": "49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a",
+    "head_hash": "ef83fd7bf9340977f2ae16d95899690addf3446467ea43a138c61f0926c69bdd",
+    "input_protocol": "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1",
+    "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1",
+    "profile_id": "zero",
+    "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "verification": {
+    "local_full_suite": "559 passed",
+    "remote_suite": "557 passed, 2 deselected",
+    "remote_deselection_reason": "The SSH execution environment denies bubblewrap loopback namespace creation; both omitted tests passed in WSL UbuntuRecovered.",
+    "e2e_catalog": "RWKV-E2E-90: 90/90 valid",
+    "selector_health": "ok"
+  },
+  "identity_gate_passed": true,
+  "capability_gate_passed": false,
+  "conclusion": "Remote code and Head identity are unified; Head v2 still misclassifies a clear read_file frontier as ABSTAIN."
+}
