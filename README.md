@@ -1,6 +1,6 @@
 # RWKV-LH
 
-RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v4`。
+RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v5`。
 
 ```text
 Strong Planner
@@ -16,7 +16,7 @@ Strong Planner
 
 这些名称表示同一条链中的职责边界，不是多套架构。全局权威状态始终是 append-only causal ledger；各模型角色使用独立 WKV，避免角色间状态污染。
 
-当前尚不能发布为可靠 Agent：13.3B 推理服务和 native recurrent State 健康，Selector 服务身份已经对齐；Selector Head 的真实 frontier 泛化、Executor 的显式状态遵循、以及训练输入与线上完整输入的一致性仍需通过固定门禁。
+当前尚不能发布为可靠 Agent：fresh current-subtask Selector 运行时合同已经完成，但与 v2 输入和 23 类输出匹配的新 State/Head 尚未训练；Executor 的显式状态遵循也仍需通过固定门禁。
 
 ## 文档
 

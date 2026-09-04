@@ -1,4 +1,4 @@
-"""Dependency-light inference for the frozen 25-class Selector MLP head."""
+"""Dependency-light inference for the frozen 23-class Selector MLP head."""
 
 from __future__ import annotations
 

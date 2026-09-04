@@ -84,10 +84,7 @@ def _selection_record(
         input_digest="1" * 64,
         menu_digest="2" * 64,
         selector_checkpoint_id=selector.checkpoint_id,
-        selector_state_ref=str(selector.native_state_ref),
-        selector_state_digest=str(selector.native_state_digest),
-        selector_parent_state_digest="",
-        token_position=128,
+        input_token_count=128,
         model=selector.model,
         model_sha256="4" * 64,
         head_sha256="5" * 64,
@@ -99,9 +96,6 @@ def _selection_record(
         status=ToolSelectionStatus.STAGED,
         selected_operation=raw.selected_operation,
         selector_checkpoint_id=selector.checkpoint_id,
-        selector_state_ref=str(selector.native_state_ref),
-        selector_state_digest=str(selector.native_state_digest),
-        selector_parent_state_digest="",
         executor_parent_checkpoint_id=executor.checkpoint_id,
         executor_parent_digest=executor.transcript_digest,
         input_projection_digest=raw.input_digest,
@@ -135,7 +129,6 @@ def _new_run(tmp_path: Path) -> tuple[LongHorizonStore, RunState]:
     selector, executor = _checkpoints()
     state.model_states[selector.checkpoint_id] = selector
     state.model_states[executor.checkpoint_id] = executor
-    state.set_lane_head("selector", selector.checkpoint_id)
     state.set_lane_head("executor", executor.checkpoint_id)
     return store, state
 
@@ -144,7 +137,7 @@ def test_selection_is_durable_before_executor_and_consumed_once(
     tmp_path: Path,
 ) -> None:
     store, state = _new_run(tmp_path)
-    selector = state.model_states[state.lane_head("selector")]
+    selector = state.model_states["SCP-0001"]
     executor = state.model_states[state.lane_head("executor")]
     selection = _selection_record(selector, executor)
 
@@ -182,7 +175,7 @@ def test_selection_is_durable_before_executor_and_consumed_once(
 
 def test_unconsumed_selection_cannot_be_silently_replaced(tmp_path: Path) -> None:
     store, state = _new_run(tmp_path)
-    selector = state.model_states[state.lane_head("selector")]
+    selector = state.model_states["SCP-0001"]
     executor = state.model_states[state.lane_head("executor")]
     first = _selection_record(selector, executor)
     state = store.save(

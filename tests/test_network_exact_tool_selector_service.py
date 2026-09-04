@@ -7,68 +7,25 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-import torch
 
+from rwkv_lh.exact_tool_selector.head import NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL
+from rwkv_lh.exact_tool_selector.input_protocol import (
+    G1J_SELECTOR_INTENT_HEAD_ID,
+    G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+)
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
     NetworkExactToolSelectorSettings,
 )
-from rwkv_lh.exact_tool_selector.input_protocol import (
-    G1J_SELECTOR_INTENT_HEAD_ID,
-    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
-    G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-)
-from rwkv_lh.exact_tool_selector.head import (
-    NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-)
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
     NetworkSelectorInput,
-    NetworkSelectorProgress,
 )
 from rwkv_lh.exact_tool_selector.network_service import (
     NetworkSelectorService,
-    NetworkSelectorStateStore,
     _extractor_state_profile_settings,
 )
-
-
-class _Extractor:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def advance_hidden_last(
-        self,
-        text: str,
-        *,
-        parent_state=None,
-        continuation: bool = False,
-    ):
-        self.calls += 1
-        assert continuation == (parent_state is not None)
-        assert text.startswith("\nSelectorIntentPromptV1: ") if continuation else text.startswith(
-            "SelectorIntentMenuV1: "
-        )
-        if not continuation:
-            assert "\nSelectorIntentRoleV1: " in text
-            assert "\nSelectorIntentPromptV1: " in text
-        if parent_state is None:
-            state = [
-                torch.zeros((2, 2, 1, 8), dtype=torch.float16),
-                torch.zeros((2, 1, 3, 2, 2), dtype=torch.float16),
-                torch.zeros((1,), dtype=torch.int32),
-            ]
-        else:
-            state = [value.clone() for value in parent_state]
-        state[0].add_(1)
-        state[1].add_(1)
-        state[2].add_(10)
-        feature = torch.full((2560,), float(self.calls), dtype=torch.float32)
-        return feature, state, 17, {
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-            "generated_rwkv_text": False,
-            "sampling_invoked": False,
-        }
 
 
 class _Response:
@@ -79,158 +36,6 @@ class _Response:
         self.content = json.dumps(value, ensure_ascii=False).encode("utf-8")
 
 
-class _MeanExtractor:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, bool, str]] = []
-
-    def advance_hidden_feature(
-        self,
-        text: str,
-        *,
-        parent_state=None,
-        continuation: bool = False,
-        feature_protocol: str,
-    ):
-        self.calls.append((text, continuation, feature_protocol))
-        if parent_state is None:
-            state = [
-                torch.zeros((2, 2, 1, 8), dtype=torch.float16),
-                torch.zeros((2, 1, 3, 2, 2), dtype=torch.float16),
-                torch.zeros((1,), dtype=torch.int32),
-            ]
-        else:
-            state = [value.clone() for value in parent_state]
-        state[0].add_(1)
-        state[1].add_(1)
-        state[2].add_(10)
-        feature = torch.full((2560,), float(len(self.calls)), dtype=torch.float32)
-        return feature, state, 11, {
-            "feature_protocol": feature_protocol,
-            "generated_rwkv_text": False,
-            "sampling_invoked": False,
-        }
-
-
-class _MeanHead:
-    def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
-        self.head_hash = settings.head_hash
-        self.file_sha256 = settings.head_sha256
-        self.feature_protocol = settings.feature_protocol
-        self.temperature = 0.25
-
-    def raw_logits(self, _features):
-        logits = [float(index) / 1000.0 for index in range(25)]
-        logits[18] = 5.0
-        return tuple(logits)
-
-
-class _G1JHead(_MeanHead):
-    def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
-        super().__init__(settings)
-        self.artifact = SimpleNamespace(
-            metadata={
-                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
-                "compact_input_schema_version": settings.input_protocol,
-                "model_weights_sha256": settings.model_sha256,
-                "feature_protocol": settings.feature_protocol,
-                "labels": list(NETWORK_EXACT_TOOL_LABELS),
-                "training_trajectory_mode": (
-                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
-                ),
-            }
-        )
-
-
-class _FusionExtractor(_MeanExtractor):
-    def __init__(self) -> None:
-        super().__init__()
-        self.view_calls: list[tuple[str, bool]] = []
-
-    def advance_hidden_views(
-        self,
-        text: str,
-        *,
-        parent_state=None,
-        continuation: bool = False,
-    ):
-        self.view_calls.append((text, continuation))
-        assert text.startswith("\nSelectorIntentPromptV1: ")
-        assert continuation is True
-        assert parent_state is not None
-        state = [value.clone() for value in parent_state]
-        state[0].add_(1)
-        state[1].add_(1)
-        state[2].add_(10)
-        value = float(len(self.view_calls))
-        return (
-            {
-                "mean": torch.full((2560,), value, dtype=torch.float32),
-                "last": torch.full((2560,), value + 10.0, dtype=torch.float32),
-            },
-            state,
-            13,
-            {
-                "feature_protocols": {
-                    "mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-                    "last": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-                },
-                "model_weights_sha256": "a" * 64,
-                "engine_revision": "1" * 40,
-                "wkv_mode": "fp16",
-                "generated_rwkv_text": False,
-                "sampling_invoked": False,
-            },
-        )
-
-
-class _FusionHead(_MeanHead):
-    def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
-        super().__init__(settings)
-        metadata = {
-            "portable_feature_identity": {
-                "batch_size": 1,
-                "compact_input_schema_version": settings.input_protocol,
-                "engine_revision": "1" * 40,
-                "feature_dim": 5120,
-                "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-                "model_weights_sha256": settings.model_sha256,
-                "persistent_history_replayed": True,
-                "state_profile": {
-                    "id": settings.state_profile_id,
-                    "sha256": settings.state_profile_sha256,
-                },
-                "wkv_mode": "fp16",
-            }
-        }
-        metadata.update({
-            "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
-            "compact_input_schema_version": settings.input_protocol,
-            "model_weights_sha256": settings.model_sha256,
-            "feature_protocol": settings.feature_protocol,
-            "labels": list(NETWORK_EXACT_TOOL_LABELS),
-            "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
-        })
-        metadata["portable_feature_identity"][
-            "training_trajectory_mode"
-        ] = G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
-        self.artifact = SimpleNamespace(
-            feature_dim=5120,
-            metadata=metadata,
-        )
-        self.seen: list[torch.Tensor] = []
-
-    def raw_logits(self, features):
-        values = torch.as_tensor(features, dtype=torch.float32)
-        call = len(self.seen) + 1
-        assert tuple(values.shape) == (5120,)
-        assert torch.equal(values[:2560], torch.full((2560,), float(call)))
-        assert torch.equal(
-            values[2560:], torch.full((2560,), float(call) + 10.0)
-        )
-        self.seen.append(values.clone())
-        return super().raw_logits(values)
-
-
 class _LocalSession:
     def __init__(self, service: NetworkSelectorService) -> None:
         self.service = service
@@ -239,18 +44,79 @@ class _LocalSession:
         return _Response(self.service.select(json))
 
 
-def _settings() -> NetworkExactToolSelectorSettings:
+class _Extractor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, object, bool, str]] = []
+
+    def advance_hidden_feature(
+        self,
+        text: str,
+        *,
+        parent_state=None,
+        continuation: bool = False,
+        feature_protocol: str,
+        export_state: bool = True,
+    ):
+        assert export_state is False
+        self.calls.append((text, parent_state, continuation, feature_protocol))
+        return [float(len(self.calls))] * 8, ["discarded"], 317, {
+            "feature_protocol": feature_protocol,
+            "generated_rwkv_text": False,
+            "sampling_invoked": False,
+            "state_exported": False,
+        }
+
+
+class _Head:
+    def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
+        self.head_hash = settings.head_hash
+        self.file_sha256 = settings.head_sha256
+        self.feature_protocol = settings.feature_protocol
+        self.temperature = 0.25
+        self.artifact = SimpleNamespace(
+            metadata={
+                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+                "compact_input_schema_version": settings.input_protocol,
+                "model_weights_sha256": settings.model_sha256,
+                "feature_protocol": settings.feature_protocol,
+                "labels": list(NETWORK_EXACT_TOOL_LABELS),
+                "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+            }
+        )
+
+    def raw_logits(self, _features):
+        logits = [float(index) / 1000.0 for index in range(len(NETWORK_EXACT_TOOL_LABELS))]
+        logits[NETWORK_EXACT_TOOL_LABELS.index("web_search")] = 5.0
+        return tuple(logits)
+
+
+def _settings(
+    feature_protocol: str = "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+) -> NetworkExactToolSelectorSettings:
     return NetworkExactToolSelectorSettings(
         base_url="http://127.0.0.1:29621",
-        model="rwkv7-g1i-2.9b-20260805-ctx16384",
+        model="rwkv7-g1j-2.9b-20260818-ctx16384",
         model_sha256="a" * 64,
         head_sha256="b" * 64,
         head_hash="c" * 64,
-        feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-        state_profile_id="selector-zero-s0",
-        state_profile_sha256="b" * 64,
-        state_profile_manifest_sha256="c" * 64,
+        feature_protocol=feature_protocol,
+        state_profile_id="selector-intent-2p9-v2",
+        state_profile_sha256="d" * 64,
+        state_profile_manifest_sha256="e" * 64,
         input_protocol=G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+    )
+
+
+def _input(objective: str) -> NetworkSelectorInput:
+    return NetworkSelectorInput.create(
+        current_subtask={
+            "objective": objective,
+            "phase": "observe",
+            "read_roots": [],
+            "write_roots": [],
+            "success_evidence": ["one public source record"],
+            "constraints": ["preserve source identity"],
+        }
     )
 
 
@@ -290,233 +156,134 @@ def test_manifest_free_selector_rejects_nonzero_identity(
         )
 
 
-def _input(index: int) -> NetworkSelectorInput:
-    return NetworkSelectorInput.create(
-        task_request="Find current public information for the requested project.",
-        stage_objective="Search the public web and preserve source evidence.",
-        stage_role="work",
-        progress=NetworkSelectorProgress(action_index=index),
-    )
-
-
-def test_service_persists_dynamic_selector_state_and_replays_idempotently(
-    tmp_path: Path,
-) -> None:
+def test_service_runs_every_request_as_one_fresh_full_prompt() -> None:
     settings = _settings()
     extractor = _Extractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _G1JHead(settings),
-        NetworkSelectorStateStore(tmp_path / "dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(
-        settings, session=_LocalSession(service)
-    )
-    first, first_checkpoint = client.select(
-        _input(0), run_id="RUN-SERVICE", trace_id="TRACE-1"
-    )
-    replay, replay_checkpoint = client.select(
-        _input(0), run_id="RUN-SERVICE", trace_id="TRACE-1"
-    )
-    second, second_checkpoint = client.select(
-        _input(1),
-        run_id="RUN-SERVICE",
-        trace_id="TRACE-2",
-        parent=first_checkpoint,
-    )
-
-    assert extractor.calls == 2
-    assert replay == first
-    assert replay_checkpoint.checkpoint_id == first_checkpoint.checkpoint_id
-    assert replay_checkpoint.native_state_digest == first_checkpoint.native_state_digest
-    assert replay_checkpoint.transcript_digest == first_checkpoint.transcript_digest
-    assert second.selector_parent_state_digest == first.selector_state_digest
-    assert second.token_position == first.token_position + 17
-    assert second_checkpoint.parent_checkpoint_id == first_checkpoint.checkpoint_id
-    assert len(list((tmp_path / "dynamic-selector-state").glob("NST-*.pth"))) == 2
-    assert first.raw_record()["generated_text"] is False
-    assert first.raw_record()["postprocessed"] is False
-
-
-def test_service_mean_feature_uses_step_segment_and_one_persistent_state(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-        }
-    )
-    extractor = _MeanExtractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _G1JHead(settings),
-        NetworkSelectorStateStore(tmp_path / "mean-dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(
-        settings, session=_LocalSession(service)
-    )
-
-    first, first_checkpoint = client.select(
-        _input(0), run_id="RUN-MEAN", trace_id="TRACE-1"
-    )
-    second, _ = client.select(
-        _input(1),
-        run_id="RUN-MEAN",
-        trace_id="TRACE-2",
-        parent=first_checkpoint,
-    )
-
-    assert first.selected_operation == second.selected_operation == "web_search"
-    assert len(extractor.calls) == 3
-    assert extractor.calls[0][0].startswith("SelectorIntentMenuV1: ")
-    assert "\nSelectorIntentRoleV1: " in extractor.calls[0][0]
-    assert extractor.calls[0][1:] == (
-        False,
-        "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-    )
-    assert extractor.calls[1][0].startswith("\nSelectorIntentPromptV1: ")
-    assert extractor.calls[1][1:] == (
-        True,
-        "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-    )
-    assert extractor.calls[2][0].startswith("\nSelectorIntentPromptV1: ")
-    assert extractor.calls[2][1:] == (
-        True,
-        "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-    )
-    assert first.token_position == 22
-    assert second.token_position == 33
-
-
-def test_g1j_service_continues_selector_state_after_initial_bootstrap(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-        }
-    )
-    extractor = _MeanExtractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _G1JHead(settings),
-        NetworkSelectorStateStore(tmp_path / "g1j-persistent-selector-state"),
-    )
+    service = NetworkSelectorService(settings, extractor, _Head(settings))
     client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
 
-    first, checkpoint = client.select(
-        _input(0), run_id="RUN-G1J", trace_id="TRACE-G1J-1"
-    )
-    second, continued = client.select(
-        _input(1),
-        run_id="RUN-G1J",
-        trace_id="TRACE-G1J-2",
-        parent=checkpoint,
-    )
-
-    assert len(extractor.calls) == 3
-    assert extractor.calls[0][0].startswith("SelectorIntentMenuV1: ")
-    assert extractor.calls[1][0].startswith("\nSelectorIntentPromptV1: ")
-    assert extractor.calls[2][0].startswith("\nSelectorIntentPromptV1: ")
-    assert extractor.calls[2][1] is True
-    assert second.selector_parent_state_digest == first.selector_state_digest
-    assert continued.parent_checkpoint_id == checkpoint.checkpoint_id
-    assert continued.token_count > checkpoint.token_count
-
-
-def test_g1j_service_rejects_head_without_persistent_trajectory_training(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-        }
-    )
-    head = _G1JHead(settings)
-    del head.artifact.metadata["training_trajectory_mode"]
-
-    with pytest.raises(ValueError, match="identity mismatch"):
-        NetworkSelectorService(
-            settings,
-            _MeanExtractor(),
-            head,
-            NetworkSelectorStateStore(tmp_path / "invalid-g1j-head"),
-        )
-
-
-def test_g1j_fusion_service_rejects_portable_identity_without_trajectory_mode(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-            "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-        }
-    )
-    head = _FusionHead(settings)
-    del head.artifact.metadata["portable_feature_identity"][
-        "training_trajectory_mode"
-    ]
-
-    with pytest.raises(ValueError, match="portable identity mismatch"):
-        NetworkSelectorService(
-            settings,
-            _FusionExtractor(),
-            head,
-            NetworkSelectorStateStore(tmp_path / "invalid-g1j-fusion-head"),
-        )
-
-
-def test_service_fuses_mean_then_last_from_one_current_forward(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-        }
-    )
-    extractor = _FusionExtractor()
-    head = _FusionHead(settings)
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        head,
-        NetworkSelectorStateStore(tmp_path / "fusion-dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(
-        settings, session=_LocalSession(service)
-    )
-
     first, first_checkpoint = client.select(
-        _input(0), run_id="RUN-FUSION", trace_id="TRACE-1"
+        _input("Search the public web for the project."),
+        run_id="RUN-SERVICE",
+        trace_id="TRACE-1",
     )
-    second, _ = client.select(
-        _input(1),
-        run_id="RUN-FUSION",
+    second, second_checkpoint = client.select(
+        _input("Search the public web for the package."),
+        run_id="RUN-SERVICE",
         trace_id="TRACE-2",
-        parent=first_checkpoint,
     )
 
     assert first.selected_operation == second.selected_operation == "web_search"
+    assert len(extractor.calls) == 2
+    assert all(call[0].startswith("SelectorIntentMenuV2: ") for call in extractor.calls)
+    assert all("\nSelectorIntentRoleV2: " in call[0] for call in extractor.calls)
+    assert all("\nSelectorIntentPromptV2: " in call[0] for call in extractor.calls)
+    assert all(call[1] is None and call[2] is False for call in extractor.calls)
+    assert first.input_token_count == second.input_token_count == 317
+    assert first_checkpoint.parent_checkpoint_id is None
+    assert second_checkpoint.parent_checkpoint_id is None
+    assert first_checkpoint.native_state_ref is None
+    assert second_checkpoint.native_state_ref is None
+
+
+def test_service_repeated_request_does_not_reuse_dynamic_state() -> None:
+    settings = _settings()
+    extractor = _Extractor()
+    service = NetworkSelectorService(settings, extractor, _Head(settings))
+    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
+    selector_input = _input("Search the public web for the project.")
+
+    first, _ = client.select(
+        selector_input,
+        run_id="RUN-SERVICE",
+        trace_id="TRACE-SAME",
+    )
+    replay, _ = client.select(
+        selector_input,
+        run_id="RUN-SERVICE",
+        trace_id="TRACE-SAME",
+    )
+
+    assert first.selection_id == replay.selection_id
+    assert len(extractor.calls) == 2
+    assert all(call[1] is None and call[2] is False for call in extractor.calls)
+
+
+def test_service_rejects_head_without_fresh_trajectory_identity() -> None:
+    settings = _settings()
+    head = _Head(settings)
+    del head.artifact.metadata["training_trajectory_mode"]
+    with pytest.raises(ValueError, match="identity mismatch"):
+        NetworkSelectorService(settings, _Extractor(), head)
+
+
+def test_service_fuses_mean_then_last_from_one_fresh_forward() -> None:
+    torch = pytest.importorskip("torch")
+    settings = _settings(NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL)
+
+    class FusionExtractor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object, bool]] = []
+
+        def advance_hidden_views(
+            self,
+            text,
+            *,
+            parent_state=None,
+            continuation=False,
+            export_state=True,
+        ):
+            assert export_state is False
+            self.calls.append((text, parent_state, continuation))
+            return (
+                {
+                    "mean": torch.full((4,), 1.0),
+                    "last": torch.full((4,), 2.0),
+                },
+                ["discarded"],
+                401,
+                {
+                    "feature_protocols": {
+                        "mean": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+                        "last": "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+                    },
+                    "model_weights_sha256": settings.model_sha256,
+                    "engine_revision": "1" * 40,
+                    "wkv_mode": "fp16",
+                    "generated_rwkv_text": False,
+                    "sampling_invoked": False,
+                    "state_exported": False,
+                },
+            )
+
+    head = _Head(settings)
+    head.artifact.feature_dim = 8
+    head.artifact.metadata["portable_feature_identity"] = {
+        "batch_size": 1,
+        "compact_input_schema_version": settings.input_protocol,
+        "engine_revision": "1" * 40,
+        "feature_dim": 8,
+        "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
+        "model_weights_sha256": settings.model_sha256,
+        "fresh_initial_state_each_evaluation": True,
+        "state_profile": {
+            "id": settings.state_profile_id,
+            "sha256": settings.state_profile_sha256,
+        },
+        "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+        "wkv_mode": "fp16",
+    }
+    extractor = FusionExtractor()
+    service = NetworkSelectorService(settings, extractor, head)
+    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
+
+    selection, _ = client.select(
+        _input("Search the public web."),
+        run_id="RUN-FUSION",
+        trace_id="TRACE-1",
+    )
+
+    assert selection.input_token_count == 401
     assert len(extractor.calls) == 1
-    assert len(extractor.view_calls) == 2
-    assert len(head.seen) == 2
-    assert first.token_position == 24
-    assert second.token_position == 37
-    assert first.raw_record()["postprocessed"] is False
-    assert first.raw_record()["generated_text"] is False
+    assert extractor.calls[0][1] is None
+    assert extractor.calls[0][2] is False

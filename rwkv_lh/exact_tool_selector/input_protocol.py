@@ -26,19 +26,17 @@ class NetworkSelectorInputProtocol:
 
 
 G1J_SELECTOR_INTENT_INPUT_PROTOCOL = selector_intent.INPUT_SCHEMA_VERSION
-G1J_SELECTOR_INTENT_HEAD_ID = "rwkv_lh_g1j_selector_intent_head_v2"
-G1J_SELECTOR_TRAINING_TRAJECTORY_MODE = "persistent-causal-sequences.v1"
+G1J_SELECTOR_INTENT_HEAD_ID = "rwkv_lh_g1j_selector_intent_head_v3"
+G1J_SELECTOR_TRAINING_TRAJECTORY_MODE = "fresh-current-subtask.v1"
 G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION = (
-    "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v1"
+    "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v2"
 )
 
 
 def _g1j_values(value: Any) -> dict[str, Any]:
     source = value.to_dict() if hasattr(value, "to_dict") else dict(value)
     return {
-        "stage_objective": source["stage_objective"],
-        "stage_role": source["stage_role"],
-        "progress": dict(source["progress"]),
+        "current_subtask": dict(source["current_subtask"]),
         "eligible_labels": list(source["eligible_labels"]),
     }
 
@@ -65,9 +63,9 @@ def _g1j_bootstrap_payload(value: Any) -> dict[str, Any]:
 def _g1j_render_bootstrap(value: Any) -> str:
     payload = _g1j_bootstrap_payload(value)
     return (
-        "SelectorIntentMenuV1: "
+        "SelectorIntentMenuV2: "
         + canonical_json(payload)
-        + "\nSelectorIntentRoleV1: "
+        + "\nSelectorIntentRoleV2: "
         + json.dumps(
             {"schema_version": G1J_SELECTOR_INTENT_INPUT_PROTOCOL},
             ensure_ascii=False,
@@ -92,11 +90,11 @@ def _g1j_input_digest(value: Any) -> str:
 
 _G1J_PROTOCOL = NetworkSelectorInputProtocol(
     schema_version=G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-    endpoint="/selector-intent-v1/select",
-    menu_prefix="SelectorIntentMenuV1: ",
-    task_marker="\nSelectorIntentRoleV1: ",
-    task_prefix="SelectorIntentRoleV1: ",
-    step_prefix="SelectorIntentPromptV1: ",
+    endpoint="/selector-intent-v2/select",
+    menu_prefix="SelectorIntentMenuV2: ",
+    task_marker="\nSelectorIntentRoleV2: ",
+    task_prefix="SelectorIntentRoleV2: ",
+    step_prefix="SelectorIntentPromptV2: ",
     bootstrap_payload=_g1j_bootstrap_payload,
     input_digest=_g1j_input_digest,
     menu_digest=_g1j_menu_digest,

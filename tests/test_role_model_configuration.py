@@ -111,6 +111,9 @@ def test_selector_model_can_be_bound_by_role_environment(monkeypatch) -> None:
         "STATE_PROFILE_ID": "zero",
         "STATE_PROFILE_SHA256": "0" * 64,
         "STATE_PROFILE_MANIFEST_SHA256": "4" * 64,
+        "INPUT_PROTOCOL": (
+            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v2"
+        ),
     }
     for suffix, value in values.items():
         monkeypatch.setenv(f"RWKV_LH_SELECTOR_{suffix}", value)

@@ -16,10 +16,8 @@ from uuid import uuid4
 from rwkv_lh.atom_execution import atom_execution_contract_digest
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
-    NetworkExactToolSelectorError,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
-    NETWORK_ABSTAIN_LABEL,
     NETWORK_EXACT_TOOL_LABELS,
     NETWORK_SELECTOR_MENU_ORDER_IDS,
     NetworkExactToolSelection,
@@ -27,7 +25,6 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     build_network_selector_input,
-    selector_final_answer_eligible,
 )
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
 from rwkv_lh.goal_state_protocols import executor_args as executor_args_protocol
@@ -213,7 +210,6 @@ class LongHorizonModel:
         step_auditor_session: ModelSession | None = None,
         finalizer_session: ModelSession | None = None,
         final_auditor_session: ModelSession | None = None,
-        selector_min_actions: int | None = None,
     ) -> None:
         self.harness = harness or ActionHarness()
         self.session = session or create_model_session()
@@ -248,16 +244,6 @@ class LongHorizonModel:
         # boundary roles and rejects shared instances during construction.
         self.auditor_session = self.step_auditor_session
         self.tool_selector = tool_selector
-        if (
-            selector_min_actions is not None
-            and (
-                isinstance(selector_min_actions, bool)
-                or not isinstance(selector_min_actions, int)
-                or selector_min_actions < 0
-            )
-        ):
-            raise ValueError("selector_min_actions must be a non-negative integer")
-        self._legacy_selector_minimum_actions = int(selector_min_actions or 0)
         operation_definitions = {
             str(item["name"]): dict(item)
             for item in self.harness.g1i_tool_definitions()
@@ -312,8 +298,8 @@ class LongHorizonModel:
                 raise ValueError(
                     "independent tool Selector requires progressive disclosure"
                 )
-            expected = set(NETWORK_EXACT_TOOL_LABELS) - {NETWORK_ABSTAIN_LABEL}
-            active = self._definition_names | {"final_answer"}
+            expected = set(NETWORK_EXACT_TOOL_LABELS)
+            active = self._definition_names
             extra = sorted(active - expected)
             if extra:
                 raise ValueError(
@@ -718,32 +704,13 @@ class LongHorizonModel:
                 () if self._progressive_tool_disclosure else (FINAL_ANSWER_DEFINITION,)
             ),
         )
-        terminal_selection: ToolSelectionRecord | None = None
         if self._progressive_tool_disclosure:
-            if self.tool_selector is not None:
-                selected_operation, checkpoint = self._select_tool_independently(
-                    state,
-                    checkpoint,
-                    persist,
-                    eligible_labels_override=("final_answer",),
-                )
-                if selected_operation != "final_answer":
-                    raise ModelProtocolError(
-                        "terminal Selector did not return final_answer"
-                    )
-                terminal_selection = state.tool_selections.get(
-                    state.pending_selection_id
-                )
-                if terminal_selection is None:
-                    raise ModelProtocolError(
-                        "terminal Selector handoff was not committed"
-                    )
             checkpoint = self._disclose_selected_tool(
                 state,
                 checkpoint,
                 persist,
                 FINAL_ANSWER_DEFINITION,
-                selection=terminal_selection,
+                selection=None,
             )
         if not self._progressive_tool_disclosure:
             checkpoint = self._rollover_if_needed(
@@ -782,39 +749,10 @@ class LongHorizonModel:
                 "Finalizer requires an evidence-complete rolling plan"
             )
         if state.pending_selection_id:
-            selection = state.tool_selections.get(state.pending_selection_id)
-            if (
-                selection is None
-                or selection.status is not ToolSelectionStatus.STAGED
-                or selection.selected_operation != "final_answer"
-                or selection.executor_parent_checkpoint_id != checkpoint.checkpoint_id
-            ):
-                raise ModelProtocolError(
-                    "Finalizer cannot consume this pending Selector handoff"
-                )
-        else:
-            selected_operation, _ = self._select_tool_independently(
-                state,
-                checkpoint,
-                persist,
-                eligible_labels_override=("final_answer",),
-                stage_context=SelectorStageContext(
-                    stage_objective=(
-                        "Produce the final candidate for the evidence-complete "
-                        "rolling plan."
-                    ),
-                    stage_role="final_answer_intent",
-                    state_scope_id="goal-final-candidate",
-                    action_ids=(),
-                ),
+            raise ModelProtocolError(
+                "Finalizer cannot start with a pending tool selection"
             )
-            if selected_operation != "final_answer":
-                raise ModelProtocolError(
-                    "completed-plan Selector did not choose final_answer"
-                )
-            selection = state.tool_selections.get(state.pending_selection_id)
-        if selection is None:
-            raise ModelProtocolError("Finalizer Selector handoff is missing")
+        finalization_id = f"FINAL-{uuid4().hex[:16]}"
 
         evidence_refs = tuple(
             sorted(
@@ -842,7 +780,7 @@ class LongHorizonModel:
             ModelLaneKind.FINALIZER,
             assignment,
             (FINAL_ANSWER_DEFINITION,),
-            lane_id=f"LANE:FINALIZER:{state.run_id}:{selection.selection_id}",
+            lane_id=f"LANE:FINALIZER:{state.run_id}:{finalization_id}",
             native_tool_call_json=True,
         )
         state.model_states[finalizer_checkpoint.checkpoint_id] = finalizer_checkpoint
@@ -851,7 +789,7 @@ class LongHorizonModel:
             state,
             "goal_finalizer_session_started",
             {
-                "selection_id": selection.selection_id,
+                "finalization_id": finalization_id,
                 "checkpoint_id": finalizer_checkpoint.checkpoint_id,
                 **self._session_attestation(
                     self.finalizer_session, finalizer_protocol
@@ -896,15 +834,7 @@ class LongHorizonModel:
                 error=str(exc),
                 selected_operation="final_answer",
                 contract_digest=atom_execution_contract_digest(state.goal),
-                tool_selection_id=selection.selection_id,
-                tool_selection_binding_kind="consumed_handoff",
                 decision_session=self.finalizer_session,
-            )
-            consumed = replace(
-                selection,
-                status=ToolSelectionStatus.CONSUMED,
-                consumed_decision_id=record.decision_id,
-                consumed_at=utc_now(),
             )
             persist(
                 state,
@@ -923,14 +853,12 @@ class LongHorizonModel:
                         else {}
                     ),
                     "decision": record.to_dict(),
-                    "selection": consumed.to_dict(),
                 },
             )
             raise ModelProtocolError(
                 str(exc),
                 decision_id=record.decision_id,
                 request_id=candidate.request_id,
-                selection_id=selection.selection_id,
                 selected_operation="final_answer",
             ) from exc
 
@@ -946,15 +874,7 @@ class LongHorizonModel:
             output_checkpoint=finalizer_checkpoint,
             selected_operation="final_answer",
             contract_digest=atom_execution_contract_digest(state.goal),
-            tool_selection_id=selection.selection_id,
-            tool_selection_binding_kind="consumed_handoff",
             decision_session=self.finalizer_session,
-        )
-        consumed = replace(
-            selection,
-            status=ToolSelectionStatus.CONSUMED,
-            consumed_decision_id=record.decision_id,
-            consumed_at=utc_now(),
         )
         persist(
             state,
@@ -973,7 +893,6 @@ class LongHorizonModel:
                 },
                 "raw_generation": candidate.raw_record(),
                 "decision": record.to_dict(),
-                "selection": consumed.to_dict(),
                 "action_executed": False,
                 "completion_authority": False,
                 "model_role": "finalizer_answer",
@@ -1767,31 +1686,6 @@ class LongHorizonModel:
             return ""
         return selected
 
-    def _selector_parent(
-        self,
-        state: RunState,
-        *,
-        state_scope_id: str,
-        lane_role: str = "selector",
-        menu_order_id: str = "canonical",
-    ) -> ModelCheckpoint | None:
-        checkpoint_id = state.lane_head(lane_role)
-        if not checkpoint_id:
-            return None
-        checkpoint = state.model_states.get(checkpoint_id)
-        if checkpoint is None or checkpoint.lane_kind is not ModelLaneKind.SELECTOR:
-            raise ModelProtocolError("Selector lane checkpoint is missing or invalid")
-        if state_scope_id and str(
-            (checkpoint.native_state_metadata or {}).get("selector_state_scope_id")
-            or ""
-        ) != state_scope_id:
-            return None
-        if str(
-            (checkpoint.native_state_metadata or {}).get("menu_order_id") or ""
-        ) != menu_order_id:
-            return None
-        return checkpoint
-
     @staticmethod
     def _selector_ensemble_choice(
         selections: Sequence[NetworkExactToolSelection],
@@ -1865,7 +1759,7 @@ class LongHorizonModel:
             "aggregation_rule": rule,
             "tie_metrics": tie_metrics,
             "selected_operation": selected,
-            "state_policy": "three_independent_wkv_lanes_never_merged",
+            "state_policy": "three_fresh_initial_state_evaluations",
         }
 
     def _advance_selector_lane(
@@ -1874,84 +1768,30 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         eligible_labels: tuple[str, ...],
-        stage_context: SelectorStageContext | None,
-        selector_state_scope_id: str,
-        lane_role: str,
+        stage_context: SelectorStageContext,
         menu_order_id: str,
     ) -> tuple[NetworkExactToolSelection, ModelCheckpoint]:
-        parent = self._selector_parent(
-            state,
-            state_scope_id=selector_state_scope_id,
-            lane_role=lane_role,
-            menu_order_id=menu_order_id,
-        )
         selector_input = build_network_selector_input(
-            state,
-            parent,
+            stage_context,
             eligible_labels=eligible_labels,
-            stage_context=stage_context,
             menu_order_id=menu_order_id,
         )
-        try:
-            selection, selector_checkpoint = self.tool_selector.select(
-                selector_input,
-                run_id=state.run_id,
-                parent=parent,
-            )
-        except NetworkExactToolSelectorError as exc:
-            if parent is None or not exc.cache_rebuild_allowed:
-                raise
-            rebuilt_input = build_network_selector_input(
-                state,
-                None,
-                eligible_labels=eligible_labels,
-                stage_context=stage_context,
-                menu_order_id=menu_order_id,
-            )
-            selection, selector_checkpoint = self.tool_selector.select(
-                rebuilt_input,
-                run_id=state.run_id,
-                parent=None,
-            )
-            persist(
-                state,
-                "selector_state_cache_rebuilt",
-                {
-                    "checkpoint_id": selector_checkpoint.checkpoint_id,
-                    "replaced_checkpoint_id": parent.checkpoint_id,
-                    "replaced_state_digest": str(parent.native_state_digest or ""),
-                    "state_digest": str(
-                        selector_checkpoint.native_state_digest or ""
-                    ),
-                    "reason": "historical_selector_wkv_cache_unavailable",
-                    "source": "authoritative_goal_action_projection",
-                    "historical_prompt_replayed": False,
-                    "cache_authority": False,
-                    "menu_order_id": menu_order_id,
-                },
-            )
+        selection, selector_checkpoint = self.tool_selector.select(
+            selector_input,
+            run_id=state.run_id,
+        )
         selector_metadata = dict(selector_checkpoint.native_state_metadata or {})
         selector_metadata.update(
             {
-                "selector_state_scope_id": selector_state_scope_id,
-                "run_protocol_rejection_count": state.protocol_rejections,
                 "menu_order_id": menu_order_id,
-            }
-        )
-        selector_export = dict(selector_checkpoint.native_state_export or {})
-        selector_export.update(
-            {
-                "selector_state_scope_id": selector_state_scope_id,
-                "menu_order_id": menu_order_id,
+                "state_policy": "fresh_initial_state_per_evaluation",
             }
         )
         selector_checkpoint = replace(
             selector_checkpoint,
             native_state_metadata=selector_metadata,
-            native_state_export=selector_export,
         )
         state.model_states[selector_checkpoint.checkpoint_id] = selector_checkpoint
-        state.set_lane_head(lane_role, selector_checkpoint.checkpoint_id)
         return selection, selector_checkpoint
 
     @staticmethod
@@ -2027,14 +1867,12 @@ class LongHorizonModel:
             raise ModelProtocolError(
                 "cannot replace an unconsumed independent tool selection"
             )
+        if stage_context is None:
+            raise ModelProtocolError(
+                "independent Selector requires one Planner current subtask"
+            )
         executor_model_sha256, executor_profile_id, executor_profile_sha256 = (
             self._executor_identity(checkpoint)
-        )
-        # Selector state persists only inside one Planner step revision.  A new
-        # step/revision or final intent starts from the configured role State;
-        # global history remains authoritative in the causal ledger.
-        selector_state_scope_id = (
-            stage_context.state_scope_id if stage_context is not None else ""
         )
         active = {
             name
@@ -2043,16 +1881,9 @@ class LongHorizonModel:
                 state.goal,
                 network_access=self.harness.definition(name).network_access,
             )
-        } | {"final_answer"}
+        }
         if eligible_labels_override is None:
             eligible = set(active)
-            if not selector_final_answer_eligible(
-                state,
-                legacy_minimum_actions=(
-                    self._legacy_selector_minimum_actions
-                ),
-            ):
-                eligible.discard("final_answer")
         else:
             eligible = {
                 str(operation) for operation in eligible_labels_override
@@ -2064,63 +1895,44 @@ class LongHorizonModel:
         eligible_labels = tuple(
             label for label in NETWORK_EXACT_TOOL_LABELS if label in eligible
         )
-        use_menu_order_ensemble = (
-            stage_context is not None and eligible_labels != ("final_answer",)
-        )
-        order_lane_roles = {
-            "canonical": "selector",
-            "rotate_8": "selector_order_rotate_8",
-            "rotate_17": "selector_order_rotate_17",
-        }
-        menu_order_ids = (
-            NETWORK_SELECTOR_MENU_ORDER_IDS
-            if use_menu_order_ensemble
-            else ("canonical",)
-        )
+        menu_order_ids = NETWORK_SELECTOR_MENU_ORDER_IDS
         lane_results = [
             self._advance_selector_lane(
                 state,
                 persist,
                 eligible_labels=eligible_labels,
                 stage_context=stage_context,
-                selector_state_scope_id=selector_state_scope_id,
-                lane_role=order_lane_roles[menu_order_id],
                 menu_order_id=menu_order_id,
             )
             for menu_order_id in menu_order_ids
         ]
         selection, selector_checkpoint = lane_results[0]
-        if use_menu_order_ensemble:
-            selected_operation, ensemble_record = self._selector_ensemble_choice(
-                [item[0] for item in lane_results],
-                eligible_labels=eligible_labels,
-            )
-            selection_id = f"NSEL-ENS-{uuid4().hex[:16]}"
-            raw_selection = selection.raw_record()
-            raw_selection.update(
-                {
-                    "selection_id": selection_id,
-                    "selected_operation": selected_operation,
-                    "selection_rule": "three_menu_order_vote_v1",
-                    "confidence": (
-                        ensemble_record["vote_counts"].get(selected_operation, 0)
-                        / len(lane_results)
-                    ),
-                    "postprocessed": True,
-                    "raw_lane_outputs_preserved": True,
-                    "menu_order_ensemble": ensemble_record,
-                    "lane_selections": {
-                        menu_order_id: lane_selection.raw_record()
-                        for menu_order_id, (lane_selection, _lane_checkpoint) in zip(
-                            menu_order_ids, lane_results
-                        )
-                    },
-                }
-            )
-        else:
-            selected_operation = selection.selected_operation
-            selection_id = selection.selection_id
-            raw_selection = selection.raw_record()
+        selected_operation, ensemble_record = self._selector_ensemble_choice(
+            [item[0] for item in lane_results],
+            eligible_labels=eligible_labels,
+        )
+        selection_id = f"NSEL-ENS-{uuid4().hex[:16]}"
+        raw_selection = selection.raw_record()
+        raw_selection.update(
+            {
+                "selection_id": selection_id,
+                "selected_operation": selected_operation,
+                "selection_rule": "three_menu_order_vote_v1",
+                "confidence": (
+                    ensemble_record["vote_counts"].get(selected_operation, 0)
+                    / len(lane_results)
+                ),
+                "postprocessed": True,
+                "raw_lane_outputs_preserved": True,
+                "menu_order_ensemble": ensemble_record,
+                "lane_selections": {
+                    menu_order_id: lane_selection.raw_record()
+                    for menu_order_id, (lane_selection, _lane_checkpoint) in zip(
+                        menu_order_ids, lane_results
+                    )
+                },
+            }
+        )
         if selected_operation not in eligible:
             raise ModelProtocolError(
                 "independent Selector returned an operation outside the active "
@@ -2131,18 +1943,14 @@ class LongHorizonModel:
                 selected_operation=selected_operation,
             )
         definition = self._definitions_by_name.get(selected_operation)
-        if selected_operation == NETWORK_ABSTAIN_LABEL or definition is None:
+        if definition is None:
             persist(
                 state,
                 "exact_tool_selection_rejected",
                 {
                     "selection_id": selection_id,
                     "selected_operation": selected_operation,
-                    "reason": (
-                        "selector_abstained"
-                        if selected_operation == NETWORK_ABSTAIN_LABEL
-                        else "operation_not_authorized_by_active_harness"
-                    ),
+                    "reason": "operation_not_authorized_by_active_harness",
                     "raw_selection": raw_selection,
                     "selector_checkpoint_id": selector_checkpoint.checkpoint_id,
                     "executor_parent_checkpoint_id": checkpoint.checkpoint_id,
@@ -2161,8 +1969,6 @@ class LongHorizonModel:
             {
                 "selection_rule": (
                     "three_menu_order_vote_v1"
-                    if use_menu_order_ensemble
-                    else "eligible_raw_logit_argmax"
                 ),
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
@@ -2174,7 +1980,8 @@ class LongHorizonModel:
                     selector_intent_protocol
                 ),
                 "head_hash": self.tool_selector.settings.head_hash,
-                "selector_state_scope_id": selector_state_scope_id,
+                "selector_input_scope": "current_subtask_only",
+                "selector_state_policy": "fresh_initial_state_per_evaluation",
             }
         )
         handoff = ToolSelectionRecord(
@@ -2182,9 +1989,6 @@ class LongHorizonModel:
             status=ToolSelectionStatus.STAGED,
             selected_operation=selected_operation,
             selector_checkpoint_id=selector_checkpoint.checkpoint_id,
-            selector_state_ref=str(selector_checkpoint.native_state_ref or ""),
-            selector_state_digest=str(selector_checkpoint.native_state_digest or ""),
-            selector_parent_state_digest=selection.selector_parent_state_digest,
             executor_parent_checkpoint_id=checkpoint.checkpoint_id,
             executor_parent_digest=checkpoint.transcript_digest,
             input_projection_digest=selection.input_digest,
@@ -2216,7 +2020,8 @@ class LongHorizonModel:
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "executor_checkpoint_unchanged": True,
-                "selector_state_scope_id": selector_state_scope_id,
+                "selector_input_scope": "current_subtask_only",
+                "selector_state_policy": "fresh_initial_state_per_evaluation",
                 "selector_attestation": {
                     **self.tool_selector.settings.runtime_identity(),
                     "protocol_schema_version": (

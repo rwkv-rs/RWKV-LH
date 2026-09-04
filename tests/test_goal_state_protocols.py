@@ -58,17 +58,23 @@ def test_protocol_schema_identities_are_frozen_without_historical_versions() -> 
         auditor_final: "auditor-final",
     }
     for module, stage in expected.items():
-        identity = f"rwkv-lh.g1j-per-stage-state-tuning.{stage}.v1"
+        version = "v2" if module is selector_intent else "v1"
+        identity = f"rwkv-lh.g1j-per-stage-state-tuning.{stage}.{version}"
         assert module.INPUT_SCHEMA_VERSION == identity
         assert module.OUTPUT_SCHEMA_VERSION == identity
         assert all(marker not in identity for marker in (".v6", ".v7", ".v8"))
 
 
-def test_selector_intent_exact_suffix_and_completion_guard() -> None:
+def test_selector_intent_exact_suffix_and_current_subtask_boundary() -> None:
     source = {
-        "stage_objective": "Read one file",
-        "stage_role": "tool_intent",
-        "progress": _progress(),
+        "current_subtask": {
+            "objective": "Read one file",
+            "phase": "observe",
+            "read_roots": ["README.md"],
+            "write_roots": [],
+            "success_evidence": ["file contents observed"],
+            "constraints": [],
+        },
         "eligible_labels": ["read_file"],
         "selected_operation": "read_file",
         "selection_authority": "executed_fixture",
@@ -76,12 +82,12 @@ def test_selector_intent_exact_suffix_and_completion_guard() -> None:
     }
     prompt = selector_intent.render_prompt(source)
     target = selector_intent.render_target(source)
-    assert target == "\nSelectorIntentV1: read_file"
+    assert target == "\nSelectorIntentV2: read_file"
     assert selector_intent.parse_target(target) == "read_file"
     assert "selected_operation" not in prompt
-    with pytest.raises(ValueError, match="completed singleton"):
+    with pytest.raises(ValueError, match="fields/order"):
         selector_intent.validate_source(
-            {**source, "eligible_labels": ["read_file", "final_answer"]}
+            {**source, "progress": _progress()}
         )
 
 

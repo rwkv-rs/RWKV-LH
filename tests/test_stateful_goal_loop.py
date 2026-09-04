@@ -121,7 +121,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/selector-intent-v1/select")
+        assert url.endswith("/selector-intent-v2/select")
         self.payloads.append(dict(json))
         menu_order_id = str(json.get("menu_order_id") or "")
         if menu_order_id == "canonical":
@@ -141,7 +141,6 @@ class _SelectorHTTP:
             key=lambda item: (logits[item], -item),
         )
         operation = NETWORK_EXACT_TOOL_LABELS[selected_index]
-        parent = dict(json.get("parent") or {})
         selection = NetworkExactToolSelection(
             selection_id=f"NSEL-{index:04d}",
             trace_id=str(json["trace_id"]),
@@ -151,12 +150,7 @@ class _SelectorHTTP:
             input_digest=str(json["input_digest"]),
             menu_digest=str(json["menu_digest"]),
             selector_checkpoint_id=f"NSCP-{index:04d}",
-            selector_state_ref=f"NSTATE-{index:04d}",
-            selector_state_digest=hashlib.sha256(
-                f"selector-state-{index}".encode()
-            ).hexdigest(),
-            selector_parent_state_digest=str(parent.get("state_digest") or ""),
-            token_position=int(parent.get("token_position") or 0) + 20,
+            input_token_count=20,
             model=self.settings.model,
             model_sha256=self.settings.model_sha256,
             head_sha256=self.settings.head_sha256,
@@ -936,45 +930,21 @@ def test_selector_receives_active_strong_planner_frontier_without_goal_fallback(
     plan.apply_goal_patch(_strong_patch(state))
 
     context = goal_frontier_selector_context(
-        state,
         plan.frontier[0].to_dict(),
-        eligible_labels=("write_file", "read_file"),
     )
 
-    assert context.stage_objective.startswith("GoalFrontierStateV2: ")
-    assert context.state_scope_id == "planner-step:S1:revision:1"
-    assert context.action_ids == ()
-    payload = json.loads(context.stage_objective.removeprefix("GoalFrontierStateV2: "))
-    assert payload["active_step"] == {
-        "step_id": "S1",
-        "step_revision": 1,
-        "stage": 1,
-        "planned_phase": "mutate",
-        "effective_phase": "mutate",
-        "depends_on": [],
+    assert context.current_subtask == {
+        "objective": "Create result.txt with verified content",
+        "phase": "mutate",
         "read_roots": [],
         "write_roots": ["result.txt"],
         "success_evidence": ["result.txt has a committed artifact revision"],
         "constraints": [],
     }
-    assert payload["current_objective"] == (
-        "Create result.txt with verified content"
+    assert state.goal.request not in context.current_subtask["objective"]
+    assert state.goal.workspace_root not in json.dumps(
+        context.current_subtask, ensure_ascii=False
     )
-    assert payload["eligible_tools"] == [
-        {
-            "name": "write_file",
-            "description": "Create or replace one complete local non-JSON UTF-8 file.",
-        },
-        {
-            "name": "read_file",
-            "description": "Read a bounded byte range from one local non-JSON UTF-8 file.",
-        },
-    ]
-    assert payload["latest_action"] is None
-    assert payload["latest_audit_feedback"] is None
-    assert context.stage_role == "tool_intent"
-    assert state.goal.request not in context.stage_objective
-    assert state.goal.workspace_root not in context.stage_objective
 
 
 def test_read_only_goal_step_menu_excludes_workspace_mutations(
@@ -1038,7 +1008,7 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
     assert command_mutation_operations == ("run_command",)
 
 
-def test_goal_selector_excludes_abstain_from_an_executable_frontier(
+def test_goal_selector_uses_three_fresh_evaluations_for_executable_frontier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1080,7 +1050,7 @@ def test_goal_selector_excludes_abstain_from_an_executable_frontier(
         ),
         settings=_settings(progressive=True),
     )
-    selector = _selector(["ABSTAIN", "final_answer"])
+    selector = _selector(["write_file"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -1105,9 +1075,9 @@ def test_goal_selector_excludes_abstain_from_an_executable_frontier(
     assert result.state.status.value == "completed"
     assert len(result.state.actions) == 1
     assert result.state.protocol_rejections == 0
-    assert len(selector._session.payloads) == 4
+    assert len(selector._session.payloads) == 3
     assert all(
-        "ABSTAIN" not in payload["eligible_labels"]
+        "parent" not in payload
         for payload in selector._session.payloads
     )
     rejected = [
@@ -1358,7 +1328,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
         queue,
         settings=_settings(progressive=True),
     )
-    selector = _selector(["write_file", "read_file", "final_answer"])
+    selector = _selector(["write_file", "read_file"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -1392,20 +1362,18 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert event_types.count("goal_step_evidence_gap_recorded") == 0
     assert event_types.count("goal_stage_review_committed") == 2
     assert "run_yielded" not in event_types
-    assert len(selector._session.payloads) == 7
+    assert len(selector._session.payloads) == 6
     second_selector_step = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV1: "
+            "SelectorIntentPromptV2: "
         )
     )
-    second_frontier = json.loads(
-        second_selector_step["stage_objective"].removeprefix(
-            "GoalFrontierStateV2: "
-        )
+    assert second_selector_step["current_subtask"]["phase"] == "observe"
+    assert second_selector_step["current_subtask"]["objective"] == (
+        "Read back result.txt"
     )
-    assert second_frontier["active_step"]["planned_phase"] == "observe"
-    assert second_frontier["active_step"]["effective_phase"] == "observe"
-    assert second_frontier["latest_action"] is None
+    assert "progress" not in second_selector_step
+    assert "latest_action" not in second_selector_step
     executor_starts = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -1575,7 +1543,7 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
         queue,
         settings=_settings(progressive=True),
     )
-    selector = _selector(["write_file", "final_answer", "final_answer"])
+    selector = _selector(["write_file"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -1883,7 +1851,7 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
     )
     model = LongHorizonModel(
         session,
-        tool_selector=_selector(["write_file", "final_answer"]),
+        tool_selector=_selector(["write_file"]),
     )
     planner = _StrongPlanner(_strong_patch(state))
     monkeypatch.setattr(
@@ -1996,17 +1964,18 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
     assert all(len(item["protocol_sha256"]) == 64 for item in auditor_starts)
     assert all(item["executor_state_inherited"] is False for item in auditor_starts)
     selector_payloads = model.tool_selector._session.payloads
-    assert selector_payloads[0]["parent"] is None
-    assert selector_payloads[3]["parent"] is None
+    assert all("parent" not in payload for payload in selector_payloads)
     selector_checkpoints = [
         checkpoint
         for checkpoint in result.state.model_states.values()
         if checkpoint.lane_kind is ModelLaneKind.SELECTOR
     ]
-    assert {
-        (checkpoint.native_state_metadata or {}).get("selector_state_scope_id")
+    assert len(selector_checkpoints) == 3
+    assert all(
+        (checkpoint.native_state_metadata or {}).get("state_policy")
+        == "fresh_initial_state_per_evaluation"
         for checkpoint in selector_checkpoints
-    } == {"planner-step:S1:revision:1", "goal-final-candidate"}
+    )
     completed = result.state.causal_records[result.state.causal_order[-1]].payload
     assert completed["audit_id"].startswith("AUD-")
     assert completed["rwkv_audit_accepted"] is True
@@ -2070,7 +2039,7 @@ def test_stateful_executor_protocol_retry_reuses_consumed_selection(
         ]
     )
     session = ModelSession(queue, settings=_settings(progressive=True))
-    selector = _selector(["write_file", "final_answer"])
+    selector = _selector(["write_file"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -2088,9 +2057,8 @@ def test_stateful_executor_protocol_retry_reuses_consumed_selection(
 
     assert result.state.status.value == "completed"
     assert len(result.state.actions) == 1
-    assert len(selector._session.payloads) == 4
-    assert selector._session.payloads[0]["parent"] is None
-    assert selector._session.payloads[3]["parent"] is None
+    assert len(selector._session.payloads) == 3
+    assert all("parent" not in payload for payload in selector._session.payloads)
     rejection = next(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -2182,7 +2150,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         ]
     )
     session = ModelSession(queue, settings=_settings(progressive=True))
-    selector = _selector(["write_file", "write_file", "final_answer"])
+    selector = _selector(["write_file", "write_file"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -2201,13 +2169,16 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
 
     assert result.state.status.value == "completed"
     assert result.state.protocol_rejections == 2
-    assert len(selector._session.payloads) == 7
+    assert len(selector._session.payloads) == 6
     second_selection = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV1: "
+            "SelectorIntentPromptV2: "
         )
     )
-    assert second_selection["progress"]["protocol_rejection_count"] == 2
+    assert "progress" not in second_selection
+    assert second_selection["current_subtask"]["objective"] == (
+        "Create result.txt with verified content"
+    )
     retry_events = [
         event
         for event in result.state.model_events.values()
@@ -2337,7 +2308,7 @@ def test_final_auditor_repair_returns_to_goal_loop_before_completion(
     )
     model = LongHorizonModel(
         session,
-        tool_selector=_selector(["write_file", "final_answer", "final_answer"]),
+        tool_selector=_selector(["write_file"]),
     )
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -2438,7 +2409,7 @@ def test_planner_semantic_repair_reaches_stage_checker(
     )
     model = LongHorizonModel(
         session,
-        tool_selector=_selector(["write_file", "read_file", "final_answer"]),
+        tool_selector=_selector(["write_file", "read_file"]),
     )
     planner = _ScriptedStagePlanner(
         (
@@ -2641,7 +2612,7 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     )
     model = LongHorizonModel(
         session,
-        tool_selector=_selector(["write_file", "write_file", "final_answer"]),
+        tool_selector=_selector(["write_file", "write_file"]),
     )
     planner = _StrongPlanner(_strong_patch(state))
     monkeypatch.setattr(
@@ -2679,39 +2650,20 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     eligible_labels = [
         payload["eligible_labels"] for payload in model.tool_selector._session.payloads
     ]
-    assert "final_answer" not in eligible_labels[0]
-    assert "final_answer" not in eligible_labels[3]
-    assert eligible_labels[6] == ["final_answer"]
+    assert len(eligible_labels) == 6
+    assert all("final_answer" not in labels for labels in eligible_labels)
     selector_payloads = model.tool_selector._session.payloads
-    assert selector_payloads[0]["parent"] is None
-    assert selector_payloads[3]["parent"] is not None
+    assert all("parent" not in payload for payload in selector_payloads)
     second_step = json.loads(
-        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV1: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV2: ")
     )
-    frontier_state = json.loads(
-        second_step["stage_objective"].removeprefix("GoalFrontierStateV2: ")
+    first_step = json.loads(
+        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV2: ")
     )
-    assert frontier_state["progress"] == {
-        "completed_step_ids": [],
-        "completed_stage_count": 0,
-        "current_step_action_count": 1,
-    }
-    assert frontier_state["latest_action"]["operation"] == "write_file"
-    assert frontier_state["latest_action"]["status"] == "failed"
-    assert frontier_state["latest_action"]["arguments"]["path"] == "."
-    assert frontier_state["latest_audit_feedback"] == {
-        "status": "mechanically_incomplete",
-        "gaps": [
-            "missing successful mutation evidence for write_root 'result.txt'"
-        ],
-        "successful_action_ids": [],
-        "missing_read_roots": [],
-        "missing_write_roots": ["result.txt"],
-    }
-    assert any(
-        item["name"] == "write_file" and item["description"]
-        for item in frontier_state["eligible_tools"]
-    )
+    assert second_step["current_subtask"] == first_step["current_subtask"]
+    assert "progress" not in second_step
+    assert "latest_action" not in second_step
+    assert "latest_audit_feedback" not in second_step
     second_executor_prompt = session.client.prompts[1]
     assert '"missing_write_roots":["result.txt"]' in second_executor_prompt
     assert '"completion_preconditions_satisfied":false' in second_executor_prompt

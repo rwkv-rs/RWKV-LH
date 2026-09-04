@@ -6,7 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from rwkv_lh.inference.vllm_rwkv_state_profiles_v1 import (
     RWKV7InitialStateProfiles,

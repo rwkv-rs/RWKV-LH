@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from rwkv_lh.exact_tool_selector.head import (
@@ -12,10 +14,10 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_SELECTOR_MENU_ORDER_IDS,
     NetworkExactToolSelection,
     NetworkSelectorInput,
-    NetworkSelectorProgress,
 )
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import canonical_digest
+from rwkv_lh.tokenizer import RWKVTokenizer
 
 
 def _artifact_value() -> dict[str, object]:
@@ -31,8 +33,11 @@ def _artifact_value() -> dict[str, object]:
         "shared_bias": [0.0, 0.0],
         "layer_norm_weight": [1.0, 1.0],
         "layer_norm_bias": [0.0, 0.0],
-        "head_weight": [[float(index), -float(index)] for index in range(25)],
-        "head_bias": [0.0] * 25,
+        "head_weight": [
+            [float(index), -float(index)]
+            for index in range(len(NETWORK_EXACT_TOOL_LABELS))
+        ],
+        "head_bias": [0.0] * len(NETWORK_EXACT_TOOL_LABELS),
         "temperature": 0.8,
         "model_hash": "1" * 64,
         "metadata": {"fixture": True},
@@ -46,7 +51,7 @@ def test_network_selector_mlp_preserves_all_raw_logits_and_argmax() -> None:
 
     logits = artifact.raw_logits([2.0, -1.0])
 
-    assert len(logits) == 25
+    assert len(logits) == len(NETWORK_EXACT_TOOL_LABELS)
     assert artifact.select([2.0, -1.0]) == NETWORK_EXACT_TOOL_LABELS[-1]
     assert sum(artifact.probabilities([2.0, -1.0])) == pytest.approx(1.0)
 
@@ -74,10 +79,14 @@ def test_network_selector_mlp_registers_same_forward_fusion_protocol() -> None:
 def test_selector_menu_order_ablation_has_three_fixed_permutations() -> None:
     inputs = [
         NetworkSelectorInput.create(
-            task_request="Inspect one file.",
-            stage_objective="Inspect one file.",
-            stage_role="tool_intent",
-            progress=NetworkSelectorProgress(),
+            current_subtask={
+                "objective": "Inspect one file.",
+                "phase": "observe",
+                "read_roots": ["fixture.txt"],
+                "write_roots": [],
+                "success_evidence": ["file contents observed"],
+                "constraints": [],
+            },
             eligible_labels=("search_text", "read_file", "write_file"),
             menu_order_id=menu_order_id,
         )
@@ -92,6 +101,33 @@ def test_selector_menu_order_ablation_has_three_fixed_permutations() -> None:
     assert [item.menu_order_id for item in inputs] == list(
         NETWORK_SELECTOR_MENU_ORDER_IDS
     )
+
+
+def test_selector_menu_votes_are_independent_and_below_context_limit() -> None:
+    subtask = {
+        "objective": "Read src/pricing.py and verify the price calculation rule.",
+        "phase": "observe",
+        "read_roots": ["src/pricing.py"],
+        "write_roots": [],
+        "success_evidence": ["the exact rule is observed from src/pricing.py"],
+        "constraints": ["do not modify files"],
+    }
+    inputs = [
+        NetworkSelectorInput.create(
+            current_subtask=subtask,
+            menu_order_id=menu_order_id,
+        )
+        for menu_order_id in NETWORK_SELECTOR_MENU_ORDER_IDS
+    ]
+    tokenizer = RWKVTokenizer(
+        Path(__file__).resolve().parents[1]
+        / "rwkv_lh/data/rwkv_vocab_v20230424.txt"
+    )
+
+    assert [len(tokenizer.encode(item.render())) for item in inputs] == [725, 725, 727]
+    assert all(item.current_subtask == subtask for item in inputs)
+    assert all("progress" not in item.render() for item in inputs)
+    assert all("latest_action" not in item.render() for item in inputs)
 
 
 def _selection(
@@ -119,10 +155,7 @@ def _selection(
         input_digest="1" * 64,
         menu_digest="2" * 64,
         selector_checkpoint_id=f"CP-{selection_id}",
-        selector_state_ref=f"STATE-{selection_id}",
-        selector_state_digest="3" * 64,
-        selector_parent_state_digest="",
-        token_position=10,
+        input_token_count=10,
         model="selector",
         model_sha256="4" * 64,
         head_sha256="5" * 64,
@@ -171,4 +204,4 @@ def test_selector_menu_order_vote_uses_majority_then_registered_tie_break() -> N
     assert record["aggregation_rule"] == (
         "three_way_tie_median_rank_then_normalized_logit"
     )
-    assert record["state_policy"] == "three_independent_wkv_lanes_never_merged"
+    assert record["state_policy"] == "three_fresh_initial_state_evaluations"

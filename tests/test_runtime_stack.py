@@ -179,9 +179,9 @@ def test_stack_attests_configured_independent_selector_health(
         "RWKV_SELECTOR_FEATURE_PROTOCOL": (
             "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1"
         ),
-        "RWKV_SELECTOR_INPUT_PROTOCOL": (
-            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1"
-        ),
+            "RWKV_SELECTOR_INPUT_PROTOCOL": (
+                "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v2"
+            ),
         "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
         "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "4" * 64,

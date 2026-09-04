@@ -174,7 +174,7 @@ class UnsupportedIndependentSelectorOperation(RuntimeError):
             raise ValueError("unsupported operation identity must be non-empty")
         self.operation = selected
         super().__init__(
-            "the independent 25-class product Selector has no registered "
+            "the independent 23-class product Selector has no registered "
             f"operation contract for {selected!r}"
         )
 
@@ -564,7 +564,7 @@ def current_architecture_retrieval_actions(
     *,
     config: RetrievalRuntimeConfig | None = None,
 ) -> Mapping[str, tuple[Any, ...]]:
-    """Return the stable five product extensions required by the 25-class Selector."""
+    """Return the stable product extensions required by the 23-class Selector."""
 
     selected_config = config or RetrievalRuntimeConfig(mode=NetworkPolicyMode.OFFLINE)
     backend = build_live_retrieval_backend(snapshot_root)
@@ -963,7 +963,11 @@ def stateful_goal_protocol_metadata(
         "executor_state_scope": "one_selected_action" if enabled else "disabled",
         "selector_tool_decisions_per_action": 1,
         "selector_model_evaluations_per_action": 3 if enabled else 0,
-        "selector_state_count_per_step": 3 if enabled else 0,
+        "selector_state_count_per_step": 0,
+        "selector_state_policy": (
+            "three_fresh_initial_state_evaluations" if enabled else ""
+        ),
+        "selector_input_scope": "current_subtask_only" if enabled else "",
         "selector_menu_order_ids": (
             list(NETWORK_SELECTOR_MENU_ORDER_IDS) if enabled else []
         ),
@@ -2395,7 +2399,7 @@ def parse_args() -> argparse.Namespace:
         "--independent-selector",
         action="store_true",
         help=(
-            "run the current 25-class Selector -> one-schema Executor architecture "
+            "run the current 23-class Selector -> one-schema Executor architecture "
             "with the stable 23-operation product Harness menu"
         ),
     )

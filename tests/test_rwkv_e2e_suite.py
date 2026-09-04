@@ -9,7 +9,6 @@ import pytest
 
 from rwkv_lh.benchmark_verifier import check_spec, run_isolated_verifier
 from rwkv_lh.exact_tool_selector.network_protocol import (
-    NETWORK_ABSTAIN_LABEL,
     NETWORK_EXACT_TOOL_LABELS,
 )
 from rwkv_lh.controller import ControllerResult
@@ -295,15 +294,12 @@ def test_independent_selector_stops_before_model_for_mock_api_fixture(
     assert not (tmp_path / "cases/E2E-LH09").exists()
 
 
-def test_current_architecture_runner_menu_matches_25_class_selector(tmp_path):
+def test_current_architecture_runner_menu_matches_23_class_selector(tmp_path):
     harness = FaultInjectingHarness(
         actions=current_architecture_retrieval_actions(tmp_path / "snapshots")
     )
     executable = {item["name"] for item in harness.g1i_tool_definitions()}
-    expected = set(NETWORK_EXACT_TOOL_LABELS) - {
-        "final_answer",
-        NETWORK_ABSTAIN_LABEL,
-    }
+    expected = set(NETWORK_EXACT_TOOL_LABELS)
 
     assert executable == expected
     assert len(executable) == 23
@@ -350,7 +346,9 @@ def test_stateful_run_protocol_records_required_strong_planner_without_reviewer(
         "executor_state_scope": "one_selected_action",
         "selector_tool_decisions_per_action": 1,
         "selector_model_evaluations_per_action": 3,
-        "selector_state_count_per_step": 3,
+        "selector_state_count_per_step": 0,
+        "selector_state_policy": "three_fresh_initial_state_evaluations",
+        "selector_input_scope": "current_subtask_only",
         "selector_menu_order_ids": ["canonical", "rotate_8", "rotate_17"],
         "selector_vote_rule": "three_menu_order_vote_v1",
         "auditor_state_isolated": True,

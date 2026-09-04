@@ -518,9 +518,6 @@ class ToolSelectionRecord:
     status: ToolSelectionStatus
     selected_operation: str
     selector_checkpoint_id: str
-    selector_state_ref: str
-    selector_state_digest: str
-    selector_parent_state_digest: str
     executor_parent_checkpoint_id: str
     executor_parent_digest: str
     input_projection_digest: str
@@ -549,7 +546,6 @@ class ToolSelectionRecord:
             self.selection_id,
             self.selected_operation,
             self.selector_checkpoint_id,
-            self.selector_state_ref,
             self.executor_parent_checkpoint_id,
             self.selector_model,
             self.selector_profile_id,
@@ -559,7 +555,6 @@ class ToolSelectionRecord:
         if any(not str(value).strip() for value in required):
             raise ValueError("tool selection identity fields must be non-empty")
         digests = {
-            "selector_state_digest": self.selector_state_digest,
             "executor_parent_digest": self.executor_parent_digest,
             "input_projection_digest": self.input_projection_digest,
             "menu_digest": self.menu_digest,
@@ -576,14 +571,6 @@ class ToolSelectionRecord:
             for value in digests.values()
         ):
             raise ValueError("tool selection digest fields must be lowercase SHA-256")
-        parent_digest = self.selector_parent_state_digest
-        if parent_digest and (
-            len(parent_digest) != 64
-            or any(character not in "0123456789abcdef" for character in parent_digest)
-        ):
-            raise ValueError(
-                "selector_parent_state_digest must be empty or lowercase SHA-256"
-            )
         contract_digest = self.atom_execution_contract_digest
         if contract_digest and (
             len(contract_digest) != 64
@@ -603,9 +590,6 @@ class ToolSelectionRecord:
             "selection_id": self.selection_id,
             "selected_operation": self.selected_operation,
             "selector_checkpoint_id": self.selector_checkpoint_id,
-            "selector_state_ref": self.selector_state_ref,
-            "selector_state_digest": self.selector_state_digest,
-            "selector_parent_state_digest": self.selector_parent_state_digest,
             "input_digest": self.input_projection_digest,
             "menu_digest": self.menu_digest,
             "model": self.selector_model,
@@ -660,11 +644,6 @@ class ToolSelectionRecord:
             ),
             selected_operation=str(value.get("selected_operation") or ""),
             selector_checkpoint_id=str(value.get("selector_checkpoint_id") or ""),
-            selector_state_ref=str(value.get("selector_state_ref") or ""),
-            selector_state_digest=str(value.get("selector_state_digest") or ""),
-            selector_parent_state_digest=str(
-                value.get("selector_parent_state_digest") or ""
-            ),
             executor_parent_checkpoint_id=str(
                 value.get("executor_parent_checkpoint_id") or ""
             ),
@@ -1081,9 +1060,6 @@ class RunState:
     def set_lane_head(self, role: str, checkpoint_id: str) -> None:
         normalized_role = str(role).strip().casefold()
         if normalized_role not in {
-            "selector",
-            "selector_order_rotate_8",
-            "selector_order_rotate_17",
             "executor",
             "auditor",
             "auditor_step",
@@ -1119,9 +1095,6 @@ class RunState:
             "selection_id",
             "selected_operation",
             "selector_checkpoint_id",
-            "selector_state_ref",
-            "selector_state_digest",
-            "selector_parent_state_digest",
             "executor_parent_checkpoint_id",
             "executor_parent_digest",
             "input_projection_digest",
@@ -1161,9 +1134,6 @@ class RunState:
             "selection_id",
             "selected_operation",
             "selector_checkpoint_id",
-            "selector_state_ref",
-            "selector_state_digest",
-            "selector_parent_state_digest",
             "executor_parent_checkpoint_id",
             "executor_parent_digest",
             "input_projection_digest",
@@ -1550,9 +1520,6 @@ class RunState:
             if (
                 selector_checkpoint.lane_kind is not ModelLaneKind.SELECTOR
                 or selector_checkpoint.model != selection.selector_model
-                or selector_checkpoint.native_state_ref != selection.selector_state_ref
-                or selector_checkpoint.native_state_digest
-                != selection.selector_state_digest
                 or selector_checkpoint.state_profile_id
                 != selection.selector_profile_id
                 or selector_checkpoint.state_profile_sha256
@@ -1646,9 +1613,6 @@ class RunState:
         )
         for role, checkpoint_id in state.lane_heads.items():
             if role not in {
-                "selector",
-                "selector_order_rotate_8",
-                "selector_order_rotate_17",
                 "executor",
                 "auditor",
                 "auditor_step",

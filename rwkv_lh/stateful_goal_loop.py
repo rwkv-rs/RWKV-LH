@@ -9,7 +9,6 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from rwkv_lh.controller import ControllerResult, LongHorizonController
-from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_ABSTAIN_LABEL
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     goal_frontier_selector_context,
@@ -41,7 +40,7 @@ from rwkv_lh.schema import ActionStatus, ModelEvent, RunStatus, utc_now
 from rwkv_lh.supervisor import supervisor_identity
 
 
-STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v4"
+STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v5"
 
 
 class StatefulGoalLoopController(LongHorizonController):
@@ -1247,7 +1246,11 @@ class StatefulGoalLoopController(LongHorizonController):
                         "executor_state_scope": "one_selected_action",
                         "executor_facts_source": "bounded_causal_projection",
                         "selector_state_isolated": True,
-                        "selector_state_count_per_step": 3,
+                        "selector_state_count_per_step": 0,
+                        "selector_state_policy": (
+                            "three_fresh_initial_state_evaluations"
+                        ),
+                        "selector_input_scope": "current_subtask_only",
                         "selector_menu_order_ids": [
                             "canonical",
                             "rotate_8",
@@ -1533,7 +1536,6 @@ class StatefulGoalLoopController(LongHorizonController):
                             mechanical_evidence=mechanical_evidence,
                         )
                         selector_stage_context = goal_frontier_selector_context(
-                            state,
                             {
                                 **frontier.to_dict(),
                                 "step_revision": active_step_revision,
@@ -1544,7 +1546,6 @@ class StatefulGoalLoopController(LongHorizonController):
                                     else frontier.phase
                                 ),
                             },
-                            eligible_labels=eligible_operations,
                         )
                         executor_retry = self._pending_executor_protocol_retry(state)
                         decision = self.model.next_command(
@@ -1666,11 +1667,6 @@ class StatefulGoalLoopController(LongHorizonController):
                 except ModelProtocolError as exc:
                     transitions += 1
                     pending_protocol_audit = self._pending_audit_boundary(state)
-                    if (
-                        pending_protocol_audit is None
-                        and exc.selected_operation == NETWORK_ABSTAIN_LABEL
-                    ):
-                        return self._block(state, "selector_abstained", transitions)
                     self._persist(
                         state,
                         "protocol_rejection_recorded",

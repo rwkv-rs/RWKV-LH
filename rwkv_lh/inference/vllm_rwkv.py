@@ -205,8 +205,9 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         parent_state: Sequence[Any] | None = None,
         continuation: bool = False,
         feature_protocol: str = "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+        export_state: bool = True,
     ) -> tuple[Any, list[Any], int, Mapping[str, Any]]:
-        """Advance one durable Selector lane and expose one unmodified hidden view."""
+        """Advance one input and expose one unmodified hidden view."""
 
         if not str(text):
             raise ValueError("persistent vllm-rwkv state advance text must be non-empty")
@@ -235,9 +236,11 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 if feature_protocol.endswith("-last.v1")
                 else hidden[0].float().mean(dim=0)
             ).detach().float().cpu()
-            exported_state = [
-                value.detach().cpu().contiguous().clone() for value in state
-            ]
+            exported_state = (
+                [value.detach().cpu().contiguous().clone() for value in state]
+                if export_state
+                else []
+            )
             if not bool(torch.isfinite(feature).all()):
                 raise RuntimeError(
                     "persistent vllm-rwkv returned non-finite stateful hidden features"
@@ -253,6 +256,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 "runtime": dict(self._runtime or {}),
                 "persistent_process": True,
                 "continuation": continuation,
+                "state_exported": export_state,
                 "generated_rwkv_text": False,
                 "sampling_invoked": False,
             }
@@ -265,6 +269,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         *,
         parent_state: Sequence[Any] | None = None,
         continuation: bool = False,
+        export_state: bool = True,
     ) -> tuple[Any, list[Any], int, Mapping[str, Any]]:
         """Compatibility wrapper for the registered last-hidden protocol."""
 
@@ -273,6 +278,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             parent_state=parent_state,
             continuation=continuation,
             feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-last.v1",
+            export_state=export_state,
         )
 
     def advance_hidden_views(
@@ -281,6 +287,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         *,
         parent_state: Sequence[Any] | None = None,
         continuation: bool = False,
+        export_state: bool = True,
     ) -> tuple[Mapping[str, Any], list[Any], int, Mapping[str, Any]]:
         """Advance once and expose unchanged mean and last hidden views.
 
@@ -312,9 +319,11 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 raise RuntimeError(
                     "persistent vllm-rwkv returned non-finite stateful hidden views"
                 )
-            exported_state = [
-                value.detach().cpu().contiguous().clone() for value in state
-            ]
+            exported_state = (
+                [value.detach().cpu().contiguous().clone() for value in state]
+                if export_state
+                else []
+            )
             identity = {
                 **self._load_base_identity(),
                 "feature_protocols": {
@@ -325,6 +334,7 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 "runtime": dict(self._runtime or {}),
                 "persistent_process": True,
                 "continuation": continuation,
+                "state_exported": export_state,
                 "generated_rwkv_text": False,
                 "sampling_invoked": False,
             }

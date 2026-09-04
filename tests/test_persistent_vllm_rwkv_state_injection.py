@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from rwkv_lh.inference.vllm_rwkv import PersistentVLLMRWKVExtractor
 from rwkv_lh.inference.vllm_rwkv_state_profiles_v1 import (

@@ -8,41 +8,48 @@ from typing import Any
 from rwkv_lh.goal_state_protocols import (
     _exact_fields,
     _nonempty,
-    _nonnegative_int,
     _render,
     _strings,
 )
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v2"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
 
-_PROMPT_FIELDS = ("stage_objective", "stage_role", "progress", "eligible_labels")
+_SUBTASK_FIELDS = (
+    "objective",
+    "phase",
+    "read_roots",
+    "write_roots",
+    "success_evidence",
+    "constraints",
+)
+_PROMPT_FIELDS = ("current_subtask", "eligible_labels")
 _SOURCE_FIELDS = (
     *_PROMPT_FIELDS,
     "selected_operation",
     "selection_authority",
     "selection_verifier_id",
 )
-_PROGRESS_FIELDS = (
-    "completed_stage_count",
-    "action_index",
-    "succeeded_operations",
-    "failed_operations",
-    "protocol_rejection_count",
-)
 _AUTHORITIES = {"planner_contract", "executed_fixture", "human_double_review"}
+_PHASES = {"observe", "mutate", "execute", "derive_evidence"}
 
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "selector prompt source")
-    _nonempty(selected["stage_objective"], "stage_objective")
-    _nonempty(selected["stage_role"], "stage_role")
-    progress = _exact_fields(selected["progress"], _PROGRESS_FIELDS, "progress")
-    for name in ("completed_stage_count", "action_index", "protocol_rejection_count"):
-        _nonnegative_int(progress[name], f"progress.{name}")
-    _strings(progress["succeeded_operations"], "progress.succeeded_operations")
-    _strings(progress["failed_operations"], "progress.failed_operations")
+    subtask = _exact_fields(
+        selected["current_subtask"], _SUBTASK_FIELDS, "current_subtask"
+    )
+    _nonempty(subtask["objective"], "current_subtask.objective")
+    if subtask["phase"] not in _PHASES:
+        raise ValueError("current_subtask.phase is invalid")
+    for name in ("read_roots", "write_roots", "constraints"):
+        _strings(subtask[name], f"current_subtask.{name}")
+    _strings(
+        subtask["success_evidence"],
+        "current_subtask.success_evidence",
+        nonempty=True,
+    )
     _strings(selected["eligible_labels"], "eligible_labels", nonempty=True)
     return selected
 
@@ -54,10 +61,6 @@ def validate_source(source: Any) -> None:
     eligible = tuple(selected["eligible_labels"])
     if operation not in eligible:
         raise ValueError("selected_operation must be eligible")
-    if "final_answer" in eligible and eligible != ("final_answer",):
-        raise ValueError("final_answer eligibility must be the completed singleton menu")
-    if operation == "final_answer" and eligible != ("final_answer",):
-        raise ValueError("final_answer may only be selected at completion")
     authority = _nonempty(selected["selection_authority"], "selection_authority")
     if authority not in _AUTHORITIES:
         raise ValueError("selection_authority is invalid")
@@ -74,25 +77,23 @@ def render_prompt(source: Any) -> str:
     payload = {
         "schema_version": INPUT_SCHEMA_VERSION,
         "role": "selector_intent",
-        "stage_objective": prompt["stage_objective"],
-        "stage_role": prompt["stage_role"],
-        "progress": dict(prompt["progress"]),
         "eligible_labels": list(prompt["eligible_labels"]),
+        "current_subtask": dict(prompt["current_subtask"]),
         "current_question": (
-            "Choose exactly one eligible operation label for this current frontier; "
-            "do not fill parameters, audit, plan, or answer the user."
+            "Choose exactly one eligible operation label for this current subtask; "
+            "do not use prior calls, fill parameters, audit, plan, or answer the user."
         ),
     }
-    return _render("SelectorIntentPromptV1: ", payload)
+    return _render("SelectorIntentPromptV2: ", payload)
 
 
 def render_target(source: Any) -> str:
     validate_source(source)
-    return "\nSelectorIntentV1: " + str(source["selected_operation"])
+    return "\nSelectorIntentV2: " + str(source["selected_operation"])
 
 
 def parse_target(target: str) -> str:
-    prefix = "\nSelectorIntentV1: "
+    prefix = "\nSelectorIntentV2: "
     if not isinstance(target, str) or not target.startswith(prefix):
         raise ValueError("selector target prefix is invalid")
     operation = target[len(prefix) :]
