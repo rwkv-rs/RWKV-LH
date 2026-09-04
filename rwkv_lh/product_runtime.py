@@ -96,11 +96,6 @@ def build_product_controller(
             "stateful_goal requires complete RWKV_LH_SELECTOR_* configuration; "
             "the Executor cannot replace the independent Selector"
         )
-    if not tool_selector.input_protocol.g1j_selector_intent:
-        raise ValueError(
-            "stateful_goal accepts only the current G1J Selector-Intent input "
-            "protocol; historical Selector prompt protocols are not runtime modes"
-        )
     executor_binding = executor_profile_binding_for_run(state)
     executor_settings = executor_binding.settings
     if goal_self_termination_only(state.goal):

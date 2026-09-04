@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from rwkv_lh.exact_tool_selector.model_v2 import (
+from rwkv_lh.exact_tool_selector.head import (
     NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
     NETWORK_SELECTOR_HEAD_SCHEMA_VERSION,
     NetworkSelectorMLPArtifact,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_EXACT_TOOL_LABELS
-from rwkv_lh.exact_tool_selector.protocol import canonical_digest
+from rwkv_lh.model_io import canonical_digest
 
 
 def _artifact_value() -> dict[str, object]:

@@ -14,15 +14,11 @@ from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorSettings,
 )
 from rwkv_lh.exact_tool_selector.input_protocol import (
-    CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
-    FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
     G1J_SELECTOR_INTENT_HEAD_ID,
     G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
     G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-    REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
 )
-from rwkv_lh.exact_tool_selector.model_v2 import (
+from rwkv_lh.exact_tool_selector.head import (
     NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
@@ -33,19 +29,8 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
 from rwkv_lh.exact_tool_selector.network_service import (
     NetworkSelectorService,
     NetworkSelectorStateStore,
-    TorchNetworkSelectorHead,
     _extractor_state_profile_settings,
 )
-
-
-ROOT = Path(__file__).resolve().parents[1]
-HEAD = (
-    ROOT
-    / "data/experiments/NETWORK_EXACT_TOOL_SELECTOR_HIDDEN_MLP_V2_20260828"
-    / "run_r1/last/selector_head.json"
-)
-HEAD_SHA256 = "911f30a01f492a4df8183ed1ce8b6de3b8d40a7b690971250fec22820edf3095"
-HEAD_HASH = "df856c6fcf482eac1fa48f817c931e6a078959993d15112ddf48502cf496e1c0"
 
 
 class _Extractor:
@@ -61,12 +46,12 @@ class _Extractor:
     ):
         self.calls += 1
         assert continuation == (parent_state is not None)
-        assert text.startswith("\nSelectorStepV3: ") if continuation else text.startswith(
-            "SelectorMenuV3: "
+        assert text.startswith("\nSelectorIntentPromptV1: ") if continuation else text.startswith(
+            "SelectorIntentMenuV1: "
         )
         if not continuation:
-            assert "\nSelectorTaskV3: " in text
-            assert "\nSelectorStepV3: " in text
+            assert "\nSelectorIntentRoleV1: " in text
+            assert "\nSelectorIntentPromptV1: " in text
         if parent_state is None:
             state = [
                 torch.zeros((2, 2, 1, 8), dtype=torch.float16),
@@ -169,7 +154,7 @@ class _FusionExtractor(_MeanExtractor):
         continuation: bool = False,
     ):
         self.view_calls.append((text, continuation))
-        assert text.startswith(("\nSelectorStepV3: ", "\nSelectorStepV4: "))
+        assert text.startswith("\nSelectorIntentPromptV1: ")
         assert continuation is True
         assert parent_state is not None
         state = [value.clone() for value in parent_state]
@@ -217,20 +202,17 @@ class _FusionHead(_MeanHead):
                 "wkv_mode": "fp16",
             }
         }
-        if settings.input_protocol == G1J_SELECTOR_INTENT_INPUT_PROTOCOL:
-            metadata.update({
-                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
-                "compact_input_schema_version": settings.input_protocol,
-                "model_weights_sha256": settings.model_sha256,
-                "feature_protocol": settings.feature_protocol,
-                "labels": list(NETWORK_EXACT_TOOL_LABELS),
-                "training_trajectory_mode": (
-                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
-                ),
-            })
-            metadata["portable_feature_identity"][
-                "training_trajectory_mode"
-            ] = G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+        metadata.update({
+            "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+            "compact_input_schema_version": settings.input_protocol,
+            "model_weights_sha256": settings.model_sha256,
+            "feature_protocol": settings.feature_protocol,
+            "labels": list(NETWORK_EXACT_TOOL_LABELS),
+            "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+        })
+        metadata["portable_feature_identity"][
+            "training_trajectory_mode"
+        ] = G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
         self.artifact = SimpleNamespace(
             feature_dim=5120,
             metadata=metadata,
@@ -262,13 +244,13 @@ def _settings() -> NetworkExactToolSelectorSettings:
         base_url="http://127.0.0.1:29621",
         model="rwkv7-g1i-2.9b-20260805-ctx16384",
         model_sha256="a" * 64,
-        head_sha256=HEAD_SHA256,
-        head_hash=HEAD_HASH,
+        head_sha256="b" * 64,
+        head_hash="c" * 64,
         feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-last.v1",
         state_profile_id="selector-zero-s0",
         state_profile_sha256="b" * 64,
         state_profile_manifest_sha256="c" * 64,
-        input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+        input_protocol=G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
     )
 
 
@@ -325,7 +307,7 @@ def test_service_persists_dynamic_selector_state_and_replays_idempotently(
     service = NetworkSelectorService(
         settings,
         extractor,
-        TorchNetworkSelectorHead(HEAD, HEAD_SHA256),
+        _G1JHead(settings),
         NetworkSelectorStateStore(tmp_path / "dynamic-selector-state"),
     )
     client = NetworkExactToolSelectorClient(
@@ -371,7 +353,7 @@ def test_service_mean_feature_uses_step_segment_and_one_persistent_state(
     service = NetworkSelectorService(
         settings,
         extractor,
-        _MeanHead(settings),
+        _G1JHead(settings),
         NetworkSelectorStateStore(tmp_path / "mean-dynamic-selector-state"),
     )
     client = NetworkExactToolSelectorClient(
@@ -390,18 +372,18 @@ def test_service_mean_feature_uses_step_segment_and_one_persistent_state(
 
     assert first.selected_operation == second.selected_operation == "web_search"
     assert len(extractor.calls) == 3
-    assert extractor.calls[0][0].startswith("SelectorMenuV3: ")
-    assert "\nSelectorTaskV3: " in extractor.calls[0][0]
+    assert extractor.calls[0][0].startswith("SelectorIntentMenuV1: ")
+    assert "\nSelectorIntentRoleV1: " in extractor.calls[0][0]
     assert extractor.calls[0][1:] == (
         False,
         "rwkv-lh.vllm-rwkv-final-hidden-last.v1",
     )
-    assert extractor.calls[1][0].startswith("\nSelectorStepV3: ")
+    assert extractor.calls[1][0].startswith("\nSelectorIntentPromptV1: ")
     assert extractor.calls[1][1:] == (
         True,
         "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
     )
-    assert extractor.calls[2][0].startswith("\nSelectorStepV3: ")
+    assert extractor.calls[2][0].startswith("\nSelectorIntentPromptV1: ")
     assert extractor.calls[2][1:] == (
         True,
         "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
@@ -538,108 +520,3 @@ def test_service_fuses_mean_then_last_from_one_current_forward(
     assert second.token_position == 37
     assert first.raw_record()["postprocessed"] is False
     assert first.raw_record()["generated_text"] is False
-
-
-def test_service_v4_advances_on_request_last_step_without_text_generation(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-            "input_protocol": REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-        }
-    )
-    extractor = _MeanExtractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _MeanHead(settings),
-        NetworkSelectorStateStore(tmp_path / "v4-dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
-
-    first, checkpoint = client.select(
-        _input(0), run_id="RUN-V4", trace_id="TRACE-V4"
-    )
-
-    step_text = extractor.calls[1][0]
-    payload = json.loads(step_text.removeprefix("\nSelectorStepV4: "))
-    assert list(payload)[-1] == "stage_objective"
-    assert first.raw_record()["generated_text"] is False
-    assert checkpoint.native_state_metadata["postprocessed"] is False
-
-
-def test_service_v5_repeats_full_requirement_at_each_continuation_edge(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-            "input_protocol": FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-        }
-    )
-    extractor = _MeanExtractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _MeanHead(settings),
-        NetworkSelectorStateStore(tmp_path / "v5-dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
-
-    _, checkpoint = client.select(_input(0), run_id="RUN-V5", trace_id="TRACE-V5-1")
-    _, continued = client.select(
-        _input(1),
-        run_id="RUN-V5",
-        trace_id="TRACE-V5-2",
-        parent=checkpoint,
-    )
-
-    first_step = json.loads(extractor.calls[1][0].removeprefix("\nSelectorStepV5: "))
-    second_step = json.loads(extractor.calls[2][0].removeprefix("\nSelectorStepV5: "))
-    assert list(first_step)[-1] == list(second_step)[-1] == "current_requirement"
-    assert first_step["current_requirement"] == second_step["current_requirement"] == (
-        _input(0).task_request
-    )
-    assert continued.transport == "native_rwkv_hidden_mlp_selector_v5_full_request_last"
-
-
-def test_service_v6_repeats_complete_live_question_at_each_continuation_edge(
-    tmp_path: Path,
-) -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
-            "input_protocol": CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-        }
-    )
-    extractor = _MeanExtractor()
-    service = NetworkSelectorService(
-        settings,
-        extractor,
-        _MeanHead(settings),
-        NetworkSelectorStateStore(tmp_path / "v6-dynamic-selector-state"),
-    )
-    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
-
-    _, checkpoint = client.select(_input(0), run_id="RUN-V6", trace_id="TRACE-V6-1")
-    _, continued = client.select(
-        _input(1),
-        run_id="RUN-V6",
-        trace_id="TRACE-V6-2",
-        parent=checkpoint,
-    )
-
-    first = json.loads(extractor.calls[1][0].removeprefix("\nSelectorStepV6: "))
-    second = json.loads(extractor.calls[2][0].removeprefix("\nSelectorStepV6: "))
-    for step in (first, second):
-        assert list(step)[-1] == "current_question"
-        assert list(step["current_question"])[-1] == "question"
-        assert step["current_question"]["complete_requirement"] == _input(0).task_request
-    assert continued.transport == "native_rwkv_hidden_mlp_selector_v6_current_question_last"

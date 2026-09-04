@@ -19,7 +19,7 @@ from rwkv_lh.exact_tool_selector.input_protocol import (
     CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
     network_selector_input_protocol,
 )
-from rwkv_lh.exact_tool_selector.model_v2 import (
+from rwkv_lh.exact_tool_selector.head import (
     NETWORK_SELECTOR_FEATURE_PROTOCOLS,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
@@ -411,29 +411,7 @@ class NetworkExactToolSelectorClient:
             lane_kind=ModelLaneKind.SELECTOR,
             parent_checkpoint_id=(parent.checkpoint_id if parent is not None else None),
             model=self.settings.model,
-            transport=(
-                "native_rwkv_hidden_mlp_selector_"
-                + (
-                    "g1j_selector_intent_v1"
-                    if self.settings.input_protocol
-                    == CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
-                    else "v8_frontier_question_tail"
-                    if self.settings.input_protocol.endswith(
-                        "v8-frontier-question-tail"
-                    )
-                    else "v7_requirement_byte_tail"
-                    if self.settings.input_protocol.endswith(
-                        "v7-requirement-byte-tail"
-                    )
-                    else "v6_current_question_last"
-                    if self.settings.input_protocol.endswith("v6-current-question-last")
-                    else "v5_full_request_last"
-                    if self.settings.input_protocol.endswith("v5-full-request-last")
-                    else "v4_request_last"
-                    if self.settings.input_protocol.endswith("v4-request-last")
-                    else "v3"
-                )
-            ),
+            transport="native_rwkv_hidden_mlp_selector_g1j_selector_intent_v1",
             # This is the bounded delta sent for this transition, not a replayable
             # semantic transcript.  The WKV tensor is disposable acceleration.
             transcript=delta,

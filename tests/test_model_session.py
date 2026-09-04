@@ -523,9 +523,7 @@ def test_rollover_summary_renders_exact_event_bodies_for_visible_ids() -> None:
 def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
     selected_settings = replace(settings(), tool_disclosure_mode="progressive")
     session = ModelSession(QueueClient([]), settings=selected_settings)
-    selector = SimpleNamespace(
-        input_protocol=SimpleNamespace(g1j_selector_intent=True)
-    )
+    selector = SimpleNamespace()
     model = LongHorizonModel(session, tool_selector=selector)
     goal = model.create_literal_goal(
         "Inspect the fixed project workspace.",

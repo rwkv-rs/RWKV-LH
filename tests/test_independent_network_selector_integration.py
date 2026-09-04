@@ -17,7 +17,6 @@ from rwkv_lh.exact_tool_selector.network_client import (
 )
 from rwkv_lh.exact_tool_selector.input_protocol import (
     CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
-    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
@@ -218,7 +217,7 @@ def _call(name: str, **arguments: Any) -> dict[str, Any]:
 
 
 def _selector_settings(
-    input_protocol: str = DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    input_protocol: str = CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
 ) -> NetworkExactToolSelectorSettings:
     return NetworkExactToolSelectorSettings(
         base_url="http://127.0.0.1:29621",
@@ -259,7 +258,7 @@ def _build(
     selector_min_actions: int = 0,
     goal_retrieval_mode: NetworkPolicyMode = NetworkPolicyMode.OFFLINE,
     missing_selector_parent_once: bool = False,
-    selector_input_protocol: str = DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    selector_input_protocol: str = CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -335,8 +334,8 @@ def test_independent_selector_accepts_stage_scoped_harness_subset(
         for prompt in executor.prompts
     )
     bootstrap = selector_http.payloads[0]["bootstrap"]
-    menu_text = bootstrap.split("\nSelectorTaskV3: ", 1)[0]
-    menu = json.loads(menu_text.removeprefix("SelectorMenuV3: "))
+    menu_text = bootstrap.split("\nSelectorIntentRoleV1: ", 1)[0]
+    menu = json.loads(menu_text.removeprefix("SelectorIntentMenuV1: "))
     assert tuple(item["name"] for item in menu["tools"]) == (
         NETWORK_EXACT_TOOL_LABELS
     )
@@ -494,15 +493,17 @@ def test_independent_selector_preserves_current_harness_and_raw_outputs(
     }
     assert "web_search" not in planner_catalog
     assert "connector_lookup" not in planner_catalog
-    assert selector_http.payloads[0]["bootstrap"].startswith("SelectorMenuV3: ")
-    assert "\nSelectorTaskV3: " in selector_http.payloads[0]["bootstrap"]
+    assert selector_http.payloads[0]["bootstrap"].startswith(
+        "SelectorIntentMenuV1: "
+    )
+    assert "\nSelectorIntentRoleV1: " in selector_http.payloads[0]["bootstrap"]
     assert selector_http.payloads[1]["bootstrap"] == ""
     selector_wire = json.dumps(selector_http.payloads, ensure_ascii=False)
     assert '"parameters"' not in selector_wire
     assert '"arguments"' not in selector_wire
     assert '"result"' not in selector_wire
     second_step = json.loads(
-        selector_http.payloads[1]["step"].removeprefix("SelectorStepV3: ")
+        selector_http.payloads[1]["step"].removeprefix("SelectorIntentPromptV1: ")
     )
     stage = json.loads(
         second_step["stage_objective"].removeprefix("CurrentDirectStageV1: ")
@@ -577,7 +578,9 @@ def test_selector_cache_miss_rebuilds_from_current_authoritative_projection(
     assert len(selector_http.payloads) == 3
     assert selector_http.payloads[1]["parent"] is not None
     assert selector_http.payloads[2]["parent"] is None
-    assert selector_http.payloads[2]["bootstrap"].startswith("SelectorMenuV3: ")
+    assert selector_http.payloads[2]["bootstrap"].startswith(
+        "SelectorIntentMenuV1: "
+    )
     rebuilt = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -614,80 +617,11 @@ def test_goal_policy_enables_network_selector_classes_without_changing_class_ord
     }
     assert {"web_search", "connector_lookup"} <= planner_catalog
     bootstrap = selector_http.payloads[0]["bootstrap"]
-    menu_text = bootstrap.split("\nSelectorTaskV3: ", 1)[0]
-    menu = json.loads(menu_text.removeprefix("SelectorMenuV3: "))
+    menu_text = bootstrap.split("\nSelectorIntentRoleV1: ", 1)[0]
+    menu = json.loads(menu_text.removeprefix("SelectorIntentMenuV1: "))
     assert tuple(item["name"] for item in menu["tools"]) == (
         NETWORK_EXACT_TOOL_LABELS
     )
-
-
-def test_independent_executor_retry_restores_complete_requirement_at_tail(
-    tmp_path: Path,
-) -> None:
-    requirement = "Create hello.txt containing exactly hello."
-    controller, _, workspace, executor, selector_http = _build(
-        tmp_path,
-        selector_operations=["write_file", "final_answer"],
-        executor_outputs=[
-            _call(
-                "write_file",
-                path="hello.txt",
-                content="hello",
-                invented=True,
-            ),
-            _call("write_file", path="hello.txt", content="hello"),
-            _call("final_answer", text="Created hello.txt."),
-        ],
-    )
-
-    result = controller.run("RUN")
-
-    assert result.state.status is RunStatus.COMPLETED
-    assert result.state.protocol_rejections == 1
-    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
-    assert len(selector_http.payloads) == 2
-    assert len(executor.prompts) == 3
-    retry_prompt = executor.prompts[1]
-    assert "protocol_rejection" in retry_prompt
-    assert retry_prompt.count(requirement) == 1
-    payload_text = retry_prompt.rsplit(
-        "\n\nUser: Executor retry input: ", 1
-    )[1].split("\n\nAssistant:", 1)[0]
-    payload = json.loads(payload_text)
-    assert list(payload)[-1] == "current_question"
-    assert payload["selected_operation"] == "write_file"
-    assert payload["current_question"].endswith("write_file operation now.")
-    inherited = [
-        result.state.causal_records[event_id].payload["selection_inheritance"]
-        for event_id in result.state.causal_order
-        if result.state.causal_records[event_id].event_type
-        == "model_call_accepted"
-        and "selection_inheritance"
-        in result.state.causal_records[event_id].payload
-    ]
-    assert inherited == [
-        {
-            "selection_id": "NSEL-0001",
-            "selected_operation": "write_file",
-            "tool_definition_digest": result.state.tool_selections[
-                "NSEL-0001"
-            ].tool_definition_digest,
-            "binding_source": "executor_checkpoint_native_state_metadata",
-        }
-    ]
-    projected_actions = _project_atom_actions(result.state)
-    assert projected_actions[0]["selection_id"] == "NSEL-0001"
-    retry_bindings = [
-        item
-        for item in _project_tool_selection_decision_bindings(result.state)
-        if item["selection_id"] == "NSEL-0001"
-    ]
-    assert [item["decision_accepted"] for item in retry_bindings] == [False, True]
-    assert [bool(item["action_id"]) for item in retry_bindings] == [False, True]
-    assert sum(
-        bool(item["selection_consumption_decision"])
-        for item in retry_bindings
-    ) == 1
 
 
 def test_g1j_executor_retry_uses_only_executor_args_tool_call_format(
@@ -697,7 +631,6 @@ def test_g1j_executor_retry_uses_only_executor_args_tool_call_format(
     controller, _, workspace, executor, _ = _build(
         tmp_path,
         selector_operations=["write_file", "final_answer"],
-        selector_input_protocol=CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
         executor_outputs=[
             _call(
                 "write_file",

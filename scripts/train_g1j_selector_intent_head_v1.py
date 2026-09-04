@@ -17,13 +17,13 @@ from rwkv_lh.exact_tool_selector.input_protocol import (
     G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
     G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
 )
-from rwkv_lh.exact_tool_selector.model_v2 import (
+from rwkv_lh.exact_tool_selector.head import (
     NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
     NETWORK_SELECTOR_HEAD_SCHEMA_VERSION,
     NetworkSelectorMLPArtifact,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_EXACT_TOOL_LABELS
-from rwkv_lh.exact_tool_selector.protocol import canonical_digest
+from rwkv_lh.model_io import canonical_digest
 
 
 ROOT = Path("/home/chase/GitHub/RWKV-LH")

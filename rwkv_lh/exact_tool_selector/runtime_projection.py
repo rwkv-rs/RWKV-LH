@@ -16,9 +16,7 @@ from rwkv_lh.atom_execution import (
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NetworkSelectorInput,
     NetworkSelectorProgress,
-)
-from rwkv_lh.exact_tool_selector.compact_protocol_v3 import (
-    compact_selector_tool_menu,
+    network_selector_tool_menu,
 )
 from rwkv_lh.goal_loop_protocol import (
     goal_step_action_bindings,
@@ -187,7 +185,7 @@ def goal_frontier_selector_context(
     )
     descriptions = {
         str(item["name"]): str(item["description"])
-        for item in compact_selector_tool_menu()
+        for item in network_selector_tool_menu()
     }
     unknown_labels = set(selected_labels) - set(descriptions)
     if unknown_labels:

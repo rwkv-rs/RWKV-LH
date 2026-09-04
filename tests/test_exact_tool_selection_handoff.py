@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from rwkv_lh.exact_tool_selector.protocol import (
-    EXACT_TOOL_LABELS,
-    ExactToolSelection,
+from rwkv_lh.exact_tool_selector.network_protocol import (
+    NETWORK_EXACT_TOOL_LABELS,
+    NetworkExactToolSelection,
 )
 from rwkv_lh.schema import (
     CausalEventDraft,
@@ -71,9 +71,11 @@ def _selection_record(
     *,
     selection_id: str = "SEL-0001",
 ) -> ToolSelectionRecord:
-    logits = [float(index) / 100.0 for index in range(len(EXACT_TOOL_LABELS))]
-    logits[EXACT_TOOL_LABELS.index("read_file")] = 3.0
-    raw = ExactToolSelection(
+    logits = [
+        float(index) / 100.0 for index in range(len(NETWORK_EXACT_TOOL_LABELS))
+    ]
+    logits[NETWORK_EXACT_TOOL_LABELS.index("read_file")] = 3.0
+    raw = NetworkExactToolSelection(
         selection_id=selection_id,
         trace_id="TRACE-0001",
         selected_operation="read_file",

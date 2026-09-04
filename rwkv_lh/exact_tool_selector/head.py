@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
 )
-from rwkv_lh.exact_tool_selector.protocol import canonical_digest
+from rwkv_lh.model_io import canonical_digest
 
 NETWORK_SELECTOR_HEAD_SCHEMA_VERSION = "rwkv-lh.network-exact-tool-selector-head.v1"
 NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL = (
@@ -79,7 +79,7 @@ class NetworkSelectorMLPArtifact:
             raise ValueError("network Selector artifact dimensions must be positive")
         labels = tuple(str(item) for item in value.get("labels") or ())
         if labels != NETWORK_EXACT_TOOL_LABELS:
-            raise ValueError("network Selector artifact labels/order differ from v2")
+            raise ValueError("network Selector artifact labels/order differ from the current contract")
         feature_protocol = str(value.get("feature_protocol") or "")
         if feature_protocol not in NETWORK_SELECTOR_FEATURE_PROTOCOLS:
             raise ValueError("unsupported network Selector feature protocol")

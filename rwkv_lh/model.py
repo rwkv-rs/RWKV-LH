@@ -437,10 +437,7 @@ class LongHorizonModel:
             pending_events,
             checkpoint,
         )
-        use_g1j_executor_args = bool(
-            self.tool_selector is not None
-            and self.tool_selector.input_protocol.g1j_selector_intent
-        )
+        use_g1j_executor_args = self.tool_selector is not None
         retry_selection_id = (
             str(pending_events[0].payload.get("selection_id") or "")
             if retry_operation and len(pending_events) == 1
@@ -2296,7 +2293,6 @@ class LongHorizonModel:
             )
         use_goal_state_protocol = bool(
             self.tool_selector is not None
-            and self.tool_selector.input_protocol.g1j_selector_intent
             and str(definition["name"]) != "final_answer"
         )
         protocol_prompt = (
@@ -2478,7 +2474,6 @@ class LongHorizonModel:
             model_output_normalization = output_trace.to_dict()
             if (
                 self.tool_selector is not None
-                and self.tool_selector.input_protocol.g1j_selector_intent
                 and disclosed_operation not in {"", "final_answer"}
             ):
                 executor_args_protocol.parse_target(wire_command.canonical)

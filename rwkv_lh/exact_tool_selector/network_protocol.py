@@ -14,11 +14,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from rwkv_lh.exact_tool_selector.protocol import canonical_digest, canonical_json
+from rwkv_lh.model_io import canonical_digest, canonical_json
 
 NETWORK_SELECTOR_INPUT_SCHEMA_VERSION = "rwkv-lh.exact-tool-selector-input.v2"
 NETWORK_SELECTOR_MENU_SCHEMA_VERSION = "rwkv-lh.exact-tool-menu.v2"
-NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION_V2 = "rwkv-lh.exact-tool-selector-output.v2"
 NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION = "rwkv-lh.exact-tool-selector-output.v3"
 NETWORK_ABSTAIN_LABEL = "ABSTAIN"
 
@@ -50,86 +49,34 @@ NETWORK_EXACT_TOOL_LABELS = (
     NETWORK_ABSTAIN_LABEL,
 )
 
-# These strings are frozen model inputs, copied from the authoritative product
-# ActionDefinition registry at protocol registration time.  Keeping the menu
-# here makes online/offline policy affect execution authorization, not the MLP
-# class order or feature shape.
+# These mutually contrastive descriptions are the frozen G1J Selector-Intent
+# menu. They identify operation semantics without exposing parameter schemas.
 _NETWORK_TOOL_DESCRIPTIONS = {
-    "list_directory": (
-        "List bounded path, type, and size metadata only; never read file "
-        "contents and never create or copy files."
-    ),
-    "search_text": (
-        "Search workspace UTF-8 lines with regex or literal matching and "
-        "return bounded ordered locators; never search the public web."
-    ),
-    "read_file": (
-        "Observe one exact tokenizer-bounded UTF-8 byte range from an existing "
-        "workspace file."
-    ),
-    "read_json": (
-        "Parse an existing JSON file and observe a tokenizer-bounded range of "
-        "its canonical JSON representation."
-    ),
-    "file_digest": (
-        "Observe the SHA-256 digest and byte size of one existing workspace "
-        "file without modifying it."
-    ),
-    "write_file": "Atomically create or replace one workspace UTF-8 text file.",
-    "write_json": (
-        "Atomically create or replace one complete JSON value; the Executor "
-        "must provide the entire value."
-    ),
-    "patch_json": (
-        "Update explicit top-level keys in an existing JSON object while "
-        "preserving unspecified keys."
-    ),
-    "replace_text": (
-        "Replace one exact text occurrence in an existing workspace UTF-8 file."
-    ),
-    "remove_line": "Remove one complete UTF-8 text line from an existing file.",
-    "append_file": "Append UTF-8 text to an existing or new workspace file.",
-    "make_directory": "Create one directory inside the workspace.",
-    "copy_file": (
-        "Copy one existing scoped file's exact bytes to a destination path."
-    ),
-    "move_file": (
-        "Move or rename one existing scoped file to a destination path."
-    ),
-    "delete_file": "Delete one explicitly scoped workspace path.",
-    "bind_evidence": (
-        "Read an exact workspace line span and retain its source locator and quote."
-    ),
-    "check_command": (
-        "Run a read-only test, linter, or inspection command using argv with "
-        "shell disabled."
-    ),
-    "run_command": (
-        "Run a potentially mutating local command using argv with shell disabled."
-    ),
-    "web_search": (
-        "Search or fetch a public exact URL or the general web and return "
-        "content-addressed evidence records."
-    ),
-    "connector_lookup": (
-        "Query one structured public source for an exact repository, package, "
-        "scholarly record, weather observation, or alert."
-    ),
-    "calculator": (
-        "Evaluate one complete arithmetic expression whose operands are already known."
-    ),
-    "date_diff": (
-        "Calculate the absolute calendar-day distance between two already known ISO dates."
-    ),
-    "current_time": "Observe the current clock reading for one IANA timezone.",
-    "final_answer": (
-        "End the run with a non-empty user-facing answer only when no further "
-        "tool call is needed."
-    ),
-    NETWORK_ABSTAIN_LABEL: (
-        "Select no operation because the current stage is ambiguous, unsupported, "
-        "unsafe, or lacks enough observable information to choose exactly one tool."
-    ),
+    "list_directory": "Local metadata only: list bounded paths, types, and sizes; never file contents.",
+    "search_text": "Local text only: find regex or literal lines; never search the public web.",
+    "read_file": "Read a bounded byte range from one local non-JSON UTF-8 file.",
+    "read_json": "Parse one local JSON file and read bounded canonical JSON.",
+    "file_digest": "Observe one local file's SHA-256 and byte size without reading or changing it.",
+    "write_file": "Create or replace one complete local non-JSON UTF-8 file.",
+    "write_json": "Create or replace one complete local JSON value.",
+    "patch_json": "Update named top-level JSON keys while preserving all unspecified keys.",
+    "replace_text": "Replace one exact text occurrence inside a local UTF-8 file.",
+    "remove_line": "Remove one complete exact line from a local UTF-8 file.",
+    "append_file": "Append text after the existing bytes of a local file.",
+    "make_directory": "Create one local workspace directory, not a file.",
+    "copy_file": "Copy exact file bytes to a new path and keep the source.",
+    "move_file": "Move or rename a file so the old source path disappears.",
+    "delete_file": "Delete one explicitly scoped local workspace path.",
+    "bind_evidence": "Bind an already observed local line span with its locator and exact quote.",
+    "check_command": "Run a read-only local test, linter, status, or inspection argv.",
+    "run_command": "Run a local argv that may intentionally modify workspace contents.",
+    "web_search": "Search or fetch the public web; never search local workspace files.",
+    "connector_lookup": "Query a structured public repository, package, paper, weather, or alert record.",
+    "calculator": "Evaluate arithmetic using operands that are already known.",
+    "date_diff": "Compute calendar-day distance between two already known ISO dates.",
+    "current_time": "Observe the current clock time for one IANA timezone.",
+    "final_answer": "Return the user-facing result only when no further tool call is needed.",
+    NETWORK_ABSTAIN_LABEL: "Choose no tool when the next operation is ambiguous, unsupported, unsafe, or unknowable.",
 }
 
 
@@ -340,10 +287,7 @@ class NetworkExactToolSelection:
     schema_version: str = NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version not in {
-            NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION_V2,
-            NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION,
-        }:
+        if self.schema_version != NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION:
             raise ValueError(
                 f"unsupported network Selector output schema: {self.schema_version}"
             )
@@ -394,24 +338,20 @@ class NetworkExactToolSelection:
         if self.token_position < 1:
             raise ValueError("network Selector token_position must be positive")
         eligible = tuple(str(item) for item in self.eligible_labels)
-        if self.schema_version == NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION_V2:
-            if eligible != NETWORK_EXACT_TOOL_LABELS:
-                raise ValueError("v2 network Selector output requires the full class domain")
-        else:
-            if not eligible or len(set(eligible)) != len(eligible):
-                raise ValueError(
-                    "network Selector eligible labels must be non-empty and unique"
-                )
-            if set(eligible) - set(NETWORK_EXACT_TOOL_LABELS):
-                raise ValueError("network Selector eligible labels contain unknown classes")
-            if eligible != tuple(
-                label
-                for label in NETWORK_EXACT_TOOL_LABELS
-                if label in set(eligible)
-            ):
-                raise ValueError(
-                    "network Selector eligible labels differ from class order"
-                )
+        if not eligible or len(set(eligible)) != len(eligible):
+            raise ValueError(
+                "network Selector eligible labels must be non-empty and unique"
+            )
+        if set(eligible) - set(NETWORK_EXACT_TOOL_LABELS):
+            raise ValueError("network Selector eligible labels contain unknown classes")
+        if eligible != tuple(
+            label
+            for label in NETWORK_EXACT_TOOL_LABELS
+            if label in set(eligible)
+        ):
+            raise ValueError(
+                "network Selector eligible labels differ from class order"
+            )
         object.__setattr__(self, "eligible_labels", eligible)
         selected = validate_network_label(self.selected_operation)
         expected_index = max(
@@ -521,14 +461,12 @@ class NetworkExactToolSelection:
         if class_order is not None and tuple(str(item) for item in class_order) != (
             NETWORK_EXACT_TOOL_LABELS
         ):
-            raise ValueError("network Selector output class order differs from v2")
+            raise ValueError(
+                "network Selector output class order differs from the current contract"
+            )
         schema_version = str(value.get("schema_version") or "")
-        raw_eligible = value.get("eligible_labels")
-        eligible_labels = (
-            NETWORK_EXACT_TOOL_LABELS
-            if schema_version == NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION_V2
-            and raw_eligible is None
-            else tuple(str(item) for item in raw_eligible or ())
+        eligible_labels = tuple(
+            str(item) for item in value.get("eligible_labels") or ()
         )
         return cls(
             schema_version=schema_version,
@@ -561,7 +499,6 @@ __all__ = [
     "NETWORK_SELECTOR_INPUT_SCHEMA_VERSION",
     "NETWORK_SELECTOR_MENU_SCHEMA_VERSION",
     "NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION",
-    "NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION_V2",
     "NetworkExactToolSelection",
     "NetworkSelectorInput",
     "NetworkSelectorProgress",

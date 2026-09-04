@@ -14,10 +14,7 @@ from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorError,
     NetworkExactToolSelectorSettings,
 )
-from rwkv_lh.exact_tool_selector.input_protocol import (
-    REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-    network_selector_input_protocol,
-)
+from rwkv_lh.exact_tool_selector.input_protocol import network_selector_input_protocol
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
     NetworkExactToolSelection,
@@ -188,32 +185,6 @@ def test_network_selector_client_rejects_manifest_identity_mismatch() -> None:
     )
     with pytest.raises(NetworkExactToolSelectorError, match="runtime identity"):
         client.select(_input(0), run_id="RUN-1", trace_id="TRACE-1")
-
-
-def test_network_selector_client_v4_uses_request_last_wire_and_identity() -> None:
-    base = _settings()
-    settings = NetworkExactToolSelectorSettings(
-        **{
-            **base.__dict__,
-            "input_protocol": REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
-        }
-    )
-    session = _Session(settings)
-    client = NetworkExactToolSelectorClient(settings, session=session)
-
-    _, checkpoint = client.select(
-        _input(0), run_id="RUN-V4", trace_id="TRACE-V4"
-    )
-
-    payload = session.payloads[0]
-    step = json.loads(payload["step"].removeprefix("SelectorStepV4: "))
-    assert payload["bootstrap"].startswith("SelectorMenuV4: ")
-    assert "\nSelectorTaskV4: " in payload["bootstrap"]
-    assert list(step)[-1] == "stage_objective"
-    assert checkpoint.native_state_metadata["input_protocol"] == (
-        REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL
-    )
-    assert checkpoint.transport == "native_rwkv_hidden_mlp_selector_v4_request_last"
 
 
 def test_network_selector_settings_partial_environment_fails_closed(

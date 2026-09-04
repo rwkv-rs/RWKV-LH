@@ -180,7 +180,7 @@ def test_stack_attests_configured_independent_selector_health(
             "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1"
         ),
         "RWKV_SELECTOR_INPUT_PROTOCOL": (
-            "rwkv-lh.exact-tool-selector-input.v6-current-question-last"
+            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1"
         ),
         "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,

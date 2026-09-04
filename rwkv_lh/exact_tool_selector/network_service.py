@@ -14,18 +14,14 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
+    G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
     G1J_SELECTOR_INTENT_HEAD_ID,
     G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
     network_selector_input_protocol,
 )
-from rwkv_lh.exact_tool_selector.model_v2 import (
+from rwkv_lh.exact_tool_selector.head import (
     NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-    NETWORK_SELECTOR_HEAD_SCHEMA_VERSION,
     NetworkSelectorMLPArtifact,
-)
-from rwkv_lh.exact_tool_selector.model_v3 import (
-    NETWORK_SELECTOR_SOFT_MOE_HEAD_SCHEMA_VERSION,
-    NetworkSelectorSoftMoEArtifact,
 )
 from rwkv_lh.exact_tool_selector.network_client import (
     NETWORK_SELECTOR_SERVICE_REQUEST_SCHEMA,
@@ -38,7 +34,7 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NetworkSelectorInput,
     NetworkSelectorProgress,
 )
-from rwkv_lh.exact_tool_selector.protocol import canonical_digest
+from rwkv_lh.model_io import canonical_digest
 from rwkv_lh.inference.vllm_rwkv import PersistentVLLMRWKVExtractor
 from rwkv_lh.state_router.local_backend import LocalVLLMRWKVSettings
 
@@ -202,108 +198,12 @@ class TorchNetworkSelectorHead:
         return tuple(float(item) for item in logits.tolist())
 
 
-class TorchNetworkSelectorSoftMoEHead:
-    """Torch replay of the frozen Soft-MoE architecture and its raw logits."""
-
-    def __init__(self, path: Path, expected_sha256: str) -> None:
-        if _sha256_file(path) != expected_sha256:
-            raise ValueError("network Selector Soft-MoE head file SHA-256 mismatch")
-        artifact = NetworkSelectorSoftMoEArtifact.load(path)
-        import torch
-
-        self.artifact = artifact
-        self.file_sha256 = expected_sha256
-        self._old = _TorchMLPReplay(artifact.old_artifact)
-        self._continuation = _TorchMLPReplay(artifact.continuation_artifact)
-        self.feature_mean = torch.tensor(
-            artifact.feature_mean, dtype=torch.float32
-        )
-        self.feature_std = torch.tensor(artifact.feature_std, dtype=torch.float32)
-        self.gate_shared_weight = torch.tensor(
-            artifact.gate_shared_weight, dtype=torch.float32
-        )
-        self.gate_shared_bias = torch.tensor(
-            artifact.gate_shared_bias, dtype=torch.float32
-        )
-        self.gate_layer_norm_weight = torch.tensor(
-            artifact.gate_layer_norm_weight, dtype=torch.float32
-        )
-        self.gate_layer_norm_bias = torch.tensor(
-            artifact.gate_layer_norm_bias, dtype=torch.float32
-        )
-        self.gate_head_weight = torch.tensor(
-            artifact.gate_head_weight, dtype=torch.float32
-        )
-        self.gate_head_bias = torch.tensor(
-            artifact.gate_head_bias, dtype=torch.float32
-        )
-
-    @property
-    def head_hash(self) -> str:
-        return self.artifact.head_hash
-
-    @property
-    def feature_protocol(self) -> str:
-        return self.artifact.feature_protocol
-
-    @property
-    def temperature(self) -> float:
-        return self.artifact.temperature
-
-    def raw_logits(self, features: Any) -> tuple[float, ...]:
-        import torch
-
-        values = torch.as_tensor(features, dtype=torch.float32, device="cpu")
-        if tuple(values.shape) != (self.artifact.feature_dim,):
-            raise ValueError("network Selector service feature dimension mismatch")
-        if not bool(torch.isfinite(values).all()):
-            raise ValueError("network Selector service features are non-finite")
-        normalized = (values - self.feature_mean) / self.feature_std
-        hidden = torch.nn.functional.gelu(
-            torch.nn.functional.linear(
-                normalized,
-                self.gate_shared_weight,
-                self.gate_shared_bias,
-            ),
-            approximate="tanh",
-        )
-        hidden = torch.nn.functional.layer_norm(
-            hidden,
-            (self.artifact.gate_hidden_dim,),
-            self.gate_layer_norm_weight,
-            self.gate_layer_norm_bias,
-            1e-5,
-        )
-        gate_logit = torch.nn.functional.linear(
-            hidden, self.gate_head_weight, self.gate_head_bias
-        ).squeeze(0)
-        gate = torch.sigmoid(gate_logit)
-        old_logits = self._old.raw_logits_tensor(values)
-        continuation_logits = self._continuation.raw_logits_tensor(values)
-        logits = old_logits + gate * (continuation_logits - old_logits)
-        if not bool(torch.isfinite(logits).all()):
-            raise RuntimeError(
-                "network Selector Soft-MoE service logits are non-finite"
-            )
-        return tuple(float(item) for item in logits.tolist())
-
-
 def load_torch_network_selector_head(
     path: Path, expected_sha256: str
 ) -> _NetworkSelectorHead:
-    """Fail closed while dispatching a frozen Selector artifact by schema."""
+    """Load the sole supported 25-class MLP artifact."""
 
-    if _sha256_file(path) != expected_sha256:
-        raise ValueError("network Selector head file SHA-256 mismatch")
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, Mapping):
-        raise ValueError("network Selector head artifact must be a JSON object")
-    schema_version = value.get("schema_version")
-    if schema_version == NETWORK_SELECTOR_HEAD_SCHEMA_VERSION:
-        return TorchNetworkSelectorHead(path, expected_sha256)
-    if schema_version == NETWORK_SELECTOR_SOFT_MOE_HEAD_SCHEMA_VERSION:
-        return TorchNetworkSelectorSoftMoEHead(path, expected_sha256)
-    raise ValueError("unsupported network Selector head schema")
+    return TorchNetworkSelectorHead(path, expected_sha256)
 
 
 class NetworkSelectorStateStore:
@@ -492,26 +392,23 @@ class NetworkSelectorService:
         self.input_protocol = network_selector_input_protocol(
             settings.input_protocol
         )
-        if self.input_protocol.g1j_selector_intent:
-            metadata = getattr(head.artifact, "metadata", None)
-            expected_head_identity = {
-                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
-                "compact_input_schema_version": settings.input_protocol,
-                "model_weights_sha256": settings.model_sha256,
-                "feature_protocol": settings.feature_protocol,
-                "labels": list(NETWORK_EXACT_TOOL_LABELS),
-                "training_trajectory_mode": (
-                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
-                ),
-            }
-            if not isinstance(metadata, Mapping) or any(
-                metadata.get(key) != value
-                for key, value in expected_head_identity.items()
-            ):
-                raise ValueError(
-                    "G1J Selector-Intent Head identity mismatch; retired Heads "
-                    "cannot be loaded"
-                )
+        metadata = getattr(head.artifact, "metadata", None)
+        expected_head_identity = {
+            "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+            "compact_input_schema_version": settings.input_protocol,
+            "model_weights_sha256": settings.model_sha256,
+            "feature_protocol": settings.feature_protocol,
+            "labels": list(NETWORK_EXACT_TOOL_LABELS),
+            "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+        }
+        if not isinstance(metadata, Mapping) or any(
+            metadata.get(key) != value
+            for key, value in expected_head_identity.items()
+        ):
+            raise ValueError(
+                "G1J Selector-Intent Head identity mismatch; retired Heads "
+                "cannot be loaded"
+            )
         self._portable_feature_identity: dict[str, Any] | None = None
         if settings.feature_protocol == NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL:
             metadata = getattr(head.artifact, "metadata", None)
@@ -535,10 +432,9 @@ class NetworkSelectorService:
                 },
                 "wkv_mode": "fp16",
             }
-            if self.input_protocol.g1j_selector_intent:
-                expected["training_trajectory_mode"] = (
-                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
-                )
+            expected["training_trajectory_mode"] = (
+                G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+            )
             if not isinstance(portable, Mapping) or any(
                 portable.get(key) != value for key, value in expected.items()
             ):
@@ -575,7 +471,7 @@ class NetworkSelectorService:
             )
         return value
 
-    def _parse_compact_bootstrap(self, text: str) -> dict[str, Any]:
+    def _parse_bootstrap(self, text: str) -> dict[str, Any]:
         marker = self.input_protocol.task_marker
         if text.count(marker) != 1:
             raise NetworkSelectorServiceError(
@@ -589,20 +485,9 @@ class NetworkSelectorService:
             self.input_protocol.task_prefix + task_json,
             self.input_protocol.task_prefix,
         )
-        expected_task_fields = (
-            {"schema_version"}
-            if self.input_protocol.frontier_only_in_step
-            else
-            {"schema_version", "task_request_sha256"}
-            if (
-                self.input_protocol.current_requirement_in_step
-                or self.input_protocol.current_question_in_step
-            )
-            else {"schema_version", "task_request"}
-        )
-        if set(task) != expected_task_fields or task.get(
+        if set(task) != {"schema_version"} or task.get(
             "schema_version"
-        ) != self.settings.input_protocol:
+        ) != G1J_SELECTOR_INTENT_INPUT_PROTOCOL:
             raise NetworkSelectorServiceError(
                 "network Selector task fields changed"
             )
@@ -633,7 +518,7 @@ class NetworkSelectorService:
         parent_metadata = None
         if parent_value is None:
             bootstrap_text = str(request["bootstrap"])
-            bootstrap = self._parse_compact_bootstrap(bootstrap_text)
+            bootstrap = self._parse_bootstrap(bootstrap_text)
         else:
             if not isinstance(parent_value, Mapping) or set(parent_value) != _PARENT_KEYS:
                 raise NetworkSelectorServiceError(
@@ -655,83 +540,31 @@ class NetworkSelectorService:
                 raise NetworkSelectorServiceError(
                     "network Selector parent bootstrap is missing"
                 )
-        if self.input_protocol.g1j_selector_intent:
-            expected_step_fields = {
-                "schema_version",
-                "role",
-                "stage_objective",
-                "stage_role",
-                "progress",
-                "eligible_labels",
-                "current_question",
-            }
-            if (
-                set(step) != expected_step_fields
-                or step.get("schema_version") != self.settings.input_protocol
-                or step.get("role") != "selector_intent"
-                or list(step.get("eligible_labels") or ())
-                != list(request.get("eligible_labels") or ())
-            ):
-                raise NetworkSelectorServiceError(
-                    "G1J Selector-Intent prompt identity changed"
-                )
-            stage_objective = str(step.get("stage_objective") or "").strip()
-            if not stage_objective:
-                raise NetworkSelectorServiceError(
-                    "G1J Selector-Intent frontier is empty"
-                )
-            task_request = stage_objective
-        elif self.input_protocol.frontier_only_in_step:
-            current_question = str(step.get("current_question") or "")
-            marker = "Current requirement: "
-            if marker not in current_question:
-                raise NetworkSelectorServiceError(
-                    "network Selector frontier question is missing its requirement"
-                )
-            stage_objective = current_question.rsplit(marker, 1)[1].strip()
-            if not stage_objective:
-                raise NetworkSelectorServiceError(
-                    "network Selector frontier requirement is empty"
-                )
-            # V8 deliberately carries no complete Goal semantics. This local
-            # value exists only to satisfy the common immutable input object;
-            # the v8 bootstrap renderer ignores it.
-            task_request = stage_objective
-        elif self.input_protocol.current_question_in_step:
-            current_question = step.get("current_question")
-            if not isinstance(current_question, Mapping) or set(current_question) != {
-                "complete_requirement",
-                "current_stage",
-                "question",
-            }:
-                raise NetworkSelectorServiceError(
-                    "network Selector current question fields changed"
-                )
-            task_request = str(current_question.get("complete_requirement") or "")
-            stage_objective = str(current_question.get("current_stage") or "")
-            if not str(current_question.get("question") or "").strip():
-                raise NetworkSelectorServiceError(
-                    "network Selector current question is missing"
-                )
-        else:
-            task_request = str(
-                (
-                    step.get("current_requirement")
-                    if self.input_protocol.current_requirement_in_step
-                    else bootstrap.get("task_request")
-                )
-                or ""
-            )
-            stage_objective = str(step.get("stage_objective") or "")
+        expected_step_fields = {
+            "schema_version",
+            "role",
+            "stage_objective",
+            "stage_role",
+            "progress",
+            "eligible_labels",
+            "current_question",
+        }
         if (
-            self.input_protocol.current_requirement_in_step
-            or self.input_protocol.current_question_in_step
-        ) and not self.input_protocol.frontier_only_in_step and hashlib.sha256(
-            task_request.encode("utf-8")
-        ).hexdigest() != bootstrap.get("task_request_sha256"):
+            set(step) != expected_step_fields
+            or step.get("schema_version") != G1J_SELECTOR_INTENT_INPUT_PROTOCOL
+            or step.get("role") != "selector_intent"
+            or list(step.get("eligible_labels") or ())
+            != list(request.get("eligible_labels") or ())
+        ):
             raise NetworkSelectorServiceError(
-                "network Selector current requirement identity mismatch"
+                "G1J Selector-Intent prompt identity changed"
             )
+        stage_objective = str(step.get("stage_objective") or "").strip()
+        if not stage_objective:
+            raise NetworkSelectorServiceError(
+                "G1J Selector-Intent frontier is empty"
+            )
+        task_request = stage_objective
         selector_input = NetworkSelectorInput.create(
             task_request=task_request,
             stage_objective=stage_objective,
@@ -1093,7 +926,7 @@ def main() -> int:
     parser.add_argument("--head-hash", required=True)
     parser.add_argument(
         "--input-protocol",
-        default="rwkv-lh.exact-tool-selector-input.v3",
+        default=G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
     )
     parser.add_argument("--profile-manifest", type=Path)
     parser.add_argument("--profile-manifest-sha256", default="0" * 64)
@@ -1156,6 +989,5 @@ __all__ = [
     "NetworkSelectorServiceError",
     "NetworkSelectorStateStore",
     "TorchNetworkSelectorHead",
-    "TorchNetworkSelectorSoftMoEHead",
     "load_torch_network_selector_head",
 ]
