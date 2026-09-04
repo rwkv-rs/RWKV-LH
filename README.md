@@ -20,7 +20,7 @@ Strong Planner
 
 ## 文档
 
-- [当前结构、部署、输入输出和训练合同](docs/HANDOFF.zh-CN.md)
+- [StateTune 下一步](docs/HANDOFF.zh-CN.md)
 - [项目工作规范](AGENTS.md)
 
 `data/datasets/` 只保存已纳入 Git 的数据说明与合同，`data/experiments/` 只保存已纳入 Git 的可复核证据。当前工作树不保留未跟踪实验产物。
