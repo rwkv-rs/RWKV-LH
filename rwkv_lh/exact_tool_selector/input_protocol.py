@@ -6,9 +6,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from rwkv_lh.exact_tool_selector.network_protocol import (
-    network_selector_tool_menu,
-)
 from rwkv_lh.goal_state_protocols import selector_intent
 from rwkv_lh.model_io import canonical_digest, canonical_json
 
@@ -23,7 +20,7 @@ class NetworkSelectorInputProtocol:
     step_prefix: str
     bootstrap_payload: Callable[[Any], dict[str, Any]]
     input_digest: Callable[[Any], str]
-    menu_digest: Callable[[], str]
+    menu_digest: Callable[[Any], str]
     render_bootstrap: Callable[[Any], str]
     render_step: Callable[[Any], str]
 
@@ -46,11 +43,11 @@ def _g1j_values(value: Any) -> dict[str, Any]:
     }
 
 
-def _g1j_menu_digest() -> str:
+def _g1j_menu_digest(value: Any) -> str:
     return canonical_digest(
         {
             "schema_version": G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION,
-            "tools": [dict(item) for item in network_selector_tool_menu()],
+            "tools": [dict(item) for item in value.menu],
         }
     )
 
@@ -58,10 +55,10 @@ def _g1j_menu_digest() -> str:
 def _g1j_bootstrap_payload(value: Any) -> dict[str, Any]:
     _g1j_values(value)
     return {
-        "menu_digest": _g1j_menu_digest(),
+        "menu_digest": _g1j_menu_digest(value),
         "menu_schema_version": G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION,
         "schema_version": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-        "tools": [dict(item) for item in network_selector_tool_menu()],
+        "tools": [dict(item) for item in value.menu],
     }
 
 

@@ -19,8 +19,10 @@ from rwkv_lh.model_io import (
     parse_model_command_with_trace,
 )
 from rwkv_lh.operation_contracts import (
+    GOAL_STEP_PHASES,
     PATH_MUTATION_ARGUMENTS,
     PATH_MUTATION_OPERATIONS,
+    infer_goal_step_phase,
 )
 from rwkv_lh.schema import ActionStatus, RunState
 
@@ -29,7 +31,8 @@ GOAL_AUDIT_SCHEMA_VERSION = "rwkv-lh.goal-audit-decision.v1"
 GOAL_AUDIT_INPUT_PROTOCOL = "rwkv-lh.role-pure-goal-audit.v2"
 GOAL_AUDIT_OPERATION = "audit_decision"
 LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v1"
-GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v2"
+LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2 = "rwkv-lh.goal-plan-patch.v2"
+GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v3"
 GOAL_STAGE_REVIEW_SCHEMA_VERSION = "rwkv-lh.goal-stage-review.v1"
 GOAL_AUDIT_DEFINITION: dict[str, Any] = {
     "name": GOAL_AUDIT_OPERATION,
@@ -159,6 +162,7 @@ def parse_json_object(raw_output: str) -> dict[str, Any]:
 class GoalPlanStep:
     step_id: str
     objective: str
+    phase: str = ""
     stage: int = 1
     depends_on: tuple[str, ...] = ()
     success_evidence: tuple[str, ...] = ()
@@ -171,6 +175,16 @@ class GoalPlanStep:
     def __post_init__(self) -> None:
         object.__setattr__(self, "step_id", _non_empty(self.step_id, "step_id"))
         object.__setattr__(self, "objective", _non_empty(self.objective, "objective"))
+        phase = str(self.phase or "").strip()
+        if not phase:
+            phase = infer_goal_step_phase(
+                write_roots=tuple(str(item) for item in self.write_roots),
+                allowed_operations=tuple(
+                    str(item) for item in self.allowed_operations
+                ),
+            )
+        if phase not in GOAL_STEP_PHASES:
+            raise ValueError(f"unsupported Goal plan step phase: {phase!r}")
         if (
             isinstance(self.stage, bool)
             or not isinstance(self.stage, int)
@@ -211,6 +225,11 @@ class GoalPlanStep:
             raise ValueError("plan step cannot depend on itself")
         if not evidence:
             raise ValueError("plan step requires at least one success evidence criterion")
+        if phase in {"observe", "derive_evidence"} and write_roots:
+            raise ValueError(f"{phase} Goal plan step cannot declare write_roots")
+        if phase == "mutate" and not write_roots:
+            raise ValueError("mutate Goal plan step requires write_roots")
+        object.__setattr__(self, "phase", phase)
         object.__setattr__(self, "depends_on", dependencies)
         object.__setattr__(self, "success_evidence", evidence)
         object.__setattr__(self, "obligation_ids", obligation_ids)
@@ -223,6 +242,7 @@ class GoalPlanStep:
         return {
             "step_id": self.step_id,
             "objective": self.objective,
+            "phase": self.phase,
             "stage": self.stage,
             "depends_on": list(self.depends_on),
             "success_evidence": list(self.success_evidence),
@@ -238,6 +258,7 @@ class GoalPlanStep:
         return cls(
             step_id=str(value.get("step_id") or ""),
             objective=str(value.get("objective") or ""),
+            phase=str(value.get("phase") or ""),
             stage=int(value.get("stage", 1) or 1),
             depends_on=tuple(str(item) for item in value.get("depends_on") or ()),
             success_evidence=tuple(
@@ -308,6 +329,8 @@ class GoalPlanPatch:
         *,
         patch_id: str,
         base_revision: int,
+        require_phase: bool = True,
+        allow_internal_step_fields: bool = False,
     ) -> "GoalPlanPatch":
         expected = {"add_stages", "replace_stages", "discard_step_ids", "reason"}
         if set(value) != expected:
@@ -355,9 +378,47 @@ class GoalPlanPatch:
                         )
                     if "stage" in raw_step:
                         raise ValueError("nested Goal plan step must not repeat stage")
-                    flattened.append(
-                        GoalPlanStep.from_dict({**dict(raw_step), "stage": stage})
+                    expected_step_fields = {
+                        "step_id",
+                        "objective",
+                        "depends_on",
+                        "success_evidence",
+                        "read_roots",
+                        "write_roots",
+                        "constraints",
+                    }
+                    if require_phase:
+                        expected_step_fields.add("phase")
+                    if allow_internal_step_fields:
+                        actual_fields = set(raw_step)
+                        allowed_fields = expected_step_fields | {
+                            "obligation_ids",
+                            "allowed_operations",
+                        }
+                        fields_valid = (
+                            expected_step_fields <= actual_fields <= allowed_fields
+                        )
+                    else:
+                        fields_valid = set(raw_step) == expected_step_fields
+                    if not fields_valid:
+                        requirement = " including phase" if require_phase else ""
+                        raise ValueError(
+                            "Goal PlanPatch step fields differ from the fixed "
+                            f"contract{requirement}"
+                        )
+                    parsed_step = GoalPlanStep.from_dict(
+                        {**dict(raw_step), "stage": stage}
                     )
+                    if (
+                        require_phase
+                        and parsed_step.phase != "observe"
+                        and parsed_step.read_roots
+                    ):
+                        raise ValueError(
+                            "new Goal plan steps must separate observation from "
+                            f"{parsed_step.phase} work"
+                        )
+                    flattened.append(parsed_step)
             return tuple(flattened)
 
         raw_discarded = value.get("discard_step_ids")
@@ -409,6 +470,7 @@ class GoalPlanPatch:
         schema_version = str(value.get("schema_version") or "")
         if schema_version not in {
             LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
             GOAL_PLAN_PATCH_SCHEMA_VERSION,
         }:
             raise ValueError("unsupported Goal PlanPatch schema")
@@ -432,6 +494,8 @@ class GoalPlanPatch:
                 ),
                 reason=str(value.get("reason") or ""),
             )
+        # Durable v2 events use the current nested stage shape but predate the
+        # required phase field. GoalPlanStep infers their phase for replay only.
         return cls.from_model_value(
             {
                 key: value.get(key)
@@ -444,6 +508,8 @@ class GoalPlanPatch:
             },
             patch_id=str(value.get("patch_id") or ""),
             base_revision=int(value.get("base_revision", -1)),
+            require_phase=(schema_version == GOAL_PLAN_PATCH_SCHEMA_VERSION),
+            allow_internal_step_fields=True,
         )
 
 
@@ -1448,6 +1514,7 @@ __all__ = [
     "GOAL_AUDIT_OPERATION",
     "GOAL_PLAN_PATCH_SCHEMA_VERSION",
     "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION",
+    "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2",
     "GOAL_STAGE_REVIEW_SCHEMA_VERSION",
     "GoalAuditDecision",
     "GoalAuditVerdict",

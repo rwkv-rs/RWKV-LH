@@ -1,6 +1,6 @@
 # RWKV-LH
 
-RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v3`。
+RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v4`。
 
 ```text
 Strong Planner

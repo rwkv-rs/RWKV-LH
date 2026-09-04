@@ -31,12 +31,17 @@ from rwkv_lh.goal_loop_protocol import (
 )
 from rwkv_lh.model import ModelProtocolError
 from rwkv_lh.model_io import parse_model_command
+from rwkv_lh.operation_contracts import (
+    EXTERNAL_OBSERVE_OPERATIONS,
+    GOAL_STEP_PHASE_OPERATIONS,
+    LOCAL_OBSERVE_OPERATIONS,
+)
 from rwkv_lh.runtime.protocol import RWKVRuntimeError
 from rwkv_lh.schema import ActionStatus, ModelEvent, RunStatus, utc_now
 from rwkv_lh.supervisor import supervisor_identity
 
 
-STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v3"
+STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v4"
 
 
 class StatefulGoalLoopController(LongHorizonController):
@@ -307,10 +312,16 @@ class StatefulGoalLoopController(LongHorizonController):
             )
         )
 
-    def _goal_step_operations(self, state: Any, step: Any) -> tuple[str, ...]:
+    def _goal_step_operations(
+        self,
+        state: Any,
+        step: Any,
+        *,
+        mechanical_evidence: Mapping[str, Any] | None = None,
+    ) -> tuple[str, ...]:
         """Compile the Harness menu for one Planner step without choosing a tool."""
 
-        operations = (
+        authorized = (
             tuple(
                 operation
                 for operation in step.allowed_operations
@@ -319,13 +330,35 @@ class StatefulGoalLoopController(LongHorizonController):
             if step.allowed_operations
             else self.model.goal_action_operations(state)
         )
-        if step.write_roots:
-            return operations
-        return tuple(
+        phase = step.phase
+        if (
+            phase != "observe"
+            and mechanical_evidence is not None
+            and mechanical_evidence.get("missing_read_roots")
+        ):
+            phase = "observe"
+        family = GOAL_STEP_PHASE_OPERATIONS[phase]
+        if phase == "observe":
+            family = (
+                LOCAL_OBSERVE_OPERATIONS
+                if step.read_roots
+                else EXTERNAL_OBSERVE_OPERATIONS
+            )
+        elif phase == "execute":
+            family = frozenset(
+                {"run_command" if step.write_roots else "check_command"}
+            )
+        operations = tuple(
             operation
-            for operation in operations
-            if not self.harness.definition(operation).side_effect
+            for operation in authorized
+            if operation in family
         )
+        if not operations:
+            raise ModelProtocolError(
+                f"Planner phase {phase!r} has no authorized operation for step "
+                f"{step.step_id!r}"
+            )
+        return operations
 
     def _pending_executor_protocol_retry(
         self,
@@ -1214,6 +1247,13 @@ class StatefulGoalLoopController(LongHorizonController):
                         "executor_state_scope": "one_selected_action",
                         "executor_facts_source": "bounded_causal_projection",
                         "selector_state_isolated": True,
+                        "selector_state_count_per_step": 3,
+                        "selector_menu_order_ids": [
+                            "canonical",
+                            "rotate_8",
+                            "rotate_17",
+                        ],
+                        "selector_vote_rule": "three_menu_order_vote_v1",
                         "selector_authority": "exclusive_tool_intent_and_selection",
                         "executor_reselects_tool": False,
                         "selector_model": self.model.tool_selector.settings.model,
@@ -1488,13 +1528,21 @@ class StatefulGoalLoopController(LongHorizonController):
                             },
                         )
                         eligible_operations = self._goal_step_operations(
-                            state, frontier
+                            state,
+                            frontier,
+                            mechanical_evidence=mechanical_evidence,
                         )
                         selector_stage_context = goal_frontier_selector_context(
                             state,
                             {
                                 **frontier.to_dict(),
                                 "step_revision": active_step_revision,
+                                "effective_phase": (
+                                    "observe"
+                                    if frontier.phase != "observe"
+                                    and mechanical_evidence["missing_read_roots"]
+                                    else frontier.phase
+                                ),
                             },
                             eligible_labels=eligible_operations,
                         )

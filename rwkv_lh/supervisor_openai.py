@@ -2591,6 +2591,19 @@ class OpenAICompatibleSupervisorClient:
             "properties": {
                 "step_id": {"type": "string", "minLength": 1, "maxLength": 64},
                 "objective": {"type": "string", "minLength": 1, "maxLength": 800},
+                "phase": {
+                    "type": "string",
+                    "enum": [
+                        "observe",
+                        "mutate",
+                        "execute",
+                        "derive_evidence",
+                    ],
+                    "description": (
+                        "The step's single coarse responsibility; this narrows the "
+                        "Selector menu but never chooses a concrete tool."
+                    ),
+                },
                 "depends_on": {
                     "type": "array",
                     "items": {"type": "string", "minLength": 1, "maxLength": 64},
@@ -2626,6 +2639,7 @@ class OpenAICompatibleSupervisorClient:
             "required": [
                 "step_id",
                 "objective",
+                "phase",
                 "depends_on",
                 "success_evidence",
                 "read_roots",
@@ -2692,9 +2706,17 @@ class OpenAICompatibleSupervisorClient:
             "audit evidence, "
             "or write a final answer. Return exactly one JSON object matching the "
             "schema. Plan only the next one to five clear steps. Each step gives the "
-            "RWKV Executor one coherent responsibility; split unrelated files, "
-            "implementation, and verification when their evidence differs. Read an "
+            "RWKV Executor one coherent responsibility and exactly one phase. Use "
+            "observe for workspace/public-source inspection, mutate for direct file "
+            "changes, execute for local command invocation, and derive_evidence for "
+            "calculation, time/date derivation, or evidence binding. The phase only "
+            "narrows the Selector menu; never name a concrete tool. Split unrelated "
+            "files, observation, mutation, command execution, and verification when "
+            "their evidence differs. Read an "
             "available verifier or specification before the mutation it constrains. "
+            "A local observe step declares read_roots; a public-source observe step "
+            "leaves read_roots empty. An execute step declares write_roots only when "
+            "the command is intended to mutate those roots. "
             "Return nested stages, each containing its peer steps; do not repeat the "
             "stage number inside a step. Same-stage steps are independent: "
             "they cannot depend on each other and their read/write roots cannot conflict. "
@@ -2715,7 +2737,8 @@ class OpenAICompatibleSupervisorClient:
             "The complete JSON structure is fixed and stages must contain their "
             "steps exactly in this nested shape: "
             '{"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
-            '"objective":"one coherent responsibility","depends_on":[],'
+            '"objective":"one coherent responsibility","phase":"observe",'
+            '"depends_on":[],'
             '"success_evidence":["one observable result"],'
             '"read_roots":["."],"write_roots":[],'
             '"constraints":[]}]}],"replace_stages":[],'

@@ -48,6 +48,12 @@ NETWORK_EXACT_TOOL_LABELS = (
     "final_answer",
     NETWORK_ABSTAIN_LABEL,
 )
+NETWORK_SELECTOR_MENU_ORDER_IDS = ("canonical", "rotate_8", "rotate_17")
+_NETWORK_SELECTOR_MENU_ROTATIONS = {
+    "canonical": 0,
+    "rotate_8": 8,
+    "rotate_17": 17,
+}
 
 # These mutually contrastive descriptions are the frozen G1J Selector-Intent
 # menu. They identify operation semantics without exposing parameter schemas.
@@ -80,14 +86,28 @@ _NETWORK_TOOL_DESCRIPTIONS = {
 }
 
 
-def network_selector_tool_menu() -> tuple[dict[str, str], ...]:
-    """Return the frozen 25 names/descriptions and no parameter schemas."""
+def network_selector_label_order(
+    menu_order_id: str = "canonical",
+) -> tuple[str, ...]:
+    """Return one of the three pre-registered deterministic menu orders."""
+
+    selected_id = str(menu_order_id or "").strip()
+    if selected_id not in _NETWORK_SELECTOR_MENU_ROTATIONS:
+        raise ValueError(f"unknown network Selector menu order: {selected_id!r}")
+    offset = _NETWORK_SELECTOR_MENU_ROTATIONS[selected_id]
+    return NETWORK_EXACT_TOOL_LABELS[offset:] + NETWORK_EXACT_TOOL_LABELS[:offset]
+
+
+def network_selector_tool_menu(
+    menu_order_id: str = "canonical",
+) -> tuple[dict[str, str], ...]:
+    """Return one fixed 25-name permutation and no parameter schemas."""
 
     if set(_NETWORK_TOOL_DESCRIPTIONS) != set(NETWORK_EXACT_TOOL_LABELS):
         raise RuntimeError("network Selector descriptions differ from class order")
     return tuple(
         {"name": name, "description": _NETWORK_TOOL_DESCRIPTIONS[name]}
-        for name in NETWORK_EXACT_TOOL_LABELS
+        for name in network_selector_label_order(menu_order_id)
     )
 
 
@@ -156,6 +176,7 @@ class NetworkSelectorInput:
     progress: NetworkSelectorProgress
     menu: tuple[Mapping[str, str], ...]
     eligible_labels: tuple[str, ...] = NETWORK_EXACT_TOOL_LABELS
+    menu_order_id: str = "canonical"
     schema_version: str = NETWORK_SELECTOR_INPUT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -178,8 +199,11 @@ class NetworkSelectorInput:
             }
             for item in self.menu
         )
-        if tuple(item["name"] for item in normalized) != NETWORK_EXACT_TOOL_LABELS:
-            raise ValueError("network Selector menu labels/order differ from v2")
+        expected_menu_order = network_selector_label_order(self.menu_order_id)
+        if tuple(item["name"] for item in normalized) != expected_menu_order:
+            raise ValueError(
+                "network Selector menu labels/order differ from the declared order"
+            )
         if any(not item["description"].strip() for item in normalized):
             raise ValueError("network Selector menu descriptions must be non-empty")
         eligible = tuple(str(item) for item in self.eligible_labels)
@@ -207,14 +231,16 @@ class NetworkSelectorInput:
         stage_role: str,
         progress: NetworkSelectorProgress,
         eligible_labels: Sequence[str] = NETWORK_EXACT_TOOL_LABELS,
+        menu_order_id: str = "canonical",
     ) -> "NetworkSelectorInput":
         return cls(
             task_request=str(task_request),
             stage_objective=str(stage_objective),
             stage_role=str(stage_role),
             progress=progress,
-            menu=network_selector_tool_menu(),
+            menu=network_selector_tool_menu(menu_order_id),
             eligible_labels=tuple(str(item) for item in eligible_labels),
+            menu_order_id=str(menu_order_id),
         )
 
     @property
@@ -243,6 +269,7 @@ class NetworkSelectorInput:
             **self.bootstrap_payload(),
             **self.step_payload(),
             "eligible_labels": list(self.eligible_labels),
+            "menu_order_id": self.menu_order_id,
         }
 
     def render_bootstrap(self) -> str:
@@ -496,6 +523,7 @@ class NetworkExactToolSelection:
 __all__ = [
     "NETWORK_ABSTAIN_LABEL",
     "NETWORK_EXACT_TOOL_LABELS",
+    "NETWORK_SELECTOR_MENU_ORDER_IDS",
     "NETWORK_SELECTOR_INPUT_SCHEMA_VERSION",
     "NETWORK_SELECTOR_MENU_SCHEMA_VERSION",
     "NETWORK_SELECTOR_OUTPUT_SCHEMA_VERSION",
@@ -503,6 +531,7 @@ __all__ = [
     "NetworkSelectorInput",
     "NetworkSelectorProgress",
     "network_selector_menu_digest",
+    "network_selector_label_order",
     "network_selector_tool_menu",
     "validate_network_label",
 ]

@@ -33,7 +33,7 @@ SELECTOR_COMPACT_CONTRACT_STAGE_PROJECTION_VERSION = (
     "rwkv-lh.current-direct-selector-stage.v3"
 )
 SELECTOR_GOAL_FRONTIER_STAGE_PROJECTION_VERSION = (
-    "rwkv-lh.goal-frontier-selector-stage.v1"
+    "rwkv-lh.goal-frontier-selector-stage.v2"
 )
 _SELECTOR_RESULT_PROJECTION_LIMIT = 1800
 
@@ -310,13 +310,17 @@ def goal_frontier_selector_context(
         "step_id": step_id,
         "step_revision": step_revision,
         "stage": int(frontier.get("stage", 1) or 1),
+        "planned_phase": str(frontier.get("phase") or ""),
+        "effective_phase": str(
+            frontier.get("effective_phase") or frontier.get("phase") or ""
+        ),
         "depends_on": list(frontier.get("depends_on") or ()),
         "read_roots": list(frontier.get("read_roots") or ()),
         "write_roots": list(frontier.get("write_roots") or ()),
         "success_evidence": list(frontier.get("success_evidence") or ()),
         "constraints": list(frontier.get("constraints") or ()),
     }
-    stage_objective = "GoalFrontierStateV1: " + json.dumps(
+    stage_objective = "GoalFrontierStateV2: " + json.dumps(
         {
             "schema_version": SELECTOR_GOAL_FRONTIER_STAGE_PROJECTION_VERSION,
             "active_step": active_step,
@@ -369,6 +373,7 @@ def build_network_selector_input(
     *,
     eligible_labels: Sequence[str] | None = None,
     stage_context: SelectorStageContext | None = None,
+    menu_order_id: str = "canonical",
 ) -> NetworkSelectorInput:
     """Create one causal delta for the Selector's independent persistent state."""
 
@@ -460,6 +465,7 @@ def build_network_selector_input(
             if eligible_labels is not None
             else {}
         ),
+        menu_order_id=menu_order_id,
     )
 
 

@@ -43,7 +43,8 @@ _STATE_REF_PATTERN = re.compile(r"^NST-[0-9a-f]{32}\.pth$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _REQUEST_KEYS = {
     "schema_version", "run_id", "trace_id", "input_digest", "menu_digest",
-    "eligible_labels", "bootstrap", "step", "parent", "expected_identity",
+    "menu_order_id", "eligible_labels", "bootstrap", "step", "parent",
+    "expected_identity",
 }
 _PARENT_KEYS = {"checkpoint_id", "state_ref", "state_digest", "token_position"}
 
@@ -571,6 +572,7 @@ class NetworkSelectorService:
             stage_role=str(step.get("stage_role") or ""),
             progress=progress,
             eligible_labels=tuple(request.get("eligible_labels") or ()),
+            menu_order_id=str(request.get("menu_order_id") or ""),
         )
         if self.input_protocol.bootstrap_payload(selector_input) != dict(bootstrap):
             raise NetworkSelectorServiceError(
@@ -585,7 +587,7 @@ class NetworkSelectorService:
             )
         if self.input_protocol.render_step(selector_input) != step_text:
             raise NetworkSelectorServiceError("network Selector step is not canonical")
-        if self.input_protocol.menu_digest() != request["menu_digest"]:
+        if self.input_protocol.menu_digest(selector_input) != request["menu_digest"]:
             raise NetworkSelectorServiceError("network Selector menu digest mismatch")
         if self.input_protocol.input_digest(selector_input) != request["input_digest"]:
             raise NetworkSelectorServiceError("network Selector input digest mismatch")

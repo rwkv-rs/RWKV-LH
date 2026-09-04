@@ -349,12 +349,16 @@ def test_stateful_run_protocol_records_required_strong_planner_without_reviewer(
         "persistent_executor_state_count": 0,
         "executor_state_scope": "one_selected_action",
         "selector_tool_decisions_per_action": 1,
+        "selector_model_evaluations_per_action": 3,
+        "selector_state_count_per_step": 3,
+        "selector_menu_order_ids": ["canonical", "rotate_8", "rotate_17"],
+        "selector_vote_rule": "three_menu_order_vote_v1",
         "auditor_state_isolated": True,
         "rwkv_audit_required": True,
         "audit_wkv_merge": False,
         "strong_model_dependency": True,
         "strong_planner_required": True,
-        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v2",
+        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v3",
         "strong_reviewer_enabled": False,
     }
 

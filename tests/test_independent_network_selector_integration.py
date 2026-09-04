@@ -90,6 +90,7 @@ class _SelectorHTTP:
         self.payloads: list[dict[str, Any]] = []
         self.missing_parent_once = bool(missing_parent_once)
         self.parent_miss_emitted = False
+        self.current_operation = ""
 
     def post(
         self,
@@ -118,7 +119,14 @@ class _SelectorHTTP:
             )
         if not self.operations:
             raise AssertionError("unexpected Selector call")
-        global_peak = self.operations.pop(0)
+        menu_order_id = str(payload.get("menu_order_id") or "")
+        if menu_order_id == "canonical":
+            global_peak = self.operations.pop(0)
+            self.current_operation = global_peak
+        else:
+            if not self.current_operation:
+                raise AssertionError("non-canonical Selector lane ran before canonical")
+            global_peak = self.current_operation
         parent = payload.get("parent")
         parent_value = dict(parent) if isinstance(parent, Mapping) else {}
         logits = [float(index) / 1000.0 for index in range(25)]
@@ -342,7 +350,6 @@ def test_independent_selector_accepts_stage_scoped_harness_subset(
     assert selector_http.payloads[0]["eligible_labels"] == [
         "write_file",
         "final_answer",
-        "ABSTAIN",
     ]
 
 
@@ -370,7 +377,7 @@ def test_selector_eligibility_excludes_final_until_minimum_actions_are_observed(
 ) -> None:
     controller, _, workspace, executor, selector_http = _build(
         tmp_path,
-        selector_operations=["final_answer", "write_file", "final_answer"],
+        selector_operations=["final_answer", "final_answer"],
         active_operations=("write_file",),
         selector_min_actions=1,
     )
@@ -382,16 +389,10 @@ def test_selector_eligibility_excludes_final_until_minimum_actions_are_observed(
     assert len(executor.prompts) == 2
     assert selector_http.payloads[0]["eligible_labels"] == [
         "write_file",
-        "ABSTAIN",
     ]
     assert selector_http.payloads[1]["eligible_labels"] == [
         "write_file",
-        "ABSTAIN",
-    ]
-    assert selector_http.payloads[2]["eligible_labels"] == [
-        "write_file",
         "final_answer",
-        "ABSTAIN",
     ]
     rejected = [
         result.state.causal_records[event_id]
@@ -399,10 +400,10 @@ def test_selector_eligibility_excludes_final_until_minimum_actions_are_observed(
         if result.state.causal_records[event_id].event_type
         == "exact_tool_selection_rejected"
     ]
-    assert [item.payload["selected_operation"] for item in rejected] == ["ABSTAIN"]
-    first_raw = rejected[0].payload["raw_selection"]
+    assert rejected == []
+    first_raw = next(iter(result.state.tool_selections.values())).raw_selection
     assert first_raw["logits"][NETWORK_EXACT_TOOL_LABELS.index("final_answer")] == 10.0
-    assert first_raw["selected_operation"] == "ABSTAIN"
+    assert first_raw["selected_operation"] == "write_file"
 
 
 def test_stage_unauthorized_global_peak_is_eligibility_masked_with_logits_preserved(
@@ -410,15 +411,16 @@ def test_stage_unauthorized_global_peak_is_eligibility_masked_with_logits_preser
 ) -> None:
     controller, _, workspace, executor, selector_http = _build(
         tmp_path,
-        selector_operations=["run_command", "write_file", "final_answer"],
+        selector_operations=["run_command", "final_answer"],
         active_operations=("write_file",),
+        selector_min_actions=1,
     )
 
     result = controller.run("RUN")
 
     assert result.state.status is RunStatus.COMPLETED
     assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
-    assert len(selector_http.payloads) == 3
+    assert len(selector_http.payloads) == 2
     assert len(executor.prompts) == 2
     assert len(result.state.actions) == 1
     rejected = [
@@ -427,22 +429,19 @@ def test_stage_unauthorized_global_peak_is_eligibility_masked_with_logits_preser
         if result.state.causal_records[event_id].event_type
         == "exact_tool_selection_rejected"
     ]
-    assert len(rejected) == 1
-    payload = rejected[0].payload
-    raw = payload["raw_selection"]
+    assert rejected == []
+    first_selection = next(iter(result.state.tool_selections.values()))
+    raw = first_selection.raw_selection
     expected_logits = [float(index) / 1000.0 for index in range(25)]
     expected_logits[NETWORK_EXACT_TOOL_LABELS.index("run_command")] = 10.0
-    assert payload["reason"] == "selector_abstained"
-    assert payload["selected_operation"] == "ABSTAIN"
-    assert payload["action_executed"] is False
     assert raw["selection_id"] == "NSEL-0001"
-    assert raw["selected_operation"] == "ABSTAIN"
+    assert raw["selected_operation"] == "write_file"
     assert raw["logits"] == expected_logits
-    assert raw["eligible_labels"] == ["write_file", "final_answer", "ABSTAIN"]
+    assert raw["eligible_labels"] == ["write_file"]
     assert raw["selection_rule"] == "eligible_raw_logit_argmax"
     assert raw["postprocessed"] is False
     assert raw["generated_text"] is False
-    assert set(result.state.tool_selections) == {"NSEL-0002", "NSEL-0003"}
+    assert set(result.state.tool_selections) == {"NSEL-0001", "NSEL-0002"}
 
 
 def test_independent_selector_preserves_current_harness_and_raw_outputs(
@@ -724,19 +723,21 @@ def test_committed_selection_resumes_without_reselecting(tmp_path: Path) -> None
     assert first.status is ToolSelectionStatus.CONSUMED
 
 
-def test_selector_abstain_is_recorded_without_executor_fallback(
+def test_selector_abstain_logit_is_masked_outside_eligible_contract(
     tmp_path: Path,
 ) -> None:
     controller, _, workspace, executor, selector_http = _build(
         tmp_path,
-        selector_operations=["ABSTAIN", "write_file", "final_answer"],
+        selector_operations=["ABSTAIN", "final_answer"],
+        active_operations=("write_file",),
+        selector_min_actions=1,
     )
 
     result = controller.run("RUN")
 
     assert result.state.status is RunStatus.COMPLETED
     assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
-    assert len(selector_http.payloads) == 3
+    assert len(selector_http.payloads) == 2
     assert len(executor.prompts) == 2
     rejected = [
         result.state.causal_records[event_id]
@@ -744,7 +745,12 @@ def test_selector_abstain_is_recorded_without_executor_fallback(
         if result.state.causal_records[event_id].event_type
         == "exact_tool_selection_rejected"
     ]
-    assert len(rejected) == 1
-    assert rejected[0].payload["selected_operation"] == "ABSTAIN"
-    assert rejected[0].payload["raw_selection"]["postprocessed"] is False
-    assert len(rejected[0].payload["raw_selection"]["logits"]) == 25
+    assert rejected == []
+    assert all(
+        "ABSTAIN" not in payload["eligible_labels"]
+        for payload in selector_http.payloads
+    )
+    first = next(iter(result.state.tool_selections.values()))
+    assert first.selected_operation == "write_file"
+    assert first.raw_selection["postprocessed"] is False
+    assert len(first.raw_selection["logits"]) == 25

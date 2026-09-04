@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
+from statistics import median
 from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
@@ -18,6 +21,8 @@ from rwkv_lh.exact_tool_selector.network_client import (
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_ABSTAIN_LABEL,
     NETWORK_EXACT_TOOL_LABELS,
+    NETWORK_SELECTOR_MENU_ORDER_IDS,
+    NetworkExactToolSelection,
 )
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
@@ -1055,7 +1060,14 @@ class LongHorizonModel:
                 )
         active_step = None
         if selected_step_id:
-            active_step = plan.steps[selected_step_id].to_dict()
+            # phase is a Planner→Controller→Selector routing field.  The Step
+            # Auditor already receives objective, roots, and success evidence;
+            # keeping phase out preserves its independent input protocol.
+            active_step = {
+                key: value
+                for key, value in plan.steps[selected_step_id].to_dict().items()
+                if key != "phase"
+            }
         completed_steps = self._completed_step_records(plan)
         evidence_records = self._audit_evidence_records(
             state,
@@ -1760,8 +1772,10 @@ class LongHorizonModel:
         state: RunState,
         *,
         state_scope_id: str,
+        lane_role: str = "selector",
+        menu_order_id: str = "canonical",
     ) -> ModelCheckpoint | None:
-        checkpoint_id = state.lane_head("selector")
+        checkpoint_id = state.lane_head(lane_role)
         if not checkpoint_id:
             return None
         checkpoint = state.model_states.get(checkpoint_id)
@@ -1772,7 +1786,173 @@ class LongHorizonModel:
             or ""
         ) != state_scope_id:
             return None
+        if str(
+            (checkpoint.native_state_metadata or {}).get("menu_order_id") or ""
+        ) != menu_order_id:
+            return None
         return checkpoint
+
+    @staticmethod
+    def _selector_ensemble_choice(
+        selections: Sequence[NetworkExactToolSelection],
+        *,
+        eligible_labels: Sequence[str],
+    ) -> tuple[str, dict[str, Any]]:
+        """Aggregate three canonical-label logits with a pre-registered rule."""
+
+        if len(selections) != len(NETWORK_SELECTOR_MENU_ORDER_IDS):
+            raise ModelProtocolError("Selector ensemble requires exactly three lanes")
+        eligible = tuple(str(item) for item in eligible_labels)
+        votes = tuple(item.selected_operation for item in selections)
+        counts = Counter(votes)
+        majority = next(
+            (label for label, count in counts.items() if count >= 2),
+            "",
+        )
+        tie_metrics: dict[str, dict[str, float]] = {}
+        if majority:
+            selected = majority
+            rule = "two_of_three_majority"
+        else:
+            contenders = set(votes)
+            ranks: dict[str, list[int]] = {label: [] for label in contenders}
+            normalized: dict[str, list[float]] = {
+                label: [] for label in contenders
+            }
+            indices = {
+                label: NETWORK_EXACT_TOOL_LABELS.index(label)
+                for label in eligible
+            }
+            for selection in selections:
+                ordered = sorted(
+                    eligible,
+                    key=lambda label: (-selection.logits[indices[label]], indices[label]),
+                )
+                lane_values = [selection.logits[indices[label]] for label in eligible]
+                mean = sum(lane_values) / len(lane_values)
+                variance = sum((value - mean) ** 2 for value in lane_values) / len(
+                    lane_values
+                )
+                scale = math.sqrt(variance) or 1.0
+                for label in contenders:
+                    ranks[label].append(ordered.index(label))
+                    normalized[label].append(
+                        (selection.logits[indices[label]] - mean) / scale
+                    )
+            for label in contenders:
+                tie_metrics[label] = {
+                    "median_rank": float(median(ranks[label])),
+                    "median_normalized_logit": float(median(normalized[label])),
+                }
+            selected = min(
+                contenders,
+                key=lambda label: (
+                    tie_metrics[label]["median_rank"],
+                    -tie_metrics[label]["median_normalized_logit"],
+                    NETWORK_EXACT_TOOL_LABELS.index(label),
+                ),
+            )
+            rule = "three_way_tie_median_rank_then_normalized_logit"
+        return selected, {
+            "schema_version": "rwkv-lh.selector-menu-order-ensemble.v1",
+            "menu_order_ids": list(NETWORK_SELECTOR_MENU_ORDER_IDS),
+            "votes": list(votes),
+            "vote_counts": {
+                label: counts[label]
+                for label in NETWORK_EXACT_TOOL_LABELS
+                if counts[label]
+            },
+            "aggregation_rule": rule,
+            "tie_metrics": tie_metrics,
+            "selected_operation": selected,
+            "state_policy": "three_independent_wkv_lanes_never_merged",
+        }
+
+    def _advance_selector_lane(
+        self,
+        state: RunState,
+        persist: PersistCallback,
+        *,
+        eligible_labels: tuple[str, ...],
+        stage_context: SelectorStageContext | None,
+        selector_state_scope_id: str,
+        lane_role: str,
+        menu_order_id: str,
+    ) -> tuple[NetworkExactToolSelection, ModelCheckpoint]:
+        parent = self._selector_parent(
+            state,
+            state_scope_id=selector_state_scope_id,
+            lane_role=lane_role,
+            menu_order_id=menu_order_id,
+        )
+        selector_input = build_network_selector_input(
+            state,
+            parent,
+            eligible_labels=eligible_labels,
+            stage_context=stage_context,
+            menu_order_id=menu_order_id,
+        )
+        try:
+            selection, selector_checkpoint = self.tool_selector.select(
+                selector_input,
+                run_id=state.run_id,
+                parent=parent,
+            )
+        except NetworkExactToolSelectorError as exc:
+            if parent is None or not exc.cache_rebuild_allowed:
+                raise
+            rebuilt_input = build_network_selector_input(
+                state,
+                None,
+                eligible_labels=eligible_labels,
+                stage_context=stage_context,
+                menu_order_id=menu_order_id,
+            )
+            selection, selector_checkpoint = self.tool_selector.select(
+                rebuilt_input,
+                run_id=state.run_id,
+                parent=None,
+            )
+            persist(
+                state,
+                "selector_state_cache_rebuilt",
+                {
+                    "checkpoint_id": selector_checkpoint.checkpoint_id,
+                    "replaced_checkpoint_id": parent.checkpoint_id,
+                    "replaced_state_digest": str(parent.native_state_digest or ""),
+                    "state_digest": str(
+                        selector_checkpoint.native_state_digest or ""
+                    ),
+                    "reason": "historical_selector_wkv_cache_unavailable",
+                    "source": "authoritative_goal_action_projection",
+                    "historical_prompt_replayed": False,
+                    "cache_authority": False,
+                    "menu_order_id": menu_order_id,
+                },
+            )
+        selector_metadata = dict(selector_checkpoint.native_state_metadata or {})
+        selector_metadata.update(
+            {
+                "selector_state_scope_id": selector_state_scope_id,
+                "run_protocol_rejection_count": state.protocol_rejections,
+                "menu_order_id": menu_order_id,
+            }
+        )
+        selector_export = dict(selector_checkpoint.native_state_export or {})
+        selector_export.update(
+            {
+                "selector_state_scope_id": selector_state_scope_id,
+                "menu_order_id": menu_order_id,
+            }
+        )
+        selector_checkpoint = replace(
+            selector_checkpoint,
+            native_state_metadata=selector_metadata,
+            native_state_export=selector_export,
+        )
+        state.model_states[selector_checkpoint.checkpoint_id] = selector_checkpoint
+        state.set_lane_head(lane_role, selector_checkpoint.checkpoint_id)
+        return selection, selector_checkpoint
 
     @staticmethod
     def _executor_identity(checkpoint: ModelCheckpoint) -> tuple[str, str, str]:
@@ -1856,10 +2036,6 @@ class LongHorizonModel:
         selector_state_scope_id = (
             stage_context.state_scope_id if stage_context is not None else ""
         )
-        parent = self._selector_parent(
-            state,
-            state_scope_id=selector_state_scope_id,
-        )
         active = {
             name
             for name in self._definition_names
@@ -1867,7 +2043,7 @@ class LongHorizonModel:
                 state.goal,
                 network_access=self.harness.definition(name).network_access,
             )
-        } | {"final_answer", NETWORK_ABSTAIN_LABEL}
+        } | {"final_answer"}
         if eligible_labels_override is None:
             eligible = set(active)
             if not selector_final_answer_eligible(
@@ -1885,78 +2061,73 @@ class LongHorizonModel:
                 raise ModelProtocolError(
                     "independent Selector eligibility override is empty or unauthorized"
                 )
-            if eligible != {"final_answer"}:
-                eligible.add(NETWORK_ABSTAIN_LABEL)
         eligible_labels = tuple(
             label for label in NETWORK_EXACT_TOOL_LABELS if label in eligible
         )
-        selector_input = build_network_selector_input(
-            state,
-            parent,
-            eligible_labels=eligible_labels,
-            stage_context=stage_context,
+        use_menu_order_ensemble = (
+            stage_context is not None and eligible_labels != ("final_answer",)
         )
-        try:
-            selection, selector_checkpoint = self.tool_selector.select(
-                selector_input,
-                run_id=state.run_id,
-                parent=parent,
-            )
-        except NetworkExactToolSelectorError as exc:
-            if parent is None or not exc.cache_rebuild_allowed:
-                raise
-            rebuilt_input = build_network_selector_input(
+        order_lane_roles = {
+            "canonical": "selector",
+            "rotate_8": "selector_order_rotate_8",
+            "rotate_17": "selector_order_rotate_17",
+        }
+        menu_order_ids = (
+            NETWORK_SELECTOR_MENU_ORDER_IDS
+            if use_menu_order_ensemble
+            else ("canonical",)
+        )
+        lane_results = [
+            self._advance_selector_lane(
                 state,
-                None,
+                persist,
                 eligible_labels=eligible_labels,
                 stage_context=stage_context,
+                selector_state_scope_id=selector_state_scope_id,
+                lane_role=order_lane_roles[menu_order_id],
+                menu_order_id=menu_order_id,
             )
-            selection, selector_checkpoint = self.tool_selector.select(
-                rebuilt_input,
-                run_id=state.run_id,
-                parent=None,
+            for menu_order_id in menu_order_ids
+        ]
+        selection, selector_checkpoint = lane_results[0]
+        if use_menu_order_ensemble:
+            selected_operation, ensemble_record = self._selector_ensemble_choice(
+                [item[0] for item in lane_results],
+                eligible_labels=eligible_labels,
             )
-            persist(
-                state,
-                "selector_state_cache_rebuilt",
+            selection_id = f"NSEL-ENS-{uuid4().hex[:16]}"
+            raw_selection = selection.raw_record()
+            raw_selection.update(
                 {
-                    "checkpoint_id": selector_checkpoint.checkpoint_id,
-                    "replaced_checkpoint_id": parent.checkpoint_id,
-                    "replaced_state_digest": str(parent.native_state_digest or ""),
-                    "state_digest": str(
-                        selector_checkpoint.native_state_digest or ""
+                    "selection_id": selection_id,
+                    "selected_operation": selected_operation,
+                    "selection_rule": "three_menu_order_vote_v1",
+                    "confidence": (
+                        ensemble_record["vote_counts"].get(selected_operation, 0)
+                        / len(lane_results)
                     ),
-                    "reason": "historical_selector_wkv_cache_unavailable",
-                    "source": "authoritative_goal_action_projection",
-                    "historical_prompt_replayed": False,
-                    "cache_authority": False,
-                },
+                    "postprocessed": True,
+                    "raw_lane_outputs_preserved": True,
+                    "menu_order_ensemble": ensemble_record,
+                    "lane_selections": {
+                        menu_order_id: lane_selection.raw_record()
+                        for menu_order_id, (lane_selection, _lane_checkpoint) in zip(
+                            menu_order_ids, lane_results
+                        )
+                    },
+                }
             )
-        selector_metadata = dict(selector_checkpoint.native_state_metadata or {})
-        selector_metadata.update(
-            {
-                "selector_state_scope_id": selector_state_scope_id,
-                "run_protocol_rejection_count": state.protocol_rejections,
-            }
-        )
-        selector_export = dict(selector_checkpoint.native_state_export or {})
-        selector_export["selector_state_scope_id"] = selector_state_scope_id
-        selector_checkpoint = replace(
-            selector_checkpoint,
-            native_state_metadata=selector_metadata,
-            native_state_export=selector_export,
-        )
-        state.model_states[selector_checkpoint.checkpoint_id] = selector_checkpoint
-        state.set_lane_head("selector", selector_checkpoint.checkpoint_id)
-
-        selected_operation = selection.selected_operation
+        else:
+            selected_operation = selection.selected_operation
+            selection_id = selection.selection_id
+            raw_selection = selection.raw_record()
         if selected_operation not in eligible:
             raise ModelProtocolError(
                 "independent Selector returned an operation outside the active "
                 "Strong Planner frontier",
-                decision_id=selection.selection_id,
+                decision_id=selection_id,
                 request_id=selection.trace_id,
-                selection_id=selection.selection_id,
+                selection_id=selection_id,
                 selected_operation=selected_operation,
             )
         definition = self._definitions_by_name.get(selected_operation)
@@ -1965,14 +2136,14 @@ class LongHorizonModel:
                 state,
                 "exact_tool_selection_rejected",
                 {
-                    "selection_id": selection.selection_id,
+                    "selection_id": selection_id,
                     "selected_operation": selected_operation,
                     "reason": (
                         "selector_abstained"
                         if selected_operation == NETWORK_ABSTAIN_LABEL
                         else "operation_not_authorized_by_active_harness"
                     ),
-                    "raw_selection": selection.raw_record(),
+                    "raw_selection": raw_selection,
                     "selector_checkpoint_id": selector_checkpoint.checkpoint_id,
                     "executor_parent_checkpoint_id": checkpoint.checkpoint_id,
                     "action_executed": False,
@@ -1980,16 +2151,19 @@ class LongHorizonModel:
             )
             raise ModelProtocolError(
                 f"independent Selector returned {selected_operation!r}",
-                decision_id=selection.selection_id,
+                decision_id=selection_id,
                 request_id=selection.trace_id,
-                selection_id=selection.selection_id,
+                selection_id=selection_id,
                 selected_operation=selected_operation,
             )
 
-        raw_selection = selection.raw_record()
         raw_selection.update(
             {
-                "selection_rule": "eligible_raw_logit_argmax",
+                "selection_rule": (
+                    "three_menu_order_vote_v1"
+                    if use_menu_order_ensemble
+                    else "eligible_raw_logit_argmax"
+                ),
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "input_protocol": self.tool_selector.settings.input_protocol,
@@ -2004,7 +2178,7 @@ class LongHorizonModel:
             }
         )
         handoff = ToolSelectionRecord(
-            selection_id=selection.selection_id,
+            selection_id=selection_id,
             status=ToolSelectionStatus.STAGED,
             selected_operation=selected_operation,
             selector_checkpoint_id=selector_checkpoint.checkpoint_id,

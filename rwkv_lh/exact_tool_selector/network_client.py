@@ -32,7 +32,7 @@ from rwkv_lh.schema import ModelCheckpoint, ModelCheckpointStatus, ModelLaneKind
 
 
 NETWORK_SELECTOR_SERVICE_REQUEST_SCHEMA = (
-    "rwkv-lh.network-exact-tool-selector-service-request.v3"
+    "rwkv-lh.network-exact-tool-selector-service-request.v4"
 )
 NETWORK_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
     "rwkv-lh.network-exact-tool-selector-service-response.v3"
@@ -211,7 +211,12 @@ class NetworkExactToolSelectorClient:
         )
         self._session = session or requests.Session()
 
-    def _validate_parent(self, parent: ModelCheckpoint) -> None:
+    def _validate_parent(
+        self,
+        parent: ModelCheckpoint,
+        *,
+        menu_order_id: str,
+    ) -> None:
         metadata = parent.native_state_metadata or {}
         if (
             parent.lane_id != NETWORK_SELECTOR_LANE_ID
@@ -232,6 +237,7 @@ class NetworkExactToolSelectorClient:
             or metadata.get("cache_role") != "disposable_acceleration"
             or metadata.get("authoritative") is not False
             or metadata.get("delta_digest") != parent.transcript_digest
+            or metadata.get("menu_order_id") != menu_order_id
             or not _SHA256_PATTERN.fullmatch(
                 str(metadata.get("state_chain_digest") or "")
             )
@@ -254,7 +260,10 @@ class NetworkExactToolSelectorClient:
         bootstrap = self.input_protocol.render_bootstrap(selector_input)
         parent_value: dict[str, Any] | None = None
         if parent is not None:
-            self._validate_parent(parent)
+            self._validate_parent(
+                parent,
+                menu_order_id=selector_input.menu_order_id,
+            )
             bootstrap = ""
             parent_value = {
                 "checkpoint_id": parent.checkpoint_id,
@@ -267,7 +276,8 @@ class NetworkExactToolSelectorClient:
             "run_id": str(run_id),
             "trace_id": str(trace_id),
             "input_digest": self.input_protocol.input_digest(selector_input),
-            "menu_digest": self.input_protocol.menu_digest(),
+            "menu_digest": self.input_protocol.menu_digest(selector_input),
+            "menu_order_id": selector_input.menu_order_id,
             "eligible_labels": list(selector_input.eligible_labels),
             "bootstrap": bootstrap,
             "step": self.input_protocol.render_step(selector_input),
@@ -434,6 +444,7 @@ class NetworkExactToolSelectorClient:
             native_state_metadata={
                 **self.settings.runtime_identity(),
                 "menu_digest": selection.menu_digest,
+                "menu_order_id": selector_input.menu_order_id,
                 "input_digest": selection.input_digest,
                 "logits_sha256": selection.logits_sha256,
                 "eligible_labels": list(selection.eligible_labels),

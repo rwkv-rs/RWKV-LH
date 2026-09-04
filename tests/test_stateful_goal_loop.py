@@ -12,7 +12,9 @@ from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.goal_loop_protocol import (
     GOAL_AUDIT_SCHEMA_VERSION,
     GOAL_AUDIT_INPUT_PROTOCOL,
+    GOAL_PLAN_PATCH_SCHEMA_VERSION,
     LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
+    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
     AuditedStep,
     GoalAuditDecision,
     GoalAuditVerdict,
@@ -115,15 +117,30 @@ class _SelectorHTTP:
         self.settings = settings
         self.operations = list(operations)
         self.payloads: list[dict] = []
+        self.current_operation = ""
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
         assert url.endswith("/selector-intent-v1/select")
         self.payloads.append(dict(json))
-        operation = self.operations.pop(0)
+        menu_order_id = str(json.get("menu_order_id") or "")
+        if menu_order_id == "canonical":
+            self.current_operation = self.operations.pop(0)
+        if not self.current_operation:
+            raise AssertionError("non-canonical Selector lane ran before canonical")
+        global_peak = self.current_operation
         index = len(self.payloads)
         logits = [0.0] * len(NETWORK_EXACT_TOOL_LABELS)
-        logits[NETWORK_EXACT_TOOL_LABELS.index(operation)] = 10.0
+        logits[NETWORK_EXACT_TOOL_LABELS.index(global_peak)] = 10.0
+        eligible_labels = tuple(str(item) for item in json["eligible_labels"])
+        selected_index = max(
+            (
+                NETWORK_EXACT_TOOL_LABELS.index(label)
+                for label in eligible_labels
+            ),
+            key=lambda item: (logits[item], -item),
+        )
+        operation = NETWORK_EXACT_TOOL_LABELS[selected_index]
         parent = dict(json.get("parent") or {})
         selection = NetworkExactToolSelection(
             selection_id=f"NSEL-{index:04d}",
@@ -145,7 +162,7 @@ class _SelectorHTTP:
             head_sha256=self.settings.head_sha256,
             profile_id=self.settings.state_profile_id,
             profile_sha256=self.settings.state_profile_sha256,
-            eligible_labels=tuple(str(item) for item in json["eligible_labels"]),
+            eligible_labels=eligible_labels,
         )
         return _SelectorResponse(
             {
@@ -281,18 +298,47 @@ def _strong_patch(state) -> GoalPlanPatch:
     )
 
 
+def _strong_observe_patch(state, root: str = ".") -> GoalPlanPatch:
+    del state
+    return GoalPlanPatch(
+        patch_id="GPP-observe",
+        base_revision=0,
+        add_steps=(GoalPlanStep(
+            step_id="S1",
+            objective=f"Observe {root}",
+            phase="observe",
+            success_evidence=(f"{root} has successful observation evidence",),
+            read_roots=(root,),
+        ),),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Observe the requested workspace scope",
+    )
+
+
 def _strong_write_and_readback_patch(state) -> GoalPlanPatch:
     del state
     return GoalPlanPatch(
         patch_id="GPP-write-and-readback",
         base_revision=0,
-        add_steps=(GoalPlanStep(
-            step_id="S1",
-            objective="Create result.txt and read back its committed bytes",
-            success_evidence=("result.txt is written and then observed",),
-            read_roots=("result.txt",),
-            write_roots=("result.txt",),
-        ),),
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Create result.txt",
+                phase="mutate",
+                success_evidence=("result.txt is written",),
+                write_roots=("result.txt",),
+            ),
+            GoalPlanStep(
+                step_id="S2",
+                objective="Read back result.txt",
+                phase="observe",
+                stage=2,
+                depends_on=("S1",),
+                success_evidence=("result.txt is observed",),
+                read_roots=("result.txt",),
+            ),
+        ),
         replace_steps=(),
         discard_step_ids=(),
         reason="Require mutation and direct readback evidence",
@@ -544,8 +590,9 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
                     "stage": 1,
                     "steps": [
                         {
-                            "step_id": "S1",
-                            "objective": "Inspect left.json",
+                                "step_id": "S1",
+                                "objective": "Inspect left.json",
+                                "phase": "observe",
                             "depends_on": [],
                             "success_evidence": ["left.json observed"],
                             "read_roots": ["left.json"],
@@ -553,8 +600,9 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
                             "constraints": [],
                         },
                         {
-                            "step_id": "S2",
-                            "objective": "Inspect right.json",
+                                "step_id": "S2",
+                                "objective": "Inspect right.json",
+                                "phase": "observe",
                             "depends_on": [],
                             "success_evidence": ["right.json observed"],
                             "read_roots": ["right.json"],
@@ -567,8 +615,9 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
                     "stage": 2,
                     "steps": [
                         {
-                            "step_id": "S3",
-                            "objective": "Report both observations",
+                                "step_id": "S3",
+                                "objective": "Report both observations",
+                                "phase": "mutate",
                             "depends_on": ["S1"],
                             "success_evidence": ["combined report exists"],
                             "read_roots": [],
@@ -756,8 +805,40 @@ def test_flat_v1_goal_plan_patch_remains_read_only_replay_compatible() -> None:
     )
 
     assert patch.add_steps[0].stage == 1
-    assert patch.to_dict()["schema_version"].endswith(".v2")
+    assert patch.to_dict()["schema_version"].endswith(".v3")
     assert patch.to_dict()["add_stages"][0]["steps"][0]["step_id"] == "S1"
+
+
+def test_nested_v2_goal_plan_patch_infers_phase_only_for_replay() -> None:
+    patch = GoalPlanPatch.from_dict(
+        {
+            "schema_version": LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
+            "patch_id": "GPP-legacy-v2",
+            "base_revision": 0,
+            "add_stages": [
+                {
+                    "stage": 1,
+                    "steps": [
+                        {
+                            "step_id": "S1",
+                            "objective": "Write legacy.txt",
+                            "depends_on": [],
+                            "success_evidence": ["legacy.txt is written"],
+                            "read_roots": [],
+                            "write_roots": ["legacy.txt"],
+                            "constraints": [],
+                        }
+                    ],
+                }
+            ],
+            "replace_stages": [],
+            "discard_step_ids": [],
+            "reason": "legacy nested replay",
+        }
+    )
+
+    assert patch.add_steps[0].phase == "mutate"
+    assert patch.to_dict()["schema_version"] == GOAL_PLAN_PATCH_SCHEMA_VERSION
 
 
 def test_same_stage_conflicting_roots_are_rejected() -> None:
@@ -824,14 +905,16 @@ def test_selector_receives_active_strong_planner_frontier_without_goal_fallback(
         eligible_labels=("write_file", "read_file"),
     )
 
-    assert context.stage_objective.startswith("GoalFrontierStateV1: ")
+    assert context.stage_objective.startswith("GoalFrontierStateV2: ")
     assert context.state_scope_id == "planner-step:S1:revision:1"
     assert context.action_ids == ()
-    payload = json.loads(context.stage_objective.removeprefix("GoalFrontierStateV1: "))
+    payload = json.loads(context.stage_objective.removeprefix("GoalFrontierStateV2: "))
     assert payload["active_step"] == {
         "step_id": "S1",
         "step_revision": 1,
         "stage": 1,
+        "planned_phase": "mutate",
+        "effective_phase": "mutate",
         "depends_on": [],
         "read_roots": [],
         "write_roots": ["result.txt"],
@@ -885,30 +968,83 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
         success_evidence=("result.txt is updated",),
         write_roots=("result.txt",),
     )
+    check = GoalPlanStep(
+        step_id="CHECK",
+        objective="Run the read-only project verifier",
+        phase="execute",
+        success_evidence=("the verifier exits successfully",),
+    )
+    command_mutation = GoalPlanStep(
+        step_id="RUN",
+        objective="Run the project generator",
+        phase="execute",
+        success_evidence=("generated.txt is produced",),
+        write_roots=("generated.txt",),
+    )
 
     read_operations = controller._goal_step_operations(state, read_only)
     write_operations = controller._goal_step_operations(state, mutation)
+    check_operations = controller._goal_step_operations(state, check)
+    command_mutation_operations = controller._goal_step_operations(
+        state, command_mutation
+    )
 
     assert "read_file" in read_operations
-    assert "check_command" in read_operations
+    assert "web_search" not in read_operations
+    assert "connector_lookup" not in read_operations
+    assert "check_command" not in read_operations
     assert "run_command" not in read_operations
     assert "write_file" not in read_operations
     assert "remove_line" not in read_operations
     assert "delete_file" not in read_operations
     assert "write_file" in write_operations
+    assert check_operations == ("check_command",)
+    assert command_mutation_operations == ("run_command",)
 
 
-def test_goal_selector_abstain_blocks_without_executor_or_protocol_rejection(
+def test_goal_selector_excludes_abstain_from_an_executable_frontier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-SELECTOR-ABSTAIN")
     session = ModelSession(
-        _QueueClient([]),
+        _QueueClient(
+            [
+                json.dumps(
+                    {
+                        "function": "write_file",
+                        "params": {"path": "result.txt", "content": "verified"},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the mutation action succeeded",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "done"}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the plan has accepted evidence",
+                    )
+                ),
+            ]
+        ),
         settings=_settings(progressive=True),
     )
-    selector = _selector(["ABSTAIN"])
+    selector = _selector(["ABSTAIN", "final_answer"])
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -930,24 +1066,23 @@ def test_goal_selector_abstain_blocks_without_executor_or_protocol_rejection(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "blocked"
-    assert not result.state.actions
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 1
     assert result.state.protocol_rejections == 0
-    assert not session.client.prompts
-    assert len(selector._session.payloads) == 1
-    assert selector._session.payloads[0]["eligible_labels"][-1] == "ABSTAIN"
+    assert len(selector._session.payloads) == 4
+    assert all(
+        "ABSTAIN" not in payload["eligible_labels"]
+        for payload in selector._session.payloads
+    )
     rejected = [
         event
         for event in events
         if event.event_type == "exact_tool_selection_rejected"
     ]
-    assert len(rejected) == 1
-    assert rejected[0].payload["reason"] == "selector_abstained"
+    assert rejected == []
     assert not any(
         event.event_type == "protocol_rejection_recorded" for event in events
     )
-    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
-    assert blocked.payload["reason"] == "selector_abstained"
 
 
 def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
@@ -1125,7 +1260,7 @@ def test_audit_kernel_rejects_successful_but_wrong_scope_action(tmp_path: Path) 
         )
 
 
-def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
+def test_planner_separates_mutation_and_readback_into_stateful_steps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1140,6 +1275,16 @@ def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
                     }
                 ),
                 json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the mutation succeeded",
+                    )
+                ),
+                json.dumps(
                     {
                         "function": "read_file",
                         "params": {"path": "result.txt"},
@@ -1148,11 +1293,11 @@ def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
                 json.dumps(
                     _audit_call(
                         "continue",
-                        step_id="S1",
+                        step_id="S2",
                         step_complete=True,
-                        evidence_refs=["A00001", "A00002"],
+                        evidence_refs=["A00002"],
                         gaps=[],
-                        reason="the mutation and readback both succeeded",
+                        reason="the readback succeeded",
                     )
                 ),
                 json.dumps(
@@ -1204,55 +1349,27 @@ def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
     assert len(result.state.actions) == 2
     assert event_types.count("goal_audit_boundary_opened") == 3
     assert event_types.count("goal_audit_boundary_resolved") == 3
-    assert event_types.count("goal_audit_recorded") == 2
+    assert event_types.count("goal_audit_recorded") == 3
     assert event_types.count("goal_audit_rejected") == 0
-    assert event_types.count("goal_audit_accepted") == 2
+    assert event_types.count("goal_audit_accepted") == 3
     assert event_types.count("protocol_rejection_recorded") == 0
-    assert event_types.count("goal_step_evidence_gap_recorded") == 1
-    assert event_types.count("goal_stage_review_committed") == 1
+    assert event_types.count("goal_step_evidence_gap_recorded") == 0
+    assert event_types.count("goal_stage_review_committed") == 2
     assert "run_yielded" not in event_types
-    assert len(selector._session.payloads) == 3
-    gap = next(
-        result.state.causal_records[event_id]
-        for event_id in result.state.causal_order
-        if result.state.causal_records[event_id].event_type
-        == "goal_step_evidence_gap_recorded"
-    )
-    assert gap.payload["successful_action_ids"] == ["A00001"]
-    assert gap.payload["missing_read_roots"] == ["result.txt"]
-    assert gap.payload["missing_write_roots"] == []
-    assert gap.payload["completion_preconditions_satisfied"] is False
-    mechanical_resolution = next(
-        result.state.causal_records[event_id]
-        for event_id in result.state.causal_order
-        if result.state.causal_records[event_id].event_type
-        == "goal_audit_boundary_resolved"
-        and result.state.causal_records[event_id].payload["verdict"]
-        == "mechanical_repair"
-    )
-    assert mechanical_resolution.subject_id == gap.subject_id
-    assert mechanical_resolution.payload["step_completed"] is False
-    assert mechanical_resolution.payload["kernel_validated"] is True
-    assert mechanical_resolution.payload["completion_authority"] is False
+    assert len(selector._session.payloads) == 7
     second_selector_step = json.loads(
-        selector._session.payloads[1]["step"].removeprefix(
+        selector._session.payloads[3]["step"].removeprefix(
             "SelectorIntentPromptV1: "
         )
     )
     second_frontier = json.loads(
         second_selector_step["stage_objective"].removeprefix(
-            "GoalFrontierStateV1: "
+            "GoalFrontierStateV2: "
         )
     )
-    assert second_frontier["latest_audit_feedback"] == {
-        "status": "mechanically_incomplete",
-        "gaps": [
-            "missing successful observation evidence for read_root 'result.txt'"
-        ],
-        "successful_action_ids": ["A00001"],
-        "missing_read_roots": ["result.txt"],
-        "missing_write_roots": [],
-    }
+    assert second_frontier["active_step"]["planned_phase"] == "observe"
+    assert second_frontier["active_step"]["effective_phase"] == "observe"
+    assert second_frontier["latest_action"] is None
     executor_starts = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -1297,7 +1414,7 @@ def test_identical_goal_action_failures_block_at_existing_budget(
         store,
         model=model,
         harness=model.harness,
-        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor=_StrongPlanner(_strong_observe_patch(state, "invalid.json")),
         supervisor_policy=SupervisorPolicy(mode="static"),
         max_transitions=30,
     )
@@ -1310,7 +1427,7 @@ def test_identical_goal_action_failures_block_at_existing_budget(
     ]
     assert result.state.status.value == "blocked"
     assert len(result.state.actions) == 5
-    assert len(selector._session.payloads) == 5
+    assert len(selector._session.payloads) == 15
     assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 4
     assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 4
     blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
@@ -1324,17 +1441,20 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-SUCCESS")
+    (Path(state.goal.workspace_root) / "other.txt").write_text(
+        "unrelated\n", encoding="utf-8"
+    )
     zero_progress_command = json.dumps(
         {
-            "function": "list_directory",
-            "params": {"path": ".", "recursive": False},
+            "function": "read_file",
+            "params": {"path": "other.txt"},
         }
     )
     session = ModelSession(
         _QueueClient([zero_progress_command] * 3),
         settings=_settings(progressive=True),
     )
-    selector = _selector(["list_directory"] * 3)
+    selector = _selector(["read_file"] * 3)
     model = LongHorizonModel(session, tool_selector=selector)
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -1345,7 +1465,7 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
         store,
         model=model,
         harness=model.harness,
-        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor=_StrongPlanner(_strong_observe_patch(state, "missing.txt")),
         supervisor_policy=SupervisorPolicy(mode="static"),
         max_transitions=20,
     )
@@ -1358,7 +1478,7 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
     ]
     assert result.state.status.value == "blocked"
     assert len(result.state.actions) == 3
-    assert len(selector._session.payloads) == 3
+    assert len(selector._session.payloads) == 9
     assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
     assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
     blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
@@ -1841,7 +1961,7 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
     assert all(item["executor_state_inherited"] is False for item in auditor_starts)
     selector_payloads = model.tool_selector._session.payloads
     assert selector_payloads[0]["parent"] is None
-    assert selector_payloads[1]["parent"] is None
+    assert selector_payloads[3]["parent"] is None
     selector_checkpoints = [
         checkpoint
         for checkpoint in result.state.model_states.values()
@@ -1932,9 +2052,9 @@ def test_stateful_executor_protocol_retry_reuses_consumed_selection(
 
     assert result.state.status.value == "completed"
     assert len(result.state.actions) == 1
-    assert len(selector._session.payloads) == 2
+    assert len(selector._session.payloads) == 4
     assert selector._session.payloads[0]["parent"] is None
-    assert selector._session.payloads[1]["parent"] is None
+    assert selector._session.payloads[3]["parent"] is None
     rejection = next(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -2045,9 +2165,9 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
 
     assert result.state.status.value == "completed"
     assert result.state.protocol_rejections == 2
-    assert len(selector._session.payloads) == 3
+    assert len(selector._session.payloads) == 7
     second_selection = json.loads(
-        selector._session.payloads[1]["step"].removeprefix(
+        selector._session.payloads[3]["step"].removeprefix(
             "SelectorIntentPromptV1: "
         )
     )
@@ -2524,16 +2644,16 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
         payload["eligible_labels"] for payload in model.tool_selector._session.payloads
     ]
     assert "final_answer" not in eligible_labels[0]
-    assert "final_answer" not in eligible_labels[1]
-    assert eligible_labels[2] == ["final_answer"]
+    assert "final_answer" not in eligible_labels[3]
+    assert eligible_labels[6] == ["final_answer"]
     selector_payloads = model.tool_selector._session.payloads
     assert selector_payloads[0]["parent"] is None
-    assert selector_payloads[1]["parent"] is not None
+    assert selector_payloads[3]["parent"] is not None
     second_step = json.loads(
-        selector_payloads[1]["step"].removeprefix("SelectorIntentPromptV1: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV1: ")
     )
     frontier_state = json.loads(
-        second_step["stage_objective"].removeprefix("GoalFrontierStateV1: ")
+        second_step["stage_objective"].removeprefix("GoalFrontierStateV2: ")
     )
     assert frontier_state["progress"] == {
         "completed_step_ids": [],

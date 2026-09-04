@@ -1082,6 +1082,8 @@ class RunState:
         normalized_role = str(role).strip().casefold()
         if normalized_role not in {
             "selector",
+            "selector_order_rotate_8",
+            "selector_order_rotate_17",
             "executor",
             "auditor",
             "auditor_step",
@@ -1645,6 +1647,8 @@ class RunState:
         for role, checkpoint_id in state.lane_heads.items():
             if role not in {
                 "selector",
+                "selector_order_rotate_8",
+                "selector_order_rotate_17",
                 "executor",
                 "auditor",
                 "auditor_step",

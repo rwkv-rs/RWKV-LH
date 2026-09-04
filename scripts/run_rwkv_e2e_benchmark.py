@@ -36,6 +36,10 @@ from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
     NetworkExactToolSelectorSettings,
 )
+from rwkv_lh.exact_tool_selector.network_protocol import (
+    NETWORK_SELECTOR_MENU_ORDER_IDS,
+)
+from rwkv_lh.goal_loop_protocol import GOAL_PLAN_PATCH_SCHEMA_VERSION
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelIOError, parse_model_command
 from rwkv_lh.model_session import create_model_session
@@ -957,13 +961,19 @@ def stateful_goal_protocol_metadata(
         "persistent_executor_state_count": 0,
         "executor_state_scope": "one_selected_action" if enabled else "disabled",
         "selector_tool_decisions_per_action": 1,
+        "selector_model_evaluations_per_action": 3 if enabled else 0,
+        "selector_state_count_per_step": 3 if enabled else 0,
+        "selector_menu_order_ids": (
+            list(NETWORK_SELECTOR_MENU_ORDER_IDS) if enabled else []
+        ),
+        "selector_vote_rule": "three_menu_order_vote_v1" if enabled else "",
         "auditor_state_isolated": bool(enabled),
         "rwkv_audit_required": bool(enabled),
         "audit_wkv_merge": False,
         "strong_model_dependency": bool(enabled and strong_planner_available),
         "strong_planner_required": bool(enabled),
         "strong_planner_protocol": (
-            "rwkv-lh.goal-plan-patch.v2" if enabled else ""
+            GOAL_PLAN_PATCH_SCHEMA_VERSION if enabled else ""
         ),
         "strong_reviewer_enabled": False,
     }
@@ -1103,7 +1113,7 @@ def _write_run_metadata(
             "model": str((supervisor_health or {}).get("model") or ""),
             "role": "planner" if arguments.stateful_goal else "planner_reviewer",
             "planner_protocol": (
-                "rwkv-lh.goal-plan-patch.v2"
+                GOAL_PLAN_PATCH_SCHEMA_VERSION
                 if arguments.stateful_goal
                 else ""
             ),

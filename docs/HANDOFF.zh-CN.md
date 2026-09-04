@@ -9,7 +9,7 @@
 当前架构标识为：
 
 ```text
-rwkv-stateful-goal-loop.v3
+rwkv-stateful-goal-loop.v4
 ```
 
 完整链路：
@@ -17,7 +17,7 @@ rwkv-stateful-goal-loop.v3
 ```text
 Immutable Goal + Append-only Causal Ledger
   -> Strong Planner
-  -> 2.9B Selector
+  -> 2.9B Selector（三种固定菜单顺序、三份独立 WKV、一次投票）
   -> 13.3B Executor
   -> Harness
   -> Controller Mechanical Evidence Gate
@@ -31,7 +31,7 @@ Immutable Goal + Append-only Causal Ledger
 
 这是一条架构。角色分离只表示职责和 WKV State 的边界：
 
-- Planner 只拆解 stage/step，不选工具、不填参数、不判定完成。
+- Planner 只拆解 stage/step 并标注步骤 phase，不选具体工具、不填参数、不判定完成。
 - Selector 只选一个 operation，不填参数。
 - Executor 只为已经选定的 operation 填参数，不能改选工具。
 - Harness 执行工具并生成事实。
@@ -43,25 +43,27 @@ Immutable Goal + Append-only Causal Ledger
 
 Planner 写出的“需要读取”“将验证”或 `success_evidence` 是要求，不是完成证据。完成顺序固定为：成功 Action -> 机械覆盖 -> Step Auditor -> Evidence Kernel。
 
-## 2. Selector 的 `ABSTAIN` 和停止语义
+## 2. Selector 投票、`ABSTAIN` 和停止语义
 
 2.9B Selector 不拥有一个单独的 Agent，也不存在第二条控制链。它是当前链中的精确工具分类器。
 
-Selector 有 25 个输出类别：23 个可执行 operation、`final_answer` 和 `ABSTAIN`。`ABSTAIN` 表示当前 frontier 下无法安全、明确地选择一个工具。Controller 收到它后：
+现有 Head 物理上仍有 25 个输出：23 个可执行 operation、`final_answer` 和历史类别 `ABSTAIN`。当前 Controller 不再把 `ABSTAIN` 放入任何可执行 frontier 的 `eligible_labels`，因此它的高 logit 不会中止一个已经由 Planner 和 Controller 确定 phase、scope 与候选集的步骤。无候选、身份不一致、协议错误和运行基础设施失败分别由 Controller 的显式状态处理，不委托给 Head 猜测。
 
-1. 不调用 Executor；
-2. 不执行任何工具；
-3. 写入 `exact_tool_selection_rejected`；
-4. 将任务标记为 `run_blocked(reason="selector_abstained")`；
-5. 只允许显式人工恢复。
+普通步骤使用三个预登记菜单顺序：`canonical`、`rotate_8`、`rotate_17`。每个顺序持有一份独立 WKV；三份 State 接收相同 frontier 和 Action 历史，但 menu bootstrap 顺序不同。禁止合并或平均 WKV。每路在相同 eligible labels 中产生一个 raw-logit argmax，然后按以下固定规则合成唯一 operation：
 
-这里的 blocked 是同一控制链的安全停止状态，不是架构隔断。Selector 的 WKV 与 Executor 的 WKV 不共享，是为了避免“选择工具”的状态污染“填写参数”的状态。
+1. 有 2/3 相同则取多数；
+2. 三路各不相同时，只在三个得票 label 中比较三路的中位排名；
+3. 中位排名仍相同，再比较中位标准化 logit；
+4. 仍相同按固定 canonical class order 决定。
+
+Selector 的 WKV 与 Executor 的 WKV 不共享，是为了避免“选择工具”的状态污染“填写参数”的状态。
 
 需要区分三种现象：
 
 | 现象 | 含义 | 当前行为 |
 |---|---|---|
-| `ABSTAIN` | Head 主动选了第 25 类 | 停止自动执行，等待人工恢复 |
+| `ABSTAIN` raw logit 最高 | 历史 Head 对当前输入偏向第 25 类 | 因不在 eligible 集合而被屏蔽，仍保留原始 logit 供分析 |
+| eligible 集合为空 | Planner phase、运行策略和 Harness 能力交集为空 | Controller 明确报协议错误，不调用 Executor |
 | Selector 身份不一致 | 服务可访问，但模型/Head/State/协议 SHA 与配置不同 | 启动或调用时 fail closed |
 | 工具不存在 | label 不在当前 Harness/菜单中 | 协议拒绝，绝不转交 Executor |
 
@@ -88,7 +90,7 @@ run terminal or resumable status
 
 | 角色 | State 范围 | 输入事实范围 |
 |---|---|---|
-| Selector | 同一个 `(step_id, step_revision)` 内延续；换 step/revision 或进入 final 时重建 | 当前 step、当前 step 的 Action、最新审核缺口、eligible labels |
+| Selector | 同一个 `(step_id, step_revision, menu_order_id)` 内三路分别延续；换 step/revision 或进入 final 时重建 | 当前 step、phase、当前 step 的 Action、最新审核缺口、eligible labels |
 | Executor | 每个 selected action 从配置的初始 State 干净启动 | 当前 step 和直接依赖 step 的受控 Action 投影、唯一工具 schema |
 | Step Auditor | 每个 audit boundary 干净启动 | 当前 step 与该 boundary 可引用的 evidence |
 | Finalizer | 完整 plan 通过后干净启动 | 已完成 steps、已提交 facts、证据记录、输出格式合同 |
@@ -97,9 +99,9 @@ run terminal or resumable status
 一次 action 的状态流：
 
 1. Controller 取当前 frontier step 和 revision。
-2. Controller 生成 Selector 局部投影和 eligible labels。
-3. Selector 输出 25 个 logits，Controller 在 eligible labels 中取 argmax。
-4. Controller 把 operation、Selector 身份、Executor 父状态和工具合同绑定成 handoff。
+2. Controller 按 Planner phase、运行策略、Harness 能力和机械状态生成 eligible labels。
+3. 三个 Selector lane 分别输出 25 个 logits，并在同一 eligible labels 中取各自 argmax。
+4. Controller 按固定投票规则合成 operation，把三路 raw 结果、参考 checkpoint、Executor 父状态和工具合同绑定成 handoff。
 5. Executor 从 clean role State 启动，读取 handoff 和受控事实，只输出参数完整的同名函数调用。
 6. Harness 校验并执行，将结果写入 ledger。
 7. Controller 计算 read/write roots 的机械覆盖；缺口存在时返回下一轮，不调用 Step Auditor。
@@ -140,6 +142,7 @@ run terminal or resumable status
         {
           "step_id":"S1",
           "objective":"一个明确职责",
+          "phase":"observe",
           "depends_on":[],
           "success_evidence":["可观察的完成证据"],
           "read_roots":["src"],
@@ -156,6 +159,8 @@ run terminal or resumable status
 ```
 
 不允许 Markdown、工具调用、最终答案或额外字段。Controller 绑定 `patch_id`、`base_revision` 和 schema version。
+
+`phase` 只能是 `observe`、`mutate`、`execute` 或 `derive_evidence`。一个 step 只能承担一种职责；新计划中的读取、修改、命令执行和证据推导必须拆开，并用前一 stage 的 dependency 传递已提交事实。Planner 不得输出具体 operation 名。
 
 ### 4.2 2.9B Selector + Head
 
@@ -175,7 +180,7 @@ SelectorIntentPromptV1: <当前 frontier JSON>
 {
   "schema_version":"rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1",
   "role":"selector_intent",
-  "stage_objective":"GoalFrontierStateV1: {...}",
+  "stage_objective":"GoalFrontierStateV2: {...}",
   "stage_role":"tool_intent",
   "progress":{
     "completed_stage_count":0,
@@ -184,19 +189,20 @@ SelectorIntentPromptV1: <当前 frontier JSON>
     "failed_operations":[],
     "protocol_rejection_count":0
   },
-  "eligible_labels":["read_file","search_text","ABSTAIN"],
+  "eligible_labels":["search_text","read_file","read_json","file_digest"],
   "current_question":"Choose exactly one eligible operation label..."
 }
 ```
 
 `stage_objective` 内含当前 step、step revision、读写根、success evidence、当前 step 进度、最新 Action、最新 audit gap、eligible tool 描述和最后的 `current_objective`。
 
-线上期望输出不是生成文本或函数调用，而是：
+普通步骤会分别用 `canonical`、`rotate_8`、`rotate_17` 三种完整菜单顺序运行。`class_order` 始终是下面的 canonical 顺序，菜单顺序变化不能改变 logit 下标语义。线上期望输出不是生成文本或函数调用，而是：
 
 ```text
 25 个有限 raw logits
-eligible labels 内的确定性 argmax label
-下一份 Selector state_ref/state_digest/token_position
+每一路 eligible labels 内的确定性 argmax label
+每一路独立的下一份 Selector state_ref/state_digest/token_position
+固定 2/3 多数或三路平局裁决后的唯一 operation
 完整模型、Head、State、菜单和协议身份
 ```
 
@@ -437,22 +443,22 @@ Finalizer 只产生候选，不拥有完成权限。
 
 13.3B 角色通过 `rwkv-lh.native-state.v1` 使用 create/resume/fork/commit/rollback/export/import。每次请求输入为：文本 delta、父 `state_ref`、cache binding、模型身份和 State profile 身份；输出为生成文本、raw token IDs、finish reason、下一份 state ref/digest 和服务身份。
 
-Selector 服务输入为：bootstrap 或 parent state、step 文本、eligible labels、input/menu digest 和 expected runtime identity；输出为 25 logits、argmax label、下一份 Selector state 与完整身份。两条服务接口共同服务于同一个 Goal Loop。
+Selector 服务输入为：`menu_order_id`、bootstrap 或同顺序 parent state、step 文本、eligible labels、input/menu digest 和 expected runtime identity；输出为 25 logits、该路 argmax label、下一份 Selector state 与完整身份。两条服务接口共同服务于同一个 Goal Loop。
 
-## 5. 当前工具表与 State 分类方向
+## 5. 当前工具表与 phase 分类
 
-当前可执行工具共 23 个。用于 StateTune 消融的确定性分类建议为：
+当前可执行工具共 23 个。Planner 的四个 phase 与 Controller 固定候选集为：
 
 | 类别 | operation |
 |---|---|
-| `local_observation` | `list_directory, search_text, read_file, read_json, file_digest, bind_evidence` |
-| `workspace_mutation` | `write_file, write_json, patch_json, replace_text, remove_line, append_file, make_directory, copy_file, move_file, delete_file` |
-| `command_execution` | `check_command, run_command` |
-| `external_deterministic` | `web_search, connector_lookup, calculator, date_diff, current_time` |
+| `observe` | `list_directory, search_text, read_file, read_json, file_digest, web_search, connector_lookup` |
+| `mutate` | `write_file, write_json, patch_json, replace_text, remove_line, append_file, make_directory, copy_file, move_file, delete_file` |
+| `execute` | `check_command, run_command` |
+| `derive_evidence` | `bind_evidence, calculator, date_diff, current_time` |
 
 `final_answer` 由 Finalizer 处理，`ABSTAIN` 不进入 Executor。
 
-Selector 已经输出精确 operation，因此 operation 到 State 类别必须使用冻结字典，不需要再训练一个分类模型。当前代码尚未实现这四类按 action 切换；`runtime/executor_profiles.py` 当前只支持任务级 `disabled` 或 `retrieval-policy-v1` 路由。四类方案必须先做固定数据、固定参数、固定阈值的 zero-State/StateTune 消融，再接入产品。
+四类 phase 已用于 Planner 输出验证和 Selector 候选收窄。它们当前不用于加载 Executor State profile；`runtime/executor_profiles.py` 仍只支持任务级 `disabled` 或 `retrieval-policy-v1` 路由。若以后按 phase 加载不同 StateTune，必须先用固定数据、参数、阈值和评价算法完成消融，不能让路由器替代 Selector 选择具体 operation。
 
 ## 6. StateTune 数据与线上输入必须一致
 
@@ -482,7 +488,9 @@ Selector 已经输出精确 operation，因此 operation 到 State 类别必须�
 4. manifest 固定 dataset、source、generator、verifier、full renderer、parser、tokenizer、operation registry、模型和文件 SHA。
 5. 同一 trajectory 及其 counterfactual 不能跨 train/dev/sealed。
 6. 错误模型输出只能成为 failure evidence，不能直接成为 target。
-7. 在同一数据、输入、采样和评价算法下先跑 zero-State，再跑 StateTune；每个候选最多三次，按预登记指标选最优。
+7. Selector 的同一语义样本必须覆盖三个固定 menu order；三种顺序的 target label 和 canonical class index 必须一致，trajectory 按 order 分别续接 State。
+8. 可执行 frontier 不生成 `ABSTAIN` target；无 eligible operation 是 Controller 状态，不是 Selector 训练标签。
+9. 在同一数据、输入、采样和评价算法下先跑 zero-State，再跑 StateTune；每个候选最多三次，按预登记指标选最优。
 
 State checkpoint 格式为 `rwkv-peft-time-state.v1`。文件是 PyTorch dictionary，键严格为每层：
 
@@ -554,7 +562,7 @@ uv run rwkv-lh-stack status
 uv run rwkv-lh-runtime-smoke
 ```
 
-当前运行模式是 `external`。13.3B 端点健康并声明完整 recurrent-state 能力。Selector 端点已经加载 Head v2，模型、Head、协议和 zero-State 身份一致。Selector 仍不能通过真实 frontier 能力门禁，因为明确的 `read_file` 场景仍被判为 `ABSTAIN`；这不是工具表缺失或部署身份错误。
+当前运行模式是 `external`。13.3B 端点健康并声明完整 recurrent-state 能力。Selector 端点加载 Head v2，模型、Head、协议和 zero-State 身份一致。Head v2 的训练集只覆盖旧 canonical menu 和 `GoalFrontierStateV1`；当前三顺序与 `GoalFrontierStateV2` 对它属于域外输入，必须以固定真实消融结果判断收益，不能宣称已经训练兼容。
 
 ## 8. 推理引擎与服务启动
 
@@ -673,12 +681,13 @@ data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
 
 | 环节 | 当前问题 | 归类 | 完成门禁 |
 |---|---|---|---|
-| Selector 决策 | 当前 Head 在真实中文、多工具 frontier 会错误选择 `ABSTAIN` | Head 泛化/输入分布问题，尚不能归因于 2.9B 基座 | 固定真实 holdout 达标 |
+| Selector 决策 | Head v2 未训练三种 menu order 与 `GoalFrontierStateV2`；投票效果尚需真实固定集验证 | Head 泛化/输入分布问题，不能据此归因于 2.9B 基座 | 固定真实 holdout 与顺序敏感性指标达标 |
+| Planner phase | 新 v3 patch 依赖 Planner 正确拆开观察、修改、执行和证据推导 | Planner 输入合同与语义验证已实现，真实计划质量待回归 | 固定 Planner 集的 phase、依赖和根目录全通过 |
 | Executor 状态遵循 | 完整事实输入中会重复已完成对象，未服从 remaining state | 输入合同与 zero-State 能力共同待验证 | 固定完整链路集达标 |
 | Executor JSON | `replace_text` 场景会生成 Python dict 形式 | 模型格式遵循问题 | canonical JSON 全通过 |
 | Executor operation identity | 命令场景会把 schema/role 名写成 function | 模型显式 operation 遵循问题 | function 与 selected operation 全相等 |
 | StateTune 输入 | 数据生成尚未与完整 serving transcript 共用同一个 renderer | 工程协议问题 | 每行 bytes 和 token IDs 双一致 |
-| Executor State 路由 | 当前没有按四类 operation 选择 State profile | 尚未实现的实验方向 | 消融通过后再接入确定性映射 |
+| Executor State 路由 | 当前没有按四类 phase 选择 State profile | 按当前计划暂不实现 StateTune | 消融通过后再接入确定性映射 |
 | 推理引擎发布 | 13.3B native-State 修改尚未封装成可复现的干净引擎 revision；Selector 只能使用干净基础 checkout | 工程发布问题；当前未发现 native State 行为缺陷 | 固定 native-State 引擎 commit，并验证 13.3B 与 Selector 特征身份 |
 
 协议拒绝上限 12 是整条任务的自动熔断预算，不是 12 种错误。一个 selection 最多进行一次同工具参数修复；达到预算后记录 `run_blocked(reason="protocol_rejection_budget_exhausted")`。相同失败第 5 次、相同只读零进展第 3 次也会停止自动执行。
@@ -689,7 +698,7 @@ data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python \
 2. 验证每个训练 prompt 与线上 generation 前缀逐字节、逐 token 相等。
 3. 对每个角色运行相同输入和采样的 zero-State/StateTune A-B；每个候选最多三次。
 4. 对 Executor 四类 profile 先跑类内矩阵，再跑全部 23 operation 交叉矩阵。
-5. 对 Selector 跑中文/英文、多工具、`ABSTAIN`、停止、恢复和长轨迹 holdout。
+5. 对 Selector 跑中文/英文、多工具、三种菜单顺序、高 `ABSTAIN` logit 屏蔽、停止、恢复和长轨迹 holdout。
 6. 跑完整 Agent Ladder，检查首次偏离、工具分布、step 完成、停止率和最终任务完成率。
 7. 全部达到预登记阈值后更新 `.env.local`，再用 `rwkv-lh-stack status` 验明完整发布身份。
 

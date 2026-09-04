@@ -906,6 +906,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
                     {
                         "step_id": "S1",
                         "objective": "Inspect the current configuration.",
+                        "phase": "observe",
                         "depends_on": [],
                         "success_evidence": ["configuration content is observed"],
                         "read_roots": ["config.json"],
@@ -934,6 +935,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     patch = client.plan_goal_patch(request)
 
     assert patch.add_steps[0].allowed_operations == ()
+    assert patch.add_steps[0].phase == "observe"
     posted = fake.posts[0]["json"]
     assert posted["model"] == "gpt-test"
     assert "seed" not in posted
@@ -969,6 +971,8 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert "never invent a '/workspace' prefix" in system_prompt
     assert '"add_stages":[{"stage":1,"steps":[' in system_prompt
     assert "do not flatten steps" in system_prompt
+    assert "exactly one phase" in system_prompt
+    assert "never name a concrete tool" in system_prompt
 
     goal_root_schema = step_schema["properties"]["read_roots"]["items"]
     pattern = goal_root_schema["pattern"]
@@ -1057,6 +1061,7 @@ def test_goal_planner_places_controller_semantic_repair_at_input_tail():
                     {
                         "step_id": "S2",
                         "objective": "Read the current configuration.",
+                        "phase": "observe",
                         "depends_on": ["S1"],
                         "success_evidence": ["configuration content is observed"],
                         "read_roots": ["config.json"],
@@ -1596,6 +1601,7 @@ def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
                     {
                         "step_id": "S1",
                         "objective": "Inspect config.json.",
+                        "phase": "observe",
                         "depends_on": [],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
@@ -2269,6 +2275,7 @@ def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
                     {
                         "step_id": "S1",
                         "objective": "Inspect config.json.",
+                        "phase": "observe",
                         "depends_on": [],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
@@ -2368,6 +2375,7 @@ def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
                     {
                         "step_id": "S1",
                         "objective": "Inspect config.json.",
+                        "phase": "observe",
                         "depends_on": [],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
