@@ -11,6 +11,7 @@ import pytest
 from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.goal_loop_protocol import (
     GOAL_AUDIT_SCHEMA_VERSION,
+    GOAL_AUDIT_INPUT_PROTOCOL,
     LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
     AuditedStep,
     GoalAuditDecision,
@@ -20,6 +21,7 @@ from rwkv_lh.goal_loop_protocol import (
     GoalStageReview,
     GoalStageReviewVerdict,
     RollingGoalPlan,
+    goal_audit_output_constraints,
     rolling_goal_plan,
     validate_audit_authority,
 )
@@ -36,6 +38,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     goal_frontier_selector_context,
 )
 from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model_io import ModelCommand
 from rwkv_lh.model_session import ModelSession
 from rwkv_lh.product_runtime import (
     build_product_controller,
@@ -53,6 +56,20 @@ from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import SupervisorPolicy
 
 
+def test_role_pure_audit_v2_discloses_every_parser_field_invariant() -> None:
+    assert GOAL_AUDIT_INPUT_PROTOCOL == "rwkv-lh.role-pure-goal-audit.v2"
+    final_constraints = goal_audit_output_constraints(final_candidate=True)
+    assert "at pre_final step_id is always the empty string" in final_constraints
+    assert "at pre_final step_complete is always false" in final_constraints
+    assert "ready_for_final requires an empty gaps array" in final_constraints
+    active_constraints = goal_audit_output_constraints(final_candidate=False)
+    assert "step_id must exactly equal active_step.step_id" in active_constraints
+    assert any(
+        "continue requires step_complete true" in item
+        for item in active_constraints
+    )
+
+
 @dataclass
 class _Response:
     content: str
@@ -68,9 +85,21 @@ class _QueueClient:
     ):
         self.outputs = list(outputs)
         self.model_name = model_name
+        self.prompts: list[str] = []
 
     def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
-        return _Response(self.outputs.pop(0))
+        self.prompts.append(prompt)
+        content = self.outputs.pop(0)
+        try:
+            value = json.loads(content)
+        except json.JSONDecodeError:
+            pass
+        else:
+            if isinstance(value, dict) and set(value) == {"function", "params"}:
+                content = ModelCommand(
+                    str(value["function"]), dict(value["params"])
+                ).canonical
+        return _Response(content)
 
 
 class _SelectorResponse:
@@ -89,7 +118,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/v8/select")
+        assert url.endswith("/selector-intent-v1/select")
         self.payloads.append(dict(json))
         operation = self.operations.pop(0)
         index = len(self.payloads)
@@ -376,6 +405,22 @@ def _audit_call(
             "gaps": gaps,
             "reason": reason,
         },
+    }
+
+
+def _native_tool_call(
+    name: str,
+    arguments: dict,
+    *,
+    stringify_arguments: bool = False,
+) -> dict:
+    return {
+        "name": name,
+        "arguments": (
+            json.dumps(arguments, ensure_ascii=False, separators=(",", ":"))
+            if stringify_arguments
+            else arguments
+        ),
     }
 
 
@@ -773,11 +818,44 @@ def test_selector_receives_active_strong_planner_frontier_without_goal_fallback(
     plan = RollingGoalPlan(goal_digest=state.goal.digest)
     plan.apply_goal_patch(_strong_patch(state))
 
-    context = goal_frontier_selector_context(state, plan.frontier[0].to_dict())
+    context = goal_frontier_selector_context(
+        state,
+        plan.frontier[0].to_dict(),
+        eligible_labels=("write_file", "read_file"),
+    )
 
-    assert context.stage_objective == "Create result.txt with verified content"
+    assert context.stage_objective.startswith("GoalFrontierStateV1: ")
+    assert context.state_scope_id == "planner-step:S1:revision:1"
+    assert context.action_ids == ()
+    payload = json.loads(context.stage_objective.removeprefix("GoalFrontierStateV1: "))
+    assert payload["active_step"] == {
+        "step_id": "S1",
+        "step_revision": 1,
+        "stage": 1,
+        "depends_on": [],
+        "read_roots": [],
+        "write_roots": ["result.txt"],
+        "success_evidence": ["result.txt has a committed artifact revision"],
+        "constraints": [],
+    }
+    assert payload["current_objective"] == (
+        "Create result.txt with verified content"
+    )
+    assert payload["eligible_tools"] == [
+        {
+            "name": "write_file",
+            "description": "Create or replace one complete local non-JSON UTF-8 file.",
+        },
+        {
+            "name": "read_file",
+            "description": "Read a bounded byte range from one local non-JSON UTF-8 file.",
+        },
+    ]
+    assert payload["latest_action"] is None
+    assert payload["latest_audit_feedback"] is None
     assert context.stage_role == "tool_intent"
     assert state.goal.request not in context.stage_objective
+    assert state.goal.workspace_root not in context.stage_objective
 
 
 def test_read_only_goal_step_menu_excludes_workspace_mutations(
@@ -994,22 +1072,20 @@ def test_audit_kernel_rejects_successful_but_wrong_scope_action(tmp_path: Path) 
         )
 
 
-def test_invalid_action_audit_releases_boundary_and_continues_same_goal(
+def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "AUDIT-DURABLE")
-    session = ModelSession(
-        _QueueClient(
-            [
+    queue = _QueueClient(
+        [
                 json.dumps(
                     {
                         "function": "write_file",
                         "params": {"path": "result.txt", "content": "verified"},
                     }
                 ),
-                *(["{}"] * 3),
                 json.dumps(
                     {
                         "function": "read_file",
@@ -1043,7 +1119,9 @@ def test_invalid_action_audit_releases_boundary_and_continues_same_goal(
                     )
                 ),
             ]
-        ),
+    )
+    session = ModelSession(
+        queue,
         settings=_settings(progressive=True),
     )
     selector = _selector(["write_file", "read_file", "final_answer"])
@@ -1073,35 +1151,65 @@ def test_invalid_action_audit_releases_boundary_and_continues_same_goal(
     assert len(result.state.actions) == 2
     assert event_types.count("goal_audit_boundary_opened") == 3
     assert event_types.count("goal_audit_boundary_resolved") == 3
-    assert event_types.count("goal_audit_recorded") == 5
-    assert event_types.count("goal_audit_rejected") == 3
+    assert event_types.count("goal_audit_recorded") == 2
+    assert event_types.count("goal_audit_rejected") == 0
     assert event_types.count("goal_audit_accepted") == 2
-    assert event_types.count("protocol_rejection_recorded") == 1
+    assert event_types.count("protocol_rejection_recorded") == 0
+    assert event_types.count("goal_step_evidence_gap_recorded") == 1
     assert event_types.count("goal_stage_review_committed") == 1
     assert "run_yielded" not in event_types
     assert len(selector._session.payloads) == 3
-    protocol_rejection = next(
+    gap = next(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
         if result.state.causal_records[event_id].event_type
-        == "protocol_rejection_recorded"
+        == "goal_step_evidence_gap_recorded"
     )
-    assert protocol_rejection.payload["protocol_scope"] == "goal_audit"
-    assert protocol_rejection.payload["audit_boundary_id"].startswith("GAB-")
-    failed_resolution = next(
+    assert gap.payload["successful_action_ids"] == ["A00001"]
+    assert gap.payload["missing_read_roots"] == ["result.txt"]
+    assert gap.payload["missing_write_roots"] == []
+    assert gap.payload["completion_preconditions_satisfied"] is False
+    mechanical_resolution = next(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
         if result.state.causal_records[event_id].event_type
         == "goal_audit_boundary_resolved"
         and result.state.causal_records[event_id].payload["verdict"]
-        == "protocol_invalid"
+        == "mechanical_repair"
     )
-    assert failed_resolution.subject_id == protocol_rejection.payload[
-        "audit_boundary_id"
+    assert mechanical_resolution.subject_id == gap.subject_id
+    assert mechanical_resolution.payload["step_completed"] is False
+    assert mechanical_resolution.payload["kernel_validated"] is True
+    assert mechanical_resolution.payload["completion_authority"] is False
+    second_selector_step = json.loads(
+        selector._session.payloads[1]["step"].removeprefix(
+            "SelectorIntentPromptV1: "
+        )
+    )
+    second_frontier = json.loads(
+        second_selector_step["stage_objective"].removeprefix(
+            "GoalFrontierStateV1: "
+        )
+    )
+    assert second_frontier["latest_audit_feedback"] == {
+        "status": "mechanically_incomplete",
+        "gaps": [
+            "missing successful observation evidence for read_root 'result.txt'"
+        ],
+        "successful_action_ids": ["A00001"],
+        "missing_read_roots": ["result.txt"],
+        "missing_write_roots": [],
+    }
+    executor_starts = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "action_session_started"
     ]
-    assert failed_resolution.payload["boundary_kind"] == "action"
-    assert failed_resolution.payload["step_completed"] is False
-    assert failed_resolution.payload["kernel_validated"] is False
+    assert executor_starts[1].payload["causal_fact_scope"] == (
+        "controller_step_and_dependencies"
+    )
+    assert executor_starts[1].payload["causal_fact_action_ids"] == ["A00001"]
     assert rolling_goal_plan(result.state).complete is True
 
 
@@ -1111,9 +1219,8 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "PRE-FINAL-PROTOCOL-INVALID")
-    session = ModelSession(
-        _QueueClient(
-            [
+    queue = _QueueClient(
+        [
                 json.dumps(
                     {
                         "function": "write_file",
@@ -1136,7 +1243,7 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
                         "params": {"text": "First unaudited candidate."},
                     }
                 ),
-                *(["{}"] * 3),
+                    "{}",
                 json.dumps(
                     {
                         "function": "final_answer",
@@ -1154,7 +1261,9 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
                     )
                 ),
             ]
-        ),
+    )
+    session = ModelSession(
+        queue,
         settings=_settings(progressive=True),
     )
     selector = _selector(["write_file", "final_answer", "final_answer"])
@@ -1252,7 +1361,7 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     )
     auditor_session = ModelSession(
         _QueueClient(
-            [json.dumps(rejected_audit_output), json.dumps(audit_output)],
+            [json.dumps(audit_output)],
             model_name="test-rwkv-7.2b-auditor",
         ),
         settings=auditor_settings,
@@ -1308,13 +1417,13 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     assert rolling_goal_plan(state).complete is True
     assert state.model_states[state.lane_head("executor")].lane_kind is ModelLaneKind.ACTION
     assert any(
-        checkpoint.lane_kind is ModelLaneKind.AUDIT
+        checkpoint.lane_kind is ModelLaneKind.STEP_AUDIT
         and checkpoint.model == "test-rwkv-7.2b-auditor"
         for checkpoint in state.model_states.values()
     )
     assert any(
         item["type"] == "model_session_bootstrapped"
-        and item["lane_kind"] == "audit"
+        and item["lane_kind"] == "auditor_step"
         for item in audits
     )
     assert not any(item["type"] == "model_session_forked" for item in audits)
@@ -1322,8 +1431,8 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     event_types = [
         state.causal_records[event_id].event_type for event_id in state.causal_order
     ]
-    assert event_types.count("goal_audit_recorded") == 2
-    assert event_types.count("goal_audit_rejected") == 1
+    assert event_types.count("goal_audit_recorded") == 1
+    assert event_types.count("goal_audit_rejected") == 0
     assert not any(
         item.event_type == "goal_audit_retry_feedback"
         for item in state.model_events.values()
@@ -1333,12 +1442,13 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     audit_checkpoint = next(
         checkpoint
         for checkpoint in state.model_states.values()
-        if checkpoint.lane_kind is ModelLaneKind.AUDIT
+        if checkpoint.lane_kind is ModelLaneKind.STEP_AUDIT
     )
+    audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
+        "\n\n**Tool Call:**", 1
+    )[0]
     audit_payload = json.loads(
-        audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
-            "\n\nAssistant:", 1
-        )[0]
+        audit_prompt.removeprefix("AuditorStepPromptV1: ")
     )
     assert list(audit_payload)[-1] == "current_question"
     assert state.goal.request not in audit_checkpoint.transcript
@@ -1347,6 +1457,9 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     assert "audit_boundary_id" not in audit_payload
     assert audit_payload["evidence_records"][0]["action"]["action_id"] == "A00001"
     assert audit_payload["evidence_records"][0]["action"]["status"] == "succeeded"
+    audit_arguments = audit_payload["evidence_records"][0]["action"]["arguments"]
+    assert audit_arguments["path"] == "result.txt"
+    assert audit_arguments["content"] == "verified"
     assert any(
         state.causal_records[event_id].event_type == "goal_audit_accepted"
         for event_id in state.causal_order
@@ -1366,12 +1479,12 @@ def test_product_stateful_goal_fails_closed_without_selector_then_builds_with_it
     monkeypatch.setattr(
         "rwkv_lh.product_runtime.create_model_session",
         lambda settings, audit_hook=None: ModelSession(
-            _QueueClient([]), settings=_settings(progressive=True), audit_hook=audit_hook
+            _QueueClient([]), settings=settings, audit_hook=audit_hook
         ),
     )
     planner = _StrongPlanner()
     monkeypatch.setattr(
-        "rwkv_lh.product_runtime.OpenAICompatibleSupervisorClient",
+        "rwkv_lh.product_runtime.OpenAIGoalSupervisorClient",
         lambda audit_hook=None: planner,
     )
     monkeypatch.setattr(
@@ -1391,7 +1504,13 @@ def test_product_stateful_goal_fails_closed_without_selector_then_builds_with_it
     assert isinstance(controller, StatefulGoalLoopController)
     assert controller.supervisor is planner
     assert controller.atom_worker_pool is None
-    assert controller.model.auditor_session is not controller.model.session
+    role_sessions = (
+        controller.model.session,
+        controller.model.step_auditor_session,
+        controller.model.finalizer_session,
+        controller.model.final_auditor_session,
+    )
+    assert len({id(item) for item in role_sessions}) == 4
     assert supervisor_mode_from_policy(state.goal.runtime_policy) == "stateful_goal"
     with pytest.raises(ValueError, match="only the latest stateful_goal"):
         supervisor_mode_from_policy({"supervisor": {"mode": "contract_graph"}})
@@ -1419,25 +1538,38 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
         gaps=[],
         reason="all plan steps have committed evidence",
     )
-    session = ModelSession(
-        _QueueClient(
-            [
+    queue = _QueueClient(
+        [
                 json.dumps(
-                    {
-                        "function": "write_file",
-                        "params": {"path": "result.txt", "content": "verified"},
-                    }
+                    _native_tool_call(
+                        "write_file",
+                        {"path": "result.txt", "content": "verified"},
+                        stringify_arguments=True,
+                    )
                 ),
-                json.dumps(first_audit),
                 json.dumps(
-                    {
-                        "function": "final_answer",
-                        "params": {"text": "Created and verified result.txt."},
-                    }
+                    _native_tool_call(
+                        "audit_decision",
+                        first_audit["params"],
+                    )
                 ),
-                json.dumps(final_audit),
+                json.dumps(
+                    _native_tool_call(
+                        "final_answer",
+                        {"text": "Created and verified result.txt."},
+                        stringify_arguments=True,
+                    )
+                ),
+                json.dumps(
+                    _native_tool_call(
+                        "audit_decision",
+                        final_audit["params"],
+                    )
+                ),
             ]
-        ),
+    )
+    session = ModelSession(
+        queue,
         settings=_settings(progressive=True),
     )
     model = LongHorizonModel(
@@ -1463,23 +1595,475 @@ def test_stateful_goal_loop_completes_only_after_rwkv_audit(
 
     assert result.state.status.value == "completed"
     assert result.final_output == "Created and verified result.txt."
+    assert len(queue.prompts) == 4
+    assert all(
+        prompt.endswith("\n\n**Tool Call:**\n\n```json\n")
+        for prompt in queue.prompts
+    )
+    assert all("Assistant: ```json" not in prompt for prompt in queue.prompts)
+    assert all(
+        "\n\nAssistant:\n\n**Tool Call:**" not in prompt
+        for prompt in queue.prompts
+    )
     assert (Path(state.goal.workspace_root) / "result.txt").read_text() == "verified"
     event_types = [
         result.state.causal_records[event_id].event_type
         for event_id in result.state.causal_order
     ]
     assert event_types.count("goal_audit_accepted") == 2
+    assert event_types.count("goal_finalizer_session_started") == 1
     assert event_types.count("goal_plan_patch_committed") == 1
     assert event_types.count("goal_stage_review_committed") == 1
+    accepted_calls = [
+        result.state.causal_records[event_id].payload
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type == "model_call_accepted"
+    ]
+    assert len(accepted_calls) == 2
+    for payload in accepted_calls:
+        normalization = payload["model_output_normalization"]
+        input_arguments = normalization["input_payload"]["arguments"]
+        assert isinstance(input_arguments, str)
+        assert normalization["normalized_payload"]["params"] == json.loads(
+            input_arguments
+        )
+        assert normalization["controller_semantic_fields_generated"] is False
+    audit_records = [
+        result.state.causal_records[event_id].payload
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type == "goal_audit_recorded"
+    ]
+    assert len(audit_records) == 2
+    assert all(
+        item["model_output_normalization"]["normalized_payload"]["function"]
+        == "audit_decision"
+        for item in audit_records
+    )
     assert planner.requests and planner.requests[0].plan_revision == 0
     assert len(planner.stage_review_requests) == 1
     stage_fact = planner.stage_review_requests[0].recent_action_facts[0]
     assert stage_fact["operation"] == "write_file"
     assert '"success":true' in stage_fact["result_projection"]
     assert event_types[-1] == "run_completed"
+    finalizer_index = event_types.index("goal_finalizer_session_started")
+    final_auditor_index = next(
+        index
+        for index, event_id in enumerate(result.state.causal_order)
+        if result.state.causal_records[event_id].event_type
+        == "goal_auditor_session_started"
+        and result.state.causal_records[event_id].payload["auditor_role"]
+        == "auditor_final"
+    )
+    assert finalizer_index < final_auditor_index < len(event_types) - 1
+    finalizer_event = next(
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_finalizer_session_started"
+    )
+    assert finalizer_event.payload["completion_authority"] is False
+    assert finalizer_event.payload["executor_state_inherited"] is False
+    assert finalizer_event.payload["selector_state_inherited"] is False
+    assert len(finalizer_event.payload["protocol_sha256"]) == 64
+    final_decision = result.state.decisions[result.state.final_decision_id]
+    assert final_decision.lane_id.startswith("LANE:FINALIZER:")
+    assert final_decision.model == model.finalizer_session.model_name
+    assert result.state.model_states[
+        result.state.lane_head("executor")
+    ].lane_kind is ModelLaneKind.ACTION
+    assert result.state.model_states[
+        result.state.lane_head("finalizer_answer")
+    ].lane_kind is ModelLaneKind.FINALIZER
+    auditor_starts = [
+        result.state.causal_records[event_id].payload
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_auditor_session_started"
+    ]
+    assert {item["auditor_role"] for item in auditor_starts} == {
+        "auditor_step",
+        "auditor_final",
+    }
+    assert all(len(item["protocol_sha256"]) == 64 for item in auditor_starts)
+    assert all(item["executor_state_inherited"] is False for item in auditor_starts)
+    selector_payloads = model.tool_selector._session.payloads
+    assert selector_payloads[0]["parent"] is None
+    assert selector_payloads[1]["parent"] is None
+    selector_checkpoints = [
+        checkpoint
+        for checkpoint in result.state.model_states.values()
+        if checkpoint.lane_kind is ModelLaneKind.SELECTOR
+    ]
+    assert {
+        (checkpoint.native_state_metadata or {}).get("selector_state_scope_id")
+        for checkpoint in selector_checkpoints
+    } == {"planner-step:S1:revision:1", "goal-final-candidate"}
     completed = result.state.causal_records[result.state.causal_order[-1]].payload
     assert completed["audit_id"].startswith("AUD-")
     assert completed["rwkv_audit_accepted"] is True
+
+
+def test_stateful_executor_protocol_retry_reuses_consumed_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-SAME-TOOL-RETRY")
+    queue = _QueueClient(
+        [
+            json.dumps(
+                _native_tool_call(
+                    "write_file",
+                    {"path": "result.txt"},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "write_file",
+                    {"path": "result.txt", "content": "verified"},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "audit_decision",
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the mutation action succeeded",
+                    )["params"],
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "final_answer",
+                    {"text": "Created and verified result.txt."},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "audit_decision",
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="all plan steps have committed evidence",
+                    )["params"],
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    selector = _selector(["write_file", "final_answer"])
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=12,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 1
+    assert len(selector._session.payloads) == 2
+    assert selector._session.payloads[0]["parent"] is None
+    assert selector._session.payloads[1]["parent"] is None
+    rejection = next(
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "protocol_rejection_recorded"
+    )
+    assert rejection.payload["protocol_scope"] == "action"
+    assert rejection.payload["selected_operation"] == "write_file"
+    assert rejection.payload["schema_already_disclosed"] is True
+    retry_events = [
+        event
+        for event in result.state.model_events.values()
+        if event.event_type == "protocol_rejection"
+    ]
+    assert len(retry_events) == 1
+    assert retry_events[0].payload["selection_id"] == rejection.payload["selection_id"]
+    accepted_write = next(
+        record
+        for record in result.state.decisions.values()
+        if record.accepted and record.selected_operation == "write_file"
+    )
+    assert accepted_write.tool_selection_id == rejection.payload["selection_id"]
+    assert accepted_write.tool_selection_binding_kind == "non_authoritative_lineage"
+    assert len(queue.prompts) == 5
+
+
+def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-BOUNDED-TOOL-RETRY")
+    queue = _QueueClient(
+        [
+            json.dumps(
+                _native_tool_call(
+                    "write_file",
+                    {"path": "result.txt"},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "move_file",
+                    {"source": "old.txt", "destination": "result.txt"},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "write_file",
+                    {"path": "result.txt", "content": "verified"},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "audit_decision",
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the mutation action succeeded",
+                    )["params"],
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "final_answer",
+                    {"text": "Created and verified result.txt."},
+                    stringify_arguments=True,
+                )
+            ),
+            json.dumps(
+                _native_tool_call(
+                    "audit_decision",
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="all plan steps have committed evidence",
+                    )["params"],
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    selector = _selector(["write_file", "write_file", "final_answer"])
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=16,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert result.state.protocol_rejections == 2
+    assert len(selector._session.payloads) == 3
+    second_selection = json.loads(
+        selector._session.payloads[1]["step"].removeprefix(
+            "SelectorIntentPromptV1: "
+        )
+    )
+    assert second_selection["progress"]["protocol_rejection_count"] == 2
+    retry_events = [
+        event
+        for event in result.state.model_events.values()
+        if event.event_type == "protocol_rejection"
+    ]
+    assert len(retry_events) == 1
+    assert queue.prompts[2].count("ExecutorArgsPromptV1: ") == 1
+    assert "protocol_rejection" not in queue.prompts[2]
+    executor_starts = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "action_session_started"
+    ]
+    assert len(executor_starts) == 2
+    assert executor_starts[1].payload["session_scope"] == "one_selected_action"
+    assert executor_starts[1].payload["executor_state_inherited"] is False
+
+
+def test_stateful_protocol_budget_blocks_across_controller_slices(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-DURABLE-PROTOCOL-BUDGET")
+    queue = _QueueClient(["{}"] * 13)
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    selector = _selector(["write_file"] * 7)
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+
+    result = controller.run(state.run_id)
+    for _ in range(11):
+        result = controller.resume(state.run_id)
+
+    assert result.state.status.value == "blocked"
+    assert result.state.protocol_rejections == 12
+    assert len(queue.prompts) == 12
+    terminal = result.state.causal_records[result.state.causal_order[-1]]
+    assert terminal.event_type == "run_blocked"
+    assert terminal.payload["reason"] == "protocol_rejection_budget_exhausted"
+
+    resumed = controller.resume(state.run_id)
+
+    assert resumed.state.status.value == "interrupted"
+    assert len(queue.prompts) == 13
+    latest_start = next(
+        resumed.state.causal_records[event_id]
+        for event_id in reversed(resumed.state.causal_order)
+        if resumed.state.causal_records[event_id].event_type == "run_started"
+    )
+    assert latest_start.payload["protocol_rejection_budget_reset"] is True
+
+
+def test_final_auditor_repair_returns_to_goal_loop_before_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "FINAL-AUDIT-REPAIR")
+    session = ModelSession(
+        _QueueClient(
+            [
+                json.dumps(
+                    {
+                        "function": "write_file",
+                        "params": {"path": "result.txt", "content": "verified"},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the mutation action succeeded",
+                    )
+                ),
+                json.dumps(
+                    {
+                        "function": "final_answer",
+                        "params": {"text": "Unsupported first candidate."},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=["candidate does not report the committed artifact"],
+                        reason="the final candidate is not evidence-complete",
+                    )
+                ),
+                json.dumps(
+                    {
+                        "function": "final_answer",
+                        "params": {"text": "Created and verified result.txt."},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the revised candidate covers committed evidence",
+                    )
+                ),
+            ]
+        ),
+        settings=_settings(progressive=True),
+    )
+    model = LongHorizonModel(
+        session,
+        tool_selector=_selector(["write_file", "final_answer", "final_answer"]),
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=12,
+    )
+
+    result = controller.run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert result.final_output == "Created and verified result.txt."
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    event_types = [item.event_type for item in events]
+    assert event_types.count("goal_finalizer_session_started") == 2
+    assert event_types.count("goal_final_rejected") == 1
+    rejected_index = event_types.index("goal_final_rejected")
+    completed_index = event_types.index("run_completed")
+    assert rejected_index < completed_index
+    rejected = events[rejected_index]
+    assert rejected.payload["verdict"] == "repair"
+    assert rejected.payload["controller_rewritten"] is False
+    assert all(
+        item.event_type != "run_completed" for item in events[:rejected_index]
+    )
 
 
 def test_planner_semantic_repair_reaches_stage_checker(
@@ -1655,20 +2239,52 @@ def test_planner_semantic_repair_is_bounded_and_not_reported_unavailable(
     assert terminal.payload["reason"] == "strong_planner_semantic_invalid"
 
 
+def test_goal_planner_zero_semantic_repairs_never_makes_a_second_call(
+    tmp_path: Path,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "PLANNER-ZERO-SEMANTIC-REPAIR")
+    session = ModelSession(
+        _QueueClient([]),
+        settings=_settings(progressive=True),
+    )
+    model = LongHorizonModel(session, tool_selector=_selector([]))
+    planner = _ScriptedStrongPlanner(
+        (ValueError("plan root must be workspace-relative"),)
+    )
+    planner.semantic_repair_attempts = 0
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=4,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "interrupted"
+    assert len(planner.requests) == 1
+    rejected = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "strong_planner_patch_rejected"
+    ]
+    assert len(rejected) == 1
+    assert rejected[0].payload["repair_scheduled"] is False
+    assert rejected[0].payload["configured_semantic_repair_attempts"] == 0
+    assert result.state.causal_records[result.state.causal_order[-1]].payload[
+        "reason"
+    ] == "strong_planner_semantic_invalid"
+
+
 def test_rwkv_repair_audit_continues_same_step_without_replanning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-STRONG-REPLAN")
-    repair_audit = _audit_call(
-        "repair",
-        step_id="S1",
-        step_complete=False,
-        evidence_refs=["A00001"],
-        gaps=["the requested artifact was not created"],
-        reason="the mutation failed and the frontier still lacks evidence",
-    )
     session = ModelSession(
         _QueueClient(
             [
@@ -1678,7 +2294,6 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
                         "params": {"path": ".", "content": "cannot replace a directory"},
                     }
                 ),
-                json.dumps(repair_audit),
                 json.dumps(
                     {
                         "function": "write_file",
@@ -1744,7 +2359,8 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
         for event_id in result.state.causal_order
     ]
     assert event_types.count("goal_plan_patch_committed") == 1
-    assert event_types.count("goal_audit_accepted") == 3
+    assert event_types.count("goal_audit_accepted") == 2
+    assert event_types.count("goal_step_evidence_gap_recorded") == 1
     assert event_types.count("goal_stage_review_committed") == 1
     assert event_types.count("rwkv_contract_review_projected") == 0
     assert event_types.count("contract_graph_review_committed") == 0
@@ -1757,6 +2373,36 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     assert "final_answer" not in eligible_labels[0]
     assert "final_answer" not in eligible_labels[1]
     assert eligible_labels[2] == ["final_answer"]
+    selector_payloads = model.tool_selector._session.payloads
+    assert selector_payloads[0]["parent"] is None
+    assert selector_payloads[1]["parent"] is not None
+    second_step = json.loads(
+        selector_payloads[1]["step"].removeprefix("SelectorIntentPromptV1: ")
+    )
+    frontier_state = json.loads(
+        second_step["stage_objective"].removeprefix("GoalFrontierStateV1: ")
+    )
+    assert frontier_state["progress"] == {
+        "completed_step_ids": [],
+        "completed_stage_count": 0,
+        "current_step_action_count": 1,
+    }
+    assert frontier_state["latest_action"]["operation"] == "write_file"
+    assert frontier_state["latest_action"]["status"] == "failed"
+    assert frontier_state["latest_action"]["arguments"]["path"] == "."
+    assert frontier_state["latest_audit_feedback"] == {
+        "status": "mechanically_incomplete",
+        "gaps": [
+            "missing successful mutation evidence for write_root 'result.txt'"
+        ],
+        "successful_action_ids": [],
+        "missing_read_roots": [],
+        "missing_write_roots": ["result.txt"],
+    }
+    assert any(
+        item["name"] == "write_file" and item["description"]
+        for item in frontier_state["eligible_tools"]
+    )
 
 
 def test_stage_repair_survives_planner_outage_and_resumes_before_final(

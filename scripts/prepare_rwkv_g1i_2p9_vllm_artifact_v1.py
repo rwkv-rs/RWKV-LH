@@ -131,7 +131,7 @@ def engine_identity(engine_root: Path) -> tuple[str, bool]:
     return revision, dirty
 
 
-def validate_existing(output: Path) -> bool:
+def validate_existing(output: Path, source_sha256: str = SOURCE_SHA256) -> bool:
     manifest_path = output / "manifest.json"
     weights_path = output / "model.safetensors"
     audit_path = output / "tensor_identity_audit.json"
@@ -146,7 +146,7 @@ def validate_existing(output: Path) -> bool:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     return bool(
         manifest.get("schema_version") == SCHEMA_VERSION
-        and manifest.get("source", {}).get("sha256") == SOURCE_SHA256
+        and manifest.get("source", {}).get("sha256") == source_sha256
         and manifest.get("output", {}).get("weights_sha256")
         == file_sha256(weights_path)
         and manifest.get("output", {}).get("tensor_audit_sha256")
@@ -162,11 +162,17 @@ def main() -> None:
     parser.add_argument("--engine-root", type=Path, default=DEFAULT_ENGINE_ROOT)
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--source-model", default=SOURCE_MODEL)
+    parser.add_argument("--source-sha256", default=SOURCE_SHA256)
     args = parser.parse_args()
 
     engine_root = args.engine_root.resolve()
     source = args.source.resolve()
     output = args.output.resolve()
+    source_model = str(args.source_model).strip()
+    expected_source_sha256 = str(args.source_sha256).strip()
+    if not source_model or len(expected_source_sha256) != 64:
+        raise ValueError("source model identity is incomplete")
     if not (engine_root / "vllm/model_executor/models/rwkv7.py").is_file():
         raise ValueError(f"not the project-pinned vllm-rwkv tree: {engine_root}")
     revision, dirty = engine_identity(engine_root)
@@ -177,11 +183,12 @@ def main() -> None:
     if not source.is_file():
         raise FileNotFoundError(source)
     source_sha256 = file_sha256(source)
-    if source_sha256 != SOURCE_SHA256:
+    if source_sha256 != expected_source_sha256:
         raise ValueError(
-            f"source SHA-256 mismatch: {source_sha256} != {SOURCE_SHA256}"
+            "source SHA-256 mismatch: "
+            f"{source_sha256} != {expected_source_sha256}"
         )
-    if validate_existing(output):
+    if validate_existing(output, expected_source_sha256):
         print(output)
         return
     if output.exists():
@@ -361,7 +368,7 @@ def main() -> None:
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "source": {
-            "model": SOURCE_MODEL,
+            "model": source_model,
             "path": str(source),
             "sha256": source_sha256,
             "container": "torch-pth-native-vllm-rwkv-names",
@@ -392,7 +399,7 @@ def main() -> None:
     }
     write_json(pending / "manifest.json", manifest)
     (pending / "README.md").write_text(
-        "# RWKV7 G1i 2.9B local vllm-rwkv artifact\n\n"
+        f"# {source_model} local vllm-rwkv artifact\n\n"
         "Value-preserving container serialization of the frozen native 2.9B "
         "checkpoint for the project-pinned local vllm-rwkv engine. Every tensor "
         "is independently audited in `tensor_identity_audit.json`.\n",

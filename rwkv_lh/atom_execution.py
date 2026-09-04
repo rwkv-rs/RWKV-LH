@@ -30,6 +30,16 @@ ATOM_EXECUTION_CONTRACT_SCHEMA_VERSION = "rwkv-lh.atom-execution-contract.v1"
 ATOM_EXECUTION_DEPENDENCY_SCHEMA_VERSION = "rwkv-lh.atom-dependency-result.v1"
 ATOM_CONTRACT_PROGRESS_SCHEMA_VERSION = "rwkv-lh.atom-contract-progress.v1"
 
+_PATH_READ_OPERATIONS = frozenset(
+    {
+        "bind_evidence",
+        "file_digest",
+        "read_file",
+        "read_json",
+        "search_text",
+    }
+)
+
 
 def _sha256(value: object, *, name: str) -> str:
     selected = str(value or "")
@@ -377,6 +387,63 @@ def covered_write_root_indexes(
     return frozenset(covered)
 
 
+def covered_read_root_indexes(
+    contract: AtomExecutionContract,
+    actions: Sequence[object],
+) -> frozenset[int]:
+    """Return declared read roots with a complete, direct Harness observation.
+
+    Arguments and paths remain private to the Executor.  Only the resulting root
+    indexes/counts enter the Selector projection.  Directory listings count only
+    when they directly list a declared directory root; listing a parent does not
+    pretend to have read a child's content.
+    """
+
+    roots = contract.atom.read_roots
+    covered: set[int] = set()
+    for action in actions:
+        if not action_completion_eligible(action):
+            continue
+        operation = str(_action_value(action, "action_type", "operation") or "")
+        arguments = dict(_action_value(action, "arguments") or {})
+        raw_path = str(arguments.get("path") or "").strip().replace("\\", "/")
+        if operation == "list_directory":
+            target = _relative_parts(raw_path or ".")
+            for index, root in enumerate(roots):
+                normalized_root = str(root).strip().replace("\\", "/")
+                if normalized_root == "." and raw_path in {"", "."}:
+                    covered.add(index)
+                elif target and target == tuple(PurePosixPath(root).parts):
+                    covered.add(index)
+            continue
+        if operation not in _PATH_READ_OPERATIONS:
+            continue
+        target = _relative_parts(raw_path or ".")
+        if not target and raw_path not in {"", "."}:
+            continue
+        covered.update(
+            index
+            for index, root in enumerate(roots)
+            if (root == "." and raw_path in {"", "."})
+            or (bool(target) and path_is_within(target, root))
+        )
+    return frozenset(covered)
+
+
+def action_observes_read_scope(
+    contract: AtomExecutionContract,
+    action: object,
+) -> bool:
+    """Return whether one complete action is relevant to declared read scope."""
+
+    if not action_completion_eligible(action):
+        return False
+    operation = str(_action_value(action, "action_type", "operation") or "")
+    if operation == "check_command":
+        return True
+    return bool(covered_read_root_indexes(contract, (action,)))
+
+
 def _latest_action_fact(actions: Sequence[object]) -> dict[str, object] | None:
     latest = actions[-1] if actions else None
     if latest is None:
@@ -400,6 +467,9 @@ def _latest_action_fact(actions: Sequence[object]) -> dict[str, object] | None:
         fact["complete"] = bool(metadata["complete"])
     if "truncated" in metadata:
         fact["truncated"] = bool(metadata["truncated"])
+    raw_error = result.get("error")
+    if isinstance(raw_error, Mapping) and str(raw_error.get("type") or ""):
+        fact["error_type"] = str(raw_error["type"])
     return fact
 
 
@@ -412,8 +482,12 @@ class AtomContractProgress:
     successful_action_count: int
     minimum_eligible_action_count: int
     remaining_action_budget: int
+    covered_read_root_indexes: tuple[int, ...]
     covered_write_root_indexes: tuple[int, ...]
     remaining_minimum_action_count: int
+    read_observation_required: bool
+    read_observation_satisfied: bool
+    remaining_read_observation_count: int
     remaining_write_root_count: int
     post_mutation_observation_required: bool
     post_mutation_observation_satisfied: bool
@@ -426,15 +500,25 @@ class AtomContractProgress:
     def covered_write_root_count(self) -> int:
         return len(self.covered_write_root_indexes)
 
+    @property
+    def covered_read_root_count(self) -> int:
+        return len(self.covered_read_root_indexes)
+
     def selector_projection(
         self,
         binding: AtomExecutionBinding,
     ) -> dict[str, object]:
         contract = binding.contract
-        roots = contract.atom.write_roots
-        remaining_indexes = tuple(
+        read_roots = contract.atom.read_roots
+        write_roots = contract.atom.write_roots
+        remaining_read_indexes = tuple(
             index
-            for index in range(len(roots))
+            for index in range(len(read_roots))
+            if index not in self.covered_read_root_indexes
+        )
+        remaining_write_indexes = tuple(
+            index
+            for index in range(len(write_roots))
             if index not in self.covered_write_root_indexes
         )
         return {
@@ -446,9 +530,13 @@ class AtomContractProgress:
                 "role": contract.atom.role.value,
                 "minimum_actions": contract.minimum_actions,
                 "action_budget": contract.atom.action_budget,
-                "required_write_root_count": len(roots),
+                "required_read_root_count": len(read_roots),
+                "required_read_root_kinds": dict(
+                    sorted(Counter(path_kind(item) for item in read_roots).items())
+                ),
+                "required_write_root_count": len(write_roots),
                 "required_write_root_kinds": dict(
-                    sorted(Counter(path_kind(item) for item in roots).items())
+                    sorted(Counter(path_kind(item) for item in write_roots).items())
                 ),
                 "completed_dependency_count": len(
                     binding.completed_dependencies
@@ -464,9 +552,15 @@ class AtomContractProgress:
                     self.minimum_eligible_action_count
                 ),
                 "remaining_action_budget": self.remaining_action_budget,
+                "covered_read_root_count": self.covered_read_root_count,
                 "covered_write_root_count": self.covered_write_root_count,
                 "remaining_minimum_action_count": (
                     self.remaining_minimum_action_count
+                ),
+                "read_observation_required": self.read_observation_required,
+                "read_observation_satisfied": self.read_observation_satisfied,
+                "remaining_read_observation_count": (
+                    self.remaining_read_observation_count
                 ),
                 "remaining_write_root_count": self.remaining_write_root_count,
                 "post_mutation_observation_required": (
@@ -476,9 +570,24 @@ class AtomContractProgress:
                     self.post_mutation_observation_satisfied
                 ),
                 "remaining_required_count": self.remaining_required_count,
+                "unobserved_read_root_kinds": (
+                    dict(
+                        sorted(
+                            Counter(
+                                path_kind(read_roots[index])
+                                for index in remaining_read_indexes
+                            ).items()
+                        )
+                    )
+                    if not self.read_observation_satisfied
+                    else {}
+                ),
                 "remaining_write_root_kinds": dict(
                     sorted(
-                        Counter(path_kind(roots[index]) for index in remaining_indexes).items()
+                        Counter(
+                            path_kind(write_roots[index])
+                            for index in remaining_write_indexes
+                        ).items()
                     )
                 ),
                 "completion_ready": self.completion_ready,
@@ -518,8 +627,10 @@ def contract_progress(
             f"contract: {drifted}"
         )
 
-    covered = covered_write_root_indexes(contract, ordered)
-    covered_before_latest = covered_write_root_indexes(contract, ordered[:-1])
+    covered_reads = covered_read_root_indexes(contract, ordered)
+    covered_reads_before_latest = covered_read_root_indexes(contract, ordered[:-1])
+    covered_writes = covered_write_root_indexes(contract, ordered)
+    covered_writes_before_latest = covered_write_root_indexes(contract, ordered[:-1])
     succeeded = [item for item in ordered if action_succeeded(item)]
     complete_successes = [
         item for item in ordered if action_completion_eligible(item)
@@ -542,8 +653,14 @@ def contract_progress(
         0,
         contract.minimum_actions - len(minimum_eligible_actions),
     )
-    remaining_roots = (
-        len(contract.atom.write_roots) - len(covered)
+    read_observation_required = bool(contract.atom.read_roots)
+    read_observation_satisfied = (
+        not read_observation_required
+        or any(action_observes_read_scope(contract, item) for item in ordered)
+    )
+    remaining_read_observations = int(not read_observation_satisfied)
+    remaining_write_roots = (
+        len(contract.atom.write_roots) - len(covered_writes)
         if requires_path_mutation
         else 0
     )
@@ -573,24 +690,45 @@ def contract_progress(
 
     # This is a lower bound on additional direct actions, not a sum of gates:
     # one successful write can satisfy both the action floor and one root.
-    remaining_required = max(remaining_minimum, remaining_roots)
+    remaining_required = max(
+        remaining_minimum,
+        remaining_read_observations,
+        remaining_write_roots,
+    )
     if post_observation_required and not post_observation_satisfied:
         remaining_required = (
             max(remaining_required, 1)
             if mutation_indexes
-            else max(remaining_minimum, remaining_roots + 1)
+            else max(
+                remaining_minimum,
+                remaining_read_observations,
+                remaining_write_roots + 1,
+            )
         )
     completion_ready = bool(
         remaining_minimum == 0
-        and remaining_roots == 0
+        and read_observation_satisfied
+        and remaining_write_roots == 0
         and post_observation_satisfied
     )
     latest = _latest_action_fact(ordered)
     if latest is not None:
-        newly_covered = len(covered - covered_before_latest)
-        latest["new_write_roots_covered"] = newly_covered
+        newly_covered_reads = len(covered_reads - covered_reads_before_latest)
+        newly_covered_writes = len(covered_writes - covered_writes_before_latest)
+        latest["new_read_roots_covered"] = newly_covered_reads
+        latest["new_write_roots_covered"] = newly_covered_writes
         latest["advanced_contract"] = bool(
-            newly_covered
+            newly_covered_reads
+            or newly_covered_writes
+            or (
+                read_observation_required
+                and read_observation_satisfied
+                and action_observes_read_scope(contract, ordered[-1])
+                and not any(
+                    action_observes_read_scope(contract, item)
+                    for item in ordered[:-1]
+                )
+            )
             or (
                 ordered[-1] in minimum_eligible_actions
                 and len(minimum_eligible_actions) <= contract.minimum_actions
@@ -616,9 +754,13 @@ def contract_progress(
             0,
             contract.atom.action_budget - len(ordered),
         ),
-        covered_write_root_indexes=tuple(sorted(covered)),
+        covered_read_root_indexes=tuple(sorted(covered_reads)),
+        covered_write_root_indexes=tuple(sorted(covered_writes)),
         remaining_minimum_action_count=remaining_minimum,
-        remaining_write_root_count=remaining_roots,
+        read_observation_required=read_observation_required,
+        read_observation_satisfied=read_observation_satisfied,
+        remaining_read_observation_count=remaining_read_observations,
+        remaining_write_root_count=remaining_write_roots,
         post_mutation_observation_required=post_observation_required,
         post_mutation_observation_satisfied=post_observation_satisfied,
         remaining_required_count=remaining_required,
@@ -652,6 +794,16 @@ def contract_integrity_error(
         return (
             "transaction_integrity: no successful path mutation covered "
             f"write_roots={uncovered_roots!r}"
+        )
+    if progress.remaining_read_observation_count:
+        unread_roots = [
+            root
+            for index, root in enumerate(contract.atom.read_roots)
+            if index not in progress.covered_read_root_indexes
+        ]
+        return (
+            "transaction_integrity: no complete direct observation covered "
+            f"read_roots={unread_roots!r}"
         )
     if progress.remaining_minimum_action_count:
         return (
@@ -704,12 +856,14 @@ __all__ = [
     "AtomExecutionBinding",
     "AtomExecutionContract",
     "action_completion_eligible",
+    "action_observes_read_scope",
     "action_observes_mutation_scope",
     "action_succeeded",
     "atom_contract_progress",
     "atom_execution_contract_digest",
     "contract_integrity_error",
     "contract_progress",
+    "covered_read_root_indexes",
     "covered_write_root_indexes",
     "final_answer_eligible",
     "path_is_within",

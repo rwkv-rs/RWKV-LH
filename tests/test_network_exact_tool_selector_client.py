@@ -98,12 +98,12 @@ class _Session:
 def _settings() -> NetworkExactToolSelectorSettings:
     return NetworkExactToolSelectorSettings(
         base_url="http://127.0.0.1:29621",
-        model="rwkv7-g1i-2.9b-20260805-ctx16384",
+        model="rwkv7-g1j-2.9b-20260818-ctx16384",
         model_sha256="a" * 64,
         head_sha256="b" * 64,
         head_hash="c" * 64,
         feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-last.v1",
-        state_profile_id="selector-s1-v1",
+        state_profile_id="selector-intent-2p9-v1",
         state_profile_sha256="d" * 64,
         state_profile_manifest_sha256="e" * 64,
     )
@@ -118,7 +118,7 @@ def _input(action_index: int) -> NetworkSelectorInput:
     )
 
 
-def test_network_selector_client_keeps_a_separate_causal_lane() -> None:
+def test_network_selector_client_continues_one_isolated_role_state() -> None:
     settings = _settings()
     session = _Session(settings)
     client = NetworkExactToolSelectorClient(settings, session=session)
@@ -126,7 +126,10 @@ def test_network_selector_client_keeps_a_separate_causal_lane() -> None:
         _input(0), run_id="RUN-1", trace_id="TRACE-1"
     )
     second, second_checkpoint = client.select(
-        _input(1), run_id="RUN-1", trace_id="TRACE-2", parent=first_checkpoint
+        _input(1),
+        run_id="RUN-1",
+        trace_id="TRACE-2",
+        parent=first_checkpoint,
     )
 
     assert first.selected_operation == second.selected_operation == "connector_lookup"
@@ -134,24 +137,29 @@ def test_network_selector_client_keeps_a_separate_causal_lane() -> None:
     assert first_checkpoint.model == settings.model
     assert second_checkpoint.parent_checkpoint_id == first_checkpoint.checkpoint_id
     assert second.selector_parent_state_digest == first.selector_state_digest
-    assert session.payloads[0]["bootstrap"].startswith("SelectorMenuV8: ")
-    assert "\nSelectorRoleV8: " in session.payloads[0]["bootstrap"]
-    assert session.payloads[0]["step"].startswith("SelectorStepV8: ")
+    assert session.payloads[0]["bootstrap"].startswith("SelectorIntentMenuV1: ")
+    assert "\nSelectorIntentRoleV1: " in session.payloads[0]["bootstrap"]
+    assert session.payloads[0]["step"].startswith("SelectorIntentPromptV1: ")
     assert "Query the exact repository release record." not in json.dumps(
         session.payloads[0], ensure_ascii=False
     )
-    assert session.payloads[0]["step"].endswith(
-        "Current requirement: Use the structured public source for owner/repository.\"}"
+    assert '"stage_objective":"Use the structured public source for owner/repository."' in (
+        session.payloads[0]["step"]
     )
     assert session.payloads[1]["bootstrap"] == ""
-    assert session.payloads[1]["parent"]["state_ref"] == first.selector_state_ref
-    assert second_checkpoint.transcript == session.payloads[1]["step"]
+    assert session.payloads[1]["parent"] == {
+        "checkpoint_id": first_checkpoint.checkpoint_id,
+        "state_ref": first_checkpoint.native_state_ref,
+        "state_digest": first_checkpoint.native_state_digest,
+        "token_position": first_checkpoint.token_count,
+    }
+    assert second_checkpoint.transcript.endswith(session.payloads[1]["step"])
     assert first_checkpoint.native_state_metadata["cache_role"] == (
         "disposable_acceleration"
     )
     assert first_checkpoint.native_state_metadata["authoritative"] is False
     assert second_checkpoint.native_state_metadata["parent_state_digest"] == (
-        first.selector_state_digest
+        first_checkpoint.native_state_digest
     )
     assert len(second_checkpoint.native_state_metadata["state_chain_digest"]) == 64
     assert first_checkpoint.native_state_metadata["generated_rwkv_text"] is False
@@ -160,7 +168,11 @@ def test_network_selector_client_keeps_a_separate_causal_lane() -> None:
         == NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL
     )
     assert first_checkpoint.transport == (
-        "native_rwkv_hidden_mlp_selector_v8_frontier_question_tail"
+        "native_rwkv_hidden_mlp_selector_g1j_selector_intent_v1"
+    )
+    assert second_checkpoint.token_count > first_checkpoint.token_count
+    assert second_checkpoint.native_state_metadata["parent_state_chain_digest"] == (
+        first_checkpoint.native_state_metadata["state_chain_digest"]
     )
     wire = json.dumps(session.payloads, ensure_ascii=False)
     assert '"parameters"' not in wire
@@ -220,6 +232,10 @@ def test_network_selector_settings_partial_environment_fails_closed(
     )
     for name in names:
         monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(
+            name.replace("RWKV_SELECTOR_", "RWKV_LH_SELECTOR_"),
+            raising=False,
+        )
     assert NetworkExactToolSelectorSettings.from_env() is None
     monkeypatch.setenv("RWKV_SELECTOR_BASE_URL", "http://127.0.0.1:29621")
     with pytest.raises(ValueError, match="all 25-class"):

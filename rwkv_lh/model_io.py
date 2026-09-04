@@ -14,7 +14,7 @@ class ModelIOError(ValueError):
     """A generated response is not exactly one explicit function call."""
 
 
-MODEL_COMMAND_NORMALIZER_VERSION = "direct-call-envelope.v2"
+MODEL_COMMAND_NORMALIZER_VERSION = "direct-call-envelope.v3"
 
 TOOL_SELECTION_OPERATION = "select_tool"
 INDEPENDENT_EXECUTOR_PROTOCOL = "independent-selector-executor.v1"
@@ -29,6 +29,7 @@ INDEPENDENT_EXECUTOR_DISCLOSURE_MARKER = (
 )
 INDEPENDENT_EXECUTOR_RETRY_MARKER = "\n\nUser: Executor retry input: "
 INDEPENDENT_EXECUTOR_CONTINUATION_ANCHOR = "\n\nAssistant: ```json\n"
+TOOL_CALL_JSON_CONTINUATION_ANCHOR = "\n\n**Tool Call:**\n\n```json\n"
 INDEPENDENT_EXECUTOR_INSTRUCTION = (
     "Use only the operation committed by the independent Selector and its disclosed "
     "contract. Supply complete explicit parameters or final text; never select or "
@@ -148,12 +149,17 @@ def render_bootstrap(
     assignment: str,
     *,
     progressive_tool_disclosure: bool = False,
+    native_tool_call_json: bool = False,
 ) -> str:
     request = str(assignment or "").strip()
     if not request:
         raise ModelIOError("assignment must be non-empty")
     if not definitions:
         raise ModelIOError("at least one operation definition is required")
+    if progressive_tool_disclosure and native_tool_call_json:
+        raise ModelIOError(
+            "native Tool Call JSON anchor is not used for tool-menu selection"
+        )
     if progressive_tool_disclosure:
         menu = [
             {
@@ -177,13 +183,18 @@ def render_bootstrap(
             "The controller will disclose that operation's parameter contract next.\n\n"
             "Assistant: ```json\n"
         )
+    generation_anchor = (
+        TOOL_CALL_JSON_CONTINUATION_ANCHOR
+        if native_tool_call_json
+        else "\n\nAssistant: ```json\n"
+    )
     return (
         f"System: Tools: {canonical_json([dict(item) for item in definitions])}\n"
         "Choose exactly one displayed tool. Return only one JSON function call using "
         '"function" for its name and "params" for its complete parameters. Do not '
         "describe the call outside JSON.\n\n"
-        f"User: {request}\n\n"
-        "Assistant: ```json\n"
+        f"User: {request}"
+        + generation_anchor
     )
 
 
@@ -296,6 +307,56 @@ def validate_independent_executor_generation_input(
     requirement = str(current_requirement or "")
     if not requirement.strip():
         raise ModelIOError("independent Executor requirement must be non-empty")
+    protocol_marker = "ExecutorArgsPromptV1: "
+    protocol_start = text.rfind(protocol_marker)
+    if protocol_start >= 0:
+        protocol_prefix = text[:protocol_start]
+        if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+            raise ModelIOError(
+                "Executor-Args production prompt is preceded by a legacy "
+                "Assistant JSON continuation anchor"
+            )
+        if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+            raise ModelIOError(
+                "Executor-Args production prompt has no Tool Call continuation anchor"
+            )
+        payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+        try:
+            payload = json.loads(
+                text[protocol_start + len(protocol_marker) : payload_end]
+            )
+        except json.JSONDecodeError as exc:
+            raise ModelIOError(
+                f"Executor-Args production prompt is invalid JSON: {exc}"
+            ) from exc
+        if not isinstance(payload, Mapping):
+            raise ModelIOError("Executor-Args production prompt must be an object")
+        expected_schema = (
+            "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v1"
+        )
+        if (
+            payload.get("schema_version") != expected_schema
+            or payload.get("role") != "executor_args"
+            or payload.get("current_requirement") != requirement
+            or not str(payload.get("selected_operation") or "").strip()
+            or not isinstance(payload.get("selected_tool_contract"), Mapping)
+        ):
+            raise ModelIOError("Executor-Args production prompt identity mismatch")
+        if text != (
+            text[:protocol_start]
+            + protocol_marker
+            + json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=False,
+                separators=(",", ":"),
+            )
+            + TOOL_CALL_JSON_CONTINUATION_ANCHOR
+        ):
+            raise ModelIOError(
+                "Executor-Args production prompt is not at the continuation edge"
+            )
+        return
     if not text.endswith(INDEPENDENT_EXECUTOR_CONTINUATION_ANCHOR):
         raise ModelIOError(
             "independent Executor generation input has no final continuation anchor"
@@ -439,9 +500,14 @@ def render_event_append(
     *,
     progressive_tool_disclosure: bool = False,
     independent_executor_retry_operation: str = "",
+    include_generation_anchor: bool = True,
 ) -> str:
     retry_operation = str(independent_executor_retry_operation or "").strip()
     if retry_operation:
+        if not include_generation_anchor:
+            raise ModelIOError(
+                "legacy independent Executor retry requires its generation anchor"
+            )
         if (
             event.event_type != "protocol_rejection"
             or visible_definitions
@@ -478,6 +544,10 @@ def render_event_append(
             + INDEPENDENT_EXECUTOR_CONTINUATION_ANCHOR
         )
     if visible_definitions and progressive_tool_disclosure:
+        if not include_generation_anchor:
+            raise ModelIOError(
+                "progressive tool-menu selection requires its generation anchor"
+            )
         menu = [
             {
                 "name": str(item.get("name") or ""),
@@ -502,15 +572,21 @@ def render_event_append(
             + canonical_json([dict(item) for item in visible_definitions])
             + "\nChoose exactly one displayed tool and return one JSON function call."
         )
-    return (
+    rendered = (
         scope
         + "\n\nUser: Function output: "
         + canonical_json(event.to_model_dict())
-        + "\n\nAssistant: ```json\n"
     )
+    if include_generation_anchor:
+        rendered += INDEPENDENT_EXECUTOR_CONTINUATION_ANCHOR
+    return rendered
 
 
-def render_rollover_event_summary(events: Sequence[ModelEvent]) -> str:
+def render_rollover_event_summary(
+    events: Sequence[ModelEvent],
+    *,
+    include_generation_anchor: bool = True,
+) -> str:
     """Render the exact event bodies that remain visible after a rollover."""
 
     selected = tuple(events)
@@ -519,13 +595,16 @@ def render_rollover_event_summary(events: Sequence[ModelEvent]) -> str:
     event_ids = [event.event_id for event in selected]
     if len(set(event_ids)) != len(event_ids):
         raise ModelIOError("rollover event summary contains duplicate event ids")
-    return (
+    rendered = (
         "\n\nUser: Deterministic recent controller event summary: "
         + canonical_json([event.to_model_dict() for event in selected])
         + "\nThese controller-produced event bodies remain visible after context "
         "rollover. Use their exact errors and observations when choosing the next "
-        "call.\n\nAssistant: ```json\n"
+        "call."
     )
+    if include_generation_anchor:
+        rendered += INDEPENDENT_EXECUTOR_CONTINUATION_ANCHOR
+    return rendered
 
 
 def _extract_json(raw_output: str) -> tuple[str, list[str]]:
@@ -548,6 +627,8 @@ def _extract_json(raw_output: str) -> tuple[str, list[str]]:
         if opener not in {"```", "```json"}:
             raise ModelIOError("only a plain or json Markdown fence is accepted")
         text = text[first_newline + 1 : -3].strip()
+        if not text:
+            raise ModelIOError("Markdown code fence has no JSON body")
         transformations.append("surface:markdown_code_fence_removed")
     return text, transformations
 
@@ -629,6 +710,18 @@ def parse_model_command_with_trace(
             arguments = value[argument_keys[0]]
             if not isinstance(name, str) or not name.strip() or name != name.strip():
                 raise ModelIOError("function name must be a trimmed non-empty string")
+            if argument_keys[0] in {"arguments", "function_args"} and isinstance(
+                arguments, str
+            ):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError as exc:
+                    raise ModelIOError(
+                        f"{argument_keys[0]} are not one JSON object: {exc}"
+                    ) from exc
+                transformations.append(
+                    f"call_envelope:{name_keys[0]}.{argument_keys[0]}_json_decoded"
+                )
             if not isinstance(arguments, Mapping):
                 raise ModelIOError("function parameters must be an object")
             if (name_keys[0], argument_keys[0]) != ("function", "params"):
@@ -671,6 +764,7 @@ __all__ = [
     "JSON_CALL_STOP_SUFFIXES",
     "MODEL_COMMAND_NORMALIZER_VERSION",
     "TOOL_SELECTION_OPERATION",
+    "TOOL_CALL_JSON_CONTINUATION_ANCHOR",
     "ModelCommand",
     "ModelCommandNormalization",
     "ModelIOError",

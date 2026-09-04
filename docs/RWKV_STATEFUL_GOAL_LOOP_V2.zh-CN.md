@@ -1,6 +1,6 @@
-# RWKV Stateful Goal Loop v2
+# RWKV Stateful Goal Loop v3
 
-更新时间：2026-09-01（Asia/Shanghai）
+更新时间：2026-09-04（Asia/Shanghai）
 
 目标不是一次做成成熟 Agent Harness，而是先形成一条真实可运行、能推进中等难度任务、失败时保留可审核事实的最小链路。
 
@@ -22,10 +22,13 @@ Strong Planner ── 嵌套 GoalPlanPatch：stage -> peer steps
 Harness ── Action、结果、文件和 Artifact 的唯一事实权威
               │
               ▼
+Controller Mechanical Evidence Gate ── 校验成功 Action 是否覆盖 read/write roots
+              │
+              ▼
 独立 RWKV Auditor State ── 只审核一个步骤边界
               │
               ▼
-Evidence Kernel ── 校验证据、作用域、步骤 revision 和完成条件
+Evidence Kernel ── 再校验证据引用、作用域、步骤 revision 和完成权限
               │
               ▼
 Strong Stage Checker ── 只检查已完成阶段的一致性，advance / repair
@@ -91,14 +94,16 @@ Planner 输出按阶段嵌套。阶段内步骤同级，步骤不重复填写阶
 - 同阶段步骤不能互相依赖；依赖只能指向更早阶段。
 - 同阶段的写/写和读/写根不能重叠；冲突计划在提交前拒绝。
 - 阶段是屏障：本阶段全部步骤经过 RWKV Audit 和 Evidence Kernel 后，才能进入 Strong Stage Checker；Checker `advance` 后才进入下一阶段。
-- Planner 不选择工具、不填写参数、不执行、不审核证据、不写最终答案。
+- Planner 只声明步骤、依赖、`success_evidence` 和 read/write roots；这些声明是需求，不是完成证明。
+- Planner 不选择工具、不填写参数、不执行、不审核证据、不声明步骤已经完成、不写最终答案。
 
 ## 每个角色只做一件事
 
-- 2.9B Selector：输入只有当前步骤和候选工具短描述；提交唯一 eligible raw-logit argmax。
-- 13.3B Executor：输入只有当前步骤和一个已选工具 schema；输出该工具参数或最终汇报。
-- RWKV Auditor：每次从干净 State 启动，只检查一个已提交 Action 边界；不继承或合并 Executor WKV。
-- Evidence Kernel：机械验证 Action 状态、证据来源、步骤 revision、读写根和最终完成条件。
+- 2.9B Selector：每个 `(step_id, step_revision)` 有一条局部 WKV；同一步内更新，换步骤或进入 Final 时重置；提交唯一 eligible raw-logit argmax。
+- 13.3B Executor：每个 action 从干净角色 State 启动，只输入当前步骤及其明确依赖的 Harness 事实和一个已选工具 schema，只输出该工具参数。
+- Controller Mechanical Evidence Gate：依据真实成功 Action 的参数检查 read/write roots；覆盖不全时直接生成确定性 gap，不调用 Auditor，也不给完成权限。
+- RWKV Auditor：每次从干净 State 启动；只在机械证据齐全后判断 Planner 的自然语言 `success_evidence`，不继承或合并 Executor WKV。
+- Evidence Kernel：对 Auditor 引用的 Action 状态、证据来源、步骤 revision、读写根和最终完成条件再次 fail closed。
 - Strong Stage Checker：只返回 `verdict`、`gaps`、`reason`；review ID、stage、step IDs 和 evidence refs 全由 Controller 绑定。
 - Harness：唯一允许产生外部事实和副作用的组件。
 
@@ -106,11 +111,11 @@ Planner 输出按阶段嵌套。阶段内步骤同级，步骤不重复填写阶
 
 ## 阶段并发边界
 
-当前代码已经实现嵌套阶段协议、阶段屏障、读写冲突拒绝和 Strong Stage Checker；当前执行器仍使用一条持久 13.3B Executor State，因此阶段内步骤暂时按顺序执行。
+当前代码已经实现嵌套阶段协议、阶段屏障、读写冲突拒绝、Strong Stage Checker 和每 action 独立 Executor State；阶段内步骤仍暂时按顺序执行。
 
 真正并发不得共享或合并一条正在生成的 RWKV State。下一实现边界固定为：
 
-1. 同阶段每个步骤获得独立 Executor session/State；
+1. 为同阶段每个步骤分配独立事务，而不是共享一个在途 Controller boundary；
 2. 只有通过读写冲突检查的步骤才并发；工作区全局写和外部副作用串行；
 3. 每个步骤独立执行、独立 RWKV Audit；
 4. WKV 不合并，只把 Harness Action、Artifact 和 Evidence 事实提交到主 ledger；
@@ -118,6 +123,14 @@ Planner 输出按阶段嵌套。阶段内步骤同级，步骤不重复填写阶
 6. 任一步失败保留已完成事实，并由 Planner 添加最小 repair stage，不重跑无关成功步骤。
 
 在隔离 State 与事实合并协议完成前，不把线程并发或旧 Atom Pool 接回产品，也不宣称阶段并发已完成。
+
+## 全局状态与局部状态
+
+- 全局权威状态是 append-only causal ledger：Goal、PlanPatch、Action、Artifact、证据、审计和 checkpoint 身份都从这里恢复。
+- Planner step 的局部状态由 `(step_id, step_revision)`、该 revision 的 Action、已完成直接依赖的证据和最新 gap 投影得到；它不是第二套可冲突的状态机。
+- Selector WKV 只在这个局部 step scope 内持续；Executor WKV 只活一个已选 action；一次参数修复可复用该 action handoff，选择新工具时重置。
+- Step Auditor、Finalizer、Final Auditor 都是一次边界一个 clean State；它们的生成 State 不写回其他角色。
+- WKV 是可丢弃加速与角色偏置，不是完成事实；完成权限只来自 causal ledger 上通过机械门和内核校验的审计记录。
 
 ## Prompt 布局
 
@@ -127,17 +140,11 @@ Planner 输出按阶段嵌套。阶段内步骤同级，步骤不重复填写阶
 
 - `RWKV_LH_SELECTOR_*`：2.9B Selector 与匹配权重、输入协议的 Head；
 - `RWKV_LH_EXECUTOR_*`：13.3B Executor；
-- `RWKV_LH_AUDITOR_*`：可选 Auditor；默认复用 Executor 的 13.3B 服务，但保持独立 session/clean State；
+- `RWKV_LH_AUDITOR_STEP_*`、`RWKV_LH_FINALIZER_*`、`RWKV_LH_AUDITOR_FINAL_*`：独立角色；默认复用 Executor 部署但保持独立 session/clean State；
 - `RWKV_LH_PLANNER_*`：Strong Planner 与 Stage Checker。
 
 模型代际不写死在代码中。G1I、G1J 或后续权重都通过 `.env.local` 替换；Selector Head identity 必须匹配模型 SHA、协议和 Head SHA。
 
 ## 当前 G1J 结论
 
-- 旧 G1J 2.9B + v7/S60 Head 固定开发集 accuracy `0.9509918`、macro-F1 `0.9492751`；最早失败是 raw argmax 工具分类错误，不是 `PlanPatch` 或 JSON 解析错误。
-- 同一 S60/V7 dev 逐样本对比中，G1J 相对 G1I 修复 10 条但新增回归 29 条；净退化 19 条集中于多步骤 S39。该比较包含各自匹配 Head，不能外推裸模型能力。
-- v7 把完整多步 Goal 放在语义尾，导致 Selector 越过当前 frontier。v8 已改为 frontier-only，但需要按 v8 重新抽取 G1J 特征并训练匹配 Head；这是 Selector Head 训练，不是 State Tuning。
-- 当前 zero-State 对照中，G1J 13.3B Auditor 为 2/2，7.2B 为 0/2，因此默认复用 13.3B 权重，不额外常驻 7.2B。
-- 现在不做 State Tuning。只有修正角色、输入、证据投影和 Head 后，固定数据仍稳定暴露同一模型能力缺口，才把“错误输出 -> 人工审核正确输出”登记为 State Tuning 数据。
-
-证据见 [G1J Selector 审计](../data/experiments/G1J_STATEFUL_GOAL_LOOP_V2_WEIGHT_SWAP_20260901/G1J_SELECTOR_ZERO_STATE_DEV_AUDIT.md)、[G1I/G1J 配对审计](../data/experiments/G1J_VS_G1I_ROLE_COMPARISON_20260901/RESULT.md)、[13.3B/7.2B Auditor 对照](../data/experiments/G1J_ZERO_STATE_ROLE_CANARY_20260901/AUDITOR_MODEL_COMPARISON_RESULT.md) 和 [本轮整改记录](../data/experiments/RWKV_GOAL_LOOP_V2_CLEANUP_20260901/PREREGISTRATION.md)。
+五个角色数据集已生成，但 State 训练仍未开始。旧 Selector Head 存在独立样本冒充持久轨迹的问题，已被 runtime identity 淘汰；新 Head 必须来自同分布持久因果序列。完整合同见 [G1J 分环节 State Tuning 冻结实施协议](G1J_STATE_TUNING_AUDIT_HANDOFF_20260902.zh-CN.md)。

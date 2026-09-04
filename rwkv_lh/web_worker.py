@@ -127,6 +127,11 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
                 else controller.run(run_id)
             )
             next_call_is_resume = True
+        except (ValueError, TypeError, AssertionError):
+            # Configuration, identity, schema and architecture mismatches are
+            # deterministic. Retrying them forever only burns a worker while
+            # preserving the same invalid inputs.
+            raise
         except Exception as exc:
             if not goal_mode:
                 raise
@@ -174,7 +179,9 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
     update_metadata(
         run_root,
         active=False,
-        phase="finished",
+        phase=(
+            "blocked" if result.state.status.value == "blocked" else "finished"
+        ),
         pid=None,
         status=result.state.status.value,
         revision=result.state.revision,

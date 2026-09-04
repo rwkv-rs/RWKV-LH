@@ -1,6 +1,6 @@
 # RWKV-LH 当前代码架构
 
-更新时间：2026-09-01（Asia/Shanghai）
+更新时间：2026-09-04（Asia/Shanghai）
 当前分支：`chase/rwkv-goal-loop-v2-cleanup`
 
 本文只描述当前产品链路。旧 Contract Graph、Atom Pool、State Router 和历史实验代码不是产品入口，不作为当前架构组成部分。
@@ -76,15 +76,15 @@ Stage Checker 的模型输出只有 `verdict/gaps/reason`。review ID、stage、
 | Strong Planner/Checker 文本 | 计划或检查建议 | 否 |
 | staged tool selection | Selector 到 Executor 的候选交接 | 否 |
 
-Executor 使用一条持久 action State。Auditor 每个边界从 clean State 启动，不继承或合并 Executor WKV。默认可复用同一个 13.3B 推理服务，但 session 和 State 必须隔离。
+Executor 每个已选 action 从配置的角色初始 State 启动，不继承上一工具的 WKV；最近 Harness 事实来自有界因果投影。Auditor 每个边界同样从 clean State 启动。默认可复用同一个 13.3B 推理服务，但 session 和 State 必须隔离。
 
 ## 4. 当前并发状态
 
-协议已经表达同阶段同级步骤并拒绝冲突，但运行时目前顺序执行，因为产品只有一个持久 Executor lane 和一个未决 Audit boundary。
+协议已经表达同阶段同级步骤并拒绝冲突，但运行时目前顺序执行，因为产品仍只有一个未决 Action/Audit boundary。
 
 真正阶段并发必须先增加：
 
-- 每步独立 Executor session/State；
+- 每步独立在途事务与 Action/Audit boundary；
 - 并发 Action 的独立事务身份；
 - 每步独立 Audit boundary；
 - 只合并 Harness/Evidence 事实的确定性提交协议；
@@ -115,10 +115,12 @@ Executor 使用一条持久 action State。Auditor 每个边界从 clean State �
 RWKV_LH_PLANNER_*   Strong Planner + Stage Checker
 RWKV_LH_SELECTOR_*  2.9B model + matched Head/protocol identity
 RWKV_LH_EXECUTOR_*  13.3B Executor
-RWKV_LH_AUDITOR_*   optional Auditor override
+RWKV_LH_AUDITOR_STEP_*  optional Step Auditor override
+RWKV_LH_FINALIZER_*     optional Finalizer override
+RWKV_LH_AUDITOR_FINAL_* optional Final Auditor override
 ```
 
-未配置 Auditor override 时继承 Executor 部署配置，但不继承 Executor State profile。模型代际、权重路径、服务地址和 SHA 都不写死在角色逻辑中。
+未配置角色 override 时继承 Executor 部署配置，但不继承 Executor State profile。模型代际、权重路径、服务地址和 SHA 都不写死在角色逻辑中。
 
 ## 7. 完成条件
 

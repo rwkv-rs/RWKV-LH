@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -162,7 +163,9 @@ def test_product_executor_and_auditor_share_deployment_binding_not_state(
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime._product_tool_selector",
-        lambda: object(),
+        lambda: SimpleNamespace(
+            input_protocol=SimpleNamespace(g1j_selector_intent=True)
+        ),
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime.RuntimeSettings.for_role",
@@ -174,7 +177,7 @@ def test_product_executor_and_auditor_share_deployment_binding_not_state(
         ),
     )
     monkeypatch.setattr(
-        "rwkv_lh.product_runtime.OpenAICompatibleSupervisorClient",
+        "rwkv_lh.product_runtime.OpenAIGoalSupervisorClient",
         lambda audit_hook=None: object(),
     )
     monkeypatch.setattr(

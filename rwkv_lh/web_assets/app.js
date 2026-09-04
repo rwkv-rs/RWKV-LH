@@ -109,7 +109,7 @@ function resetForm() {
   $("runForm").reset();
   $("maxTransitions").value = 200;
   $("networkPolicy").value = "auto_public";
-  $("supervisorMode").value = "contract_graph";
+  $("supervisorMode").value = "stateful_goal";
   $("publicWorkspacePaths").value = "";
   $("approveWorkspaceEgress").checked = false;
   $("seedFiles").innerHTML = "";
@@ -143,7 +143,6 @@ async function submitRun(event) {
           .split("\n").map((item) => item.trim()).filter(Boolean),
       },
       supervisor_mode: $("supervisorMode").value,
-      state_router_shadow: false,
       seed_files: collectSeedFiles(),
     };
     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });
@@ -226,7 +225,7 @@ async function pollSelectedRun() {
     renderEvents();
     renderFiles();
     const phase = summary.metadata.phase;
-    if (["finished", "failed", "stopped"].includes(phase)) {
+    if (["finished", "failed", "stopped", "blocked"].includes(phase)) {
       clearInterval(state.polling);
       await loadRuns();
     }
@@ -251,8 +250,7 @@ function renderSummary() {
   $("causalMetric").textContent = runState.causal_record_count ?? 0;
   $("goalDigest").textContent = runState.goal_digest || "尚未创建";
   $("exportButton").href = `/api/runs/${encodeURIComponent(metadata.run_id)}/export`;
-  $("stopButton").classList.toggle("hidden", !metadata.active);
-  const canResume = !metadata.active && (status === "interrupted" || metadata.phase === "stopped" || metadata.phase === "failed") && metadata.state_created;
+  const canResume = !metadata.active && (status === "interrupted" || status === "blocked" || metadata.phase === "stopped" || metadata.phase === "failed") && metadata.state_created;
   $("resumeButton").classList.toggle("hidden", !canResume);
 
   $("goalRequest").textContent = runState.request || summary.request.request;
@@ -369,7 +367,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("addSeedButton").addEventListener("click", () => addSeedFile());
   $("runForm").addEventListener("submit", submitRun);
   $("traceFilter").addEventListener("change", renderTrace);
-  $("stopButton").addEventListener("click", () => runAction("stop"));
   $("resumeButton").addEventListener("click", () => runAction("resume"));
   document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
   await Promise.all([loadCapabilities(), loadRuns()]);

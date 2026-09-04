@@ -3,18 +3,18 @@
 ## 设计目标
 
 系统不让 Controller 代替 RWKV 决策，也不要求 16K 窗口反复容纳全部历史。用户请求作为
-不可变 Goal；2.9B Selector 暂存 operation 候选；13.3B Executor 生成完整调用参数、决定继续
-或 Final；Harness 只校验并执行已接受调用。
+不可变 Goal；2.9B Selector 暂存 operation 候选；13.3B Executor 在每个 action 的干净 State 中
+生成完整调用参数；独立 Finalizer 生成 Final；Harness 只校验并执行已接受调用。
 
 ```text
 immutable Goal + folded causal facts
   -> Selector WKV state + bounded selector delta
   -> exact_tool_selection_staged (non-authoritative)
   -> Executor reauthorization + one operation schema
-  -> Executor WKV state + current delta
-  -> accepted direct call OR explicit final_answer
+  -> clean Executor role State + current action projection
+  -> accepted direct call
   -> action_started -> Harness -> action_finished
-  -> bounded observation delta -> same Executor state chain
+  -> bounded observation committed for the next clean Executor action
 ```
 
 ## 16K 与 state+delta
@@ -28,8 +28,8 @@ immutable Goal + folded causal facts
 服务返回新的 state ref/digest。候选先是 forked candidate，只有 parser、operation visibility、
 ActionDefinition schema 和所有 identity binding 通过后才 commit；否则 rollback 到精确父 state。
 
-健康 native lane 不因为累计历史超过 16K 而 rollover 成 prompt replay。16K 只限制单次 bootstrap、
-单步 delta 与输出余量。WKV 是模型对历史的递归压缩，不是精确事实数据库；文件正文、ActionResult、
+健康 native lane 不因为累计历史超过 16K 而回退成 prompt replay。16K 只限制单次 bootstrap、
+单 action 输入与输出余量。WKV 不是精确事实数据库；文件正文、ActionResult、
 证据和完成状态继续存在 CausalEvent/Artifact 中。cache miss 时系统从当前权威投影重建一个有界
 bootstrap，不发额外语义模型请求，也不把全部旧 prompt 重放。
 

@@ -1,4 +1,4 @@
-"""Frozen structured protocol for the RWKV Stateful Goal Loop v2.
+"""Frozen structured protocol used by the RWKV Stateful Goal Loop.
 
 The protocol is deliberately small.  It records a rolling plan and one
 evidence-bound audit verdict; it does not introduce another execution graph or
@@ -26,6 +26,7 @@ from rwkv_lh.schema import ActionStatus, RunState
 
 
 GOAL_AUDIT_SCHEMA_VERSION = "rwkv-lh.goal-audit-decision.v1"
+GOAL_AUDIT_INPUT_PROTOCOL = "rwkv-lh.role-pure-goal-audit.v2"
 GOAL_AUDIT_OPERATION = "audit_decision"
 LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v1"
 GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v2"
@@ -43,8 +44,20 @@ GOAL_AUDIT_DEFINITION: dict[str, Any] = {
                 "type": "string",
                 "enum": ["continue", "repair", "ready_for_final"],
             },
-            "step_id": {"type": "string"},
-            "step_complete": {"type": "boolean"},
+            "step_id": {
+                "type": "string",
+                "description": (
+                    "The active step id at an active_step boundary; always an "
+                    "empty string at a pre_final boundary."
+                ),
+            },
+            "step_complete": {
+                "type": "boolean",
+                "description": (
+                    "True only for a completed active step; always false at a "
+                    "pre_final boundary."
+                ),
+            },
             "evidence_refs": {
                 "type": "array",
                 "items": {"type": "string", "minLength": 1},
@@ -70,6 +83,32 @@ GOAL_AUDIT_DEFINITION: dict[str, Any] = {
         "additionalProperties": False,
     },
 }
+
+
+def goal_audit_output_constraints(*, final_candidate: bool) -> list[str]:
+    """Return the complete model-visible field contract for one audit boundary."""
+
+    common = [
+        "no fields other than the six required fields",
+        "all evidence refs copied from available_evidence_refs",
+        "never invent evidence",
+    ]
+    if final_candidate:
+        return [
+            *common,
+            "pre_final allows only repair or ready_for_final",
+            "at pre_final step_id is always the empty string",
+            "at pre_final step_complete is always false",
+            "ready_for_final requires an empty gaps array",
+            "repair requires at least one exact gap",
+        ]
+    return [
+        *common,
+        "active_step allows only continue or repair",
+        "step_id must exactly equal active_step.step_id",
+        "continue requires step_complete true, at least one evidence ref, and an empty gaps array",
+        "repair requires step_complete false and at least one exact gap",
+    ]
 
 
 def _non_empty(value: Any, field_name: str) -> str:

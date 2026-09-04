@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         "--supervisor",
         choices=("stateful_goal",),
         default="stateful_goal",
-        help="Use the current RWKV Stateful Goal Loop v2 product architecture",
+        help="Use the current RWKV Stateful Goal Loop v3 product architecture",
     )
     start.add_argument(
         "--network-policy",

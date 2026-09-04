@@ -152,6 +152,27 @@ def test_goal_worker_waits_for_runtime_recovery_instead_of_stopping(
     assert stored.status is RunStatus.COMPLETED
 
 
+def test_goal_worker_does_not_retry_deterministic_identity_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-IDENTITY")
+    run_root = repository.run_root(metadata["run_id"])
+    attempts = 0
+
+    def build(*_args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise ValueError("G1J Selector-Intent Head identity mismatch")
+
+    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
+
+    with pytest.raises(ValueError, match="identity mismatch"):
+        run_web_worker(run_root, resume=False, max_transitions=2)
+
+    assert attempts == 1
+
+
 def test_export_contains_consistent_sqlite_snapshot_and_full_state_exports(tmp_path: Path) -> None:
     repository, metadata = create_repository_run(tmp_path, "UI-EXPORT")
     run_root = repository.run_root(metadata["run_id"])

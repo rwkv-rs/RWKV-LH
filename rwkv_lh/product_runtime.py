@@ -20,7 +20,7 @@ from rwkv_lh.schema import RunState
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 from rwkv_lh.supervisor_openai import (
-    OpenAICompatibleSupervisorClient,
+    OpenAIGoalSupervisorClient,
     supervisor_policy_from_env,
 )
 from rwkv_lh.trace_projection import projected_tool_outputs
@@ -89,6 +89,18 @@ def build_product_controller(
 ) -> Any:
     root = Path(state_root).expanduser().resolve()
     config = retrieval_policy_from_goal(state.goal)
+    supervisor_mode_from_policy(state.goal.runtime_policy)
+    tool_selector = _product_tool_selector()
+    if tool_selector is None:
+        raise ValueError(
+            "stateful_goal requires complete RWKV_LH_SELECTOR_* configuration; "
+            "the Executor cannot replace the independent Selector"
+        )
+    if not tool_selector.input_protocol.g1j_selector_intent:
+        raise ValueError(
+            "stateful_goal accepts only the current G1J Selector-Intent input "
+            "protocol; historical Selector prompt protocols are not runtime modes"
+        )
     executor_binding = executor_profile_binding_for_run(state)
     executor_settings = executor_binding.settings
     if goal_self_termination_only(state.goal):
@@ -97,13 +109,6 @@ def build_product_controller(
         executor_settings = replace(
             executor_settings,
             state_transport="native_required",
-        )
-    supervisor_mode_from_policy(state.goal.runtime_policy)
-    tool_selector = _product_tool_selector()
-    if tool_selector is None:
-        raise ValueError(
-            "stateful_goal requires complete RWKV_LH_SELECTOR_* configuration; "
-            "the Executor cannot replace the independent Selector"
         )
     harness = build_product_harness(
         config=config,
@@ -122,26 +127,43 @@ def build_product_controller(
 
     # Deployment defaults may inherit from Executor.  Sessions and recurrent
     # States remain separate, and Executor's State profile is never inherited.
-    # A 7.2B Auditor is therefore one .env change.
-    auditor_settings = RuntimeSettings.for_role(
-        "auditor",
+    step_auditor_settings = RuntimeSettings.for_role(
+        "auditor_step",
+        fallback=executor_settings,
+    )
+    finalizer_settings = RuntimeSettings.for_role(
+        "finalizer",
+        fallback=executor_settings,
+    )
+    final_auditor_settings = RuntimeSettings.for_role(
+        "auditor_final",
         fallback=executor_settings,
     )
     executor_session = create_model_session(
         settings=executor_settings,
         audit_hook=role_audit("executor"),
     )
-    auditor_session = create_model_session(
-        settings=auditor_settings,
-        audit_hook=role_audit("auditor"),
+    step_auditor_session = create_model_session(
+        settings=step_auditor_settings,
+        audit_hook=role_audit("auditor_step"),
+    )
+    finalizer_session = create_model_session(
+        settings=finalizer_settings,
+        audit_hook=role_audit("finalizer_answer"),
+    )
+    final_auditor_session = create_model_session(
+        settings=final_auditor_settings,
+        audit_hook=role_audit("auditor_final"),
     )
     model = LongHorizonModel(
         executor_session,
         harness=harness,
         tool_selector=tool_selector,
-        auditor_session=auditor_session,
+        step_auditor_session=step_auditor_session,
+        finalizer_session=finalizer_session,
+        final_auditor_session=final_auditor_session,
     )
-    supervisor = OpenAICompatibleSupervisorClient(audit_hook=supervisor_audit_hook)
+    supervisor = OpenAIGoalSupervisorClient(audit_hook=supervisor_audit_hook)
     policy = supervisor_policy_from_env(mode="static")
     return StatefulGoalLoopController(
         store,

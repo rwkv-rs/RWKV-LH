@@ -346,14 +346,15 @@ def test_stateful_run_protocol_records_required_strong_planner_without_reviewer(
 
     assert metadata == {
         "enabled": True,
-        "persistent_executor_state_count": 1,
+        "persistent_executor_state_count": 0,
+        "executor_state_scope": "one_selected_action",
         "selector_tool_decisions_per_action": 1,
         "auditor_state_isolated": True,
         "rwkv_audit_required": True,
         "audit_wkv_merge": False,
         "strong_model_dependency": True,
         "strong_planner_required": True,
-        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v1",
+        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v2",
         "strong_reviewer_enabled": False,
     }
 

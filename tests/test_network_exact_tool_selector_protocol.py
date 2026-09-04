@@ -89,6 +89,16 @@ def test_network_selector_v2_rejects_schema_leak() -> None:
         )
 
 
+def test_network_selector_progress_rejects_duplicate_operation_kinds() -> None:
+    with pytest.raises(ValueError, match="succeeded operations must be unique"):
+        NetworkSelectorProgress(
+            succeeded_operations=("read_file", "read_file")
+        )
+
+    with pytest.raises(ValueError, match="failed operations must be unique"):
+        NetworkSelectorProgress(failed_operations=("read_file", "read_file"))
+
+
 def test_network_selector_v2_preserves_all_raw_logits() -> None:
     logits = [float(index) / 100 for index in range(25)]
     selected = NETWORK_EXACT_TOOL_LABELS.index("connector_lookup")

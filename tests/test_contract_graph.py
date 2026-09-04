@@ -35,6 +35,10 @@ from rwkv_lh.parallel_atoms import (
     ThreadedRWKVAtomPool,
 )
 from rwkv_lh.schema import RunStatus
+from rwkv_lh.run_lifecycle import (
+    RUN_LIFECYCLE_POLICY_KEY,
+    run_lifecycle_policy_document,
+)
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import AtomRole, SupervisorAtom, SupervisorPolicy
 from rwkv_lh.trace_projection import project_run_activity
@@ -2676,3 +2680,39 @@ def test_contract_runtime_exception_is_persisted_as_terminal(tmp_path) -> None:
     ]
     assert "contract_graph_runtime_failed" in event_types
     assert event_types[-1] == "run_interrupted"
+
+
+def test_goal_contract_runtime_exception_yields_instead_of_ending(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    harness = ActionHarness(sandbox_commands=False)
+    model = LongHorizonModel(harness=harness)
+    store = LongHorizonStore(tmp_path / "state", checkpoint_retention=1000)
+    goal = model.create_literal_goal(
+        REQUEST,
+        str(workspace),
+        runtime_policy={
+            RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document("goal")
+        },
+    )
+    store.create_run(goal, "RUN-GOAL-FAIL")
+    controller = LongHorizonController(
+        store,
+        model=model,
+        harness=harness,
+        supervisor=ContractSupervisor(),
+        supervisor_policy=SupervisorPolicy(mode="contract_graph"),
+        atom_worker_pool=ExplodingContractPool(),
+    )
+
+    result = controller.run("RUN-GOAL-FAIL")
+
+    assert result.state.status is RunStatus.RUNNING
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert any(event.event_type == "contract_graph_runtime_failed" for event in events)
+    assert events[-1].event_type == "run_yielded"
+    assert events[-1].payload["boundary_type"] == "run_interrupted"
+    assert events[-1].payload["reason"] == "contract_graph_runtime_failure"

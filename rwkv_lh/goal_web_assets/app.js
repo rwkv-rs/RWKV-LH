@@ -198,7 +198,7 @@ async function selectRun(runId) {
   renderRuns();
   await pollRun();
   const phase = app.summary?.metadata?.phase;
-  if (!["finished", "failed", "stopped"].includes(phase)) {
+  if (!["finished", "failed", "stopped", "blocked"].includes(phase)) {
     app.polling = setInterval(pollRun, 1700);
   }
 }
@@ -222,7 +222,7 @@ async function pollRun() {
     app.files = files.files || [];
     renderRun();
     const phase = summary.metadata?.phase;
-    if (["finished", "failed", "stopped"].includes(phase)) {
+    if (["finished", "failed", "stopped", "blocked"].includes(phase)) {
       clearInterval(app.polling);
       app.polling = null;
       await loadRuns();
@@ -289,7 +289,7 @@ function renderRun() {
   $("runStatus").className = `status-chip ${status}`;
   $("runStatus").textContent = status;
   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
-  const resumable = !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed"].includes(status);
+  const resumable = !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
   $("obligationMetric").textContent = `${satisfied} / ${contract.obligations.length}`;

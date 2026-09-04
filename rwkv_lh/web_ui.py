@@ -44,7 +44,7 @@ ASSET_ROOT = Path(
     )
 ).expanduser().resolve()
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
-TERMINAL_PHASES = {"finished", "failed", "stopped"}
+TERMINAL_PHASES = {"finished", "failed", "stopped", "blocked"}
 MAX_REQUEST_BYTES = 6 * 1024 * 1024
 MAX_SEED_BYTES = 5 * 1024 * 1024
 MAX_TEXT_PREVIEW_BYTES = 1024 * 1024

@@ -174,6 +174,10 @@ class NetworkSelectorProgress:
         )
         if any(value < 0 for value in counters):
             raise ValueError("network Selector progress counters must be non-negative")
+        if len(set(self.succeeded_operations)) != len(self.succeeded_operations):
+            raise ValueError("network Selector succeeded operations must be unique")
+        if len(set(self.failed_operations)) != len(self.failed_operations):
+            raise ValueError("network Selector failed operations must be unique")
         known = set(NETWORK_EXACT_TOOL_LABELS) - {
             NETWORK_ABSTAIN_LABEL,
             "final_answer",

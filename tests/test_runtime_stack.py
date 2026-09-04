@@ -159,6 +159,13 @@ def test_stack_prepare_and_goal_studio_web_binding(
     )
 
 
+def test_goal_product_assets_are_in_package_data() -> None:
+    project_config = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    for pattern in ("*.html", "*.css", "*.js"):
+        assert f'"goal_web_assets/{pattern}"' in project_config
+
+
 def test_stack_attests_configured_independent_selector_health(
     tmp_path: Path,
     monkeypatch,
@@ -181,6 +188,10 @@ def test_stack_attests_configured_independent_selector_health(
     }
     for name, value in selector_env.items():
         monkeypatch.setenv(name, value)
+        monkeypatch.setenv(
+            name.replace("RWKV_SELECTOR_", "RWKV_LH_SELECTOR_"),
+            value,
+        )
     expected = {
         "input_protocol": selector_env["RWKV_SELECTOR_INPUT_PROTOCOL"],
         "model": selector_env["RWKV_SELECTOR_MODEL"],

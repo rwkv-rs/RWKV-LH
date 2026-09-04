@@ -42,6 +42,7 @@ from rwkv_lh.retrieval.runtime import (
 )
 from rwkv_lh.retrieval.snapshot import SnapshotStore
 from rwkv_lh.schema import GoalState, TaskAction
+from rwkv_lh.run_lifecycle import goal_self_termination_only
 
 
 class FakeWebProvider:
@@ -1102,6 +1103,31 @@ def test_runtime_policy_is_goal_bound_and_offline_hides_network_tools(tmp_path) 
     assert "calculator" in names
     assert "web_search" not in names
     assert "connector_lookup" not in names
+
+
+def test_runtime_policy_persists_goal_self_termination_semantics(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    policy = runtime_policy_document(
+        RetrievalRuntimeConfig(mode=NetworkPolicyMode.OFFLINE),
+        supervisor_mode="contract_graph",
+        execution_mode="goal",
+    )
+    goal = GoalState.create(
+        request="Continue until RWKV explicitly finishes.",
+        constraints=[],
+        workspace_root=workspace,
+        runtime_policy=policy,
+    )
+
+    assert policy["run_lifecycle"] == {
+        "schema_version": "rwkv-lh.run-lifecycle-policy.v1",
+        "mode": "goal",
+        "self_termination_only": True,
+        "budget_boundary": "checkpoint_and_continue",
+        "completion_authority": "rwkv_explicit_final_answer",
+    }
+    assert goal_self_termination_only(GoalState.from_dict(goal.to_dict())) is True
 
 
 def test_goal_policy_is_the_single_menu_and_execution_authority(tmp_path) -> None:

@@ -26,6 +26,7 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "run_started": "rwkv-lh.run-started.v1",
     "run_completed": "rwkv-lh.run-terminal.v1",
     "run_interrupted": "rwkv-lh.run-terminal.v1",
+    "run_blocked": "rwkv-lh.run-terminal.v1",
     "run_failed": "rwkv-lh.run-terminal.v1",
     "run_yielded": "rwkv-lh.run-yielded.v1",
     "snapshot_recovered": "rwkv-lh.snapshot-recovered.v1",
@@ -56,9 +57,13 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "goal_stage_review_committed": "rwkv-lh.goal-stage-review-committed.v1",
     "strong_stage_checker_call_failed": "rwkv-lh.strong-stage-checker-failed.v1",
     "goal_auditor_session_started": "rwkv-lh.goal-auditor-session-started.v1",
+    "goal_finalizer_session_started": "rwkv-lh.goal-finalizer-session-started.v1",
     "goal_audit_recorded": "rwkv-lh.goal-audit-recorded.v1",
     "goal_audit_accepted": "rwkv-lh.goal-audit-accepted.v1",
     "goal_audit_rejected": "rwkv-lh.goal-audit-rejected.v1",
+    "goal_step_evidence_gap_recorded": (
+        "rwkv-lh.goal-step-evidence-gap-recorded.v1"
+    ),
     "goal_final_rejected": "rwkv-lh.goal-final-rejected.v1",
     "goal_action_plan_step_assigned": "rwkv-lh.goal-action-plan-step-assignment.v1",
     "goal_action_plan_step_linked": "rwkv-lh.goal-action-plan-step-link.v1",
@@ -128,6 +133,9 @@ class ModelLaneKind(str, Enum):
     ACTION = "action"
     SELECTOR = "selector"
     AUDIT = "audit"
+    FINALIZER = "finalizer"
+    STEP_AUDIT = "auditor_step"
+    FINAL_AUDIT = "auditor_final"
 
 
 class ModelCheckpointStatus(str, Enum):
@@ -1072,7 +1080,14 @@ class RunState:
 
     def set_lane_head(self, role: str, checkpoint_id: str) -> None:
         normalized_role = str(role).strip().casefold()
-        if normalized_role not in {"selector", "executor", "auditor"}:
+        if normalized_role not in {
+            "selector",
+            "executor",
+            "auditor",
+            "auditor_step",
+            "finalizer_answer",
+            "auditor_final",
+        }:
             raise ValueError(f"unsupported model lane role: {role!r}")
         if checkpoint_id not in self.model_states:
             raise ValueError("model lane head must reference a stored checkpoint")
@@ -1232,6 +1247,12 @@ class RunState:
                 self.status = RunStatus.INTERRUPTED
                 self.final_output = str(payload.get("final_output") or "")
                 self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_blocked":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.BLOCKED
+                self.final_output = ""
+                self.final_decision_id = ""
             elif event.event_type == "run_failed":
                 if event.subject_id != self.run_id:
                     raise ValueError("run event subject mismatch")
@@ -1622,7 +1643,14 @@ class RunState:
             updated_at=str(value.get("updated_at") or ""),
         )
         for role, checkpoint_id in state.lane_heads.items():
-            if role not in {"selector", "executor", "auditor"}:
+            if role not in {
+                "selector",
+                "executor",
+                "auditor",
+                "auditor_step",
+                "finalizer_answer",
+                "auditor_final",
+            }:
                 raise ValueError(f"unsupported stored model lane role: {role!r}")
             if checkpoint_id not in state.model_states:
                 raise ValueError("stored model lane head references a missing checkpoint")

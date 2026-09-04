@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
+    G1J_SELECTOR_INTENT_HEAD_ID,
+    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.model_v2 import (
@@ -490,6 +492,26 @@ class NetworkSelectorService:
         self.input_protocol = network_selector_input_protocol(
             settings.input_protocol
         )
+        if self.input_protocol.g1j_selector_intent:
+            metadata = getattr(head.artifact, "metadata", None)
+            expected_head_identity = {
+                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+                "compact_input_schema_version": settings.input_protocol,
+                "model_weights_sha256": settings.model_sha256,
+                "feature_protocol": settings.feature_protocol,
+                "labels": list(NETWORK_EXACT_TOOL_LABELS),
+                "training_trajectory_mode": (
+                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+                ),
+            }
+            if not isinstance(metadata, Mapping) or any(
+                metadata.get(key) != value
+                for key, value in expected_head_identity.items()
+            ):
+                raise ValueError(
+                    "G1J Selector-Intent Head identity mismatch; retired Heads "
+                    "cannot be loaded"
+                )
         self._portable_feature_identity: dict[str, Any] | None = None
         if settings.feature_protocol == NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL:
             metadata = getattr(head.artifact, "metadata", None)
@@ -513,6 +535,10 @@ class NetworkSelectorService:
                 },
                 "wkv_mode": "fp16",
             }
+            if self.input_protocol.g1j_selector_intent:
+                expected["training_trajectory_mode"] = (
+                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+                )
             if not isinstance(portable, Mapping) or any(
                 portable.get(key) != value for key, value in expected.items()
             ):
@@ -629,7 +655,33 @@ class NetworkSelectorService:
                 raise NetworkSelectorServiceError(
                     "network Selector parent bootstrap is missing"
                 )
-        if self.input_protocol.frontier_only_in_step:
+        if self.input_protocol.g1j_selector_intent:
+            expected_step_fields = {
+                "schema_version",
+                "role",
+                "stage_objective",
+                "stage_role",
+                "progress",
+                "eligible_labels",
+                "current_question",
+            }
+            if (
+                set(step) != expected_step_fields
+                or step.get("schema_version") != self.settings.input_protocol
+                or step.get("role") != "selector_intent"
+                or list(step.get("eligible_labels") or ())
+                != list(request.get("eligible_labels") or ())
+            ):
+                raise NetworkSelectorServiceError(
+                    "G1J Selector-Intent prompt identity changed"
+                )
+            stage_objective = str(step.get("stage_objective") or "").strip()
+            if not stage_objective:
+                raise NetworkSelectorServiceError(
+                    "G1J Selector-Intent frontier is empty"
+                )
+            task_request = stage_objective
+        elif self.input_protocol.frontier_only_in_step:
             current_question = str(step.get("current_question") or "")
             marker = "Current requirement: "
             if marker not in current_question:

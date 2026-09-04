@@ -5850,7 +5850,6 @@ class LongHorizonController:
             if selected_event_type in {
                 "run_interrupted",
                 "run_failed",
-                "run_blocked",
             }:
                 candidate_output = str(selected_event.get("final_output") or "")
                 selected_event = {

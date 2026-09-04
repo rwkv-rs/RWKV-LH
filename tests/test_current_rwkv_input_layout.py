@@ -28,13 +28,21 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     selector_final_answer_eligible,
 )
 from rwkv_lh.harness import ActionHarness
+from rwkv_lh.goal_state_protocols import executor_args
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import render_independent_executor_tool_disclosure
 from rwkv_lh.model_io import (
     ModelIOError,
     validate_independent_executor_generation_input,
 )
-from rwkv_lh.schema import ActionRecord, ActionStatus, RunState, TaskAction
+from rwkv_lh.schema import (
+    ActionRecord,
+    ActionStatus,
+    ModelCheckpoint,
+    ModelLaneKind,
+    RunState,
+    TaskAction,
+)
 from rwkv_lh.supervisor import SupervisorAtom
 
 
@@ -209,6 +217,64 @@ def test_selector_v2_closes_final_over_harness_write_root_progress(
     assert '"content"' not in selector_input.stage_objective
     assert selector_input.task_request == requirement
 
+    state.actions["A3"] = _closed_loop_action(
+        action_id="A3",
+        sequence=3,
+        operation="list_directory",
+        arguments={"path": "."},
+        contract_digest=contract.contract_digest,
+    )
+    repeated_operation_input = build_network_selector_input(state, None)
+    assert repeated_operation_input.progress.completed_stage_count == 3
+    assert repeated_operation_input.progress.action_index == 3
+    assert repeated_operation_input.progress.succeeded_operations == (
+        "list_directory",
+        "write_file",
+    )
+
+    for sequence in (4, 5):
+        state.actions[f"A{sequence}"] = _closed_loop_action(
+            action_id=f"A{sequence}",
+            sequence=sequence,
+            operation="read_file",
+            arguments={"path": "missing.txt"},
+            contract_digest=contract.contract_digest,
+            success=False,
+        )
+    repeated_failure_input = build_network_selector_input(state, None)
+    assert repeated_failure_input.progress.completed_stage_count == 5
+    assert repeated_failure_input.progress.action_index == 5
+    assert repeated_failure_input.progress.failed_operations == ("read_file",)
+
+
+def test_selector_protocol_rejection_progress_is_a_parent_relative_delta(
+    tmp_path: Path,
+) -> None:
+    goal = LongHorizonModel.create_literal_goal("Inspect the project.", str(tmp_path))
+    state = RunState(run_id="RUN-REJECTION-DELTA", goal=goal)
+    state.protocol_rejections = 5
+    parent = ModelCheckpoint(
+        checkpoint_id="NSCP-parent",
+        lane_id="LANE:SELECTOR",
+        lane_kind=ModelLaneKind.SELECTOR,
+        parent_checkpoint_id=None,
+        model="selector",
+        transport="native",
+        transcript="",
+        transcript_digest="0" * 64,
+        token_count=1,
+        native_state_metadata={
+            "action_index": 0,
+            "protocol_rejection_count": 3,
+        },
+    )
+
+    initial = build_network_selector_input(state, None)
+    delta = build_network_selector_input(state, parent)
+
+    assert initial.progress.protocol_rejection_count == 5
+    assert delta.progress.protocol_rejection_count == 2
+
 
 def test_selector_and_transaction_share_minimum_actions_after_root_coverage(
     tmp_path: Path,
@@ -311,6 +377,29 @@ def test_current_executor_rejects_a_requirement_moved_away_from_the_tail() -> No
 
     with pytest.raises(ModelIOError, match="final selected-contract field"):
         validate_independent_executor_generation_input(invalid, requirement)
+
+
+def test_executor_args_rejects_combined_legacy_and_tool_call_generation_edges() -> None:
+    requirement = "Read inputs/example.txt and return its exact first line."
+    prompt = executor_args.render_generation_prompt(
+        {
+            "current_requirement": requirement,
+            "selected_operation": "read_file",
+            "selected_tool_contract": {
+                "name": "read_file",
+                "description": "Read one file.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+            "committed_fact_refs": [],
+            "executor_history": [],
+        }
+    )
+    valid = "System: stable Executor state.\n\nUser: Function output: {}" + prompt
+    validate_independent_executor_generation_input(valid, requirement)
+
+    combined = "System: stable Executor state.\n\nAssistant: ```json\n" + prompt
+    with pytest.raises(ModelIOError, match="legacy Assistant JSON"):
+        validate_independent_executor_generation_input(combined, requirement)
 
 
 def test_list_directory_exposes_explicit_bounded_completion_metadata(

@@ -75,6 +75,14 @@ def test_selector_progress_rejects_unknown_operation() -> None:
         SelectorProgress(succeeded_operations=("shell_exec",))
 
 
+def test_selector_progress_rejects_duplicate_operation_kinds() -> None:
+    with pytest.raises(ValueError, match="succeeded operations must be unique"):
+        SelectorProgress(succeeded_operations=("read_file", "read_file"))
+
+    with pytest.raises(ValueError, match="failed operations must be unique"):
+        SelectorProgress(failed_operations=("read_file", "read_file"))
+
+
 def _selection(*, selected_operation: str = "read_file") -> ExactToolSelection:
     logits = [float(index) / 100.0 for index in range(len(EXACT_TOOL_LABELS))]
     logits[EXACT_TOOL_LABELS.index("read_file")] = 3.0

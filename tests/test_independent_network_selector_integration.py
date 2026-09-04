@@ -16,7 +16,9 @@ from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorSettings,
 )
 from rwkv_lh.exact_tool_selector.input_protocol import (
+    CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
     DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
@@ -97,7 +99,9 @@ class _SelectorHTTP:
         json: Mapping[str, Any],
         timeout: tuple[float, float],
     ) -> _SelectorResponse:
-        assert url.endswith("/v3/select")
+        assert url.endswith(
+            network_selector_input_protocol(self.settings.input_protocol).endpoint
+        )
         payload = dict(json)
         self.payloads.append(payload)
         if (
@@ -213,7 +217,9 @@ def _call(name: str, **arguments: Any) -> dict[str, Any]:
     return {"function": name, "params": arguments}
 
 
-def _selector_settings() -> NetworkExactToolSelectorSettings:
+def _selector_settings(
+    input_protocol: str = DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+) -> NetworkExactToolSelectorSettings:
     return NetworkExactToolSelectorSettings(
         base_url="http://127.0.0.1:29621",
         model="rwkv7-g1i-2.9b-test",
@@ -224,7 +230,7 @@ def _selector_settings() -> NetworkExactToolSelectorSettings:
         state_profile_id="selector-zero-v1",
         state_profile_sha256="d" * 64,
         state_profile_manifest_sha256="e" * 64,
-        input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+        input_protocol=input_protocol,
     )
 
 
@@ -253,6 +259,7 @@ def _build(
     selector_min_actions: int = 0,
     goal_retrieval_mode: NetworkPolicyMode = NetworkPolicyMode.OFFLINE,
     missing_selector_parent_once: bool = False,
+    selector_input_protocol: str = DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -273,7 +280,7 @@ def _build(
             _call("final_answer", text="Created hello.txt."),
         ]
     )
-    selector_settings = _selector_settings()
+    selector_settings = _selector_settings(selector_input_protocol)
     selector_http = _SelectorHTTP(
         selector_settings,
         selector_operations,
@@ -458,10 +465,20 @@ def test_independent_selector_preserves_current_harness_and_raw_outputs(
         assert '"function":"select_tool"' not in prompt
         assert "Select exactly one displayed operation" not in prompt
         assert prompt.count("Create hello.txt containing exactly hello.") == 1
-        payload_text = prompt.rsplit(
-            "\n\nUser: Executor continuation input: ", 1
-        )[1].split("\n\nAssistant:", 1)[0]
-        assert list(json.loads(payload_text))[-1] == "current_requirement"
+        if "ExecutorArgsPromptV1: " in prompt:
+            prefix, payload_text = prompt.rsplit("ExecutorArgsPromptV1: ", 1)
+            assert not prefix.rstrip().endswith("Assistant: ```json")
+            payload_text = payload_text.split("\n\n**Tool Call:**", 1)[0]
+            payload = json.loads(payload_text)
+            assert payload["role"] == "executor_args"
+            assert payload["current_requirement"] == (
+                "Create hello.txt containing exactly hello."
+            )
+        else:
+            payload_text = prompt.rsplit(
+                "\n\nUser: Executor continuation input: ", 1
+            )[1].split("\n\nAssistant:", 1)[0]
+            assert list(json.loads(payload_text))[-1] == "current_requirement"
     assert '"selected_operation":"write_file"' in executor.prompts[0]
     assert '"selected_operation":"final_answer"' in executor.prompts[1]
     assert '"selected_operation":"read_file"' not in executor.prompts[0]
@@ -671,6 +688,44 @@ def test_independent_executor_retry_restores_complete_requirement_at_tail(
         bool(item["selection_consumption_decision"])
         for item in retry_bindings
     ) == 1
+
+
+def test_g1j_executor_retry_uses_only_executor_args_tool_call_format(
+    tmp_path: Path,
+) -> None:
+    requirement = "Create hello.txt containing exactly hello."
+    controller, _, workspace, executor, _ = _build(
+        tmp_path,
+        selector_operations=["write_file", "final_answer"],
+        selector_input_protocol=CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
+        executor_outputs=[
+            _call(
+                "write_file",
+                path="hello.txt",
+                content="hello",
+                invented=True,
+            ),
+            _call("write_file", path="hello.txt", content="hello"),
+            _call("final_answer", text="Created hello.txt."),
+        ],
+    )
+
+    result = controller.run("RUN")
+
+    assert result.state.status is RunStatus.COMPLETED
+    assert result.state.protocol_rejections == 1
+    assert (workspace / "hello.txt").read_text(encoding="utf-8") == "hello"
+    retry_prompt = executor.prompts[1]
+    prefix, payload_text = retry_prompt.rsplit("ExecutorArgsPromptV1: ", 1)
+    assert not prefix.rstrip().endswith("Assistant: ```json")
+    assert prefix.endswith("\n\n")
+    payload_text = payload_text.split("\n\n**Tool Call:**", 1)[0]
+    payload = json.loads(payload_text)
+    assert payload["role"] == "executor_args"
+    assert payload["current_requirement"] == requirement
+    assert payload["selected_operation"] == "write_file"
+    assert retry_prompt.endswith("\n\n**Tool Call:**\n\n```json\n")
+    assert "\n\nUser: Executor retry input: " not in retry_prompt
 
 
 def test_action_budget_terminal_answer_uses_independent_selector_handoff(

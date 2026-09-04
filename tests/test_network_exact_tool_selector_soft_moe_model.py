@@ -14,6 +14,9 @@ from rwkv_lh.exact_tool_selector.model_v3 import (
     NETWORK_SELECTOR_SOFT_MOE_RAW_LOGIT_FORMULA,
     NetworkSelectorSoftMoEArtifact,
 )
+from rwkv_lh.exact_tool_selector.input_protocol import (
+    DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
+)
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorSettings,
 )
@@ -165,6 +168,7 @@ def test_soft_moe_service_accepts_exact_frozen_identity(tmp_path: Path) -> None:
         state_profile_id="zero",
         state_profile_sha256="0" * 64,
         state_profile_manifest_sha256="4" * 64,
+        input_protocol=DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     )
 
     service = NetworkSelectorService(

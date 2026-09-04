@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol, Sequence
 from uuid import uuid4
 
@@ -41,7 +41,7 @@ from rwkv_lh.schema import (
     ModelEvent,
     ModelLaneKind,
 )
-from rwkv_lh.token_budget import get_token_count
+from rwkv_lh.token_budget import get_token_count, tokenizer
 
 
 class CompletionClient(Protocol):
@@ -140,6 +140,40 @@ class CandidateGeneration:
         }
 
 
+def _restore_attested_stop_suffix(
+    candidate: CandidateGeneration,
+) -> tuple[str, tuple[str, ...]]:
+    """Restore only a transport-removed fence attested by generated token IDs.
+
+    The native server omits a matched stop string from ``content`` while keeping
+    the complete generated token sequence in ``token_ids``.  Without this
+    reconciliation, a fully generated fenced response is misreported as an
+    unclosed Markdown fence.  Length-truncated output and unattested text remain
+    unchanged.
+    """
+
+    raw = candidate.raw_output
+    stripped = raw.strip()
+    if (
+        candidate.finish_reason != "stop"
+        or not candidate.raw_token_ids
+        or not stripped.startswith("```")
+        or stripped.endswith("```")
+    ):
+        return raw, ()
+    full_stream = tokenizer().decode(list(candidate.raw_token_ids))
+    for stop in JSON_CALL_STOP_SUFFIXES:
+        if not stop.rstrip().endswith("```") or not full_stream.endswith(stop):
+            continue
+        generated_without_stop = full_stream[: -len(stop)]
+        if generated_without_stop.rstrip() != raw.rstrip():
+            continue
+        return raw.rstrip() + "\n```", (
+            "transport:attested_markdown_stop_suffix_restored",
+        )
+    return raw, ()
+
+
 class ModelSession:
     """One bounded causal lane.
 
@@ -211,6 +245,7 @@ class ModelSession:
         event_ids: Sequence[str] = (),
         progressive_tool_disclosure: bool = False,
         independent_tool_selector: bool = False,
+        native_tool_call_json: bool = False,
     ) -> ModelCheckpoint:
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
         transcript = (
@@ -220,6 +255,7 @@ class ModelSession:
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
+                native_tool_call_json=native_tool_call_json,
             )
         )
         checkpoint = self._checkpoint(
@@ -240,10 +276,20 @@ class ModelSession:
                 "token_count": checkpoint.token_count,
                 "visible_event_ids": list(checkpoint.event_ids),
                 "state_transport": self.transport,
+                "model": checkpoint.model,
+                "model_sha256": self.settings.model_sha256,
+                "state_profile_id": checkpoint.state_profile_id,
+                "state_profile_sha256": checkpoint.state_profile_sha256,
+                "state_profile_delivery": self.settings.state_profile_delivery,
                 "tool_disclosure_mode": (
                     "independent_selector_executor"
                     if independent_tool_selector
                     else ("progressive" if progressive_tool_disclosure else "full")
+                ),
+                "generation_anchor": (
+                    "native_tool_call_json"
+                    if native_tool_call_json
+                    else "assistant_json"
                 ),
             }
         )
@@ -255,12 +301,17 @@ class ModelSession:
         definition: Mapping[str, Any],
         *,
         current_requirement: str | None = None,
+        rendered_prompt: str | None = None,
     ) -> ModelCheckpoint:
         """Append exactly one selected contract outside the system message."""
 
         self._require_committed(checkpoint)
+        if rendered_prompt is not None and current_requirement is not None:
+            raise ValueError("pass rendered_prompt or current_requirement, not both")
         disclosure = (
-            render_independent_executor_tool_disclosure(
+            str(rendered_prompt)
+            if rendered_prompt is not None
+            else render_independent_executor_tool_disclosure(
                 definition,
                 current_requirement,
             )
@@ -286,7 +337,12 @@ class ModelSession:
                 "new_tokens": disclosed.token_count - checkpoint.token_count,
                 "token_count": disclosed.token_count,
                 "system_tool_definition": False,
-                "request_last_closed_payload": current_requirement is not None,
+                "request_last_closed_payload": (
+                    current_requirement is not None or rendered_prompt is not None
+                ),
+                "goal_state_protocol": (
+                    "executor-args-v1" if rendered_prompt is not None else ""
+                ),
                 "state_transport": self.transport,
             }
         )
@@ -300,6 +356,7 @@ class ModelSession:
         *,
         progressive_tool_disclosure: bool = False,
         independent_executor_retry_operation: str = "",
+        include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
         transcript = checkpoint.transcript + render_event_append(
@@ -309,6 +366,7 @@ class ModelSession:
             independent_executor_retry_operation=(
                 independent_executor_retry_operation
             ),
+            include_generation_anchor=include_generation_anchor,
         )
         appended = self._checkpoint(
             lane_id=checkpoint.lane_id,
@@ -410,7 +468,10 @@ class ModelSession:
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
             )
-        ) + render_rollover_event_summary(selected_events)
+        ) + render_rollover_event_summary(
+            selected_events,
+            include_generation_anchor=not independent_tool_selector,
+        )
         event_ids = tuple(event.event_id for event in selected_events)
         compact = self._checkpoint(
             lane_id=checkpoint.lane_id,
@@ -592,13 +653,25 @@ class ModelSession:
         return candidate
 
     def parse(self, candidate: CandidateGeneration) -> ModelCommand:
-        return parse_model_command(candidate.raw_output)
+        parse_source, _ = _restore_attested_stop_suffix(candidate)
+        return parse_model_command(parse_source)
 
     def parse_with_trace(
         self,
         candidate: CandidateGeneration,
     ) -> tuple[ModelCommand, ModelCommandNormalization]:
-        command, normalization = parse_model_command_with_trace(candidate.raw_output)
+        parse_source, transport_transformations = _restore_attested_stop_suffix(
+            candidate
+        )
+        command, normalization = parse_model_command_with_trace(parse_source)
+        if transport_transformations:
+            normalization = replace(
+                normalization,
+                transformations=(
+                    *transport_transformations,
+                    *normalization.transformations,
+                ),
+            )
         if normalization.changed:
             self._emit(
                 {
@@ -625,7 +698,7 @@ class ModelSession:
         if candidate.checkpoint.status != ModelCheckpointStatus.CANDIDATE:
             raise ModelSessionError("only a candidate checkpoint can be committed")
         self._require_checkpoint_identity(candidate.checkpoint)
-        if parse_model_command(candidate.raw_output) != command:
+        if self.parse(candidate) != command:
             raise ModelIOError("accepted command differs from candidate output")
         committed = ModelCheckpoint(
             **{
@@ -851,6 +924,7 @@ class NativeRWKVModelSession(ModelSession):
         event_ids: Sequence[str] = (),
         progressive_tool_disclosure: bool = False,
         independent_tool_selector: bool = False,
+        native_tool_call_json: bool = False,
     ) -> ModelCheckpoint:
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
         transcript = (
@@ -860,6 +934,7 @@ class NativeRWKVModelSession(ModelSession):
                 visible_definitions,
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
+                native_tool_call_json=native_tool_call_json,
             )
         )
         checkpoint = self._checkpoint(
@@ -894,6 +969,16 @@ class NativeRWKVModelSession(ModelSession):
                 "visible_event_ids": list(event_ids),
                 "state_transport": self.transport,
                 "static_replay_tokens": 0,
+                "model": checkpoint.model,
+                "model_sha256": self.settings.model_sha256,
+                "state_profile_id": checkpoint.state_profile_id,
+                "state_profile_sha256": checkpoint.state_profile_sha256,
+                "state_profile_delivery": self.settings.state_profile_delivery,
+                "generation_anchor": (
+                    "native_tool_call_json"
+                    if native_tool_call_json
+                    else "assistant_json"
+                ),
             }
         )
         return checkpoint
@@ -940,9 +1025,14 @@ class NativeRWKVModelSession(ModelSession):
         definition: Mapping[str, Any],
         *,
         current_requirement: str | None = None,
+        rendered_prompt: str | None = None,
     ) -> ModelCheckpoint:
+        if rendered_prompt is not None and current_requirement is not None:
+            raise ValueError("pass rendered_prompt or current_requirement, not both")
         disclosure = (
-            render_independent_executor_tool_disclosure(
+            str(rendered_prompt)
+            if rendered_prompt is not None
+            else render_independent_executor_tool_disclosure(
                 definition,
                 current_requirement,
             )
@@ -962,7 +1052,12 @@ class NativeRWKVModelSession(ModelSession):
                 "parent_checkpoint_id": checkpoint.checkpoint_id,
                 "checkpoint_id": disclosed.checkpoint_id,
                 "new_tokens": get_token_count(disclosure),
-                "request_last_closed_payload": current_requirement is not None,
+                "request_last_closed_payload": (
+                    current_requirement is not None or rendered_prompt is not None
+                ),
+                "goal_state_protocol": (
+                    "executor-args-v1" if rendered_prompt is not None else ""
+                ),
                 "state_transport": self.transport,
             }
         )
@@ -976,6 +1071,7 @@ class NativeRWKVModelSession(ModelSession):
         *,
         progressive_tool_disclosure: bool = False,
         independent_executor_retry_operation: str = "",
+        include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         suffix = render_event_append(
             event,
@@ -984,6 +1080,7 @@ class NativeRWKVModelSession(ModelSession):
             independent_executor_retry_operation=(
                 independent_executor_retry_operation
             ),
+            include_generation_anchor=include_generation_anchor,
         )
         appended = self._append_text(
             checkpoint,
@@ -1068,7 +1165,10 @@ class NativeRWKVModelSession(ModelSession):
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
             )
-        ) + render_rollover_event_summary(selected_events)
+        ) + render_rollover_event_summary(
+            selected_events,
+            include_generation_anchor=not independent_tool_selector,
+        )
         event_ids = tuple(event.event_id for event in selected_events)
         if get_token_count(transcript) > max(1, int(input_limit)):
             raise InputBudgetError("minimal native rollover exceeds the input limit")
@@ -1272,7 +1372,7 @@ class NativeRWKVModelSession(ModelSession):
         if candidate.checkpoint.status != ModelCheckpointStatus.CANDIDATE:
             raise ModelSessionError("only a candidate checkpoint can be committed")
         self._require_checkpoint_identity(candidate.checkpoint)
-        if parse_model_command(candidate.raw_output) != command:
+        if self.parse(candidate) != command:
             raise ModelIOError("accepted command differs from candidate output")
         binding = self._binding_from_checkpoint(candidate.checkpoint)
         snapshot = self.native_client.state_commit(

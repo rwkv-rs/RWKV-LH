@@ -68,6 +68,41 @@ from rwkv_lh.supervisor import (
 AuditHook = Callable[[Mapping[str, Any]], None]
 DEFAULT_SUPERVISOR_ENV_FILE = PROJECT_ROOT / ".env"
 _RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
+_RESPONSES_API_PHASES = {"goal_plan", "readiness"}
+_STAGE_CHECKER_PHASES = {"goal_stage_review", "stage_checker_readiness"}
+_RESPONSES_JSON_INPUT_PREFIX = "json request payload:\n"
+_WORKSPACE_RELATIVE_ROOT_PATTERN = (
+    r"^(?:\.|(?!/)(?!.*(?:^|/)\.\.(?:/|$))[^\\\u0000]+)$"
+)
+_SAFE_ERROR_HEADERS = (
+    "content-type",
+    "retry-after",
+    "x-request-id",
+    "x-ratelimit-limit-requests",
+    "x-ratelimit-remaining-requests",
+    "x-ratelimit-reset-requests",
+    "x-ratelimit-limit-tokens",
+    "x-ratelimit-remaining-tokens",
+    "x-ratelimit-reset-tokens",
+    "cf-ray",
+)
+
+
+def _project_relative_locator_schema(*, max_length: int = 512) -> dict[str, Any]:
+    """Return one locator beneath the Controller-owned project root."""
+
+    return {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": int(max_length),
+        "pattern": _WORKSPACE_RELATIVE_ROOT_PATTERN,
+        "description": (
+            "One project-relative file or subdirectory locator beneath the fixed "
+            "Controller-owned project root. Use '.' to refer to the whole fixed "
+            "project. This field never defines or changes the project root. Never "
+            "use an absolute path, a /workspace prefix, a backslash, or a '..' segment."
+        ),
+    }
 
 
 def _int_env(name: str, default: int) -> int:
@@ -122,20 +157,17 @@ class SupervisorAPISettings:
     base_url: str
     api_key: str
     model: str
+    stage_checker_model: str
     connect_timeout_seconds: float = 10.0
     read_timeout_seconds: float = 60.0
     retry_attempts: int = 2
     retry_backoff_seconds: float = 0.5
-    temperature: float = 0.1
     verify_tls: bool = True
     max_plan_tokens: int = 1800
     max_review_tokens: int = 1400
     max_directive_tokens: int = 1200
     max_contract_plan_tokens: int = 4000
     max_contract_review_tokens: int = 2400
-    reasoning_effort: str = ""
-    contract_plan_reasoning_effort: str = ""
-    contract_review_reasoning_effort: str = ""
     semantic_repair_attempts: int = 1
     serialize_requests: bool = False
     request_lock_path: str = "/tmp/rwkv-lh-supervisor.lock"
@@ -152,8 +184,13 @@ class SupervisorAPISettings:
     ) -> "SupervisorAPISettings":
         load_local_env(
             path,
-            allowed_prefixes=("RWKV_LH_PLANNER_", "SUPERVISOR_"),
+            allowed_prefixes=(
+                "RWKV_LH_PLANNER_",
+                "RWKV_LH_STAGE_CHECKER_",
+                "SUPERVISOR_",
+            ),
         )
+        planner_model = role_env("planner", "model", legacy="SUPERVISOR_MODEL")
         settings = cls(
             base_url=role_env(
                 "planner", "base_url", legacy="SUPERVISOR_BASE_URL"
@@ -161,7 +198,12 @@ class SupervisorAPISettings:
             api_key=role_env(
                 "planner", "api_key", legacy="SUPERVISOR_API_KEY"
             ),
-            model=role_env("planner", "model", legacy="SUPERVISOR_MODEL"),
+            model=planner_model,
+            stage_checker_model=role_env(
+                "stage_checker",
+                "model",
+                default=planner_model,
+            ),
             connect_timeout_seconds=role_float(
                 "planner",
                 "connect_timeout",
@@ -185,12 +227,6 @@ class SupervisorAPISettings:
                 "retry_backoff",
                 legacy="SUPERVISOR_RETRY_BACKOFF",
                 default=0.5,
-            ),
-            temperature=role_float(
-                "planner",
-                "temperature",
-                legacy="SUPERVISOR_TEMPERATURE",
-                default=0.1,
             ),
             verify_tls=role_bool(
                 "planner",
@@ -228,21 +264,6 @@ class SupervisorAPISettings:
                 legacy="SUPERVISOR_MAX_CONTRACT_REVIEW_TOKENS",
                 default=2400,
             ),
-            reasoning_effort=role_env(
-                "planner",
-                "reasoning_effort",
-                legacy="SUPERVISOR_REASONING_EFFORT",
-            ).casefold(),
-            contract_plan_reasoning_effort=role_env(
-                "planner",
-                "contract_plan_reasoning_effort",
-                legacy="SUPERVISOR_CONTRACT_PLAN_REASONING_EFFORT",
-            ).casefold(),
-            contract_review_reasoning_effort=role_env(
-                "planner",
-                "contract_review_reasoning_effort",
-                legacy="SUPERVISOR_CONTRACT_REVIEW_REASONING_EFFORT",
-            ).casefold(),
             semantic_repair_attempts=role_int(
                 "planner",
                 "semantic_repair_attempts",
@@ -309,14 +330,14 @@ class SupervisorAPISettings:
             raise ValueError("RWKV_LH_PLANNER_API_KEY must be configured")
         if not self.model:
             raise ValueError("RWKV_LH_PLANNER_MODEL must be configured")
+        if not self.stage_checker_model:
+            raise ValueError("RWKV_LH_STAGE_CHECKER_MODEL must be configured")
         if self.connect_timeout_seconds <= 0 or self.read_timeout_seconds <= 0:
             raise ValueError("supervisor timeouts must be positive")
         if not 1 <= self.retry_attempts <= 5:
             raise ValueError("SUPERVISOR_RETRY_ATTEMPTS must be between 1 and 5")
         if self.retry_backoff_seconds < 0:
             raise ValueError("SUPERVISOR_RETRY_BACKOFF must not be negative")
-        if not 0 <= self.temperature <= 2:
-            raise ValueError("SUPERVISOR_TEMPERATURE must be between 0 and 2")
         if (
             self.max_plan_tokens < 256
             or self.max_review_tokens < 256
@@ -329,24 +350,6 @@ class SupervisorAPISettings:
             raise ValueError(
                 "SUPERVISOR_SEMANTIC_REPAIR_ATTEMPTS must be between 0 and 2"
             )
-        allowed_reasoning_efforts = {
-            "",
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-        }
-        if any(
-            effort not in allowed_reasoning_efforts
-            for effort in (
-                self.reasoning_effort,
-                self.contract_plan_reasoning_effort,
-                self.contract_review_reasoning_effort,
-            )
-        ):
-            raise ValueError("configured supervisor reasoning effort is unsupported")
         if self.serialize_requests:
             if fcntl is None:
                 raise ValueError("serialized supervisor requests require fcntl")
@@ -367,21 +370,18 @@ class SupervisorAPISettings:
         return {
             "base_url": self.base_url,
             "model": self.model,
+            "stage_checker_model": self.stage_checker_model,
             "api_key_configured": bool(self.api_key),
             "connect_timeout_seconds": self.connect_timeout_seconds,
             "read_timeout_seconds": self.read_timeout_seconds,
             "retry_attempts": self.retry_attempts,
             "retry_backoff_seconds": self.retry_backoff_seconds,
-            "temperature": self.temperature,
             "verify_tls": self.verify_tls,
             "max_plan_tokens": self.max_plan_tokens,
             "max_review_tokens": self.max_review_tokens,
             "max_directive_tokens": self.max_directive_tokens,
             "max_contract_plan_tokens": self.max_contract_plan_tokens,
             "max_contract_review_tokens": self.max_contract_review_tokens,
-            "reasoning_effort": self.reasoning_effort,
-            "contract_plan_reasoning_effort": self.contract_plan_reasoning_effort,
-            "contract_review_reasoning_effort": self.contract_review_reasoning_effort,
             "semantic_repair_attempts": self.semantic_repair_attempts,
             "serialize_requests": self.serialize_requests,
             "request_lock_path": self.request_lock_path,
@@ -756,30 +756,94 @@ class SupervisorTransportError(RuntimeError):
         status_code: int = 0,
         retryable: bool = True,
         category: str = "transport",
+        provider_error: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = int(status_code)
         self.retryable = bool(retryable)
         self.category = str(category)
+        self.provider_error = dict(provider_error or {})
 
 
-def _supervisor_http_error(status_code: int, phase: str) -> SupervisorTransportError:
+def _safe_provider_error(response: Any) -> dict[str, Any]:
+    """Keep bounded provider diagnostics without credentials or raw headers."""
+
+    raw_headers = getattr(response, "headers", {}) or {}
+    headers = {
+        name: str(raw_headers[name])[:500]
+        for name in _SAFE_ERROR_HEADERS
+        if name in raw_headers
+    }
+    body = str(getattr(response, "text", "") or "")
+    result: dict[str, Any] = {
+        "body_chars": len(body),
+        "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        "headers": headers,
+    }
+    try:
+        payload = response.json()
+    except (ValueError, json.JSONDecodeError, AttributeError):
+        result["body_shape"] = "non_json"
+        return result
+    result["body_shape"] = type(payload).__name__
+    if not isinstance(payload, Mapping):
+        return result
+    error = payload.get("error")
+    if isinstance(error, Mapping):
+        result["error"] = {
+            key: str(error[key])[:1000]
+            for key in ("type", "code", "message", "param")
+            if error.get(key) is not None
+        }
+    else:
+        result["top_level_keys"] = sorted(str(key) for key in payload)[:32]
+    return result
+
+
+def _supervisor_http_error(
+    status_code: int,
+    phase: str,
+    *,
+    response: Any | None = None,
+) -> SupervisorTransportError:
     status = int(status_code)
+    provider_error = (
+        _safe_provider_error(response) if response is not None else {}
+    )
+    provider_error_fields = provider_error.get("error")
+    if isinstance(provider_error_fields, Mapping):
+        provider_error_marker = " ".join(
+            str(provider_error_fields.get(key) or "").casefold()
+            for key in ("type", "code")
+        )
+    else:
+        provider_error_marker = ""
+    provider_reports_upstream = any(
+        marker in provider_error_marker
+        for marker in (
+            "upstream",
+            "do_request_failed",
+            "server_error",
+            "temporarily_unavailable",
+        )
+    )
+    retryable = status in _RETRYABLE_STATUS or provider_reports_upstream
     if status in {401, 403}:
         category = "authorization"
     elif status == 404:
         category = "endpoint"
     elif status == 429:
         category = "rate_limit"
-    elif status in _RETRYABLE_STATUS or status >= 500:
+    elif provider_reports_upstream or status in _RETRYABLE_STATUS or status >= 500:
         category = "upstream"
     else:
         category = "request"
     return SupervisorTransportError(
         f"supervisor HTTP {status} during {phase}",
         status_code=status,
-        retryable=status in _RETRYABLE_STATUS,
+        retryable=retryable,
         category=category,
+        provider_error=provider_error,
     )
 
 
@@ -793,17 +857,43 @@ def _decode_supervisor_json_content(
     """Decode one JSON object, tolerating only a known reasoning envelope.
 
     Some OpenAI-compatible providers serialize their private reasoning before
-    the schema-constrained JSON as an ``analysis`` or ``think`` XML element.
-    Removing that provider-owned envelope is a transport normalization: it
-    neither repairs nor synthesizes fields in the supervisor object.  Any
-    other prefix, malformed envelope, trailing prose, or non-object JSON stays
-    a hard protocol error.
+    the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+    one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+    is a transport normalization: it neither repairs nor synthesizes fields in
+    the supervisor object. Any other prefix, malformed envelope, trailing
+    prose, or non-object JSON stays a hard protocol error.
     """
 
     stripped = content.strip()
     try:
         value = json.loads(stripped)
     except json.JSONDecodeError as direct_error:
+        if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+            prefix = "```json\n"
+            suffix = "\n```"
+            payload = stripped[len(prefix) : -len(suffix)].strip()
+            try:
+                value = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise SupervisorProtocolError(
+                    "supervisor content is not one JSON object"
+                ) from exc
+            if not isinstance(value, dict):
+                raise SupervisorProtocolError(
+                    "supervisor content must be one JSON object"
+                )
+            return value, {
+                "normalization": "provider_json_fence_removed",
+                "prefix_chars": len(prefix),
+                "prefix_sha256": hashlib.sha256(
+                    prefix.encode("utf-8")
+                ).hexdigest(),
+                "suffix_chars": len(suffix),
+                "suffix_sha256": hashlib.sha256(
+                    suffix.encode("utf-8")
+                ).hexdigest(),
+                "controller_semantic_fields_generated": False,
+            }
         for tag in ("analysis", "think"):
             opening = f"<{tag}>"
             closing = f"</{tag}>"
@@ -869,6 +959,16 @@ class OpenAICompatibleSupervisorClient:
     def model_name(self) -> str:
         return self.settings.model
 
+    @property
+    def stage_checker_model_name(self) -> str:
+        return self.settings.stage_checker_model
+
+    @property
+    def semantic_repair_attempts(self) -> int:
+        """Expose one repair budget shared with the Goal controller."""
+
+        return self.settings.semantic_repair_attempts
+
     def _session(self) -> requests.Session:
         session = getattr(self._thread_sessions, "session", None)
         if session is None:
@@ -926,14 +1026,113 @@ class OpenAICompatibleSupervisorClient:
 
     @staticmethod
     def _response_format(name: str, schema: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": name,
-                "strict": True,
-                "schema": dict(schema),
+        del name, schema
+        # The configured relay reliably supports JSON mode, while its
+        # json_schema path returns a one-token U+200B response with
+        # finish_reason=length for the GoalPlanPatch schema.  Keep the wire
+        # envelope minimal and enforce the full schema locally after decode.
+        return {"type": "json_object"}
+
+    @staticmethod
+    def _transport_for_phase(phase: str) -> str:
+        """Return the fixed wire protocol for each current Goal role."""
+
+        if phase in _RESPONSES_API_PHASES:
+            return "responses"
+        return "chat_completions"
+
+    def _wire_request(
+        self,
+        *,
+        phase: str,
+        selected_model: str,
+        system_prompt: str,
+        payload_text: str,
+        max_tokens: int,
+        schema_revision: str,
+        schema: Mapping[str, Any],
+    ) -> tuple[str, dict[str, Any], str]:
+        transport = self._transport_for_phase(phase)
+        if transport == "responses":
+            return (
+                self.settings.base_url + "/responses",
+                {
+                    "model": selected_model,
+                    "instructions": system_prompt,
+                    # The relay's Responses converter rejects a JSON-looking
+                    # top-level input string and typed input_text blocks, but
+                    # accepts the official easy user-message envelope. Keep
+                    # the serialized Planner payload byte-for-byte unchanged
+                    # inside that transport-only wrapper.
+                    "input": [
+                        {
+                            "role": "user",
+                            "content": _RESPONSES_JSON_INPUT_PREFIX + payload_text,
+                        }
+                    ],
+                    "max_output_tokens": int(max_tokens),
+                    "text": {"format": {"type": "json_object"}},
+                },
+                transport,
+            )
+        return (
+            self.settings.base_url + "/chat/completions",
+            {
+                "model": selected_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": payload_text},
+                ],
+                "max_tokens": int(max_tokens),
+                "response_format": self._response_format(
+                    f"rwkv_lh_supervisor_{phase}_{schema_revision}",
+                    schema,
+                ),
             },
-        }
+            transport,
+        )
+
+    @staticmethod
+    def _decode_responses_api_content(
+        data: Mapping[str, Any],
+    ) -> tuple[str, str]:
+        status = str(data.get("status") or "")
+        if status != "completed":
+            reason = ""
+            incomplete = data.get("incomplete_details")
+            if isinstance(incomplete, Mapping):
+                reason = str(incomplete.get("reason") or "")
+            suffix = f": {reason}" if reason else ""
+            raise SupervisorProtocolError(
+                f"supervisor Responses result is not completed ({status or 'missing'})"
+                f"{suffix}"
+            )
+        output = data.get("output")
+        if not isinstance(output, list):
+            raise SupervisorProtocolError(
+                "supervisor Responses result has no output array"
+            )
+        output_texts: list[str] = []
+        for item in output:
+            if not isinstance(item, Mapping) or item.get("type") != "message":
+                continue
+            content_items = item.get("content")
+            if not isinstance(content_items, list):
+                continue
+            for content_item in content_items:
+                if (
+                    isinstance(content_item, Mapping)
+                    and content_item.get("type") == "output_text"
+                    and isinstance(content_item.get("text"), str)
+                    and str(content_item["text"]).strip()
+                ):
+                    output_texts.append(str(content_item["text"]))
+        if len(output_texts) != 1:
+            raise SupervisorProtocolError(
+                "supervisor Responses result must contain exactly one non-empty "
+                f"output_text item, received {len(output_texts)}"
+            )
+        return output_texts[0], status
 
     def _request_json(
         self,
@@ -946,7 +1145,16 @@ class OpenAICompatibleSupervisorClient:
         schema: Mapping[str, Any],
         max_tokens: int,
     ) -> dict[str, Any]:
-        routes = (self.model_name, *self.settings.fallback_models)
+        primary_model = (
+            self.stage_checker_model_name
+            if phase in _STAGE_CHECKER_PHASES
+            else self.model_name
+        )
+        routes = (
+            (primary_model,)
+            if phase in _STAGE_CHECKER_PHASES
+            else (primary_model, *self.settings.fallback_models)
+        )
         last_error: Exception | None = None
         for route_index, selected_model in enumerate(routes):
             with self._route_lock:
@@ -1052,33 +1260,15 @@ class OpenAICompatibleSupervisorClient:
             else "v1"
         )
         payload_text = _render_user_payload(request_payload)
-        body = {
-            "model": selected_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": payload_text,
-                },
-            ],
-            "temperature": self.settings.temperature,
-            "max_tokens": int(max_tokens),
-            "response_format": self._response_format(
-                f"rwkv_lh_supervisor_{phase}_{schema_revision}",
-                schema,
-            ),
-        }
-        reasoning_effort = self.settings.reasoning_effort
-        if phase in {"contract_plan", "goal_plan"}:
-            reasoning_effort = (
-                self.settings.contract_plan_reasoning_effort or reasoning_effort
-            )
-        elif phase == "contract_review":
-            reasoning_effort = (
-                self.settings.contract_review_reasoning_effort or reasoning_effort
-            )
-        if reasoning_effort:
-            body["reasoning_effort"] = reasoning_effort
+        endpoint, body, transport = self._wire_request(
+            phase=phase,
+            selected_model=selected_model,
+            system_prompt=system_prompt,
+            payload_text=payload_text,
+            max_tokens=max_tokens,
+            schema_revision=schema_revision,
+            schema=schema,
+        )
         payload_bytes = payload_text.encode("utf-8")
         self._emit(
             {
@@ -1089,13 +1279,18 @@ class OpenAICompatibleSupervisorClient:
                 "request_digest": request_digest,
                 "provider": self.provider_name,
                 "model": selected_model,
+                "transport": transport,
+                "input_envelope": (
+                    "easy_user_message_json_prefix_v1"
+                    if transport == "responses"
+                    else "chat_messages_v1"
+                ),
                 "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
                 "input_chars": len(payload_bytes.decode("utf-8")),
                 "max_tokens": int(max_tokens),
-                "temperature": self.settings.temperature,
+                "response_format": "json_object",
             }
         )
-        endpoint = self.settings.base_url + "/chat/completions"
         last_status = 0
         for attempt in range(1, self.settings.retry_attempts + 1):
             started = time.perf_counter()
@@ -1114,58 +1309,49 @@ class OpenAICompatibleSupervisorClient:
                 last_status = response.status_code
                 latency_ms = round((time.perf_counter() - started) * 1000, 1)
                 if response.status_code in _RETRYABLE_STATUS and attempt < self.settings.retry_attempts:
-                    if (
-                        phase == "contract_plan"
-                        and response.status_code >= 500
-                        and str(body.get("reasoning_effort") or "")
-                        in {"minimal", "medium", "high", "xhigh"}
-                    ):
-                        previous_effort = str(body["reasoning_effort"])
-                        body["reasoning_effort"] = "low"
-                        self._emit(
-                            {
-                                "type": "supervisor_reasoning_fallback_applied",
-                                "call_id": call_id,
-                                "phase": phase,
-                                "run_id": run_id,
-                                "request_digest": request_digest,
-                                "http_status": response.status_code,
-                                "from_effort": previous_effort,
-                                "to_effort": "low",
-                                "next_attempt": attempt + 1,
-                            }
-                        )
                     delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
                     if delay:
                         time.sleep(delay)
                     continue
                 if response.status_code >= 400:
-                    raise _supervisor_http_error(response.status_code, phase)
+                    raise _supervisor_http_error(
+                        response.status_code,
+                        phase,
+                        response=response,
+                    )
                 try:
                     data = response.json()
                 except (ValueError, json.JSONDecodeError) as exc:
                     raise SupervisorProtocolError(
                         "supervisor returned invalid JSON"
                     ) from exc
-                choices = data.get("choices") if isinstance(data, Mapping) else None
-                if (
-                    not isinstance(choices, list)
-                    or not choices
-                    or not isinstance(choices[0], Mapping)
-                ):
+                if not isinstance(data, Mapping):
                     raise SupervisorProtocolError(
-                        "supervisor response has no valid choices[0]"
+                        "supervisor returned a non-object response envelope"
                     )
-                message = choices[0].get("message")
-                if not isinstance(message, Mapping):
-                    raise SupervisorProtocolError(
-                        "supervisor response has no assistant message"
-                    )
-                content = message.get("content")
-                if not isinstance(content, str) or not content.strip():
-                    raise SupervisorProtocolError(
-                        "supervisor response has empty JSON content"
-                    )
+                if transport == "responses":
+                    content, finish_reason = self._decode_responses_api_content(data)
+                else:
+                    choices = data.get("choices")
+                    if (
+                        not isinstance(choices, list)
+                        or not choices
+                        or not isinstance(choices[0], Mapping)
+                    ):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no valid choices[0]"
+                        )
+                    message = choices[0].get("message")
+                    if not isinstance(message, Mapping):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no assistant message"
+                        )
+                    content = message.get("content")
+                    if not isinstance(content, str) or not content.strip():
+                        raise SupervisorProtocolError(
+                            "supervisor response has empty JSON content"
+                        )
+                    finish_reason = str(choices[0].get("finish_reason") or "")
                 value, content_normalization = _decode_supervisor_json_content(content)
                 if content_normalization is not None:
                     self._emit(
@@ -1187,9 +1373,10 @@ class OpenAICompatibleSupervisorClient:
                         "request_digest": request_digest,
                         "provider": self.provider_name,
                         "model": str(data.get("model") or selected_model),
+                        "transport": transport,
                         "latency_ms": latency_ms,
                         "http_attempts": attempt,
-                        "finish_reason": str(choices[0].get("finish_reason") or ""),
+                        "finish_reason": finish_reason,
                         "usage": dict(data.get("usage") or {}),
                         "output_sha256": hashlib.sha256(
                             content.encode("utf-8")
@@ -1226,6 +1413,14 @@ class OpenAICompatibleSupervisorClient:
                         time.sleep(delay)
                     continue
                 break
+            except SupervisorTransportError as exc:
+                error = exc
+                if exc.retryable and attempt < self.settings.retry_attempts:
+                    delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
+                    if delay:
+                        time.sleep(delay)
+                    continue
+                break
             except SupervisorProtocolError as exc:
                 error = exc
                 if attempt < self.settings.retry_attempts:
@@ -1249,6 +1444,7 @@ class OpenAICompatibleSupervisorClient:
                 "request_digest": request_digest,
                 "provider": self.provider_name,
                 "model": selected_model,
+                "transport": transport,
                 "http_status": last_status,
                 "http_attempts": attempt,
                 "retryable": transport_error.retryable if transport_error else False,
@@ -1256,6 +1452,11 @@ class OpenAICompatibleSupervisorClient:
                     transport_error.category if transport_error else "protocol"
                 ),
                 "error": f"{type(error).__name__}: {error}"[:1000],
+                **(
+                    {"provider_error": transport_error.provider_error}
+                    if transport_error and transport_error.provider_error
+                    else {}
+                ),
             }
         )
         raise error
@@ -2000,7 +2201,11 @@ class OpenAICompatibleSupervisorClient:
             json.dumps(
                 {
                     "cache_schema": cache_schema,
-                    "models": [self.model_name, *self.settings.fallback_models],
+                    "models": (
+                        [self.stage_checker_model_name]
+                        if phase == "goal_stage_review"
+                        else [self.model_name, *self.settings.fallback_models]
+                    ),
                     "system_prompt": system_prompt,
                     "request": payload,
                     "response_schema": schema,
@@ -2401,13 +2606,13 @@ class OpenAICompatibleSupervisorClient:
                 },
                 "read_roots": {
                     "type": "array",
-                    "items": {"type": "string", "minLength": 1, "maxLength": 512},
+                    "items": _project_relative_locator_schema(),
                     "uniqueItems": True,
                     "maxItems": 8,
                 },
                 "write_roots": {
                     "type": "array",
-                    "items": {"type": "string", "minLength": 1, "maxLength": 512},
+                    "items": _project_relative_locator_schema(),
                     "uniqueItems": True,
                     "maxItems": 8,
                 },
@@ -2445,6 +2650,10 @@ class OpenAICompatibleSupervisorClient:
         }
         return {
             "type": "object",
+            "description": (
+                "One fixed GoalPlanPatch JSON object. Keep steps nested inside "
+                "stage objects; never flatten stage or step fields."
+            ),
             "properties": {
                 "add_stages": {"type": "array", "items": stage, "maxItems": 5},
                 "replace_stages": {
@@ -2496,6 +2705,23 @@ class OpenAICompatibleSupervisorClient:
             "merely to preserve append-only history. New ids belong in add_stages. "
             "Dependencies may refer only to steps that remain active or are added by "
             "this patch. success_evidence must be observable and concise. "
+            "The Controller has already fixed the one project mother path. You have "
+            "no authority to name, infer, replace, expand, or emit that mother path. "
+            "Every read_roots and write_roots item is only a project-relative file "
+            "or subdirectory locator beneath it, grounded in the request or "
+            "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
+            "absolute path, never invent a '/workspace' prefix, never use a backslash, "
+            "and never use '..'. "
+            "The complete JSON structure is fixed and stages must contain their "
+            "steps exactly in this nested shape: "
+            '{"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '"objective":"one coherent responsibility","depends_on":[],'
+            '"success_evidence":["one observable result"],'
+            '"read_roots":["."],"write_roots":[],'
+            '"constraints":[]}]}],"replace_stages":[],'
+            '"discard_step_ids":[],"reason":"concise planning reason"}. '
+            "Return only that JSON object with real values; do not use Markdown, "
+            "do not flatten steps, and do not add top-level or step fields. "
             + (
                 "This is the initial patch: replace_stages and discard_step_ids are "
                 "empty, and add_stages contains the first executable stages."
@@ -2646,7 +2872,11 @@ class OpenAICompatibleSupervisorClient:
             "call tools, invent "
             "evidence, rewrite artifacts, or answer the user. Return advance with "
             "an empty gaps array when the stage may proceed; otherwise return "
-            "repair with concrete gaps. Return exactly the three schema fields."
+            "repair with concrete gaps. The complete JSON structure is fixed: "
+            '{"verdict":"advance","gaps":[],"reason":"one concise '
+            'evidence-coherence reason"}. Return only those three fields with '
+            "real values. Do not add stage, reviewed_step_ids, evidence_refs, "
+            "summary, analysis, or any other field."
         )
         request_payload = request.to_dict()
         schema = self._goal_stage_review_schema()
@@ -3205,12 +3435,18 @@ class OpenAICompatibleSupervisorClient:
                 for item in data.get("data", [])
                 if isinstance(item, Mapping) and item.get("id")
             )
+            planner_present = self.model_name in models
+            stage_checker_present = self.stage_checker_model_name in models
             return {
                 "available": True,
                 "provider": self.provider_name,
                 "endpoint": self.settings.base_url,
                 "model": self.model_name,
-                "model_present": self.model_name in models,
+                "model_present": planner_present and stage_checker_present,
+                "planner_model": self.model_name,
+                "planner_model_present": planner_present,
+                "stage_checker_model": self.stage_checker_model_name,
+                "stage_checker_model_present": stage_checker_present,
                 "latency_ms": round((time.perf_counter() - started) * 1000, 1),
             }
         except Exception as exc:
@@ -3220,15 +3456,20 @@ class OpenAICompatibleSupervisorClient:
                 "endpoint": self.settings.base_url,
                 "model": self.model_name,
                 "model_present": False,
+                "planner_model": self.model_name,
+                "planner_model_present": False,
+                "stage_checker_model": self.stage_checker_model_name,
+                "stage_checker_model_present": False,
                 "latency_ms": round((time.perf_counter() - started) * 1000, 1),
                 "error": f"{type(exc).__name__}: {exc}"[:500],
             }
 
     def readiness(self) -> dict[str, Any]:
-        """Probe the exact completion route used by supervisor experiments.
+        """Probe both exact role transports used by current Goal experiments.
 
         ``/models`` can remain available while the configured credential or
-        model is rejected by ``/chat/completions``. A formal run needs both.
+        model is rejected by the role endpoint. A formal run needs GPT Planner
+        Responses and Claude Stage Checker Chat Completions to both succeed.
         """
 
         started = time.perf_counter()
@@ -3239,7 +3480,9 @@ class OpenAICompatibleSupervisorClient:
                 "available": False,
                 "catalog_available": bool(catalog.get("available")),
                 "completion_available": False,
-                "probe": "models_and_chat_completions",
+                "planner_transport_available": False,
+                "stage_checker_transport_available": False,
+                "probe": "models_responses_and_chat_completions",
             }
         schema = {
             "type": "object",
@@ -3247,8 +3490,11 @@ class OpenAICompatibleSupervisorClient:
             "required": ["ready"],
             "additionalProperties": False,
         }
+        probe_phase = "planner_responses"
+        planner_ready = False
+        stage_checker_ready = False
         try:
-            value = self._request_json(
+            planner_value = self._request_json(
                 phase="readiness",
                 run_id="SUPERVISOR-READINESS",
                 request_digest=hashlib.sha256(
@@ -3256,22 +3502,50 @@ class OpenAICompatibleSupervisorClient:
                 ).hexdigest(),
                 system_prompt=(
                     "This is a transport readiness probe. Return exactly one JSON "
-                    "object matching the supplied schema with ready=true."
+                    "object with ready=true."
                 ),
                 request_payload={"probe": "rwkv-lh-supervisor-readiness-v1"},
                 schema=schema,
-                max_tokens=256,
+                max_tokens=1000,
             )
-            if value != {"ready": True}:
+            if planner_value != {"ready": True}:
                 raise SupervisorProtocolError(
-                    "supervisor readiness response did not affirm ready=true"
+                    "Planner readiness response did not affirm ready=true"
                 )
+            planner_ready = True
+            probe_phase = "stage_checker_chat_completions"
+            stage_checker_value = self._request_json(
+                phase="stage_checker_readiness",
+                run_id="STAGE-CHECKER-READINESS",
+                request_digest=hashlib.sha256(
+                    b"rwkv-lh-stage-checker-readiness-v1"
+                ).hexdigest(),
+                system_prompt=(
+                    "This is a stage-checker transport readiness probe. Return "
+                    'only the JSON object {"ready":true}. Do not use Markdown '
+                    "and do not add fields."
+                ),
+                request_payload={
+                    "probe": "rwkv-lh-stage-checker-readiness-v1"
+                },
+                schema=schema,
+                max_tokens=1000,
+            )
+            if stage_checker_value != {"ready": True}:
+                raise SupervisorProtocolError(
+                    "Stage Checker readiness response did not affirm ready=true"
+                )
+            stage_checker_ready = True
             return {
                 **catalog,
                 "available": True,
                 "catalog_available": True,
                 "completion_available": True,
-                "probe": "models_and_chat_completions",
+                "planner_transport": "responses",
+                "planner_transport_available": True,
+                "stage_checker_transport": "chat_completions",
+                "stage_checker_transport_available": True,
+                "probe": "models_responses_and_chat_completions",
                 "latency_ms": round((time.perf_counter() - started) * 1000, 1),
             }
         except Exception as exc:
@@ -3281,7 +3555,12 @@ class OpenAICompatibleSupervisorClient:
                 "available": False,
                 "catalog_available": True,
                 "completion_available": False,
-                "probe": "models_and_chat_completions",
+                "planner_transport": "responses",
+                "planner_transport_available": planner_ready,
+                "stage_checker_transport": "chat_completions",
+                "stage_checker_transport_available": stage_checker_ready,
+                "failed_probe_phase": probe_phase,
+                "probe": "models_responses_and_chat_completions",
                 "latency_ms": round((time.perf_counter() - started) * 1000, 1),
                 "http_status": transport_error.status_code if transport_error else 0,
                 "retryable": transport_error.retryable if transport_error else False,
@@ -3289,6 +3568,11 @@ class OpenAICompatibleSupervisorClient:
                     transport_error.category if transport_error else "protocol"
                 ),
                 "error": f"{type(exc).__name__}: {exc}"[:500],
+                **(
+                    {"provider_error": transport_error.provider_error}
+                    if transport_error and transport_error.provider_error
+                    else {}
+                ),
             }
 
     def close(self) -> None:
@@ -3296,6 +3580,64 @@ class OpenAICompatibleSupervisorClient:
         session = getattr(self._thread_sessions, "session", None)
         if session is not None and session is not self._main_session:
             session.close()
+
+
+class OpenAIGoalSupervisorClient:
+    """Current-architecture Strong Planner/Stage Checker boundary.
+
+    The product and stateful_goal benchmark receive this narrow interface, so
+    legacy ContractGraph, Atom, Directive, and final-review methods cannot be
+    selected accidentally even while historical experiment code remains in the
+    repository.
+    """
+
+    provider_name = OpenAICompatibleSupervisorClient.provider_name
+
+    def __init__(
+        self,
+        settings: SupervisorAPISettings | None = None,
+        *,
+        audit_hook: AuditHook | None = None,
+        session: requests.Session | None = None,
+    ) -> None:
+        self._client = OpenAICompatibleSupervisorClient(
+            settings=settings,
+            audit_hook=audit_hook,
+            session=session,
+        )
+
+    @property
+    def model_name(self) -> str:
+        return self._client.model_name
+
+    @property
+    def stage_checker_model_name(self) -> str:
+        return self._client.stage_checker_model_name
+
+    @property
+    def semantic_repair_attempts(self) -> int:
+        return self._client.semantic_repair_attempts
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        return self._client.plan_goal_patch(request)
+
+    def accept_goal_plan_cache_candidate(self, patch_id: str) -> None:
+        self._client.accept_goal_plan_cache_candidate(patch_id)
+
+    def discard_goal_plan_cache_candidate(self, patch_id: str) -> None:
+        self._client.discard_goal_plan_cache_candidate(patch_id)
+
+    def review_goal_stage(self, request: Any) -> Any:
+        return self._client.review_goal_stage(request)
+
+    def health(self) -> dict[str, Any]:
+        return self._client.health()
+
+    def readiness(self) -> dict[str, Any]:
+        return self._client.readiness()
+
+    def close(self) -> None:
+        self._client.close()
 
 
 def supervisor_policy_from_env(
@@ -3328,6 +3670,7 @@ def supervisor_policy_from_env(
 
 __all__ = [
     "OpenAICompatibleSupervisorClient",
+    "OpenAIGoalSupervisorClient",
     "SupervisorAPISettings",
     "SupervisorProtocolError",
     "SupervisorTransportError",

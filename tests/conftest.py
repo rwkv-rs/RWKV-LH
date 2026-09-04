@@ -21,7 +21,9 @@ def bounded_prompt_replay_test_ablation(monkeypatch: pytest.MonkeyPatch):
     # Tests that exercise missing/conflicting identities delete or replace this
     # value explicitly.
     monkeypatch.setenv("RWKV_MODEL", "rwkv-test")
+    monkeypatch.setenv("RWKV_LH_EXECUTOR_MODEL", "rwkv-test")
     monkeypatch.setenv("RWKV_STATE_TRANSPORT", "prompt_replay")
+    monkeypatch.setenv("RWKV_LH_EXECUTOR_STATE_TRANSPORT", "prompt_replay")
     get_runtime_settings.cache_clear()
     try:
         yield

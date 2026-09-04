@@ -116,6 +116,10 @@ class SelectorProgress:
             raise ValueError("Selector progress counters must be non-negative")
         if self.protocol_rejection_count < 0:
             raise ValueError("protocol_rejection_count must be non-negative")
+        if len(set(self.succeeded_operations)) != len(self.succeeded_operations):
+            raise ValueError("Selector succeeded operations must be unique")
+        if len(set(self.failed_operations)) != len(self.failed_operations):
+            raise ValueError("Selector failed operations must be unique")
         known = set(EXACT_TOOL_LABELS) - {ABSTAIN_LABEL, "final_answer"}
         observed = {*self.succeeded_operations, *self.failed_operations}
         if not observed <= known:

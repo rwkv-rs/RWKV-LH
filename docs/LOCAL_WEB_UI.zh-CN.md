@@ -2,32 +2,23 @@
 
 ## 定位
 
-`rwkv-lh-web` 是当前唯一 Product Controller 的本机界面，不是第二个 Agent。页面只提交用户任务、展示持久状态和管理隔离 worker；它不生成、筛选、修复或改写 RWKV 的决定和最终输出。当前前端只展示 strong Planner/Reviewer → 2.9B S60 Selector → 13.3B G3/G6 Executor → Harness 正式链路；0.4B Shadow 已从界面和轮询中移除。
+`rwkv-lh-web` 是当前唯一 Product Controller 的本机界面，不是第二个 Agent。页面只提交用户任务、展示持久状态和管理隔离 worker；它不生成、筛选、修复或改写 RWKV 的决定和最终输出。当前链路是 Strong Planner → 2.9B G1J Selector-Intent → 13.3B G1J Executor-Args → Harness → clean-State Step Auditor → Strong Stage Checker → Finalizer/Final Auditor；0.4B Shadow 和旧 Contract Graph 已退出产品入口。
 
 ## 当前可以测试什么
 
 - 用户请求逐字保存为 immutable request，不经模型解析或重写。
-- strong Planner/Reviewer 只产生和审核 Contract Graph；2.9B Selector 只从名称/描述中暂存一个
-  非权威 operation；13.3B Executor 复核当前绑定后接收该 schema，生成参数、推进执行并产生 final。
+- Strong Planner 只产生 rolling `GoalPlanPatch`，Strong Stage Checker 只读检查完成阶段；2.9B Selector 暂存一个非权威 operation；13.3B Executor 每个 action 从干净 State 启动，复核绑定后只生成参数。Final 由独立 Finalizer 产生并由 Final Auditor 审核。
 - 在每个运行独立的 workspace 中读取、创建、修改、复制和删除 UTF-8/JSON 文件，或执行 Harness 允许的 scoped command。
 - 查看从 CausalEvent 权威链投影出的 Action、Artifact，以及非权威 WKV checkpoint、
   Controller event 和每个模型请求的采样参数。
-- 查看发给 RWKV 的精确 G1i transcript、原始候选、commit/rollback 和 typed event。
-- 可以停止计算进程并从 SQLite 恢复；这不把 Goal 标记为 stopped/failed。Goal 语义仍保持 running，
-  直到 RWKV 自己提交 Final。导出包包含 workspace、trace、event 和一致 SQLite snapshot。
-- 可按运行选择 `offline/auto_public/explicit_egress`；页面默认 `auto_public + contract_graph`，
+- 查看发给 RWKV 的精确角色 prompt、原始候选、commit/rollback 和 typed event。
+- 可以停止计算进程并从 SQLite 恢复；这不把 Goal 标记为完成。普通 slice 保持 running；连续 action 协议拒绝达到硬预算后显示 blocked 并停止自动调用，修改模型/Head/配置后可人工恢复。导出包包含 workspace、trace、event 和一致 SQLite snapshot。
+- 可按运行选择 `offline/auto_public/explicit_egress`；页面默认 `auto_public + stateful_goal`，
   联网结果冻结为可回定位 exact evidence。CLI/API 未显式选择时仍安全地默认 offline。
 
 这不代表系统已经能稳定完成任意编程任务。能力结论以冻结 E2E 数据集的真实结果为准，手工成功不能代替正式分数。
 
-当前页面顶部显示 2026-08-31 的三题诊断 canary：completed/external/strict 均为 `0/3`，
-联网题 `web_search=7/7`。它明确表达“检索成功、项目闭环未通过”，不会再用旧 Round46
-分数冒充当前 Selector→Executor 架构。
-
-部署烟测 `UI-20260830-233140-0dadf4` 已通过页面的真实 POST 路径完成
-`calculator → final_answer`，最终原样输出 `4`。2/2 Selector handoff 是原始 eligible
-argmax，2/2 Executor raw byte/SHA 完整且未后处理。该结果只证明 Web 与正式 Product
-Controller 连接正确，不是新的能力分数。
+当前能力事实以 2026-09-03 Ladder 为准：有效 20 个 case 为 `0/20`，Selector 1124 次只选择了 `list_directory` 和 `move_file`。旧 Head 已因训练/运行轨迹不一致被 runtime 拒绝；新 Head 完成前，页面连通不等于能力通过。
 
 ## 当前不能做什么
 
@@ -35,10 +26,9 @@ Controller 连接正确，不是新的能力分数。
 - 不能操作当前 run workspace 之外的文件；seed/file API 与 Harness 都会拒绝绝对路径和 `..` 逃逸。
 - 没有浏览器自动化、MCP 写操作或任意私有服务访问；敏感出站值和来源扫描不完整的值由 Gate 拒绝。
 - 不能用 Codex、Judge 或其他模型替 RWKV 选择工具、决定完成或修改答案。
-- 模型输出不是一个 canonical G1i call、参数不满足注册表或 lane 命令无效时会 rollback 并 fail closed，不重新采样语义。
+- 模型输出不是一个 canonical call、参数不满足注册表或 lane 命令无效时会 rollback；同一 selection 只允许一次显式参数修复，不无限重采样。
 - 不提供多用户认证或安全公网托管；默认只允许 loopback。
-- 推理服务未声明完整 `rwkv-lh.native-state.v1` 时，Goal fail closed 并显示等待运行时恢复；不会
-  回退 prompt replay。当前 29613 的 capability endpoint 为 404，因此必须先补齐 serving 协议。
+- 推理服务未声明完整 `rwkv-lh.native-state.v1` 时，Goal fail closed 并显示等待运行时恢复；不会回退 prompt replay。服务在线状态和端口必须在每次实验启动时重新验证。
 
 ## 启动
 
@@ -88,11 +78,11 @@ Markdown JSON fence，但不补 operation 或参数，也不生成第二答案�
 内容：alpha\nbeta\ngamma
 ```
 
-任务（保留页面默认的 Contract Graph；本例可把联网策略改为 offline）：
+任务（保留页面默认的 Stateful Goal；本例可把联网策略改为 offline）：
 
 ```text
 读取 input.txt，在工作区创建 summary.json，包含非空行数量和按原顺序排列的 lines 数组，然后验证写入结果。
 ```
 
 失败时按时间顺序查看 Action checkpoint → committed direct call → `action_started` → Harness
-结果 → `action_finished` → 同一 session 的下一命令，定位最早错误环节，不只看最终状态。
+结果 → `action_finished` → clean Executor 的下一选择/参数调用，定位最早错误环节，不只看最终状态。

@@ -261,9 +261,8 @@ def project_contract_capabilities(
         operations=operations,
         exclusive=exclusive,
         # A finalizer's candidate becomes the exact user-visible answer.  It
-        # therefore needs at least one current-workspace observation just like
-        # every other evidence-producing atom; a zero-action Final is an
-        # ungrounded model assertion, not committed evidence.
+        # therefore needs one current-workspace observation; accepted work
+        # evidence remains the source of execution truth.
         minimum_actions=minimum_actions,
     )
 

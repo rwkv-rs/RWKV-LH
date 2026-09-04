@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -13,6 +14,11 @@ from rwkv_lh.exact_tool_selector import (
     compact_protocol_v7,
     compact_protocol_v8,
 )
+from rwkv_lh.exact_tool_selector.compact_protocol_v3 import (
+    compact_selector_tool_menu,
+)
+from rwkv_lh.exact_tool_selector.protocol import canonical_digest, canonical_json
+from rwkv_lh.goal_state_protocols import selector_intent
 
 
 @dataclass(frozen=True)
@@ -31,9 +37,90 @@ class NetworkSelectorInputProtocol:
     current_requirement_in_step: bool = False
     current_question_in_step: bool = False
     frontier_only_in_step: bool = False
+    g1j_selector_intent: bool = False
+
+
+G1J_SELECTOR_INTENT_INPUT_PROTOCOL = selector_intent.INPUT_SCHEMA_VERSION
+G1J_SELECTOR_INTENT_HEAD_ID = "rwkv_lh_g1j_selector_intent_head_v2"
+G1J_SELECTOR_TRAINING_TRAJECTORY_MODE = "persistent-causal-sequences.v1"
+G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION = (
+    "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v1"
+)
+
+
+def _g1j_values(value: Any) -> dict[str, Any]:
+    source = value.to_dict() if hasattr(value, "to_dict") else dict(value)
+    return {
+        "stage_objective": source["stage_objective"],
+        "stage_role": source["stage_role"],
+        "progress": dict(source["progress"]),
+        "eligible_labels": list(source["eligible_labels"]),
+    }
+
+
+def _g1j_menu_digest() -> str:
+    return canonical_digest(
+        {
+            "schema_version": G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION,
+            "tools": [dict(item) for item in compact_selector_tool_menu()],
+        }
+    )
+
+
+def _g1j_bootstrap_payload(value: Any) -> dict[str, Any]:
+    _g1j_values(value)
+    return {
+        "menu_digest": _g1j_menu_digest(),
+        "menu_schema_version": G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION,
+        "schema_version": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+        "tools": [dict(item) for item in compact_selector_tool_menu()],
+    }
+
+
+def _g1j_render_bootstrap(value: Any) -> str:
+    payload = _g1j_bootstrap_payload(value)
+    return (
+        "SelectorIntentMenuV1: "
+        + canonical_json(payload)
+        + "\nSelectorIntentRoleV1: "
+        + json.dumps(
+            {"schema_version": G1J_SELECTOR_INTENT_INPUT_PROTOCOL},
+            ensure_ascii=False,
+            sort_keys=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def _g1j_render_step(value: Any) -> str:
+    return selector_intent.render_prompt(_g1j_values(value))
+
+
+def _g1j_input_digest(value: Any) -> str:
+    return canonical_digest(
+        {
+            "bootstrap": _g1j_render_bootstrap(value),
+            "step": _g1j_render_step(value),
+        }
+    )
 
 
 _PROTOCOLS = {
+    G1J_SELECTOR_INTENT_INPUT_PROTOCOL: NetworkSelectorInputProtocol(
+        schema_version=G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+        endpoint="/selector-intent-v1/select",
+        menu_prefix="SelectorIntentMenuV1: ",
+        task_marker="\nSelectorIntentRoleV1: ",
+        task_prefix="SelectorIntentRoleV1: ",
+        step_prefix="SelectorIntentPromptV1: ",
+        bootstrap_payload=_g1j_bootstrap_payload,
+        input_digest=_g1j_input_digest,
+        menu_digest=_g1j_menu_digest,
+        render_bootstrap=_g1j_render_bootstrap,
+        render_step=_g1j_render_step,
+        frontier_only_in_step=True,
+        g1j_selector_intent=True,
+    ),
     compact_protocol_v3.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION: NetworkSelectorInputProtocol(
         schema_version=compact_protocol_v3.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION,
         endpoint="/v3/select",
@@ -136,6 +223,7 @@ REQUIREMENT_BYTE_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL = (
 FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL = (
     compact_protocol_v8.COMPACT_SELECTOR_INPUT_SCHEMA_VERSION
 )
+CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL = G1J_SELECTOR_INTENT_INPUT_PROTOCOL
 SUPPORTED_NETWORK_SELECTOR_INPUT_PROTOCOLS = frozenset(_PROTOCOLS)
 
 
@@ -149,7 +237,10 @@ def network_selector_input_protocol(version: str) -> NetworkSelectorInputProtoco
 __all__ = [
     "DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
+    "CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
+    "G1J_SELECTOR_INTENT_HEAD_ID",
+    "G1J_SELECTOR_TRAINING_TRAJECTORY_MODE",
     "FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "REQUIREMENT_BYTE_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL",

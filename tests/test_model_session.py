@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from types import SimpleNamespace
 
 import pytest
 
+from rwkv_lh.goal_state_protocols import executor_args
 from rwkv_lh.model_io import (
     FINAL_ANSWER_DEFINITION,
+    TOOL_CALL_JSON_CONTINUATION_ANCHOR,
     ModelCommand,
     ModelIOError,
     parse_model_command,
@@ -35,6 +38,7 @@ from rwkv_lh.runtime.native_state import NativeStateCandidate, NativeStateSnapsh
 from rwkv_lh.runtime.protocol import RuntimeCapabilities
 from rwkv_lh.runtime.settings import RuntimeSettings
 from rwkv_lh.schema import GoalState, ModelEvent, ModelLaneKind, RunState
+from rwkv_lh.token_budget import tokenizer
 
 
 @dataclass
@@ -180,6 +184,7 @@ def settings(
     [
         '{"function":"read_file","params":{"path":"a.txt"}}',
         '{"name":"read_file","arguments":{"path":"a.txt"}}',
+        '{"name":"read_file","arguments":"{\\"path\\":\\"a.txt\\"}"}',
         '{"tool":"read_file","parameters":{"path":"a.txt"}}',
         '{"read_file":{"path":"a.txt"}}',
         (
@@ -200,6 +205,41 @@ def test_common_envelopes_preserve_explicit_operation_and_arguments(raw: str) ->
         "function": "read_file",
         "params": {"path": "a.txt"},
     }
+    assert trace.to_dict()["controller_semantic_fields_generated"] is False
+
+
+def test_native_tool_call_string_arguments_are_decoded_without_parameter_mutation() -> None:
+    arguments = {
+        "path": "目录/原样.txt",
+        "count": 0,
+        "enabled": False,
+        "missing": None,
+        "nested": {"items": [1, "二", True, None]},
+    }
+    raw = json.dumps(
+        {
+            "name": "write_json",
+            "arguments": json.dumps(
+                arguments,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    command, trace = parse_model_command_with_trace(raw)
+    assert command == ModelCommand("write_json", arguments)
+    assert command.arguments == arguments
+    assert trace.input_payload == json.loads(raw)
+    assert trace.normalized_payload == {
+        "function": "write_json",
+        "params": arguments,
+    }
+    assert trace.transformations == (
+        "call_envelope:name.arguments_json_decoded",
+        "call_envelope:name+arguments->function+params",
+    )
     assert trace.to_dict()["controller_semantic_fields_generated"] is False
 
 
@@ -273,6 +313,26 @@ def test_bootstrap_contains_exact_tool_schema_and_no_selector() -> None:
     assert '"required":["path"]' in prompt
     assert "lh_task_call" not in prompt
     assert "operation_args" not in prompt
+
+
+def test_native_tool_call_bootstrap_uses_only_the_tool_call_json_boundary() -> None:
+    prompt = render_bootstrap(
+        [FINAL_ANSWER_DEFINITION],
+        "return the grounded result",
+        native_tool_call_json=True,
+    )
+    assert prompt.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+    assert "Assistant: ```json" not in prompt
+    assert "\n\nAssistant:\n\n**Tool Call:**" not in prompt
+    assert prompt.count("**Tool Call:**") == 1
+    assert prompt.count("```json") == 1
+    with pytest.raises(ModelIOError, match="not used for tool-menu selection"):
+        render_bootstrap(
+            [FINAL_ANSWER_DEFINITION],
+            "select one tool",
+            progressive_tool_disclosure=True,
+            native_tool_call_json=True,
+        )
 
 
 def test_progressive_bootstrap_exposes_menu_without_tool_schema_in_system() -> None:
@@ -412,6 +472,11 @@ def test_event_append_uses_one_generic_observation_envelope() -> None:
     assert "event_id" not in rendered
     assert "scope_id" not in rendered
 
+    neutral = render_event_append(event, include_generation_anchor=False)
+    assert neutral.endswith('"success":true}}}')
+    assert "Assistant: ```json" not in neutral
+    assert "**Tool Call:**" not in neutral
+
 
 def test_rollover_summary_renders_exact_event_bodies_for_visible_ids() -> None:
     event = ModelEvent(
@@ -429,6 +494,12 @@ def test_rollover_summary_renders_exact_event_bodies_for_visible_ids() -> None:
     assert '"error":"path is required"' in rendered
     assert '"rejected_arguments":{}' in rendered
     assert '"selected_operation":"read_file"' in rendered
+    neutral = render_rollover_event_summary(
+        (event,),
+        include_generation_anchor=False,
+    )
+    assert "Assistant: ```json" not in neutral
+    assert "**Tool Call:**" not in neutral
 
     session = ModelSession(QueueClient([]), settings=settings())
     checkpoint = session.bootstrap(
@@ -447,6 +518,61 @@ def test_rollover_summary_renders_exact_event_bodies_for_visible_ids() -> None:
 
     assert compact.event_ids == [event.event_id]
     assert rendered in compact.transcript
+
+
+def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
+    selected_settings = replace(settings(), tool_disclosure_mode="progressive")
+    session = ModelSession(QueueClient([]), settings=selected_settings)
+    selector = SimpleNamespace(
+        input_protocol=SimpleNamespace(g1j_selector_intent=True)
+    )
+    model = LongHorizonModel(session, tool_selector=selector)
+    goal = model.create_literal_goal(
+        "Inspect the fixed project workspace.",
+        "/home/chase/GitHub/RWKV-LH/temp/causal-history-test",
+    )
+    state = RunState(run_id="RUN-CAUSAL-HISTORY", goal=goal)
+    first = ModelEvent(
+        event_type="action_result",
+        event_id="EV-Z-FIRST",
+        scope_id="LANE:ACTION",
+        payload={"action_id": "A1"},
+    )
+    second = ModelEvent(
+        event_type="protocol_rejection",
+        event_id="EV-A-SECOND",
+        scope_id="LANE:ACTION",
+        payload={"selected_operation": "read_file"},
+    )
+    # Deliberately make lexical order disagree with causal checkpoint order.
+    state.model_events = {second.event_id: second, first.event_id: first}
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        goal.request,
+        (),
+        lane_id=model.ACTION_LANE_ID,
+        event_ids=(first.event_id, second.event_id),
+        independent_tool_selector=True,
+    )
+    state.model_states[checkpoint.checkpoint_id] = checkpoint
+    state.set_lane_head("executor", checkpoint.checkpoint_id)
+
+    disclosed = model._disclose_selected_tool(
+        state,
+        checkpoint,
+        lambda *_args: None,
+        model._definitions_by_name["read_file"],
+        current_requirement=goal.request,
+    )
+
+    payload_text = disclosed.transcript.rsplit("ExecutorArgsPromptV1: ", 1)[1]
+    payload = json.loads(payload_text.split("\n\n**Tool Call:**", 1)[0])
+    assert [item["event_id"] for item in payload["executor_history"]] == [
+        first.event_id,
+        second.event_id,
+    ]
+    assert disclosed.transcript.count("Assistant: ```json") == 0
+    assert disclosed.transcript.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
 
 
 def test_native_rollover_rebuilds_state_with_retained_event_bodies() -> None:
@@ -500,6 +626,75 @@ def test_session_commit_keeps_exact_prompt_replay_lineage() -> None:
     assert committed.parent_checkpoint_id == checkpoint.checkpoint_id
     assert committed.transcript.endswith(candidate.raw_output)
     assert any(item["type"] == "model_session_candidate_committed" for item in audits)
+
+
+def test_session_restores_only_token_attested_transport_stop_fence() -> None:
+    raw = '```json\n{"function":"read_file","params":{"path":"a.txt"}}'
+    full_generated_stream = raw + "\n```"
+
+    class StopStrippingClient(QueueClient):
+        def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+            self.prompts.append(prompt)
+            return Response(
+                raw,
+                finish_reason="stop",
+                metadata={"token_ids": tokenizer().encode(full_generated_stream)},
+            )
+
+    audits: list[dict] = []
+    session = ModelSession(
+        StopStrippingClient([]),
+        settings=settings(),
+        audit_hook=audits.append,
+    )
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "read a.txt",
+        [{
+            "name": "read_file",
+            "description": "read",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        }],
+    )
+
+    candidate = session.generate(checkpoint, max_output_tokens=100)
+    command, trace = session.parse_with_trace(candidate)
+    committed = session.commit(candidate, command)
+
+    assert command == ModelCommand("read_file", {"path": "a.txt"})
+    assert trace.transformations[:2] == (
+        "transport:attested_markdown_stop_suffix_restored",
+        "surface:markdown_code_fence_removed",
+    )
+    assert committed.parent_checkpoint_id == checkpoint.checkpoint_id
+    returned = next(
+        item for item in audits if item["type"] == "model_session_generation_returned"
+    )
+    assert returned["raw_output"] == raw
+
+
+def test_session_reports_attested_empty_fence_as_no_json_body() -> None:
+    raw = "```json"
+
+    class EmptyFenceClient(QueueClient):
+        def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+            self.prompts.append(prompt)
+            return Response(
+                raw,
+                finish_reason="stop",
+                metadata={"token_ids": tokenizer().encode(raw + "\n```")},
+            )
+
+    session = ModelSession(EmptyFenceClient([]), settings=settings())
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "read a.txt",
+        [FINAL_ANSWER_DEFINITION],
+    )
+    candidate = session.generate(checkpoint, max_output_tokens=100)
+
+    with pytest.raises(ModelIOError, match="has no JSON body"):
+        session.parse(candidate)
 
 
 def test_generation_keeps_immutable_raw_record_and_profile_identity() -> None:

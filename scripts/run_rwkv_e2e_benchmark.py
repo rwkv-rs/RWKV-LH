@@ -60,6 +60,7 @@ from rwkv_lh.stateful_goal_loop import (
 from rwkv_lh.supervisor import SupervisorClient, SupervisorPolicy
 from rwkv_lh.supervisor_openai import (
     OpenAICompatibleSupervisorClient,
+    OpenAIGoalSupervisorClient,
     SupervisorAPISettings,
     supervisor_policy_from_env,
 )
@@ -949,11 +950,12 @@ def _source_tree_manifest(repository: Path) -> list[dict[str, Any]]:
 def stateful_goal_protocol_metadata(
     *, enabled: bool, strong_planner_available: bool
 ) -> dict[str, Any]:
-    """Return the executable Stateful v2 authority topology for RUN_PROTOCOL."""
+    """Return the executable Stateful Goal authority topology for RUN_PROTOCOL."""
 
     return {
         "enabled": bool(enabled),
-        "persistent_executor_state_count": 1 if enabled else 0,
+        "persistent_executor_state_count": 0,
+        "executor_state_scope": "one_selected_action" if enabled else "disabled",
         "selector_tool_decisions_per_action": 1,
         "auditor_state_isolated": bool(enabled),
         "rwkv_audit_required": bool(enabled),
@@ -961,7 +963,7 @@ def stateful_goal_protocol_metadata(
         "strong_model_dependency": bool(enabled and strong_planner_available),
         "strong_planner_required": bool(enabled),
         "strong_planner_protocol": (
-            "rwkv-lh.goal-plan-patch.v1" if enabled else ""
+            "rwkv-lh.goal-plan-patch.v2" if enabled else ""
         ),
         "strong_reviewer_enabled": False,
     }
@@ -1101,7 +1103,7 @@ def _write_run_metadata(
             "model": str((supervisor_health or {}).get("model") or ""),
             "role": "planner" if arguments.stateful_goal else "planner_reviewer",
             "planner_protocol": (
-                "rwkv-lh.contract-graph-planner.v2"
+                "rwkv-lh.goal-plan-patch.v2"
                 if arguments.stateful_goal
                 else ""
             ),
@@ -1592,6 +1594,10 @@ def run_case(
     supervisor_pending_resume_attempts: int = 0,
     stateful_goal: bool = False,
 ) -> dict[str, Any]:
+    if stateful_goal and supervisor_strategy != "goal_stages":
+        raise ValueError(
+            "stateful_goal requires the single current goal_stages Planner protocol"
+        )
     if shutil.which("bwrap") is None:
         raise RuntimeError(
             "RWKV E2E execution requires bubblewrap; refusing an unsandboxed case"
@@ -1655,13 +1661,21 @@ def run_case(
         settings=executor_binding.settings,
         audit_hook=model_trace.append,
     )
-    supervisor_client: OpenAICompatibleSupervisorClient | None = None
+    supervisor_client: (
+        OpenAIGoalSupervisorClient | OpenAICompatibleSupervisorClient | None
+    ) = None
     supervisor_policy: SupervisorPolicy | None = None
     if supervisor_mode == "openai":
-        supervisor_client = OpenAICompatibleSupervisorClient(
-            audit_hook=supervisor_trace.append
+        supervisor_client = (
+            OpenAIGoalSupervisorClient(audit_hook=supervisor_trace.append)
+            if stateful_goal
+            else OpenAICompatibleSupervisorClient(
+                audit_hook=supervisor_trace.append
+            )
         )
-        supervisor_policy = supervisor_policy_from_env(mode=supervisor_strategy)
+        supervisor_policy = supervisor_policy_from_env(
+            mode="static" if stateful_goal else supervisor_strategy
+        )
     elif supervisor_mode != "none":
         raise ValueError(f"unsupported supervisor mode: {supervisor_mode}")
     selector_settings: NetworkExactToolSelectorSettings | None = None
@@ -2326,6 +2340,7 @@ def parse_args() -> argparse.Namespace:
             "online_microtask",
             "parallel_atoms",
             "contract_graph",
+            "goal_stages",
         ],
         default="static",
         help=(
@@ -2377,8 +2392,9 @@ def parse_args() -> argparse.Namespace:
         "--stateful-goal",
         action="store_true",
         help=(
-            "run RWKV Stateful Goal Loop v2: one 13.3B action State, one exact "
-            "Selector decision, and a separate non-merged RWKV Auditor State"
+            "run RWKV Stateful Goal Loop v3: one clean 13.3B Executor State per "
+            "selected action, one exact Selector decision, and separate "
+            "non-merged RWKV Auditor States"
         ),
     )
     parser.add_argument(
@@ -2411,11 +2427,11 @@ def main() -> int:
         )
     if arguments.stateful_goal and (
         arguments.supervisor != "openai"
-        or arguments.supervisor_strategy != "contract_graph"
+        or arguments.supervisor_strategy != "goal_stages"
     ):
         raise ValueError(
             "--stateful-goal requires --supervisor openai "
-            "--supervisor-strategy contract_graph"
+            "--supervisor-strategy goal_stages"
         )
     if arguments.stateful_goal and not arguments.independent_selector:
         raise ValueError("--stateful-goal requires --independent-selector")
@@ -2512,8 +2528,10 @@ def main() -> int:
     if arguments.supervisor == "openai":
         configured_supervisor = SupervisorAPISettings.from_env()
         supervisor_public_settings = configured_supervisor.public_dict()
-        supervisor_health_client = OpenAICompatibleSupervisorClient(
-            configured_supervisor
+        supervisor_health_client = (
+            OpenAIGoalSupervisorClient(configured_supervisor)
+            if arguments.stateful_goal
+            else OpenAICompatibleSupervisorClient(configured_supervisor)
         )
         supervisor_health = supervisor_health_client.readiness()
         supervisor_health_client.close()

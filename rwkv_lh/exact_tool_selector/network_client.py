@@ -16,7 +16,7 @@ from uuid import uuid4
 import requests
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
-    FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.model_v2 import (
@@ -38,7 +38,7 @@ NETWORK_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
     "rwkv-lh.network-exact-tool-selector-service-response.v3"
 )
 NETWORK_SELECTOR_RUNTIME_INPUT_PROTOCOL = (
-    FRONTIER_QUESTION_TAIL_NETWORK_SELECTOR_INPUT_PROTOCOL
+    CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
 )
 NETWORK_SELECTOR_LANE_ID = "LANE:SELECTOR"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -409,7 +409,10 @@ class NetworkExactToolSelectorClient:
             transport=(
                 "native_rwkv_hidden_mlp_selector_"
                 + (
-                    "v8_frontier_question_tail"
+                    "g1j_selector_intent_v1"
+                    if self.settings.input_protocol
+                    == CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
+                    else "v8_frontier_question_tail"
                     if self.settings.input_protocol.endswith(
                         "v8-frontier-question-tail"
                     )
@@ -456,6 +459,17 @@ class NetworkExactToolSelectorClient:
                 "action_index": selector_input.progress.action_index,
                 "completed_stage_count": (
                     selector_input.progress.completed_stage_count
+                ),
+                "protocol_rejection_count": (
+                    selector_input.progress.protocol_rejection_count
+                    + int(
+                        (parent.native_state_metadata or {}).get(
+                            "protocol_rejection_count",
+                            0,
+                        )
+                        if parent is not None
+                        else 0
+                    )
                 ),
                 "generated_rwkv_text": False,
                 "postprocessed": False,

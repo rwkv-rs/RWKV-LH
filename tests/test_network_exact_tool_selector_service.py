@@ -17,12 +17,16 @@ from rwkv_lh.exact_tool_selector.input_protocol import (
     CURRENT_QUESTION_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
     DEFAULT_NETWORK_SELECTOR_INPUT_PROTOCOL,
     FULL_REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
+    G1J_SELECTOR_INTENT_HEAD_ID,
+    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+    G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
     REQUEST_LAST_NETWORK_SELECTOR_INPUT_PROTOCOL,
 )
 from rwkv_lh.exact_tool_selector.model_v2 import (
     NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
+    NETWORK_EXACT_TOOL_LABELS,
     NetworkSelectorInput,
     NetworkSelectorProgress,
 )
@@ -135,6 +139,23 @@ class _MeanHead:
         return tuple(logits)
 
 
+class _G1JHead(_MeanHead):
+    def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
+        super().__init__(settings)
+        self.artifact = SimpleNamespace(
+            metadata={
+                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+                "compact_input_schema_version": settings.input_protocol,
+                "model_weights_sha256": settings.model_sha256,
+                "feature_protocol": settings.feature_protocol,
+                "labels": list(NETWORK_EXACT_TOOL_LABELS),
+                "training_trajectory_mode": (
+                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+                ),
+            }
+        )
+
+
 class _FusionExtractor(_MeanExtractor):
     def __init__(self) -> None:
         super().__init__()
@@ -180,24 +201,39 @@ class _FusionExtractor(_MeanExtractor):
 class _FusionHead(_MeanHead):
     def __init__(self, settings: NetworkExactToolSelectorSettings) -> None:
         super().__init__(settings)
+        metadata = {
+            "portable_feature_identity": {
+                "batch_size": 1,
+                "compact_input_schema_version": settings.input_protocol,
+                "engine_revision": "1" * 40,
+                "feature_dim": 5120,
+                "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
+                "model_weights_sha256": settings.model_sha256,
+                "persistent_history_replayed": True,
+                "state_profile": {
+                    "id": settings.state_profile_id,
+                    "sha256": settings.state_profile_sha256,
+                },
+                "wkv_mode": "fp16",
+            }
+        }
+        if settings.input_protocol == G1J_SELECTOR_INTENT_INPUT_PROTOCOL:
+            metadata.update({
+                "head_id": G1J_SELECTOR_INTENT_HEAD_ID,
+                "compact_input_schema_version": settings.input_protocol,
+                "model_weights_sha256": settings.model_sha256,
+                "feature_protocol": settings.feature_protocol,
+                "labels": list(NETWORK_EXACT_TOOL_LABELS),
+                "training_trajectory_mode": (
+                    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
+                ),
+            })
+            metadata["portable_feature_identity"][
+                "training_trajectory_mode"
+            ] = G1J_SELECTOR_TRAINING_TRAJECTORY_MODE
         self.artifact = SimpleNamespace(
             feature_dim=5120,
-            metadata={
-                "portable_feature_identity": {
-                    "batch_size": 1,
-                    "compact_input_schema_version": settings.input_protocol,
-                    "engine_revision": "1" * 40,
-                    "feature_dim": 5120,
-                    "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
-                    "model_weights_sha256": settings.model_sha256,
-                    "persistent_history_replayed": True,
-                    "state_profile": {
-                        "id": settings.state_profile_id,
-                        "sha256": settings.state_profile_sha256,
-                    },
-                    "wkv_mode": "fp16",
-                }
-            },
+            metadata=metadata,
         )
         self.seen: list[torch.Tensor] = []
 
@@ -372,6 +408,94 @@ def test_service_mean_feature_uses_step_segment_and_one_persistent_state(
     )
     assert first.token_position == 22
     assert second.token_position == 33
+
+
+def test_g1j_service_continues_selector_state_after_initial_bootstrap(
+    tmp_path: Path,
+) -> None:
+    base = _settings()
+    settings = NetworkExactToolSelectorSettings(
+        **{
+            **base.__dict__,
+            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+        }
+    )
+    extractor = _MeanExtractor()
+    service = NetworkSelectorService(
+        settings,
+        extractor,
+        _G1JHead(settings),
+        NetworkSelectorStateStore(tmp_path / "g1j-persistent-selector-state"),
+    )
+    client = NetworkExactToolSelectorClient(settings, session=_LocalSession(service))
+
+    first, checkpoint = client.select(
+        _input(0), run_id="RUN-G1J", trace_id="TRACE-G1J-1"
+    )
+    second, continued = client.select(
+        _input(1),
+        run_id="RUN-G1J",
+        trace_id="TRACE-G1J-2",
+        parent=checkpoint,
+    )
+
+    assert len(extractor.calls) == 3
+    assert extractor.calls[0][0].startswith("SelectorIntentMenuV1: ")
+    assert extractor.calls[1][0].startswith("\nSelectorIntentPromptV1: ")
+    assert extractor.calls[2][0].startswith("\nSelectorIntentPromptV1: ")
+    assert extractor.calls[2][1] is True
+    assert second.selector_parent_state_digest == first.selector_state_digest
+    assert continued.parent_checkpoint_id == checkpoint.checkpoint_id
+    assert continued.token_count > checkpoint.token_count
+
+
+def test_g1j_service_rejects_head_without_persistent_trajectory_training(
+    tmp_path: Path,
+) -> None:
+    base = _settings()
+    settings = NetworkExactToolSelectorSettings(
+        **{
+            **base.__dict__,
+            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+            "feature_protocol": "rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+        }
+    )
+    head = _G1JHead(settings)
+    del head.artifact.metadata["training_trajectory_mode"]
+
+    with pytest.raises(ValueError, match="identity mismatch"):
+        NetworkSelectorService(
+            settings,
+            _MeanExtractor(),
+            head,
+            NetworkSelectorStateStore(tmp_path / "invalid-g1j-head"),
+        )
+
+
+def test_g1j_fusion_service_rejects_portable_identity_without_trajectory_mode(
+    tmp_path: Path,
+) -> None:
+    base = _settings()
+    settings = NetworkExactToolSelectorSettings(
+        **{
+            **base.__dict__,
+            "input_protocol": G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
+            "feature_protocol": NETWORK_SELECTOR_FUSION_FEATURE_PROTOCOL,
+        }
+    )
+    head = _FusionHead(settings)
+    del head.artifact.metadata["portable_feature_identity"][
+        "training_trajectory_mode"
+    ]
+
+    with pytest.raises(ValueError, match="portable identity mismatch"):
+        NetworkSelectorService(
+            settings,
+            _FusionExtractor(),
+            head,
+            NetworkSelectorStateStore(tmp_path / "invalid-g1j-fusion-head"),
+        )
 
 
 def test_service_fuses_mean_then_last_from_one_current_forward(

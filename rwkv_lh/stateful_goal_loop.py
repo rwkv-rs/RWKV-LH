@@ -35,11 +35,13 @@ from rwkv_lh.schema import ActionStatus, ModelEvent, RunStatus, utc_now
 from rwkv_lh.supervisor import supervisor_identity
 
 
-STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v2"
+STATEFUL_GOAL_LOOP_ARCHITECTURE = "rwkv-stateful-goal-loop.v3"
 
 
 class StatefulGoalLoopController(LongHorizonController):
     """Strong-plan, single-State RWKV execute, RWKV-audit Goal loop."""
+
+    _MAX_EXECUTOR_RETRIES_PER_SELECTION = 1
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -54,6 +56,7 @@ class StatefulGoalLoopController(LongHorizonController):
                 "stateful_goal requires the independent Selector; direct Executor "
                 "tool-selection fallback is not part of this architecture"
             )
+        self.model.validate_goal_role_sessions()
 
     @staticmethod
     def _recent_action_facts(
@@ -180,6 +183,129 @@ class StatefulGoalLoopController(LongHorizonController):
             for action in sorted(selected, key=lambda item: item.sequence)
         )
 
+    @staticmethod
+    def _step_mechanical_evidence_coverage(
+        state: Any,
+        step_id: str,
+        step_revision: int,
+    ) -> dict[str, Any]:
+        """Compile Harness-owned prerequisites before semantic Step Audit.
+
+        The Planner declares roots and semantic success criteria.  It does not
+        prove that an action observed or mutated those roots.  The Controller
+        can establish that mechanical fact from exact successful action
+        arguments, so an incomplete step must not consume an Auditor call or
+        gain completion authority.
+        """
+
+        plan = rolling_goal_plan(state)
+        step = plan.steps.get(step_id)
+        if step is None:
+            raise ValueError("mechanical evidence gate requires a committed plan step")
+        expected_revision = plan.step_revisions.get(step_id, 1)
+        if step_revision != expected_revision:
+            raise ValueError("mechanical evidence gate received a stale step revision")
+
+        bindings = goal_step_action_bindings(state)
+        assigned_actions = sorted(
+            (
+                action
+                for action_id, action in state.actions.items()
+                if bindings.get(action_id) == (step_id, step_revision)
+            ),
+            key=lambda item: item.sequence,
+        )
+        successful_actions = tuple(
+            action
+            for action in assigned_actions
+            if action.status is ActionStatus.SUCCEEDED
+            and bool((action.result or {}).get("success"))
+        )
+        missing_read_roots = tuple(
+            root
+            for root in step.read_roots
+            if not any(
+                action_observes_root(action, root)
+                for action in successful_actions
+            )
+        )
+        missing_write_roots = tuple(
+            root
+            for root in step.write_roots
+            if not any(
+                action_mutates_root(action, root)
+                for action in successful_actions
+            )
+        )
+        gaps = [
+            f"missing successful observation evidence for read_root {root!r}"
+            for root in missing_read_roots
+        ]
+        gaps.extend(
+            f"missing successful mutation evidence for write_root {root!r}"
+            for root in missing_write_roots
+        )
+        if not successful_actions and not gaps:
+            gaps.append("active step has no successful Harness action evidence")
+
+        return {
+            "active_step_id": step_id,
+            "active_step_revision": step_revision,
+            "assigned_action_ids": [action.action_id for action in assigned_actions],
+            "successful_action_ids": [
+                action.action_id for action in successful_actions
+            ],
+            "missing_read_roots": list(missing_read_roots),
+            "missing_write_roots": list(missing_write_roots),
+            "gaps": gaps,
+            "completion_preconditions_satisfied": not gaps,
+            "completion_authority": False,
+            "source": "controller_mechanical_evidence_gate",
+        }
+
+    @staticmethod
+    def _step_executor_fact_action_ids(
+        state: Any,
+        step_id: str,
+        step_revision: int,
+    ) -> tuple[str, ...]:
+        """Return only current-step and declared-dependency facts for Executor."""
+
+        plan = rolling_goal_plan(state)
+        step = plan.steps.get(step_id)
+        if step is None:
+            raise ValueError("Executor fact scope requires a committed plan step")
+        if plan.step_revisions.get(step_id, 1) != step_revision:
+            raise ValueError("Executor fact scope received a stale step revision")
+
+        bindings = goal_step_action_bindings(state)
+        selected = {
+            action_id
+            for action_id, binding in bindings.items()
+            if binding == (step_id, step_revision)
+        }
+        revisions = {
+            revision.revision_id: revision
+            for values in state.artifact_revisions.values()
+            for revision in values
+        }
+        for dependency_id in step.depends_on:
+            for evidence_ref in plan.completed_evidence.get(dependency_id, ()):
+                if evidence_ref in state.actions:
+                    selected.add(evidence_ref)
+                elif (artifact := state.artifacts.get(evidence_ref)) is not None:
+                    selected.add(artifact.action_id)
+                elif (revision := revisions.get(evidence_ref)) is not None:
+                    selected.add(revision.action_id)
+
+        return tuple(
+            action.action_id
+            for action in sorted(
+                (state.actions[action_id] for action_id in selected),
+                key=lambda item: item.sequence,
+            )
+        )
+
     def _goal_step_operations(self, state: Any, step: Any) -> tuple[str, ...]:
         """Compile the Harness menu for one Planner step without choosing a tool."""
 
@@ -202,6 +328,107 @@ class StatefulGoalLoopController(LongHorizonController):
                 and definition.side_effect_class == "workspace_mutation"
             )
         )
+
+    def _pending_executor_protocol_retry(
+        self,
+        state: Any,
+    ) -> ModelEvent | None:
+        """Recover one durable same-tool Executor retry without reselecting.
+
+        A malformed parameter object consumes its staged Selector handoff, but
+        it does not invalidate the selected tool. Replaying the causal rejection
+        as a deterministic Executor event preserves the selection lineage across
+        controller restarts and keeps the Selector out of parameter repair.
+        """
+
+        for causal_event_id in reversed(state.causal_order):
+            record = state.causal_records[causal_event_id]
+            if record.event_type != "protocol_rejection_recorded":
+                continue
+            payload = record.payload
+            if str(payload.get("protocol_scope") or "") != "action":
+                continue
+            selection_id = str(payload.get("selection_id") or "")
+            selected_operation = str(payload.get("selected_operation") or "")
+            selection = state.tool_selections.get(selection_id)
+            selection_rejections = sum(
+                1
+                for event_id in state.causal_order
+                if (
+                    state.causal_records[event_id].event_type
+                    == "protocol_rejection_recorded"
+                    and str(
+                        state.causal_records[event_id].payload.get(
+                            "protocol_scope"
+                        )
+                        or ""
+                    )
+                    == "action"
+                    and str(
+                        state.causal_records[event_id].payload.get("selection_id")
+                        or ""
+                    )
+                    == selection_id
+                )
+            )
+            if (
+                not selection_id
+                or selected_operation not in self.model._definitions_by_name
+                or selection is None
+                or selection.status.value != "consumed"
+                or selection.selected_operation != selected_operation
+                or not bool(payload.get("schema_already_disclosed"))
+                or selection_rejections
+                > self._MAX_EXECUTOR_RETRIES_PER_SELECTION
+            ):
+                return None
+            retry_event_id = "EV-GOAL-REJECT-" + hashlib.sha256(
+                causal_event_id.encode("utf-8")
+            ).hexdigest()[:16]
+            if retry_event_id in state.model_events:
+                return None
+            return ModelEvent(
+                event_type="protocol_rejection",
+                event_id=retry_event_id,
+                scope_id=self.model.ACTION_LANE_ID,
+                payload={
+                    "error": str(payload.get("error") or "")[:2000],
+                    "action_executed": False,
+                    "rejected_arguments": dict(
+                        payload.get("rejected_arguments") or {}
+                    ),
+                    "selection_id": selection_id,
+                    "selected_operation": selected_operation,
+                    "schema_already_disclosed": True,
+                    "instruction": (
+                        "Retry the same selected operation. Return one displayed "
+                        "direct function call with its complete explicit parameter "
+                        "object; do not choose another operation."
+                    ),
+                },
+            )
+        return None
+
+    @staticmethod
+    def _consecutive_action_protocol_rejections(state: Any) -> int:
+        """Count durable Executor failures since the latest executed action."""
+
+        count = 0
+        for event_id in reversed(state.causal_order):
+            event = state.causal_records[event_id]
+            if event.event_type == "action_finished":
+                break
+            if (
+                event.event_type == "run_started"
+                and bool(event.payload.get("protocol_rejection_budget_reset"))
+            ):
+                break
+            if (
+                event.event_type == "protocol_rejection_recorded"
+                and str(event.payload.get("protocol_scope") or "") == "action"
+            ):
+                count += 1
+        return count
 
     def _assign_action_to_step(
         self,
@@ -334,6 +561,16 @@ class StatefulGoalLoopController(LongHorizonController):
             audit_boundary_id=boundary_id,
             event=event,
             final_candidate=bool(pending.get("final_candidate")),
+            final_candidate_command=(
+                parse_model_command(
+                    state.decisions[
+                        str(pending.get("decision_id") or "")
+                    ].raw_output
+                )
+                if bool(pending.get("final_candidate"))
+                and str(pending.get("decision_id") or "") in state.decisions
+                else None
+            ),
             active_step_id=str(pending.get("active_step_id") or ""),
             relevant_evidence_refs=tuple(
                 str(item) for item in pending.get("evidence_refs") or ()
@@ -436,6 +673,67 @@ class StatefulGoalLoopController(LongHorizonController):
             subject_id=boundary_id,
         )
 
+    def _resolve_mechanically_incomplete_audit_boundary(
+        self,
+        state: Any,
+        pending: Mapping[str, Any],
+        coverage: Mapping[str, Any],
+    ) -> None:
+        """Release an action boundary without asking a model to prove path facts."""
+
+        boundary_id = str(pending.get("audit_boundary_id") or "")
+        if not boundary_id or str(pending.get("boundary_kind") or "") != "action":
+            raise ValueError("mechanical evidence gaps apply only to action boundaries")
+        if bool(coverage.get("completion_preconditions_satisfied")):
+            raise ValueError("cannot reject mechanically complete step evidence")
+
+        already_recorded = any(
+            state.causal_records[event_id].event_type
+            == "goal_step_evidence_gap_recorded"
+            and state.causal_records[event_id].subject_id == boundary_id
+            for event_id in state.causal_order
+        )
+        if not already_recorded:
+            self._persist(
+                state,
+                "goal_step_evidence_gap_recorded",
+                {
+                    "audit_boundary_id": boundary_id,
+                    **dict(coverage),
+                    "authorizes_new_action": True,
+                },
+                subject_id=boundary_id,
+            )
+
+        already_resolved = any(
+            state.causal_records[event_id].event_type
+            == "goal_audit_boundary_resolved"
+            and state.causal_records[event_id].subject_id == boundary_id
+            for event_id in state.causal_order
+        )
+        if not already_resolved:
+            self._persist(
+                state,
+                "goal_audit_boundary_resolved",
+                {
+                    "audit_boundary_id": boundary_id,
+                    "audit_id": "",
+                    "verdict": "mechanical_repair",
+                    "boundary_kind": "action",
+                    "active_step_id": str(coverage.get("active_step_id") or ""),
+                    "active_step_revision": int(
+                        coverage.get("active_step_revision", 0) or 0
+                    ),
+                    "action_id": str(pending.get("action_id") or ""),
+                    "gaps": list(coverage.get("gaps") or ()),
+                    "step_completed": False,
+                    "kernel_validated": True,
+                    "completion_authority": False,
+                    "authorizes_new_action": True,
+                },
+                subject_id=boundary_id,
+            )
+
     def _link_action_audit(
         self,
         state: Any,
@@ -517,7 +815,20 @@ class StatefulGoalLoopController(LongHorizonController):
         }
         local_validation_repair: Mapping[str, Any] | None = None
         patch: GoalPlanPatch | None = None
-        for semantic_attempt in range(2):
+        semantic_repair_attempts = getattr(
+            self.supervisor,
+            "semantic_repair_attempts",
+            1,
+        )
+        if (
+            isinstance(semantic_repair_attempts, bool)
+            or not isinstance(semantic_repair_attempts, int)
+            or not 0 <= semantic_repair_attempts <= 2
+        ):
+            raise ValueError(
+                "Strong Planner semantic_repair_attempts must be between 0 and 2"
+            )
+        for semantic_attempt in range(1 + semantic_repair_attempts):
             request = GoalPlanRequest(
                 **request_materials,
                 local_validation_repair=local_validation_repair,
@@ -583,7 +894,7 @@ class StatefulGoalLoopController(LongHorizonController):
                 )
                 if callable(discard_cache):
                     discard_cache(patch.patch_id)
-            repair_scheduled = semantic_attempt == 0
+            repair_scheduled = semantic_attempt < semantic_repair_attempts
             error_text = (
                 f"{type(semantic_error).__name__}: {semantic_error}"
             )[:2000]
@@ -593,6 +904,9 @@ class StatefulGoalLoopController(LongHorizonController):
                 {
                     "phase": "goal_plan",
                     "attempt": semantic_attempt + 1,
+                    "configured_semantic_repair_attempts": (
+                        semantic_repair_attempts
+                    ),
                     "error": {
                         "type": type(semantic_error).__name__,
                         "message": str(semantic_error)[:2000],
@@ -857,15 +1171,39 @@ class StatefulGoalLoopController(LongHorizonController):
                 return ControllerResult(state, state.final_output, 0)
             if not state.goal.verify_digest():
                 raise ValueError("literal request digest mismatch")
+            stored_architecture = next(
+                (
+                    str(state.causal_records[event_id].payload.get("architecture") or "")
+                    for event_id in reversed(state.causal_order)
+                    if state.causal_records[event_id].event_type == "run_started"
+                ),
+                "",
+            )
+            if (
+                stored_architecture
+                and stored_architecture != STATEFUL_GOAL_LOOP_ARCHITECTURE
+            ):
+                raise ValueError(
+                    "stored Goal run architecture does not match this runtime: "
+                    f"{stored_architecture!r} != "
+                    f"{STATEFUL_GOAL_LOOP_ARCHITECTURE!r}"
+                )
 
             self._recover_active_action(state)
             if state.status is not RunStatus.RUNNING:
+                manual_blocked_resume = state.status is RunStatus.BLOCKED
                 prior_boundary = next(
                     (
                         event_id
                         for event_id in reversed(state.causal_order)
                         if state.causal_records[event_id].event_type
-                        in {"run_completed", "run_failed", "run_interrupted", "run_yielded"}
+                        in {
+                            "run_completed",
+                            "run_failed",
+                            "run_interrupted",
+                            "run_blocked",
+                            "run_yielded",
+                        }
                     ),
                     "",
                 )
@@ -874,14 +1212,22 @@ class StatefulGoalLoopController(LongHorizonController):
                     "run_started",
                     {
                         "architecture": STATEFUL_GOAL_LOOP_ARCHITECTURE,
-                        "persistent_executor_state_count": 1,
+                        "persistent_executor_state_count": 0,
+                        "executor_state_scope": "one_selected_action",
+                        "executor_facts_source": "bounded_causal_projection",
                         "selector_state_isolated": True,
                         "selector_authority": "exclusive_tool_intent_and_selection",
                         "executor_reselects_tool": False,
                         "selector_model": self.model.tool_selector.settings.model,
                         "planner": supervisor_identity(self.supervisor),
                         "planner_contract": GOAL_PLAN_PATCH_SCHEMA_VERSION,
-                        "auditor_model": self.model.auditor_session.model_name,
+                        "step_auditor_model": (
+                            self.model.step_auditor_session.model_name
+                        ),
+                        "finalizer_model": self.model.finalizer_session.model_name,
+                        "final_auditor_model": (
+                            self.model.final_auditor_session.model_name
+                        ),
                         "auditor_state_source": "clean_boundary_bootstrap",
                         "auditor_inherits_executor_state": False,
                         "audit_wkv_merge": False,
@@ -891,13 +1237,13 @@ class StatefulGoalLoopController(LongHorizonController):
                         "stage_barriers": True,
                         "parallel_mutations": False,
                         "resumed": bool(prior_boundary),
+                        "protocol_rejection_budget_reset": manual_blocked_resume,
                         "supersedes_terminal_event_id": prior_boundary,
                     },
                 )
 
             transitions = 0
             transport_failures = 0
-            protocol_failures = 0
 
             # A crash may leave a finished Harness action not yet observed by
             # the recurrent action State.  It must cross the same audit boundary
@@ -905,6 +1251,15 @@ class StatefulGoalLoopController(LongHorizonController):
             pending_observation = self._first_unappended_action_observation(state)
 
             while transitions < self.max_transitions:
+                if (
+                    self._consecutive_action_protocol_rejections(state)
+                    >= self._MAX_PROTOCOL_REJECTIONS
+                ):
+                    return self._block(
+                        state,
+                        "protocol_rejection_budget_exhausted",
+                        transitions,
+                    )
                 try:
                     plan = rolling_goal_plan(state)
                     if not plan.steps:
@@ -920,13 +1275,31 @@ class StatefulGoalLoopController(LongHorizonController):
 
                     pending_audit = self._pending_audit_boundary(state)
                     if pending_audit is not None:
+                        if str(pending_audit.get("boundary_kind") or "") == "action":
+                            coverage = self._step_mechanical_evidence_coverage(
+                                state,
+                                str(pending_audit.get("active_step_id") or ""),
+                                int(
+                                    pending_audit.get("active_step_revision", 0) or 0
+                                ),
+                            )
+                            if not bool(
+                                coverage.get("completion_preconditions_satisfied")
+                            ):
+                                self._resolve_mechanically_incomplete_audit_boundary(
+                                    state,
+                                    pending_audit,
+                                    coverage,
+                                )
+                                transitions += 1
+                                pending_observation = None
+                                continue
                         audit = self._run_pending_audit_boundary(state, pending_audit)
                         transitions += 1
                         if str(pending_audit.get("boundary_kind") or "") == "action":
                             self._link_action_audit(state, pending_audit, audit)
                             self._resolve_audit_boundary(state, pending_audit, audit)
                             pending_observation = None
-                            protocol_failures = 0
                             continue
 
                         if str(pending_audit.get("boundary_kind") or "") != "pre_final":
@@ -959,7 +1332,6 @@ class StatefulGoalLoopController(LongHorizonController):
                                 },
                             )
                             self._resolve_audit_boundary(state, pending_audit, audit)
-                            protocol_failures = 0
                             continue
                         self._resolve_audit_boundary(state, pending_audit, audit)
                         state.final_output = output
@@ -1019,9 +1391,9 @@ class StatefulGoalLoopController(LongHorizonController):
                             state,
                             boundary_kind="action",
                             boundary=(
-                                "recovered_tool_failure"
+                                "tool_failure"
                                 if recovered_action.status is not ActionStatus.SUCCEEDED
-                                else "recovered_transaction_complete"
+                                else "observation_complete"
                             ),
                             active_step_id=recovered_step_id,
                             active_step_revision=recovered_step_revision,
@@ -1085,19 +1457,10 @@ class StatefulGoalLoopController(LongHorizonController):
                     selector_stage_context: SelectorStageContext | None = None
                     eligible_operations: tuple[str, ...] | None
                     if plan.complete:
-                        guidance = ModelEvent(
-                            event_type="goal_frontier_complete",
-                            event_id=f"EV-GOAL-FRONTIER-{uuid4().hex[:16]}",
-                            scope_id=self.model.ACTION_LANE_ID,
-                            payload={
-                                "completed_step_ids": sorted(plan.completed_step_ids),
-                                "instruction": (
-                                    "The rolling plan is evidence-complete. Return one "
-                                    "final_answer candidate grounded in committed facts."
-                                ),
-                            },
+                        decision = self.model.finalize_goal_answer(
+                            state,
+                            self._persist_callback,
                         )
-                        eligible_operations = ("final_answer",)
                     else:
                         frontier = plan.frontier[0]
                         active_step_id = frontier.step_id
@@ -1129,26 +1492,39 @@ class StatefulGoalLoopController(LongHorizonController):
                                 **frontier.to_dict(),
                                 "step_revision": active_step_revision,
                             },
+                            eligible_labels=eligible_operations,
                         )
-                    decision = self.model.next_command(
-                        state,
-                        self._persist_callback,
-                        event=guidance,
-                        eligible_operations=eligible_operations,
-                        selector_stage_context=selector_stage_context,
-                        current_requirement=current_requirement,
-                    )
+                        executor_retry = self._pending_executor_protocol_retry(state)
+                        decision = self.model.next_command(
+                            state,
+                            self._persist_callback,
+                            event=(executor_retry or guidance),
+                            eligible_operations=eligible_operations,
+                            selector_stage_context=(
+                                None if executor_retry is not None
+                                else selector_stage_context
+                            ),
+                            current_requirement=current_requirement,
+                            executor_fact_action_ids=(
+                                self._step_executor_fact_action_ids(
+                                    state,
+                                    active_step_id,
+                                    active_step_revision,
+                                )
+                            ),
+                        )
                     transport_failures = 0
-                    protocol_failures = 0
 
                     if decision.command.name == "final_answer":
                         final_evidence_refs = tuple(
-                            dict.fromkeys(
-                                ref
-                                for refs in plan.completed_evidence.values()
-                                for ref in refs
+                            sorted(
+                                set(
+                                    ref
+                                    for refs in plan.completed_evidence.values()
+                                    for ref in refs
+                                )
                             )
-                        )[-8:]
+                        )
                         self._open_audit_boundary(
                             state,
                             boundary_kind="pre_final",
@@ -1211,7 +1587,6 @@ class StatefulGoalLoopController(LongHorizonController):
                         )
                     self._transport_backoff(transport_failures)
                 except ModelProtocolError as exc:
-                    protocol_failures += 1
                     transitions += 1
                     pending_protocol_audit = self._pending_audit_boundary(state)
                     self._persist(
@@ -1223,6 +1598,12 @@ class StatefulGoalLoopController(LongHorizonController):
                             "selection_id": exc.selection_id,
                             "selected_operation": exc.selected_operation,
                             "rejected_arguments": dict(exc.rejected_arguments),
+                            "selected_operation_schema": dict(
+                                exc.selected_operation_schema
+                            ),
+                            "schema_already_disclosed": (
+                                exc.schema_already_disclosed
+                            ),
                             "error": str(exc)[:2000],
                             "error_record": {
                                 "type": "ModelProtocolError",
@@ -1255,16 +1636,44 @@ class StatefulGoalLoopController(LongHorizonController):
                             exc,
                         )
                         pending_observation = None
-                        protocol_failures = 0
                         continue
-                    if protocol_failures >= self._MAX_PROTOCOL_REJECTIONS:
-                        return self._yield(
+                    if (
+                        self._consecutive_action_protocol_rejections(state)
+                        >= self._MAX_PROTOCOL_REJECTIONS
+                    ):
+                        return self._block(
                             state,
                             "protocol_rejection_budget_exhausted",
                             transitions,
                         )
 
             return self._yield(state, "controller_slice_exhausted", transitions)
+
+    def _block(
+        self,
+        state: Any,
+        reason: str,
+        transitions: int,
+    ) -> ControllerResult:
+        """Stop automatic Goal continuation after a durable hard budget."""
+
+        self._persist(
+            state,
+            "run_blocked",
+            {
+                "reason": str(reason),
+                "decision_id": "",
+                "output_source": "none",
+                "controller_rewritten": False,
+                "final_output_sha256": hashlib.sha256(b"").hexdigest(),
+                "final_output": "",
+                "resumable": True,
+                "termination_permitted": False,
+                "continuation": "explicit_manual_resume_only",
+                "at": utc_now(),
+            },
+        )
+        return ControllerResult(state, "", transitions)
 
     def _yield(
         self,

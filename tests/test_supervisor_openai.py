@@ -25,6 +25,7 @@ from rwkv_lh.supervisor import (
 from rwkv_lh.supervisor_openai import (
     CONTRACT_PLAN_RESPONSE_SCHEMA,
     OpenAICompatibleSupervisorClient,
+    OpenAIGoalSupervisorClient,
     SupervisorAPISettings,
     SupervisorProtocolError,
     SupervisorTransportError,
@@ -80,6 +81,32 @@ def response(content: dict, *, model: str = "gpt-test") -> FakeResponse:
                 }
             ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
+        }
+    )
+
+
+def responses_response(content: dict, *, model: str = "gpt-test") -> FakeResponse:
+    return FakeResponse(
+        {
+            "id": "resp_test",
+            "model": model,
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": json.dumps(content),
+                            "annotations": [],
+                        }
+                    ],
+                }
+            ],
+            "usage": {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18},
         }
     )
 
@@ -864,6 +891,7 @@ def settings() -> SupervisorAPISettings:
         base_url="https://supervisor.invalid/v1",
         api_key="test-secret-never-audited",
         model="gpt-test",
+        stage_checker_model="gpt-test",
         retry_attempts=1,
         plan_cache_enabled=False,
     )
@@ -891,7 +919,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
         "discard_step_ids": [],
         "reason": "Start with one bounded observation.",
     }
-    fake = FakeSession([response(value)])
+    fake = FakeSession([responses_response(value)])
     client = OpenAICompatibleSupervisorClient(settings(), session=fake)
     request = GoalPlanRequest(
         run_id="RUN-GOAL-PLAN",
@@ -907,15 +935,117 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
 
     assert patch.add_steps[0].allowed_operations == ()
     posted = fake.posts[0]["json"]
-    payload = json.loads(posted["messages"][1]["content"])
+    assert posted["model"] == "gpt-test"
+    assert "seed" not in posted
+    assert "temperature" not in posted
+    assert "reasoning" not in posted
+    assert posted["text"] == {"format": {"type": "json_object"}}
+    assert posted["max_output_tokens"] == 4000
+    assert fake.posts[0]["url"].endswith("/responses")
+    assert posted["input"][0]["role"] == "user"
+    assert posted["input"][0]["content"].startswith("json request payload:\n{")
+    payload = json.loads(
+        posted["input"][0]["content"].removeprefix("json request payload:\n")
+    )
     assert list(payload)[-1] == "current_requirement"
     assert payload["current_requirement"] == request.immutable_request
-    step_schema = posted["response_format"]["json_schema"]["schema"][
+    response_schema = client._goal_plan_patch_schema()
+    step_schema = response_schema["properties"]["add_stages"]["items"][
         "properties"
-    ]["add_stages"]["items"]["properties"]["steps"]["items"]
+    ]["steps"]["items"]
     assert "allowed_operations" not in step_schema["properties"]
     assert "stage" not in step_schema["properties"]
     assert set(step_schema["required"]) == set(step_schema["properties"])
+    assert set(response_schema["required"]) == {
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason",
+    }
+    assert "steps nested inside stage objects" in response_schema["description"]
+    system_prompt = posted["instructions"]
+    assert "Controller has already fixed the one project mother path" in system_prompt
+    assert "Every read_roots and write_roots item" in system_prompt
+    assert "never invent a '/workspace' prefix" in system_prompt
+    assert '"add_stages":[{"stage":1,"steps":[' in system_prompt
+    assert "do not flatten steps" in system_prompt
+
+    goal_root_schema = step_schema["properties"]["read_roots"]["items"]
+    pattern = goal_root_schema["pattern"]
+    for valid in (".", "config.json", "probe_service/settings.py", "./tests"):
+        assert re.fullmatch(pattern, valid)
+    for invalid in (
+        "/workspace/probe_service",
+        "/absolute/path",
+        "../outside",
+        "src/../../outside",
+        r"probe_service\settings.py",
+    ):
+        assert re.fullmatch(pattern, invalid) is None
+
+
+def test_current_goal_supervisor_boundary_exposes_no_legacy_planner_methods():
+    client = OpenAIGoalSupervisorClient(settings(), session=FakeSession([]))
+
+    assert callable(client.plan_goal_patch)
+    assert callable(client.review_goal_stage)
+    for legacy_name in (
+        "plan_contract_graph",
+        "review_contract_graph",
+        "create_plan",
+        "review_final",
+        "next_directive",
+        "next_stage",
+    ):
+        assert not hasattr(client, legacy_name)
+
+
+def test_supervisor_http_error_preserves_only_safe_provider_diagnostics():
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "error": {
+                        "type": "new_api_error",
+                        "code": "upstream_saturated",
+                        "message": "current upstream group is saturated",
+                        "param": "",
+                    }
+                },
+                status_code=429,
+            )
+        ]
+    )
+    audit: list[dict] = []
+    client = OpenAICompatibleSupervisorClient(
+        replace(settings(), retry_attempts=1),
+        session=fake,
+        audit_hook=audit.append,
+    )
+
+    with pytest.raises(SupervisorTransportError) as captured:
+        client.plan_goal_patch(
+            GoalPlanRequest(
+                run_id="RUN-GOAL-HTTP-ERROR",
+                immutable_request="Inspect config.json.",
+                goal_digest="goal-http-error",
+                plan_revision=0,
+                active_plan={"stages": []},
+                latest_audit=None,
+                workspace_manifest={"entries": [{"path": "config.json"}]},
+            )
+        )
+
+    assert captured.value.status_code == 429
+    assert captured.value.provider_error["error"] == {
+        "type": "new_api_error",
+        "code": "upstream_saturated",
+        "message": "current upstream group is saturated",
+        "param": "",
+    }
+    failed = [item for item in audit if item["type"] == "supervisor_request_failed"]
+    assert failed[0]["provider_error"] == captured.value.provider_error
+    assert "authorization" not in json.dumps(failed[0], ensure_ascii=False).casefold()
 
 
 def test_goal_planner_places_controller_semantic_repair_at_input_tail():
@@ -940,7 +1070,7 @@ def test_goal_planner_places_controller_semantic_repair_at_input_tail():
         "discard_step_ids": [],
         "reason": "Use a fresh id and retain the completed dependency.",
     }
-    fake = FakeSession([response(value)])
+    fake = FakeSession([responses_response(value)])
     client = OpenAICompatibleSupervisorClient(settings(), session=fake)
     request = GoalPlanRequest(
         run_id="RUN-GOAL-PLAN-REPAIR",
@@ -968,22 +1098,25 @@ def test_goal_planner_places_controller_semantic_repair_at_input_tail():
     client.plan_goal_patch(request)
 
     posted = fake.posts[0]["json"]
-    payload = json.loads(posted["messages"][1]["content"])
+    payload = json.loads(
+        posted["input"][0]["content"].removeprefix("json request payload:\n")
+    )
     assert list(payload)[-1] == "local_validation_repair"
     assert payload["local_validation_repair"]["attempt"] == 1
     assert "cannot reuse existing id S1" in payload["local_validation_repair"][
         "error"
     ]
-    assert "immediately preceding patch was rejected" in posted["messages"][0][
-        "content"
-    ]
+    assert "immediately preceding patch was rejected" in posted["instructions"]
 
 
 def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
     fake = FakeSession(
         [response({"verdict": "advance", "gaps": [], "reason": "coherent"})]
     )
-    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+    client = OpenAICompatibleSupervisorClient(
+        replace(settings(), stage_checker_model="claude-test"),
+        session=fake,
+    )
     request = GoalStageReviewRequest(
         run_id="RUN-STAGE-REVIEW",
         immutable_request="Inspect and correct config.json.",
@@ -1005,13 +1138,19 @@ def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
     assert review.reviewed_step_ids == ("S1",)
     assert review.evidence_refs == ("A00001",)
     posted = fake.posts[0]["json"]
-    schema = posted["response_format"]["json_schema"]["schema"]
+    assert posted["model"] == "claude-test"
+    assert posted["response_format"] == {"type": "json_object"}
+    schema = client._goal_stage_review_schema()
     assert set(schema["properties"]) == {"verdict", "gaps", "reason"}
     payload = json.loads(posted["messages"][1]["content"])
     assert list(payload)[-1] == "current_requirement"
     assert "Never require artifacts, verifier success" in posted["messages"][0][
         "content"
     ]
+    assert '{"verdict":"advance","gaps":[]' in posted["messages"][0]["content"]
+    assert "Do not add stage, reviewed_step_ids, evidence_refs" in posted[
+        "messages"
+    ][0]["content"]
 
 
 def test_contract_plan_schema_requires_explicit_obligation_phase():
@@ -1048,6 +1187,17 @@ def test_supervisor_content_accepts_bare_json_without_normalization():
     assert normalization is None
 
 
+def test_supervisor_content_accepts_exact_json_fence_without_semantic_repair():
+    value, normalization = _decode_supervisor_json_content(
+        '```json\n{"summary":"valid"}\n```'
+    )
+
+    assert value == {"summary": "valid"}
+    assert normalization is not None
+    assert normalization["normalization"] == "provider_json_fence_removed"
+    assert normalization["controller_semantic_fields_generated"] is False
+
+
 @pytest.mark.parametrize(
     "content",
     (
@@ -1055,6 +1205,9 @@ def test_supervisor_content_accepts_bare_json_without_normalization():
         '<analysis>unclosed\n{"summary":"valid"}',
         '<analysis>reasoning</analysis>\n{"summary":"valid"}\ntrailing prose',
         '<analysis>reasoning</analysis>\n[]',
+        '```JSON\n{"summary":"valid"}\n```',
+        '```json\n{"summary":"valid"}\n```\ntrailing prose',
+        '```json\n[]\n```',
     ),
 )
 def test_supervisor_content_rejects_unknown_or_malformed_envelopes(content):
@@ -1153,7 +1306,7 @@ def test_openai_supervisor_builds_valid_plan_and_review_without_auditing_key():
     assert plan.steps[-1] == "Verify it."
     assert review.disposition.value == "pass"
     assert all(
-        post["json"]["response_format"]["type"] == "json_schema"
+        post["json"]["response_format"]["type"] == "json_object"
         for post in fake.posts
     )
     assert "test-secret-never-audited" not in json.dumps(audit)
@@ -1267,11 +1420,7 @@ def test_contract_planner_and_reviewer_receive_results_without_rwkv_process():
         ]
     )
     client = OpenAICompatibleSupervisorClient(
-        replace(
-            settings(),
-            reasoning_effort="low",
-            contract_review_reasoning_effort="medium",
-        ),
+        settings(),
         session=fake,
     )
     operation_catalog = contract_operation_catalog()
@@ -1324,14 +1473,10 @@ def test_contract_planner_and_reviewer_receive_results_without_rwkv_process():
     )
 
     assert review.verdicts[0].status.value == "satisfied"
-    planner_schema = fake.posts[0]["json"]["response_format"]["json_schema"][
-        "schema"
-    ]
-    assert fake.posts[0]["json"]["reasoning_effort"] == "low"
-    assert fake.posts[1]["json"]["reasoning_effort"] == "medium"
-    assert fake.posts[0]["json"]["response_format"]["json_schema"]["name"] == (
-        "rwkv_lh_supervisor_contract_plan_v8"
-    )
+    planner_schema = client._contract_plan_schema(plan_request)
+    assert "reasoning_effort" not in fake.posts[0]["json"]
+    assert "reasoning_effort" not in fake.posts[1]["json"]
+    assert fake.posts[0]["json"]["response_format"] == {"type": "json_object"}
     atom_schema = planner_schema["properties"]["new_nodes"]["items"][
         "properties"
     ]["atom"]
@@ -1408,6 +1553,102 @@ def test_supervisor_readiness_checks_completion_route_after_model_catalog():
     assert not any(item["type"] == "supervisor_model_fallback_applied" for item in audit)
 
 
+def test_supervisor_readiness_checks_planner_responses_then_stage_checker_chat():
+    fake = FakeSession(
+        [
+            responses_response({"ready": True}),
+            response({"ready": True}),
+        ]
+    )
+    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+
+    readiness = client.readiness()
+
+    assert readiness["available"] is True
+    assert readiness["planner_transport"] == "responses"
+    assert readiness["planner_transport_available"] is True
+    assert readiness["stage_checker_transport"] == "chat_completions"
+    assert readiness["stage_checker_transport_available"] is True
+    assert [post["url"].rsplit("/", 1)[-1] for post in fake.posts] == [
+        "responses",
+        "completions",
+    ]
+    assert fake.posts[0]["json"]["text"] == {
+        "format": {"type": "json_object"}
+    }
+    assert fake.posts[0]["json"]["max_output_tokens"] == 1000
+    assert fake.posts[1]["json"]["response_format"] == {
+        "type": "json_object"
+    }
+    assert fake.posts[1]["json"]["max_tokens"] == 1000
+    for post in fake.posts:
+        assert "temperature" not in post["json"]
+        assert "seed" not in post["json"]
+        assert "reasoning" not in post["json"]
+
+
+def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
+    value = {
+        "add_stages": [
+            {
+                "stage": 1,
+                "steps": [
+                    {
+                        "step_id": "S1",
+                        "objective": "Inspect config.json.",
+                        "depends_on": [],
+                        "success_evidence": ["config.json is observed"],
+                        "read_roots": ["config.json"],
+                        "write_roots": [],
+                        "constraints": [],
+                    }
+                ],
+            }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Start with the observation.",
+    }
+    fake = FakeSession(
+        [
+            FakeResponse(
+                {
+                    "error": {
+                        "type": "upstream_error",
+                        "message": "Upstream request failed",
+                    }
+                },
+                status_code=400,
+            ),
+            responses_response(value),
+        ]
+    )
+    client = OpenAICompatibleSupervisorClient(
+        replace(
+            settings(),
+            retry_attempts=2,
+            retry_backoff_seconds=0,
+        ),
+        session=fake,
+    )
+
+    patch = client.plan_goal_patch(
+        GoalPlanRequest(
+            run_id="RUN-GOAL-UPSTREAM-RETRY",
+            immutable_request="Inspect config.json.",
+            goal_digest="goal-upstream-retry",
+            plan_revision=0,
+            active_plan={"stages": []},
+            latest_audit=None,
+            workspace_manifest={"entries": [{"path": "config.json"}]},
+        )
+    )
+
+    assert patch.add_steps[0].step_id == "S1"
+    assert len(fake.posts) == 2
+    assert all(post["url"].endswith("/responses") for post in fake.posts)
+
+
 def test_non_retryable_supervisor_http_error_has_structured_contract():
     fake = FakeSession([FakeResponse({}, status_code=400)])
     client = OpenAICompatibleSupervisorClient(
@@ -1473,9 +1714,7 @@ def test_openai_supervisor_builds_one_online_microtask_directive():
     assert directive.directive_index == 1
     assert directive.disposition.value == "continue"
     assert directive.microtask_objective == "Inspect the existing input file."
-    assert fake.posts[0]["json"]["response_format"]["json_schema"]["name"] == (
-        "rwkv_lh_supervisor_directive_v1"
-    )
+    assert fake.posts[0]["json"]["response_format"] == {"type": "json_object"}
     assert [
         item["phase"]
         for item in audit
@@ -1529,8 +1768,7 @@ def test_openai_supervisor_builds_parallel_ready_atom_stage():
     )
     client = OpenAICompatibleSupervisorClient(settings(), session=fake)
 
-    stage = client.next_stage(
-        SupervisorStageRequest(
+    request = SupervisorStageRequest(
             run_id="RUN-PARALLEL",
             request=immutable_request,
             request_digest="digest-parallel",
@@ -1553,16 +1791,12 @@ def test_openai_supervisor_builds_parallel_ready_atom_stage():
                 ),
                 workspace_manifest={"entries": []},
         )
-    )
+    stage = client.next_stage(request)
 
     assert [item.atom_id for item in stage.atoms] == ["left", "right"]
     assert stage.request_digest == "digest-parallel"
-    assert fake.posts[0]["json"]["response_format"]["json_schema"]["name"] == (
-        "rwkv_lh_supervisor_stage_v1"
-    )
-    stage_schema = fake.posts[0]["json"]["response_format"]["json_schema"][
-        "schema"
-    ]
+    assert fake.posts[0]["json"]["response_format"] == {"type": "json_object"}
+    stage_schema = client._stage_schema(request)
     assert "allOf" not in stage_schema
     assert stage_schema["additionalProperties"] is False
     depends_on_schema = stage_schema["properties"]["atoms"]["items"][
@@ -1775,7 +2009,7 @@ def test_supervisor_read_timeout_retries_safe_control_plane_request():
     assert len(fake.posts) == 2
 
 
-def test_contract_plan_http_500_falls_back_from_medium_to_low_reasoning():
+def test_contract_plan_http_500_retry_keeps_minimal_request_envelope():
     immutable_request = "Create result.txt containing exact text ok."
     fake = FakeSession(
         [
@@ -1872,7 +2106,6 @@ def test_contract_plan_http_500_falls_back_from_medium_to_low_reasoning():
             settings(),
             retry_attempts=2,
             retry_backoff_seconds=0,
-            contract_plan_reasoning_effort="medium",
         ),
         session=fake,
         audit_hook=audit.append,
@@ -1894,17 +2127,13 @@ def test_contract_plan_http_500_falls_back_from_medium_to_low_reasoning():
     )
 
     assert patch.new_obligations[0].required is True
-    assert [post["json"]["reasoning_effort"] for post in fake.posts] == [
-        "medium",
-        "low",
-    ]
-    assert [
-        item for item in audit
-        if item["type"] == "supervisor_reasoning_fallback_applied"
-    ][0]["http_status"] == 500
+    assert all("reasoning_effort" not in post["json"] for post in fake.posts)
+    assert not any(
+        item["type"] == "supervisor_reasoning_fallback_applied" for item in audit
+    )
 
 
-def test_contract_plan_http_500_preserves_none_reasoning_on_retry():
+def test_contract_plan_second_http_500_retry_keeps_minimal_request_envelope():
     fake = FakeSession(
         [
             FakeResponse({}, status_code=500),
@@ -1917,7 +2146,6 @@ def test_contract_plan_http_500_preserves_none_reasoning_on_retry():
             settings(),
             retry_attempts=2,
             retry_backoff_seconds=0,
-            contract_plan_reasoning_effort="none",
         ),
         session=fake,
         audit_hook=audit.append,
@@ -1939,10 +2167,7 @@ def test_contract_plan_http_500_preserves_none_reasoning_on_retry():
     )
 
     assert patch.new_obligations[0].required is True
-    assert [post["json"]["reasoning_effort"] for post in fake.posts] == [
-        "none",
-        "none",
-    ]
+    assert all("reasoning_effort" not in post["json"] for post in fake.posts)
     assert not any(
         item["type"] == "supervisor_reasoning_fallback_applied" for item in audit
     )
@@ -2107,7 +2332,7 @@ def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
         },
         workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
     )
-    first_session = FakeSession([response(value)])
+    first_session = FakeSession([responses_response(value)])
     first = OpenAICompatibleSupervisorClient(configured, session=first_session)
     first_patch = first.plan_goal_patch(first_request)
     first.accept_goal_plan_cache_candidate(first_patch.patch_id)
@@ -2165,7 +2390,7 @@ def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
         latest_audit=None,
         workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
     )
-    fake = FakeSession([response(value), response(value)])
+    fake = FakeSession([responses_response(value), responses_response(value)])
     client = OpenAICompatibleSupervisorClient(configured, session=fake)
 
     rejected = client.plan_goal_patch(request)

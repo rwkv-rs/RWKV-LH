@@ -1502,6 +1502,77 @@ def test_contract_work_atom_must_produce_an_operation_result(tmp_path: Path):
     assert outcomes[0].actions[0]["operation"] == "read_file"
 
 
+def test_incomplete_atom_budget_returns_to_planner_without_premature_final_loop(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    harness = ActionHarness(sandbox_commands=False)
+    goal = LongHorizonModel(harness=harness).create_literal_goal(
+        REQUEST, str(workspace)
+    )
+    selected = SupervisorAtom.create(
+        immutable_request=REQUEST,
+        atom_id="observe-missing",
+        role="work",
+        objective="Observe left.txt and report whether it exists.",
+        request_clauses=(REQUEST,),
+        read_roots=("left.txt",),
+        allowed_operations=("read_file",),
+        action_budget=1,
+        completion_checks=("left.txt has a complete direct observation.",),
+    )
+    stage = SupervisorStage.create(
+        stage_request(),
+        disposition="dispatch",
+        review_summary="Require one exact read result.",
+        atoms=(selected,),
+    )
+    client = AtomQueueClient(
+        [
+            {"function": "read_file", "params": {"path": "left.txt"}},
+            {"function": "final_answer", "params": {"text": "missing"}},
+        ]
+    )
+    selected_settings = RuntimeSettings(
+        base_url="http://127.0.0.1:1/v1",
+        api_key="",
+        model="test-rwkv",
+        max_model_len=16384,
+        context_safety_margin=32,
+        bos_token_count=1,
+        tool_disclosure_mode="full",
+    )
+
+    def model_factory(_selected, scoped_harness):
+        return LongHorizonModel(
+            ModelSession(client, settings=selected_settings),
+            harness=scoped_harness,
+        )
+
+    pool = ThreadedRWKVAtomPool(
+        tmp_path / "atom-workers",
+        harness=harness,
+        model_factory=model_factory,
+    )
+
+    outcome = pool.run_stage(
+        goal,
+        stage,
+        (selected,),
+        max_workers=1,
+        max_transitions=20,
+        completed_outcomes={},
+    )[0]
+
+    assert outcome.status is AtomExecutionStatus.INTERRUPTED
+    assert outcome.action_count == 1
+    assert outcome.protocol_rejections == 0
+    assert outcome.actions[0]["result"]["outcome_type"] == "not_found"
+    assert len(client.prompts) == 2
+    assert "read_roots" in outcome.error
+
+
 def test_contract_finalizer_must_observe_current_workspace(tmp_path: Path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()

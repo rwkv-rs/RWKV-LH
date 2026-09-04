@@ -87,7 +87,7 @@ def test_s39_s41_release_is_content_addressed_and_all_gates_pass() -> None:
     assert s41["executor_model_call_count"] == 0
 
 
-def test_current_example_uses_replaceable_selector_role_and_v8_frontier() -> None:
+def test_current_example_uses_replaceable_g1j_selector_intent_role() -> None:
     selector_values: dict[str, str] = {}
     for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines():
         if line.startswith("RWKV_LH_SELECTOR_"):
@@ -103,7 +103,7 @@ def test_current_example_uses_replaceable_selector_role_and_v8_frontier() -> Non
             "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1"
         ),
         "RWKV_LH_SELECTOR_INPUT_PROTOCOL": (
-            "rwkv-lh.exact-tool-selector-input.v8-frontier-question-tail"
+            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v1"
         ),
         "RWKV_LH_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_LH_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
