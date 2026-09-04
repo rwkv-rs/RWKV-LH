@@ -68,8 +68,8 @@ from rwkv_lh.supervisor import (
 AuditHook = Callable[[Mapping[str, Any]], None]
 DEFAULT_SUPERVISOR_ENV_FILE = PROJECT_ROOT / ".env"
 _RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
-_RESPONSES_API_PHASES = {"goal_plan", "readiness"}
-_STAGE_CHECKER_PHASES = {"goal_stage_review", "stage_checker_readiness"}
+_RESPONSES_API_PHASES = {"goal_plan"}
+_STAGE_CHECKER_PHASES = {"goal_stage_review"}
 _RESPONSES_JSON_INPUT_PREFIX = "json request payload:\n"
 _WORKSPACE_RELATIVE_ROOT_PATTERN = (
     r"^(?:\.|(?!/)(?!.*(?:^|/)\.\.(?:/|$))[^\\\u0000]+)$"
@@ -3513,117 +3513,6 @@ class OpenAICompatibleSupervisorClient:
                 "error": f"{type(exc).__name__}: {exc}"[:500],
             }
 
-    def readiness(self) -> dict[str, Any]:
-        """Probe both exact role transports used by current Goal experiments.
-
-        ``/models`` can remain available while the configured credential or
-        model is rejected by the role endpoint. A formal run needs GPT Planner
-        Responses and Claude Stage Checker Chat Completions to both succeed.
-        """
-
-        started = time.perf_counter()
-        catalog = self.health()
-        if not catalog.get("available") or not catalog.get("model_present"):
-            return {
-                **catalog,
-                "available": False,
-                "catalog_available": bool(catalog.get("available")),
-                "completion_available": False,
-                "planner_transport_available": False,
-                "stage_checker_transport_available": False,
-                "probe": "models_responses_and_chat_completions",
-            }
-        schema = {
-            "type": "object",
-            "properties": {"ready": {"type": "boolean", "const": True}},
-            "required": ["ready"],
-            "additionalProperties": False,
-        }
-        probe_phase = "planner_responses"
-        planner_ready = False
-        stage_checker_ready = False
-        try:
-            planner_value = self._request_json(
-                phase="readiness",
-                run_id="SUPERVISOR-READINESS",
-                request_digest=hashlib.sha256(
-                    b"rwkv-lh-supervisor-readiness-v1"
-                ).hexdigest(),
-                system_prompt=(
-                    "This is a transport readiness probe. Return exactly one JSON "
-                    "object with ready=true."
-                ),
-                request_payload={"probe": "rwkv-lh-supervisor-readiness-v1"},
-                schema=schema,
-                max_tokens=1000,
-            )
-            if planner_value != {"ready": True}:
-                raise SupervisorProtocolError(
-                    "Planner readiness response did not affirm ready=true"
-                )
-            planner_ready = True
-            probe_phase = "stage_checker_chat_completions"
-            stage_checker_value = self._request_json(
-                phase="stage_checker_readiness",
-                run_id="STAGE-CHECKER-READINESS",
-                request_digest=hashlib.sha256(
-                    b"rwkv-lh-stage-checker-readiness-v1"
-                ).hexdigest(),
-                system_prompt=(
-                    "This is a stage-checker transport readiness probe. Return "
-                    'only the JSON object {"ready":true}. Do not use Markdown '
-                    "and do not add fields."
-                ),
-                request_payload={
-                    "probe": "rwkv-lh-stage-checker-readiness-v1"
-                },
-                schema=schema,
-                max_tokens=1000,
-            )
-            if stage_checker_value != {"ready": True}:
-                raise SupervisorProtocolError(
-                    "Stage Checker readiness response did not affirm ready=true"
-                )
-            stage_checker_ready = True
-            return {
-                **catalog,
-                "available": True,
-                "catalog_available": True,
-                "completion_available": True,
-                "planner_transport": "responses",
-                "planner_transport_available": True,
-                "stage_checker_transport": "chat_completions",
-                "stage_checker_transport_available": True,
-                "probe": "models_responses_and_chat_completions",
-                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-            }
-        except Exception as exc:
-            transport_error = exc if isinstance(exc, SupervisorTransportError) else None
-            return {
-                **catalog,
-                "available": False,
-                "catalog_available": True,
-                "completion_available": False,
-                "planner_transport": "responses",
-                "planner_transport_available": planner_ready,
-                "stage_checker_transport": "chat_completions",
-                "stage_checker_transport_available": stage_checker_ready,
-                "failed_probe_phase": probe_phase,
-                "probe": "models_responses_and_chat_completions",
-                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-                "http_status": transport_error.status_code if transport_error else 0,
-                "retryable": transport_error.retryable if transport_error else False,
-                "error_category": (
-                    transport_error.category if transport_error else "protocol"
-                ),
-                "error": f"{type(exc).__name__}: {exc}"[:500],
-                **(
-                    {"provider_error": transport_error.provider_error}
-                    if transport_error and transport_error.provider_error
-                    else {}
-                ),
-            }
-
     def close(self) -> None:
         self._main_session.close()
         session = getattr(self._thread_sessions, "session", None)
@@ -3681,9 +3570,6 @@ class OpenAIGoalSupervisorClient:
 
     def health(self) -> dict[str, Any]:
         return self._client.health()
-
-    def readiness(self) -> dict[str, Any]:
-        return self._client.readiness()
 
     def close(self) -> None:
         self._client.close()

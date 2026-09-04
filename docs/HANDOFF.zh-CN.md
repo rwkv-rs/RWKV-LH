@@ -131,6 +131,8 @@ run terminal or resumable status
 
 如果 Controller 拒绝了一次 patch，还会加入 `local_validation_repair`。`current_requirement` 始终放在业务 JSON 尾部。
 
+启动检查只读取 `/models`，确认配置模型存在；不会再发送 `{"ready":true}` 一类合成 Planner 或 Stage Checker 对话。真实 `GoalPlanRequest` 和 `GoalStageReviewRequest` 的返回才验证对应协议，失败会原样进入实验 trace 和可恢复状态。
+
 期望输出只允许一个 JSON 对象：
 
 ```json

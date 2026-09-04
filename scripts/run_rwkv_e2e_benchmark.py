@@ -350,7 +350,8 @@ def write_supervisor_retry_manifest(
         ),
         "policy": (
             "rerun these cases in a new output directory only after supervisor "
-            "readiness succeeds; never overwrite the source run"
+            "model identity and real request route are repaired; never overwrite "
+            "the source run"
         ),
         "cases": cases,
     }
@@ -2543,11 +2544,11 @@ def main() -> int:
             if arguments.stateful_goal
             else OpenAICompatibleSupervisorClient(configured_supervisor)
         )
-        supervisor_health = supervisor_health_client.readiness()
+        supervisor_health = supervisor_health_client.health()
         supervisor_health_client.close()
         if not supervisor_health.get("available"):
             raise RuntimeError(
-                "strong supervisor completion route is unavailable: "
+                "strong supervisor model catalog is unavailable: "
                 + str(supervisor_health.get("error") or "unknown error")
             )
         if not supervisor_health.get("model_present"):
@@ -2717,7 +2718,10 @@ def main() -> int:
                     "failure": abort_failure,
                     "completed_case_count": len(results),
                     "selected_case_count": len(selected),
-                    "recovery": "repair supervisor readiness, then use --retry-failures-from",
+                    "recovery": (
+                        "repair the supervisor model identity or real request route, "
+                        "then use --retry-failures-from"
+                    ),
                 },
                 ensure_ascii=False,
                 indent=2,

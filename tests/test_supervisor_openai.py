@@ -1543,68 +1543,6 @@ def test_supervisor_health_requires_configured_model_in_catalog():
     assert health["model_present"] is True
 
 
-def test_supervisor_readiness_checks_completion_route_after_model_catalog():
-    fake = FakeSession([FakeResponse({}, status_code=403)])
-    audit: list[dict] = []
-    client = OpenAICompatibleSupervisorClient(
-        replace(
-            settings(),
-            retry_attempts=3,
-            fallback_models=("gpt-fallback",),
-        ),
-        session=fake,
-        audit_hook=audit.append,
-    )
-
-    readiness = client.readiness()
-
-    assert readiness["available"] is False
-    assert readiness["catalog_available"] is True
-    assert readiness["completion_available"] is False
-    assert readiness["http_status"] == 403
-    assert readiness["retryable"] is False
-    assert readiness["error_category"] == "authorization"
-    assert len(fake.posts) == 1
-    failed = [item for item in audit if item["type"] == "supervisor_request_failed"]
-    assert failed[0]["retryable"] is False
-    assert failed[0]["error_category"] == "authorization"
-    assert not any(item["type"] == "supervisor_model_fallback_applied" for item in audit)
-
-
-def test_supervisor_readiness_checks_planner_responses_then_stage_checker_chat():
-    fake = FakeSession(
-        [
-            responses_response({"ready": True}),
-            response({"ready": True}),
-        ]
-    )
-    client = OpenAICompatibleSupervisorClient(settings(), session=fake)
-
-    readiness = client.readiness()
-
-    assert readiness["available"] is True
-    assert readiness["planner_transport"] == "responses"
-    assert readiness["planner_transport_available"] is True
-    assert readiness["stage_checker_transport"] == "chat_completions"
-    assert readiness["stage_checker_transport_available"] is True
-    assert [post["url"].rsplit("/", 1)[-1] for post in fake.posts] == [
-        "responses",
-        "completions",
-    ]
-    assert fake.posts[0]["json"]["text"] == {
-        "format": {"type": "json_object"}
-    }
-    assert fake.posts[0]["json"]["max_output_tokens"] == 1000
-    assert fake.posts[1]["json"]["response_format"] == {
-        "type": "json_object"
-    }
-    assert fake.posts[1]["json"]["max_tokens"] == 1000
-    for post in fake.posts:
-        assert "temperature" not in post["json"]
-        assert "seed" not in post["json"]
-        assert "reasoning" not in post["json"]
-
-
 def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
     value = {
         "add_stages": [
