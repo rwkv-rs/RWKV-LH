@@ -2616,18 +2616,32 @@ class OpenAICompatibleSupervisorClient:
                     "uniqueItems": True,
                     "minItems": 1,
                     "maxItems": 5,
+                    "description": (
+                        "Future observable acceptance evidence required from execution; "
+                        "this plans a criterion and never claims that evidence exists."
+                    ),
                 },
                 "read_roots": {
                     "type": "array",
                     "items": _project_relative_locator_schema(),
                     "uniqueItems": True,
                     "maxItems": 8,
+                    "description": (
+                        "Non-empty only for phase=observe local inspection. Always "
+                        "[] for mutate, execute, and derive_evidence; those steps "
+                        "consume prior observation through depends_on."
+                    ),
                 },
                 "write_roots": {
                     "type": "array",
                     "items": _project_relative_locator_schema(),
                     "uniqueItems": True,
                     "maxItems": 8,
+                    "description": (
+                        "Non-empty for mutate, and optionally for an execute command "
+                        "intended to mutate files. Always [] for observe and "
+                        "derive_evidence."
+                    ),
                 },
                 "constraints": {
                     "type": "array",
@@ -2714,9 +2728,14 @@ class OpenAICompatibleSupervisorClient:
             "files, observation, mutation, command execution, and verification when "
             "their evidence differs. Read an "
             "available verifier or specification before the mutation it constrains. "
-            "A local observe step declares read_roots; a public-source observe step "
-            "leaves read_roots empty. An execute step declares write_roots only when "
-            "the command is intended to mutate those roots. "
+            "The root arrays follow an exact phase contract: local observe uses "
+            "read_roots and write_roots=[]; public-source observe uses both arrays "
+            "empty; mutate uses read_roots=[] and non-empty write_roots; execute "
+            "always uses read_roots=[] and declares write_roots only when the command "
+            "is intended to mutate those roots; derive_evidence uses both arrays "
+            "empty. A mutate, execute, or derive_evidence step consumes earlier "
+            "inspection only through depends_on; never repeat its files in "
+            "read_roots. "
             "Return nested stages, each containing its peer steps; do not repeat the "
             "stage number inside a step. Same-stage steps are independent: "
             "they cannot depend on each other and their read/write roots cannot conflict. "
@@ -2726,7 +2745,10 @@ class OpenAICompatibleSupervisorClient:
             "in replace_stages or removed in discard_step_ids; do not retain stale work "
             "merely to preserve append-only history. New ids belong in add_stages. "
             "Dependencies may refer only to steps that remain active or are added by "
-            "this patch. success_evidence must be observable and concise. "
+            "this patch. success_evidence defines future observable acceptance "
+            "criteria only; it never claims evidence was already read or produced, "
+            "and the Planner never marks a step complete. Only the RWKV Auditor can "
+            "accept runtime evidence after execution. "
             "The Controller has already fixed the one project mother path. You have "
             "no authority to name, infer, replace, expand, or emit that mother path. "
             "Every read_roots and write_roots item is only a project-relative file "

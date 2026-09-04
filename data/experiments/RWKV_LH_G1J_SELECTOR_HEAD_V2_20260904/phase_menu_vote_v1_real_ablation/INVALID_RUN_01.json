@@ -1,0 +1,41 @@
+{
+  "schema_version": "rwkv-lh.phase-menu-vote-invalid-run.v1",
+  "run": "run_01",
+  "valid_ablation_sample": false,
+  "reason": "The run never reached Selector or Executor because the Planner phase/root contract was underspecified, then the provider returned a retryable HTTP 500 during recovery.",
+  "first_divergence": {
+    "component": "Planner contract",
+    "event": "strong_planner_patch_rejected",
+    "count": 2,
+    "error": "new Goal plan steps must separate observation from mutate work",
+    "planner_model": "gpt-5.6-sol",
+    "planner_transport": "responses",
+    "planner_outputs_were_structured": true
+  },
+  "subsequent_transport_failure": {
+    "component": "Planner provider",
+    "http_status": 500,
+    "retryable": true,
+    "http_attempts": 2,
+    "provider_error_code": "do_request_failed"
+  },
+  "observed_counts": {
+    "selector_requests": 0,
+    "executor_requests": 0,
+    "actions": 0,
+    "action_protocol_rejections": 0
+  },
+  "root_cause": "The prompt said to split observation from mutation but did not state the exact invariant that mutate, execute, and derive_evidence must emit read_roots=[].",
+  "corrective_scope": [
+    "State the exact phase/root matrix in the Planner prompt.",
+    "Define success_evidence as a future criterion that cannot claim completion.",
+    "Return step_id, phase, and received roots in local validation errors."
+  ],
+  "evidence": [
+    "run_01/RUN_PROTOCOL.json",
+    "run_01/results.json",
+    "run_01/runtime_doctor.json",
+    "run_01/cases/AGENT-LADDER-L1-FIX01/audit.json"
+  ],
+  "note": "The cases directory is intentionally runtime-only and ignored by Git; the committed summary preserves the relevant evidence without credentials or raw model content."
+}

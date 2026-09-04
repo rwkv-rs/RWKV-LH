@@ -973,6 +973,17 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert "do not flatten steps" in system_prompt
     assert "exactly one phase" in system_prompt
     assert "never name a concrete tool" in system_prompt
+    assert "mutate uses read_roots=[] and non-empty write_roots" in system_prompt
+    assert "execute always uses read_roots=[]" in system_prompt
+    assert "only through depends_on" in system_prompt
+    assert "Planner never marks a step complete" in system_prompt
+    assert "Only the RWKV Auditor can accept runtime evidence" in system_prompt
+    assert "never claims that evidence exists" in step_schema["properties"][
+        "success_evidence"
+    ]["description"]
+    assert "Non-empty only for phase=observe" in step_schema["properties"][
+        "read_roots"
+    ]["description"]
 
     goal_root_schema = step_schema["properties"]["read_roots"]["items"]
     pattern = goal_root_schema["pattern"]

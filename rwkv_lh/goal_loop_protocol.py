@@ -415,8 +415,10 @@ class GoalPlanPatch:
                         and parsed_step.read_roots
                     ):
                         raise ValueError(
-                            "new Goal plan steps must separate observation from "
-                            f"{parsed_step.phase} work"
+                            f"Goal plan step {parsed_step.step_id!r} with phase="
+                            f"{parsed_step.phase!r} must set read_roots=[]; move "
+                            "inspection into a prior phase='observe' step and depend "
+                            f"on it; received read_roots={list(parsed_step.read_roots)!r}"
                         )
                     flattened.append(parsed_step)
             return tuple(flattened)

@@ -670,6 +670,42 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
     assert [step.step_id for step in plan.frontier] == ["S3"]
 
 
+def test_new_non_observe_step_reports_exact_mixed_read_contract() -> None:
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"Goal plan step 'S2' with phase='mutate' must set read_roots=\[\]; "
+            r"move inspection into a prior phase='observe' step"
+        ),
+    ):
+        GoalPlanPatch.from_model_value(
+            {
+                "add_stages": [
+                    {
+                        "stage": 1,
+                        "steps": [
+                            {
+                                "step_id": "S2",
+                                "objective": "Inspect and update pricing.py",
+                                "phase": "mutate",
+                                "depends_on": [],
+                                "success_evidence": ["pricing.py is updated"],
+                                "read_roots": ["pricing.py"],
+                                "write_roots": ["pricing.py"],
+                                "constraints": [],
+                            }
+                        ],
+                    }
+                ],
+                "replace_stages": [],
+                "discard_step_ids": [],
+                "reason": "incorrectly mixes observation and mutation",
+            },
+            patch_id="GPP-mixed-read",
+            base_revision=0,
+        )
+
+
 def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
     initial = GoalPlanPatch(
         patch_id="GPP-stage-repair-initial",
