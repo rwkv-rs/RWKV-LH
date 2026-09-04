@@ -1,127 +1,352 @@
 # StateTune 下一步
 
-## 1. 冻结训练输入
+## 1. 这次训练具体解决什么
 
-正式生成数据前，先实现一个由 runtime 和数据生成器共用的 full-serving renderer。训练序列必须等于模型从角色初始 State 到目标输出位置累计消费的完整 UTF-8 token 流，不能只保存其中的业务 JSON。
+这次只解决两个已经定位到 RWKV 输入分布和状态遵循的问题，不训练整个 Agent。
 
-每条训练记录固定包含：
+### 第一优先级：2.9B Selector
 
-- `prompt`：完整线上输入。
-- `target`：唯一监督后缀。
-- `text`：`prompt + target`。
-- prompt、target 和完整 text 的 SHA-256。
-- prompt、target、完整 text 的 token IDs 与 token 数。
-- renderer、parser、tokenizer 和 verifier 的 SHA-256。
+当前真实链路中，Selector 的 WKV token position 和 state digest 都持续变化，说明 State 确实更新了；但它仍集中选择 `search_text` 和 `read_json`，三种菜单顺序也会产生相关误选。最新例子中，目标是读取 Python 文件，Selector 却两次选择 `read_json`，失败后又重复 `search_text`。
 
-固定要求：BOS 为 `0`，上下文长度为 `4096`，不得截断，loss 只覆盖 target suffix，不加入长 CoT。
+因此这次 Selector StateTune 要解决：
 
-## 2. 固定各角色格式
+- 让 2.9B 适应当前完整的 `GoalFrontierStateV2`、工具描述、三种菜单顺序和连续 action 结果。
+- 根据最新成功、失败和审核缺口改变下一次工具选择，不再重复无进展操作。
+- 区分最容易混淆的 `read_file/read_json/search_text/file_digest`，以及其余相邻工具。
+- 降低菜单顺序对选择结果的影响。
 
-Selector：
+Selector 的生产输出来自 hidden feature 后面的 MLP Head。因此只训练 State 不够：StateTune 完成后，必须在该 State 上重新提取 hidden feature，再重训与该 State 匹配的 Head。旧 zero-State Head 不能直接和新 State 组合发布。
 
-- 输入必须由 `rwkv_lh.exact_tool_selector.input_protocol` 的生产 renderer 生成。
-- 每条因果序列先使用 `render_bootstrap`，再按真实顺序追加一个或多个 `render_step`。
-- `canonical`、`rotate_8`、`rotate_17` 三种菜单顺序都要生成；同一语义样本的三种顺序使用同一目标并进入同一 split。
-- Head 类别索引始终使用 `NETWORK_EXACT_TOOL_LABELS` 的固定顺序，不能随菜单顺序旋转。
-- target 只能由 `rwkv_lh.goal_state_protocols.selector_intent.render_target` 生成。
-- 普通可执行 frontier 不生成 `ABSTAIN` target；`final_answer` 只用于已经满足终止条件的独立样本。
+完成门槛：固定 dev 上 accuracy 和 macro-F1 均不低于 `0.90`，每个有监督的可执行类别 recall 不低于 `0.75`，连续轨迹位置 accuracy 不低于 `0.90`；同一语义的三种菜单顺序应得到同一 operation；真实 Python 文件场景必须先选 `read_file`，失败后不能回到已证明无效的选择。最多训练或真实运行三个预登记候选，三者都未达标时保留固定指标最好的一个，不临时改变评价口径。
 
-Executor：
+### 第二优先级：13.3B Executor
 
-- 输入必须从线上使用的 clean action State 开始，包含受控因果投影，并以 `rwkv_lh.goal_state_protocols.executor_args.render_generation_prompt` 生成的内容和 continuation anchor 结束。
-- target 只能由 `rwkv_lh.goal_state_protocols.executor_args.render_target` 生成。
-- target 必须是一个规范 JSON 对象，`function` 必须等于 Selector 已选 operation，`params` 必须满足该工具 schema。
-- 不允许换工具、缺省必填参数、Python 字典、Markdown 解释或多个调用。
+Executor StateTune 不负责选工具，只解决已经选定工具后的参数填写：
 
-其余三个角色：
+- `function` 始终等于 Selector 已选 operation。
+- `params` 满足唯一工具 schema，必填字段完整。
+- 只输出 canonical JSON，不输出 Python dict、解释或多个调用。
+- 使用当前 step 的局部事实，不重复上一 action 的参数和已完成工作。
 
-- Step Auditor 使用 `auditor_step.render_prompt/render_target/parse_target`。
-- Finalizer 使用 `finalizer_answer.render_prompt/render_target/parse_target`。
-- Final Auditor 使用 `auditor_final.render_prompt/render_target/parse_target`。
-- 数据生成时仍需保存对应角色在线 generation boundary 的完整输入，而不是只保存 renderer 返回的内部片段。
+先训练一个覆盖全部 phase 的 Executor State 作为基线，再从同一冻结数据按 `observe/mutate/execute/derive_evidence` 派生四份 State 做固定对照。phase 已经由 Planner 给出，后续只需要确定性映射，不训练新的分类器。
 
-## 3. 制作 Selector 数据
+完成门槛：固定 dev 上 operation identity、JSON 协议和参数 schema 三项通过率均为 `1.0`，并且多 action 样本不重复已完成操作。
 
-必须覆盖：
+### 本轮不做
 
-- 23 个可执行 operation 的全部目标类别。
-- `observe`、`mutate`、`execute`、`derive_evidence` 四个 phase。
-- `read_file/read_json/search_text/file_digest`。
-- `check_command/run_command`。
-- `write_file/write_json/patch_json/replace_text/append_file/remove_line`。
-- `web_search/connector_lookup`。
-- 同一步骤的连续多 action 轨迹、工具失败、空搜索结果、协议拒绝和审核缺口。
-- 非 JSON 文件在 `read_json` 失败后转向 `read_file`，以及连续无匹配后不再重复 `search_text` 的反例。
+- 不训练 Planner。
+- 不训练 Step Auditor、Finalizer 或 Final Auditor。
+- 不用 StateTune 掩盖工具实现、Controller 状态或数据 renderer 的工程错误。
+- 不读取 90-case sealed/holdout 结果来改训练数据。
 
-每条语义轨迹生成三种菜单顺序版本，但只能有一个固定 operation 标签。三个版本必须共享 `project_family`、split 和父样本关系。
+顺序固定为：先完成 Selector StateTune 与匹配 Head；Selector 通过后，再开始 Executor StateTune。
 
-## 4. 制作 Executor 数据
+## 2. 去哪里做
 
-必须覆盖：
+数据生成、合同校验和实验记录在 WSL：
 
-- 23 个可执行 operation 的完整参数 schema。
-- 每个 operation 的成功样本、参数缺失反例、参数修复和前一步失败后的继续执行。
-- 四个 phase 下的全部工具；每条记录保留 phase 标签，以便训练后比较单一 State 和按 phase 分开的 State。
-- 同一 handoff 内 operation 恒定；新 action 不携带上一 action 的参数或生成文本。
-- `read_file`、`read_json`、`search_text`、写入工具和命令工具的边界参数。
+```text
+/home/chase/GitHub/RWKV-LH
+```
 
-先生成单一 Executor State 所需的完整数据，再从相同冻结源按 phase 派生四份训练视图。不得为四份视图重新划分数据或修改样本。
+训练在服务器进行：
 
-## 5. 制作其余角色数据
+```bash
+ssh rwkv-8222
+cd /home/chase/chase/RWKV-PEFT
+```
 
-- Step Auditor：同时包含 `continue` 和 `repair`，只引用当前 boundary 可用的 evidence；不生成在线流程不会调用的机械覆盖不完整样本。
-- Finalizer：只使用已完成步骤、已提交事实和证据生成 `final_answer`。
-- Final Auditor：同时包含 `ready_for_final` 和 `repair`，所有结论必须绑定已有 evidence。
-- 五个角色的 WKV 分开训练和导出，不能混合或合并。
+训练环境：
 
-## 6. 登记来源并划分数据
+```text
+/home/chase/chase/RWKV-PEFT/.venv/bin/python
+```
 
-每个源样本必须登记：
+G1J 原始模型：
 
-- 来源、版本、用途和生成方式。
-- `source_id`、`project_family`、`source_kind` 和父样本。
-- 源文件路径、记录定位符和 SHA-256。
-- 输入协议、输出协议和可执行 verifier。
+```text
+2.9B:  /mnt/nas-model/g1j/rwkv7-g1j-2.9b-20260831-ctx16384.pth
+SHA:   966f3420f833532aae3fb1fd6326533b08d43d23b7b03eaa2f0694a30b64a239
 
-先按 `project_family` 固定划分 train/dev/sealed，再渲染训练数据。确定性反例、父样本和三个菜单顺序版本必须位于同一 split。
+13.3B: /mnt/nas-model/g1j/rwkv7-g1j-13.3b-20260831-ctx16384.pth
+SHA:   559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65
+```
 
-相似度固定使用 `utf8-byte-5gram-cosine.v1`，跨 split 最大相似度必须 `< 0.95`。冻结后不得调整算法、阈值或 split。
+服务器训练数据放在：
 
-## 7. 生成前校验
+```text
+/home/chase/chase/RWKV-PEFT/data/<dataset_id>/
+```
 
-每条样本必须通过：
+训练产物放在：
 
-- renderer/parser round-trip。
-- schema 和字段顺序校验。
-- 角色职责边界校验。
-- operation 与参数执行校验。
-- evidence 引用与完成条件校验。
-- prompt/target 泄漏校验。
-- train/dev/sealed 家族隔离校验。
-- 训练 token IDs 与线上 token IDs 逐项一致校验。
-- 无截断和 target 起始位置校验。
+```text
+/home/chase/chase/RWKV-PEFT/out/<run_id>/
+```
 
-任一项失败都停止生成，不得跳过失败样本后继续冻结。
+`/home/chase/chase/RWKV-PEFT` 当前不是 Git worktree。每次训练前必须记录训练代码摘要，不能只记录目录名：
 
-## 8. 冻结数据
+```bash
+cd /home/chase/chase/RWKV-PEFT
+sha256sum train.py rwkvt/state_tuning.py rwkvt/dataset/dataset.py
+.venv/bin/python -c 'import torch,lightning,deepspeed; print(torch.__version__, lightning.__version__, deepspeed.__version__)'
+```
 
-- 数据集写入 `data/datasets/<dataset_id>/`。
-- 来源、生成、校验和泄漏记录写入 `data/experiments/<experiment_id>/`。
-- manifest 必须记录数据、renderer、parser、verifier、tokenizer 和所有文件的 SHA-256。
-- train/dev 可交给训练流程；sealed 数据保持隔离，在训练完成前不得读取结果。
-- 冻结目录不得覆盖写入；任何内容变化都创建新 dataset version。
+当前环境已确认是 Python venv、Torch `2.9.0+cu128`、Lightning `2.5.5`、DeepSpeed `0.18.1`。
 
-## 9. 训练与交付
+## 3. 现在还不能直接训练的原因
 
-训练期间不得改 prompt、字段顺序、工具描述、类别顺序、split、tokenizer、相似度算法或阈值。
+当前仓库中没有可用于本轮 G1J 的正式 StateTune v2 数据。以下内容不能用于本轮训练：
 
-每个 StateTune 产物必须交付：
+- `data/datasets/rwkv_lh_g1j_selector_persistent_head_v2/`：这是旧 Head 数据，不是当前 StateTune 数据。
+- 服务器 `/home/chase/chase/RWKV-PEFT/data/` 下的 `g1i-*` 和旧 `rwkv_lh_*`：基础模型和线上协议都不是本轮 G1J 合同。
+- 当前五角色 v1 生成器：它只保存内部 renderer 片段，还没有保存完整 serving token stream；旧 source freezer 也包含当前普通 frontier 不应使用的 `ABSTAIN` target。
 
-- 角色和 profile ID。
-- State 文件绝对路径与 SHA-256。
-- 基础模型 ID 与 SHA-256。
-- 数据集 ID、版本和 manifest SHA-256。
-- renderer、parser、tokenizer 和 verifier SHA-256。
-- 训练配置、随机种子、step 数和完整日志。
-- Selector 使用的菜单顺序集合和固定 Head 类别顺序。
-- Executor 是单一 State 还是对应某个 phase 的 State。
+开训前必须先在 RWKV-LH 中生成并冻结：
+
+```text
+data/datasets/rwkv_lh_g1j_selector_intent_state_tuning_v2/
+data/datasets/rwkv_lh_g1j_executor_args_state_tuning_v2/
+```
+
+每个目录至少必须有：
+
+```text
+manifest.json
+source_registry.jsonl
+sample_index.jsonl
+verification_records.jsonl
+tokenizer_records.jsonl
+rwkv_state_tuning.train.requires_target_suffix.jsonl
+rwkv_state_tuning.dev.requires_target_suffix.jsonl
+generation_validation.json
+leakage_audit.json
+tokenizer_target_suffix_audit.json
+```
+
+只有三个校验报告均为 `passed=true`，且 manifest 中的文件 SHA 全部匹配，才进入服务器训练。
+
+## 4. 数据完成后运行什么命令
+
+先从 WSL 同步到服务器，不使用 `--delete`：
+
+```bash
+cd /home/chase/GitHub/RWKV-LH
+
+rsync -a --checksum \
+  data/datasets/rwkv_lh_g1j_selector_intent_state_tuning_v2/ \
+  rwkv-8222:/home/chase/chase/RWKV-PEFT/data/rwkv_lh_g1j_selector_intent_state_tuning_v2/
+
+rsync -a --checksum \
+  data/datasets/rwkv_lh_g1j_executor_args_state_tuning_v2/ \
+  rwkv-8222:/home/chase/chase/RWKV-PEFT/data/rwkv_lh_g1j_executor_args_state_tuning_v2/
+```
+
+登录服务器后检查模型、数据和空闲 GPU：
+
+```bash
+ssh rwkv-8222
+cd /home/chase/chase/RWKV-PEFT
+
+sha256sum /mnt/nas-model/g1j/rwkv7-g1j-2.9b-20260831-ctx16384.pth
+sha256sum /mnt/nas-model/g1j/rwkv7-g1j-13.3b-20260831-ctx16384.pth
+nvidia-smi --query-gpu=index,uuid,memory.total,memory.free --format=csv,noheader,nounits
+pgrep -af '/train.py' || true
+```
+
+SHA 不匹配、已有训练进程或没有足够显存时停止，不自动更换模型、数据或训练参数。
+
+## 5. 如何训练 Selector
+
+这是一轮从 zero-State 开始的固定基线。`GPU=3` 只是当前服务器上的可用示例；运行前按 `nvidia-smi` 选择空闲 GPU 并登记其 UUID。
+
+```bash
+cd /home/chase/chase/RWKV-PEFT
+
+GPU=3
+DATA=/home/chase/chase/RWKV-PEFT/data/rwkv_lh_g1j_selector_intent_state_tuning_v2
+RUN=/home/chase/chase/RWKV-PEFT/out/g1j-2p9-selector-intent-state-v2-seed20260904
+LOG=/home/chase/chase/RWKV-PEFT/temp/g1j-2p9-selector-intent-state-v2-seed20260904.log
+ROWS=$(wc -l < "$DATA/rwkv_state_tuning.train.requires_target_suffix.jsonl")
+SAVE=$(( (ROWS + 3) / 4 ))
+
+test "$ROWS" -gt 0
+test ! -e "$RUN"
+
+nohup env CUDA_VISIBLE_DEVICES="$GPU" \
+  .venv/bin/python train.py \
+  --load_model /mnt/nas-model/g1j/rwkv7-g1j-2.9b-20260831-ctx16384.pth \
+  --proj_dir "$RUN" \
+  --data_file "$DATA/rwkv_state_tuning.train.requires_target_suffix.jsonl" \
+  --data_type jsonl \
+  --loss_mask target_suffix \
+  --jsonl_bos_token_id 0 \
+  --data_shuffle 0 \
+  --vocab_size 65536 \
+  --n_layer 32 \
+  --n_embd 2560 \
+  --ctx_len 4096 \
+  --micro_bsz 1 \
+  --accumulate_grad_batches 1 \
+  --epoch_steps "$ROWS" \
+  --epoch_count 1 \
+  --epoch_save 1 \
+  --step_save "$SAVE" \
+  --lr_init 2e-5 \
+  --lr_final 4e-6 \
+  --lr_schedule cos \
+  --warmup_steps 40 \
+  --beta1 0.9 \
+  --beta2 0.99 \
+  --adam_eps 1e-8 \
+  --random_seed 20260904 \
+  --accelerator gpu \
+  --precision bf16 \
+  --devices 1 \
+  --strategy deepspeed_stage_1 \
+  --grad_cp 1 \
+  --num_workers 2 \
+  --my_testing x070 \
+  --peft state \
+  --op fla \
+  >"$LOG" 2>&1 &
+
+echo $! > "$LOG.pid"
+tail -f "$LOG"
+```
+
+不得为了避免 OOM 把 `ctx_len` 临时降到小于数据 manifest 登记的最大 token 数；如果 OOM，停止并记录，不修改本轮合同。
+
+训练会在 `RUN` 下同时生成 `rwkv-step-<N>.pth` 和可直接用于当前 vLLM profile 的 `rwkv-step-<N>.vllm.pth`。
+
+## 6. Selector State 训练后怎么处理
+
+先用 dev 选择 checkpoint，不读取 sealed。然后校验 `.vllm.pth`：
+
+```bash
+cd /home/chase/chase/RWKV-PEFT
+STATE=/home/chase/chase/RWKV-PEFT/out/g1j-2p9-selector-intent-state-v2-seed20260904/rwkv-step-<N>.vllm.pth
+EXPECTED_LAYERS=32
+EXPECTED_HEADS=40
+
+sha256sum "$STATE"
+STATE="$STATE" EXPECTED_LAYERS="$EXPECTED_LAYERS" EXPECTED_HEADS="$EXPECTED_HEADS" \
+  .venv/bin/python -c 'import os,torch; p=os.environ["STATE"]; n=int(os.environ["EXPECTED_LAYERS"]); h=int(os.environ["EXPECTED_HEADS"]); x=torch.load(p,map_location="cpu",weights_only=True); assert set(x)=={f"blocks.{i}.att.time_state" for i in range(n)}; assert all(v.dtype==torch.bfloat16 and tuple(v.shape)==(h,64,64) and torch.isfinite(v).all() and torch.count_nonzero(v) for v in x.values()); print("state-ok")'
+```
+
+把以下内容交回 RWKV-LH 项目侧：
+
+- 选中 State 的绝对路径和 SHA-256。
+- run ID、训练日志、GPU UUID。
+- 数据 manifest SHA-256。
+- 训练代码三个 SHA-256 和依赖版本。
+- 选中 checkpoint 的 dev 结果。
+
+项目侧随后必须完成：
+
+1. 把 State 复制到 `data/models/state_profiles/<profile_id>/` 并创建 `vllm.rwkv7-state-profiles.v1` manifest。
+2. 修改 Selector feature extractor，使它显式加载该 profile，而不是当前硬编码的 zero-State。
+3. 在三种菜单顺序的冻结 train/dev 轨迹上重新提取 hidden feature。
+4. 重训 Head，并把 Head 元数据标记为该 State profile；不得继续使用 `state_tuned=false` 的旧 Head。
+5. 同时更新 Selector 服务的 `--profile-manifest`、`--profile-manifest-sha256`、`--profile-id`、`--profile-sha256`，以及 `.env.local` 中对应的三项身份。
+6. 通过固定 Selector 门禁后，才开始 Executor 训练。
+
+## 7. 如何训练 Executor
+
+Selector 通过后再运行。先训练一个包含四个 phase 的 combined State；phase State 只是在同一冻结源上的四份视图，命令相同，只把 `DATA` 换为 `rwkv_lh_g1j_executor_args_state_tuning_v2_<phase>`，并把 `RUN` 换成对应 phase 的新目录。
+
+```bash
+cd /home/chase/chase/RWKV-PEFT
+
+GPU=3
+DATA=/home/chase/chase/RWKV-PEFT/data/rwkv_lh_g1j_executor_args_state_tuning_v2
+RUN=/home/chase/chase/RWKV-PEFT/out/g1j-13p3b-executor-args-combined-state-v2-seed20260904
+LOG=/home/chase/chase/RWKV-PEFT/temp/g1j-13p3b-executor-args-combined-state-v2-seed20260904.log
+ROWS=$(wc -l < "$DATA/rwkv_state_tuning.train.requires_target_suffix.jsonl")
+SAVE=$(( (ROWS + 3) / 4 ))
+
+test "$ROWS" -gt 0
+test ! -e "$RUN"
+
+nohup env CUDA_VISIBLE_DEVICES="$GPU" \
+  .venv/bin/python train.py \
+  --load_model /mnt/nas-model/g1j/rwkv7-g1j-13.3b-20260831-ctx16384.pth \
+  --proj_dir "$RUN" \
+  --data_file "$DATA/rwkv_state_tuning.train.requires_target_suffix.jsonl" \
+  --data_type jsonl \
+  --loss_mask target_suffix \
+  --jsonl_bos_token_id 0 \
+  --data_shuffle 0 \
+  --vocab_size 65536 \
+  --n_layer 61 \
+  --n_embd 4096 \
+  --ctx_len 4096 \
+  --micro_bsz 1 \
+  --accumulate_grad_batches 1 \
+  --epoch_steps "$ROWS" \
+  --epoch_count 1 \
+  --epoch_save 1 \
+  --step_save "$SAVE" \
+  --lr_init 2e-5 \
+  --lr_final 4e-6 \
+  --lr_schedule cos \
+  --warmup_steps 40 \
+  --beta1 0.9 \
+  --beta2 0.99 \
+  --adam_eps 1e-8 \
+  --random_seed 20260904 \
+  --accelerator gpu \
+  --precision bf16 \
+  --devices 1 \
+  --strategy deepspeed_stage_1 \
+  --grad_cp 1 \
+  --num_workers 2 \
+  --my_testing x070 \
+  --peft state \
+  --op fla \
+  >"$LOG" 2>&1 &
+
+echo $! > "$LOG.pid"
+tail -f "$LOG"
+```
+
+Executor checkpoint 校验与 Selector 相同，但必须使用 `EXPECTED_LAYERS=61`、`EXPECTED_HEADS=64`。
+
+## 8. Executor 训练结果如何接入
+
+combined State 可以直接作为一个 Executor profile 接入。项目侧会：
+
+1. 将 `.vllm.pth` 放入稳定 profile 目录并登记 SHA-256。
+2. 创建 manifest；`model_artifact` 必须是 `/home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-13.3b-vllm-v1`，`model_revision` 必须是 `67f0c5996c50dca0ad779da545cb491527de988f`，`default_profile` 保持 `zero`。
+3. 用 `VLLM_RWKV7_STATE_PROFILE_MANIFEST` 和 `VLLM_RWKV7_STATE_PROFILE_MANIFEST_SHA256` 启动 13.3B 服务。
+4. 在 `.env.local` 设置 `RWKV_LH_EXECUTOR_STATE_PROFILE_ID`、`RWKV_LH_EXECUTOR_STATE_PROFILE_SHA256` 和 `RWKV_LH_EXECUTOR_STATE_PROFILE_DELIVERY=request`。
+5. 先运行固定 Executor dev，再运行真实链路；每个候选最多三次。
+
+四个 phase State 不能直接写入当前默认配置。它们完成固定对照后，项目侧还需要加入 `phase -> profile_id` 的确定性映射，并保证一个 action 内不切换 profile。没有通过对照前继续使用 combined State 或 zero-State。
+
+## 9. 最终交付格式
+
+训练完成后只需要提供下面这组信息：
+
+```text
+role:
+phase: combined | observe | mutate | execute | derive_evidence
+base_model_path:
+base_model_sha256:
+dataset_id:
+dataset_manifest_sha256:
+run_id:
+selected_checkpoint_path:
+selected_checkpoint_sha256:
+train_log_path:
+gpu_uuid:
+train_py_sha256:
+state_tuning_py_sha256:
+dataset_loader_sha256:
+torch_version:
+lightning_version:
+deepspeed_version:
+dev_result_path:
+```
+
+不要把 `.env.local`、API key、sealed 数据结果或未选中的临时 checkpoint 上传到 GitHub。
