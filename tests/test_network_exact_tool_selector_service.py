@@ -12,7 +12,7 @@ from rwkv_lh.exact_tool_selector.head import NETWORK_SELECTOR_FUSION_FEATURE_PRO
 from rwkv_lh.exact_tool_selector.input_protocol import (
     G1J_SELECTOR_INTENT_HEAD_ID,
     G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+    G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
 )
 from rwkv_lh.exact_tool_selector.network_client import (
     NetworkExactToolSelectorClient,
@@ -80,7 +80,7 @@ class _Head:
                 "model_weights_sha256": settings.model_sha256,
                 "feature_protocol": settings.feature_protocol,
                 "labels": list(NETWORK_EXACT_TOOL_LABELS),
-                "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+                "runtime_trajectory_mode": G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
             }
         )
 
@@ -212,7 +212,7 @@ def test_service_repeated_request_does_not_reuse_dynamic_state() -> None:
 def test_service_rejects_head_without_fresh_trajectory_identity() -> None:
     settings = _settings()
     head = _Head(settings)
-    del head.artifact.metadata["training_trajectory_mode"]
+    del head.artifact.metadata["runtime_trajectory_mode"]
     with pytest.raises(ValueError, match="identity mismatch"):
         NetworkSelectorService(settings, _Extractor(), head)
 
@@ -270,7 +270,7 @@ def test_service_fuses_mean_then_last_from_one_fresh_forward() -> None:
             "id": settings.state_profile_id,
             "sha256": settings.state_profile_sha256,
         },
-        "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+        "runtime_trajectory_mode": G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
         "wkv_mode": "fp16",
     }
     extractor = FusionExtractor()

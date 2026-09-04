@@ -16,7 +16,7 @@ Strong Planner
 
 这些名称表示同一条链中的职责边界，不是多套架构。全局权威状态始终是 append-only causal ledger；各模型角色使用独立 WKV，避免角色间状态污染。
 
-当前尚不能发布为可靠 Agent：fresh current-subtask Selector 运行时合同已经完成，但与 v2 输入和 23 类输出匹配的新 State/Head 尚未训练；Executor 的显式状态遵循也仍需通过固定门禁。
+当前尚不能发布为可靠 Agent：fresh current-subtask Selector 已用 zero-State 和精确投影的 23 类 Head 部署，但该 Head 没有在 v2 输入分布上重训，真实链路仍显示域外泛化缺陷；Executor 的显式状态遵循也仍需通过固定门禁。
 
 ## 文档
 

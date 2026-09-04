@@ -18,7 +18,7 @@ from rwkv_lh.exact_tool_selector.head import (
 from rwkv_lh.exact_tool_selector.input_protocol import (
     G1J_SELECTOR_INTENT_HEAD_ID,
     G1J_SELECTOR_INTENT_INPUT_PROTOCOL,
-    G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+    G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.network_client import (
@@ -212,7 +212,7 @@ class NetworkSelectorService:
             "model_weights_sha256": settings.model_sha256,
             "feature_protocol": settings.feature_protocol,
             "labels": list(NETWORK_EXACT_TOOL_LABELS),
-            "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+            "runtime_trajectory_mode": G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
         }
         if not isinstance(metadata, Mapping) or any(
             metadata.get(key) != value for key, value in expected_head_identity.items()
@@ -234,7 +234,7 @@ class NetworkSelectorService:
                     "id": settings.state_profile_id,
                     "sha256": settings.state_profile_sha256,
                 },
-                "training_trajectory_mode": G1J_SELECTOR_TRAINING_TRAJECTORY_MODE,
+                "runtime_trajectory_mode": G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE,
                 "wkv_mode": "fp16",
             }
             if not isinstance(portable, Mapping) or any(

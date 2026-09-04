@@ -27,7 +27,7 @@ class NetworkSelectorInputProtocol:
 
 G1J_SELECTOR_INTENT_INPUT_PROTOCOL = selector_intent.INPUT_SCHEMA_VERSION
 G1J_SELECTOR_INTENT_HEAD_ID = "rwkv_lh_g1j_selector_intent_head_v3"
-G1J_SELECTOR_TRAINING_TRAJECTORY_MODE = "fresh-current-subtask.v1"
+G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE = "fresh-current-subtask.v1"
 G1J_SELECTOR_INTENT_MENU_SCHEMA_VERSION = (
     "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v2"
 )
@@ -118,7 +118,7 @@ __all__ = [
     "CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL",
     "G1J_SELECTOR_INTENT_HEAD_ID",
     "G1J_SELECTOR_INTENT_INPUT_PROTOCOL",
-    "G1J_SELECTOR_TRAINING_TRAJECTORY_MODE",
+    "G1J_SELECTOR_RUNTIME_TRAJECTORY_MODE",
     "SUPPORTED_NETWORK_SELECTOR_INPUT_PROTOCOLS",
     "NetworkSelectorInputProtocol",
     "network_selector_input_protocol",

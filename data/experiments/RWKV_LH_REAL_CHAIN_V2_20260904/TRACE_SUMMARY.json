@@ -1,0 +1,457 @@
+{
+  "actions": [
+    {
+      "action_id": "A00001",
+      "arguments": {
+        "case_sensitive": true,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "mode": "regex",
+        "path": "orders.json",
+        "pattern": "status.*paid",
+        "recursive": false,
+        "start_after": ""
+      },
+      "failure_key": "",
+      "operation": "search_text",
+      "result_error": null,
+      "result_metadata": {
+        "complete": true,
+        "contract_digest": "bf8a6abbcd47b0848db779bdf0ee86e4aaa3ee4326cceec92a3d22adf9325a61",
+        "files_considered": 1,
+        "files_searched": 1,
+        "match_count": 2,
+        "next_cursor": "",
+        "observed_tokens": 334,
+        "skipped_file_count": 0,
+        "truncated": false
+      },
+      "result_success": true,
+      "status": "succeeded"
+    },
+    {
+      "action_id": "A00002",
+      "arguments": {
+        "case_sensitive": true,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "mode": "regex",
+        "path": "orders.json",
+        "pattern": "status.*paid",
+        "recursive": false,
+        "start_after": ""
+      },
+      "failure_key": "",
+      "operation": "search_text",
+      "result_error": null,
+      "result_metadata": {
+        "complete": true,
+        "contract_digest": "bf8a6abbcd47b0848db779bdf0ee86e4aaa3ee4326cceec92a3d22adf9325a61",
+        "files_considered": 1,
+        "files_searched": 1,
+        "match_count": 2,
+        "next_cursor": "",
+        "observed_tokens": 334,
+        "skipped_file_count": 0,
+        "truncated": false
+      },
+      "result_success": true,
+      "status": "succeeded"
+    },
+    {
+      "action_id": "A00003",
+      "arguments": {
+        "case_sensitive": true,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "mode": "regex",
+        "path": "orders.json",
+        "pattern": "status.*paid",
+        "recursive": false,
+        "start_after": ""
+      },
+      "failure_key": "",
+      "operation": "search_text",
+      "result_error": null,
+      "result_metadata": {
+        "complete": true,
+        "contract_digest": "bf8a6abbcd47b0848db779bdf0ee86e4aaa3ee4326cceec92a3d22adf9325a61",
+        "files_considered": 1,
+        "files_searched": 1,
+        "match_count": 2,
+        "next_cursor": "",
+        "observed_tokens": 334,
+        "skipped_file_count": 0,
+        "truncated": false
+      },
+      "result_success": true,
+      "status": "succeeded"
+    }
+  ],
+  "boundary_events": [
+    {
+      "event_id": "CE-000003",
+      "event_type": "goal_plan_patch_committed",
+      "values": {
+        "patch_id": "GPP-92e18eb1ab5b48d7"
+      }
+    },
+    {
+      "event_id": "CE-000008",
+      "event_type": "model_call_rejected",
+      "values": {
+        "error": "model output is not one JSON object: Expecting value: line 3 column 28 (char 54)"
+      }
+    },
+    {
+      "event_id": "CE-000019",
+      "event_type": "goal_audit_recorded",
+      "values": {
+        "boundary": "observation_complete"
+      }
+    },
+    {
+      "event_id": "CE-000024",
+      "event_type": "goal_stage_review_committed",
+      "values": {}
+    },
+    {
+      "event_id": "CE-000025",
+      "event_type": "goal_plan_patch_committed",
+      "values": {
+        "patch_id": "GPP-ac9967677c6e408d"
+      }
+    },
+    {
+      "event_id": "CE-000030",
+      "event_type": "model_call_rejected",
+      "values": {
+        "error": "model output is not one JSON object: Expecting value: line 3 column 28 (char 54)"
+      }
+    },
+    {
+      "event_id": "CE-000041",
+      "event_type": "goal_audit_recorded",
+      "values": {
+        "boundary": "observation_complete"
+      }
+    }
+  ],
+  "event_counts": {
+    "action_finished": 3,
+    "action_observation_appended": 9,
+    "action_session_started": 3,
+    "action_started": 3,
+    "exact_tool_selection_staged": 3,
+    "goal_action_plan_step_assigned": 3,
+    "goal_action_plan_step_linked": 2,
+    "goal_audit_accepted": 2,
+    "goal_audit_boundary_opened": 2,
+    "goal_audit_boundary_resolved": 2,
+    "goal_audit_recorded": 2,
+    "goal_auditor_session_started": 2,
+    "goal_plan_patch_committed": 2,
+    "goal_stage_review_committed": 1,
+    "model_call_accepted": 3,
+    "model_call_rejected": 2,
+    "protocol_rejection_recorded": 2,
+    "run_blocked": 1,
+    "run_created": 1,
+    "run_started": 1,
+    "tool_schema_disclosed": 5
+  },
+  "failure_budgets": {},
+  "frontier": [
+    {
+      "allowed_operations": [],
+      "constraints": [
+        "不得使用仅匹配 paid 的局部搜索结果代替完整读取",
+        "只纳入 status 严格等于 paid 的订单",
+        "不得修改 orders.json"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "objective": "重新完整读取并解析 orders.json，确认所有订单的 status 与金额字段，并验证源文件未被修改",
+      "obligation_ids": [],
+      "phase": "observe",
+      "read_roots": [
+        "orders.json"
+      ],
+      "stage": 2,
+      "step_id": "S2",
+      "success_evidence": [
+        "成功动作证据展示 orders.json 的完整可解析内容，覆盖所有订单及其 status 和金额字段",
+        "证据确认仅 status 严格等于 paid 的订单可用于后续汇总",
+        "读取后文件摘要与工作区清单中 orders.json 的已知摘要一致，足以确认未修改源文件"
+      ],
+      "write_roots": []
+    }
+  ],
+  "plan_complete": false,
+  "revision": 53,
+  "run_id": "REAL-CHAIN-ZERO-STATE-V2-20260904",
+  "selections": [
+    {
+      "aggregation_rule": "two_of_three_majority",
+      "input_projection_digest": "cb27e09cf83939f931e6c668a4893a4cc8506e7719a84c0a81217e2c29311968",
+      "input_scope": "current_subtask_only",
+      "lane_input_digests": {
+        "canonical": "cb27e09cf83939f931e6c668a4893a4cc8506e7719a84c0a81217e2c29311968",
+        "rotate_17": "741d21311d3789810ff33277cdb07898c9337d638de11e4c14701835c1e766dc",
+        "rotate_8": "c40fd96767b02d2a47124fad6d534ed93b4d4c31674d682b820a0b497279b793"
+      },
+      "lane_token_counts": {
+        "canonical": 944,
+        "rotate_17": 945,
+        "rotate_8": 945
+      },
+      "selected_operation": "search_text",
+      "selection_id": "NSEL-ENS-059293d9cc8f430d",
+      "state_policy": "fresh_initial_state_per_evaluation",
+      "status": "consumed",
+      "votes": [
+        "search_text",
+        "search_text",
+        "search_text"
+      ]
+    },
+    {
+      "aggregation_rule": "two_of_three_majority",
+      "input_projection_digest": "836896c0d91b951344499d2a688da971eff8c02178b10690dc2b5046a20bd769",
+      "input_scope": "current_subtask_only",
+      "lane_input_digests": {
+        "canonical": "836896c0d91b951344499d2a688da971eff8c02178b10690dc2b5046a20bd769",
+        "rotate_17": "8c9864ab8ca0c5787f9186dc9d7dff9b760a74795c71f46a633d02c063a36e60",
+        "rotate_8": "8179c1c920bf9952fbd4e7a8090d2c558b3f19f1220c4d5b30b5b51f0b5e17d8"
+      },
+      "lane_token_counts": {
+        "canonical": 1007,
+        "rotate_17": 1008,
+        "rotate_8": 1008
+      },
+      "selected_operation": "search_text",
+      "selection_id": "NSEL-ENS-e08089c570954f58",
+      "state_policy": "fresh_initial_state_per_evaluation",
+      "status": "consumed",
+      "votes": [
+        "search_text",
+        "search_text",
+        "search_text"
+      ]
+    },
+    {
+      "aggregation_rule": "two_of_three_majority",
+      "input_projection_digest": "836896c0d91b951344499d2a688da971eff8c02178b10690dc2b5046a20bd769",
+      "input_scope": "current_subtask_only",
+      "lane_input_digests": {
+        "canonical": "836896c0d91b951344499d2a688da971eff8c02178b10690dc2b5046a20bd769",
+        "rotate_17": "8c9864ab8ca0c5787f9186dc9d7dff9b760a74795c71f46a633d02c063a36e60",
+        "rotate_8": "8179c1c920bf9952fbd4e7a8090d2c558b3f19f1220c4d5b30b5b51f0b5e17d8"
+      },
+      "lane_token_counts": {
+        "canonical": 1007,
+        "rotate_17": 1008,
+        "rotate_8": 1008
+      },
+      "selected_operation": "search_text",
+      "selection_id": "NSEL-ENS-5918130984614c70",
+      "state_policy": "fresh_initial_state_per_evaluation",
+      "status": "consumed",
+      "votes": [
+        "search_text",
+        "search_text",
+        "search_text"
+      ]
+    }
+  ],
+  "status": "blocked",
+  "steps": {
+    "S1": {
+      "completed": true,
+      "revision": 1,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "只纳入 status 严格等于 paid 的订单",
+          "不得修改 orders.json"
+        ],
+        "depends_on": [],
+        "objective": "读取 orders.json 并识别所有且仅有 status 为 paid 的订单及其金额数据，不修改源文件",
+        "obligation_ids": [],
+        "phase": "observe",
+        "read_roots": [
+          "orders.json"
+        ],
+        "stage": 1,
+        "step_id": "S1",
+        "success_evidence": [
+          "成功动作证据展示 orders.json 的完整可解析内容，并足以识别每个订单的 status 与用于汇总的金额字段",
+          "证据确认未对 orders.json 进行任何修改"
+        ],
+        "write_roots": []
+      }
+    },
+    "S2": {
+      "completed": false,
+      "revision": 2,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "不得使用仅匹配 paid 的局部搜索结果代替完整读取",
+          "只纳入 status 严格等于 paid 的订单",
+          "不得修改 orders.json"
+        ],
+        "depends_on": [
+          "S1"
+        ],
+        "objective": "重新完整读取并解析 orders.json，确认所有订单的 status 与金额字段，并验证源文件未被修改",
+        "obligation_ids": [],
+        "phase": "observe",
+        "read_roots": [
+          "orders.json"
+        ],
+        "stage": 2,
+        "step_id": "S2",
+        "success_evidence": [
+          "成功动作证据展示 orders.json 的完整可解析内容，覆盖所有订单及其 status 和金额字段",
+          "证据确认仅 status 严格等于 paid 的订单可用于后续汇总",
+          "读取后文件摘要与工作区清单中 orders.json 的已知摘要一致，足以确认未修改源文件"
+        ],
+        "write_roots": []
+      }
+    },
+    "S3": {
+      "completed": false,
+      "revision": 2,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "paid_count 为 paid 订单数量",
+          "paid_total 为 paid 订单金额之和",
+          "不得引入 orders.json 中不存在的数据"
+        ],
+        "depends_on": [
+          "S2"
+        ],
+        "objective": "根据重新完整读取的订单数据计算 paid_count 和 paid_total",
+        "obligation_ids": [],
+        "phase": "derive_evidence",
+        "read_roots": [],
+        "stage": 3,
+        "step_id": "S3",
+        "success_evidence": [
+          "计算证据逐项绑定所有 status 为 paid 的订单，并给出可复核的 paid_count 与 paid_total",
+          "计算明确排除所有非 paid 状态订单"
+        ],
+        "write_roots": []
+      }
+    },
+    "S4": {
+      "completed": false,
+      "revision": 2,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "不得添加任何其他字段",
+          "不得修改 orders.json",
+          "保持 paid_count 和 paid_total 的数值类型"
+        ],
+        "depends_on": [
+          "S3"
+        ],
+        "objective": "创建 summary.json，仅写入计算得到的 paid_count 和 paid_total 两个字段",
+        "obligation_ids": [],
+        "phase": "mutate",
+        "read_roots": [],
+        "stage": 4,
+        "step_id": "S4",
+        "success_evidence": [
+          "成功动作证据表明 summary.json 已创建或更新为有效 JSON 对象",
+          "写入对象严格只有 paid_count 和 paid_total 两个字段，且字段值与 S3 的计算结果一致",
+          "动作的写入范围仅限 summary.json"
+        ],
+        "write_roots": [
+          "summary.json"
+        ]
+      }
+    },
+    "S5": {
+      "completed": false,
+      "revision": 2,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "必须基于写入后的重新读取结果验证",
+          "不得在验证过程中修改任何文件"
+        ],
+        "depends_on": [
+          "S4"
+        ],
+        "objective": "重新读取 summary.json，验证其结构和数值",
+        "obligation_ids": [],
+        "phase": "observe",
+        "read_roots": [
+          "summary.json"
+        ],
+        "stage": 5,
+        "step_id": "S5",
+        "success_evidence": [
+          "成功动作证据展示重新读取到的 summary.json 完整内容",
+          "证据确认顶层对象恰好包含 paid_count 和 paid_total 两个字段且无其他字段",
+          "证据中的两个值与 S3 的计算结果一致"
+        ],
+        "write_roots": []
+      }
+    },
+    "S6": {
+      "completed": false,
+      "revision": 1,
+      "step": {
+        "allowed_operations": [],
+        "constraints": [
+          "仅报告已由重新读取证据确认的值",
+          "文件路径使用项目相对路径 summary.json"
+        ],
+        "depends_on": [
+          "S5"
+        ],
+        "objective": "绑定最终验证证据，以便报告 summary.json 的项目相对路径及 paid_count、paid_total 两个值",
+        "obligation_ids": [],
+        "phase": "derive_evidence",
+        "read_roots": [],
+        "stage": 6,
+        "step_id": "S6",
+        "success_evidence": [
+          "证据明确绑定文件路径 summary.json 与重新读取验证过的 paid_count、paid_total 值",
+          "所绑定的值与 summary.json 的实际内容及先前计算一致"
+        ],
+        "write_roots": []
+      }
+    }
+  },
+  "terminal": [
+    {
+      "event_id": "CE-000054",
+      "event_type": "run_blocked",
+      "payload": {
+        "at": "2026-09-04T11:18:51.647+00:00",
+        "continuation": "explicit_manual_resume_only",
+        "controller_rewritten": false,
+        "decision_id": "",
+        "final_output": "",
+        "final_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_source": "none",
+        "reason": "identical_success_budget_exhausted",
+        "resumable": true,
+        "termination_permitted": false
+      }
+    }
+  ]
+}
