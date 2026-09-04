@@ -1,4 +1,0 @@
-# Tasks
-- [ ] inspect
-- [ ] repair
-- [ ] verify
