@@ -1885,6 +1885,8 @@ class LongHorizonModel:
                 raise ModelProtocolError(
                     "independent Selector eligibility override is empty or unauthorized"
                 )
+            if eligible != {"final_answer"}:
+                eligible.add(NETWORK_ABSTAIN_LABEL)
         eligible_labels = tuple(
             label for label in NETWORK_EXACT_TOOL_LABELS if label in eligible
         )

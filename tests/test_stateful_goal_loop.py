@@ -891,10 +891,63 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
 
     assert "read_file" in read_operations
     assert "check_command" in read_operations
+    assert "run_command" not in read_operations
     assert "write_file" not in read_operations
     assert "remove_line" not in read_operations
     assert "delete_file" not in read_operations
     assert "write_file" in write_operations
+
+
+def test_goal_selector_abstain_blocks_without_executor_or_protocol_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-SELECTOR-ABSTAIN")
+    session = ModelSession(
+        _QueueClient([]),
+        settings=_settings(progressive=True),
+    )
+    selector = _selector(["ABSTAIN"])
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=10,
+    )
+
+    result = controller.run(state.run_id)
+
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert result.state.status.value == "blocked"
+    assert not result.state.actions
+    assert result.state.protocol_rejections == 0
+    assert not session.client.prompts
+    assert len(selector._session.payloads) == 1
+    assert selector._session.payloads[0]["eligible_labels"][-1] == "ABSTAIN"
+    rejected = [
+        event
+        for event in events
+        if event.event_type == "exact_tool_selection_rejected"
+    ]
+    assert len(rejected) == 1
+    assert rejected[0].payload["reason"] == "selector_abstained"
+    assert not any(
+        event.event_type == "protocol_rejection_recorded" for event in events
+    )
+    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
+    assert blocked.payload["reason"] == "selector_abstained"
 
 
 def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
@@ -1211,6 +1264,106 @@ def test_missing_planner_read_evidence_skips_auditor_and_continues_same_goal(
     )
     assert executor_starts[1].payload["causal_fact_action_ids"] == ["A00001"]
     assert rolling_goal_plan(result.state).complete is True
+
+
+def test_identical_goal_action_failures_block_at_existing_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-FAILURE")
+    (Path(state.goal.workspace_root) / "invalid.json").write_text(
+        "{not-json\n",
+        encoding="utf-8",
+    )
+    failed_command = json.dumps(
+        {
+            "function": "read_json",
+            "params": {"path": "invalid.json"},
+        }
+    )
+    session = ModelSession(
+        _QueueClient([failed_command] * 5),
+        settings=_settings(progressive=True),
+    )
+    selector = _selector(["read_json"] * 5)
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=30,
+    )
+
+    result = controller.run(state.run_id)
+
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert result.state.status.value == "blocked"
+    assert len(result.state.actions) == 5
+    assert len(selector._session.payloads) == 5
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 4
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 4
+    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
+    assert blocked.payload["reason"] == "identical_failure_budget_exhausted"
+    assert controller._pending_audit_boundary(result.state) is None
+
+
+def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-SUCCESS")
+    zero_progress_command = json.dumps(
+        {
+            "function": "list_directory",
+            "params": {"path": ".", "recursive": False},
+        }
+    )
+    session = ModelSession(
+        _QueueClient([zero_progress_command] * 3),
+        settings=_settings(progressive=True),
+    )
+    selector = _selector(["list_directory"] * 3)
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    )
+
+    result = controller.run(state.run_id)
+
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert result.state.status.value == "blocked"
+    assert len(result.state.actions) == 3
+    assert len(selector._session.payloads) == 3
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
+    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
+    assert blocked.payload["reason"] == "identical_success_budget_exhausted"
+    assert controller._pending_audit_boundary(result.state) is None
 
 
 def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_final(
@@ -2403,6 +2556,10 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
         item["name"] == "write_file" and item["description"]
         for item in frontier_state["eligible_tools"]
     )
+    second_executor_prompt = session.client.prompts[1]
+    assert '"missing_write_roots":["result.txt"]' in second_executor_prompt
+    assert '"completion_preconditions_satisfied":false' in second_executor_prompt
+    assert '"completion_authority":false' in second_executor_prompt
 
 
 def test_stage_repair_survives_planner_outage_and_resumes_before_final(

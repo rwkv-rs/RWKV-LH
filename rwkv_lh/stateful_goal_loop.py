@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from rwkv_lh.controller import ControllerResult, LongHorizonController
+from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_ABSTAIN_LABEL
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     goal_frontier_selector_context,
@@ -323,10 +324,7 @@ class StatefulGoalLoopController(LongHorizonController):
         return tuple(
             operation
             for operation in operations
-            if not (
-                (definition := self.harness.definition(operation)).side_effect
-                and definition.side_effect_class == "workspace_mutation"
-            )
+            if not self.harness.definition(operation).side_effect
         )
 
     def _pending_executor_protocol_retry(
@@ -1468,6 +1466,11 @@ class StatefulGoalLoopController(LongHorizonController):
                             active_step_id, 1
                         )
                         current_requirement = frontier.objective
+                        mechanical_evidence = self._step_mechanical_evidence_coverage(
+                            state,
+                            active_step_id,
+                            active_step_revision,
+                        )
                         guidance = ModelEvent(
                             event_type="goal_frontier_assignment",
                             event_id=f"EV-GOAL-FRONTIER-{uuid4().hex[:16]}",
@@ -1477,6 +1480,7 @@ class StatefulGoalLoopController(LongHorizonController):
                                     **frontier.to_dict(),
                                     "step_revision": active_step_revision,
                                 },
+                                "mechanical_evidence": mechanical_evidence,
                                 "instruction": (
                                     "Execute only this one active step. Do not audit, replan, "
                                     "judge completion, or consider another plan step."
@@ -1544,6 +1548,16 @@ class StatefulGoalLoopController(LongHorizonController):
                         step_revision=active_step_revision,
                         patch_ids=plan.patch_ids,
                     )
+                    if (
+                        action.failure_key
+                        and state.failure_budgets.get(action.failure_key, 0)
+                        >= self._MAX_IDENTICAL_FAILURES
+                    ):
+                        return self._block(
+                            state,
+                            "identical_failure_budget_exhausted",
+                            transitions,
+                        )
                     definition = self.harness.definition(action.action_type)
                     mutation = (
                         definition.side_effect
@@ -1552,6 +1566,21 @@ class StatefulGoalLoopController(LongHorizonController):
                     repeated = state.observation_counts.get(
                         action.observation_fingerprint, 0
                     )
+                    if (
+                        action.status is ActionStatus.SUCCEEDED
+                        and definition.read_only
+                        and not definition.side_effect
+                        and bool(action.workspace_digest_before)
+                        and action.workspace_digest_before
+                        == action.workspace_digest_after
+                        and repeated
+                        >= self._MAX_IDENTICAL_ZERO_PROGRESS_SUCCESSES
+                    ):
+                        return self._block(
+                            state,
+                            "identical_success_budget_exhausted",
+                            transitions,
+                        )
                     boundary = (
                         "tool_failure"
                         if action.status is not ActionStatus.SUCCEEDED
@@ -1589,6 +1618,11 @@ class StatefulGoalLoopController(LongHorizonController):
                 except ModelProtocolError as exc:
                     transitions += 1
                     pending_protocol_audit = self._pending_audit_boundary(state)
+                    if (
+                        pending_protocol_audit is None
+                        and exc.selected_operation == NETWORK_ABSTAIN_LABEL
+                    ):
+                        return self._block(state, "selector_abstained", transitions)
                     self._persist(
                         state,
                         "protocol_rejection_recorded",
