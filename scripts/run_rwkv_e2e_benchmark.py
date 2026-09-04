@@ -2402,9 +2402,9 @@ def parse_args() -> argparse.Namespace:
         "--stateful-goal",
         action="store_true",
         help=(
-            "run RWKV Stateful Goal Loop v3: one clean 13.3B Executor State per "
-            "selected action, one exact Selector decision, and separate "
-            "non-merged RWKV Auditor States"
+            "run RWKV Stateful Goal Loop v4: one clean 13.3B Executor State per "
+            "selected action, one exact decision from three independent fixed-order "
+            "Selector States, and separate non-merged RWKV Auditor States"
         ),
     )
     parser.add_argument(

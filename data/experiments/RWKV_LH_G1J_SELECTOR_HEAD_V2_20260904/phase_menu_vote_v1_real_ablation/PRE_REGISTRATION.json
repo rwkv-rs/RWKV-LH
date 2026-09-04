@@ -1,0 +1,92 @@
+{
+  "schema_version": "rwkv-lh.phase-menu-vote-real-ablation.v1",
+  "registered_at": "2026-09-04T16:28:55+08:00",
+  "purpose": "Measure whether Planner phase routing, executable-only Selector eligibility, and three fixed menu-order votes restore full-chain progress without StateTune.",
+  "pre_registration_parent_commit": "70353edcc0e64bfdfd1de77939efe5555d0125a9",
+  "change_under_test": {
+    "architecture": "rwkv-stateful-goal-loop.v4",
+    "planner_protocol": "rwkv-lh.goal-plan-patch.v3",
+    "planner_phase_values": [
+      "observe",
+      "mutate",
+      "execute",
+      "derive_evidence"
+    ],
+    "selector_menu_order_ids": [
+      "canonical",
+      "rotate_8",
+      "rotate_17"
+    ],
+    "selector_vote_rule": "majority; a three-way tie uses median canonical rank, then median standardized logit, then canonical class order",
+    "abstain_policy": "ABSTAIN remains observable in raw Head logits but is not eligible during an executable frontier",
+    "statetune_change": false
+  },
+  "fixed_dataset": {
+    "suite": "agentladderv1",
+    "case_ids": [
+      "AGENT-LADDER-L1-FIX01"
+    ],
+    "visible_tasks": {
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_capability_ladder_v1/tasks.json",
+      "sha256": "23cf009831fb38dd05bd3fad69e246a822a59ab6bd725833c6df2aaaf45c93bb",
+      "source": "repository capability-ladder benchmark",
+      "version": "RWKV-LH-AGENT-CAPABILITY-LADDER-V1",
+      "use": "model-visible task request"
+    },
+    "hidden_acceptance": {
+      "path": "benchmarks/rwkv_e2e/rwkv_agent_capability_ladder_v1/acceptance.json",
+      "sha256": "f95da0b4085cdee3bc4555255dfb4f09d9272c00982634c72a040361c5774e06",
+      "source": "repository capability-ladder benchmark",
+      "version": "RWKV-LH-AGENT-CAPABILITY-LADDER-V1",
+      "use": "post-execution strict acceptance only; unavailable during generation"
+    },
+    "reference_answers": {
+      "path": "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json",
+      "sha256": "947a4b495951374b4d83a1029a2e3196e98c277e2c5d815919bdc58bf482d89b",
+      "source": "fixed repository reference set",
+      "version": "rwkv_e2e_90_v1",
+      "use": "post-run comparison only"
+    }
+  },
+  "fixed_runtime": {
+    "planner_model": "gpt-5.6-sol",
+    "planner_cache_enabled": false,
+    "executor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "executor_profile_id": "zero",
+    "selector_model": "rwkv7-g1j-2.9b-vllm-v1",
+    "selector_model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+    "selector_head_file_sha256": "49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a",
+    "selector_head_logical_hash": "ef83fd7bf9340977f2ae16d95899690addf3446467ea43a138c61f0926c69bdd",
+    "selector_profile_id": "zero",
+    "max_whole_chain_runs": 3,
+    "max_transitions_per_run": 240,
+    "concurrency": 1,
+    "tool_disclosure_mode": "progressive",
+    "temperature": 0.05,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "fixed_metrics": {
+    "primary": "strict benchmark acceptance pass",
+    "success_threshold": "at least one of at most three whole-chain runs passes strict acceptance",
+    "required_diagnostics": [
+      "Planner patch validity and phase sequence",
+      "per-order Selector label and raw logits",
+      "three-order vote result",
+      "action count and Executor request count",
+      "action protocol rejection count",
+      "terminal state and block reason"
+    ],
+    "reference_similarity_algorithm": "utf8-byte-5gram-cosine.v1",
+    "reference_similarity_role": "diagnostic only; never overrides strict acceptance"
+  },
+  "stopping_rule": "Stop after the first strict pass or after three whole-chain runs. If none passes, report the best run by completed audited steps, then action count, then fewer protocol rejections; do not tune weights, thresholds, prompts, or StateTune data between runs.",
+  "generation": {
+    "working_directory": "/home/chase/GitHub/RWKV-LH",
+    "command_template": "/home/chase/.local/bin/uv run rwkv-lh-e2e --output <run_directory> --supervisor openai --supervisor-strategy goal_stages --suite agentladderv1 --case AGENT-LADDER-L1-FIX01 --max-transitions 240 --tool-disclosure-mode progressive --concurrency 1 --independent-selector --stateful-goal",
+    "run_directory_policy": "run_01 through run_03 are new immutable directories; never overwrite a prior run"
+  }
+}
