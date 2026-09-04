@@ -1,0 +1,801 @@
+{
+  "schema_version": "rwkv-e2e.causal-ledger.v3",
+  "policy": {
+    "semantic_inference": false,
+    "records_rewritten": false,
+    "linkage_only": true,
+    "hidden_acceptance_included": false
+  },
+  "request_order": [],
+  "requests": [],
+  "actions": {},
+  "causal_events": [
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000001",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 1,
+      "parent_id": null,
+      "cause_id": null,
+      "subject_id": "AGENT-LADDER-L1-FIX01",
+      "event_type": "run_created",
+      "payload_schema": "rwkv-lh.run-created.v1",
+      "payload": {
+        "goal_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064"
+      },
+      "created_at": "2026-09-04T03:11:47.166+00:00",
+      "digest": "966f3e83d1297dc4d43aa0be8a354b958691148e976dca7fd6a66d9024e4e069"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000002",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 2,
+      "parent_id": "CE-000001",
+      "cause_id": "CE-000001",
+      "subject_id": "AGENT-LADDER-L1-FIX01",
+      "event_type": "run_started",
+      "payload_schema": "rwkv-lh.run-started.v1",
+      "payload": {
+        "architecture": "rwkv-stateful-goal-loop.v3",
+        "persistent_executor_state_count": 0,
+        "executor_state_scope": "one_selected_action",
+        "executor_facts_source": "bounded_causal_projection",
+        "selector_state_isolated": true,
+        "selector_authority": "exclusive_tool_intent_and_selection",
+        "executor_reselects_tool": false,
+        "selector_model": "rwkv7-g1j-2.9b-vllm-v1",
+        "planner": {
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol"
+        },
+        "planner_contract": "rwkv-lh.goal-plan-patch.v2",
+        "step_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "finalizer_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "final_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "auditor_state_source": "clean_boundary_bootstrap",
+        "auditor_inherits_executor_state": false,
+        "audit_wkv_merge": false,
+        "strong_model_dependency": true,
+        "strong_model_role": "planner_and_read_only_stage_checker",
+        "plan_stage_format": "nested_stages_with_peer_steps",
+        "stage_barriers": true,
+        "parallel_mutations": false,
+        "resumed": false,
+        "protocol_rejection_budget_reset": false,
+        "supersedes_terminal_event_id": ""
+      },
+      "created_at": "2026-09-04T03:11:48.393+00:00",
+      "digest": "7cdf88d4ab47f27eb00d83b1828d6b9297362277c073e2f125a45cf3ddb5de5d"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000003",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 3,
+      "parent_id": "CE-000002",
+      "cause_id": "CE-000002",
+      "subject_id": "GPP-c46ee8156abe4e29",
+      "event_type": "goal_plan_patch_committed",
+      "payload_schema": "rwkv-lh.goal-plan-patch-committed.v1",
+      "payload": {
+        "patch_id": "GPP-c46ee8156abe4e29",
+        "patch": {
+          "schema_version": "rwkv-lh.goal-plan-patch.v2",
+          "patch_id": "GPP-c46ee8156abe4e29",
+          "base_revision": 0,
+          "add_stages": [
+            {
+              "stage": 1,
+              "steps": [
+                {
+                  "step_id": "S1",
+                  "objective": "阅读 pricing.py 与公开验证器，确认现有折扣计算、输入校验、函数接口及验证要求，定位负数根因",
+                  "depends_on": [],
+                  "success_evidence": [
+                    "已记录导致生产样例折扣为负数的具体逻辑及验证器要求"
+                  ],
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py"
+                  ],
+                  "write_roots": [],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "不得修改 verify_project.py"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 2,
+              "steps": [
+                {
+                  "step_id": "S2",
+                  "objective": "修复 pricing.py 中的通用计价与输入校验，使折扣计算符合公开接口和边界要求并避免产生非法负数",
+                  "depends_on": [
+                    "S1"
+                  ],
+                  "success_evidence": [
+                    "pricing.py 已实现通用计价修复和输入校验，覆盖验证器要求的边界场景"
+                  ],
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py"
+                  ],
+                  "write_roots": [
+                    "pricing.py"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "保持公开函数接口兼容",
+                    "不得修改 verify_project.py"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 3,
+              "steps": [
+                {
+                  "step_id": "S3",
+                  "objective": "补充 README，说明计价规则、折扣限制、输入校验行为及使用示例",
+                  "depends_on": [
+                    "S2"
+                  ],
+                  "success_evidence": [
+                    "README 已包含修复后的计价规则、校验约束和可执行示例说明"
+                  ],
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py"
+                  ],
+                  "write_roots": [
+                    "README.md"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "文档内容必须与 pricing.py 的实际行为一致"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 4,
+              "steps": [
+                {
+                  "step_id": "S4",
+                  "objective": "运行公开验证器并在失败时针对 pricing.py 进行必要修正，重复验证直至通过",
+                  "depends_on": [
+                    "S3"
+                  ],
+                  "success_evidence": [
+                    "python verify_project.py 执行成功并报告全部验证通过"
+                  ],
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py",
+                    "README.md"
+                  ],
+                  "write_roots": [
+                    "pricing.py"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "不得修改 verify_project.py",
+                    "最终必须以 python verify_project.py 通过为准"
+                  ]
+                }
+              ]
+            }
+          ],
+          "replace_stages": [],
+          "discard_step_ids": [],
+          "reason": "先读取公开验证器和实现以确定约束，再修复计价逻辑与校验，补充文档，最后运行验证器直至通过。"
+        },
+        "plan_revision": 1,
+        "request_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064",
+        "supervisor": {
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol"
+        },
+        "planner_only": true,
+        "rwkv_action_authority": true,
+        "replaced_step_ids": [],
+        "discarded_step_ids": [],
+        "source_audit_id": "",
+        "source_stage_review_id": ""
+      },
+      "created_at": "2026-09-04T03:11:48.406+00:00",
+      "digest": "def3a515e069dfa4464c46acc5dd5c158ea8bb150a5eab46006134195e12d876"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000004",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 4,
+      "parent_id": "CE-000003",
+      "cause_id": "CE-000003",
+      "subject_id": "LANE:ACTION",
+      "event_type": "action_session_started",
+      "payload_schema": "rwkv-lh.action-session-started.v1",
+      "payload": {
+        "lane_id": "LANE:ACTION",
+        "checkpoint_id": "CP-a2e2cd1fda124128",
+        "literal_request_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064",
+        "direct_operation_count": 23,
+        "online_task_graph": false,
+        "reviewer": false,
+        "tool_disclosure_mode": "progressive"
+      },
+      "created_at": "2026-09-04T03:11:48.713+00:00",
+      "digest": "d30c94e9316824bd8a706cdc817382a3bc1854dd2f56484ab5e8c307200158ea"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000005",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 5,
+      "parent_id": "CE-000004",
+      "cause_id": "CE-000004",
+      "subject_id": "EV-GOAL-FRONTIER-de7d861eb6df49c1",
+      "event_type": "action_observation_appended",
+      "payload_schema": "rwkv-lh.model-event-appended.v1",
+      "payload": {
+        "event_id": "EV-GOAL-FRONTIER-de7d861eb6df49c1",
+        "event_type": "goal_frontier_assignment",
+        "checkpoint_id": "CP-8b0dbe7149304ef4",
+        "model_event": {
+          "event_type": "goal_frontier_assignment",
+          "event_version": "rwkv-lh.event.v2",
+          "event_id": "EV-GOAL-FRONTIER-de7d861eb6df49c1",
+          "scope_id": "LANE:ACTION",
+          "payload": {
+            "active_step": {
+              "step_id": "S1",
+              "objective": "阅读 pricing.py 与公开验证器，确认现有折扣计算、输入校验、函数接口及验证要求，定位负数根因",
+              "stage": 1,
+              "depends_on": [],
+              "success_evidence": [
+                "已记录导致生产样例折扣为负数的具体逻辑及验证器要求"
+              ],
+              "obligation_ids": [],
+              "read_roots": [
+                "pricing.py",
+                "verify_project.py"
+              ],
+              "write_roots": [],
+              "allowed_operations": [],
+              "constraints": [
+                "不得修改 verify_project.py"
+              ],
+              "step_revision": 1
+            },
+            "instruction": "Execute only this one active step. Do not audit, replan, judge completion, or consider another plan step."
+          },
+          "content_refs": [],
+          "complete": true
+        }
+      },
+      "created_at": "2026-09-04T03:11:48.983+00:00",
+      "digest": "a50596359ebffec24989819a3ac46a75b2462b2d8eebc8d560769cd14913c31e"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000006",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 6,
+      "parent_id": "CE-000005",
+      "cause_id": "CE-000005",
+      "subject_id": "NSEL-45988fa98b3c63ed0b5e4dd4",
+      "event_type": "exact_tool_selection_rejected",
+      "payload_schema": "rwkv-lh.exact-tool-selection-rejected.v1",
+      "payload": {
+        "selection_id": "NSEL-45988fa98b3c63ed0b5e4dd4",
+        "selected_operation": "ABSTAIN",
+        "reason": "selector_abstained",
+        "raw_selection": {
+          "schema_version": "rwkv-lh.exact-tool-selector-output.v3",
+          "selection_id": "NSEL-45988fa98b3c63ed0b5e4dd4",
+          "trace_id": "SELTRACE-8c8d0f2a00964e01",
+          "class_order": [
+            "list_directory",
+            "search_text",
+            "read_file",
+            "read_json",
+            "file_digest",
+            "write_file",
+            "write_json",
+            "patch_json",
+            "replace_text",
+            "remove_line",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file",
+            "bind_evidence",
+            "check_command",
+            "run_command",
+            "web_search",
+            "connector_lookup",
+            "calculator",
+            "date_diff",
+            "current_time",
+            "final_answer",
+            "ABSTAIN"
+          ],
+          "eligible_labels": [
+            "list_directory",
+            "search_text",
+            "read_file",
+            "read_json",
+            "file_digest",
+            "bind_evidence",
+            "check_command",
+            "calculator",
+            "date_diff",
+            "current_time",
+            "ABSTAIN"
+          ],
+          "selection_rule": "eligible_raw_logit_argmax",
+          "logits": [
+            -0.8664847016334534,
+            -1.1140108108520508,
+            0.4133441150188446,
+            -3.07694411277771,
+            1.0061579942703247,
+            -3.0855295658111572,
+            -2.1923179626464844,
+            2.2300150394439697,
+            1.932270884513855,
+            0.585527241230011,
+            -1.741334080696106,
+            -0.9229260683059692,
+            -0.44529783725738525,
+            1.6887850761413574,
+            1.8988016843795776,
+            -0.05028627812862396,
+            -0.7278251647949219,
+            -0.9242556691169739,
+            -2.4701902866363525,
+            -0.1029045507311821,
+            0.28357377648353577,
+            0.9046902656555176,
+            -2.234658718109131,
+            -0.8857092261314392,
+            5.525430679321289
+          ],
+          "logits_sha256": "d0fa738428458f0b248a5cfb023278267c87ad5d42dc8bbc6962d6a80bb02dd3",
+          "temperature": 1.0,
+          "selected_operation": "ABSTAIN",
+          "confidence": 0.8518835041612606,
+          "input_digest": "4e8dbdfb0857bc63d1225086e274acf18d3dda6a2cfd3c2666d179b908f2f5f6",
+          "menu_digest": "e8d5431217cc8b7b87814358b72f0a6172eb08de2fe99bc58ad99a5cc32f86a4",
+          "selector_checkpoint_id": "NSCP-45988fa98b3c63ed0b5e4dd4",
+          "selector_state_ref": "NST-45988fa98b3c63ed0b5e4dd42c8561ec.pth",
+          "selector_state_digest": "88557231e14c801cf497a109311fc313553dd34a42f28406b16d8e2b001f49b5",
+          "selector_parent_state_digest": "",
+          "token_position": 1455,
+          "model": "rwkv7-g1j-2.9b-vllm-v1",
+          "model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+          "head_sha256": "49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a",
+          "profile_id": "zero",
+          "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "postprocessed": false,
+          "generated_text": false
+        },
+        "selector_checkpoint_id": "NSCP-45988fa98b3c63ed0b5e4dd4",
+        "executor_parent_checkpoint_id": "CP-8b0dbe7149304ef4",
+        "action_executed": false
+      },
+      "created_at": "2026-09-04T03:11:49.796+00:00",
+      "digest": "a465cb1ba6c4a8b5bc84609616f8241c226720ae71009bd5c5e9c6adfcf24fd4"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000007",
+      "run_id": "AGENT-LADDER-L1-FIX01",
+      "sequence": 7,
+      "parent_id": "CE-000006",
+      "cause_id": "CE-000006",
+      "subject_id": "AGENT-LADDER-L1-FIX01",
+      "event_type": "run_blocked",
+      "payload_schema": "rwkv-lh.run-terminal.v1",
+      "payload": {
+        "reason": "selector_abstained",
+        "decision_id": "",
+        "output_source": "none",
+        "controller_rewritten": false,
+        "final_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_output": "",
+        "resumable": true,
+        "termination_permitted": false,
+        "continuation": "explicit_manual_resume_only",
+        "at": "2026-09-04T03:11:49.804+00:00"
+      },
+      "created_at": "2026-09-04T03:11:49.805+00:00",
+      "digest": "5c90fb796771254422570f6e9a087115e223d9012e5c6ffdb14bf926a7a22cda"
+    }
+  ],
+  "event_revision_sequence": [
+    {
+      "event_index": 0,
+      "revision": 0,
+      "event_type": "run_created",
+      "event_data": {
+        "goal_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064"
+      },
+      "state_sha256": "b85d879829069fac912f5ee9fbf192e6fcc83d2145ffa71cdca5de23522bb8e1",
+      "state_change_count": 0,
+      "state_change_digest": "1c7b0be7cfcb529d61df7c7b50baa91e6919dcf0eba40e68669653ab2880c711"
+    },
+    {
+      "event_index": 1,
+      "revision": 1,
+      "event_type": "run_started",
+      "event_data": {
+        "architecture": "rwkv-stateful-goal-loop.v3",
+        "audit_wkv_merge": false,
+        "auditor_inherits_executor_state": false,
+        "auditor_state_source": "clean_boundary_bootstrap",
+        "executor_facts_source": "bounded_causal_projection",
+        "executor_reselects_tool": false,
+        "executor_state_scope": "one_selected_action",
+        "final_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "finalizer_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "parallel_mutations": false,
+        "persistent_executor_state_count": 0,
+        "plan_stage_format": "nested_stages_with_peer_steps",
+        "planner": {
+          "model": "gpt-5.6-sol",
+          "provider": "openai_compatible"
+        },
+        "planner_contract": "rwkv-lh.goal-plan-patch.v2",
+        "protocol_rejection_budget_reset": false,
+        "resumed": false,
+        "selector_authority": "exclusive_tool_intent_and_selection",
+        "selector_model": "rwkv7-g1j-2.9b-vllm-v1",
+        "selector_state_isolated": true,
+        "stage_barriers": true,
+        "step_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "strong_model_dependency": true,
+        "strong_model_role": "planner_and_read_only_stage_checker",
+        "supersedes_terminal_event_id": ""
+      },
+      "state_sha256": "12d08c04e45a797cec9f9600eab21ed61219a1d59baa31f0841d6070a67851b9",
+      "state_change_count": 6,
+      "state_change_digest": "f8ccd2afcdbd16203fb98705640f93378ed640b24c5227a81645321ee0e454c3"
+    },
+    {
+      "event_index": 2,
+      "revision": 2,
+      "event_type": "goal_plan_patch_committed",
+      "event_data": {
+        "discarded_step_ids": [],
+        "patch": {
+          "add_stages": [
+            {
+              "stage": 1,
+              "steps": [
+                {
+                  "allowed_operations": [],
+                  "constraints": [
+                    "不得修改 verify_project.py"
+                  ],
+                  "depends_on": [],
+                  "objective": "阅读 pricing.py 与公开验证器，确认现有折扣计算、输入校验、函数接口及验证要求，定位负数根因",
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py"
+                  ],
+                  "step_id": "S1",
+                  "success_evidence": [
+                    "已记录导致生产样例折扣为负数的具体逻辑及验证器要求"
+                  ],
+                  "write_roots": []
+                }
+              ]
+            },
+            {
+              "stage": 2,
+              "steps": [
+                {
+                  "allowed_operations": [],
+                  "constraints": [
+                    "保持公开函数接口兼容",
+                    "不得修改 verify_project.py"
+                  ],
+                  "depends_on": [
+                    "S1"
+                  ],
+                  "objective": "修复 pricing.py 中的通用计价与输入校验，使折扣计算符合公开接口和边界要求并避免产生非法负数",
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py"
+                  ],
+                  "step_id": "S2",
+                  "success_evidence": [
+                    "pricing.py 已实现通用计价修复和输入校验，覆盖验证器要求的边界场景"
+                  ],
+                  "write_roots": [
+                    "pricing.py"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 3,
+              "steps": [
+                {
+                  "allowed_operations": [],
+                  "constraints": [
+                    "文档内容必须与 pricing.py 的实际行为一致"
+                  ],
+                  "depends_on": [
+                    "S2"
+                  ],
+                  "objective": "补充 README，说明计价规则、折扣限制、输入校验行为及使用示例",
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py"
+                  ],
+                  "step_id": "S3",
+                  "success_evidence": [
+                    "README 已包含修复后的计价规则、校验约束和可执行示例说明"
+                  ],
+                  "write_roots": [
+                    "README.md"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 4,
+              "steps": [
+                {
+                  "allowed_operations": [],
+                  "constraints": [
+                    "不得修改 verify_project.py",
+                    "最终必须以 python verify_project.py 通过为准"
+                  ],
+                  "depends_on": [
+                    "S3"
+                  ],
+                  "objective": "运行公开验证器并在失败时针对 pricing.py 进行必要修正，重复验证直至通过",
+                  "obligation_ids": [],
+                  "read_roots": [
+                    "pricing.py",
+                    "verify_project.py",
+                    "README.md"
+                  ],
+                  "step_id": "S4",
+                  "success_evidence": [
+                    "python verify_project.py 执行成功并报告全部验证通过"
+                  ],
+                  "write_roots": [
+                    "pricing.py"
+                  ]
+                }
+              ]
+            }
+          ],
+          "base_revision": 0,
+          "discard_step_ids": [],
+          "patch_id": "GPP-c46ee8156abe4e29",
+          "reason": "先读取公开验证器和实现以确定约束，再修复计价逻辑与校验，补充文档，最后运行验证器直至通过。",
+          "replace_stages": [],
+          "schema_version": "rwkv-lh.goal-plan-patch.v2"
+        },
+        "patch_id": "GPP-c46ee8156abe4e29",
+        "plan_revision": 1,
+        "planner_only": true,
+        "replaced_step_ids": [],
+        "request_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064",
+        "rwkv_action_authority": true,
+        "source_audit_id": "",
+        "source_stage_review_id": "",
+        "supervisor": {
+          "model": "gpt-5.6-sol",
+          "provider": "openai_compatible"
+        }
+      },
+      "state_sha256": "130b7f61d7bc94567a26ce04da355bb5464239c3f31293bb6fb8ea74184bf64c",
+      "state_change_count": 4,
+      "state_change_digest": "cac6daa9b71dd9214115370c5f3ae2a75ec4dacc486a2f01027ede461804a46e"
+    },
+    {
+      "event_index": 3,
+      "revision": 3,
+      "event_type": "action_session_started",
+      "event_data": {
+        "checkpoint_id": "CP-a2e2cd1fda124128",
+        "direct_operation_count": 23,
+        "lane_id": "LANE:ACTION",
+        "literal_request_digest": "e2518325b0caed2a37fa7429284a2ec3d10e159905fabe34a68fb2671ed1b064",
+        "online_task_graph": false,
+        "reviewer": false,
+        "tool_disclosure_mode": "progressive"
+      },
+      "state_sha256": "326aea99039ab057020978401e6d9eee01e65b2e269d913200f9ddbc662475a6",
+      "state_change_count": 7,
+      "state_change_digest": "9b0bcb9c5b5b28244274473a21948acfb034a15b0b7643361d01050a7208f1b3"
+    },
+    {
+      "event_index": 4,
+      "revision": 4,
+      "event_type": "action_observation_appended",
+      "event_data": {
+        "checkpoint_id": "CP-8b0dbe7149304ef4",
+        "event_id": "EV-GOAL-FRONTIER-de7d861eb6df49c1",
+        "event_type": "goal_frontier_assignment",
+        "model_event": {
+          "complete": true,
+          "content_refs": [],
+          "event_id": "EV-GOAL-FRONTIER-de7d861eb6df49c1",
+          "event_type": "goal_frontier_assignment",
+          "event_version": "rwkv-lh.event.v2",
+          "payload": {
+            "active_step": {
+              "allowed_operations": [],
+              "constraints": [
+                "不得修改 verify_project.py"
+              ],
+              "depends_on": [],
+              "objective": "阅读 pricing.py 与公开验证器，确认现有折扣计算、输入校验、函数接口及验证要求，定位负数根因",
+              "obligation_ids": [],
+              "read_roots": [
+                "pricing.py",
+                "verify_project.py"
+              ],
+              "stage": 1,
+              "step_id": "S1",
+              "step_revision": 1,
+              "success_evidence": [
+                "已记录导致生产样例折扣为负数的具体逻辑及验证器要求"
+              ],
+              "write_roots": []
+            },
+            "instruction": "Execute only this one active step. Do not audit, replan, judge completion, or consider another plan step."
+          },
+          "scope_id": "LANE:ACTION"
+        }
+      },
+      "state_sha256": "81788e12177cf8da9beac8e7d6527c8b4c735ff731c691d6ec91fdbcfae59897",
+      "state_change_count": 9,
+      "state_change_digest": "fa676569af77947555bc0df5b6f6d7cf7ee8f9f21f4c7ed8b3226f64de575bfb"
+    },
+    {
+      "event_index": 5,
+      "revision": 5,
+      "event_type": "exact_tool_selection_rejected",
+      "event_data": {
+        "action_executed": false,
+        "executor_parent_checkpoint_id": "CP-8b0dbe7149304ef4",
+        "raw_selection": {
+          "class_order": [
+            "list_directory",
+            "search_text",
+            "read_file",
+            "read_json",
+            "file_digest",
+            "write_file",
+            "write_json",
+            "patch_json",
+            "replace_text",
+            "remove_line",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file",
+            "bind_evidence",
+            "check_command",
+            "run_command",
+            "web_search",
+            "connector_lookup",
+            "calculator",
+            "date_diff",
+            "current_time",
+            "final_answer",
+            "ABSTAIN"
+          ],
+          "confidence": 0.8518835041612606,
+          "eligible_labels": [
+            "list_directory",
+            "search_text",
+            "read_file",
+            "read_json",
+            "file_digest",
+            "bind_evidence",
+            "check_command",
+            "calculator",
+            "date_diff",
+            "current_time",
+            "ABSTAIN"
+          ],
+          "generated_text": false,
+          "head_sha256": "49538a32162941a256f1075ea465b52bda5ddc07e9e4001f94268f7c4368892a",
+          "input_digest": "4e8dbdfb0857bc63d1225086e274acf18d3dda6a2cfd3c2666d179b908f2f5f6",
+          "logits": [
+            -0.8664847016334534,
+            -1.1140108108520508,
+            0.4133441150188446,
+            -3.07694411277771,
+            1.0061579942703247,
+            -3.0855295658111572,
+            -2.1923179626464844,
+            2.2300150394439697,
+            1.932270884513855,
+            0.585527241230011,
+            -1.741334080696106,
+            -0.9229260683059692,
+            -0.44529783725738525,
+            1.6887850761413574,
+            1.8988016843795776,
+            -0.05028627812862396,
+            -0.7278251647949219,
+            -0.9242556691169739,
+            -2.4701902866363525,
+            -0.1029045507311821,
+            0.28357377648353577,
+            0.9046902656555176,
+            -2.234658718109131,
+            -0.8857092261314392,
+            5.525430679321289
+          ],
+          "logits_sha256": "d0fa738428458f0b248a5cfb023278267c87ad5d42dc8bbc6962d6a80bb02dd3",
+          "menu_digest": "e8d5431217cc8b7b87814358b72f0a6172eb08de2fe99bc58ad99a5cc32f86a4",
+          "model": "rwkv7-g1j-2.9b-vllm-v1",
+          "model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+          "postprocessed": false,
+          "profile_id": "zero",
+          "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "schema_version": "rwkv-lh.exact-tool-selector-output.v3",
+          "selected_operation": "ABSTAIN",
+          "selection_id": "NSEL-45988fa98b3c63ed0b5e4dd4",
+          "selection_rule": "eligible_raw_logit_argmax",
+          "selector_checkpoint_id": "NSCP-45988fa98b3c63ed0b5e4dd4",
+          "selector_parent_state_digest": "",
+          "selector_state_digest": "88557231e14c801cf497a109311fc313553dd34a42f28406b16d8e2b001f49b5",
+          "selector_state_ref": "NST-45988fa98b3c63ed0b5e4dd42c8561ec.pth",
+          "temperature": 1.0,
+          "token_position": 1455,
+          "trace_id": "SELTRACE-8c8d0f2a00964e01"
+        },
+        "reason": "selector_abstained",
+        "selected_operation": "ABSTAIN",
+        "selection_id": "NSEL-45988fa98b3c63ed0b5e4dd4",
+        "selector_checkpoint_id": "NSCP-45988fa98b3c63ed0b5e4dd4"
+      },
+      "state_sha256": "b3254cf2ee313a4db9fa0f1a8accefce75b07916ee4f9a8aa235200161369ee4",
+      "state_change_count": 6,
+      "state_change_digest": "577b6e0556626465dee1fb0cf07723327d7de0187c0e468e69dd0af5a389032b"
+    },
+    {
+      "event_index": 6,
+      "revision": 6,
+      "event_type": "run_blocked",
+      "event_data": {
+        "at": "2026-09-04T03:11:49.804+00:00",
+        "continuation": "explicit_manual_resume_only",
+        "controller_rewritten": false,
+        "decision_id": "",
+        "final_output": "",
+        "final_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_source": "none",
+        "reason": "selector_abstained",
+        "resumable": true,
+        "termination_permitted": false
+      },
+      "state_sha256": "b0211fd48be6ae1c8d668c9c62a19a0be5d34d86b46f486df9b5ce4181cf72f1",
+      "state_change_count": 6,
+      "state_change_digest": "b0101745bb07d66bd5e9b47bef0c34cec616347180bb8cd10088bf9abdeb1d57"
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "schema_version": "rwkv-lh.executor-frontier-state-diagnosis.v1",
+  "date": "2026-09-04",
+  "product_result": false,
+  "reason": "A deterministic read_file Selector was used only to isolate Executor parameter filling.",
+  "executor": {
+    "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "state_transport": "native_rwkv",
+    "state_profile_id": "zero",
+    "state_tune_used": false
+  },
+  "fixed_inputs": {
+    "step_id": "S1",
+    "step_revision": 1,
+    "read_roots": [
+      "pricing.py",
+      "verify_project.py"
+    ],
+    "pricing_py_sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+    "verify_project_py_sha256": "3da7c7f94a1b5e6afa9ef1e457e9cb8a967a5f93d270cef560a1a8247f5b9301"
+  },
+  "before_projection_fix": {
+    "raw_result": "executor_read_file_counterfactual_r3_native/RESULT.json",
+    "raw_result_sha256": "2d0ffac6944b74333d943f192ad529f593a6c0c6f9b5a566771c9023be3ccb78",
+    "protocol_rejections": 0,
+    "arguments": [
+      {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    ],
+    "second_executor_received_prior_action_fact": true,
+    "second_executor_received_mechanical_evidence": false
+  },
+  "after_projection_fix": {
+    "raw_result": "executor_read_file_counterfactual_r4_native_frontier_state/RESULT.json",
+    "raw_result_sha256": "2d0ffac6944b74333d943f192ad529f593a6c0c6f9b5a566771c9023be3ccb78",
+    "protocol_rejections": 0,
+    "arguments": [
+      {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    ],
+    "second_executor_mechanical_evidence": {
+      "assigned_action_ids": [
+        "A00001"
+      ],
+      "successful_action_ids": [
+        "A00001"
+      ],
+      "missing_read_roots": [
+        "verify_project.py"
+      ],
+      "missing_write_roots": [],
+      "completion_preconditions_satisfied": false,
+      "completion_authority": false,
+      "source": "controller_mechanical_evidence_gate"
+    }
+  },
+  "classification": {
+    "engineering_defect": "The current mechanical evidence gap was absent from the Executor-local frontier event; fixed by projecting the existing Controller-owned evidence record.",
+    "residual_capability_defect": "After receiving the explicit remaining read root, the zero-State 13.3B Executor still repeated the completed path.",
+    "base_rwkv_verdict": "This single role-specific counterfactual does not establish an intrinsic limitation of the base RWKV architecture."
+  }
+}
