@@ -1,0 +1,189 @@
+{
+  "schema_version": "rwkv-lh.executor-input-contract-e5-matrix.v1",
+  "dataset_id": "rwkv_lh_executor_e5_cross_class_matrix_v1",
+  "version": "1",
+  "source": "Deterministic synthetic cases derived from the current production Harness contracts; no model output was used to construct targets.",
+  "purpose": "Test whether one coherent Executor payload generalizes beyond read_file across parameter shapes and four operational classes.",
+  "generation": {
+    "script": "temp/run_executor_cross_class_single_state_e5_matrix_20260904.py",
+    "method": "Cases are read verbatim. The runner obtains each selected tool contract from the current authoritative product Harness and never executes the tool."
+  },
+  "state_profile": "zero",
+  "state_tune_eligible": false,
+  "classes": {
+    "local_observation": ["read_file", "search_text", "bind_evidence"],
+    "local_mutation": ["write_file", "write_json", "replace_text", "copy_file"],
+    "command_execution": ["check_command", "run_command"],
+    "external_or_deterministic": ["web_search", "connector_lookup", "calculator", "date_diff", "current_time"]
+  },
+  "cases": [
+    {
+      "case_id": "observe_read_remaining_zh",
+      "tool_class": "local_observation",
+      "selected_operation": "read_file",
+      "current_requirement": "pricing.py 已经读取完毕。现在只读取 tests/verify_project.py，从字节 0 开始，最多 4096 tokens。",
+      "supporting_facts": [{"fact_id": "F-read-next", "value": "tests/verify_project.py 是当前唯一待读取文件"}],
+      "completed_actions": [{"operation": "read_file", "arguments": {"path": "pricing.py", "start_byte": 0, "max_tokens": 4096}}],
+      "remaining_read_roots": ["tests/verify_project.py"],
+      "remaining_write_roots": [],
+      "constraints": ["只读取，不修改文件。"],
+      "expected_arguments": {"path": "tests/verify_project.py", "start_byte": 0, "max_tokens": 4096}
+    },
+    {
+      "case_id": "observe_search_literal_en",
+      "tool_class": "local_observation",
+      "selected_operation": "search_text",
+      "current_requirement": "Search src recursively for the case-sensitive literal legacy_mode. The earlier TODO search is complete.",
+      "supporting_facts": [{"fact_id": "F-search-scope", "value": "The remaining scope is src and the exact literal is legacy_mode."}],
+      "completed_actions": [{"operation": "search_text", "arguments": {"pattern": "TODO", "path": "docs", "mode": "regex"}}],
+      "remaining_read_roots": ["src"],
+      "remaining_write_roots": [],
+      "constraints": ["Use literal mode and preserve case."],
+      "expected_arguments": {"pattern": "legacy_mode", "path": "src", "mode": "literal", "case_sensitive": true, "recursive": true}
+    },
+    {
+      "case_id": "observe_bind_lines_zh",
+      "tool_class": "local_observation",
+      "selected_operation": "bind_evidence",
+      "current_requirement": "把 src/config.py 第 18 到 24 行绑定为证据，source 使用 src/config.py；之前绑定 README.md 的动作已经完成。",
+      "supporting_facts": [{"fact_id": "F-line-span", "value": "目标定位符为 src/config.py:L18-L24"}],
+      "completed_actions": [{"operation": "bind_evidence", "arguments": {"path": "README.md", "start_line": 1, "end_line": 3, "source": "README.md"}}],
+      "remaining_read_roots": ["src/config.py"],
+      "remaining_write_roots": [],
+      "constraints": ["行号必须原样使用。"],
+      "expected_arguments": {"path": "src/config.py", "start_line": 18, "end_line": 24, "source": "src/config.py"}
+    },
+    {
+      "case_id": "mutate_write_content_en",
+      "tool_class": "local_mutation",
+      "selected_operation": "write_file",
+      "current_requirement": "Write the exact UTF-8 text status=ready followed by one newline to reports/summary.txt. The draft write is complete.",
+      "supporting_facts": [{"fact_id": "F-summary-content", "value": "status=ready\n"}],
+      "completed_actions": [{"operation": "write_file", "arguments": {"path": "reports/draft.txt", "content": "draft\n"}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": ["reports/summary.txt"],
+      "constraints": ["Use F-summary-content exactly; do not add prose."],
+      "expected_arguments": {"path": "reports/summary.txt", "content": "status=ready\n"}
+    },
+    {
+      "case_id": "mutate_write_json_zh",
+      "tool_class": "local_mutation",
+      "selected_operation": "write_json",
+      "current_requirement": "将完整 JSON 值 {\"enabled\":true,\"retries\":3} 写入 build/config.json；旧的 build/draft.json 已经写完。",
+      "supporting_facts": [{"fact_id": "F-json-value", "value": {"enabled": true, "retries": 3}}],
+      "completed_actions": [{"operation": "write_json", "arguments": {"path": "build/draft.json", "value": {"enabled": false}}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": ["build/config.json"],
+      "constraints": ["写入完整对象，不要把 JSON 变成字符串。"],
+      "expected_arguments": {"path": "build/config.json", "value": {"enabled": true, "retries": 3}}
+    },
+    {
+      "case_id": "mutate_replace_exact_en",
+      "tool_class": "local_mutation",
+      "selected_operation": "replace_text",
+      "current_requirement": "In config.py replace the exact text timeout = 30 with timeout = 60. The earlier README replacement is complete.",
+      "supporting_facts": [{"fact_id": "F-replacement", "value": {"old": "timeout = 30", "new": "timeout = 60"}}],
+      "completed_actions": [{"operation": "replace_text", "arguments": {"path": "README.md", "old": "old", "new": "new"}}],
+      "remaining_read_roots": ["config.py"],
+      "remaining_write_roots": ["config.py"],
+      "constraints": ["Replace one occurrence using the exact strings."],
+      "expected_arguments": {"path": "config.py", "old": "timeout = 30", "new": "timeout = 60"}
+    },
+    {
+      "case_id": "mutate_copy_paths_zh",
+      "tool_class": "local_mutation",
+      "selected_operation": "copy_file",
+      "current_requirement": "把 assets/logo.svg 复制到 public/logo.svg，并保留源文件；README.md 的备份已经完成。",
+      "supporting_facts": [{"fact_id": "F-copy-pair", "value": {"source": "assets/logo.svg", "destination": "public/logo.svg"}}],
+      "completed_actions": [{"operation": "copy_file", "arguments": {"source": "README.md", "destination": "backup/README.md"}}],
+      "remaining_read_roots": ["assets/logo.svg"],
+      "remaining_write_roots": ["public/logo.svg"],
+      "constraints": ["必须保留 assets/logo.svg。"],
+      "expected_arguments": {"source": "assets/logo.svg", "destination": "public/logo.svg"}
+    },
+    {
+      "case_id": "command_check_pytest_en",
+      "tool_class": "command_execution",
+      "selected_operation": "check_command",
+      "current_requirement": "Run the read-only argv python -m pytest -q from the workspace root. The ruff check is complete.",
+      "supporting_facts": [{"fact_id": "F-check-argv", "value": ["python", "-m", "pytest", "-q"]}],
+      "completed_actions": [{"operation": "check_command", "arguments": {"argv": ["python", "-m", "ruff", "check", "."]}}],
+      "remaining_read_roots": ["."],
+      "remaining_write_roots": [],
+      "constraints": ["Use argv, never a shell string; expected exit code is 0."],
+      "expected_arguments": {"argv": ["python", "-m", "pytest", "-q"], "cwd": ".", "expected_exit_code": 0}
+    },
+    {
+      "case_id": "command_run_build_zh",
+      "tool_class": "command_execution",
+      "selected_operation": "run_command",
+      "current_requirement": "在 scripts 目录运行 argv：python -m tools.build --release。之前的生成命令已经结束。",
+      "supporting_facts": [{"fact_id": "F-run-argv", "value": ["python", "-m", "tools.build", "--release"]}],
+      "completed_actions": [{"operation": "run_command", "arguments": {"argv": ["python", "-m", "tools.generate"], "cwd": "."}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": ["dist"],
+      "constraints": ["argv 必须分项，cwd 必须是 scripts，预期退出码为 0。"],
+      "expected_arguments": {"argv": ["python", "-m", "tools.build", "--release"], "cwd": "scripts", "expected_exit_code": 0}
+    },
+    {
+      "case_id": "external_web_query_en",
+      "tool_class": "external_or_deterministic",
+      "selected_operation": "web_search",
+      "current_requirement": "Search the public web for the exact query RWKV-7 architecture paper and return at most 3 results. The RWKV-6 query is complete.",
+      "supporting_facts": [{"fact_id": "F-web-query", "value": "RWKV-7 architecture paper"}],
+      "completed_actions": [{"operation": "web_search", "arguments": {"query": "RWKV-6 paper", "max_results": 5}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": [],
+      "constraints": ["Use the exact query and max_results=3."],
+      "expected_arguments": {"query": "RWKV-7 architecture paper", "max_results": 3}
+    },
+    {
+      "case_id": "external_connector_repo_zh",
+      "tool_class": "external_or_deterministic",
+      "selected_operation": "connector_lookup",
+      "current_requirement": "通过结构化连接器查询 GitHub 仓库 BlinkDL/RWKV-LM，operation 使用 github_repository；之前的 package_release 查询已经完成。",
+      "supporting_facts": [{"fact_id": "F-connector-query", "value": {"operation": "github_repository", "query": "BlinkDL/RWKV-LM"}}],
+      "completed_actions": [{"operation": "connector_lookup", "arguments": {"operation": "package_release", "query": "rwkv"}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": [],
+      "constraints": ["不要改成网页搜索。"],
+      "expected_arguments": {"operation": "github_repository", "query": "BlinkDL/RWKV-LM"}
+    },
+    {
+      "case_id": "compute_calculator_en",
+      "tool_class": "external_or_deterministic",
+      "selected_operation": "calculator",
+      "current_requirement": "Evaluate the exact arithmetic expression 17*23+5. The earlier 2+2 calculation is complete.",
+      "supporting_facts": [{"fact_id": "F-expression", "value": "17*23+5"}],
+      "completed_actions": [{"operation": "calculator", "arguments": {"expression": "2+2"}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": [],
+      "constraints": ["Keep the exact expression; do not calculate it in prose."],
+      "expected_arguments": {"expression": "17*23+5"}
+    },
+    {
+      "case_id": "compute_date_diff_zh",
+      "tool_class": "external_or_deterministic",
+      "selected_operation": "date_diff",
+      "current_requirement": "计算 2026-09-04 与 2026-10-01 之间的日历日差；之前 2026-01-01 到 2026-01-02 的计算已经完成。",
+      "supporting_facts": [{"fact_id": "F-date-a", "value": "2026-09-04"}, {"fact_id": "F-date-b", "value": "2026-10-01"}],
+      "completed_actions": [{"operation": "date_diff", "arguments": {"date_a": "2026-01-01", "date_b": "2026-01-02"}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": [],
+      "constraints": ["两个 ISO 日期必须原样填写。"],
+      "expected_arguments": {"date_a": "2026-09-04", "date_b": "2026-10-01"}
+    },
+    {
+      "case_id": "observe_current_time_en",
+      "tool_class": "external_or_deterministic",
+      "selected_operation": "current_time",
+      "current_requirement": "Observe the current time in Asia/Shanghai. The UTC observation is complete.",
+      "supporting_facts": [{"fact_id": "F-timezone", "value": "Asia/Shanghai"}],
+      "completed_actions": [{"operation": "current_time", "arguments": {"timezone": "UTC"}}],
+      "remaining_read_roots": [],
+      "remaining_write_roots": [],
+      "constraints": ["Use the exact IANA timezone name."],
+      "expected_arguments": {"timezone": "Asia/Shanghai"}
+    }
+  ]
+}

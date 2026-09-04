@@ -1,0 +1,132 @@
+{
+  "schema_version": "rwkv-lh.executor-input-contract-r5-result.v1",
+  "purpose": "Verify the E5 single-state payload in the production Controller chain.",
+  "selector": "deterministic read_file diagnostic; not a product result",
+  "executor": {
+    "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "state_transport": "native_rwkv",
+    "state_profile_id": "zero",
+    "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "status": "interrupted",
+  "transition_count": 4,
+  "protocol_rejections": 0,
+  "selector_requests": 2,
+  "actions": [
+    {
+      "sequence": 1,
+      "operation": "read_file",
+      "arguments": {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "status": "succeeded",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\n\nfrom decimal import Decimal, ROUND_HALF_UP\n\n\ndef final_price(price: int | float, discount_percent: int | float) -> float:\n    \"\"\"Return a currency amount rounded with ROUND_HALF_UP.\"\"\"\n\n    if isinstance(price, bool) or not isinstance(price, (int, float)):\n        raise TypeError(\"price must be numeric\")\n    if isinstance(discount_percent, bool) or not isinstance(discount_percent, (int, float)):\n        raise TypeError(\"discount_percent must be numeric\")\n    if price < 0:\n        raise ValueError(\"price must be non-negative\")\n    if not 0 <= discount_percent <= 100:\n        raise ValueError(\"discount_percent must be between 0 and 100\")\n    # BUG: the percentage scale is wrong and binary float enters the Decimal path.\n    multiplier = Decimal(\"1\") - Decimal(str(discount_percent / 10))\n    amount = Decimal(str(price)) * multiplier\n    return float(amount.quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP))\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "pricing.py",
+            "sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "media_type": "text/x-python",
+            "size_bytes": 952,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-9214070bb4d564a0",
+            "source_ref": "pricing.py",
+            "source_sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 952,
+            "core_start": 0,
+            "core_end": 952,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 237
+          },
+          "start_byte": 0,
+          "end_byte": 952,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 952,
+          "observed_tokens": 237
+        },
+        "error": null,
+        "outcome_type": "success"
+      }
+    },
+    {
+      "sequence": 2,
+      "operation": "read_file",
+      "arguments": {
+        "path": "pricing.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "status": "succeeded",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\n\nfrom decimal import Decimal, ROUND_HALF_UP\n\n\ndef final_price(price: int | float, discount_percent: int | float) -> float:\n    \"\"\"Return a currency amount rounded with ROUND_HALF_UP.\"\"\"\n\n    if isinstance(price, bool) or not isinstance(price, (int, float)):\n        raise TypeError(\"price must be numeric\")\n    if isinstance(discount_percent, bool) or not isinstance(discount_percent, (int, float)):\n        raise TypeError(\"discount_percent must be numeric\")\n    if price < 0:\n        raise ValueError(\"price must be non-negative\")\n    if not 0 <= discount_percent <= 100:\n        raise ValueError(\"discount_percent must be between 0 and 100\")\n    # BUG: the percentage scale is wrong and binary float enters the Decimal path.\n    multiplier = Decimal(\"1\") - Decimal(str(discount_percent / 10))\n    amount = Decimal(str(price)) * multiplier\n    return float(amount.quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP))\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "pricing.py",
+            "sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "media_type": "text/x-python",
+            "size_bytes": 952,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-9214070bb4d564a0",
+            "source_ref": "pricing.py",
+            "source_sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 952,
+            "core_start": 0,
+            "core_end": 952,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "34bb21b4f1e0c9c4dec7b100ed25cb8b92e49fb220a821be78697e6442ca3204",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 237
+          },
+          "start_byte": 0,
+          "end_byte": 952,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 952,
+          "observed_tokens": 237
+        },
+        "error": null,
+        "outcome_type": "success"
+      }
+    }
+  ]
+}

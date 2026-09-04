@@ -6,7 +6,7 @@
 
 当前系统 **不能作为可靠 Agent 发布**。控制链中的确定性工程缺陷已经修复，但固定真实 canary 仍未通过：修复 Selector 权限后，2.9B Selector Head v2 在第一个纯读取步骤直接以 `0.8518835041612606` 的置信度选择 `ABSTAIN`，而 `read_file` 的 logit 只有 `0.4133441150`。这是当前 Selector Head/训练分布的能力缺陷，不是工具不存在、身份缺失、格式失败、上下文过长或状态未保存。
 
-同时，隔离 Selector 后的原生 13.3B Executor 反事实表明：即使第二轮输入已经明确给出 `missing_read_roots=["verify_project.py"]`，Executor 仍重复读取已经成功读取过的 `pricing.py`。状态投影缺口已修复，剩余重复属于当前 zero-State Executor 的参数执行能力/角色适配缺陷。
+同时，隔离 Selector 后的原生 13.3B Executor 反事实表明：即使第二轮输入已经明确给出 `missing_read_roots=["verify_project.py"]`，Executor 仍重复读取已经成功读取过的 `pricing.py`。后续 E1–E5 输入消融修正了本报告最初的过早归因：短单一状态输入可使相同 13.3B 在读取矩阵达到 18/18，但生产完整事实输入仍会重复旧路径。因此当前结论是“输入合同与 zero-State 能力共同受输入分布影响”，不能只归为模型能力，也不能宣称工程输入已经解决。完整修正证据见 `../RWKV_EXECUTOR_INPUT_CONTRACT_V5_20260904/RESULT.md` 与 `../RWKV_EXECUTOR_INPUT_CONTRACT_V5_20260904/R5_CONTROLLER_COUNTERFACTUAL_RESULT.md`。
 
 这些证据不能推出“RWKV 架构本身能力不好”；能够推出的是：**当前 2.9B Selector Head v2 和当前 13.3B zero-State Executor 配置尚不足以完成真实 Agent 链路。** 本轮没有执行 StateTune。
 
@@ -20,7 +20,7 @@
 | 协议计数 | 合法的 Selector `ABSTAIN` 会被当成 Executor/action 格式拒绝，可能错误累计到 12 次协议失败 | 工程缺陷 | 已修复。现在零 Executor 请求、零 action、零 protocol rejection，并以 `selector_abstained` 阻断 |
 | Executor 局部状态 | Controller 已有机械 gap，但 Executor 的 `goal_frontier_assignment` 未携带当前 assigned/successful actions 与 missing roots | 工程缺陷 | 已修复。局部事件现在携带 Controller 的既有机械证据，不新增模型调用或完成权限 |
 | 2.9B Selector Head v2 | synthetic dev 为 1.0，但真实中文多工具纯读取 frontier 首次选择 `ABSTAIN` | 当前模型/角色能力缺陷 | 未解决；固定 canary 证实 Head v2 不可发布 |
-| 13.3B Executor | 已收到第一次完整 action fact 和显式剩余根 `verify_project.py`，仍再次填写 `pricing.py` | 当前模型/角色能力缺陷 | 未解决；原生 RWKV、zero State、0 协议拒绝的固定反事实复现 |
+| 13.3B Executor | 短单一状态输入可正确遵循 remaining root，但生产完整事实输入仍再次填写 `pricing.py` | 输入合同/zero-State 输入敏感性，尚不能单因归类 | 未解决；E4 18/18，E5 33/42，R5 真实链路仍失败 |
 | RWKV 基础架构 | 是否存在不可训练的根本能力上限 | 尚不能归因 | 当前证据只能评价具体 Head、数据分布和角色配置，不能据此否定 RWKV 本身 |
 | 推理引擎 | native State 续接、模型/Head 身份、token 上限或协议传输是否损坏 | 未发现运行时缺陷 | 服务身份和 native recurrent transport 可验证；Executor 每个 action 为独立原生 State session；实际 token 远低于 16,384 |
 
@@ -69,7 +69,7 @@ Head v2 的 400 个 train/dev feature 在固定合成数据上达到 1.0，但�
 - 修复后，第二轮明确收到 `assigned_action_ids=["A00001"]`、`successful_action_ids=["A00001"]`、`missing_read_roots=["verify_project.py"]`、`completion_preconditions_satisfied=false`、`completion_authority=false`。
 - 修复后输出仍完全相同，0 次协议拒绝，前后原始结果 SHA-256 都是 `2d0ffac6944b74333d943f192ad529f593a6c0c6f9b5a566771c9023be3ccb78`。
 
-所以 Executor 的设计边界是正确的：Selector 只选 operation，Executor 只填被选工具的参数；每个 action 从该角色配置的初始 State 开始，避免跨工具 WKV 污染，同时注入当前 step 的有界权威事实。现在缺陷不是“局部状态缺失”，而是当前 13.3B zero-State Executor 没有遵循显式剩余根。
+Selector 只选 operation、Executor 只填参数的职责边界仍然成立，但不能据此判定当前 Executor 输入设计已经正确。E4 证明同一 zero-State 13.3B 在 377-token 单一状态输入上可以稳定遵循 remaining root；E5 跨类为 33/42；R5 生产输入虽已把 remaining state 放到尾部，仍因完整 supporting fact 的输入分布重复旧路径。因而当前缺陷不是简单的“状态没传到”，也不是已经排除工程因素后的纯模型能力问题；未通过的候选没有接入生产。
 
 ## 全局状态与局部状态
 
@@ -95,5 +95,5 @@ Auditor 只在 Controller 的机械前置条件满足后运行；Planner 声称�
 - 完整测试：643 passed。
 - 新鲜 wheel 仅包含当前 Selector 的 7 个生产文件，不含已删除的旧 v1 提取/训练入口；wheel SHA-256 为 `45d6ee10be0bed0ce6bbb7d871a0fb6c0257b29c6003baef4522351ea0d48787`。
 - 产品判定：**FAIL / blocked，不能发布为可靠 Agent**。
-- 工程整改判定：本轮发现的停滞预算、纯读取菜单、ABSTAIN 权限/计数和 Executor 局部状态投影均已系统修复。
-- 能力整改判定：Selector Head v2 与 13.3B zero-State Executor 仍需在固定代表性评测下重新建立能力；本轮没有 StateTune，也没有为改善结果修改评价口径。
+- 工程整改判定：停滞预算、纯读取菜单、ABSTAIN 权限/计数和机械状态投影已修复；Executor 单一输入合同尚未通过真实完整事实链路，因此未替换生产协议。
+- 能力整改判定：Selector Head v2 与 13.3B zero-State Executor 仍需在固定代表性评测下重新建立能力；Executor 后续数据必须覆盖长事实、remaining state、命令 operation identity 与严格 JSON。本轮没有 StateTune，也没有为改善结果修改评价口径。

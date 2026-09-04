@@ -1,0 +1,57 @@
+{
+  "schema_version": "rwkv-lh.executor-input-ablation-matrix.v1",
+  "dataset_id": "rwkv_lh_executor_e1_remaining_root_matrix_v1",
+  "version": "1",
+  "source": "Deterministic synthetic variations of the observed two-root read-only Planner step; no model output was used to construct targets.",
+  "purpose": "Verify that the fixed E1 input layout follows a Controller-authoritative remaining root across names, order, nesting, and Chinese/English requirements.",
+  "generation": {
+    "script": "temp/run_executor_compact_tail_input_e1_matrix_20260904.py",
+    "method": "Fixed cases below are read verbatim; the script renders the preregistered E1 layout without mutation."
+  },
+  "state_profile": "zero",
+  "state_tune_eligible": false,
+  "cases": [
+    {
+      "case_id": "pricing_verify_zh",
+      "requirement": "依次阅读 pricing.py 和公开验证器 verify_project.py，确认接口与验证要求。",
+      "completed_path": "pricing.py",
+      "remaining_path": "verify_project.py",
+      "constraint": "不得修改 verify_project.py"
+    },
+    {
+      "case_id": "config_schema_en",
+      "requirement": "Read config.py and schema.py to compare the runtime configuration with its declared schema.",
+      "completed_path": "config.py",
+      "remaining_path": "schema.py",
+      "constraint": "Read only; do not modify either file."
+    },
+    {
+      "case_id": "reverse_lexical_en",
+      "requirement": "Inspect zeta.py and alpha.py before diagnosing the import boundary.",
+      "completed_path": "zeta.py",
+      "remaining_path": "alpha.py",
+      "constraint": "Do not edit the files during inspection."
+    },
+    {
+      "case_id": "remaining_mentioned_first_zh",
+      "requirement": "检查仍待读取的 second.py，并结合已经读取的 first.py 核对数据流。",
+      "completed_path": "first.py",
+      "remaining_path": "second.py",
+      "constraint": "本步骤只读取文件。"
+    },
+    {
+      "case_id": "nested_paths_en",
+      "requirement": "Read src/core.py and tests/test_core.py to establish implementation and verifier evidence.",
+      "completed_path": "src/core.py",
+      "remaining_path": "tests/test_core.py",
+      "constraint": "Do not modify tests/test_core.py."
+    },
+    {
+      "case_id": "non_python_zh",
+      "requirement": "读取 pyproject.toml 与 docs/usage.md，核对安装入口和使用说明。",
+      "completed_path": "pyproject.toml",
+      "remaining_path": "docs/usage.md",
+      "constraint": "只读取，不写入。"
+    }
+  ]
+}
