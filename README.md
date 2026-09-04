@@ -1,17 +1,31 @@
 # RWKV-LH
 
-RWKV-LH 是以 RWKV 为核心的持久 Agent 运行时。当前唯一产品控制链是 `RWKV Stateful Goal Loop v3`：强 Planner 拆解目标，2.9B Selector 选择一个 operation，13.3B Executor 只填写参数，Harness 执行并记录事实，机械证据门和独立 Auditor 决定是否推进。
+RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v3`。
 
-当前版本仍是实验候选，不能作为可靠 Agent 发布。确定性失控路径已经修复，但 Selector Head 的真实域外泛化、Executor 的完整事实输入遵循，以及 StateTune 训练/serving 字节一致性仍未通过门禁。
+```text
+Strong Planner
+  -> 2.9B Selector
+  -> 13.3B Executor
+  -> Harness
+  -> Mechanical Evidence Gate
+  -> Step Auditor
+  -> Strong Stage Checker
+  -> Finalizer
+  -> Final Auditor
+```
 
-## 文档入口
+这些名称表示同一条链中的职责边界，不是多套架构。全局权威状态始终是 append-only causal ledger；各模型角色使用独立 WKV，避免角色间状态污染。
 
-- [交接、部署、缺陷与 StateTune 格式合同](docs/HANDOFF.zh-CN.md)
+当前尚不能发布为可靠 Agent：13.3B 推理服务和 native recurrent State 健康，但 Selector 服务身份未与本地配置对齐，Selector Head 的真实 frontier 泛化、Executor 的显式状态遵循、以及训练输入与线上完整输入的一致性仍需通过固定门禁。
+
+## 文档
+
+- [当前结构、部署、输入输出和训练合同](docs/HANDOFF.zh-CN.md)
 - [项目工作规范](AGENTS.md)
 
-其他保留在 `data/datasets/` 和 `data/experiments/` 下的 Markdown 是数据来源说明、当前实验证据或脚本按路径/SHA依赖的机器合同，不是新的人工入口。历史文档保存在 Git 历史和归档分支。
+`data/datasets/` 只保存已纳入 Git 的数据说明与合同，`data/experiments/` 只保存已纳入 Git 的可复核证据。当前工作树不保留未跟踪实验产物。
 
-## 本地运行
+## 运行
 
 项目逻辑只在 WSL `UbuntuRecovered` 中执行：
 
@@ -45,4 +59,4 @@ uv run rwkv-lh-runtime-smoke
 uv run rwkv-lh-e2e --suite all --validate-only
 ```
 
-模型、Head、State、服务器、端口和启动方式不要从旧实验文档复制，以交接文档和 `.env.local` 的身份校验为准。
+模型、Head、State、协议和工具表必须作为同一个发布身份校验；具体字段以交接文档和当前代码为准。

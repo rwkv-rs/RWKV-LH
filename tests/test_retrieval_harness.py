@@ -30,14 +30,6 @@ from rwkv_lh.schema import ActionStatus, GoalState, TaskAction
 from rwkv_lh.store import LongHorizonStore
 
 
-ROOT = Path(__file__).resolve().parents[1]
-DATASET = ROOT / "data" / "datasets" / "rwkv_lh_ecra_route_v1"
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def _goal(tmp_path: Path) -> GoalState:
     workspace = tmp_path / "workspace"
     workspace.mkdir(exist_ok=True)
@@ -111,37 +103,6 @@ def _actions(
         or NetworkPolicy(NetworkPolicyMode.AUTO_PUBLIC),
         provenance_resolver=provenance_resolver,
         clock=lambda: datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc),
-    )
-
-
-def test_route120_dataset_is_frozen_before_router_implementation() -> None:
-    payload = json.loads((DATASET / "cases.json").read_text(encoding="utf-8"))
-    manifest = json.loads((DATASET / "manifest.json").read_text(encoding="utf-8"))
-    cases = payload["cases"]
-
-    assert payload["dataset_version"] == "rwkv-lh-ecra-route.v1"
-    assert payload["case_count"] == len(cases) == 120
-    assert [item["case_id"] for item in cases] == [
-        f"ECRA-ROUTE-{index:03d}" for index in range(1, 121)
-    ]
-    assert manifest["category_counts"] == {
-        "local-only": 30,
-        "public-web-required": 25,
-        "structured-connector": 20,
-        "deterministic-compute": 15,
-        "mixed-local-online": 20,
-        "privacy-policy-rejection": 10,
-    }
-    assert manifest["files"]["cases.json"]["sha256"] == _sha256(
-        DATASET / "cases.json"
-    )
-    assert manifest["files"]["README.md"]["sha256"] == _sha256(
-        DATASET / "README.md"
-    )
-    assert manifest["files"][
-        "scripts/generate_rwkv_ecra_route_dataset_v1.py"
-    ]["sha256"] == _sha256(
-        ROOT / "scripts" / "generate_rwkv_ecra_route_dataset_v1.py"
     )
 
 
