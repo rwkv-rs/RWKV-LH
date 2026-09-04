@@ -1,0 +1,261 @@
+{
+  "schema_version": "rwkv-lh.zero-state-executor-args-smoke.v1",
+  "case_count": 4,
+  "passed_count": 4,
+  "state_tune_loaded": false,
+  "results": [
+    {
+      "case": 1,
+      "selected_operation": "list_directory",
+      "requirement": "List the workspace root directory.",
+      "passed": true,
+      "command": "{\"function\":\"list_directory\",\"params\":{\"max_entries\":1024,\"max_tokens\":4096,\"path\":\".\",\"recursive\":false,\"start_after\":\"\"}}",
+      "wire_command": "{\"function\":\"list_directory\",\"params\":{\"max_entries\":1024,\"max_tokens\":4096,\"path\":\".\",\"recursive\":false,\"start_after\":\"\"}}",
+      "normalization": {
+        "normalizer_version": "action-arguments.v2",
+        "raw_action": {
+          "action_type": "list_directory",
+          "arguments": {
+            "path": ".",
+            "recursive": false,
+            "max_entries": 1024,
+            "start_after": "",
+            "max_tokens": 4096
+          }
+        },
+        "normalized_action": {
+          "action_type": "list_directory",
+          "arguments": {
+            "path": ".",
+            "recursive": false,
+            "max_entries": 1024,
+            "start_after": "",
+            "max_tokens": 4096
+          }
+        },
+        "transformations": [],
+        "controller_semantic_fields_generated": false
+      },
+      "decision": {
+        "decision_id": "D-4451cf18b54f43ff",
+        "request_id": "MR-2e45ef781bb042e8",
+        "lane_id": "LANE:ACTION",
+        "input_checkpoint_id": "CP-b064ee6afa464fdd",
+        "input_digest": "0f62b77bc3ea72ba8e2e1459ef36bc400d520f6d44c43a4715d4ae95f1061ba4",
+        "visible_event_ids": [],
+        "raw_output": "{\n  \"name\": \"list_directory\",\n  \"arguments\": {\n    \"path\": \".\",\n    \"recursive\": false,\n    \"max_entries\": 1024,\n    \"start_after\": \"\",\n    \"max_tokens\": 4096\n  }\n}",
+        "command_digest": "53eea36540a0a00988f8614911fc00b31686f4cc1ae1439a2a8e151d520e966a",
+        "output_checkpoint_id": "CP-dfc11f87fe694bdf",
+        "output_digest": "5af7e026a44c843f27088efe28617dee4410184f6670bee7d5289991009ac1ab",
+        "sampling": {
+          "temperature": 0.1,
+          "top_p": 1.0,
+          "top_k": 0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "penalty_decay": 0.996
+        },
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "transport": "prompt_replay",
+        "accepted": true,
+        "error": "",
+        "tool_selection_id": "",
+        "selected_operation": "list_directory",
+        "atom_execution_contract_digest": "",
+        "tool_selection_binding_kind": "",
+        "created_at": "2026-09-04T01:06:50.774+00:00"
+      }
+    },
+    {
+      "case": 2,
+      "selected_operation": "read_file",
+      "requirement": "Read input.txt from the workspace.",
+      "passed": true,
+      "command": "{\"function\":\"read_file\",\"params\":{\"max_tokens\":4096,\"path\":\"input.txt\",\"start_byte\":0}}",
+      "wire_command": "{\"function\":\"read_file\",\"params\":{\"path\":\"input.txt\"}}",
+      "normalization": {
+        "normalizer_version": "action-arguments.v2",
+        "raw_action": {
+          "action_type": "read_file",
+          "arguments": {
+            "path": "input.txt"
+          }
+        },
+        "normalized_action": {
+          "action_type": "read_file",
+          "arguments": {
+            "path": "input.txt",
+            "start_byte": 0,
+            "max_tokens": 4096
+          }
+        },
+        "transformations": [
+          "registry_default:max_tokens",
+          "registry_default:start_byte"
+        ],
+        "controller_semantic_fields_generated": false
+      },
+      "decision": {
+        "decision_id": "D-d292d2bdde46411d",
+        "request_id": "MR-3ef5d7d780644940",
+        "lane_id": "LANE:ACTION",
+        "input_checkpoint_id": "CP-6ac3bfbfc02f4b69",
+        "input_digest": "61bd703907dd97b47f64af5bcfdb87346a260db07498d887e61a303bfbd1b428",
+        "visible_event_ids": [],
+        "raw_output": "{\n  \"name\": \"read_file\",\n  \"arguments\": {\"path\": \"input.txt\"}\n}",
+        "command_digest": "fa88acd322f038f8bdb3f09f3758c83bdc6c67fb3cdb0d02036a400578214d10",
+        "output_checkpoint_id": "CP-e484ecee3ee2490d",
+        "output_digest": "a2bdb66df46e1ba272e22dd8b9aaa24c5c66acbba99d682115c10bc308567998",
+        "sampling": {
+          "temperature": 0.1,
+          "top_p": 1.0,
+          "top_k": 0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "penalty_decay": 0.996
+        },
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "transport": "prompt_replay",
+        "accepted": true,
+        "error": "",
+        "tool_selection_id": "",
+        "selected_operation": "read_file",
+        "atom_execution_contract_digest": "",
+        "tool_selection_binding_kind": "",
+        "created_at": "2026-09-04T01:06:51.309+00:00"
+      }
+    },
+    {
+      "case": 3,
+      "selected_operation": "write_file",
+      "requirement": "Write exactly alpha followed by a newline to result.txt.",
+      "passed": true,
+      "command": "{\"function\":\"write_file\",\"params\":{\"content\":\"alpha\\n\",\"create_parents\":true,\"overwrite\":true,\"path\":\"result.txt\"}}",
+      "wire_command": "{\"function\":\"write_file\",\"params\":{\"content\":\"alpha\\n\",\"path\":\"result.txt\"}}",
+      "normalization": {
+        "normalizer_version": "action-arguments.v2",
+        "raw_action": {
+          "action_type": "write_file",
+          "arguments": {
+            "path": "result.txt",
+            "content": "alpha\n"
+          }
+        },
+        "normalized_action": {
+          "action_type": "write_file",
+          "arguments": {
+            "path": "result.txt",
+            "content": "alpha\n",
+            "overwrite": true,
+            "create_parents": true
+          }
+        },
+        "transformations": [
+          "registry_default:create_parents",
+          "registry_default:overwrite"
+        ],
+        "controller_semantic_fields_generated": false
+      },
+      "decision": {
+        "decision_id": "D-bca6cb066af6478e",
+        "request_id": "MR-af10524f57934668",
+        "lane_id": "LANE:ACTION",
+        "input_checkpoint_id": "CP-6f73fb92f8ce42d7",
+        "input_digest": "3ccc08f060d5ce55ad56d3470b3a1654f17ee60861a1393b904b2da0e90edb86",
+        "visible_event_ids": [],
+        "raw_output": "{\n  \"name\": \"write_file\",\n  \"arguments\": {\"path\": \"result.txt\", \"content\": \"alpha\\n\"}\n}",
+        "command_digest": "b57e70f4bb5256b35627fa84cf918cd640547aaef7eef1cd46d8e47ec58bb4f3",
+        "output_checkpoint_id": "CP-1dda5256388a4ea5",
+        "output_digest": "529d0670b16acbf0e1e3fd41e1186f7d4d236307f34b33c8903f13a90036920b",
+        "sampling": {
+          "temperature": 0.1,
+          "top_p": 1.0,
+          "top_k": 0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "penalty_decay": 0.996
+        },
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "transport": "prompt_replay",
+        "accepted": true,
+        "error": "",
+        "tool_selection_id": "",
+        "selected_operation": "write_file",
+        "atom_execution_contract_digest": "",
+        "tool_selection_binding_kind": "",
+        "created_at": "2026-09-04T01:06:51.952+00:00"
+      }
+    },
+    {
+      "case": 4,
+      "selected_operation": "run_command",
+      "requirement": "Run Python in the workspace so stdout is exactly executor-smoke followed by a newline.",
+      "passed": true,
+      "command": "{\"function\":\"run_command\",\"params\":{\"argv\":[\"python\",\"-c\",\"print('executor-smoke')\"],\"cwd\":\".\",\"env\":{},\"expected_exit_code\":0,\"timeout\":120.0}}",
+      "wire_command": "{\"function\":\"run_command\",\"params\":{\"argv\":[\"python\",\"-c\",\"print('executor-smoke')\"],\"cwd\":\".\",\"expected_exit_code\":0}}",
+      "normalization": {
+        "normalizer_version": "action-arguments.v2",
+        "raw_action": {
+          "action_type": "run_command",
+          "arguments": {
+            "argv": [
+              "python",
+              "-c",
+              "print('executor-smoke')"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0
+          }
+        },
+        "normalized_action": {
+          "action_type": "run_command",
+          "arguments": {
+            "argv": [
+              "python",
+              "-c",
+              "print('executor-smoke')"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          }
+        },
+        "transformations": [
+          "registry_default:env",
+          "registry_default:timeout"
+        ],
+        "controller_semantic_fields_generated": false
+      },
+      "decision": {
+        "decision_id": "D-f10c2b54c75a480c",
+        "request_id": "MR-22c40a3144804664",
+        "lane_id": "LANE:ACTION",
+        "input_checkpoint_id": "CP-2ed0bab13f294cb2",
+        "input_digest": "6c69f65d4d3ec604d56bcb5e5331d175d03b44db98e6a1a9e85e713aa166a12d",
+        "visible_event_ids": [],
+        "raw_output": "{\n  \"name\": \"run_command\",\n  \"arguments\": {\n  \"argv\": [\n    \"python\",\n    \"-c\",\n    \"print('executor-smoke')\"\n  ],\n  \"cwd\": \".\",\n  \"expected_exit_code\": 0\n}\n}",
+        "command_digest": "a30f4d86a886d5d7b4e5f0a54ac5fa01ac2c774424c4649e3274c658fc8e3e05",
+        "output_checkpoint_id": "CP-57e3c6be1f944b4c",
+        "output_digest": "d7b47bccac7fecf8177cbe779d99bef73a54479396ce7c3ae8d39ab8756582ef",
+        "sampling": {
+          "temperature": 0.1,
+          "top_p": 1.0,
+          "top_k": 0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "penalty_decay": 0.996
+        },
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "transport": "prompt_replay",
+        "accepted": true,
+        "error": "",
+        "tool_selection_id": "",
+        "selected_operation": "run_command",
+        "atom_execution_contract_digest": "",
+        "tool_selection_binding_kind": "",
+        "created_at": "2026-09-04T01:06:52.963+00:00"
+      }
+    }
+  ]
+}

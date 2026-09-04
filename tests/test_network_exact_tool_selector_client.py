@@ -238,5 +238,7 @@ def test_network_selector_settings_partial_environment_fails_closed(
         )
     assert NetworkExactToolSelectorSettings.from_env() is None
     monkeypatch.setenv("RWKV_SELECTOR_BASE_URL", "http://127.0.0.1:29621")
-    with pytest.raises(ValueError, match="all 25-class"):
+    with pytest.raises(ValueError, match="missing 25-class") as exc_info:
         NetworkExactToolSelectorSettings.from_env()
+    assert "RWKV_LH_SELECTOR_HEAD_SHA256" in str(exc_info.value)
+    assert "RWKV_LH_SELECTOR_STATE_PROFILE_MANIFEST_SHA256" in str(exc_info.value)

@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-state-router = [
+selector-runtime = [
   "numpy>=2,<3",
   "torch==2.8.0",
 ]
@@ -25,13 +25,8 @@ dev = ["pytest>=9,<10"]
 
 [project.scripts]
 rwkv-lh = "scripts.run_long_horizon:main"
-rwkv-lh-control = "scripts.run_lh_control_benchmark:main"
 rwkv-lh-e2e = "scripts.run_rwkv_e2e_benchmark:main"
 rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
-rwkv-lh-state-router = "scripts.run_local_state_router:main"
-rwkv-lh-state-router-eval-c = "scripts.evaluate_state_router_constrained_logits_v1:main"
-rwkv-lh-state-router-train = "scripts.train_state_router_hidden_mlp_v1:main"
-rwkv-lh-state-router-train-b = "scripts.train_state_router_wkv_projection_v1:main"
 rwkv-lh-stack = "scripts.manage_runtime_stack:main"
 rwkv-lh-web = "scripts.run_web_ui:main"
 
@@ -45,9 +40,6 @@ rwkv_lh = [
   "goal_web_assets/*.html",
   "goal_web_assets/*.css",
   "goal_web_assets/*.js",
-  "web_assets/*.html",
-  "web_assets/*.css",
-  "web_assets/*.js",
 ]
 "benchmarks.architecture_regression.lh_control_30" = ["tasks.json"]
 "benchmarks.rwkv_e2e.rwkv_e2e_30" = ["tasks.json", "acceptance.json"]

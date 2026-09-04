@@ -256,9 +256,6 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         assert summary["request"]["retrieval_policy"]["mode"] == "offline"
         assert Path(summary["request"]["run_id"]).name == run_id
         assert repository.run_root(run_id).parent == (tmp_path / "runs").resolve()
-        status, shadow = request_json(base + f"/api/runs/{run_id}/shadow")
-        assert status == 200
-        assert shadow == {"events": [], "next_offset": 0, "total": 0}
         status, missing = request_json(
             base + f"/api/runs/{run_id}/stop",
             method="POST",

@@ -12,8 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from rwkv_lh.state_router.model import HiddenFeatures
-from rwkv_lh.state_router.protocol import canonical_digest
+from rwkv_lh.model_io import canonical_digest
 
 
 # The Router head is trained in the RWKV-LH process.  This must be set before
@@ -635,17 +634,6 @@ class LocalVLLMRWKVExtractor:
         }
         self._last_identity = identity
         return features, token_counts, identity
-
-    def extract(self, texts: Sequence[str]) -> list[HiddenFeatures]:
-        features, token_counts, _ = self._invoke("hidden_mean", texts)
-        return [
-            HiddenFeatures(
-                values=tuple(float(value) for value in row.tolist()),
-                model_hash=self.model_hash,
-                token_count=token_count,
-            )
-            for row, token_count in zip(features, token_counts, strict=True)
-        ]
 
     def score_single_token_codes(
         self,

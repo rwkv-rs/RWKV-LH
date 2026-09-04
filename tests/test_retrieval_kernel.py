@@ -1239,17 +1239,6 @@ def test_fixed_selector_menu_exposes_network_tools_but_offline_rejects_execution
     assert result.metadata["network_policy"]["reason"] == "network_disabled"
 
 
-def test_runtime_policy_can_enable_advisory_state_router_shadow() -> None:
-    policy = runtime_policy_document(
-        RetrievalRuntimeConfig(mode=NetworkPolicyMode.AUTO_PUBLIC),
-        state_router_mode="shadow",
-    )
-    assert policy["state_router"] == {
-        "schema_version": "rwkv-lh.state-router-runtime-policy.v1",
-        "mode": "shadow",
-    }
-
-
 def test_product_connector_schema_only_discloses_configured_operations(tmp_path) -> None:
     harness = build_product_harness(
         config=RetrievalRuntimeConfig(mode=NetworkPolicyMode.AUTO_PUBLIC),

@@ -30,7 +30,6 @@ from rwkv_lh.exact_tool_selector.network_client import (
 )
 from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
-from rwkv_lh.state_router.shadow import read_shadow_records
 from rwkv_lh.store import LongHorizonStore, StateRecoveryError
 from rwkv_lh.supervisor_openai import SupervisorAPISettings
 from rwkv_lh.trace_projection import project_run_activity
@@ -331,15 +330,6 @@ class ManualRunRepository:
             if isinstance(value, dict):
                 records.append(value)
         return {"events": records, "next_offset": start + len(selected), "total": len(lines)}
-
-    def shadow(self, run_id: str, *, after: int = 0, limit: int = 300) -> dict[str, Any]:
-        self.metadata(run_id)
-        return read_shadow_records(
-            self.run_root(run_id),
-            run_id,
-            after=after,
-            limit=limit,
-        )
 
     def files(self, run_id: str) -> list[dict[str, Any]]:
         self.metadata(run_id)
@@ -756,14 +746,6 @@ class WebHandler(BaseHTTPRequestHandler):
                 elif suffix == "trace":
                     self.send_json(
                         self.server.repository.trace(
-                            run_id,
-                            after=int(query.get("after", ["0"])[0]),
-                            limit=int(query.get("limit", ["300"])[0]),
-                        )
-                    )
-                elif suffix == "shadow":
-                    self.send_json(
-                        self.server.repository.shadow(
                             run_id,
                             after=int(query.get("after", ["0"])[0]),
                             limit=int(query.get("limit", ["300"])[0]),

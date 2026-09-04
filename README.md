@@ -82,7 +82,7 @@ uv run rwkv-lh-web
 
 ```bash
 uv run pytest -q
-uv run rwkv-lh-control
+uv run rwkv-lh-runtime-smoke
 uv run rwkv-lh-e2e --suite all --validate-only
 ```
 

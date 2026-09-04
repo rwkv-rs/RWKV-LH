@@ -278,10 +278,8 @@ def runtime_policy_document(
     config: RetrievalRuntimeConfig,
     *,
     supervisor_mode: str = "stateful_goal",
-    state_router_mode: str = "disabled",
     execution_mode: str = "bounded",
 ) -> dict[str, Any]:
-    from rwkv_lh.state_router.shadow import shadow_policy
     from rwkv_lh.run_lifecycle import (
         RUN_LIFECYCLE_POLICY_KEY,
         run_lifecycle_policy_document,
@@ -292,15 +290,11 @@ def runtime_policy_document(
         raise ValueError(
             "supervisor mode must be stateful_goal, none, or contract_graph"
         )
-    document = {
+    return {
         "retrieval": config.to_dict(),
         "supervisor": {"mode": selected_supervisor},
         RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document(execution_mode),
     }
-    selected_router = shadow_policy(state_router_mode)
-    if selected_router is not None:
-        document["state_router"] = selected_router
-    return document
 
 
 def build_product_harness(

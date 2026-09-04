@@ -85,7 +85,6 @@ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
                 supervisor_mode=str(
                     request.get("supervisor_mode") or "stateful_goal"
                 ),
-                state_router_mode="disabled",
                 execution_mode=str(request.get("execution_mode") or "bounded"),
             ),
         )

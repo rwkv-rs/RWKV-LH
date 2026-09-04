@@ -149,10 +149,15 @@ class NetworkExactToolSelectorSettings:
             for key, (suffix, legacy) in names.items()
         }
         values["base_url"] = values["base_url"].rstrip("/")
-        if any(not value for value in values.values()):
+        missing = [
+            f"RWKV_LH_SELECTOR_{names[key][0]}"
+            for key, value in values.items()
+            if not value
+        ]
+        if missing:
             raise ValueError(
-                "all 25-class RWKV_LH_SELECTOR_* identity settings are required "
-                "(legacy RWKV_SELECTOR_* is accepted)"
+                "missing 25-class Selector identity settings: "
+                + ", ".join(missing)
             )
         return cls(
             **values,

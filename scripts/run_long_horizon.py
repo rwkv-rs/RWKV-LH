@@ -163,7 +163,6 @@ def _scheduled_payload(arguments: argparse.Namespace) -> dict[str, Any]:
         "runtime_policy": runtime_policy_document(
             _retrieval_config(arguments),
             supervisor_mode=arguments.supervisor,
-            state_router_mode="disabled",
         ),
         "max_transitions": max(1, min(int(arguments.max_transitions), 500)),
     }
@@ -348,7 +347,6 @@ def main() -> int:
         runtime_policy=runtime_policy_document(
             config,
             supervisor_mode=arguments.supervisor,
-            state_router_mode="disabled",
         ),
     )
     state = store.create_run(goal, arguments.run_id)

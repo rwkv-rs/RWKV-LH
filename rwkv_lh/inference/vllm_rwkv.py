@@ -18,7 +18,6 @@ from rwkv_lh.state_router.local_backend import (
     LocalVLLMRWKVExtractor,
     LocalVLLMRWKVSettings,
 )
-from rwkv_lh.state_router.model import HiddenFeatures
 
 
 class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
@@ -740,17 +739,6 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         }
         self._last_identity = identity
         return matrix, [len(row) for row in token_rows], identity
-
-    def extract(self, texts: Sequence[str]) -> list[HiddenFeatures]:
-        matrix, token_counts, _ = self._extract_matrix("hidden_mean", texts)
-        return [
-            HiddenFeatures(
-                values=tuple(float(value) for value in row.tolist()),
-                model_hash=self.model_hash,
-                token_count=token_count,
-            )
-            for row, token_count in zip(matrix, token_counts, strict=True)
-        ]
 
     def extract_wkv_statistics(
         self,

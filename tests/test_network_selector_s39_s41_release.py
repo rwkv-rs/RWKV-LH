@@ -107,7 +107,7 @@ def test_current_example_uses_replaceable_g1j_selector_intent_role() -> None:
         ),
         "RWKV_LH_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_LH_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
-        "RWKV_LH_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "",
+        "RWKV_LH_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "0" * 64,
         "RWKV_LH_SELECTOR_CONNECT_TIMEOUT": "10",
         "RWKV_LH_SELECTOR_READ_TIMEOUT": "120",
         "RWKV_LH_SELECTOR_LAUNCHER": "",
