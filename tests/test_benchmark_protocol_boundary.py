@@ -137,6 +137,7 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
         stateful_goal=False,
         supervisor_strategy="static",
         supervisor_pending_resume_attempts=0,
+        supervisor_batch_failure_policy="continue_model_failures",
     )
     tasks = [{"task_id": "fixture-case", "level": "basic"}]
 
@@ -161,6 +162,7 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
     assert protocol["architecture"] == executor_args_v4.INPUT_SCHEMA_VERSION
     assert protocol["sampling"]["sampling_policy"]["temperature"] == sampling.temperature
     assert protocol["sampling"]["top_p"] == sampling.top_p
+    assert protocol["supervisor_batch_failure_policy"] == "continue_model_failures"
     assert bool(reference_reads) == bool(set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS))
     diff_calls = [call for call in git_calls if call[0] == "diff"]
     assert len(diff_calls) == 1

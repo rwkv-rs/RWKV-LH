@@ -185,6 +185,8 @@ SUITES = {
     ),
 }
 FORMAL90_SUITE_KEYS = ("core30", "lh12", "extension48")
+SUPERVISOR_BATCH_STOP_NON_RETRYABLE = "stop_non_retryable"
+SUPERVISOR_BATCH_CONTINUE_MODEL_FAILURES = "continue_model_failures"
 SOURCE_TREE_SCOPES = ("rwkv_lh", "scripts", "tests", "pyproject.toml", "uv.lock")
 PACKAGE = SUITES["core30"].package
 TASKS_RESOURCE, ACCEPTANCE_RESOURCE = suite_resource_paths(SUITES["core30"])
@@ -239,6 +241,36 @@ def _supervisor_status_classification(status_code: int) -> tuple[str, bool]:
     if status >= 400:
         return "request", False
     return "transport", True
+
+
+def should_abort_supervisor_batch(failure: Mapping[str, Any], policy: str) -> bool:
+    """Separate case retryability from the explicitly selected batch policy."""
+    if policy not in {
+        SUPERVISOR_BATCH_STOP_NON_RETRYABLE,
+        SUPERVISOR_BATCH_CONTINUE_MODEL_FAILURES,
+    }:
+        raise ValueError(f"unsupported supervisor batch failure policy: {policy}")
+    if not failure.get("failed"):
+        return False
+    if policy == SUPERVISOR_BATCH_CONTINUE_MODEL_FAILURES:
+        category = str(failure.get("category") or "")
+        status = failure.get("http_status")
+        error = str(failure.get("error") or "")
+        if category in {"authorization", "endpoint", "request", "model_identity", "configuration"} or status in {401, 403, 404}:
+            return True
+        if (
+            category == "protocol"
+            and status == 200
+            and error.startswith("SupervisorProtocolError:")
+        ) or (
+            category == "semantic_validation"
+            and status == 0
+            and error.startswith(("TypeError:", "ValueError:"))
+        ):
+            # Keep this case's failure untouched. Continue with the next case;
+            # this does not issue a retry or relax its model/parser contract.
+            return False
+    return not bool(failure.get("retryable"))
 
 
 def supervisor_failure_summary(
@@ -1313,6 +1345,9 @@ def _write_run_metadata(
         "selected_case_count": len(selected),
         "selected_case_ids": [str(task["task_id"]) for task in selected],
         "retry_failures_from": str(arguments.retry_failures_from or ""),
+        "supervisor_batch_failure_policy": getattr(
+            arguments, "supervisor_batch_failure_policy", SUPERVISOR_BATCH_STOP_NON_RETRYABLE,
+        ),
         "difficulty_groups": {
             group: sum(
                 difficulty_group(str(task["level"])) == group
@@ -2812,6 +2847,17 @@ def parse_args() -> argparse.Namespace:
             "pending boundaries; resolved historical events never retry"
         ),
     )
+    parser.add_argument(
+        "--supervisor-batch-failure-policy",
+        choices=[SUPERVISOR_BATCH_STOP_NON_RETRYABLE, SUPERVISOR_BATCH_CONTINUE_MODEL_FAILURES],
+        default=SUPERVISOR_BATCH_STOP_NON_RETRYABLE,
+        help=(
+            "stop_non_retryable preserves the existing batch stop rule; "
+            "continue_model_failures records per-case HTTP-200 model protocol "
+            "or local semantic failures and advances without retrying the case; "
+            "identity, authorization and request-configuration failures still stop"
+        ),
+    )
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
@@ -3036,7 +3082,9 @@ def main() -> int:
                 result = case_runner_exception_result(task, output, exc)
             record_result(result)
             failure_summary = dict(result.get("supervisor_failure") or {})
-            if failure_summary.get("failed") and not failure_summary.get("retryable"):
+            if should_abort_supervisor_batch(
+                failure_summary, arguments.supervisor_batch_failure_policy,
+            ):
                 aborted_for_non_retryable_supervisor_failure = True
                 abort_failure = {
                     "task_id": result["task_id"],
@@ -3086,8 +3134,9 @@ def main() -> int:
                 failure_summary = dict(result.get("supervisor_failure") or {})
                 if (
                     not aborted_for_non_retryable_supervisor_failure
-                    and failure_summary.get("failed")
-                    and not failure_summary.get("retryable")
+                    and should_abort_supervisor_batch(
+                        failure_summary, arguments.supervisor_batch_failure_policy,
+                    )
                 ):
                     aborted_for_non_retryable_supervisor_failure = True
                     abort_failure = {
@@ -3115,7 +3164,12 @@ def main() -> int:
                 {
                     "schema_version": "rwkv-e2e.run-aborted.v1",
                     "aborted_at": datetime.now(timezone.utc).isoformat(),
-                    "reason": "non_retryable_supervisor_failure",
+                    "reason": (
+                        "non_retryable_supervisor_failure"
+                        if arguments.supervisor_batch_failure_policy == SUPERVISOR_BATCH_STOP_NON_RETRYABLE
+                        else "supervisor_batch_failure_policy"
+                    ),
+                    "supervisor_batch_failure_policy": arguments.supervisor_batch_failure_policy,
                     "failure": abort_failure,
                     "completed_case_count": len(results),
                     "selected_case_count": len(selected),
