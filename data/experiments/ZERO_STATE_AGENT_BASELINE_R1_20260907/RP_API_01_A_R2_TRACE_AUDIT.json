@@ -1,0 +1,1965 @@
+{
+  "schema_version": "rwkv-lh.read-only-trace-audit.v1",
+  "task_id": "RP-API-01",
+  "arm": "A",
+  "registration_revision": "R2",
+  "scope": {
+    "sources": "Exported audit/event/model/causal records and public workspace README only.",
+    "exclusions": [
+      "No private_verify, reference, private acceptance logic, Holdout, SQLite or model requests were accessed.",
+      "No frozen source, deployment, metric, registration or run artifact was modified."
+    ],
+    "semantics": "Facts retain original IDs and hashes. Attribution judgments below are analysis, not relabeled benchmark scores.",
+    "artifact_creation": "New audit evidence only; no StateTune sample generated."
+  },
+  "source_sha256": {
+    "real_project_zero_a_r2/cases/RP-API-01/audit.json": "545ba5327aaab77970a1ea40066260b430e7caeda8a320a4c80bf1c5f3a6f158",
+    "real_project_zero_a_r2/cases/RP-API-01/model_trace.json": "b5e591436fbb21c6e718ff57cfb2e878269d4a759b7c8280485eeb9c94cb7ede",
+    "real_project_zero_a_r2/cases/RP-API-01/event_log.json": "dbe6f61aab4cab7cbe0ffb6f41fd61b3bd6ec18855fc2fb60cc39f06acf7c17c",
+    "real_project_zero_a_r2/cases/RP-API-01/causal_ledger.json": "52233581501c243b7c453624133d0b0f023301c0c64bbb5f6fddf6ba9b2ae6b1",
+    "real_project_zero_a_r2/cases/RP-API-01/workspace/README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+    "real_project_zero_a_r2/cases/RP-API-02/audit.json": "564c022fd0a2e78d3db2f3946b7926feda72c092aa21082903cf307fc5fb3d7c",
+    "real_project_zero_a_r2/cases/RP-MAINT-01/audit.json": "5bf79b2c98137cbc8bb092483ffb692fbb1645ec43e2dcc4a9f0be67a69aaa9d"
+  },
+  "agent_result": {
+    "passed": false,
+    "completed": false,
+    "action_count": 3,
+    "mutation_count": 0,
+    "final_output_nonempty": false,
+    "run_state_status": "running",
+    "run_revision": 53,
+    "runner_observations": {
+      "goal_continuation_count": 0,
+      "goal_transition_budget_consumed": 9,
+      "goal_transition_budget_exhausted": false,
+      "runtime_client_close_failures": [],
+      "agent_process_tree_closed": true
+    },
+    "supervisor_failure": {
+      "failed": true,
+      "category": "upstream",
+      "retryable": true,
+      "http_status": 500,
+      "phase": "goal_plan",
+      "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+      "unresolved_request_count": 1
+    },
+    "terminal_pattern": "strong_planner_call_failed -> supervisor_call_pending -> run_yielded",
+    "root_cause_of_yield": "upstream goal_plan HTTP 500; not transition-budget exhaustion or a completed Agent final answer"
+  },
+  "planner_stage": {
+    "stage": 1,
+    "steps": [
+      {
+        "allowed_operations": [],
+        "constraints": [
+          "Do not modify files.",
+          "Treat README.md as the public interface specification.",
+          "Identify concrete startup and verification commands only if present in inspected files."
+        ],
+        "depends_on": [],
+        "objective": "Inspect the documented HTTP contract, current implementation, and available verifier to determine required behavior and executable validation procedure.",
+        "obligation_ids": [
+          "O1",
+          "O2",
+          "O3",
+          "O4",
+          "O5",
+          "O6",
+          "O7"
+        ],
+        "phase": "observe",
+        "read_roots": [
+          "README.md",
+          "server.py",
+          "verify_public.py"
+        ],
+        "step_id": "S1",
+        "success_evidence": [
+          "Successful inspection evidence captures the README public endpoints and semantics, current server behavior, and any verifier command or test procedure available in the workspace."
+        ],
+        "write_roots": []
+      }
+    ]
+  },
+  "first_observed_rejection": {
+    "classification": "Executor target-selection failure against current step contract; universal contract implementation defect remains unattributed",
+    "first_request_id": "MR-5cf7666195fd4390",
+    "first_decision_id": "D-220d193b98dc4f2f",
+    "event_id": 9,
+    "causal_event_id": "CE-000009",
+    "explanation": "The current observe step lists README.md/server.py/verify_public.py as read roots. The generated path '.' exceeds that scoped target contract. JSON parsing succeeded; this is not a JSON parse failure.",
+    "recovery": "The same selected search_text operation was retried on README.md and executed as A00001.",
+    "event_chain": [
+      {
+        "event_id": 5,
+        "revision": 4,
+        "timestamp": "2026-09-07T04:22:24.333+00:00",
+        "type": "action_observation_appended",
+        "causal_event_id": "CE-000005",
+        "causal_digest": "3f8047cabfa698206117a72e99c79bf1166f6b124bb8acb32a39bfbb746c563a",
+        "causal_parent_id": "CE-000004",
+        "causal_cause_id": "CE-000004",
+        "data": {
+          "checkpoint_id": "CP-238465061e364cf8",
+          "event_id": "EV-GOAL-FRONTIER-c38f4fa880354ea1",
+          "event_type": "goal_frontier_assignment",
+          "model_event": {
+            "complete": true,
+            "content_refs": [],
+            "event_id": "EV-GOAL-FRONTIER-c38f4fa880354ea1",
+            "event_type": "goal_frontier_assignment",
+            "event_version": "rwkv-lh.event.v2",
+            "payload": {
+              "active_step": {
+                "allowed_operations": [],
+                "constraints": [
+                  "Do not modify files.",
+                  "Treat README.md as the public interface specification.",
+                  "Identify concrete startup and verification commands only if present in inspected files."
+                ],
+                "depends_on": [],
+                "objective": "Inspect the documented HTTP contract, current implementation, and available verifier to determine required behavior and executable validation procedure.",
+                "obligation_ids": [
+                  "O1",
+                  "O2",
+                  "O3",
+                  "O4",
+                  "O5",
+                  "O6",
+                  "O7"
+                ],
+                "phase": "observe",
+                "read_roots": [
+                  "README.md",
+                  "server.py",
+                  "verify_public.py"
+                ],
+                "stage": 1,
+                "step_id": "S1",
+                "step_revision": 1,
+                "success_evidence": [
+                  "Successful inspection evidence captures the README public endpoints and semantics, current server behavior, and any verifier command or test procedure available in the workspace."
+                ],
+                "write_roots": []
+              },
+              "instruction": "Execute only this one active step. Do not audit, replan, judge completion, or consider another plan step.",
+              "mechanical_evidence": {
+                "active_step_id": "S1",
+                "active_step_revision": 1,
+                "assigned_action_ids": [],
+                "command_write_scope_gaps": [],
+                "completion_authority": false,
+                "completion_preconditions_satisfied": false,
+                "gaps": [
+                  "missing successful observation evidence for read_root 'README.md'",
+                  "missing successful observation evidence for read_root 'server.py'",
+                  "missing successful observation evidence for read_root 'verify_public.py'"
+                ],
+                "missing_read_roots": [
+                  "README.md",
+                  "server.py",
+                  "verify_public.py"
+                ],
+                "missing_write_roots": [],
+                "source": "controller_mechanical_evidence_gate",
+                "successful_action_ids": []
+              }
+            },
+            "scope_id": "LANE:ACTION"
+          }
+        }
+      },
+      {
+        "event_id": 7,
+        "revision": 6,
+        "timestamp": "2026-09-07T04:22:27.345+00:00",
+        "type": "tool_schema_disclosed",
+        "causal_event_id": "CE-000007",
+        "causal_digest": "22c580463dc33ac8699b01b31a3bdf305df8e4f400b420522fd4555e18644baf",
+        "causal_parent_id": "CE-000006",
+        "causal_cause_id": "CE-000006",
+        "data": {
+          "checkpoint_id": "CP-eb26bfef8b8d4330",
+          "definition_digest": "f95d97fb6722371661d0cab8f905a58dc59fbcc32a2f2245b70cda2d94775dc8",
+          "executor_argument_provenance_version": "rwkv-lh.executor-argument-provenance.v2",
+          "executor_execution_state_sha256": "b15946abedad9af1d3bcced5d438c40b725115c851b0f636bcb2a4b697e5e3f6",
+          "executor_fact_action_ids": [],
+          "executor_fact_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "prompt_sha256": "409bff75acf6f4fa6eee8567390614fed82f86014a42d0a2c46957af3ebdc74d",
+          "protocol_schema_version": "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4",
+          "protocol_sha256": "4aec4e16bf839ea87e4be95b628e6a077300aab7f3db72bd5736e4b8fa3bc5ed",
+          "selected_operation": "search_text",
+          "selection_id": "NSEL-ENS-04f82f964dcb44dc",
+          "state_profile_delivery": "request",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state_transport": "native_rwkv",
+          "system_tool_definition": false,
+          "visible_definition_count": 1
+        }
+      },
+      {
+        "event_id": 9,
+        "revision": 8,
+        "timestamp": "2026-09-07T04:22:28.887+00:00",
+        "type": "protocol_rejection_recorded",
+        "causal_event_id": "CE-000009",
+        "causal_digest": "46e4aa205a12c0d49917751d209e4d5dae78b66ae6a50edbdfd75c876923f69a",
+        "causal_parent_id": "CE-000008",
+        "causal_cause_id": "CE-000008",
+        "data": {
+          "action_executed": false,
+          "active_step_id": "S1",
+          "active_step_revision": 1,
+          "audit_boundary_id": "",
+          "decision_id": "D-220d193b98dc4f2f",
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+          "error_kind": "",
+          "error_record": {
+            "at": "2026-09-07T04:22:28.886+00:00",
+            "message": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+            "type": "ModelProtocolError"
+          },
+          "protocol_scope": "action",
+          "rejected_arguments": {
+            "case_sensitive": true,
+            "max_file_bytes": 5000000,
+            "max_line_chars": 800,
+            "max_results": 100,
+            "max_tokens": 4096,
+            "mode": "regex",
+            "path": ".",
+            "pattern": "TODO|FIXME",
+            "recursive": true,
+            "start_after": ""
+          },
+          "rejection_count": 1,
+          "request_id": "MR-5cf7666195fd4390",
+          "schema_already_disclosed": true,
+          "selected_operation": "search_text",
+          "selected_operation_schema": {
+            "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+            "name": "search_text",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "case_sensitive": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "max_file_bytes": {
+                  "default": 5000000,
+                  "description": "skip larger files and report them",
+                  "maximum": 100000000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "max_line_chars": {
+                  "default": 800,
+                  "description": "maximum returned line excerpt and match text characters",
+                  "maximum": 4000,
+                  "minimum": 80,
+                  "type": "integer"
+                },
+                "max_results": {
+                  "default": 100,
+                  "maximum": 500,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "max_tokens": {
+                  "default": 4096,
+                  "maximum": 8192,
+                  "minimum": 256,
+                  "type": "integer"
+                },
+                "mode": {
+                  "default": "regex",
+                  "enum": [
+                    "literal",
+                    "regex"
+                  ],
+                  "type": "string"
+                },
+                "path": {
+                  "default": ".",
+                  "description": "workspace-relative file or directory",
+                  "type": "string"
+                },
+                "pattern": {
+                  "description": "literal text or one line-oriented Python regular expression",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "recursive": {
+                  "default": true,
+                  "description": "recurse when path is a directory",
+                  "type": "boolean"
+                },
+                "start_after": {
+                  "default": "",
+                  "description": "opaque prior-page next_cursor; copy exactly",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern"
+              ],
+              "type": "object"
+            }
+          },
+          "selection_id": "NSEL-ENS-04f82f964dcb44dc"
+        }
+      },
+      {
+        "event_id": 10,
+        "revision": 9,
+        "timestamp": "2026-09-07T04:22:29.285+00:00",
+        "type": "action_observation_appended",
+        "causal_event_id": "CE-000010",
+        "causal_digest": "12acdbc0071c0406892101ab1a9c0c68a256377420ca2dcf3627d6f4fefdde58",
+        "causal_parent_id": "CE-000009",
+        "causal_cause_id": "CE-000009",
+        "data": {
+          "checkpoint_id": "CP-68ab33ee7c6f43fb",
+          "event_id": "EV-GOAL-REJECT-ef15c06d739e74b3",
+          "event_type": "protocol_rejection",
+          "model_event": {
+            "complete": true,
+            "content_refs": [],
+            "event_id": "EV-GOAL-REJECT-ef15c06d739e74b3",
+            "event_type": "protocol_rejection",
+            "event_version": "rwkv-lh.event.v2",
+            "payload": {
+              "action_executed": false,
+              "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+              "instruction": "Retry the same selected operation. Return one displayed direct function call with its complete explicit parameter object; do not choose another operation.",
+              "rejected_arguments": {
+                "case_sensitive": true,
+                "max_file_bytes": 5000000,
+                "max_line_chars": 800,
+                "max_results": 100,
+                "max_tokens": 4096,
+                "mode": "regex",
+                "path": ".",
+                "pattern": "TODO|FIXME",
+                "recursive": true,
+                "start_after": ""
+              },
+              "schema_already_disclosed": true,
+              "selected_operation": "search_text",
+              "selection_id": "NSEL-ENS-04f82f964dcb44dc"
+            },
+            "scope_id": "LANE:ACTION"
+          }
+        }
+      },
+      {
+        "event_id": 11,
+        "revision": 10,
+        "timestamp": "2026-09-07T04:22:29.679+00:00",
+        "type": "tool_schema_disclosed",
+        "causal_event_id": "CE-000011",
+        "causal_digest": "245038f586b99aef0c31d52798e8db20462e8ff917502faabaeb5fb44152ca50",
+        "causal_parent_id": "CE-000010",
+        "causal_cause_id": "CE-000010",
+        "data": {
+          "checkpoint_id": "CP-78a717eebe1c4947",
+          "definition_digest": "f95d97fb6722371661d0cab8f905a58dc59fbcc32a2f2245b70cda2d94775dc8",
+          "executor_argument_provenance_version": "rwkv-lh.executor-argument-provenance.v2",
+          "executor_execution_state_sha256": "b15946abedad9af1d3bcced5d438c40b725115c851b0f636bcb2a4b697e5e3f6",
+          "executor_fact_action_ids": [],
+          "executor_fact_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "prompt_sha256": "239d514d5e602ad6c480696c2b441d6a16450d76a9cb420807866f651912d86b",
+          "protocol_schema_version": "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4",
+          "protocol_sha256": "4aec4e16bf839ea87e4be95b628e6a077300aab7f3db72bd5736e4b8fa3bc5ed",
+          "selected_operation": "search_text",
+          "state_profile_delivery": "request",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "state_transport": "native_rwkv",
+          "system_tool_definition": false,
+          "visible_definition_count": 1
+        }
+      }
+    ]
+  },
+  "protocol_rejections": [
+    {
+      "event_id": 9,
+      "revision": 8,
+      "timestamp": "2026-09-07T04:22:28.887+00:00",
+      "type": "protocol_rejection_recorded",
+      "causal_event_id": "CE-000009",
+      "causal_digest": "46e4aa205a12c0d49917751d209e4d5dae78b66ae6a50edbdfd75c876923f69a",
+      "causal_parent_id": "CE-000008",
+      "causal_cause_id": "CE-000008",
+      "data": {
+        "action_executed": false,
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "audit_boundary_id": "",
+        "decision_id": "D-220d193b98dc4f2f",
+        "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+        "error_kind": "",
+        "error_record": {
+          "at": "2026-09-07T04:22:28.886+00:00",
+          "message": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+          "type": "ModelProtocolError"
+        },
+        "protocol_scope": "action",
+        "rejected_arguments": {
+          "case_sensitive": true,
+          "max_file_bytes": 5000000,
+          "max_line_chars": 800,
+          "max_results": 100,
+          "max_tokens": 4096,
+          "mode": "regex",
+          "path": ".",
+          "pattern": "TODO|FIXME",
+          "recursive": true,
+          "start_after": ""
+        },
+        "rejection_count": 1,
+        "request_id": "MR-5cf7666195fd4390",
+        "schema_already_disclosed": true,
+        "selected_operation": "search_text",
+        "selected_operation_schema": {
+          "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+          "name": "search_text",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "case_sensitive": {
+                "default": true,
+                "type": "boolean"
+              },
+              "max_file_bytes": {
+                "default": 5000000,
+                "description": "skip larger files and report them",
+                "maximum": 100000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "max_line_chars": {
+                "default": 800,
+                "description": "maximum returned line excerpt and match text characters",
+                "maximum": 4000,
+                "minimum": 80,
+                "type": "integer"
+              },
+              "max_results": {
+                "default": 100,
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "max_tokens": {
+                "default": 4096,
+                "maximum": 8192,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "mode": {
+                "default": "regex",
+                "enum": [
+                  "literal",
+                  "regex"
+                ],
+                "type": "string"
+              },
+              "path": {
+                "default": ".",
+                "description": "workspace-relative file or directory",
+                "type": "string"
+              },
+              "pattern": {
+                "description": "literal text or one line-oriented Python regular expression",
+                "minLength": 1,
+                "type": "string"
+              },
+              "recursive": {
+                "default": true,
+                "description": "recurse when path is a directory",
+                "type": "boolean"
+              },
+              "start_after": {
+                "default": "",
+                "description": "opaque prior-page next_cursor; copy exactly",
+                "type": "string"
+              }
+            },
+            "required": [
+              "pattern"
+            ],
+            "type": "object"
+          }
+        },
+        "selection_id": "NSEL-ENS-04f82f964dcb44dc"
+      }
+    },
+    {
+      "event_id": 25,
+      "revision": 24,
+      "timestamp": "2026-09-07T04:22:35.799+00:00",
+      "type": "protocol_rejection_recorded",
+      "causal_event_id": "CE-000025",
+      "causal_digest": "da6fac2e56bc530305b7bf9b0d13d236118050d9b96c0de1cba88aa6116507c2",
+      "causal_parent_id": "CE-000024",
+      "causal_cause_id": "CE-000024",
+      "data": {
+        "action_executed": false,
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "audit_boundary_id": "",
+        "decision_id": "D-fe953da81fd34618",
+        "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='README.md' is outside roots=['server.py', 'verify_public.py']; compatible_targets=['server.py', 'verify_public.py']",
+        "error_kind": "",
+        "error_record": {
+          "at": "2026-09-07T04:22:35.798+00:00",
+          "message": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='README.md' is outside roots=['server.py', 'verify_public.py']; compatible_targets=['server.py', 'verify_public.py']",
+          "type": "ModelProtocolError"
+        },
+        "protocol_scope": "action",
+        "rejected_arguments": {
+          "case_sensitive": true,
+          "max_file_bytes": 5000000,
+          "max_line_chars": 800,
+          "max_results": 100,
+          "max_tokens": 4096,
+          "mode": "regex",
+          "path": "README.md",
+          "pattern": "TODO|FIXME",
+          "recursive": true,
+          "start_after": ""
+        },
+        "rejection_count": 2,
+        "request_id": "MR-bcc6067a3a4742a6",
+        "schema_already_disclosed": true,
+        "selected_operation": "search_text",
+        "selected_operation_schema": {
+          "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+          "name": "search_text",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "case_sensitive": {
+                "default": true,
+                "type": "boolean"
+              },
+              "max_file_bytes": {
+                "default": 5000000,
+                "description": "skip larger files and report them",
+                "maximum": 100000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "max_line_chars": {
+                "default": 800,
+                "description": "maximum returned line excerpt and match text characters",
+                "maximum": 4000,
+                "minimum": 80,
+                "type": "integer"
+              },
+              "max_results": {
+                "default": 100,
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "max_tokens": {
+                "default": 4096,
+                "maximum": 8192,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "mode": {
+                "default": "regex",
+                "enum": [
+                  "literal",
+                  "regex"
+                ],
+                "type": "string"
+              },
+              "path": {
+                "default": ".",
+                "description": "workspace-relative file or directory",
+                "type": "string"
+              },
+              "pattern": {
+                "description": "literal text or one line-oriented Python regular expression",
+                "minLength": 1,
+                "type": "string"
+              },
+              "recursive": {
+                "default": true,
+                "description": "recurse when path is a directory",
+                "type": "boolean"
+              },
+              "start_after": {
+                "default": "",
+                "description": "opaque prior-page next_cursor; copy exactly",
+                "type": "string"
+              }
+            },
+            "required": [
+              "pattern"
+            ],
+            "type": "object"
+          }
+        },
+        "selection_id": "NSEL-ENS-a36491d1c3004869"
+      }
+    }
+  ],
+  "request_records": [
+    {
+      "trace_index": 4,
+      "request_id": "MR-5cf7666195fd4390",
+      "model_role": "executor_args",
+      "candidate_id": "CAND-95f87f1c538b4cf5",
+      "candidate_checkpoint_id": "CP-388e6171c395429d",
+      "raw_output": "{\n  \"name\": \"search_text\",\n  \"arguments\": {\n    \"pattern\": \"TODO|FIXME\",\n    \"path\": \".\",\n    \"mode\": \"regex\",\n    \"recursive\": true,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 800\n  }\n}",
+      "raw_output_sha256": "9550309977b1bca44b2f0a8dc78cbee6f875c3e5acf7a1fddca4af0fd3dfaec1"
+    },
+    {
+      "trace_index": 10,
+      "request_id": "MR-8d44bbf0cd294258",
+      "model_role": "executor_args",
+      "candidate_id": "CAND-3316c1238eed4a65",
+      "candidate_checkpoint_id": "CP-ace8b769da634a15",
+      "raw_output": "{\n  \"name\": \"search_text\",\n  \"arguments\": {\n    \"pattern\": \"TODO|FIXME\",\n    \"path\": \"README.md\",\n    \"mode\": \"regex\",\n    \"recursive\": true,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 800\n  }\n}",
+      "raw_output_sha256": "9c70740e845366a24c34ea1b729b8237109c30b6aa0a09f9b6e585cc8949472b"
+    },
+    {
+      "trace_index": 18,
+      "request_id": "MR-bcc6067a3a4742a6",
+      "model_role": "executor_args",
+      "candidate_id": "CAND-889596c031a2434f",
+      "candidate_checkpoint_id": "CP-0e6f9df05b9d4f9d",
+      "raw_output": "{\n  \"name\": \"search_text\",\n  \"arguments\": {\n    \"pattern\": \"TODO|FIXME\",\n    \"path\": \"README.md\",\n    \"mode\": \"regex\",\n    \"recursive\": true,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 800,\n    \"case_sensitive\": true,\n    \"start_after\": \"\"\n  }\n}",
+      "raw_output_sha256": "886596d5395e9ae772dabcb8fda2f9d403dda94fb89055160b8494167d287172"
+    },
+    {
+      "trace_index": 24,
+      "request_id": "MR-3613c11898f148c7",
+      "model_role": "executor_args",
+      "candidate_id": "CAND-acf9a32651044e1e",
+      "candidate_checkpoint_id": "CP-cf5834d8145b4b71",
+      "raw_output": "{\n  \"name\": \"search_text\",\n  \"arguments\": {\n    \"pattern\": \"TODO|FIXME\",\n    \"path\": \"server.py\",\n    \"mode\": \"regex\",\n    \"recursive\": true,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 800,\n    \"case_sensitive\": true,\n    \"start_after\": \"\"\n  }\n}",
+      "raw_output_sha256": "5e4fb7da5addfe05ede06669c039ac0da33c05bc53baffd0d7d3c440c2cf8b69"
+    },
+    {
+      "trace_index": 32,
+      "request_id": "MR-dadbe387e3b84d3f",
+      "model_role": "executor_args",
+      "candidate_id": "CAND-be1edbf20f064dcf",
+      "candidate_checkpoint_id": "CP-823ead73ea6346ef",
+      "raw_output": "{\n  \"name\": \"search_text\",\n  \"arguments\": {\n    \"pattern\": \"TODO|FIXME\",\n    \"path\": \"verify_public.py\",\n    \"mode\": \"regex\",\n    \"recursive\": true,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 800,\n    \"case_sensitive\": true,\n    \"start_after\": \"\"\n  }\n}",
+      "raw_output_sha256": "db91fd3043acfc4a410cefcc1acaf943adbb4c86fc59f5687749ba961ad06d88"
+    },
+    {
+      "trace_index": 38,
+      "request_id": "MR-80b6fbc64ec044e4",
+      "model_role": "auditor_step",
+      "candidate_id": "CAND-5af9e1f2fd9c49b6",
+      "candidate_checkpoint_id": "CP-bfabdb3d5b9c4edf",
+      "raw_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"repair\",\n    \"step_id\": \"S1\",\n    \"step_complete\": false,\n    \"evidence_refs\": [\n      \"A00001\",\n      \"A00002\",\n      \"A00003\"\n    ],\n    \"gaps\": [\n      \"phase_evidence_unproved:observe\",\n      \"read_root_unproved:README.md\",\n      \"read_root_unproved:server.py\",\n      \"read_root_unproved:verify_public.py\",\n      \"success_criterion_unproved:012af05eb1c9\"\n    ],\n    \"reason\": \"evidence_incomplete\"\n  }\n}",
+      "raw_output_sha256": "8f1034e98d31a9cfb41113143f2c85489e01b004ecbf6039b426763308a67adf"
+    }
+  ],
+  "request_order": [
+    "MR-5cf7666195fd4390",
+    "MR-8d44bbf0cd294258",
+    "MR-bcc6067a3a4742a6",
+    "MR-3613c11898f148c7",
+    "MR-dadbe387e3b84d3f",
+    "MR-80b6fbc64ec044e4"
+  ],
+  "actions": [
+    {
+      "action_id": "A00001",
+      "request_id": "MR-8d44bbf0cd294258",
+      "decision_id": "D-b2a20110e0734d93",
+      "action_type": "search_text",
+      "status": "succeeded",
+      "arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "README.md",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "case_sensitive": true,
+        "start_after": ""
+      },
+      "wire_arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "README.md",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800
+      },
+      "result": {
+        "action_type": "search_text",
+        "success": true,
+        "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"README.md\", \"pattern\": \"TODO|FIXME\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "contract_digest": "7f973c028132909d7325818e03f070f2aef4152a21a9499b0ad4edbc675410d8",
+          "match_count": 0,
+          "files_considered": 1,
+          "files_searched": 1,
+          "skipped_file_count": 0,
+          "truncated": false,
+          "complete": true,
+          "next_cursor": "",
+          "observed_tokens": 140
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb"
+    },
+    {
+      "action_id": "A00002",
+      "request_id": "MR-3613c11898f148c7",
+      "decision_id": "D-26439efca4264aa9",
+      "action_type": "search_text",
+      "status": "succeeded",
+      "arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "server.py",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "case_sensitive": true,
+        "start_after": ""
+      },
+      "wire_arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "server.py",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "case_sensitive": true,
+        "start_after": ""
+      },
+      "result": {
+        "action_type": "search_text",
+        "success": true,
+        "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"server.py\", \"pattern\": \"TODO|FIXME\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "contract_digest": "ea0d8a8d733fc907099421f4e698cde20148c94b1ec0e26c58a4e65862b9f0e8",
+          "match_count": 0,
+          "files_considered": 1,
+          "files_searched": 1,
+          "skipped_file_count": 0,
+          "truncated": false,
+          "complete": true,
+          "next_cursor": "",
+          "observed_tokens": 140
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb"
+    },
+    {
+      "action_id": "A00003",
+      "request_id": "MR-dadbe387e3b84d3f",
+      "decision_id": "D-75e00c405c624e04",
+      "action_type": "search_text",
+      "status": "succeeded",
+      "arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "verify_public.py",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "case_sensitive": true,
+        "start_after": ""
+      },
+      "wire_arguments": {
+        "pattern": "TODO|FIXME",
+        "path": "verify_public.py",
+        "mode": "regex",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 800,
+        "case_sensitive": true,
+        "start_after": ""
+      },
+      "result": {
+        "action_type": "search_text",
+        "success": true,
+        "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"verify_public.py\", \"pattern\": \"TODO|FIXME\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "contract_digest": "f0f46ac8a8e4217911c7c52851c081a52651f767a239c93bf6953e6bea26afd1",
+          "match_count": 0,
+          "files_considered": 1,
+          "files_searched": 1,
+          "skipped_file_count": 0,
+          "truncated": false,
+          "complete": true,
+          "next_cursor": "",
+          "observed_tokens": 142
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb"
+    }
+  ],
+  "action_causal_links": [
+    {
+      "action_id": "A00001",
+      "model_request_ids": [
+        "MR-8d44bbf0cd294258"
+      ],
+      "event_links": [
+        {
+          "event_index": 12,
+          "revision": 12,
+          "event_type": "action_started",
+          "state_sha256": "cb3388f76d551b58135998e7a9474ebf8b216bf7825dc4db27381e8300a3a79d"
+        },
+        {
+          "event_index": 13,
+          "revision": 13,
+          "event_type": "action_finished",
+          "state_sha256": "8d96e0e371bead3c97a013e996e009206eb09ee8c1d9045c557cd5bb0eda02ed"
+        },
+        {
+          "event_index": 14,
+          "revision": 14,
+          "event_type": "goal_action_plan_step_assigned",
+          "state_sha256": "7362ddb8f3d919abc91937ee7a5c1e35476f6766c410186e7bd8f9b5c81ab1eb"
+        },
+        {
+          "event_index": 15,
+          "revision": 15,
+          "event_type": "goal_audit_boundary_opened",
+          "state_sha256": "e6c43c73d3148b163cdce7c54b470eb2ccb4625753d6d3a9814872ac6ca37fbf"
+        },
+        {
+          "event_index": 18,
+          "revision": 18,
+          "event_type": "goal_audit_boundary_resolved",
+          "state_sha256": "08b30da3943c9419c9faa554cd4cbd73c51859f9ed2c15e3581cbc0c6af19711"
+        }
+      ]
+    },
+    {
+      "action_id": "A00002",
+      "model_request_ids": [
+        "MR-3613c11898f148c7"
+      ],
+      "event_links": [
+        {
+          "event_index": 28,
+          "revision": 28,
+          "event_type": "action_started",
+          "state_sha256": "f2dd6f0bb0fc26bc350c3150009b63354ad76853c5308281adb411541639b145"
+        },
+        {
+          "event_index": 29,
+          "revision": 29,
+          "event_type": "action_finished",
+          "state_sha256": "cd625b39cfeecf0d57fdda566c72ec1efe5f5d2db75d2aba77bcc28f6c904ac3"
+        },
+        {
+          "event_index": 30,
+          "revision": 30,
+          "event_type": "goal_action_plan_step_assigned",
+          "state_sha256": "039cc75ab5dba6c2cc8e567ab1a9ad4b8abf799f4c12a7ed14aad1c2b7a4185d"
+        },
+        {
+          "event_index": 31,
+          "revision": 31,
+          "event_type": "goal_audit_boundary_opened",
+          "state_sha256": "f2b2044e7fa597ef59e230e1caeab992e3718fdcc624b85c124c5b46a568e3e9"
+        },
+        {
+          "event_index": 34,
+          "revision": 34,
+          "event_type": "goal_audit_boundary_resolved",
+          "state_sha256": "f95a108ef2af67001fdbf4571ad55895f253499f5e34271d14eae1c443d2e4bf"
+        }
+      ]
+    },
+    {
+      "action_id": "A00003",
+      "model_request_ids": [
+        "MR-dadbe387e3b84d3f"
+      ],
+      "event_links": [
+        {
+          "event_index": 40,
+          "revision": 40,
+          "event_type": "action_started",
+          "state_sha256": "41bc693931abc3b0f44770255d39acbf949a219729321c1c80b2552e5d6f9820"
+        },
+        {
+          "event_index": 41,
+          "revision": 41,
+          "event_type": "action_finished",
+          "state_sha256": "25dc0be8c6645d19632036d63618cd06dffda284de5d30d59cda987e7fb84742"
+        },
+        {
+          "event_index": 42,
+          "revision": 42,
+          "event_type": "goal_action_plan_step_assigned",
+          "state_sha256": "dc55fd8b604b11d7a515572021142175feb3cf8d2b1aafbbcdd83148d9a5ec95"
+        },
+        {
+          "event_index": 43,
+          "revision": 43,
+          "event_type": "goal_audit_boundary_opened",
+          "state_sha256": "e98d961196fc3a6701d298510b60146ba428a89bdeaeaa625dca762d6fa4d006"
+        },
+        {
+          "event_index": 49,
+          "revision": 49,
+          "event_type": "goal_action_plan_step_linked",
+          "state_sha256": "0fc9c9d887e7f40acf872560c8673f4ee84938753749c5dd4fc7f7f1b26a4cd8"
+        }
+      ]
+    }
+  ],
+  "selector": {
+    "assessment": "search_text is a legitimate observe-stage operation and was one of search_text/read_file/file_digest. Lack of writes in this stage is not evidence of a Selector defect. The selected operation combined with repeated TODO|FIXME arguments yielded no substantive contract content; this observation does not identify a unique correct tool label.",
+    "selection_records": [
+      {
+        "event_id": 6,
+        "causal_event_id": "CE-000006",
+        "selection_id": "NSEL-ENS-04f82f964dcb44dc",
+        "selected_operation": "search_text",
+        "eligible_labels": [
+          "search_text",
+          "read_file",
+          "file_digest"
+        ],
+        "votes": [
+          "search_text",
+          "search_text",
+          "search_text"
+        ],
+        "lanes": [
+          {
+            "order": "canonical",
+            "selection_id": "NSEL-ee2458d3f4dffb6f37acb362",
+            "trace_id": "SELTRACE-600cfa79be744064",
+            "selected_operation": "search_text",
+            "input_digest": "4410fab57e78aec8d6575a15a9f88812a5f4c44975b228b50df6726dd96cfc3e",
+            "decoder_trace_sha256": "2a6c36683c6af091cd3576c09d9a3e3d8f99a4f63d3c4b4ff82ad9c9be16a4af"
+          },
+          {
+            "order": "rotate_17",
+            "selection_id": "NSEL-16bc81bbf097c31a4412b2e7",
+            "trace_id": "SELTRACE-ed910372c8bc425d",
+            "selected_operation": "search_text",
+            "input_digest": "e2d4dfc3c0da549945c1493a06940ee88a3b249baa3669ae871bd98da3d73e44",
+            "decoder_trace_sha256": "8f32f34c24f3bd2e40f6d25aa3579277a90c7bf179026e23b67d9af3575804da"
+          },
+          {
+            "order": "rotate_8",
+            "selection_id": "NSEL-5d8a3a02212378fbd81eb27a",
+            "trace_id": "SELTRACE-eef844c7523e420e",
+            "selected_operation": "search_text",
+            "input_digest": "2c153aaf68b8b27e7daaeb32395a6642d5ff179054e97675f4cd182faa81797b",
+            "decoder_trace_sha256": "c76c3366e7af8632a073093d40abd4c8b71afbec89a1d843ae474af08e5e4c51"
+          }
+        ]
+      },
+      {
+        "event_id": 22,
+        "causal_event_id": "CE-000022",
+        "selection_id": "NSEL-ENS-a36491d1c3004869",
+        "selected_operation": "search_text",
+        "eligible_labels": [
+          "search_text",
+          "read_file",
+          "file_digest"
+        ],
+        "votes": [
+          "search_text",
+          "search_text",
+          "search_text"
+        ],
+        "lanes": [
+          {
+            "order": "canonical",
+            "selection_id": "NSEL-cda5a4aaea6350ec8c9a2079",
+            "trace_id": "SELTRACE-5180cb5f0b944f2a",
+            "selected_operation": "search_text",
+            "input_digest": "7ef386cf42e0bee9d6695ec8cf3a7c5795adbf41d4010167e0951ffa95b06a17",
+            "decoder_trace_sha256": "2cfc61ab87237ada9334c0973270cff3c7d7b8fc774eb89c911299f8c64e5a96"
+          },
+          {
+            "order": "rotate_17",
+            "selection_id": "NSEL-4ba3974f0215576a854e9068",
+            "trace_id": "SELTRACE-0b7f3ad21e4b4fdb",
+            "selected_operation": "search_text",
+            "input_digest": "2c2e30351d41b9c9b33c14b71f940d3afe95a665d670c189c60550f67d01fbc6",
+            "decoder_trace_sha256": "3257f72e9d890969578f9193fd939f6a663aa80c8b17db1599b3bbf2c485bf6e"
+          },
+          {
+            "order": "rotate_8",
+            "selection_id": "NSEL-d36638d24e5587e451cb8139",
+            "trace_id": "SELTRACE-7be390e8e513440c",
+            "selected_operation": "search_text",
+            "input_digest": "001c2a4c4d1f33ba3555c07eb39ea44d22504b9ca4057fece871fee110cc84af",
+            "decoder_trace_sha256": "9ee24140fadad3eff7599ce3af17e1b68a42d82a691ec9edf524a7e188086b84"
+          }
+        ]
+      },
+      {
+        "event_id": 38,
+        "causal_event_id": "CE-000038",
+        "selection_id": "NSEL-ENS-109db7152abb429b",
+        "selected_operation": "search_text",
+        "eligible_labels": [
+          "search_text",
+          "read_file",
+          "file_digest"
+        ],
+        "votes": [
+          "search_text",
+          "search_text",
+          "search_text"
+        ],
+        "lanes": [
+          {
+            "order": "canonical",
+            "selection_id": "NSEL-d1b62d6d21782e70ceb596e2",
+            "trace_id": "SELTRACE-7e1640bae63c47e3",
+            "selected_operation": "search_text",
+            "input_digest": "4b01574844a13554a0a7fdd87336bf7499fb8e2da0462f45e54e0e529e62976d",
+            "decoder_trace_sha256": "9e5392000db3c8bab9786c20db2ea76a6d731d8cf4fb80a357ab0675ae66a2d2"
+          },
+          {
+            "order": "rotate_17",
+            "selection_id": "NSEL-5a0a447b51fee765212f43ea",
+            "trace_id": "SELTRACE-339e2eb518ed4421",
+            "selected_operation": "search_text",
+            "input_digest": "6e322cc595a724a9533224d2f741f59816ca72c66fdffe89e90e81ad395b7bcb",
+            "decoder_trace_sha256": "d9d3fad2e1ec970f6233dbe0c50615ff3f8f898626421ed5c9d838c86e452c9d"
+          },
+          {
+            "order": "rotate_8",
+            "selection_id": "NSEL-c5f8a540143bae28e2377c74",
+            "trace_id": "SELTRACE-91d5a2e3fa704369",
+            "selected_operation": "search_text",
+            "input_digest": "587ee5b3593b18cc99ff7bbb1f85fcb6d8d040a97df190d5fd55d719e5ebf1c1",
+            "decoder_trace_sha256": "779db7f1616478f57cbe76cece75d5db4447c951060aaa0693eff25ce79cdcaf"
+          }
+        ]
+      }
+    ]
+  },
+  "role_observations": {
+    "executor": "Five JSON command generations, two target-contract rejections and three successful searches. Every search used TODO|FIXME and returned zero matches, so the public endpoints and implementation were not read into observation evidence.",
+    "prompt_example_influence": "TODO|FIXME also appears in the disclosed generic search_text description. Example fixation is a hypothesis, not a demonstrated causal mechanism.",
+    "step_auditor": "One generation requested repair/evidence_incomplete and completed no steps. Its candidate State rollback is labeled auditor_state_non_authoritative; the parsed audit was accepted, not rejected.",
+    "finalizer_and_final_auditor": "No generation occurred; capability is unobserved.",
+    "state_behavior": "Three clean Executor sessions; successive sessions project preceding action facts instead of inheriting Executor State. Auditor is separately bootstrapped and not merged."
+  },
+  "model_trace_record_counts": [
+    {
+      "type": "model_protocol_normalized",
+      "count": 6
+    },
+    {
+      "type": "model_session_bootstrapped",
+      "count": 4
+    },
+    {
+      "type": "model_session_candidate_committed",
+      "count": 5
+    },
+    {
+      "type": "model_session_candidate_rolled_back",
+      "count": 1
+    },
+    {
+      "type": "model_session_event_appended",
+      "count": 9
+    },
+    {
+      "type": "model_session_generation_returned",
+      "count": 6
+    },
+    {
+      "type": "model_session_generation_started",
+      "count": 6
+    },
+    {
+      "type": "model_session_tool_disclosed",
+      "count": 5
+    }
+  ],
+  "model_call_counts": {
+    "lifecycle_records": 42,
+    "rwkv_generation_requests": 6,
+    "by_role": [
+      {
+        "role": "auditor_step",
+        "count": 1
+      },
+      {
+        "role": "executor_args",
+        "count": 5
+      }
+    ],
+    "selector_exact_evaluations": 9,
+    "strong_planner_logical_calls": 2,
+    "strong_planner_http_attempts": 3,
+    "explanation": "42 is a lifecycle-record count, not a model-call count. Selector evaluations and Strong planner calls are recorded separately."
+  },
+  "step_audit_and_gate": [
+    {
+      "event_id": 18,
+      "revision": 17,
+      "timestamp": "2026-09-07T04:22:31.829+00:00",
+      "type": "goal_step_evidence_gap_recorded",
+      "causal_event_id": "CE-000018",
+      "causal_digest": "7ead83be894d75e2af3a5a79fca8d744f011f5117278b2b7a513df2422a58122",
+      "causal_parent_id": "CE-000017",
+      "causal_cause_id": "CE-000017",
+      "data": {
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "assigned_action_ids": [
+          "A00001"
+        ],
+        "audit_boundary_id": "GAB-101d8e0b3a46447f",
+        "authorizes_new_action": true,
+        "command_write_scope_gaps": [],
+        "completion_authority": false,
+        "completion_preconditions_satisfied": false,
+        "gaps": [
+          "missing successful observation evidence for read_root 'server.py'",
+          "missing successful observation evidence for read_root 'verify_public.py'"
+        ],
+        "missing_read_roots": [
+          "server.py",
+          "verify_public.py"
+        ],
+        "missing_write_roots": [],
+        "source": "controller_mechanical_evidence_gate",
+        "successful_action_ids": [
+          "A00001"
+        ]
+      }
+    },
+    {
+      "event_id": 34,
+      "revision": 33,
+      "timestamp": "2026-09-07T04:22:38.999+00:00",
+      "type": "goal_step_evidence_gap_recorded",
+      "causal_event_id": "CE-000034",
+      "causal_digest": "a66436412e837a0c108bd6796b3d361a5d7dc8be52da3a7bc5a5c54f2da32389",
+      "causal_parent_id": "CE-000033",
+      "causal_cause_id": "CE-000033",
+      "data": {
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "assigned_action_ids": [
+          "A00001",
+          "A00002"
+        ],
+        "audit_boundary_id": "GAB-99ad8455b72d4078",
+        "authorizes_new_action": true,
+        "command_write_scope_gaps": [],
+        "completion_authority": false,
+        "completion_preconditions_satisfied": false,
+        "gaps": [
+          "missing successful observation evidence for read_root 'verify_public.py'"
+        ],
+        "missing_read_roots": [
+          "verify_public.py"
+        ],
+        "missing_write_roots": [],
+        "source": "controller_mechanical_evidence_gate",
+        "successful_action_ids": [
+          "A00001",
+          "A00002"
+        ]
+      }
+    },
+    {
+      "event_id": 46,
+      "revision": 45,
+      "timestamp": "2026-09-07T04:22:44.451+00:00",
+      "type": "goal_auditor_session_started",
+      "causal_event_id": "CE-000046",
+      "causal_digest": "c9fdcda5a837fc77612e89f159812056c995687d52cfb81af564d546675423c8",
+      "causal_parent_id": "CE-000045",
+      "causal_cause_id": "CE-000045",
+      "data": {
+        "attempt": 1,
+        "audit_boundary_id": "GAB-fe3eeaeb3f3f4991",
+        "audit_id": "AUD-629da0a523af440f",
+        "auditor_role": "auditor_step",
+        "boundary": "observation_complete",
+        "checkpoint_id": "CP-000fdc7d9efc4b04",
+        "executor_checkpoint_id": "CP-b891c7cb5e804090",
+        "executor_state_inherited": false,
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+        "prompt_sha256": "596e4c66922066da398a18db1c1358b4ad8624fa514a8b16847f78050a8f6d48",
+        "protocol_schema_version": "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v3",
+        "protocol_sha256": "f718535e650da402cebba04274c2658c04f8f0df072d45a50bbd94500a73c2e9",
+        "state_profile_delivery": "request",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_transport": "native_rwkv",
+        "wkv_merged": false
+      }
+    },
+    {
+      "event_id": 47,
+      "revision": 46,
+      "timestamp": "2026-09-07T04:22:46.870+00:00",
+      "type": "goal_audit_recorded",
+      "causal_event_id": "CE-000047",
+      "causal_digest": "7b2444d025f6f93532dc326e42553fafbb059f0fb5fec23311b82ef9b0e5e4c8",
+      "causal_parent_id": "CE-000046",
+      "causal_cause_id": "CE-000046",
+      "data": {
+        "attempt": 1,
+        "audit": {
+          "audit_id": "AUD-629da0a523af440f",
+          "completed_steps": [],
+          "evidence_refs": [
+            "A00001",
+            "A00002",
+            "A00003"
+          ],
+          "gaps": [
+            "phase_evidence_unproved:observe",
+            "read_root_unproved:README.md",
+            "read_root_unproved:server.py",
+            "read_root_unproved:verify_public.py",
+            "success_criterion_unproved:012af05eb1c9"
+          ],
+          "reason": "evidence_incomplete",
+          "schema_version": "rwkv-lh.goal-audit-decision.v1",
+          "step_id": "S1",
+          "verdict": "repair"
+        },
+        "audit_boundary_id": "GAB-fe3eeaeb3f3f4991",
+        "audit_checkpoint_id": "CP-000fdc7d9efc4b04",
+        "audit_digest": "da05b4000814f684dd0d84c41159f297bd36742cb7c782486942b3ed572cbdf8",
+        "audit_id": "AUD-629da0a523af440f",
+        "auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "auditor_role": "auditor_step",
+        "authorizes_execution": false,
+        "boundary": "observation_complete",
+        "deterministic_protocol_bindings": [
+          "audit_decision_function_envelope",
+          "audit_id",
+          "schema_version"
+        ],
+        "executor_state_inherited": false,
+        "model_output_normalization": {
+          "controller_semantic_fields_generated": false,
+          "input_payload": {
+            "arguments": {
+              "evidence_refs": [
+                "A00001",
+                "A00002",
+                "A00003"
+              ],
+              "gaps": [
+                "phase_evidence_unproved:observe",
+                "read_root_unproved:README.md",
+                "read_root_unproved:server.py",
+                "read_root_unproved:verify_public.py",
+                "success_criterion_unproved:012af05eb1c9"
+              ],
+              "reason": "evidence_incomplete",
+              "step_complete": false,
+              "step_id": "S1",
+              "verdict": "repair"
+            },
+            "name": "audit_decision"
+          },
+          "input_payload_digest": "2f8a3257529e10adfc14994c8cda95750b7b9ca0e35e04f0b0dbb78db00442eb",
+          "normalized_payload": {
+            "function": "audit_decision",
+            "params": {
+              "evidence_refs": [
+                "A00001",
+                "A00002",
+                "A00003"
+              ],
+              "gaps": [
+                "phase_evidence_unproved:observe",
+                "read_root_unproved:README.md",
+                "read_root_unproved:server.py",
+                "read_root_unproved:verify_public.py",
+                "success_criterion_unproved:012af05eb1c9"
+              ],
+              "reason": "evidence_incomplete",
+              "step_complete": false,
+              "step_id": "S1",
+              "verdict": "repair"
+            }
+          },
+          "normalized_payload_digest": "3098f506b140164f6a9aaabeb5232e2a0d477e31af4b53a0273fd46444239936",
+          "normalizer_version": "direct-call-envelope.v4",
+          "transformations": [
+            "call_envelope:name+arguments->function+params"
+          ]
+        },
+        "parsed": true,
+        "raw_generation": {
+          "candidate_id": "CAND-5af9e1f2fd9c49b6",
+          "finish_reason": "stop",
+          "max_output_tokens": 400,
+          "postprocessed": false,
+          "raw_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"repair\",\n    \"step_id\": \"S1\",\n    \"step_complete\": false,\n    \"evidence_refs\": [\n      \"A00001\",\n      \"A00002\",\n      \"A00003\"\n    ],\n    \"gaps\": [\n      \"phase_evidence_unproved:observe\",\n      \"read_root_unproved:README.md\",\n      \"read_root_unproved:server.py\",\n      \"read_root_unproved:verify_public.py\",\n      \"success_criterion_unproved:012af05eb1c9\"\n    ],\n    \"reason\": \"evidence_incomplete\"\n  }\n}",
+          "raw_output_sha256": "8f1034e98d31a9cfb41113143f2c85489e01b004ecbf6039b426763308a67adf",
+          "raw_output_utf8_bytes": 470,
+          "raw_token_ids": [
+            124,
+            3331,
+            35,
+            26290,
+            388,
+            269,
+            33968,
+            96,
+            53894,
+            384,
+            3331,
+            35,
+            58155,
+            388,
+            358,
+            28352,
+            35,
+            9018,
+            25134,
+            388,
+            269,
+            42166,
+            384,
+            28352,
+            35,
+            27074,
+            96,
+            1940,
+            388,
+            269,
+            84,
+            50,
+            384,
+            28352,
+            35,
+            27074,
+            96,
+            53861,
+            388,
+            38448,
+            45,
+            28352,
+            35,
+            53970,
+            96,
+            26841,
+            388,
+            326,
+            43909,
+            35,
+            66,
+            620,
+            620,
+            50,
+            384,
+            43909,
+            35,
+            66,
+            620,
+            620,
+            51,
+            384,
+            43909,
+            35,
+            66,
+            620,
+            620,
+            52,
+            35,
+            28352,
+            1685,
+            28352,
+            35,
+            7603,
+            116,
+            388,
+            326,
+            43909,
+            35,
+            35376,
+            96,
+            53970,
+            96,
+            2239,
+            42104,
+            59,
+            49444,
+            384,
+            43909,
+            35,
+            26821,
+            96,
+            26939,
+            96,
+            2239,
+            42104,
+            59,
+            40690,
+            47,
+            2037,
+            384,
+            43909,
+            35,
+            26821,
+            96,
+            26939,
+            96,
+            2239,
+            42104,
+            59,
+            42250,
+            47,
+            2134,
+            384,
+            43909,
+            35,
+            26821,
+            96,
+            26939,
+            96,
+            2239,
+            42104,
+            59,
+            42495,
+            96,
+            42110,
+            47,
+            2134,
+            384,
+            43909,
+            35,
+            49744,
+            96,
+            58209,
+            96,
+            2239,
+            42104,
+            59,
+            621,
+            51,
+            1738,
+            625,
+            1841,
+            50,
+            100,
+            58,
+            35,
+            28352,
+            1685,
+            28352,
+            35,
+            42142,
+            388,
+            269,
+            53970,
+            96,
+            7852,
+            8360,
+            26129,
+            35,
+            3331,
+            126,
+            11,
+            126,
+            11,
+            6884
+          ],
+          "request_id": "MR-80b6fbc64ec044e4",
+          "response_id": "MR-80b6fbc64ec044e4",
+          "response_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "sampling": {
+            "frequency_penalty": 0.0,
+            "penalty_decay": 0.996,
+            "presence_penalty": 0.0,
+            "temperature": 0.1,
+            "top_k": 0,
+            "top_p": 1.0
+          },
+          "schema_version": "rwkv-lh.raw-generation.v1",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "request_id": "MR-80b6fbc64ec044e4",
+        "wkv_merged": false
+      }
+    },
+    {
+      "event_id": 49,
+      "revision": 48,
+      "timestamp": "2026-09-07T04:22:47.174+00:00",
+      "type": "goal_audit_accepted",
+      "causal_event_id": "CE-000049",
+      "causal_digest": "96d2c7cb703788325f971bbfab1052e2e640eee99a8d628a3c86fbcfa6136432",
+      "causal_parent_id": "CE-000048",
+      "causal_cause_id": "CE-000048",
+      "data": {
+        "attempt": 1,
+        "audit": {
+          "audit_id": "AUD-629da0a523af440f",
+          "completed_steps": [],
+          "evidence_refs": [
+            "A00001",
+            "A00002",
+            "A00003"
+          ],
+          "gaps": [
+            "phase_evidence_unproved:observe",
+            "read_root_unproved:README.md",
+            "read_root_unproved:server.py",
+            "read_root_unproved:verify_public.py",
+            "success_criterion_unproved:012af05eb1c9"
+          ],
+          "reason": "evidence_incomplete",
+          "schema_version": "rwkv-lh.goal-audit-decision.v1",
+          "step_id": "S1",
+          "verdict": "repair"
+        },
+        "audit_boundary_id": "GAB-fe3eeaeb3f3f4991",
+        "audit_digest": "da05b4000814f684dd0d84c41159f297bd36742cb7c782486942b3ed572cbdf8",
+        "audit_id": "AUD-629da0a523af440f",
+        "authorizes_execution": false,
+        "boundary": "observation_complete",
+        "executor_state_inherited": false,
+        "kernel_validated": true,
+        "main_checkpoint_id": "CP-d7804529385f4b30",
+        "request_id": "MR-80b6fbc64ec044e4",
+        "wkv_merged": false
+      }
+    },
+    {
+      "event_id": 50,
+      "revision": 49,
+      "timestamp": "2026-09-07T04:22:47.203+00:00",
+      "type": "goal_action_plan_step_linked",
+      "causal_event_id": "CE-000050",
+      "causal_digest": "b9f81d5c7a1c3c62a9ab2e5b364b5412ac8e5dd10394a652a5a31ce1cb318769",
+      "causal_parent_id": "CE-000049",
+      "causal_cause_id": "CE-000049",
+      "data": {
+        "action_id": "A00003",
+        "audit_boundary_id": "GAB-fe3eeaeb3f3f4991",
+        "audit_id": "AUD-629da0a523af440f",
+        "audit_verdict": "repair",
+        "controller_completed_step": false,
+        "evidence_refs": [
+          "A00001",
+          "A00002",
+          "A00003"
+        ],
+        "step_id": "S1",
+        "step_revision": 1
+      }
+    },
+    {
+      "event_id": 51,
+      "revision": 50,
+      "timestamp": "2026-09-07T04:22:47.233+00:00",
+      "type": "goal_audit_boundary_resolved",
+      "causal_event_id": "CE-000051",
+      "causal_digest": "c0678ead22ab4e5182a9a57b929cf6dc90c555d58eaa1ee242bfff41d5af4cda",
+      "causal_parent_id": "CE-000050",
+      "causal_cause_id": "CE-000050",
+      "data": {
+        "audit_boundary_id": "GAB-fe3eeaeb3f3f4991",
+        "audit_id": "AUD-629da0a523af440f",
+        "authorizes_new_action": true,
+        "boundary_kind": "action",
+        "verdict": "repair"
+      }
+    }
+  ],
+  "termination": [
+    {
+      "event_id": 52,
+      "revision": 51,
+      "timestamp": "2026-09-07T04:23:48.234+00:00",
+      "type": "strong_planner_call_failed",
+      "causal_event_id": "CE-000052",
+      "causal_digest": "b7b92ad156cf3509905083ed9d99a65328be589b64dd1fe401a4c961d4da338c",
+      "causal_parent_id": "CE-000051",
+      "causal_cause_id": "CE-000051",
+      "data": {
+        "error": {
+          "message": "supervisor HTTP 500 during goal_plan",
+          "type": "SupervisorTransportError"
+        },
+        "phase": "goal_plan",
+        "resumable": true
+      }
+    },
+    {
+      "event_id": 53,
+      "revision": 52,
+      "timestamp": "2026-09-07T04:23:48.268+00:00",
+      "type": "supervisor_call_pending",
+      "causal_event_id": "CE-000053",
+      "causal_digest": "0a86d54eabdabe7974f49bfbf5c8b6a502cae78981cb6db45ee4705adcb95f80",
+      "causal_parent_id": "CE-000052",
+      "causal_cause_id": "CE-000052",
+      "data": {
+        "at": "2026-09-07T04:23:48.266+00:00",
+        "attempt": 1,
+        "pending_id": "SUP-PENDING-goal_plan-0001",
+        "phase": "goal_plan",
+        "retry_policy": {
+          "controller_inline_replay": false,
+          "reenter_from_committed_causal_state": true,
+          "transport_retries_are_owned_by_supervisor_client": true
+        },
+        "retry_trigger": "resume_or_proactive_scheduler",
+        "state": "pending_retry"
+      }
+    },
+    {
+      "event_id": 54,
+      "revision": 53,
+      "timestamp": "2026-09-07T04:23:48.299+00:00",
+      "type": "run_yielded",
+      "causal_event_id": "CE-000054",
+      "causal_digest": "2b10b3443c31ead43c27d4bc445d920fedb55baeaa978f5f40ad4502615289fa",
+      "causal_parent_id": "CE-000053",
+      "causal_cause_id": "CE-000053",
+      "data": {
+        "at": "2026-09-07T04:23:48.296+00:00",
+        "boundary_type": "run_interrupted",
+        "candidate_decision_id": "",
+        "candidate_output": "",
+        "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_output_source": "none",
+        "continuation": "controller_resume",
+        "reason": "strong_planner_unavailable",
+        "resumable": true,
+        "termination_permitted": false
+      }
+    }
+  ],
+  "supervisor_trace": [
+    {
+      "type": "supervisor_request_started",
+      "call_id": "SUP-8069342ba94e4fc69692",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "input_sha256": "71e4b7fd3a175377b2cebc5c4fba722bc71eaf9fd6cb1c782f83e473335d9bdb",
+      "input_chars": 1360,
+      "max_tokens": 1800,
+      "response_format": "json_object"
+    },
+    {
+      "type": "supervisor_http_attempt_started",
+      "call_id": "SUP-8069342ba94e4fc69692",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "attempt": 1
+    },
+    {
+      "type": "supervisor_request_returned",
+      "call_id": "SUP-8069342ba94e4fc69692",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "latency_ms": 29881.3,
+      "http_attempts": 1,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 11097,
+        "completion_tokens": 2560,
+        "total_tokens": 13657,
+        "prompt_tokens_details": {
+          "cached_tokens": 7488
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 770
+        }
+      },
+      "output_sha256": "49c46522ddb316c49cc47a575e2c604f44c630769b98eb0c049dc78d7208c42f",
+      "output_chars": 4541
+    },
+    {
+      "type": "supervisor_request_started",
+      "call_id": "SUP-9d719be01df5484fb546",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "input_sha256": "08e131d133cf11d1e7c24cd3ea40efdace9280507358fe9deddf279f99b14d11",
+      "input_chars": 13100,
+      "max_tokens": 1800,
+      "response_format": "json_object"
+    },
+    {
+      "type": "supervisor_http_attempt_started",
+      "call_id": "SUP-9d719be01df5484fb546",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "attempt": 1
+    },
+    {
+      "type": "supervisor_http_attempt_started",
+      "call_id": "SUP-9d719be01df5484fb546",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "attempt": 2
+    },
+    {
+      "type": "supervisor_request_failed",
+      "call_id": "SUP-9d719be01df5484fb546",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "http_status": 500,
+      "http_attempts": 2,
+      "retryable": true,
+      "error_category": "upstream",
+      "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan"
+    }
+  ],
+  "same_upstream_pattern": [
+    {
+      "task_id": "RP-API-02",
+      "status": "running",
+      "agent_completed": false,
+      "action_count": 0,
+      "model_trace_records": 0,
+      "supervisor_failure": {
+        "failed": true,
+        "category": "upstream",
+        "retryable": true,
+        "http_status": 500,
+        "phase": "goal_plan",
+        "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+        "unresolved_request_count": 1
+      },
+      "transition_budget_consumed": 1,
+      "transition_budget_exhausted": false,
+      "terminal_events": [
+        {
+          "event_id": 3,
+          "revision": 2,
+          "timestamp": "2026-09-07T04:24:51.786+00:00",
+          "type": "strong_planner_call_failed",
+          "causal_event_id": "CE-000003",
+          "causal_digest": "03d47151de2fae2c9c4aefb668ed12ea4260de551f6f5fc722a3f5b40238b8e5",
+          "causal_parent_id": "CE-000002",
+          "causal_cause_id": "CE-000002",
+          "data": {
+            "error": {
+              "message": "supervisor HTTP 500 during goal_plan",
+              "type": "SupervisorTransportError"
+            },
+            "phase": "goal_plan",
+            "resumable": true
+          }
+        },
+        {
+          "event_id": 4,
+          "revision": 3,
+          "timestamp": "2026-09-07T04:24:51.795+00:00",
+          "type": "supervisor_call_pending",
+          "causal_event_id": "CE-000004",
+          "causal_digest": "985e10d4940b9ff62e9afd3e00f00d9aad9cda6b6c7f0b9bf1fad692bb2c17a5",
+          "causal_parent_id": "CE-000003",
+          "causal_cause_id": "CE-000003",
+          "data": {
+            "at": "2026-09-07T04:24:51.794+00:00",
+            "attempt": 1,
+            "pending_id": "SUP-PENDING-goal_plan-0001",
+            "phase": "goal_plan",
+            "retry_policy": {
+              "controller_inline_replay": false,
+              "reenter_from_committed_causal_state": true,
+              "transport_retries_are_owned_by_supervisor_client": true
+            },
+            "retry_trigger": "resume_or_proactive_scheduler",
+            "state": "pending_retry"
+          }
+        },
+        {
+          "event_id": 5,
+          "revision": 4,
+          "timestamp": "2026-09-07T04:24:51.802+00:00",
+          "type": "run_yielded",
+          "causal_event_id": "CE-000005",
+          "causal_digest": "4172148db951a3756181d9496ba9c5a57cb00e703802b3311fe08aff21cacad6",
+          "causal_parent_id": "CE-000004",
+          "causal_cause_id": "CE-000004",
+          "data": {
+            "at": "2026-09-07T04:24:51.801+00:00",
+            "boundary_type": "run_interrupted",
+            "candidate_decision_id": "",
+            "candidate_output": "",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output_source": "none",
+            "continuation": "controller_resume",
+            "reason": "strong_planner_unavailable",
+            "resumable": true,
+            "termination_permitted": false
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "RP-MAINT-01",
+      "status": "running",
+      "agent_completed": false,
+      "action_count": 0,
+      "model_trace_records": 0,
+      "supervisor_failure": {
+        "failed": true,
+        "category": "upstream",
+        "retryable": true,
+        "http_status": 500,
+        "phase": "goal_plan",
+        "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+        "unresolved_request_count": 1
+      },
+      "transition_budget_consumed": 1,
+      "transition_budget_exhausted": false,
+      "terminal_events": [
+        {
+          "event_id": 3,
+          "revision": 2,
+          "timestamp": "2026-09-07T04:25:56.421+00:00",
+          "type": "strong_planner_call_failed",
+          "causal_event_id": "CE-000003",
+          "causal_digest": "952d78ce55b6271b77d7f87d86436f710ce1239a88c3214d8032f2a1ddafd224",
+          "causal_parent_id": "CE-000002",
+          "causal_cause_id": "CE-000002",
+          "data": {
+            "error": {
+              "message": "supervisor HTTP 500 during goal_plan",
+              "type": "SupervisorTransportError"
+            },
+            "phase": "goal_plan",
+            "resumable": true
+          }
+        },
+        {
+          "event_id": 4,
+          "revision": 3,
+          "timestamp": "2026-09-07T04:25:56.430+00:00",
+          "type": "supervisor_call_pending",
+          "causal_event_id": "CE-000004",
+          "causal_digest": "2dc4e2dd3ccf061f16a9e46981f4cfe7a88caa1d241a666e205923cf6e283d51",
+          "causal_parent_id": "CE-000003",
+          "causal_cause_id": "CE-000003",
+          "data": {
+            "at": "2026-09-07T04:25:56.429+00:00",
+            "attempt": 1,
+            "pending_id": "SUP-PENDING-goal_plan-0001",
+            "phase": "goal_plan",
+            "retry_policy": {
+              "controller_inline_replay": false,
+              "reenter_from_committed_causal_state": true,
+              "transport_retries_are_owned_by_supervisor_client": true
+            },
+            "retry_trigger": "resume_or_proactive_scheduler",
+            "state": "pending_retry"
+          }
+        },
+        {
+          "event_id": 5,
+          "revision": 4,
+          "timestamp": "2026-09-07T04:25:56.438+00:00",
+          "type": "run_yielded",
+          "causal_event_id": "CE-000005",
+          "causal_digest": "4f21769d54108ff0ab6a41725f59aaf23e740ec79dd12b3b38c711d5c7e574eb",
+          "causal_parent_id": "CE-000004",
+          "causal_cause_id": "CE-000004",
+          "data": {
+            "at": "2026-09-07T04:25:56.437+00:00",
+            "boundary_type": "run_interrupted",
+            "candidate_decision_id": "",
+            "candidate_output": "",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output_source": "none",
+            "continuation": "controller_resume",
+            "reason": "strong_planner_unavailable",
+            "resumable": true,
+            "termination_permitted": false
+          }
+        }
+      ]
+    }
+  ],
+  "interpretation_limits": [
+    "The mechanical gate counted successful searches against the requested paths; the semantic Step Auditor still refused completion. The trace does not establish a broken completion gate.",
+    "The first valid plan is available; repair replanning failed upstream. This does not demonstrate that the Strong planner produced an invalid repair plan.",
+    "This one case contains unfinished inspection behavior and an infrastructure interruption. It cannot establish project implementation, restart or concurrency capability.",
+    "The benchmark remains frozen. No rescore, continuation, service restart, source edit or role training was performed by this audit."
+  ]
+}

@@ -1,0 +1,1182 @@
+{
+  "at": "2026-09-07T04:37:23.079613+00:00",
+  "arm": "A",
+  "script_sha256": "516b055b0be750794eb3a6676c22b060f1b0f99749dd237aa7715c0c2812377b",
+  "freeze_sha256": "aba256f3b419c53971174c77866fcb7349df96d241211f3124032b6527d38bba",
+  "sqlite_opened": false,
+  "model_calls": 0,
+  "scoring_changed": false,
+  "summary": {
+    "cases": 12,
+    "strict_passed": 0,
+    "agent_completed": 0,
+    "cases_with_supervisor_failures": 12,
+    "supervisor_failure_http_status_counts": {
+      "500": 12
+    },
+    "cases_without_rwkv_generation": 11,
+    "sampling_mismatch_count": 0,
+    "nonzero_bootstrap_case_count": 0
+  },
+  "cases": [
+    {
+      "task_id": "RP-API-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-API-01/audit.json",
+      "source_sha256": "545ba5327aaab77970a1ea40066260b430e7caeda8a320a4c80bf1c5f3a6f158",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-9d719be01df5484fb546",
+          "phase": "goal_plan",
+          "run_id": "RP-API-01",
+          "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "752a79972697ffe506330d9a9e64cd459205b0c8a145971b437c2ecea99e9013",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070423178754949818268d9d6ctjBnfc2)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 3,
+      "generation_counts": {
+        "executor_args": 5,
+        "auditor_step": 1
+      },
+      "zero_profile_evidence": [
+        {
+          "model_role": "executor_args",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "checkpoint_id": "CP-8f17e8d33ec34b57"
+        },
+        {
+          "model_role": "executor_args",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "checkpoint_id": "CP-233edd303ec14456"
+        },
+        {
+          "model_role": "executor_args",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "checkpoint_id": "CP-049d2ad3883e4775"
+        },
+        {
+          "model_role": "auditor_step",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+          "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+          "state_profile_id": "zero",
+          "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "checkpoint_id": "CP-000fdc7d9efc4b04"
+        }
+      ],
+      "all_observed_bootstraps_zero": true,
+      "sampling_mismatches": [],
+      "action_types": {
+        "search_text": 3
+      },
+      "protocol_rejections": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000009",
+          "run_id": "RP-API-01",
+          "sequence": 9,
+          "parent_id": "CE-000008",
+          "cause_id": "CE-000008",
+          "subject_id": "D-220d193b98dc4f2f",
+          "event_type": "protocol_rejection_recorded",
+          "payload_schema": "rwkv-lh.protocol-rejection.v1",
+          "payload": {
+            "decision_id": "D-220d193b98dc4f2f",
+            "request_id": "MR-5cf7666195fd4390",
+            "selection_id": "NSEL-ENS-04f82f964dcb44dc",
+            "selected_operation": "search_text",
+            "rejected_arguments": {
+              "pattern": "TODO|FIXME",
+              "path": ".",
+              "mode": "regex",
+              "recursive": true,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 800,
+              "case_sensitive": true,
+              "start_after": ""
+            },
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": true,
+            "error_kind": "",
+            "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+            "error_record": {
+              "type": "ModelProtocolError",
+              "message": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md', 'server.py', 'verify_public.py']; compatible_targets=['README.md', 'server.py', 'verify_public.py']",
+              "at": "2026-09-07T04:22:28.886+00:00"
+            },
+            "protocol_scope": "action",
+            "audit_boundary_id": "",
+            "active_step_id": "S1",
+            "active_step_revision": 1,
+            "rejection_count": 1,
+            "action_executed": false
+          },
+          "created_at": "2026-09-07T04:22:28.887+00:00",
+          "digest": "46e4aa205a12c0d49917751d209e4d5dae78b66ae6a50edbdfd75c876923f69a"
+        },
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000025",
+          "run_id": "RP-API-01",
+          "sequence": 25,
+          "parent_id": "CE-000024",
+          "cause_id": "CE-000024",
+          "subject_id": "D-fe953da81fd34618",
+          "event_type": "protocol_rejection_recorded",
+          "payload_schema": "rwkv-lh.protocol-rejection.v1",
+          "payload": {
+            "decision_id": "D-fe953da81fd34618",
+            "request_id": "MR-bcc6067a3a4742a6",
+            "selection_id": "NSEL-ENS-a36491d1c3004869",
+            "selected_operation": "search_text",
+            "rejected_arguments": {
+              "pattern": "TODO|FIXME",
+              "path": "README.md",
+              "mode": "regex",
+              "recursive": true,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 800,
+              "case_sensitive": true,
+              "start_after": ""
+            },
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": true,
+            "error_kind": "",
+            "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='README.md' is outside roots=['server.py', 'verify_public.py']; compatible_targets=['server.py', 'verify_public.py']",
+            "error_record": {
+              "type": "ModelProtocolError",
+              "message": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='README.md' is outside roots=['server.py', 'verify_public.py']; compatible_targets=['server.py', 'verify_public.py']",
+              "at": "2026-09-07T04:22:35.798+00:00"
+            },
+            "protocol_scope": "action",
+            "audit_boundary_id": "",
+            "active_step_id": "S1",
+            "active_step_revision": 1,
+            "rejection_count": 2,
+            "action_executed": false
+          },
+          "created_at": "2026-09-07T04:22:35.799+00:00",
+          "digest": "da6fac2e56bc530305b7bf9b0d13d236118050d9b96c0de1cba88aa6116507c2"
+        }
+      ],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000054",
+          "run_id": "RP-API-01",
+          "sequence": 54,
+          "parent_id": "CE-000053",
+          "cause_id": "CE-000053",
+          "subject_id": "RP-API-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:23:48.296+00:00"
+          },
+          "created_at": "2026-09-07T04:23:48.299+00:00",
+          "digest": "2b10b3443c31ead43c27d4bc445d920fedb55baeaa978f5f40ad4502615289fa"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-API-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-API-02/audit.json",
+      "source_sha256": "564c022fd0a2e78d3db2f3946b7926feda72c092aa21082903cf307fc5fb3d7c",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-9bb02f7be600485aaedc",
+          "phase": "goal_plan",
+          "run_id": "RP-API-02",
+          "request_digest": "267f2918bd22bd89573391a43ed5149ecdc50158843d5de4ec0706e36f86b6b6",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "e294e2d6b41534397df39eb917c873b92192cb277b9e957917946cd6b2d01330",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070424213146936078268d9d6DIQ1XHXV)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-API-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-API-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:24:51.801+00:00"
+          },
+          "created_at": "2026-09-07T04:24:51.802+00:00",
+          "digest": "4172148db951a3756181d9496ba9c5a57cb00e703802b3311fe08aff21cacad6"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-MAINT-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-MAINT-01/audit.json",
+      "source_sha256": "5bf79b2c98137cbc8bb092483ffb692fbb1645ec43e2dcc4a9f0be67a69aaa9d",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-6f2cbea6a7a24f6d8067",
+          "phase": "goal_plan",
+          "run_id": "RP-MAINT-01",
+          "request_digest": "e3a3a13172c1dc8c06842b83e09616930653a9793d33ee965ede28eb3bff99fe",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "6e22ed198747fc092d95d845cb54fbbd0be199c02a7ea3c34de280646dab5e84",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070425261505704608268d9d6Kw8tTtBV)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-MAINT-01",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-MAINT-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:25:56.437+00:00"
+          },
+          "created_at": "2026-09-07T04:25:56.438+00:00",
+          "digest": "4f21769d54108ff0ab6a41725f59aaf23e740ec79dd12b3b38c711d5c7e574eb"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-MAINT-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-MAINT-02/audit.json",
+      "source_sha256": "b40a24b756a222d8e29b6eae2b3ce0e293c4d233d042072e927e82b65769f8cc",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-21c211c20163465a90f6",
+          "phase": "goal_plan",
+          "run_id": "RP-MAINT-02",
+          "request_digest": "10e523c23d86578ac31167758922a5f78106fa4e6fc2ea3a2908fa52f02a012f",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "c79a247de6e394e938b70753dee66c183800d1d9687aaad2fad375a6365f9834",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070426291937962858268d9d69MJFMJbn)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-MAINT-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-MAINT-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:26:59.519+00:00"
+          },
+          "created_at": "2026-09-07T04:26:59.520+00:00",
+          "digest": "9a2fdd85e4eec188769b8ca3f4a028acf9ac28de1586ab793973bd75fbfcac33"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-CLI-01/audit.json",
+      "source_sha256": "8c70b81ec74182f1456f452fa48f7a24951dcc845ccfaa4a04b0969dc45d88ea",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-7663ccbca85946678818",
+          "phase": "goal_plan",
+          "run_id": "RP-CLI-01",
+          "request_digest": "42183da1bfe844ff9894bf41fa2e715372b3463c5d2f05b06940e476eabb11e9",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "a840980125c6326e5bec3363e70edf12cf09421586338117f4eb290ad35b8244",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070427311135999148268d9d6vEsnty9I)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-CLI-01",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-CLI-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:28:01.352+00:00"
+          },
+          "created_at": "2026-09-07T04:28:01.353+00:00",
+          "digest": "3d224abc3bea2d1f89f8c08741afa6656fe8efe41f5c785a538847002b9249df"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-CLI-02/audit.json",
+      "source_sha256": "36b854d01c6e7fe4666a6133e5c4a69dfb5a7d2a55f6903fdd9cf4f58d08d814",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-806943ba5041496fb4f8",
+          "phase": "goal_plan",
+          "run_id": "RP-CLI-02",
+          "request_digest": "129dbd905f2610cdebcdea2c6d7bfc62f55625bbf846db48357eb2110c0f8c98",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "26d0ba14841953d3a8c16e1808a2fb27b808160199d7779942beb7b0f9331f02",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070428348402163318268d9d6abjxUK2D)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-CLI-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-CLI-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:29:05.503+00:00"
+          },
+          "created_at": "2026-09-07T04:29:05.504+00:00",
+          "digest": "9ec098b0950709b536f217e32d8abfbf299dc673fd9099c2fe85f74fad5ab43a"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-DATA-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-DATA-01/audit.json",
+      "source_sha256": "65f031b7d8b4168f7f5348466203793750cd15cdc11c0898ad3a4b03993bcc4b",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-c52151ce66ef4042ae72",
+          "phase": "goal_plan",
+          "run_id": "RP-DATA-01",
+          "request_digest": "6cc7141ec4cffb32260e7d30efeecc693491971bc225d98767657a010a26dea1",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 171,
+            "body_sha256": "d897d96611d7733abba63565b4468cdc0386225e9a6cec7d01376b5241d82560",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 20260907042937376898108268d9d6QunCv4pA)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-DATA-01",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-DATA-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:30:07.294+00:00"
+          },
+          "created_at": "2026-09-07T04:30:07.295+00:00",
+          "digest": "737b8be00daab25723bfc93e4be50098ed1c1691566b5a8332963ba25b51448b"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-DATA-02/audit.json",
+      "source_sha256": "5ec5a1c4f7d4604d0148c3440f43c51f59f44939080bd8624ebeb1779d722c62",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-ce3746515cdc44b1b4ac",
+          "phase": "goal_plan",
+          "run_id": "RP-DATA-02",
+          "request_digest": "640a317d17d2856bda77862560b0ce4daf1d46c3060ce19d63c8e0885f4de86a",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "1fa2a8c3fde033312321ae642c3c5d7c516d332f2132d9afafe2a68e4892c7d2",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070430394819414598268d9d6CVJE1Czx)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-DATA-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-DATA-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:31:09.712+00:00"
+          },
+          "created_at": "2026-09-07T04:31:09.712+00:00",
+          "digest": "c834af746884990bbcce98419c070e8bcd48a7b7ffc66cb99a639c3ffd815536"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-FULL-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-FULL-01/audit.json",
+      "source_sha256": "7891463b94cca0ee3908b13b27c5b1e5d9afc318a469394338e9e0877d55e5be",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-9bdea55acd324705a3a3",
+          "phase": "goal_plan",
+          "run_id": "RP-FULL-01",
+          "request_digest": "f1d85999ff348ca37e2216750372c6fd07bfe6db5171be221dd9fb0106110e98",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "fdc5e4f5d304181feba19f15aa848af5ef3cf66381f6efc4927a014a6ef80879",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070431411929544238268d9d6bs0PyL1c)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-FULL-01",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-FULL-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:32:11.682+00:00"
+          },
+          "created_at": "2026-09-07T04:32:11.682+00:00",
+          "digest": "82f37a097ec47a8fdee2acc4cb76d29822b93658e320909c786bc0124eeb1abc"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-FULL-02/audit.json",
+      "source_sha256": "b14453e554f82d967ffb523a9c4c68d858d54943afbd019e43d2944398ddc22d",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-54c3b2702e1e4a91b27e",
+          "phase": "goal_plan",
+          "run_id": "RP-FULL-02",
+          "request_digest": "2711ed2958fdf2de6215d9f47051bd0af9fd3aa35dc0668dc70cfaf4470560c4",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "29fe662236386b7919a0a747cee8ca897441cfae3cb6dd2769375c98460e57ea",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070432437543429638268d9d6vJ1yHunD)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-FULL-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-FULL-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:33:13.972+00:00"
+          },
+          "created_at": "2026-09-07T04:33:13.973+00:00",
+          "digest": "ae461e60f40f42c54ef3e8b2a942311d9a078c58261896b08bff5a82a7071794"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-WEB-01",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-WEB-01/audit.json",
+      "source_sha256": "3546972b2e2e56602848fff5deb54894337f506faba35d0fa6a333fa97dda108",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-707cc831d42e4581b46e",
+          "phase": "goal_plan",
+          "run_id": "RP-WEB-01",
+          "request_digest": "bfc47bae99fe1686ad1fad5a2f17b6b551d3d671bc9c37ccb4a4958b7d43c79a",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "f6273d5badd582d5a0461b431393b3f218a85bf6082dd89d6d533611f1762a77",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070433467216101158268d9d6z2ug86mm)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-WEB-01",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-WEB-01",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:34:16.941+00:00"
+          },
+          "created_at": "2026-09-07T04:34:16.941+00:00",
+          "digest": "b964f62248cfc259217e150f6dda549b74df5863b36943451c4855d3b121b4f8"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    },
+    {
+      "task_id": "RP-WEB-02",
+      "source_audit": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2/cases/RP-WEB-02/audit.json",
+      "source_sha256": "c1934d76e369df53886eee1fcc4765f8c31cd93ace3bce9ab13528113e0cc9cc",
+      "status": "running",
+      "passed": false,
+      "agent_completed": false,
+      "supervisor_failures": [
+        {
+          "type": "supervisor_request_failed",
+          "call_id": "SUP-fd33e1b2ef9a421baa46",
+          "phase": "goal_plan",
+          "run_id": "RP-WEB-02",
+          "request_digest": "b582b090c70b0030d46887a9f2f36b37708f6b1c1270ca89bc7acf363bbc844a",
+          "provider": "openai_compatible",
+          "model": "gpt-5.6-sol",
+          "transport": "chat_completions",
+          "http_status": 500,
+          "http_attempts": 2,
+          "retryable": true,
+          "error_category": "upstream",
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+          "provider_error": {
+            "body_chars": 172,
+            "body_sha256": "c007f5d30af0558ed576856a860b2d272ea4d85c42a29dfc556b34e540cb2028",
+            "headers": {
+              "content-type": "application/json; charset=utf-8"
+            },
+            "body_shape": "dict",
+            "error": {
+              "type": "new_api_error",
+              "code": "do_request_failed",
+              "message": "upstream error: do request failed (request id: 202609070435528396989588268d9d6glCOoGa8)",
+              "param": ""
+            }
+          }
+        }
+      ],
+      "supervisor_attempt_count": 2,
+      "generation_counts": {},
+      "zero_profile_evidence": [],
+      "all_observed_bootstraps_zero": null,
+      "sampling_mismatches": [],
+      "action_types": {},
+      "protocol_rejections": [],
+      "terminal_events": [
+        {
+          "schema_version": "rwkv-lh.causal-event.v2",
+          "event_id": "CE-000005",
+          "run_id": "RP-WEB-02",
+          "sequence": 5,
+          "parent_id": "CE-000004",
+          "cause_id": "CE-000004",
+          "subject_id": "RP-WEB-02",
+          "event_type": "run_yielded",
+          "payload_schema": "rwkv-lh.run-yielded.v1",
+          "payload": {
+            "reason": "strong_planner_unavailable",
+            "boundary_type": "run_interrupted",
+            "resumable": true,
+            "termination_permitted": false,
+            "continuation": "controller_resume",
+            "candidate_decision_id": "",
+            "candidate_output_source": "none",
+            "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "candidate_output": "",
+            "at": "2026-09-07T04:36:23.304+00:00"
+          },
+          "created_at": "2026-09-07T04:36:23.304+00:00",
+          "digest": "2ce90594afc221c07382aedba03c639cb776697c52cbda036d22a4a92f51c6ba"
+        }
+      ],
+      "event_source": "audit.run_state.causal_order/causal_records"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ Strong Planner
 
 每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v4、Executor 为 v4、Step Auditor 为 v3、Finalizer 为 v1、Final Auditor 为 v2。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
 
-当前没有有效的新 Strict / completed / mutation / 终止原因基线结果。首次 `real_project_zero_a` 已因 owner 明确“服务器上不能使用 Git，只能本地上传”而中止并登记 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json)，B 臂未启动；本次尝试不能用于成绩、噪声估计或训练来源。完成上传部署与身份核验后，另行登记同 12 题的两遍全新 all-zero，不先跑 Ladder、不跑 E2E-90。推理服务器已确认为 `rwkv-8222`；当前 Strong Planner 与 Strong Stage Checker 均配置为 `gpt-5.6-sol`。端口可用或作者参考实现通过都不代表 Agent 能力提升。
+服务器 `rwkv-8222` 的本地上传部署及完整源码身份核验已通过，完整回归 697 项通过。新冻结 R2 A 已运行 12 题：Strict **0/12**、completed **0/12**、mutation **0**，12 题均因 `strong_planner_unavailable` 停止，11 题没有 RWKV 生成。当前正在排查 `next-token.cc` 上的 Planner 转发故障；B 臂暂未启动，不能计算双零噪声或进入训练，详见 [A 臂报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。此前中断的 R1 尝试仍单独按 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留。当前 Strong Planner 与 Strong Stage Checker 均配置为 `gpt-5.6-sol`；端口可用和作者参考实现通过都不代表 Agent 能力提升。
 
 owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。
 

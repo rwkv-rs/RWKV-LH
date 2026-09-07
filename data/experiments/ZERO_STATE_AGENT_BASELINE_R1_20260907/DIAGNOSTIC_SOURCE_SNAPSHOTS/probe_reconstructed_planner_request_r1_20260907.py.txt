@@ -1,0 +1,59 @@
+"""Replay one hash-reconstructed current Planner request for owner-requested diagnosis."""
+from pathlib import Path
+from dataclasses import replace
+from datetime import datetime,timezone
+import hashlib
+import json
+import sys
+import time
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import SupervisorAPISettings,OpenAICompatibleSupervisorClient,_decode_supervisor_json_content
+ROUND=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+diagnostic=json.loads((ROUND/'PLANNER_WIRE_DIAGNOSTIC_R2/REPORT.json').read_text())
+body_path=ROUND/'PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+assert body_path.is_file()
+body=json.loads(body_path.read_text())
+output=ROUND/'PLANNER_FULL_REQUEST_REPLAY_R1.json'
+assert not output.exists()
+driver.apply_current_zero_overrides()
+settings=replace(SupervisorAPISettings.from_env(),read_timeout_seconds=90.0)
+client=OpenAICompatibleSupervisorClient(settings)
+assert body['model']==settings.model and body['max_tokens']==settings.max_plan_tokens
+assert body['response_format']=={'type':'json_object'}
+record={'at':datetime.now(timezone.utc).isoformat(),
+    'purpose':'Owner-requested diagnosis only; excluded from Agent baseline scores and training',
+    'body_path':str(body_path.relative_to(ROOT)),'body_file_sha256':hashlib.sha256(body_path.read_bytes()).hexdigest(),
+    'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'retry_attempts':1,'read_timeout_seconds':90.0,'production_sources_changed':False,
+    'endpoint':driver.public_url(settings.base_url+'/chat/completions')}
+started=time.monotonic()
+try:
+    response=client._post_completion(settings.base_url+'/chat/completions',body)
+    record['http_status']=response.status_code
+    record['response_sha256']=hashlib.sha256(response.content).hexdigest()
+    record['response_text']=response.text.replace(settings.api_key,'[REDACTED]')[:30000]
+    if response.status_code==200:
+        data=response.json()
+        content=data['choices'][0]['message']['content']
+        record['finish_reason']=data['choices'][0].get('finish_reason')
+        record['usage']=data.get('usage')
+        try:
+            parsed,normalization=_decode_supervisor_json_content(content)
+            record['production_json_decoder_passed']=True
+            record['decoded_value']=parsed
+            record['normalization']=normalization
+        except Exception as exc:
+            record['production_json_decoder_passed']=False
+            record['decode_error']=str(exc)
+except Exception as exc:
+    record['error_type']=type(exc).__name__
+    record['error']=str(exc).replace(settings.api_key,'[REDACTED]')[:1200]
+finally:
+    record['elapsed_seconds']=round(time.monotonic()-started,3)
+    client.close()
+    output.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'output':str(output),'http_status':record.get('http_status'),
+    'production_json_decoder_passed':record.get('production_json_decoder_passed'),
+    'elapsed_seconds':record['elapsed_seconds']}))

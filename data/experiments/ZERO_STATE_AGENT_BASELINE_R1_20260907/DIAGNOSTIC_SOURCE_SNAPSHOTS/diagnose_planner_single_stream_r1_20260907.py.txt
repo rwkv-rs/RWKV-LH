@@ -1,0 +1,208 @@
+"""One owner-authorized SSE probe of an existing Planner body; never a benchmark."""
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+import signal
+import sys
+import time
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import (
+    OpenAICompatibleSupervisorClient, SupervisorAPISettings,
+    _decode_supervisor_json_content,
+)
+
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+SOURCE = ROUND / 'PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+OUTPUT = ROUND / 'PLANNER_STREAM_DIAGNOSTIC_R1.json'
+original_bytes = SOURCE.read_bytes()
+original = json.loads(original_bytes)
+assert set(original) == {'model', 'messages', 'max_tokens', 'response_format'}
+assert original['max_tokens'] == 1800
+assert original['response_format'] == {'type': 'json_object'}
+body = {**original, 'stream': True}
+assert {key: value for key, value in body.items() if key != 'stream'} == original
+driver.apply_current_zero_overrides()
+settings = SupervisorAPISettings.from_env()
+assert body['model'] == settings.model
+client = OpenAICompatibleSupervisorClient(settings)
+session = client._session()
+assert all(getattr(adapter.max_retries, 'total', None) == 0 for adapter in session.adapters.values())
+
+record = {
+    'recorded_at_utc': datetime.now(timezone.utc).isoformat(),
+    'purpose': 'Single stream-only variation for Planner wire diagnosis; excluded from Agent baseline and StateTune',
+    'body_source': str(SOURCE.relative_to(ROOT)),
+    'body_source_sha256': hashlib.sha256(original_bytes).hexdigest(),
+    'request_body': body,
+    'request_body_sha256': hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+    'only_body_change': {'stream': True},
+    'original_fields_unchanged': True,
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'production_decoder_source_sha256': hashlib.sha256((ROOT / 'rwkv_lh/supervisor_openai.py').read_bytes()).hexdigest(),
+    'production_sources_changed': False,
+    'production_settings_files_changed': False,
+    'http_requests_attempted': 0,
+    'automatic_retries': 0,
+    'redirects_enabled': False,
+    'read_timeout_seconds': 45.0,
+    'total_deadline_seconds': 90.0,
+    'production_request_slot_used': True,
+    'production_session_used': True,
+    'sse_events': [],
+    'sse_errors': [],
+    'finish_reasons': [],
+    'done_received': False,
+}
+
+def safe(value):
+    if isinstance(value, str):
+        return value.replace(settings.api_key, '[REDACTED]') if settings.api_key else value
+    if isinstance(value, list):
+        return [safe(item) for item in value]
+    if isinstance(value, dict):
+        return {safe(str(key)): safe(item) for key, item in value.items()}
+    return value
+
+class ProbeDeadline(Exception):
+    pass
+
+def deadline(_signum, _frame):
+    raise ProbeDeadline('single diagnostic total deadline reached')
+
+# Exclusive reservation prevents an accidental second invocation/request.
+with OUTPUT.open('x', encoding='utf-8') as initial:
+    json.dump({'status': 'reserved', 'script_sha256': record['script_sha256'], 'http_requests_attempted': 0}, initial)
+    initial.write('\n')
+
+started = time.monotonic()
+request_started = None
+raw_body = bytearray()
+line_buffer = bytearray()
+event_lines = []
+content_parts = []
+response = None
+
+def elapsed():
+    return round(time.monotonic() - request_started, 4) if request_started is not None else None
+
+def emit_event():
+    global event_lines
+    if not event_lines:
+        return
+    event = {'seconds_after_request': elapsed(), 'lines': event_lines[:]}
+    data = '\n'.join(line[5:].lstrip(' ') for line in event_lines if line.startswith('data:'))
+    event_lines = []
+    if data:
+        record.setdefault('first_sse_data_seconds', event['seconds_after_request'])
+        if data == '[DONE]':
+            record['done_received'] = True
+            event['done'] = True
+        else:
+            try:
+                parsed = json.loads(data)
+                event['data'] = parsed
+                if isinstance(parsed, dict):
+                    if 'error' in parsed:
+                        record['sse_errors'].append({'seconds_after_request': event['seconds_after_request'], 'error': parsed['error']})
+                    if parsed.get('type') == 'error':
+                        record['sse_errors'].append({'seconds_after_request': event['seconds_after_request'], 'error': parsed})
+                    for choice in parsed.get('choices', []):
+                        if not isinstance(choice, dict):
+                            continue
+                        if choice.get('finish_reason') is not None:
+                            record['finish_reasons'].append({'index': choice.get('index'), 'reason': choice['finish_reason'], 'seconds_after_request': event['seconds_after_request']})
+                        delta = choice.get('delta') or {}
+                        part = delta.get('content') if isinstance(delta, dict) else None
+                        if isinstance(part, str) and choice.get('index', 0) == 0:
+                            content_parts.append(part)
+                            if part:
+                                record.setdefault('first_content_delta_seconds', event['seconds_after_request'])
+                    if parsed.get('usage') is not None:
+                        record['usage'] = parsed['usage']
+            except json.JSONDecodeError as exc:
+                event['json_decode_error'] = str(exc)
+    record['sse_events'].append(event)
+
+def accept_line(line_bytes):
+    line = line_bytes.decode('utf-8', errors='replace').rstrip('\r')
+    if not line:
+        emit_event()
+    else:
+        event_lines.append(line)
+        if line.startswith(('data:', 'event:', ':')):
+            record.setdefault('first_sse_line_seconds', elapsed())
+
+previous_handler = signal.signal(signal.SIGALRM, deadline)
+signal.setitimer(signal.ITIMER_REAL, 90.0)
+try:
+    with client._request_slot():
+        record['lock_wait_seconds'] = round(time.monotonic() - started, 4)
+        request_started = time.monotonic()
+        record['http_requests_attempted'] = 1
+        response = session.post(
+            settings.base_url + '/chat/completions',
+            headers=client._headers(), json=body, stream=True,
+            timeout=(settings.connect_timeout_seconds, 45.0),
+            verify=settings.verify_tls, allow_redirects=False,
+        )
+        record['http_status'] = response.status_code
+        record['headers_received_seconds'] = elapsed()
+        for chunk in response.iter_content(chunk_size=64):
+            if not chunk:
+                continue
+            record.setdefault('first_body_chunk_seconds', elapsed())
+            raw_body.extend(chunk)
+            line_buffer.extend(chunk)
+            while b'\n' in line_buffer:
+                line, _, remainder = line_buffer.partition(b'\n')
+                line_buffer = bytearray(remainder)
+                accept_line(line)
+            if len(raw_body) > 1024 * 1024:
+                record['response_size_limit_reached'] = True
+                break
+        if line_buffer:
+            accept_line(bytes(line_buffer))
+            line_buffer.clear()
+        emit_event()
+        record['stream_eof_received'] = True
+except Exception as exc:
+    record['error_type'] = type(exc).__name__
+    record['error'] = str(exc)
+    if line_buffer:
+        accept_line(bytes(line_buffer))
+        line_buffer.clear()
+    emit_event()
+finally:
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    signal.signal(signal.SIGALRM, previous_handler)
+    if response is not None:
+        response.close()
+    client.close()
+    record['total_elapsed_seconds'] = round(time.monotonic() - started, 4)
+    record['request_elapsed_seconds'] = elapsed()
+    record['response_body_bytes'] = len(raw_body)
+    record['response_body_sha256'] = hashlib.sha256(raw_body).hexdigest()
+    record['response_body_utf8'] = raw_body.decode('utf-8', errors='replace')
+    content = ''.join(content_parts)
+    record['assembled_content'] = content
+    record['assembled_content_sha256'] = hashlib.sha256(content.encode()).hexdigest()
+    try:
+        value, normalization = _decode_supervisor_json_content(content)
+        record['production_json_decoder_passed'] = True
+        record['decoded_value'] = value
+        record['normalization'] = normalization
+    except Exception as exc:
+        record['production_json_decoder_passed'] = False
+        record['decode_error_type'] = type(exc).__name__
+        record['decode_error'] = str(exc)
+    record['decoder_scope'] = 'Production JSON content decoder only; not full GoalPlanPatch semantic validation'
+    OUTPUT.write_text(json.dumps(safe(record), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps({key: record.get(key) for key in (
+        'http_requests_attempted', 'http_status', 'headers_received_seconds',
+        'first_sse_data_seconds', 'first_content_delta_seconds', 'done_received',
+        'production_json_decoder_passed', 'error_type', 'total_elapsed_seconds',
+    )}, ensure_ascii=False))

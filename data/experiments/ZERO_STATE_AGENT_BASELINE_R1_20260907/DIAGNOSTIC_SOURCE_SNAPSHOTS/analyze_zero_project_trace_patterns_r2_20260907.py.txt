@@ -1,0 +1,64 @@
+"""Read all completed R2 development case exports and classify observed trace facts."""
+from pathlib import Path
+from collections import Counter
+from datetime import datetime, timezone
+import argparse
+import hashlib
+import json
+from collect_zero_project_metrics_r1_20260907 import unique_events
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+ROUND=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+parser=argparse.ArgumentParser()
+parser.add_argument('--arm', choices=['A','B'], required=True)
+args=parser.parse_args()
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+freeze=json.loads((ROUND/'FROZEN_EXECUTION_MANIFEST_R2.json').read_text())
+assert (ROUND/f'ARM_{args.arm}_COMPLETION_R2.json').exists(), 'arm must have finished and passed identity checks'
+public=json.loads((ROUND/'PUBLIC_CONFIG_FREEZE_ATTESTED_R2.json').read_text())['PUBLIC_CONFIG']
+expected_sampling={k:v for k,v in public['semantic_sampling'].items() if k!='semantic_resample_count'}
+run=ROUND/f'real_project_zero_{args.arm.lower()}_r2'
+rows=[]
+for ident in freeze['case_order']:
+    path=run/'cases'/ident/'audit.json'
+    raw=path.read_bytes()
+    audit=json.loads(raw)
+    events,source,issues=unique_events(audit)
+    assert events is not None and not issues, (ident,issues)
+    trace=audit.get('model_trace')
+    supervisor=audit.get('supervisor_trace')
+    assert isinstance(trace,list) and isinstance(supervisor,list),ident
+    generations=[e for e in trace if e.get('type')=='model_session_generation_started']
+    bootstraps=[e for e in trace if e.get('type')=='model_session_bootstrapped']
+    failures=[e for e in supervisor if e.get('type')=='supervisor_request_failed']
+    ledger=audit.get('action_ledger')
+    actions=list(ledger.values()) if isinstance(ledger,dict) else ledger
+    assert isinstance(actions,list),ident
+    rows.append({'task_id':ident,'source_audit':str(path.relative_to(ROOT)),
+        'source_sha256':hashlib.sha256(raw).hexdigest(),
+        'status':(audit.get('run_state') or {}).get('status'),
+        'passed':audit.get('passed'),'agent_completed':audit.get('agent_completed'),
+        'supervisor_failures':failures,
+        'supervisor_attempt_count':sum(e.get('type')=='supervisor_http_attempt_started' for e in supervisor),
+        'generation_counts':dict(Counter(e.get('model_role') for e in generations)),
+        'zero_profile_evidence':[{k:e.get(k) for k in ('model_role','model','model_sha256','state_profile_id','state_profile_sha256','checkpoint_id')} for e in bootstraps],
+        'all_observed_bootstraps_zero':all(e.get('state_profile_id')=='zero' and e.get('state_profile_sha256')=='0'*64 for e in bootstraps) if bootstraps else None,
+        'sampling_mismatches':[{'request_id':e.get('request_id'),'role':e.get('model_role'),'sampling':e.get('sampling')} for e in generations if e.get('sampling')!=expected_sampling],
+        'action_types':dict(Counter(e.get('action_type') for e in actions)),
+        'protocol_rejections':[e for e in events if e['event_type']=='protocol_rejection_recorded'],
+        'terminal_events':[e for e in events if e['event_type'] in {'run_completed','run_failed','run_blocked','run_interrupted','run_yielded'}],
+        'event_source':source})
+summary={'cases':len(rows),'strict_passed':sum(r['passed'] is True for r in rows),
+    'agent_completed':sum(r['agent_completed'] is True for r in rows),
+    'cases_with_supervisor_failures':sum(bool(r['supervisor_failures']) for r in rows),
+    'supervisor_failure_http_status_counts':dict(Counter(str(e.get('http_status')) for r in rows for e in r['supervisor_failures'])),
+    'cases_without_rwkv_generation':sum(not r['generation_counts'] for r in rows),
+    'sampling_mismatch_count':sum(len(r['sampling_mismatches']) for r in rows),
+    'nonzero_bootstrap_case_count':sum(r['all_observed_bootstraps_zero'] is False for r in rows)}
+output=ROUND/f'ZERO_{args.arm}_R2_TRACE_PATTERNS.json'
+with output.open('x') as stream:
+    json.dump({'at':datetime.now(timezone.utc).isoformat(),'arm':args.arm,'script_sha256':sha(Path(__file__)),
+        'freeze_sha256':sha(ROUND/'FROZEN_EXECUTION_MANIFEST_R2.json'),'sqlite_opened':False,
+        'model_calls':0,'scoring_changed':False,'summary':summary,'cases':rows},stream,ensure_ascii=False,indent=2)
+    stream.write('\n')
+print(json.dumps(summary,ensure_ascii=False))

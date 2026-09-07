@@ -1,0 +1,127 @@
+"""Offline decode and compare already-recorded provider probes; never sends HTTP."""
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+import socket
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+import requests
+
+
+def forbidden(*args, **kwargs):
+    raise RuntimeError("offline audit forbids network")
+
+
+requests.sessions.Session.request = forbidden
+socket.create_connection = forbidden
+socket.socket.connect = forbidden
+
+from rwkv_lh.supervisor_openai import _decode_supervisor_json_content
+
+OUT = ROOT / "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907"
+NAMES = (
+    "PLANNER_ENVELOPE_PROBE_R1_json.json",
+    "PLANNER_ENVELOPE_PROBE_R1_plain.json",
+    "PLANNER_ENVELOPE_PROBE_R2_json.json",
+    "PLANNER_FULL_REQUEST_REPLAY_R1.json",
+    "PLANNER_FULL_WIRE_R1_plain.json",
+)
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+rows = []
+bodies = {}
+for name in NAMES:
+    path = OUT / name
+    if not path.exists():
+        continue
+    raw = path.read_bytes()
+    record = json.loads(raw)
+    body = record.get("request_body")
+    if body is None and record.get("body_path"):
+        source = Path(record["body_path"])
+        if not source.is_absolute():
+            source = ROOT / source
+        source = source.resolve()
+        source.relative_to(OUT.resolve())
+        source_raw = source.read_bytes()
+        assert sha(source_raw) == record["body_file_sha256"]
+        body = json.loads(source_raw)
+    if body is not None:
+        bodies[name] = body
+    row = {
+        "file": str(path.relative_to(ROOT)),
+        "sha256": sha(raw),
+        "status_code": record.get("status_code", record.get("http_status")),
+        "elapsed_seconds_including_lock": record.get("elapsed_seconds_including_lock", record.get("elapsed_seconds")),
+        "request_body_sha256_recorded": record.get("request_body_sha256"),
+        "request_keys": sorted(body) if isinstance(body, dict) else None,
+        "response_sha256_recorded": record.get("response_sha256"),
+    }
+    envelope = json.loads(record["response_text"])
+    if row["status_code"] == 200:
+        message = envelope["choices"][0]["message"]
+        content = message["content"]
+        row.update({
+            "content_repr": repr(content),
+            "content_sha256": sha(content.encode("utf-8")),
+            "finish_reason": envelope["choices"][0].get("finish_reason"),
+            "usage": envelope.get("usage"),
+        })
+        try:
+            decoded, normalization = _decode_supervisor_json_content(content)
+            row.update({"decoder_passed": True, "decoded_value": decoded,
+                        "normalization": normalization})
+        except Exception as exc:
+            row.update({"decoder_passed": False,
+                        "decode_error": type(exc).__name__ + ": " + str(exc)})
+    else:
+        row["provider_error"] = envelope.get("error")
+    rows.append(row)
+
+comparisons = []
+for left, right in (
+    (NAMES[0], NAMES[2]),
+    (NAMES[0], NAMES[1]),
+    (NAMES[3], NAMES[4]),
+):
+    if left not in bodies or right not in bodies:
+        continue
+    a, b = bodies[left], bodies[right]
+    comparisons.append({
+        "left": left,
+        "right": right,
+        "exact_request_body_equal": a == b,
+        "differing_top_level_fields": [key for key in sorted(set(a) | set(b))
+                                       if a.get(key) != b.get(key)],
+        "equal_when_response_format_omitted":
+            {k: v for k, v in a.items() if k != "response_format"}
+            == {k: v for k, v in b.items() if k != "response_format"},
+    })
+
+report = {
+    "scope": "offline decode of stored probe responses and stored request-body comparison",
+    "network_performed": False,
+    "production_modified": False,
+    "minimal_probe_does_not_validate_goal_plan_schema": True,
+    "script_sha256": sha(Path(__file__).read_bytes()),
+    "supervisor_source_sha256": sha((ROOT / "rwkv_lh/supervisor_openai.py").read_bytes()),
+    "tests_source_sha256": sha((ROOT / "tests/test_supervisor_openai.py").read_bytes()),
+    "probes": rows,
+    "comparisons": comparisons,
+}
+target = OUT / "PLANNER_PROBE_DECODE_AUDIT_R2.json"
+target.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(json.dumps({"report": str(target), "sha256": sha(target.read_bytes()),
+                  "probes": [{k: v for k, v in r.items()
+                              if k in ("file", "status_code", "decoder_passed", "decode_error", "normalization")}
+                             for r in rows],
+                  "comparisons": comparisons}, ensure_ascii=False, indent=2))

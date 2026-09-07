@@ -1,12 +1,16 @@
 # RWKV-LH 当前交接
 
-更新时间：2026-09-07。基线准备与首次无效尝试记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；新的 R2 执行注册待最终冻结。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
+更新时间：2026-09-07。基线准备与执行记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；R2 已冻结并执行完整 A 臂，B 臂尚未启动。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
 
-当前阶段：落实“服务器禁止使用 Git，只能本地上传”，补齐上传源码清单的部署与身份核验，重新登记同 12 题双零。首次 A 臂已中止并标 INVALID，B 臂未启动，没有有效双零结果；作者参考自验、整体 bubblewrap 验证和完整 pytest 应分开报告，最终结果以本轮记录为准。
+当前阶段：服务器上传部署与完整源码清单核验已完成，本地生产提交 `eab0a699`。R2 A 的 12 题全部以 `strong_planner_unavailable` 停止，正在按 owner 要求排查 Planner 上游请求格式及转发故障；B 臂暂未启动，没有有效双零能力基线。作者参考自验、整体 bubblewrap 验证和完整 pytest 均须与模型结果分开报告。
 
 ## 1. Agent 级状态
 
-当前代码没有有效的新 Strict / completed / mutation / 终止原因基线结果。首次 `real_project_zero_a` 因 owner 的服务器禁用 Git 约束而中止，证据见 [INVALID_ATTEMPT_01.json](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json)；B 臂未启动。原始中断证据保留，不能用于有效成绩、噪声估计或训练来源。本轮没有启动训练，也未重评分历史 confirmation。旧成绩对应旧代码，不作为当前基线。
+R2 A 已执行完整 12 题：Strict **0/12**、completed **0/12**、mutation **0**；12 题终止原因均为 `strong_planner_unavailable`，operation-target invalid **2**。状态库最终大小与预算门通过，mutation 和目标拒绝门未通过。11 题没有发生 RWKV 生成，不能把这次受上游故障影响的结果当作纯 RWKV 能力基线、噪声估计或训练来源；详见 [R2_A_RUN_REPORT.zh-CN.md](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。R2 B 尚未启动，没有双零差值。
+
+首次 `real_project_zero_a` 因 owner 的服务器禁用 Git 约束而中止，仍按 [INVALID_ATTEMPT_01.json](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留原始无效记录，与 R2 A 分开。本轮没有启动训练，也未重评分历史 confirmation。旧成绩对应旧代码，不作为当前基线。
+
+Planner 与 Stage Checker 当前统一使用 `chat/completions` + JSON mode。已重建的 Planner user payload 与原 trace SHA 完全匹配；同一个最小 JSON-mode 请求先 500 后 200，完整请求保留或删除 `response_format` 均 500，增加 `stream=true` 后也在任何 SSE 之前返回 500。已有 200 响应都通过当前 decoder，不能凭此删字段、改为流式或判定请求格式是根因。结论与六次独立诊断见 [PLANNER_UPSTREAM_DIAGNOSIS_R1.zh-CN.md](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_UPSTREAM_DIAGNOSIS_R1.zh-CN.md)，SHA-256 `9424950c36c67d64d31a552b81a2b4216bdc21160fad115df80f3c2a4676dc35`。所有诊断调用排除在 Agent 分数和角色数据之外；具体内部原因仍需中转后台按请求ID核实。
 
 单元回归仅证明代码合同与恢复路径，不证明 Agent 增益。最终发布仍须满足统一规范和 AGENTS §7。
 

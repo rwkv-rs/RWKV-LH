@@ -1,0 +1,159 @@
+"""Reconstruct recorded Planner inputs offline; never send an HTTP request."""
+
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+import socket
+import sys
+from types import SimpleNamespace
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+
+import requests
+from rwkv_lh.goal_loop_protocol import GoalAuditDecision, GoalPlanRequest, rolling_goal_plan
+from rwkv_lh.harness import ActionHarness
+from rwkv_lh.schema import RunState
+from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
+from rwkv_lh.supervisor_openai import OpenAICompatibleSupervisorClient, _render_user_payload
+
+
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+OUTPUT = ROUND / 'PLANNER_WIRE_DIAGNOSTIC_R2'
+
+
+def sha_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def no_network(*_args, **_kwargs):
+    raise AssertionError('offline diagnostic forbids HTTP and socket connections')
+
+
+requests.sessions.Session.request = no_network
+socket.create_connection = no_network
+socket.socket.connect = no_network
+
+
+class OfflineIntercept(Exception):
+    pass
+
+
+def reconstruct(task_id):
+    path = ROUND / 'real_project_zero_a_r2/cases' / task_id / 'audit.json'
+    audit = json.loads(path.read_text())
+    base = RunState.from_dict(audit['run_state'])
+    calls = [item for item in audit['supervisor_trace'] if item['type'] == 'supervisor_request_started']
+    records = []
+    for index, recorded in enumerate(calls):
+        state = deepcopy(base)
+        if index == 0:
+            state.causal_order = state.causal_order[:2]
+            state.causal_records = {key: state.causal_records[key] for key in state.causal_order}
+            state.actions = {}
+            latest_audit = None
+        else:
+            accepted = [item for item in audit['events'] if item['type'] == 'goal_audit_accepted'][-1]
+            latest_audit = GoalAuditDecision.from_dict(accepted['data']['audit']).to_dict()
+            boundary = next(item['event_id'] for item in audit['events'] if item['type'] == 'strong_planner_call_failed')
+            state.causal_order = state.causal_order[:boundary - 1]
+            state.causal_records = {key: state.causal_records[key] for key in state.causal_order}
+        plan = rolling_goal_plan(state)
+        harness = object.__new__(ActionHarness)
+        materials = GoalPlanRequest(
+            run_id=state.run_id,
+            immutable_request=state.goal.request,
+            goal_digest=state.goal.digest,
+            plan_revision=len(plan.patch_ids),
+            active_plan=plan.to_model_dict(),
+            latest_audit=latest_audit,
+            latest_stage_review=None,
+            latest_controller_repair=None,
+            workspace_manifest=harness.workspace_manifest(state.goal, max_entries=256, max_tokens=1800),
+            recent_action_facts=StatefulGoalLoopController._recent_action_facts(state),
+            local_validation_repair=None,
+        )
+        payload_text = _render_user_payload(materials.to_dict())
+        captured = {}
+        client = object.__new__(OpenAICompatibleSupervisorClient)
+        client.settings = SimpleNamespace(max_plan_tokens=recorded['max_tokens'], base_url='https://offline.invalid/v1')
+        client._validated_response_cache_path = lambda **_kwargs: None
+        client._load_validated_response_cache = lambda *_args, **_kwargs: None
+
+        def capture(**kwargs):
+            captured.update(kwargs)
+            raise OfflineIntercept()
+
+        client._request_json = capture
+        try:
+            client.plan_goal_patch(materials)
+        except OfflineIntercept:
+            pass
+        assert captured, 'production plan method was not intercepted'
+        assert captured['request_payload'] == materials.to_dict()
+        _, body, transport = client._wire_request(
+            phase=recorded['phase'], selected_model=recorded['model'],
+            system_prompt=captured['system_prompt'], payload_text=payload_text,
+            max_tokens=recorded['max_tokens'], schema_revision='v4', schema=captured['schema'],
+        )
+        prepared = requests.Request('POST', 'https://offline.invalid/v1/chat/completions', json=body).prepare()
+        prepared_bytes = prepared.body if isinstance(prepared.body, bytes) else prepared.body.encode()
+        input_sha = sha_bytes(payload_text.encode())
+        exact = input_sha == recorded['input_sha256'] and len(payload_text) == recorded['input_chars']
+        outcome = [item for item in audit['supervisor_trace']
+                   if item.get('call_id') == recorded['call_id']
+                   and item['type'] in {'supervisor_request_returned', 'supervisor_request_failed'}][-1]
+        record = {
+            'task_id': task_id, 'call_id': recorded['call_id'], 'plan_revision': materials.plan_revision,
+            'source_audit': str(path.relative_to(ROOT)), 'source_audit_sha256': sha_bytes(path.read_bytes()),
+            'recorded': recorded,
+            'outcome': {key: value for key, value in outcome.items() if key != 'provider_error'},
+            'payload_sha256_matches_record': exact,
+            'reconstructed_payload_sha256': input_sha,
+            'reconstructed_payload_chars': len(payload_text),
+            'reconstructed_payload_utf8_bytes': len(payload_text.encode()),
+            'system_prompt_chars': len(captured['system_prompt']),
+            'system_prompt_utf8_bytes': len(captured['system_prompt'].encode()),
+            'system_prompt_sha256': sha_bytes(captured['system_prompt'].encode()),
+            'body_fields': sorted(body), 'message_roles': [item['role'] for item in body['messages']],
+            'transport': transport, 'model': body['model'], 'max_tokens': body['max_tokens'],
+            'response_format': body['response_format'],
+            'reconstructed_requests_body_bytes': len(prepared_bytes),
+            'reconstructed_requests_body_sha256': sha_bytes(prepared_bytes),
+            'note': 'input_sha256 binds only user payload. System prompt and outer body are reconstructed from frozen production code, not independently captured on the wire. No HTTP headers or secrets are reconstructed.',
+        }
+        if exact:
+            body_path = OUTPUT / (recorded['call_id'] + '.reconstructed_body.json')
+            body_path.write_text(json.dumps(body, ensure_ascii=False, indent=2) + '\n')
+            record['body_artifact'] = str(body_path.relative_to(ROOT))
+            record['body_artifact_sha256'] = sha_bytes(body_path.read_bytes())
+        records.append(record)
+    return records
+
+
+def main():
+    OUTPUT.mkdir(exist_ok=True)
+    records = reconstruct('RP-API-01') + reconstruct('RP-API-02')
+    result = {
+        'schema_version': 'rwkv-lh.offline-planner-wire-diagnostic.v1',
+        'network_requests': 0, 'model_calls': 0,
+        'method': 'Rebuild GoalPlanRequest using causal-prefix rolling_goal_plan, unchanged public workspace descriptors, and production recent_action_facts. Intercept production plan_goal_patch before its HTTP method; construct the body with production _wire_request.',
+        'source_script_sha256': sha_bytes(Path(__file__).read_bytes()),
+        'production_sources': {name: sha_bytes((ROOT / name).read_bytes()) for name in (
+            'rwkv_lh/supervisor_openai.py', 'rwkv_lh/goal_loop_protocol.py',
+            'rwkv_lh/stateful_goal_loop.py', 'rwkv_lh/harness.py')},
+        'records': records,
+    }
+    path = OUTPUT / 'REPORT.json'
+    path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+    print(json.dumps({'report_sha256': sha_bytes(path.read_bytes()), 'records': [
+        {key: item[key] for key in ('task_id', 'call_id', 'payload_sha256_matches_record',
+                                   'reconstructed_payload_chars', 'system_prompt_chars',
+                                   'reconstructed_requests_body_bytes')}
+        for item in records
+    ]}, ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()

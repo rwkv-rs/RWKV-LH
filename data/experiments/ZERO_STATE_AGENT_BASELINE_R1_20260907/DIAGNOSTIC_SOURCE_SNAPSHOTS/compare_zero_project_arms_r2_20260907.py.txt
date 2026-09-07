@@ -1,0 +1,226 @@
+"""Read-only comparison of final R2 zero-arm metrics and frozen completion evidence."""
+from __future__ import annotations
+import argparse
+from collections import Counter
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+EXPERIMENTS = ROOT / 'data/experiments'
+SEALED = ('holdout', 'confirmation', 'acceptance')
+HEX = re.compile(r'^[0-9a-f]{64}$')
+GATES = ('mutation_positive', 'operation_target_invalid_zero', 'each_final_database_within_100000000_bytes', 'no_controller_slice_exhausted', 'frozen_result_set_complete')
+
+def guarded(path, *, source=False):
+    path = Path(path)
+    if not path.is_absolute(): raise ValueError('absolute paths required')
+    if any(any(word in part.lower() for word in SEALED) for part in path.parts): raise ValueError('sealed path refused before reading')
+    path = path.resolve()
+    if not path.is_relative_to(ROOT if source else EXPERIMENTS): raise ValueError('path outside permitted project scope')
+    if any(any(word in part.lower() for word in SEALED) for part in path.parts): raise ValueError('resolved sealed path refused')
+    if path.suffix.lower() not in ('.json', '.py'): raise ValueError('only JSON evidence and bound collector Python source may be read')
+    return path
+
+class Reader:
+    def __init__(self): self.sources = {}; self.issues = []
+    def raw(self, path, *, source=False):
+        try:
+            path = guarded(path, source=source)
+            before = path.stat(); value = path.read_bytes(); after = path.stat()
+            if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns): raise ValueError('input changed while reading')
+            self.sources[str(path)] = {'sha256': hashlib.sha256(value).hexdigest(), 'logical_bytes': len(value)}
+            return value
+        except (OSError, ValueError) as exc:
+            self.issues.append({'path': str(path), 'kind': type(exc).__name__, 'message': str(exc)})
+            return None
+    def json(self, path):
+        raw = self.raw(path)
+        try: return json.loads(raw) if raw is not None else None
+        except (ValueError, UnicodeError):
+            self.issues.append({'path': str(path), 'kind': 'InvalidJSON'})
+            return None
+
+def option(argv, name):
+    if not isinstance(argv, list) or argv.count(name) != 1: return None
+    index = argv.index(name)
+    return argv[index + 1] if index + 1 < len(argv) and isinstance(argv[index + 1], str) else None
+
+def without_output(argv):
+    value = option(argv, '--output')
+    if value is None: return None
+    index = argv.index('--output')
+    return argv[:index] + argv[index + 2:]
+
+def known(metric, *, boolean=False):
+    if not isinstance(metric, dict) or metric.get('status') != 'known': return None
+    value = metric.get('value')
+    if boolean: return value if isinstance(value, bool) else None
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+def obj(value):
+    return value if isinstance(value, dict) else {}
+
+def when(value):
+    try: return datetime.fromisoformat(value)
+    except (TypeError, ValueError): return None
+
+def compare(paths):
+    reader = Reader(); checks = []
+    def check(name, condition, missing=False):
+        checks.append({'name': name, 'status': 'UNKNOWN' if missing else 'PASS' if condition is True else 'INVALID'})
+    freeze = reader.json(paths['freeze'])
+    if not isinstance(freeze, dict): freeze = {}
+    freeze_sha = reader.sources.get(str(paths['freeze']), {}).get('sha256')
+    order = freeze.get('case_order')
+    valid_order = isinstance(order, list) and len(order) == 12 and all(isinstance(i, str) and re.fullmatch(r'RP-[A-Z]+-\d{2}', i) for i in order) and len(set(order)) == 12
+    check('freeze_status_and_revision', freeze.get('status') == 'FROZEN' and freeze.get('registration_revision') == 'R2', not freeze)
+    check('frozen_twelve_unique_cases', valid_order, order is None)
+    order = order if valid_order else []
+    argv = freeze.get('argv', {}); metric_argv = freeze.get('metric_argv', {}); immutable = freeze.get('immutable_files', {})
+    if not isinstance(argv, dict): argv = {}
+    if not isinstance(metric_argv, dict): metric_argv = {}
+    if not isinstance(immutable, dict): immutable = {}
+    stripped = [without_output(argv.get(arm)) for arm in ('A', 'B')]
+    check('identical_runner_parameters_except_output', stripped[0] == stripped[1] and stripped[0] is not None, None in stripped)
+    check('independent_arm_output_directories', option(argv.get('A'), '--output') != option(argv.get('B'), '--output'), option(argv.get('A'), '--output') is None or option(argv.get('B'), '--output') is None)
+    arms = {}; indices = {}; definitions_paths = []
+    for arm in ('A', 'B'):
+        metrics = reader.json(paths['metrics_' + arm]); completion = reader.json(paths['completion_' + arm])
+        metrics = metrics if isinstance(metrics, dict) else {}; completion = completion if isinstance(completion, dict) else {}
+        command = metric_argv.get(arm)
+        run = option(argv.get(arm), '--output'); definitions_path = option(command, '--definitions')
+        collector_path = command[1] if isinstance(command, list) and len(command) > 1 and isinstance(command[1], str) else None
+        definitions_paths.append(definitions_path)
+        check(arm + '.metrics_present', bool(metrics), not metrics)
+        check(arm + '.completion_present', bool(completion), not completion)
+        check(arm + '.completion_freeze_identity', completion.get('arm') == arm and completion.get('freeze_sha256') == freeze_sha and freeze_sha is not None, not completion or freeze_sha is None)
+        for flag in ('immutable_sources_unchanged', 'remote_deployment_unchanged'):
+            check(arm + '.' + flag, completion.get(flag) is True, flag not in completion)
+        check(arm + '.metric_output_bound_to_freeze', option(command, '--output') == str(paths['metrics_' + arm]), option(command, '--output') is None)
+        check(arm + '.run_directory_bound_to_freeze', run is not None and option(command, '--run-dir') == run and metrics.get('run_directory') == run, run is None or not metrics)
+        check(arm + '.definition_path_bound', definitions_path is not None and metrics.get('metric_definitions_path') == definitions_path, definitions_path is None or not metrics)
+        definitions = reader.json(definitions_path) if definitions_path else None
+        if not isinstance(definitions, dict): definitions = {}
+        check(arm + '.definition_case_order', definitions.get('expected_case_order') == order and bool(order), not definitions)
+        sources = metrics.get('source_files')
+        if not isinstance(sources, dict): sources = {}
+        if collector_path:
+            collector_raw = reader.raw(collector_path, source=True)
+            collector_sha = hashlib.sha256(collector_raw).hexdigest() if collector_raw is not None else None
+            try: collector_key = str(guarded(collector_path, source=True).relative_to(ROOT))
+            except ValueError: collector_key = ''
+            registered = obj(definitions.get('collector'))
+            check(arm + '.collector_sha_binding', collector_sha is not None and collector_sha == metrics.get('collector_sha256') == immutable.get(collector_key) == registered.get('sha256'), collector_sha is None or not registered or not metrics)
+        else: check(arm + '.collector_sha_binding', False, True)
+        if definitions_path:
+            try: definition_key = str(guarded(definitions_path).relative_to(ROOT))
+            except ValueError: definition_key = ''
+            definition_sha = reader.sources.get(definitions_path, {}).get('sha256')
+            recorded = obj(sources.get(definitions_path))
+            check(arm + '.definition_sha_binding', definition_sha is not None and definition_sha == immutable.get(definition_key) == recorded.get('sha256'), definition_sha is None or not recorded)
+        else: check(arm + '.definition_sha_binding', False, True)
+        expected_sources = {definitions_path} if definitions_path else set()
+        if run:
+            expected_sources.update(str(Path(run) / name) for name in ('results.json', 'RUN_PROTOCOL.json'))
+            expected_sources.update(str(Path(run) / 'cases' / ident / 'audit.json') for ident in order)
+        check(arm + '.complete_bound_source_inventory', bool(expected_sources) and set(sources) == expected_sources, not sources)
+        for name in expected_sources:
+            recorded = sources.get(name)
+            if not isinstance(recorded, dict): check(arm + '.source_hash:' + name, False, True); continue
+            source_raw = reader.raw(name)
+            current_sha = hashlib.sha256(source_raw).hexdigest() if source_raw is not None else None
+            check(arm + '.source_hash:' + name, current_sha is not None and current_sha == recorded.get('sha256'), source_raw is None)
+        check(arm + '.collector_source_reads_complete', metrics.get('source_read_issues') == [], 'source_read_issues' not in metrics)
+        check(arm + '.collector_read_only', metrics.get('read_only_inputs') is True and metrics.get('sqlite_opened') is False and metrics.get('scoring_or_parser_modified') is False and metrics.get('model_calls') == 0, not metrics)
+        cases = metrics.get('cases'); cases = cases if isinstance(cases, list) else []
+        case_order = [c.get('task_id') if isinstance(c, dict) else None for c in cases]
+        check(arm + '.complete_ordered_cases', case_order == order and len(cases) == 12, not cases)
+        check(arm + '.complete_result_inventory', metrics.get('expected_case_count') == 12 and metrics.get('observed_result_count') == 12 and all(metrics.get(key) == [] for key in ('missing_result_task_ids', 'unexpected_result_task_ids', 'duplicate_result_task_ids')), not metrics)
+        check(arm + '.every_result_present', len(cases) == 12 and all(isinstance(c, dict) and c.get('result_present') is True for c in cases), not cases)
+        index = {c['task_id']: c for c in cases if isinstance(c, dict) and isinstance(c.get('task_id'), str)}
+        indices[arm] = index
+        strict_rows = [known(index.get(ident, {}).get('strict_passed'), boolean=True) for ident in order]
+        completed_rows = [known(index.get(ident, {}).get('agent_completed'), boolean=True) for ident in order]
+        check(arm + '.strict_requires_agent_completed', all(not strict or completed is True for strict, completed in zip(strict_rows, completed_rows)), any(strict is True and completed is None for strict, completed in zip(strict_rows, completed_rows)))
+        primary = {}; unknown_metrics = []
+        for name in ('strict_passed', 'agent_completed', 'mutations'):
+            values = [known(index.get(ident, {}).get(name), boolean=name != 'mutations') for ident in order]
+            total = known(obj(metrics.get('agent_metrics')).get(name))
+            complete = bool(order) and all(value is not None for value in values)
+            check(arm + '.aggregate_consistency:' + name, (total == sum(values)) if complete else total is None, not complete)
+            primary[name] = {'count': total if complete else None, 'denominator': 12, 'status': 'known' if complete and total is not None else 'unknown'}
+            if not complete: unknown_metrics.append(name)
+        reasons = [obj(index.get(ident, {}).get('termination')).get('value') for ident in order]
+        normalized = [value if isinstance(value, str) and value else 'unknown' for value in reasons]
+        check(arm + '.termination_distribution_consistent', metrics.get('termination_reason_counts') == dict(Counter(normalized)), 'termination_reason_counts' not in metrics)
+        termination = dict(Counter(normalized))
+        if 'unknown' in termination: unknown_metrics.append('termination')
+        strict_count = primary['strict_passed']['count']
+        exit_code = completion.get('runner_exit_code')
+        check(arm + '.runner_exit_code', isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code == (0 if strict_count == 12 else 2), exit_code is None or strict_count is None)
+        times = [when(freeze.get('frozen_at')), when(completion.get('completed_at')), when(metrics.get('generated_at_utc'))]
+        try: times_valid = all(t is not None for t in times) and times[0] <= times[1] <= times[2]
+        except TypeError: times_valid = False
+        check(arm + '.final_metrics_after_completion', times_valid, any(t is None for t in times))
+        gate_values = obj(metrics.get('gates'))
+        gates = {name: gate_values.get(name) if isinstance(gate_values.get(name), bool) else None for name in GATES}
+        check(arm + '.gate_evidence_present', None not in gates.values(), None in gates.values())
+        check(arm + '.gate_summary_consistent', metrics.get('all_listed_gates_pass') is all(value is True for value in gates.values()), 'all_listed_gates_pass' not in metrics)
+        check(arm + '.frozen_result_set_gate', gates['frozen_result_set_complete'] is True, gates['frozen_result_set_complete'] is None)
+        roles = obj(metrics.get('role_call_totals'))
+        arms[arm] = {'agent_metrics': primary, 'termination_reason_counts': termination, 'gates': gates,
+            'agent_gate_status': 'FAIL' if False in gates.values() else 'UNKNOWN' if None in gates.values() else 'PASS',
+            'unknown_agent_metrics': unknown_metrics, 'role_call_totals': roles if roles else {'status': 'unknown'},
+            'role_unknowns': [name for name, value in roles.items() if not isinstance(value, dict) or value.get('status') != 'known'] if roles else ['all_roles_missing']}
+    check('same_definition_document_for_both_arms', definitions_paths[0] == definitions_paths[1] and definitions_paths[0] is not None, None in definitions_paths)
+    if reader.issues: check('input_reads_complete', False, True)
+    evidence_status = 'INVALID' if any(row['status'] == 'INVALID' for row in checks) else 'UNKNOWN' if any(row['status'] == 'UNKNOWN' for row in checks) else 'VALID'
+    paired = []; flips = Counter()
+    for ident in order:
+        a = indices.get('A', {}).get(ident, {}); b = indices.get('B', {}).get(ident, {})
+        av = known(a.get('strict_passed'), boolean=True); bv = known(b.get('strict_passed'), boolean=True)
+        label = 'unknown' if av is None or bv is None else ('pass' if av else 'fail') + '_to_' + ('pass' if bv else 'fail')
+        flips[label] += 1
+        am = known(a.get('mutations')); bm = known(b.get('mutations'))
+        paired.append({'task_id': ident, 'strict_a': av, 'strict_b': bv, 'strict_transition': label,
+            'completed_a': known(a.get('agent_completed'), boolean=True), 'completed_b': known(b.get('agent_completed'), boolean=True),
+            'mutations_a': am, 'mutations_b': bm, 'mutation_difference_b_minus_a': bm - am if am is not None and bm is not None else None,
+            'termination_a': obj(a.get('termination')).get('value'), 'termination_b': obj(b.get('termination')).get('value')})
+    sa = arms['A']['agent_metrics']['strict_passed']['count']; sb = arms['B']['agent_metrics']['strict_passed']['count']
+    noise = abs(sa - sb) if evidence_status == 'VALID' and sa is not None and sb is not None else None
+    return {'schema': 'rwkv-lh.zero-arm-comparison.r2.v1', 'created_at_utc': datetime.now(timezone.utc).isoformat(),
+        'comparison_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'read_only': True, 'sqlite_opened': False, 'model_calls': 0,
+        'evidence_status': evidence_status,
+        'agent_comparison': {arm: {key: value for key, value in data.items() if key not in ('role_call_totals', 'role_unknowns')} for arm, data in arms.items()},
+        'paired_cases': paired, 'strict_transition_counts': dict(flips),
+        'observed_noise_band': {'N': noise, 'status': 'known' if noise is not None else 'unknown', 'formula': 'abs(Strict_A_count - Strict_B_count)', 'interpretation': 'Two zero runs measure observed variability; N=0 does not prove determinism.'},
+        'gain_conclusion': 'Not evaluated: these are two zero arms, with no candidate improvement claim.',
+        'checks': checks,
+        'role_comparison': {arm: {key: data[key] for key in ('role_call_totals', 'role_unknowns')} for arm, data in arms.items()},
+        'source_integrity_scope': 'Completion records attest frozen local sources and remote deployment unchanged. Every collector-bound JSON source and the bound collector source are rehashed locally. No SQLite or sealed data are read; remote attestation is not rerun.',
+        'source_files': reader.sources, 'input_read_issues': reader.issues}
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    for option_name in ('metrics-a', 'metrics-b', 'completion-a', 'completion-b', 'freeze', 'output'):
+        parser.add_argument('--' + option_name, type=Path, required=True)
+    args = parser.parse_args()
+    if os.environ.get('WSL_DISTRO_NAME') != 'UbuntuRecovered': raise ValueError('must run in WSL UbuntuRecovered')
+    paths = {key: guarded(getattr(args, key.lower())) for key in ('metrics_A', 'metrics_B', 'completion_A', 'completion_B', 'freeze')}
+    output = guarded(args.output)
+    result = compare(paths)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open('x', encoding='utf-8') as handle:
+        json.dump(result, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'output': str(output), 'evidence_status': result['evidence_status'], 'noise_band': result['observed_noise_band'], 'sha256': result['comparison_script_sha256']}, ensure_ascii=False))
+    return 0
+
+if __name__ == '__main__':
+    try: raise SystemExit(main())
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        print(json.dumps({'status': 'comparison_error', 'error_type': type(exc).__name__, 'error': str(exc)})); raise SystemExit(2)

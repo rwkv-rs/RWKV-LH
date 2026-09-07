@@ -1,0 +1,38 @@
+# Planner 上游请求诊断
+
+2026-09-07。结论：**未发现确定的客户端请求格式或响应解析错误；当前证据更倾向于中转向上游发送请求时的间歇性故障。具体内部根因未确定，不能以删除 JSON mode 或改为 stream 的方式宣称已修复。**
+
+Agent 级事实：R2 A 完整 12 题，Strict 0/12、completed 0/12、mutation 0；全部终止于 strong_planner_unavailable，operation-target invalid 2。11 题没有 RWKV 生成，不能据此评价纯 RWKV 能力、计算双零噪声或制作训练数据。B 尚未启动。细节见 R2_A_RUN_REPORT.zh-CN.md；角色调用数字在该报告中后置。
+
+## 请求与解析核对
+
+当前 Planner/Stage Checker 使用 next-token.cc/v1/chat/completions，模型 gpt-5.6-sol。Planner 请求字段为 model、messages（system/user）、max_tokens=1800、response_format={type:json_object}，无 tools、temperature、top_p 或 reasoning 参数。
+
+从当前生产 trace 重建的三个 user payload 均与原记录的 input_sha256、字符数完全匹配。API01 成功初始请求与 API02 失败初始请求使用相同 system prompt（6486字符，同 SHA），user 分别1360/1358字符，requests JSON body分别8585/8523字节。完整外层 body 与 system prompt 由冻结源码离线重建；原 trace 没有独立捕获它们的 wire hash，不能冒称网络抓包。见 PLANNER_WIRE_DIAGNOSTIC_R2/REPORT.zh-CN.md。
+
+## 六次独立在线诊断
+
+这些调用仅用于 owner 提出的上游诊断，使用当前凭据与请求锁，均不进入 Agent 成绩、训练数据或重试成绩。没有修改生产源码或测试参数。
+
+| 请求 | 唯一变化 / 内容 | 结果 | 耗时 |
+|---|---|---|---|
+| 最小 R1 JSON | 简短 ok:true，保留 JSON mode 与1800上限 | 500 / do_request_failed | 30.679秒 |
+| 最小 R1 plain | 相同内容，仅删除 response_format | 200，当前decoder通过 | 39.766秒，含等待请求锁 |
+| 最小 R2 JSON | 与最小R1 JSON的请求body完全相同 | 200，当前decoder通过 | 5.743秒 |
+| 完整请求重放 | 原API02 body，不改变任何请求字段 | 500 / do_request_failed | 30.661秒 |
+| 完整 plain | 原API02 body，仅删除 response_format | 500 / do_request_failed | 31.111秒 |
+| 完整 stream | 原API02 body，仅增加 stream=true | 500，未收到任何SSE或模型内容 | 37.804秒收到headers，38.6844秒结束 |
+
+最小成功响应均由现有 production decoder 直接解析为 {ok: true}，没有 normalization。完整流式请求的空内容解码失败不属于“模型返回了计划但被parser错误拒绝”，因为该请求只收到HTTP500错误体。两种最小成功响应的提供方prompt_tokens为709/4416，这是提供方报告的计量差异；它不能单独证明我方消息格式有错。
+
+同一最小JSON请求先失败后成功，不支持“该格式恒定不被支持”；完整请求删除JSON字段仍失败，也不支持“删掉字段就能修好”。流式在任何SSE之前失败，不支持仅非流式30秒边界的解释。仍不能排除中转内部的模型路由、连接/超时、特定内容触发或参数转换缺陷；需用下列请求ID查询实际渠道和原始上游错误。
+
+公开的 [New API主线实现](https://github.com/QuantumNous/new-api/blob/main/relay/compatible_handler.go) 将 adaptor.DoRequest 返回的错误包装为 do_request_failed/500；请求类型和转换错误在其他边界处理。这仅是与当前错误码相符的源码线索，未核实 next-token.cc 的部署版本或内部配置，不能替代服务日志。
+
+## 后续边界
+
+当前没有依据修改统一 _wire_request/_response_format 或评分/parser。生产文件及依赖仍符合 R2 冻结；完整pytest在A结束后697项通过。停止追加无差别重试，B待Planner完整请求稳定可用后再安排；本轮不足以启动StateTune。若需要修改生产请求构造或部署，必须重新登记并重跑两臂，不能接续旧A或只补有利B。
+
+需要中转侧按请求ID确认实际渠道/模型映射、原始错误、是否收到上游HTTP响应与连接耗时。目前未取得后台日志；诊断不声称所有内部原因已查清。服务器继续遵守无Git、本地上传约束。
+
+本报告与原始记录的SHA见 PLANNER_UPSTREAM_DIAGNOSIS_SHA256.json；六次诊断完整请求/响应和请求ID都在对应JSON文件中。未发送任何对外消息。

@@ -1,0 +1,55 @@
+"""Owner-requested minimal upstream diagnosis; separate from Agent benchmark results."""
+from pathlib import Path
+from dataclasses import replace
+from datetime import datetime, timezone
+import argparse
+import hashlib
+import json
+import sys
+import time
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import SupervisorAPISettings, OpenAICompatibleSupervisorClient
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--variant', choices=['json','plain'],required=True)
+parser.add_argument('--label',required=True)
+args=parser.parse_args()
+assert args.label.isalnum()
+ROUND=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+output=ROUND/f'PLANNER_ENVELOPE_PROBE_{args.label}_{args.variant}.json'
+assert not output.exists()
+driver.apply_current_zero_overrides()
+settings=replace(SupervisorAPISettings.from_env(),read_timeout_seconds=45.0)
+client=OpenAICompatibleSupervisorClient(settings)
+endpoint,body,transport=client._wire_request(phase='goal_plan',selected_model=settings.model,
+    system_prompt='Return exactly one JSON object with the key ok and boolean value true. Do not include explanations.',
+    payload_text='Please return the requested JSON object.',max_tokens=settings.max_plan_tokens,
+    schema_revision='v4',schema={})
+if args.variant=='plain':del body['response_format']
+record={'purpose':'Owner-requested transport diagnosis, excluded from baseline scores/training data',
+    'at':datetime.now(timezone.utc).isoformat(),'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'variant':args.variant,'endpoint':driver.public_url(endpoint),'transport':transport,
+    'request_body':body,'request_body_sha256':hashlib.sha256(json.dumps(body,ensure_ascii=False,sort_keys=True).encode()).hexdigest(),
+    'retry_attempts':1,'read_timeout_seconds':45.0,'serialized_with_production_request_lock':settings.serialize_requests,
+    'production_source_changed':False,'baseline_parameters_changed':False}
+start=time.monotonic()
+try:
+    response=client._post_completion(endpoint,body)
+    record['status_code']=response.status_code
+    raw=response.text
+    record['response_sha256']=hashlib.sha256(response.content).hexdigest()
+    record['response_bytes']=len(response.content)
+    # Persist only this minimal diagnostic response; never write Authorization.
+    record['response_text']=raw.replace(settings.api_key,'[REDACTED]')[:4000]
+except Exception as exc:
+    record['error_type']=type(exc).__name__
+    record['error']=str(exc).replace(settings.api_key,'[REDACTED]')[:1200]
+finally:
+    record['elapsed_seconds_including_lock']=round(time.monotonic()-start,3)
+    client.close()
+    output.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'output':str(output),'status_code':record.get('status_code'),
+    'error_type':record.get('error_type'),'elapsed_seconds_including_lock':record['elapsed_seconds_including_lock']},ensure_ascii=False))
