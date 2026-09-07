@@ -1,0 +1,96 @@
+"""Verify historical source blobs on GitHub without restoring or running them."""
+
+from __future__ import annotations
+
+import ast
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+
+ROOT = Path("/home/chase/GitHub/RWKV-LH")
+OUTPUT = ROOT / "data/experiments/STATETUNE_PIPELINE_STATUS_R1_20260907"
+COMMIT = "3f23a6a6fe3e048e3142f43aae4938f92ea5db2c"
+REPOSITORY = "rwkv-rs/RWKV-LH"
+SOURCE_PATHS = [
+    "scripts/generate_g1j_selector_intent_state_tuning_v1.py",
+    "scripts/generate_g1j_executor_args_state_tuning_v1.py",
+    "scripts/generate_g1j_auditor_step_state_tuning_v1.py",
+    "scripts/generate_g1j_finalizer_answer_state_tuning_v1.py",
+    "scripts/generate_g1j_auditor_final_state_tuning_v1.py",
+    "scripts/freeze_g1j_state_tuning_source_registries_v1.py",
+    "rwkv_lh/goal_state_protocols/dataset_contract.py",
+    "rwkv_lh/goal_state_protocols/dataset_verifiers.py",
+    "rwkv_lh/goal_state_protocols/__init__.py",
+    "rwkv_lh/goal_state_protocols/selector_intent.py",
+    "rwkv_lh/goal_state_protocols/executor_args.py",
+    "rwkv_lh/goal_state_protocols/auditor_step.py",
+    "rwkv_lh/goal_state_protocols/finalizer_answer.py",
+    "rwkv_lh/goal_state_protocols/auditor_final.py",
+    "rwkv_lh/tokenizer.py",
+]
+
+
+def output(*command: str) -> bytes:
+    return subprocess.check_output(command, cwd=ROOT)
+
+
+def inspect(path: str) -> dict:
+    source = output("git", "show", f"{COMMIT}:{path}")
+    local_oid = output("git", "rev-parse", f"{COMMIT}:{path}").decode().strip()
+    remote = json.loads(output(
+        "gh", "api", f"repos/{REPOSITORY}/contents/{path}?ref={COMMIT}",
+        "--jq", "{path,sha,html_url,type,size}",
+    ))
+    assert remote["sha"] == local_oid and remote["type"] == "file", path
+    assert remote["size"] == len(source), path
+    return {
+        "path": path,
+        "local_blob_oid": local_oid,
+        "source_sha256": hashlib.sha256(source).hexdigest(),
+        "source_bytes": len(source),
+        "github": remote,
+        "remote_blob_matches_local": True,
+    }
+
+
+def main() -> None:
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        sources = list(executor.map(inspect, SOURCE_PATHS))
+    tree = ast.parse((ROOT / "tests/test_retired_role_data_chain.py").read_text())
+    stems = next(
+        ast.literal_eval(node.value)
+        for node in tree.body if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "RETIRED_SCRIPT_STEMS"
+                for target in node.targets)
+    )
+    missing = []
+    for stem in stems:
+        path = f"scripts/{stem}.py"
+        history = output("git", "log", "--all", "--full-history", "--format=%H", "--", path).decode().splitlines()
+        missing.append({"path": path, "commits_in_all_local_refs": history})
+    record = {
+        "round_id": OUTPUT.name,
+        "historical_commit": COMMIT,
+        "github_repository": f"https://github.com/{REPOSITORY}",
+        "historical_source_tree": f"https://github.com/{REPOSITORY}/tree/{COMMIT}",
+        "status": "historical_source_files_exist_on_github_and_match_local_git_blobs",
+        "current_trace_extractor_implemented": False,
+        "historical_pipeline_executed": False,
+        "historical_sources_restored_to_worktree": False,
+        "training_or_acceptance_data_read": False,
+        "verified_source_count": len(sources),
+        "source_files": sources,
+        "newer_retired_entrypoint_history_lookup": missing,
+        "limitation": "Source-file availability does not prove current compatibility, availability of retired data, or end-to-end runnability. No history hit means not found under that path in fetched reachable local refs, not proof that no external copy exists.",
+        "recorder": {"path": str(Path(__file__).relative_to(ROOT)), "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
+    }
+    (OUTPUT / "HISTORICAL_GITHUB_SOURCES.json").write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (OUTPUT / "verify_statetune_historical_github_sources_r1_20260907.py.txt").write_bytes(Path(__file__).read_bytes())
+    print(json.dumps({"verified_github_sources": len(sources), "historical_commit": COMMIT, "retired_entrypoints_without_reachable_history": sum(not row["commits_in_all_local_refs"] for row in missing)}))
+
+
+if __name__ == "__main__":
+    main()

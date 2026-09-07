@@ -69,6 +69,8 @@ durable causal ledger 是全局事实权威。各角色 session 独立；Executo
 
 ## 4. State 与轮次边界
 
+StateTune 数据生成管线的 GitHub 历史源码入口、本地核查、现有组件、待实现流程与经验见 [数据管线源码、现状与经验](STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。旧生成链已从工作树删除，新生产 trace 抽取器尚未实现；历史五角色 v1 源码已核实在 GitHub 保存，另有 10 个较新旧入口尚未找到可达源码历史。该文档整理不新增 Agent 成绩、角色数据集或训练额度。
+
 - Selector 已用完三轮，现有 State 的旧输入适配尚未在当前链路验证，不得再训。
 - Executor / Step Auditor 曾被登记为“剩一轮”，但存在 Round3 / final-round / replacement-Round3 记录。累计次数必须由 owner 对账，不能把版本更换或回退初始化视为新的额度。
 - Finalizer 当前使用 zero，没有独立训练授权。
