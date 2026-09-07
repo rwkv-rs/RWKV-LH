@@ -19,22 +19,34 @@ class SelectorStageContext:
     """The complete semantic input for one independent Selector evaluation."""
 
     current_subtask: Mapping[str, object]
+    current_progress: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         normalized = dict(self.current_subtask)
         # Share the production validator with serving and StateTune data.
-        validated = NetworkSelectorInput.create(current_subtask=normalized)
+        progress = (
+            None
+            if self.current_progress is None
+            else dict(self.current_progress)
+        )
+        validated = NetworkSelectorInput.create(
+            current_subtask=normalized,
+            current_progress=progress,
+        )
         object.__setattr__(self, "current_subtask", validated.current_subtask)
+        object.__setattr__(self, "current_progress", validated.current_progress)
 
 
 def goal_frontier_selector_context(
     frontier: Mapping[str, object],
+    *,
+    current_progress: Mapping[str, object] | None = None,
 ) -> SelectorStageContext:
     """Reduce one Controller frontier to the six Planner-owned subtask fields.
 
-    Action results, audit transcripts, previous choices, counters, and WKV state
-    are intentionally absent. If execution changes the required next action,
-    the Controller/Planner must first publish a revised frontier.
+    Raw action results, audit transcripts, arguments, and WKV state are absent.
+    A caller may attach the bounded mechanical current-progress projection used
+    by Selector Intent v3; it remains independent of any recurrent parent.
     """
 
     objective = str(frontier.get("objective") or "").strip()
@@ -65,7 +77,10 @@ def goal_frontier_selector_context(
     }
     if not current_subtask["success_evidence"]:
         raise ValueError("Goal frontier Selector context requires success evidence")
-    return SelectorStageContext(current_subtask=current_subtask)
+    return SelectorStageContext(
+        current_subtask=current_subtask,
+        current_progress=current_progress,
+    )
 
 
 def build_network_selector_input(
@@ -80,6 +95,8 @@ def build_network_selector_input(
         "current_subtask": dict(stage_context.current_subtask),
         "menu_order_id": menu_order_id,
     }
+    if stage_context.current_progress is not None:
+        values["current_progress"] = dict(stage_context.current_progress)
     if eligible_labels is not None:
         values["eligible_labels"] = tuple(str(item) for item in eligible_labels)
     return NetworkSelectorInput.create(**values)

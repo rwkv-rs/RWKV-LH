@@ -25,8 +25,8 @@ from typing import Any, Mapping
 from urllib.parse import parse_qs, unquote, urlparse
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
-from rwkv_lh.exact_tool_selector.network_client import (
-    NetworkExactToolSelectorSettings,
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NativeNetworkSelectorSettings,
 )
 from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
@@ -580,6 +580,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     {
                         "product": "RWKV Goal Studio",
                         "experimental": True,
+                        "validation_status": "awaiting_all_zero_baseline",
                         "runtime": {
                             "model": settings.model,
                             "endpoint": settings.base_url,
@@ -587,16 +588,12 @@ class WebHandler(BaseHTTPRequestHandler):
                             "max_model_len": settings.max_model_len,
                         },
                         "can": [
-                            "已验证：公开检索质量冻结集 9/9；本轮真实联网题 7/7 次 web_search 成功",
-                            "已验证：2.9B S60 静态分类数据面超过 96%（不等同于真实多步成功率）",
-                            "已验证：G3/G6 按 task 的联网策略绑定，三题 run 内 state switch 均为 0",
-                            "已验证：强 Planner/Reviewer 本轮 21 次请求无 transport failure，并能拒绝证据不足",
                             "可以尝试：隔离工作区内的 bug 修复、小中型项目创建、受限命令与公开检索",
-                            "可以审计：查看每次模型输入、242 份原始输出、Selector logits、文件变化和失败位置",
-                            "可以恢复：不完整多写根事务不会合并，失败半成品不会污染权威工作区",
+                            "可以审计：查看当前任务的模型调用、Harness 结果、文件变化和终止原因",
+                            "可以恢复：根据持久化任务记录恢复执行",
                         ],
                         "cannot": [
-                            "当前不是第一正式版本：最新三题真实 canary 的 completed/external/strict 均为 0/3",
+                            "当前统一协议尚未建立两遍 all-zero 基线，不能视为可靠 Agent 发布版本",
                             "不能稳定闭环通用 bug 修复或中型网页项目；真实轨迹仍会误选工具并漏写文件",
                             "联网检索成功不等于联网项目成功；证据到项目文件的执行链仍未通过",
                             "不能操作浏览器或隐式外发工作区数据；敏感数据和未知来源策略拒绝",
@@ -606,28 +603,8 @@ class WebHandler(BaseHTTPRequestHandler):
                             "不能在运行中向用户追问并根据新回答继续多轮协作",
                             "不能用其他模型替 RWKV 修复协议、判断答案或改写最终输出",
                         ],
-                        "latest_formal": {
-                            "round": "Round46",
-                            "strict": "31/90",
-                            "external": "32/90",
-                            "false_positive": 24,
-                            "false_negative": 1,
-                        },
-                        "latest_diagnostic": {
-                            "label": "当前链路诊断",
-                            "name": "CANARY V1",
-                            "strict_passed": 0,
-                            "strict_total": 3,
-                            "completed": 0,
-                            "external_passed": 0,
-                            "web_search_passed": 7,
-                            "web_search_total": 7,
-                            "note": "检索可用；项目闭环尚未通过。",
-                            "result": (
-                                "data/experiments/FAST_AGENT_CAPABILITY_CANARY_V1_20260831/"
-                                "RESULT.md"
-                            ),
-                        },
+                        "latest_formal": None,
+                        "latest_diagnostic": None,
                     }
                 )
                 return
@@ -645,7 +622,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     executor = executor_client.health().to_dict()
                 finally:
                     executor_client.close()
-                selector_settings = NetworkExactToolSelectorSettings.from_env()
+                selector_settings = NativeNetworkSelectorSettings.from_env()
                 selector: dict[str, Any]
                 if selector_settings is None:
                     selector = {

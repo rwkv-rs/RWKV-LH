@@ -13,6 +13,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 import traceback
 from concurrent.futures import CancelledError, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -32,14 +33,15 @@ from rwkv_lh.controller import (
     LongHorizonController,
 )
 from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
-from rwkv_lh.exact_tool_selector.network_client import (
-    NetworkExactToolSelectorClient,
-    NetworkExactToolSelectorSettings,
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NativeNetworkSelectorClient,
+    NativeNetworkSelectorSettings,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_SELECTOR_MENU_ORDER_IDS,
 )
 from rwkv_lh.goal_loop_protocol import GOAL_PLAN_PATCH_SCHEMA_VERSION
+from rwkv_lh.goal_state_protocols import executor_args_v4
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelIOError, parse_model_command
 from rwkv_lh.model_session import create_model_session
@@ -52,10 +54,14 @@ from rwkv_lh.retrieval.runtime import (
     WorkspaceProvenanceResolver,
     runtime_policy_document,
 )
-from rwkv_lh.runtime import OpenAICompatibleRWKVClient, get_runtime_settings
+from rwkv_lh.runtime import (
+    NATIVE_STATE_PROTOCOL_VERSION,
+    OpenAICompatibleRWKVClient,
+    get_runtime_settings,
+)
 from rwkv_lh.runtime.executor_profiles import executor_profile_binding_for_run
-from rwkv_lh.runtime.settings import load_local_env
-from rwkv_lh.schema import RunState, RunStatus, TaskAction
+from rwkv_lh.runtime.settings import RuntimeSettings, load_local_env
+from rwkv_lh.schema import CausalEventDraft, RunState, RunStatus, TaskAction, utc_now
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.stateful_goal_loop import (
     STATEFUL_GOAL_LOOP_ARCHITECTURE,
@@ -136,8 +142,30 @@ SUITES = {
             "tier5_networked_project": 2,
         },
     ),
+    "realagentholdoutv2": SuiteDefinition(
+        key="realagentholdoutv2",
+        title="RWKV-LH-REAL-AGENT-HOLDOUT-V2",
+        package="benchmarks.rwkv_e2e.rwkv_real_agent_holdout_v2",
+        tasks_schema="rwkv-real-agent-holdout-v2.tasks.v1",
+        acceptance_schema="rwkv-real-agent-holdout-v2.acceptance.v1",
+        expected_count=12,
+        level_counts={
+            "diagnosis": 1,
+            "repair": 2,
+            "feature": 1,
+            "migration": 1,
+            "data": 1,
+            "web": 1,
+            "performance": 1,
+            "resilience": 1,
+            "network": 1,
+            "safety": 1,
+            "authority": 1,
+        },
+    ),
 }
 FORMAL90_SUITE_KEYS = ("core30", "lh12", "extension48")
+SOURCE_TREE_SCOPES = ("rwkv_lh", "scripts", "tests", "pyproject.toml", "uv.lock")
 PACKAGE = SUITES["core30"].package
 TASKS_RESOURCE = importlib.resources.files(PACKAGE).joinpath("tasks.json")
 ACCEPTANCE_RESOURCE = importlib.resources.files(PACKAGE).joinpath("acceptance.json")
@@ -701,6 +729,16 @@ def load_suite(
                 raise ValueError(
                     f"capability ladder retrieval policy mismatch: {task_id}"
                 )
+        if suite == "realagentholdoutv2":
+            expected_mode = (
+                NetworkPolicyMode.AUTO_PUBLIC
+                if task_levels[task_id] == "network"
+                else NetworkPolicyMode.OFFLINE
+            )
+            if retrieval_config.mode != expected_mode:
+                raise ValueError(
+                    f"real agent holdout retrieval policy mismatch: {task_id}"
+                )
         checks = case.get("checks")
         if not isinstance(checks, list) or not checks:
             raise ValueError(f"hidden acceptance case has no checks: {task_id}")
@@ -929,17 +967,23 @@ def _git_output(*arguments: str) -> str:
 
 
 def _source_tree_manifest(repository: Path) -> list[dict[str, Any]]:
-    scopes = ["rwkv_lh", "scripts", "tests", "benchmarks", "pyproject.toml", "uv.lock"]
+    """Hash runtime sources; selected suite resources are recorded separately."""
+
     paths = _git_output(
         "ls-files",
         "--cached",
         "--others",
         "--exclude-standard",
         "--",
-        *scopes,
+        *SOURCE_TREE_SCOPES,
     ).splitlines()
     manifest = []
     for relative in sorted(set(paths)):
+        if not any(
+            relative == scope or relative.startswith(f"{scope}/")
+            for scope in SOURCE_TREE_SCOPES
+        ):
+            continue
         path = repository / relative
         if path.is_file():
             manifest.append(
@@ -984,6 +1028,159 @@ def stateful_goal_protocol_metadata(
     }
 
 
+def _goal_role_settings(
+    executor_settings: RuntimeSettings,
+) -> dict[str, RuntimeSettings]:
+    """Resolve all Goal-role deployments without inheriting Executor State.
+
+    The Executor settings have already been bound to the current run.  Other
+    roles may inherit ordinary deployment defaults, but ``for_role`` requires
+    their State profile to be configured explicitly.  Keep protocol-role keys
+    here rather than environment-role aliases so every downstream audit uses
+    one stable vocabulary.
+    """
+
+    return {
+        "executor_args": executor_settings,
+        "auditor_step": RuntimeSettings.for_role(
+            "auditor_step",
+            fallback=executor_settings,
+        ),
+        "finalizer_answer": RuntimeSettings.for_role(
+            "finalizer",
+            fallback=executor_settings,
+        ),
+        "auditor_final": RuntimeSettings.for_role(
+            "auditor_final",
+            fallback=executor_settings,
+        ),
+    }
+
+
+def _runtime_settings_identity(settings: RuntimeSettings) -> dict[str, Any]:
+    """Return a credential-free immutable role binding for experiment audit."""
+
+    return {
+        "base_url": settings.base_url,
+        "model": settings.model,
+        "model_sha256": settings.model_sha256,
+        "backend_profile": settings.backend_profile,
+        "api_key_configured": bool(settings.api_key),
+        "proxy_configured": bool(settings.proxy_url),
+        "state_transport": settings.state_transport,
+        "state_profile_id": settings.state_profile_id,
+        "state_profile_sha256": settings.state_profile_sha256,
+        "state_profile_delivery": settings.state_profile_delivery,
+        "max_model_len": settings.max_model_len,
+    }
+
+
+def _goal_role_runtime_identities(
+    settings_by_role: Mapping[str, RuntimeSettings],
+) -> dict[str, dict[str, Any]]:
+    return {
+        role: _runtime_settings_identity(settings)
+        for role, settings in settings_by_role.items()
+    }
+
+
+def _preflight_goal_role_runtimes(
+    settings_by_role: Mapping[str, RuntimeSettings],
+) -> dict[str, dict[str, Any]]:
+    """Fail before experiment creation when any Goal role is misbound."""
+
+    report: dict[str, dict[str, Any]] = {}
+    for role, settings in settings_by_role.items():
+        client = OpenAICompatibleRWKVClient(settings)
+        try:
+            health = client.health()
+            capabilities = client.capabilities()
+        finally:
+            client.close()
+        if not health.available:
+            raise RuntimeError(
+                f"RWKV {role} endpoint is unavailable: {health.error}"
+            )
+        if health.models and settings.model not in health.models:
+            raise RuntimeError(
+                f"configured RWKV {role} model {settings.model!r} is absent "
+                f"from /models: {health.models}"
+            )
+        if settings.state_transport == "native_required" and (
+            not capabilities.durable_recurrent_state
+            or capabilities.recurrent_state_protocol
+            != NATIVE_STATE_PROTOCOL_VERSION
+        ):
+            raise RuntimeError(
+                f"RWKV {role} requires {NATIVE_STATE_PROTOCOL_VERSION}, but "
+                "the endpoint did not declare the complete compatible "
+                "recurrent-state capability"
+            )
+        report[role] = {
+            "settings": _runtime_settings_identity(settings),
+            "health": health.to_dict(),
+            "capabilities": capabilities.to_dict(),
+        }
+    return report
+
+
+def _build_stateful_goal_role_sessions(
+    executor_settings: RuntimeSettings,
+    model_trace: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build four genuinely isolated Goal-role clients and sessions."""
+
+    settings_by_role = _goal_role_settings(executor_settings)
+    sessions: dict[str, Any] = {}
+    try:
+        for role, settings in settings_by_role.items():
+            def append_role_trace(
+                event: Mapping[str, Any],
+                *,
+                selected_role: str = role,
+            ) -> None:
+                model_trace.append({**dict(event), "model_role": selected_role})
+
+            # Deliberately omit ``client``.  ``create_model_session`` must allocate
+            # one client per role so recurrent state, profile delivery and network
+            # identity cannot be shared accidentally.
+            sessions[role] = create_model_session(
+                settings=settings,
+                audit_hook=append_role_trace,
+            )
+    except BaseException:
+        _close_stateful_goal_role_sessions(sessions)
+        raise
+    return sessions
+
+
+def _close_stateful_goal_role_sessions(
+    sessions: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Close every distinct client owned by isolated Goal-role sessions.
+
+    Cleanup is best-effort so a transport close failure cannot replace the
+    semantic runner result.  The caller records returned failures in the case
+    audit instead.
+    """
+
+    closed_client_ids: set[int] = set()
+    failures: list[str] = []
+    for role, session in sessions.items():
+        client = getattr(session, "client", None)
+        if client is None or id(client) in closed_client_ids:
+            continue
+        closed_client_ids.add(id(client))
+        close = getattr(client, "close", None)
+        if not callable(close):
+            continue
+        try:
+            close()
+        except BaseException as exc:
+            failures.append(f"{role}: {type(exc).__name__}: {exc}"[:1000])
+    return tuple(failures)
+
+
 def _write_run_metadata(
     output: Path,
     *,
@@ -996,10 +1193,11 @@ def _write_run_metadata(
     supervisor_health: Mapping[str, Any] | None = None,
     supervisor_settings: Mapping[str, Any] | None = None,
     selector_identity: Mapping[str, Any] | None = None,
+    goal_role_runtimes: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> None:
     settings = get_runtime_settings()
     repository = Path(__file__).resolve().parents[1]
-    diff = _git_output("diff", "--binary")
+    diff = _git_output("diff", "--binary", "--", *SOURCE_TREE_SCOPES)
     source_manifest = _source_tree_manifest(repository)
     source_manifest_bytes = json.dumps(
         source_manifest,
@@ -1009,7 +1207,11 @@ def _write_run_metadata(
     ).encode("utf-8")
     source_resources: list[dict[str, Any]] = []
     selected_ids = {str(task["task_id"]) for task in selected}
-    for definition in SUITES.values():
+    suite_keys = (
+        FORMAL90_SUITE_KEYS if arguments.suite == "all" else (arguments.suite,)
+    )
+    for suite_key in suite_keys:
+        definition = SUITES[suite_key]
         task_resource, acceptance_resource = suite_resources(definition)
         source_resources.extend(
             [
@@ -1028,6 +1230,15 @@ def _write_run_metadata(
             ]
         )
     reference_path = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+    reference_metadata = (
+        {
+            "path": str(reference_path.relative_to(repository)),
+            "sha256": _file_sha256(reference_path),
+            "runtime_visibility": "forbidden; post-run comparison only",
+        }
+        if any(key in FORMAL90_SUITE_KEYS for key in suite_keys)
+        else None
+    )
     doctor = {
         "schema_version": "rwkv-lh.runtime-doctor.v1",
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -1048,6 +1259,10 @@ def _write_run_metadata(
             "state_profile_id": settings.state_profile_id,
             "state_profile_sha256": settings.state_profile_sha256,
             "state_profile_delivery": settings.state_profile_delivery,
+        },
+        "goal_role_runtimes": {
+            role: dict(identity)
+            for role, identity in (goal_role_runtimes or {}).items()
         },
         "independent_selector": {
             "enabled": bool(selector_identity),
@@ -1108,7 +1323,7 @@ def _write_run_metadata(
             and arguments.supervisor_strategy == "online_microtask"
             else "strong-supervisor-rwkv-worker.v1"
             if supervisor_health
-            else "independent-selector-executor.v2-request-last"
+            else executor_args_v4.INPUT_SCHEMA_VERSION
             if selector_identity
             else "single-rwkv-direct-action.v1"
         ),
@@ -1246,6 +1461,10 @@ def _write_run_metadata(
             enabled=bool(arguments.stateful_goal),
             strong_planner_available=bool(supervisor_health),
         ),
+        "goal_role_runtimes": {
+            role: dict(identity)
+            for role, identity in (goal_role_runtimes or {}).items()
+        },
         "sampling": {
             "sampling_policy": {
                 "scope": "all_semantic_lanes",
@@ -1259,11 +1478,7 @@ def _write_run_metadata(
             "penalty_decay": settings.default_penalty_decay,
         },
         "source_resources": source_resources,
-        "codex_reference_answers": {
-            "path": str(reference_path.relative_to(repository)),
-            "sha256": _file_sha256(reference_path),
-            "runtime_visibility": "forbidden; post-run comparison only",
-        },
+        "codex_reference_answers": reference_metadata,
         "code": {
             "commit": _git_output("rev-parse", "HEAD").strip(),
             "status": _git_output("status", "--short").splitlines(),
@@ -1571,12 +1786,48 @@ def _continue_stateful_goal_within_budget(
     return current, continuation_count, min(consumed, limit)
 
 
+def terminalize_case_exception_state(
+    store: LongHorizonStore,
+    state: RunState,
+    exc: BaseException,
+) -> RunState:
+    """Persist an unexpected case-runner exception instead of leaving RUNNING."""
+
+    if state.status is not RunStatus.RUNNING:
+        return state
+    message = f"{type(exc).__name__}: {exc}"[:2000]
+    return store.save(
+        state,
+        expected_revision=state.revision,
+        causal_event=CausalEventDraft.create(
+            "run_failed",
+            {
+                "reason": "benchmark_case_runner_exception",
+                "decision_id": "",
+                "output_source": "none",
+                "controller_rewritten": False,
+                "final_output_sha256": hashlib.sha256(b"").hexdigest(),
+                "final_output": "",
+                "error_record": {
+                    "type": type(exc).__name__,
+                    "message": message,
+                    "at": utc_now(),
+                },
+            },
+            subject_id=state.run_id,
+            cause_id=(state.causal_order[-1] if state.causal_order else None),
+        ),
+    )
+
+
 def _resume_current_supervisor_pending(
     result: ControllerResult,
     *,
     max_attempts: int,
     resume: Callable[[], ControllerResult],
-) -> tuple[ControllerResult, int]:
+    retry_delay_seconds: Callable[[str], float] | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> tuple[ControllerResult, int, float]:
     """Re-enter only a currently unresolved durable supervisor boundary.
 
     The product proactive worker performs this re-entry across jobs.  Formal
@@ -1586,15 +1837,83 @@ def _resume_current_supervisor_pending(
     """
 
     attempts = 0
+    waited_seconds = 0.0
     current = result
+
+    def resumable_status() -> bool:
+        if current.state.status == RunStatus.INTERRUPTED:
+            return True
+        if current.state.status != RunStatus.RUNNING or not current.state.causal_order:
+            return False
+        latest = current.state.causal_records[current.state.causal_order[-1]]
+        return latest.event_type == "run_yielded" and bool(
+            latest.payload.get("resumable")
+        )
+
     while (
         attempts < max_attempts
-        and current.state.status == RunStatus.INTERRUPTED
+        and resumable_status()
         and unresolved_supervisor_pending(current.state)
     ):
+        pending = unresolved_supervisor_pending(current.state)
+        phase = str(pending[-1].get("phase") or "")
+        delay = (
+            max(0.0, float(retry_delay_seconds(phase)))
+            if retry_delay_seconds is not None
+            else 0.0
+        )
+        if delay:
+            sleeper(delay)
+            waited_seconds += delay
         current = resume()
         attempts += 1
-    return current, attempts
+    return current, attempts, waited_seconds
+
+
+def final_output_non_intervention_evidence(
+    model_trace: list[dict[str, Any]],
+    final_output: str,
+    *,
+    final_request_id: str = "",
+    accepted_parallel_atom_id: str = "",
+    parallel_strategy: bool = False,
+) -> tuple[str, str, bool]:
+    """Bind delivered text to the exact accepted RWKV final generation.
+
+    Stateful Goal runs generate their answer in ``LANE:FINALIZER:*``; legacy and
+    parallel paths may still generate it in ``LANE:ACTION``. The accepted
+    decision request id is authoritative when available. Decoding a known call
+    envelope only exposes the model-owned ``text`` field and never rewrites it.
+    """
+
+    candidates: list[tuple[dict[str, Any], str]] = []
+    for item in model_trace:
+        if item.get("type") != "model_session_generation_returned":
+            continue
+        lane_id = str(item.get("lane_id") or "")
+        if lane_id != "LANE:ACTION" and not lane_id.startswith("LANE:FINALIZER:"):
+            continue
+        if final_request_id and str(item.get("request_id") or "") != final_request_id:
+            continue
+        if (
+            not final_request_id
+            and parallel_strategy
+            and str(item.get("atom_id") or "") != accepted_parallel_atom_id
+        ):
+            continue
+        raw_output = str(item.get("raw_output") or "")
+        try:
+            command = parse_model_command(raw_output)
+        except ModelIOError:
+            continue
+        if command.name != "final_answer":
+            continue
+        candidates.append((item, str(command.arguments.get("text") or "")))
+    if not candidates:
+        return "", "", False
+    selected, decoded = candidates[-1]
+    raw = str(selected.get("raw_output") or "")
+    return raw, decoded, bool(final_output == decoded)
 
 
 def run_case(
@@ -1670,12 +1989,21 @@ def run_case(
     )
     state = store.create_run(goal, task_id)
     executor_binding = executor_profile_binding_for_run(state)
-    rwkv_client = OpenAICompatibleRWKVClient(executor_binding.settings)
-    session = create_model_session(
-        client=rwkv_client,
-        settings=executor_binding.settings,
-        audit_hook=model_trace.append,
-    )
+    rwkv_client: OpenAICompatibleRWKVClient | None = None
+    goal_role_sessions: dict[str, Any] = {}
+    if stateful_goal:
+        goal_role_sessions = _build_stateful_goal_role_sessions(
+            executor_binding.settings,
+            model_trace,
+        )
+        session = goal_role_sessions["executor_args"]
+    else:
+        rwkv_client = OpenAICompatibleRWKVClient(executor_binding.settings)
+        session = create_model_session(
+            client=rwkv_client,
+            settings=executor_binding.settings,
+            audit_hook=model_trace.append,
+        )
     supervisor_client: (
         OpenAIGoalSupervisorClient | OpenAICompatibleSupervisorClient | None
     ) = None
@@ -1693,11 +2021,11 @@ def run_case(
         )
     elif supervisor_mode != "none":
         raise ValueError(f"unsupported supervisor mode: {supervisor_mode}")
-    selector_settings: NetworkExactToolSelectorSettings | None = None
+    selector_settings: NativeNetworkSelectorSettings | None = None
     selector_actions: Mapping[str, tuple[Any, ...]] | None = None
     if independent_selector:
         load_local_env()
-        selector_settings = NetworkExactToolSelectorSettings.from_env()
+        selector_settings = NativeNetworkSelectorSettings.from_env()
         if selector_settings is None:
             raise RuntimeError(
                 "current-architecture E2E requires the complete RWKV_SELECTOR_* identity"
@@ -1718,17 +2046,30 @@ def run_case(
         actions=selector_actions,
     )
     tool_selector = (
-        NetworkExactToolSelectorClient(selector_settings)
+        NativeNetworkSelectorClient(selector_settings)
         if selector_settings is not None
         else None
     )
-    model = LongHorizonModel(
-        session,
-        harness=harness,
-        tool_selector=tool_selector,
-    )
+    if stateful_goal:
+        model = LongHorizonModel(
+            session,
+            harness=harness,
+            tool_selector=tool_selector,
+            step_auditor_session=goal_role_sessions["auditor_step"],
+            finalizer_session=goal_role_sessions["finalizer_answer"],
+            final_auditor_session=goal_role_sessions["auditor_final"],
+        )
+        model.validate_goal_role_sessions()
+    else:
+        model = LongHorizonModel(
+            session,
+            harness=harness,
+            tool_selector=tool_selector,
+        )
     atom_worker_pool: AtomWorkerPool | None = None
     if not stateful_goal and supervisor_strategy in {"parallel_atoms", "contract_graph"}:
+        assert rwkv_client is not None
+
         def atom_model_factory(contract, scoped_harness):
             def append_atom_trace(event: Mapping[str, Any]) -> None:
                 model_trace.append(
@@ -1747,7 +2088,7 @@ def run_case(
                 ),
                 harness=scoped_harness,
                 tool_selector=(
-                    NetworkExactToolSelectorClient(selector_settings)
+                    NativeNetworkSelectorClient(selector_settings)
                     if selector_settings is not None
                     else None
                 ),
@@ -1861,7 +2202,11 @@ def run_case(
                 and consumed_transitions >= max_transitions
             )
         if result is not None and supervisor_pending_resume_attempts:
-            result, pending_resume_count = _resume_current_supervisor_pending(
+            (
+                result,
+                pending_resume_count,
+                pending_resume_wait_seconds,
+            ) = _resume_current_supervisor_pending(
                 result,
                 max_attempts=supervisor_pending_resume_attempts,
                 resume=lambda: _run_controller(
@@ -1875,8 +2220,17 @@ def run_case(
                     atom_worker_pool=atom_worker_pool,
                     stateful_goal=stateful_goal,
                 ),
+                retry_delay_seconds=(
+                    supervisor_client.pending_retry_delay_seconds
+                    if supervisor_client is not None
+                    else None
+                ),
             )
             observations["supervisor_pending_resume_count"] = pending_resume_count
+            observations["supervisor_pending_resume_wait_seconds"] = round(
+                pending_resume_wait_seconds,
+                3,
+            )
             observations["supervisor_pending_exhausted"] = bool(
                 unresolved_supervisor_pending(result.state)
             )
@@ -1922,10 +2276,34 @@ def run_case(
             state = store.load(task_id)
         except Exception:
             state = None
+        if state is not None and state.status is RunStatus.RUNNING:
+            try:
+                state = terminalize_case_exception_state(store, state, exc)
+            except Exception as terminalization_exc:
+                failure = (
+                    failure
+                    + "; terminalization_error="
+                    + f"{type(terminalization_exc).__name__}: {terminalization_exc}"
+                )[:4000]
     finally:
-        rwkv_client.close()
+        client_close_failures = list(
+            _close_stateful_goal_role_sessions(goal_role_sessions)
+        )
+        if rwkv_client is not None:
+            try:
+                rwkv_client.close()
+            except BaseException as exc:
+                client_close_failures.append(
+                    f"executor: {type(exc).__name__}: {exc}"[:1000]
+                )
         if supervisor_client is not None:
-            supervisor_client.close()
+            try:
+                supervisor_client.close()
+            except BaseException as exc:
+                client_close_failures.append(
+                    f"supervisor: {type(exc).__name__}: {exc}"[:1000]
+                )
+        observations["runtime_client_close_failures"] = client_close_failures
 
     observations["agent_process_tree_closed"] = bool(harness._bubblewrap) and (
         _agent_process_tree_closed(workspace)
@@ -1958,35 +2336,21 @@ def run_case(
             accepted_parallel_atom_id = str(
                 completed_events[-1].payload.get("accepted_candidate_atom_id") or ""
             )
-    final_model_responses: list[dict[str, Any]] = []
-    for item in model_trace:
-        if (
-            item.get("type") != "model_session_generation_returned"
-            or item.get("lane_id") != "LANE:ACTION"
-        ):
-            continue
-        if (
-            supervisor_strategy in {"parallel_atoms", "contract_graph"}
-            and str(item.get("atom_id") or "") != accepted_parallel_atom_id
-        ):
-            continue
-        try:
-            candidate_command = parse_model_command(str(item.get("raw_output") or ""))
-        except ModelIOError:
-            continue
-        if candidate_command.name == "final_answer":
-            final_model_responses.append(item)
-    raw_final_output = str(final_model_responses[-1].get("raw_output") or "") if final_model_responses else ""
-    decoded_final_output = ""
-    if raw_final_output:
-        try:
-            final_command = parse_model_command(raw_final_output)
-            if final_command.name == "final_answer":
-                decoded_final_output = str(final_command.arguments.get("text") or "")
-        except ModelIOError:
-            decoded_final_output = ""
-    final_output_matches_raw_rwkv = bool(final_model_responses) and (
-        final_output == decoded_final_output
+    final_request_id = ""
+    if state is not None and state.final_decision_id:
+        accepted_final_decision = state.decisions.get(state.final_decision_id)
+        if accepted_final_decision is not None:
+            final_request_id = str(accepted_final_decision.request_id or "")
+    (
+        raw_final_output,
+        decoded_final_output,
+        final_output_matches_raw_rwkv,
+    ) = final_output_non_intervention_evidence(
+        model_trace,
+        final_output,
+        final_request_id=final_request_id,
+        accepted_parallel_atom_id=accepted_parallel_atom_id,
+        parallel_strategy=supervisor_strategy in {"parallel_atoms", "contract_graph"},
     )
     event_log = store.event_records(task_id) if state is not None else []
     verifier_failure = ""
@@ -2057,6 +2421,16 @@ def run_case(
         "user_request": task["user_request"],
         "visible_input_digest": _canonical_digest(task),
         "executor_profile_binding": executor_binding.to_dict(),
+        "goal_role_runtimes": (
+            _goal_role_runtime_identities(
+                {
+                    role: selected_session.settings
+                    for role, selected_session in goal_role_sessions.items()
+                }
+            )
+            if stateful_goal
+            else {}
+        ),
         "model_input_boundary": {
             "provided": [
                 "user_request",
@@ -2369,6 +2743,7 @@ def parse_args() -> argparse.Namespace:
         default="core30",
         help=(
             "core30, lh12, extension48, agentv1, agentladderv1, "
+            "realagentholdoutv2, "
             "or all (fixed 90-case suite)"
         ),
     )
@@ -2529,10 +2904,15 @@ def main() -> int:
         raise RuntimeError(
             f"configured RWKV model {settings.model!r} is absent from /models: {health.models}"
         )
+    goal_role_runtimes: dict[str, dict[str, Any]] | None = None
+    if arguments.stateful_goal:
+        goal_role_runtimes = _preflight_goal_role_runtimes(
+            _goal_role_settings(settings)
+        )
     selector_identity: dict[str, Any] | None = None
     if arguments.independent_selector:
         load_local_env()
-        selector_settings = NetworkExactToolSelectorSettings.from_env()
+        selector_settings = NativeNetworkSelectorSettings.from_env()
         if selector_settings is None:
             raise RuntimeError(
                 "--independent-selector requires the complete RWKV_SELECTOR_* identity"
@@ -2573,6 +2953,7 @@ def main() -> int:
         supervisor_health=supervisor_health,
         supervisor_settings=supervisor_public_settings,
         selector_identity=selector_identity,
+        goal_role_runtimes=goal_role_runtimes,
     )
     results_by_id: dict[str, dict[str, Any]] = {}
 

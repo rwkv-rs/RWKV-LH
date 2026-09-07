@@ -13,6 +13,7 @@ from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionDefinition, ActionHarness, ActionResult
 from rwkv_lh.model import LongHorizonModel, ModelProtocolError
 from rwkv_lh.model_session import ModelSession
+from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
 from rwkv_lh.runtime.settings import RuntimeSettings
 from rwkv_lh.run_lifecycle import (
     RUN_LIFECYCLE_POLICY_KEY,
@@ -269,7 +270,10 @@ def test_progressive_disclosure_selects_then_exposes_one_tool_schema(
     assert '"required":["path","content"]' not in next_selection_prompt
     assert '"recent_exact_action_records"' in next_selection_prompt
     assert '"operation": "write_file"' in next_selection_prompt
-    assert '"action_result_projection_version": "action-result-decision-state.v1"' in next_selection_prompt
+    assert (
+        f'"action_result_projection_version": "{OBSERVATION_PROJECTION_VERSION}"'
+        in next_selection_prompt
+    )
     assert "Deterministic recent controller event summary" not in next_selection_prompt
     assert '"event_type":"action_result"' not in next_selection_prompt
 
@@ -287,41 +291,49 @@ def test_progressive_disclosure_selects_then_exposes_one_tool_schema(
     assert event_types.count("tool_schema_disclosed") == 2
 
 
-def test_action_result_decision_projection_is_bounded_and_marks_prefix_incomplete() -> None:
+def test_action_result_decision_projection_is_bounded_and_keeps_exact_spans() -> None:
     output = "x" * (LongHorizonModel._RESULT_OUTPUT_MAX_CHARS + 17)
+    output_bytes = output.encode("utf-8")
     projected = LongHorizonModel._project_action_result(
         {
             "action_type": "read_file",
             "success": True,
             "outcome_type": "success",
             "output": output,
-            "artifacts": [{"path": "large.txt", "sha256": "a" * 64}],
+            "artifacts": [
+                {
+                    "path": "large.txt",
+                    "sha256": hashlib.sha256(output_bytes).hexdigest(),
+                    "size_bytes": len(output_bytes),
+                    "media_type": "text/plain",
+                }
+            ],
             "evidence": [{"record": "duplicate full evidence"}],
             "metadata": {
                 "complete": True,
                 "truncated": False,
                 "next_start_byte": None,
                 "observed_tokens": 7000,
-                "chunk": {"content_digest": "b" * 64},
             },
         }
     )
 
-    assert projected["output"] == output[: LongHorizonModel._RESULT_OUTPUT_MAX_CHARS]
+    assert "output" not in projected
     assert "artifacts" not in projected
     assert "evidence" not in projected
-    assert "action_type" not in projected
-    assert projected["metadata"] == {
-        "complete": False,
-        "truncated": True,
-        "next_start_byte": None,
-        "observed_tokens": 7000,
-        "source_complete": True,
-        "source_truncated": False,
-        "projection_truncated": True,
-        "original_output_chars": len(output),
-        "retained_output_chars": LongHorizonModel._RESULT_OUTPUT_MAX_CHARS,
-    }
+    assert projected["action_type"] == "read_file"
+    assert projected["metadata"]["complete"] is False
+    assert projected["metadata"]["projection_truncated"] is True
+    observation = projected["observation"]
+    assert observation["projection_complete"] is False
+    assert observation["raw_output_chars"] == len(output)
+    assert observation["raw_output_sha256"] == hashlib.sha256(
+        output.encode("utf-8")
+    ).hexdigest()
+    assert sum(
+        len(item["content"]) for item in observation["exact_spans"]
+    ) <= LongHorizonModel._RESULT_OUTPUT_MAX_CHARS
+    assert all(set(item["content"]) == {"x"} for item in observation["exact_spans"])
 
 
 def test_progressive_argument_rejection_reuses_disclosed_schema_without_reselection(
@@ -1010,7 +1022,7 @@ def test_external_evidence_projection_selects_query_relevant_later_chunk() -> No
     assert "RWKV Reinventing RNNs for the Transformer Era" in span["text"]
     assert span["projection"]["source_offset_start"] > 0
     assert projected["evidence_projection"]["selection_protocol"] == (
-        "query-exact-source-chunk.v2"
+        OBSERVATION_PROJECTION_VERSION
     )
     assert full == original
 

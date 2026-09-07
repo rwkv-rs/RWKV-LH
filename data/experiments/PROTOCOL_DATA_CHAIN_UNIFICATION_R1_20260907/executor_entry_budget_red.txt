@@ -1,0 +1,91 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_independent_selector_cannot_use_generic_terminal_answer _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec7f1247360>
+
+    def test_independent_selector_cannot_use_generic_terminal_answer(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        model = object.__new__(LongHorizonModel)
+        model.tool_selector = object()
+    
+        def checkpoint_must_not_run(*args):
+            raise AssertionError('generic terminal path reached the model session')
+    
+        monkeypatch.setattr(model, '_checkpoint', checkpoint_must_not_run)
+        with pytest.raises(ModelProtocolError, match='dedicated Finalizer'):
+>           model.terminal_answer(None, None, event=None)
+
+tests/test_role_prompt_builders.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model.py:698: in terminal_answer
+    checkpoint = self._checkpoint(state, persist)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (None, None)
+
+    def checkpoint_must_not_run(*args):
+>       raise AssertionError('generic terminal path reached the model session')
+E       AssertionError: generic terminal path reached the model session
+
+tests/test_role_prompt_builders.py:65: AssertionError
+____________ test_executor_budget_uses_current_source_and_renderer _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec7f1247230>
+
+    def test_executor_budget_uses_current_source_and_renderer(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        model = object.__new__(LongHorizonModel)
+        model.tool_selector = object()
+        definition = next(
+            item for item in ActionHarness().g1i_tool_definitions()
+            if item['name'] == 'read_file'
+        )
+        model._action_definitions = [definition]
+        model._definitions_by_name = {'read_file': definition}
+        state = SimpleNamespace(model_events={}, actions={})
+        checkpoint = SimpleNamespace(event_ids=())
+        monkeypatch.setattr(model, '_bound_executor_fact_records', lambda *args, **kwargs: ())
+        target = executor_args_v4.build_target_contract(
+            phase='observe',
+            roots=['README.md'],
+            target_descriptors=[
+                {'path': 'README.md', 'type': 'file', 'target_kind': 'text_file', 'exists': True}
+            ],
+            compatible_targets_by_operation={'read_file': ['README.md']},
+        )
+        execution = executor_args_v4.build_execution_state(
+            active_step_id='S1',
+            active_step_revision=1,
+            declared_phase='observe',
+            effective_phase='observe',
+            assigned_actions=[],
+            mechanical_evidence={'missing_read_roots': ['README.md'], 'missing_write_roots': []},
+            target_contract=target,
+        )
+        rendered = []
+        original = executor_args_v4.render_generation_prompt
+    
+        def capture(source):
+            value = original(source)
+            rendered.append((source, value))
+            return value
+    
+        monkeypatch.setattr(executor_args_v4, 'render_generation_prompt', capture)
+>       budget = model._max_disclosure_tokens_for_state(
+            state, checkpoint,
+            current_requirement='Read the exact current README contents.',
+            fact_action_ids=(),
+            execution_state=execution,
+            eligible_operations=('read_file',),
+        )
+E       TypeError: LongHorizonModel._max_disclosure_tokens_for_state() got an unexpected keyword argument 'current_requirement'
+
+tests/test_role_prompt_builders.py:112: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_role_prompt_builders.py::test_independent_selector_cannot_use_generic_terminal_answer
+FAILED tests/test_role_prompt_builders.py::test_executor_budget_uses_current_source_and_renderer
+2 failed, 5 deselected in 0.04s

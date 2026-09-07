@@ -21,8 +21,8 @@ from urllib.parse import urlparse
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
 from rwkv_lh.runtime.role_config import role_env, role_int
-from rwkv_lh.exact_tool_selector.network_client import (
-    NetworkExactToolSelectorSettings,
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NativeNetworkSelectorSettings,
 )
 from rwkv_lh.runtime.settings import PROJECT_ROOT, load_local_env
 
@@ -350,7 +350,7 @@ class RuntimeStackManager:
             client.close()
 
     def _selector_health(self) -> dict[str, Any]:
-        settings = NetworkExactToolSelectorSettings.from_env()
+        settings = NativeNetworkSelectorSettings.from_env()
         if settings is None:
             return {
                 "available": False,
@@ -442,7 +442,7 @@ class RuntimeStackManager:
         return {"required": True, "owned": True, "process": record}
 
     def _ensure_selector(self) -> dict[str, Any]:
-        settings = NetworkExactToolSelectorSettings.from_env()
+        settings = NativeNetworkSelectorSettings.from_env()
         if settings is None:
             return {"enabled": False, "owned": False}
         health = self._selector_health()

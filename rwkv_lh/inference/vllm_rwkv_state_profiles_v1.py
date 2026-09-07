@@ -2,7 +2,10 @@
 
 This module deliberately contains no request generation or output processing.
 It only validates a pinned manifest, preloads immutable WKV tensors, and
-resolves an explicitly pinned profile identity for each request.
+resolves an explicitly pinned profile identity for each request.  Portable
+RWKV-PEFT ``time_state`` tensors use ``[head, value, key]`` while the pinned
+FLA recurrent runtime consumes ``[head, key, value]``.  The loader performs
+that boundary conversion exactly once.
 """
 
 from __future__ import annotations
@@ -20,6 +23,9 @@ RWKV7_STATE_PROFILE_MANIFEST_SCHEMA = "vllm.rwkv7-state-profiles.v1"
 RWKV7_STATE_PROFILE_XARG = "rwkv_state_profile"
 RWKV7_STATE_PROFILE_SHA256_XARG = "rwkv_state_profile_sha256"
 RWKV7_ZERO_STATE_PROFILE = "zero"
+RWKV7_PEFT_STATE_LAYOUT = "[layer,head,value,key]"
+RWKV7_RUNTIME_STATE_LAYOUT = "[layer,head,key,value]"
+RWKV7_PROFILE_TO_RUNTIME_CONVERSION = "transpose(-2,-1)"
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -192,6 +198,11 @@ class RWKV7InitialStateProfiles:
                 raise ValueError("RWKV7 state-profile heads are not TP divisible")
             heads_per_rank = initial.shape[1] // tp_size
             initial = initial.narrow(1, tp_rank * heads_per_rank, heads_per_rank)
+            # RWKV-PEFT trains and saves time_state as [H,V,K].  Both the
+            # training FLA wrapper and the pinned vLLM recurrent API consume
+            # [B,H,K,V].  Equal K/V sizes make a missing transpose invisible
+            # to shape validation, so keep this conversion explicit here.
+            initial = initial.transpose(-2, -1).contiguous()
             expected_runtime_shape = (
                 num_layers,
                 num_heads,
@@ -284,6 +295,9 @@ __all__ = [
     "RWKV7_STATE_PROFILE_SHA256_XARG",
     "RWKV7_STATE_PROFILE_XARG",
     "RWKV7_ZERO_STATE_PROFILE",
+    "RWKV7_PEFT_STATE_LAYOUT",
+    "RWKV7_PROFILE_TO_RUNTIME_CONVERSION",
+    "RWKV7_RUNTIME_STATE_LAYOUT",
     "resolve_request_profile",
     "sha256_file",
 ]

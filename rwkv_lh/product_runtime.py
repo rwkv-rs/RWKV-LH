@@ -6,9 +6,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from rwkv_lh.exact_tool_selector.network_client import (
-    NetworkExactToolSelectorClient,
-    NetworkExactToolSelectorSettings,
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NativeNetworkSelectorClient,
+    NativeNetworkSelectorSettings,
 )
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_session import create_model_session
@@ -29,13 +29,13 @@ from rwkv_lh.trace_projection import projected_tool_outputs
 AuditHook = Callable[[Mapping[str, Any]], None]
 
 
-def _product_tool_selector() -> NetworkExactToolSelectorClient | None:
+def _product_tool_selector() -> NativeNetworkSelectorClient | None:
     from rwkv_lh.runtime.settings import load_local_env
 
     load_local_env()
-    settings = NetworkExactToolSelectorSettings.from_env()
+    settings = NativeNetworkSelectorSettings.from_env()
     return (
-        NetworkExactToolSelectorClient(settings)
+        NativeNetworkSelectorClient(settings)
         if settings is not None
         else None
     )
@@ -158,6 +158,7 @@ def build_product_controller(
         finalizer_session=finalizer_session,
         final_auditor_session=final_auditor_session,
     )
+    model.validate_goal_role_sessions()
     supervisor = OpenAIGoalSupervisorClient(audit_hook=supervisor_audit_hook)
     policy = supervisor_policy_from_env(mode="static")
     return StatefulGoalLoopController(

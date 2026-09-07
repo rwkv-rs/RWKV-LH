@@ -21,6 +21,7 @@ from rwkv_lh.schema import (
     TaskAction,
 )
 from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.trace_projection import unresolved_supervisor_pending
 from scripts.run_rwkv_e2e_benchmark import (
     FaultInjectingHarness,
     FORBIDDEN_VISIBLE_KEYS,
@@ -33,12 +34,14 @@ from scripts.run_rwkv_e2e_benchmark import (
     case_runner_exception_result,
     current_architecture_retrieval_actions,
     difficulty_group,
+    final_output_non_intervention_evidence,
     load_suite,
     load_supervisor_failure_case_ids,
     materialize_workspace,
     run_case,
     stateful_goal_protocol_metadata,
     supervisor_failure_summary,
+    terminalize_case_exception_state,
     write_supervisor_retry_manifest,
 )
 
@@ -58,6 +61,95 @@ def _append_causal_event(state: RunState, event_type: str, payload: dict) -> Non
     )
     state.causal_records[event.event_id] = event
     state.causal_order.append(event.event_id)
+
+
+def test_final_output_evidence_uses_accepted_stateful_finalizer_lane() -> None:
+    trace = [
+        {
+            "type": "model_session_generation_returned",
+            "request_id": "MR-action",
+            "lane_id": "LANE:ACTION",
+            "raw_output": '{"function":"read_file","params":{"path":"a.txt"}}',
+        },
+        {
+            "type": "model_session_generation_returned",
+            "request_id": "MR-final",
+            "lane_id": "LANE:FINALIZER:CASE:FINAL-1",
+            "raw_output": (
+                '{"name":"final_answer","arguments":"{\\"text\\":'
+                '\\"model-owned answer\\"}"}'
+            ),
+        },
+    ]
+
+    raw, decoded, matched = final_output_non_intervention_evidence(
+        trace,
+        "model-owned answer",
+        final_request_id="MR-final",
+    )
+
+    assert json.loads(raw)["name"] == "final_answer"
+    assert decoded == "model-owned answer"
+    assert matched is True
+
+
+def test_final_output_evidence_rejects_controller_changed_text() -> None:
+    trace = [
+        {
+            "type": "model_session_generation_returned",
+            "request_id": "MR-final",
+            "lane_id": "LANE:FINALIZER:CASE:FINAL-1",
+            "raw_output": (
+                '{"function":"final_answer","params":{"text":"raw answer"}}'
+            ),
+        }
+    ]
+
+    _raw, decoded, matched = final_output_non_intervention_evidence(
+        trace,
+        "rewritten answer",
+        final_request_id="MR-final",
+    )
+
+    assert decoded == "raw answer"
+    assert matched is False
+
+
+def test_benchmark_runner_exception_is_persisted_as_terminal_failure(
+    tmp_path: Path,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(
+        GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path / "workspace",
+        ),
+        "RUNNER-EXCEPTION-TERMINAL",
+    )
+    state = store.save(
+        state,
+        expected_revision=state.revision,
+        causal_event=CausalEventDraft.create(
+            "run_started",
+            {"architecture": "test"},
+            subject_id=state.run_id,
+            cause_id=state.causal_order[-1],
+        ),
+    )
+
+    failed = terminalize_case_exception_state(
+        store,
+        state,
+        RuntimeError("injected failure"),
+    )
+
+    assert failed.status is RunStatus.FAILED
+    terminal = failed.causal_records[failed.causal_order[-1]]
+    assert terminal.event_type == "run_failed"
+    assert terminal.payload["reason"] == "benchmark_case_runner_exception"
+    assert terminal.payload["error_record"]["type"] == "RuntimeError"
+    assert "injected failure" in terminal.payload["error_record"]["message"]
 
 
 def test_benchmark_pending_resume_uses_only_current_unresolved_boundary(
@@ -95,23 +187,146 @@ def test_benchmark_pending_resume_uses_only_current_unresolved_boundary(
         )
         return ControllerResult(state, "", 0)
 
-    recovered, attempts = _resume_current_supervisor_pending(
+    recovered, attempts, waited = _resume_current_supervisor_pending(
         ControllerResult(state, "", 0),
         max_attempts=3,
         resume=resume,
     )
     assert recovered.state is state
     assert attempts == 1
+    assert waited == 0
     assert calls == 1
 
-    unchanged, attempts = _resume_current_supervisor_pending(
+    unchanged, attempts, waited = _resume_current_supervisor_pending(
         recovered,
         max_attempts=3,
         resume=resume,
     )
     assert unchanged is recovered
     assert attempts == 0
+    assert waited == 0
     assert calls == 1
+
+
+def test_benchmark_pending_resume_accepts_goal_yielded_running_state(
+    tmp_path: Path,
+) -> None:
+    state = RunState(
+        run_id="RUN-GOAL-PENDING",
+        goal=GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path,
+        ),
+        status=RunStatus.RUNNING,
+    )
+    _append_causal_event(
+        state,
+        "supervisor_call_pending",
+        {
+            "pending_id": "SUP-PENDING-goal_plan-0001",
+            "phase": "goal_plan",
+        },
+    )
+    _append_causal_event(
+        state,
+        "run_yielded",
+        {
+            "reason": "strong_planner_unavailable",
+            "resumable": True,
+            "termination_permitted": False,
+        },
+    )
+    assert state.status == RunStatus.RUNNING
+    calls = 0
+
+    def resume() -> ControllerResult:
+        nonlocal calls
+        calls += 1
+        _append_causal_event(
+            state,
+            "supervisor_call_resolved",
+            {
+                "pending_id": "SUP-PENDING-goal_plan-0001",
+                "phase": "goal_plan",
+            },
+        )
+        return ControllerResult(state, "", 0)
+
+    recovered, attempts, waited = _resume_current_supervisor_pending(
+        ControllerResult(state, "", 0),
+        max_attempts=3,
+        resume=resume,
+    )
+
+    assert recovered.state is state
+    assert attempts == 1
+    assert waited == 0
+    assert calls == 1
+    assert unresolved_supervisor_pending(recovered.state) == ()
+
+
+def test_benchmark_pending_resume_waits_for_open_supervisor_circuit(
+    tmp_path: Path,
+) -> None:
+    state = RunState(
+        run_id="RUN-GOAL-CIRCUIT-WAIT",
+        goal=GoalState.create(
+            request="Complete the task.",
+            constraints=(),
+            workspace_root=tmp_path,
+        ),
+        status=RunStatus.RUNNING,
+    )
+    _append_causal_event(
+        state,
+        "supervisor_call_pending",
+        {
+            "pending_id": "SUP-PENDING-goal_plan-0001",
+            "phase": "goal_plan",
+        },
+    )
+    _append_causal_event(
+        state,
+        "run_yielded",
+        {"reason": "strong_planner_unavailable", "resumable": True},
+    )
+    calls = 0
+    phases: list[str] = []
+    sleeps: list[float] = []
+
+    def retry_delay(phase: str) -> float:
+        phases.append(phase)
+        return 30.05
+
+    def resume() -> ControllerResult:
+        nonlocal calls
+        calls += 1
+        _append_causal_event(
+            state,
+            "supervisor_call_resolved",
+            {
+                "pending_id": "SUP-PENDING-goal_plan-0001",
+                "phase": "goal_plan",
+            },
+        )
+        return ControllerResult(state, "", 0)
+
+    recovered, attempts, waited = _resume_current_supervisor_pending(
+        ControllerResult(state, "", 0),
+        max_attempts=3,
+        resume=resume,
+        retry_delay_seconds=retry_delay,
+        sleeper=sleeps.append,
+    )
+
+    assert recovered.state is state
+    assert attempts == 1
+    assert calls == 1
+    assert phases == ["goal_plan"]
+    assert sleeps == [30.05]
+    assert waited == 30.05
+    assert unresolved_supervisor_pending(recovered.state) == ()
 
 
 def test_goal_benchmark_continues_checkpoint_until_audited_completion(
@@ -356,7 +571,7 @@ def test_stateful_run_protocol_records_required_strong_planner_without_reviewer(
         "audit_wkv_merge": False,
         "strong_model_dependency": True,
         "strong_planner_required": True,
-        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v3",
+        "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v4",
         "strong_reviewer_enabled": False,
     }
 

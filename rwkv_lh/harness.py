@@ -15,7 +15,7 @@ import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from rwkv_lh.chunks import ChunkingError, slice_text_from_byte_cursor
 from rwkv_lh.schema import GoalState, TaskAction, ValidationSpec
@@ -251,6 +251,22 @@ class ActionResult:
         )
 
 
+# Directories produced by interpreters and tooling as side effects of running
+# commands.  They are excluded from workspace snapshots so that a legitimate
+# ``pytest``/``python`` run is neither uncacheable nor a write outside scope.
+WORKSPACE_BYPRODUCT_DIRECTORIES = frozenset(
+    {
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".hypothesis",
+        ".tox",
+        ".git",
+    }
+)
+
+
 class ActionHarness:
     _verifier_candidates = {
         "write_file": (
@@ -353,10 +369,18 @@ class ActionHarness:
             {
                 "path": {"type": "string", "description": "relative existing JSON path"},
                 "updates": {"type": "object", "description": "explicit top-level replacements"},
+                "base_sha256": {
+                    "type": "string",
+                    "minLength": 64,
+                    "description": (
+                        "exact SHA-256 of the UTF-8 file snapshot from which this "
+                        "patch was derived"
+                    ),
+                },
             },
             ("file_exists",),
             failure_observation_cacheable=True,
-            required_arguments=("path", "updates"),
+            required_arguments=("path", "updates", "base_sha256"),
         ),
         "replace_text": ActionDefinition(
             "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
@@ -364,6 +388,13 @@ class ActionHarness:
                 "path": {"type": "string", "description": "relative path"},
                 "old": {"type": "string", "description": "exact text"},
                 "new": {"type": "string", "description": "replacement"},
+                "base_sha256": {
+                    "type": "string",
+                    "minLength": 64,
+                    "description": (
+                        "exact SHA-256 of the UTF-8 file snapshot containing old"
+                    ),
+                },
                 "count": {
                     "type": "integer",
                     "minimum": 1,
@@ -377,18 +408,25 @@ class ActionHarness:
             },
             ("file_exists",),
             failure_observation_cacheable=True,
-            required_arguments=("path", "old", "new"),
+            required_arguments=("path", "old", "new", "base_sha256"),
         ),
         "remove_line": ActionDefinition(
             "remove_line", "Remove a complete UTF-8 text line from an existing file.", False, True, True, 30.0,
             {
                 "path": {"type": "string", "description": "relative path"},
                 "text": {"type": "string", "description": "line text without newline"},
+                "base_sha256": {
+                    "type": "string",
+                    "minLength": 64,
+                    "description": (
+                        "exact SHA-256 of the UTF-8 file snapshot containing the line"
+                    ),
+                },
                 "all": {"type": "boolean", "default": False},
             },
             ("file_exists",),
             failure_observation_cacheable=True,
-            required_arguments=("path", "text"),
+            required_arguments=("path", "text", "base_sha256"),
         ),
         "append_file": ActionDefinition(
             "append_file", "Append UTF-8 text; this action is non-idempotent.", False, True, False, 30.0,
@@ -548,7 +586,10 @@ class ActionHarness:
             "read_json", (
                 "Parse an existing JSON file and observe one exact tokenizer-bounded byte "
                 "range of its canonical compact representation. It is not applicable to "
-                "plain text or key=value content already observed by read_file."
+                "plain text or key=value content already observed by read_file. If an "
+                "explicit .json candidate is syntactically invalid, return a successful "
+                "parse diagnostic bound to the exact source artifact instead of treating "
+                "the observation itself as a failed action."
             ),
             True, False, True, 30.0,
             {
@@ -1177,6 +1218,13 @@ class ActionHarness:
             raise HarnessError(
                 f"action {action_name} argument {argument_name} is shorter than minLength"
             )
+        if argument_name == "base_sha256" and (
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+        ):
+            raise HarnessError(
+                f"action {action_name} argument base_sha256 must be 64 lowercase hex characters"
+            )
         if isinstance(value, list):
             if "minItems" in schema and len(value) < int(schema["minItems"]):
                 raise HarnessError(
@@ -1216,29 +1264,39 @@ class ActionHarness:
 
         root = Path(goal.workspace_root).resolve(strict=True)
         excluded_directories = {".git", ".venv", "node_modules", "__pycache__"}
-        entries: list[dict[str, Any]] = []
+        entries: list[dict[str, Any]] = [
+            self.workspace_target_descriptor(goal, ".")
+        ]
         truncated = False
         for directory, directory_names, file_names in os.walk(root):
             directory_names[:] = sorted(
                 name for name in directory_names if name not in excluded_directories
             )
             current = Path(directory)
+            if current != root:
+                try:
+                    entries.append(
+                        self.workspace_target_descriptor(
+                            goal,
+                            current.relative_to(root).as_posix(),
+                        )
+                    )
+                except (FileNotFoundError, OSError, ValueError):
+                    continue
+                if len(entries) >= max(1, int(max_entries)):
+                    truncated = True
+                    break
             for name in sorted(file_names):
                 path = current / name
                 try:
-                    resolved = path.resolve(strict=True)
-                    resolved.relative_to(root)
-                    stat = resolved.stat()
+                    entry = self.workspace_target_descriptor(
+                        goal,
+                        path.relative_to(root).as_posix(),
+                    )
                 except (FileNotFoundError, OSError, ValueError):
                     continue
-                if not resolved.is_file():
+                if entry["target_kind"] in {"directory", "missing", "other"}:
                     continue
-                entry: dict[str, Any] = {
-                    "path": str(resolved.relative_to(root)),
-                    "size_bytes": stat.st_size,
-                }
-                if stat.st_size <= 2_000_000:
-                    entry["sha256"] = hashlib.sha256(resolved.read_bytes()).hexdigest()
                 entries.append(entry)
                 if len(entries) >= max(1, int(max_entries)):
                     truncated = True
@@ -1265,6 +1323,129 @@ class ActionHarness:
         ) > max(128, int(max_tokens)):
             raise HarnessError("workspace manifest metadata exceeds its token budget")
         return payload
+
+    def workspace_target_descriptor(
+        self,
+        goal: GoalState,
+        value: str | Path,
+        *,
+        classification_byte_limit: int = 2_000_000,
+    ) -> dict[str, Any]:
+        """Return one Harness-owned path kind without exposing file content.
+
+        Small regular files are classified from their actual bytes. Invalid UTF-8
+        JSON candidates retain a distinct kind when the path explicitly declares
+        the ``.json`` format, so ``read_json`` can return durable negative parse
+        evidence without treating arbitrary source text as JSON. Large files remain
+        an explicit conservative kind so metadata projection cannot allocate an
+        unbounded buffer.
+        """
+
+        root = Path(goal.workspace_root).resolve(strict=True)
+        path = self.resolve_path(goal, value)
+        relative = path.relative_to(root).as_posix() or "."
+        if not path.exists():
+            return {
+                "path": relative,
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": False,
+            }
+        if path.is_dir():
+            return {
+                "path": relative,
+                "type": "directory",
+                "target_kind": "directory",
+                "exists": True,
+            }
+        if not path.is_file():
+            return {
+                "path": relative,
+                "type": "other",
+                "target_kind": "other",
+                "exists": True,
+            }
+        size_bytes = path.stat().st_size
+        descriptor: dict[str, Any] = {
+            "path": relative,
+            "type": "file",
+            "target_kind": "large_file",
+            "exists": True,
+            "size_bytes": size_bytes,
+        }
+        if size_bytes > max(1, int(classification_byte_limit)):
+            return descriptor
+        content = path.read_bytes()
+        descriptor["sha256"] = hashlib.sha256(content).hexdigest()
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            descriptor["target_kind"] = "binary_file"
+            return descriptor
+        declared_json = path.suffix.casefold() == ".json"
+        try:
+            parsed = json.loads(text)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            descriptor["target_kind"] = (
+                "json_candidate_file" if declared_json else "text_file"
+            )
+        else:
+            # A plain-text file whose whole body is a bare JSON scalar (a
+            # version number, a quoted word, ``true``) is still text; only a
+            # structured value or a declared .json path is a JSON document.
+            descriptor["target_kind"] = (
+                "json_file"
+                if declared_json or isinstance(parsed, (dict, list))
+                else "text_file"
+            )
+        return descriptor
+
+    def workspace_target_descriptors(
+        self,
+        goal: GoalState,
+        roots: Sequence[str],
+        *,
+        expand_directories: bool = False,
+        max_entries: int = 256,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return bounded typed candidates below the declared Planner roots."""
+
+        root = Path(goal.workspace_root).resolve(strict=True)
+        limit = max(1, int(max_entries))
+        selected: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        def append(relative: str) -> bool:
+            descriptor = self.workspace_target_descriptor(goal, relative)
+            path = str(descriptor["path"])
+            if path in seen:
+                return len(selected) >= limit
+            seen.add(path)
+            selected.append(descriptor)
+            return len(selected) >= limit
+
+        excluded = {".git", ".venv", "node_modules", "__pycache__"}
+        for raw_root in roots:
+            descriptor = self.workspace_target_descriptor(goal, raw_root)
+            if append(str(descriptor["path"])):
+                break
+            if not expand_directories or descriptor["target_kind"] != "directory":
+                continue
+            directory = self.resolve_path(goal, str(descriptor["path"]), must_exist=True)
+            for current, directory_names, file_names in os.walk(directory):
+                directory_names[:] = sorted(
+                    name for name in directory_names if name not in excluded
+                )
+                current_path = Path(current)
+                for name in (*directory_names, *sorted(file_names)):
+                    candidate = current_path / name
+                    try:
+                        candidate_relative = candidate.relative_to(root).as_posix()
+                        if append(candidate_relative):
+                            return tuple(selected)
+                    except (FileNotFoundError, OSError, ValueError):
+                        continue
+        return tuple(selected)
 
     def workspace_observation_snapshot(
         self,
@@ -1308,10 +1489,21 @@ class ActionHarness:
                 retained_directories: list[str] = []
                 for name in sorted(directory_names):
                     path = current / name
+                    if name in WORKSPACE_BYPRODUCT_DIRECTORIES:
+                        # Interpreter and tool caches are not workspace content;
+                        # they must neither block a snapshot nor count as a write.
+                        continue
                     if path.is_symlink():
-                        return failed(
-                            f"symbolic_link_not_cacheable:{path.relative_to(root).as_posix()}"
+                        if len(entries) >= entry_limit:
+                            return failed("workspace_entry_limit_exceeded")
+                        entries.append(
+                            {
+                                "path": path.relative_to(root).as_posix(),
+                                "type": "symlink",
+                                "target": os.readlink(path),
+                            }
                         )
+                        continue
                     retained_directories.append(name)
                     if len(entries) >= entry_limit:
                         return failed("workspace_entry_limit_exceeded")
@@ -1326,10 +1518,18 @@ class ActionHarness:
                 for name in sorted(file_names):
                     path = current / name
                     relative = path.relative_to(root).as_posix()
-                    if path.is_symlink():
-                        return failed(f"symbolic_link_not_cacheable:{relative}")
                     if len(entries) >= entry_limit:
                         return failed("workspace_entry_limit_exceeded")
+                    if path.is_symlink():
+                        # Record the link identity without following it.
+                        entries.append(
+                            {
+                                "path": relative,
+                                "type": "symlink",
+                                "target": os.readlink(path),
+                            }
+                        )
+                        continue
                     before = path.stat()
                     if not path.is_file():
                         return failed(f"non_regular_entry_not_cacheable:{relative}")
@@ -1514,20 +1714,37 @@ class ActionHarness:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         if not path.is_file():
             raise HarnessError("patch_json requires a regular file")
-        current = json.loads(path.read_text(encoding="utf-8"))
         updates = arguments.get("updates")
-        if not isinstance(current, dict):
-            raise HarnessError("patch_json requires a top-level JSON object")
         if not isinstance(updates, Mapping):
             raise HarnessError("patch_json updates must be an object")
+        if self._base_snapshot_is_stale(path, arguments):
+            try:
+                current = json.loads(path.read_text(encoding="utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                current = None
+            if isinstance(current, dict) and all(
+                key in current and current[key] == value
+                for key, value in dict(updates).items()
+            ):
+                return self._converged_replay_result(
+                    "patch_json",
+                    goal,
+                    path,
+                    output="top-level JSON keys already updated; replay converged",
+                )
+        base_sha256 = self._verify_base_snapshot(path, arguments)
+        current = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(current, dict):
+            raise HarnessError("patch_json requires a top-level JSON object")
         updated = {**current, **dict(updates)}
         content = json.dumps(updated, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         self._atomic_write(path, content)
-        return self._file_result(
+        return self._snapshot_transition_result(
             "patch_json",
             goal,
             path,
             output="top-level JSON keys updated; unspecified keys preserved",
+            base_sha256=base_sha256,
         )
 
     def _replace_text(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
@@ -1536,33 +1753,78 @@ class ActionHarness:
         new = str(arguments.get("new") or "")
         if not old:
             raise HarnessError("replace_text requires non-empty old text")
+        if self._base_snapshot_is_stale(path, arguments):
+            try:
+                content = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                content = old
+            if old not in content and (not new or new in content):
+                return self._converged_replay_result(
+                    "replace_text",
+                    goal,
+                    path,
+                    output="replacement already present; replay converged",
+                )
+        base_sha256 = self._verify_base_snapshot(path, arguments)
         content = path.read_text(encoding="utf-8")
         replace_all = bool(arguments.get("all", False))
         expected = content.count(old) if replace_all else arguments.get("count", 1)
         if replace_all and expected == 0:
-            if new and new in content:
-                return self._file_result(
-                    "replace_text", goal, path, output="replacement already present"
-                )
-            raise HarnessError("replace_text found no occurrence to replace")
+            raise HarnessError(
+                "replace_text base snapshot matches but old text is absent"
+            )
         if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
             raise HarnessError("replace_text count must be a positive integer")
         occurrences = content.count(old)
         if occurrences < expected:
-            if old not in content and content.count(new) >= expected:
-                return self._file_result("replace_text", goal, path, output="replacement already present")
-            raise HarnessError(f"expected {expected} occurrence(s), found {occurrences}")
+            raise HarnessError(
+                f"replace_text expected {expected} old occurrence(s), found {occurrences}"
+            )
+        if not replace_all and occurrences != expected:
+            raise HarnessError(
+                "replace_text exact target is ambiguous: "
+                f"expected count={expected}, found {occurrences}; provide a unique old "
+                "fragment or explicitly set all=true"
+            )
         updated = content.replace(old, new, expected)
         self._atomic_write(path, updated)
-        return self._file_result("replace_text", goal, path, output=f"replaced {expected} occurrence(s)")
+        return self._snapshot_transition_result(
+            "replace_text",
+            goal,
+            path,
+            output=f"replaced {expected} occurrence(s)",
+            base_sha256=base_sha256,
+        )
 
     def _remove_line(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
         target = str(arguments.get("text") or "").rstrip("\r\n")
         if not target:
             raise HarnessError("remove_line requires non-empty line text")
+        if self._base_snapshot_is_stale(path, arguments):
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+            except UnicodeDecodeError:
+                lines = [target]
+            if not any(line.rstrip("\r\n") == target for line in lines):
+                return self._converged_replay_result(
+                    "remove_line",
+                    goal,
+                    path,
+                    output="exact line already absent; replay converged",
+                )
+        base_sha256 = self._verify_base_snapshot(path, arguments)
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        remove_all = bool(arguments.get("all", True))
+        remove_all = bool(arguments.get("all", False))
+        matching_lines = sum(
+            line.rstrip("\r\n") == target for line in lines
+        )
+        if not remove_all and matching_lines > 1:
+            raise HarnessError(
+                "remove_line exact target is ambiguous: multiple identical complete "
+                "lines exist; use replace_text with surrounding context or explicitly "
+                "set all=true"
+            )
         removed = 0
         retained: list[str] = []
         for line in lines:
@@ -1572,18 +1834,16 @@ class ActionHarness:
                 continue
             retained.append(line)
         if removed == 0:
-            return self._file_result(
-                "remove_line",
-                goal,
-                path,
-                output="line already absent",
+            raise HarnessError(
+                "remove_line base snapshot matches but the exact line is absent"
             )
         self._atomic_write(path, "".join(retained))
-        return self._file_result(
+        return self._snapshot_transition_result(
             "remove_line",
             goal,
             path,
             output=f"removed {removed} line(s)",
+            base_sha256=base_sha256,
         )
 
     def _append_file(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
@@ -1628,6 +1888,10 @@ class ActionHarness:
         if not source.is_file():
             raise HarnessError("move_file source must be an existing file")
         destination = self.resolve_path(goal, arguments.get("destination", ""))
+        if source == destination:
+            raise HarnessError(
+                "move_file source and destination must resolve to different paths"
+            )
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(destination))
         return self._file_result(
@@ -1965,6 +2229,7 @@ class ActionHarness:
         )
         matches: list[dict[str, Any]] = []
         match_keys: list[tuple[str, int, int, int]] = []
+        source_snapshots: dict[str, str] = {}
         files_searched = 0
         has_more = False
         stop_scan = False
@@ -2005,7 +2270,12 @@ class ActionHarness:
                     skipped.append({"path": relative, "reason": "invalid_utf8"})
                 continue
             files_searched += 1
-            for line_number, line in enumerate(text.splitlines(), start=1):
+            source_sha256 = hashlib.sha256(data).hexdigest()
+            line_start_byte = 0
+            for line_number, raw_line in enumerate(
+                text.splitlines(keepends=True), start=1
+            ):
+                line = raw_line.rstrip("\r\n")
                 for found in matcher.finditer(line):
                     key = (
                         relative,
@@ -2026,15 +2296,29 @@ class ActionHarness:
                         max_line_chars,
                     )
                     matched_text = found.group(0)
+                    excerpt_character_start = excerpt_start - 1
+                    excerpt_start_byte = line_start_byte + len(
+                        line[:excerpt_character_start].encode("utf-8")
+                    )
+                    excerpt_end_byte = excerpt_start_byte + len(
+                        excerpt.encode("utf-8")
+                    )
+                    projected_match = matched_text[:max_line_chars]
+                    source_snapshots.setdefault(relative, source_sha256)
                     matches.append(
                         {
                             "path": relative,
                             "line_number": line_number,
                             "column": found.start() + 1,
                             "end_column": found.end() + 1,
-                            "match_text": matched_text[:max_line_chars],
+                            "match_text": projected_match,
                             "match_text_truncated": len(matched_text) > max_line_chars,
                             "line_text": excerpt,
+                            "line_text_start_byte": excerpt_start_byte,
+                            "line_text_end_byte": excerpt_end_byte,
+                            "line_text_sha256": hashlib.sha256(
+                                excerpt.encode("utf-8")
+                            ).hexdigest(),
                             "line_text_start_column": excerpt_start,
                             "line_text_truncated": line_truncated,
                         }
@@ -2042,6 +2326,7 @@ class ActionHarness:
                     match_keys.append(key)
                 if stop_scan:
                     break
+                line_start_byte += len(raw_line.encode("utf-8"))
             if stop_scan:
                 break
 
@@ -2057,6 +2342,12 @@ class ActionHarness:
                 "case_sensitive": case_sensitive,
                 "recursive": recursive,
                 "matches": matches,
+                "source_snapshots": {
+                    path: source_snapshots[path]
+                    for path in dict.fromkeys(
+                        str(item["path"]) for item in matches
+                    )
+                },
                 "match_count": len(matches),
                 "files_considered": len(candidates),
                 "files_searched": files_searched,
@@ -2126,6 +2417,8 @@ class ActionHarness:
         descriptor = chunk.descriptor
         source_size = len(content.encode("utf-8"))
         truncated = descriptor.core_end < source_size
+        prefix = content.encode("utf-8")[: descriptor.core_start].decode("utf-8")
+        source_start_line = prefix.count("\n") + 1
         return ActionResult(
             "read_file",
             True,
@@ -2141,6 +2434,10 @@ class ActionHarness:
                 "eof": descriptor.core_end == source_size,
                 "source_size_bytes": source_size,
                 "observed_tokens": get_token_count(chunk.text),
+                "source_start_line": source_start_line,
+                "source_end_line": source_start_line
+                + chunk.text.count("\n")
+                - (1 if chunk.text.endswith("\n") else 0),
             },
         )
 
@@ -2149,15 +2446,81 @@ class ActionHarness:
         if not path.is_file():
             raise HarnessError("read_json requires a regular file")
         source = path.read_text(encoding="utf-8")
-        value = json.loads(source)
+        source_encoded = source.encode("utf-8")
+        source_bytes = len(source_encoded)
+        relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
+        try:
+            value = json.loads(source)
+        except json.JSONDecodeError as exc:
+            line_start = source.rfind("\n", 0, exc.pos) + 1
+            line_end = source.find("\n", exc.pos)
+            if line_end < 0:
+                line_end = len(source)
+            # Preserve an exact, bounded source window around the parser position.
+            # The byte locators and digest make the diagnostic independently
+            # checkable against the attached immutable artifact.
+            span_start = max(line_start, exc.pos - 600)
+            span_end = min(line_end, exc.pos + 600)
+            span_content = source[span_start:span_end]
+            span_start_byte = len(source[:span_start].encode("utf-8"))
+            span_end_byte = len(source[:span_end].encode("utf-8"))
+            parse_error = {
+                "type": "JSONDecodeError",
+                "message": exc.msg,
+                "line": exc.lineno,
+                "column": exc.colno,
+                "character_offset": exc.pos,
+                "byte_offset": len(source[: exc.pos].encode("utf-8")),
+                "source_span": {
+                    "start_byte": span_start_byte,
+                    "end_byte": span_end_byte,
+                    "content": span_content,
+                    "content_sha256": hashlib.sha256(
+                        span_content.encode("utf-8")
+                    ).hexdigest(),
+                    "line": exc.lineno,
+                    "column_in_span": len(source[span_start : exc.pos]) + 1,
+                },
+            }
+            diagnostic = {
+                "schema_version": "rwkv-lh.json-parse-diagnostic.v1",
+                "path": relative,
+                "valid_json": False,
+                "source_sha256": hashlib.sha256(source_encoded).hexdigest(),
+                "source_size_bytes": source_bytes,
+                "parse_error": parse_error,
+            }
+            output = json.dumps(
+                diagnostic,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            return ActionResult(
+                "read_json",
+                True,
+                output=output,
+                artifacts=[self._artifact(goal, path)],
+                metadata={
+                    "valid_json": False,
+                    "parse_outcome_complete": True,
+                    "parse_error": parse_error,
+                    "complete": True,
+                    "truncated": False,
+                    "eof": True,
+                    "source_size_bytes": source_bytes,
+                    "representation": "json_parse_diagnostic",
+                    "observed_tokens": get_token_count(output),
+                    "source_start_line": 1,
+                    "source_end_line": 1,
+                },
+            )
         content = json.dumps(
             value,
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
         )
-        source_bytes = len(source.encode("utf-8"))
-        relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
         try:
             chunk = slice_text_from_byte_cursor(
                 relative + "#canonical-json",
@@ -2189,19 +2552,27 @@ class ActionHarness:
                 "representation": "compact_lossless_json",
                 "json_type": type(value).__name__,
                 "observed_tokens": get_token_count(chunk.text),
+                "source_start_line": 1,
+                "source_end_line": 1,
             },
         )
 
     def _bind_evidence(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
-        lines = path.read_text(encoding="utf-8").splitlines()
+        source_text = path.read_text(encoding="utf-8")
+        lines = source_text.splitlines(keepends=True)
         start_line = max(1, int(arguments.get("start_line", 1)))
         end_line = int(arguments.get("end_line", start_line))
         if end_line < start_line or start_line > len(lines):
             raise HarnessError("evidence line span is outside the source")
         end_line = min(end_line, len(lines))
-        quote = "\n".join(lines[start_line - 1 : end_line]).strip()
-        if not quote:
+        selected_lines = lines[start_line - 1 : end_line]
+        quote = "".join(selected_lines)
+        if quote.endswith("\r\n"):
+            quote = quote[:-2]
+        elif quote.endswith(("\n", "\r")):
+            quote = quote[:-1]
+        if not quote.strip():
             raise HarnessError("evidence span is empty")
         if get_token_count(quote) > int(arguments.get("max_tokens", 2048)):
             raise HarnessError(
@@ -2209,10 +2580,35 @@ class ActionHarness:
             )
         relative = str(path.relative_to(Path(goal.workspace_root).resolve()))
         source = str(arguments.get("source") or relative)
+        start_byte = len("".join(lines[: start_line - 1]).encode("utf-8"))
+        end_byte = start_byte + len(quote.encode("utf-8"))
+        snapshot_sha256 = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+        content_sha256 = hashlib.sha256(quote.encode("utf-8")).hexdigest()
+        span_identity = json.dumps(
+            {
+                "source_ref": relative,
+                "snapshot_sha256": snapshot_sha256,
+                "start_byte": start_byte,
+                "end_byte": end_byte,
+                "content_sha256": content_sha256,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
         evidence = {
             "source": source,
+            "source_ref": relative,
             "locator": f"{relative}#L{start_line}-L{end_line}",
             "span": {"start_line": start_line, "end_line": end_line},
+            "span_id": "OBS-SPAN-"
+            + hashlib.sha256(span_identity).hexdigest()[:20],
+            "snapshot_sha256": snapshot_sha256,
+            "start_byte": start_byte,
+            "end_byte": end_byte,
+            "start_line": start_line,
+            "end_line": end_line,
+            "content_sha256": content_sha256,
             "quote": quote,
         }
         return ActionResult(
@@ -2221,6 +2617,12 @@ class ActionHarness:
             output=quote,
             artifacts=[self._artifact(goal, path)],
             evidence=[evidence],
+            metadata={
+                "complete": True,
+                "truncated": False,
+                "source_start_line": start_line,
+                "source_end_line": end_line,
+            },
         )
 
     def _run_command(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
@@ -2303,7 +2705,11 @@ class ActionHarness:
             timeout=timeout,
             check=False,
         )
-        output = (completed.stdout or "") + (completed.stderr or "")
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        output = stdout + stderr
+        stdout_bytes = stdout.encode("utf-8")
+        stderr_bytes = stderr.encode("utf-8")
         expected_exit_code = int(arguments.get("expected_exit_code", 0))
         exit_code_matched = completed.returncode == expected_exit_code
         return ActionResult(
@@ -2317,6 +2723,22 @@ class ActionHarness:
                 "executable_resolution": executable_resolution,
                 "cwd": str(cwd.relative_to(Path(goal.workspace_root))),
                 "output_truncated": False,
+                "command_streams": {
+                    "stdout": {
+                        "start_byte": 0,
+                        "end_byte": len(stdout_bytes),
+                        "chars": len(stdout),
+                        "bytes": len(stdout_bytes),
+                        "sha256": hashlib.sha256(stdout_bytes).hexdigest(),
+                    },
+                    "stderr": {
+                        "start_byte": len(stdout_bytes),
+                        "end_byte": len(stdout_bytes) + len(stderr_bytes),
+                        "chars": len(stderr),
+                        "bytes": len(stderr_bytes),
+                        "sha256": hashlib.sha256(stderr_bytes).hexdigest(),
+                    },
+                },
                 "sandboxed": sandboxed,
                 "sandbox_backend": "bubblewrap" if sandboxed else "none",
                 "expected_exit_code": expected_exit_code,
@@ -2503,15 +2925,89 @@ class ActionHarness:
             artifacts=[self._artifact(goal, path)],
         )
 
+    def _converged_replay_result(
+        self,
+        action_type: str,
+        goal: GoalState,
+        path: Path,
+        *,
+        output: str,
+    ) -> ActionResult:
+        """Report an already-applied read-modify-write without writing again.
+
+        These operations are declared idempotent so crash-resume may replay
+        them.  A replay sees a base_sha256 that no longer matches because the
+        first execution already landed; when the current bytes already satisfy
+        the requested edit the replay converges instead of failing.
+        """
+
+        result = self._file_result(action_type, goal, path, output=output)
+        result.metadata = {
+            **dict(result.metadata),
+            "converged_without_write": True,
+            "current_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        return result
+
+    @staticmethod
+    def _base_snapshot_is_stale(path: Path, arguments: Mapping[str, Any]) -> bool:
+        expected = str(arguments.get("base_sha256") or "")
+        return (
+            re.fullmatch(r"[0-9a-f]{64}", expected) is not None
+            and hashlib.sha256(path.read_bytes()).hexdigest() != expected
+        )
+
+    @staticmethod
+    def _verify_base_snapshot(path: Path, arguments: Mapping[str, Any]) -> str:
+        """Reject a read-modify-write action derived from a stale file revision."""
+
+        expected = str(arguments.get("base_sha256") or "")
+        if re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+            raise HarnessError(
+                "read-modify-write action requires a 64-character lowercase base_sha256"
+            )
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected:
+            raise HarnessError(
+                "stale source snapshot: "
+                f"base_sha256={expected}, current_sha256={actual}"
+            )
+        return actual
+
+    def _snapshot_transition_result(
+        self,
+        action_type: str,
+        goal: GoalState,
+        path: Path,
+        *,
+        output: str,
+        base_sha256: str,
+    ) -> ActionResult:
+        result = self._file_result(action_type, goal, path, output=output)
+        result_sha256 = result.artifacts[0].sha256
+        result.metadata.update(
+            {
+                "base_snapshot_sha256": base_sha256,
+                "result_snapshot_sha256": result_sha256,
+                "snapshot_transition_verified": True,
+            }
+        )
+        return result
+
     @staticmethod
     def _artifact(goal: GoalState, path: Path) -> ObservedArtifact:
+        relative = str(path.relative_to(Path(goal.workspace_root).resolve()))
         if path.is_file():
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             size = path.stat().st_size
         else:
-            digest = hashlib.sha256(str(path).encode("utf-8")).hexdigest()
+            # Directory identity belongs to the scoped workspace contract.  An
+            # absolute temporary root is execution-local and made otherwise
+            # identical ActionResults impossible to replay or compare.
+            digest = hashlib.sha256(
+                ("directory\0" + relative).encode("utf-8")
+            ).hexdigest()
             size = 0
-        relative = str(path.relative_to(Path(goal.workspace_root).resolve()))
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return ObservedArtifact(relative, digest, media_type, size)
 

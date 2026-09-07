@@ -1,0 +1,63 @@
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+..................................................FF.................... [ 32%]
+........................................................................ [ 43%]
+........................................................................ [ 54%]
+........................................................................ [ 65%]
+........................................................................ [ 75%]
+........................................................................ [ 86%]
+........................................................................ [ 97%]
+................                                                         [100%]
+=================================== FAILURES ===================================
+__ test_independent_executor_session_requires_current_protocol_source[False] ___
+
+native = False
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_session_requires_current_protocol_source(native: bool) -> None:
+        output = '{"function":"read_file","params":{"path":"README.md"}}'
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+            if native else ModelSession(QueueClient([output]), settings=settings())
+        )
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, "Read the registered file", (),
+            independent_tool_selector=True,
+        )
+        with pytest.raises(ModelIOError, match="current Executor protocol source"):
+            session.disclose_tool(checkpoint, FINAL_ANSWER_DEFINITION)
+>       with pytest.raises(ModelIOError, match="input protocol is required"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'input protocol is required'
+E         Actual message: 'Executor-Args production prompt has no Tool Call continuation anchor'
+
+tests/test_model_session.py:493: AssertionError
+___ test_independent_executor_session_requires_current_protocol_source[True] ___
+
+native = True
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_session_requires_current_protocol_source(native: bool) -> None:
+        output = '{"function":"read_file","params":{"path":"README.md"}}'
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+            if native else ModelSession(QueueClient([output]), settings=settings())
+        )
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, "Read the registered file", (),
+            independent_tool_selector=True,
+        )
+        with pytest.raises(ModelIOError, match="current Executor protocol source"):
+            session.disclose_tool(checkpoint, FINAL_ANSWER_DEFINITION)
+>       with pytest.raises(ModelIOError, match="input protocol is required"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'input protocol is required'
+E         Actual message: 'Executor-Args production prompt has no Tool Call continuation anchor'
+
+tests/test_model_session.py:493: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_model_session.py::test_independent_executor_session_requires_current_protocol_source[False]
+FAILED tests/test_model_session.py::test_independent_executor_session_requires_current_protocol_source[True]
+2 failed, 662 passed in 54.93s

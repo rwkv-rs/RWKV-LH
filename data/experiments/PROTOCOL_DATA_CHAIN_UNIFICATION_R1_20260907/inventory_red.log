@@ -1,0 +1,45 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_scripts_tests_and_temp_use_shared_role_input_builders __________
+
+    def test_scripts_tests_and_temp_use_shared_role_input_builders() -> None:
+        paths = [*ROOT.joinpath("scripts").rglob("*.py"), *ROOT.joinpath("tests").rglob("*.py")]
+        paths.extend(ROOT.joinpath("temp").glob("*.py"))
+        violations = [
+            f"{path.relative_to(ROOT)}:{line}"
+            for path in sorted(paths)
+            for line in _protocol_literals(path)
+        ]
+>       assert not violations, "Role protocol dictionaries must come from shared builders: " + ", ".join(violations)
+E       AssertionError: Role protocol dictionaries must come from shared builders: scripts/generate_g1j_executor_observation_state_tuning_v4.py:665, tests/test_executor_provenance.py:495, tests/test_goal_state_protocols.py:44, tests/test_goal_state_protocols.py:148, tests/test_goal_state_protocols.py:240, tests/test_goal_state_protocols.py:295, tests/test_goal_state_protocols.py:309, tests/test_model_session.py:646, tests/test_native_network_selector_service.py:77, tests/test_stateful_goal_loop.py:2309, tests/test_stateful_goal_loop.py:4612
+E       assert not ['scripts/generate_g1j_executor_observation_state_tuning_v4.py:665', 'tests/test_executor_provenance.py:495', 'tests/t..._goal_state_protocols.py:148', 'tests/test_goal_state_protocols.py:240', 'tests/test_goal_state_protocols.py:295', ...]
+
+tests/test_protocol_contract_inventory.py:48: AssertionError
+________ test_active_datasets_do_not_expose_retired_synthetic_role_data ________
+
+    def test_active_datasets_do_not_expose_retired_synthetic_role_data() -> None:
+        retired = sorted(path.name for path in ROOT.joinpath("data/datasets").glob("rwkv_lh_g1j_*"))
+>       assert not retired, "Historical synthetic role datasets remain active: " + ", ".join(retired)
+E       AssertionError: Historical synthetic role datasets remain active: rwkv_lh_g1j_auditor_final_round2_mix_v1, rwkv_lh_g1j_auditor_final_state_tuning_v2, rwkv_lh_g1j_auditor_final_state_tuning_v3, rwkv_lh_g1j_auditor_step_state_tuning_v2, rwkv_lh_g1j_auditor_step_state_tuning_v3, rwkv_lh_g1j_auditor_step_state_tuning_v4, rwkv_lh_g1j_executor_args_state_tuning_v2, rwkv_lh_g1j_executor_args_state_tuning_v3, rwkv_lh_g1j_executor_observation_state_tuning_v4, rwkv_lh_g1j_executor_quantifier_state_tuning_v5, rwkv_lh_g1j_executor_structured_state_tuning_v6, rwkv_lh_g1j_selector_intent_state_tuning_v2, rwkv_lh_g1j_selector_mutation_repair_state_tuning_v5, rwkv_lh_g1j_selector_persistent_head_v2, rwkv_lh_g1j_selector_progress_state_tuning_v3, rwkv_lh_g1j_selector_transition_state_tuning_v4
+E       assert not ['rwkv_lh_g1j_auditor_final_round2_mix_v1', 'rwkv_lh_g1j_auditor_final_state_tuning_v2', 'rwkv_lh_g1j_auditor_final_st...tor_step_state_tuning_v2', 'rwkv_lh_g1j_auditor_step_state_tuning_v3', 'rwkv_lh_g1j_auditor_step_state_tuning_v4', ...]
+
+tests/test_protocol_contract_inventory.py:53: AssertionError
+__________ test_sealed_acceptance_is_outside_the_ordinary_test_suite ___________
+
+    def test_sealed_acceptance_is_outside_the_ordinary_test_suite() -> None:
+>       assert not ROOT.joinpath("tests/test_real_agent_holdout_v2.py").exists(), (
+            "Ordinary pytest must not load the sealed acceptance dataset"
+        )
+E       AssertionError: Ordinary pytest must not load the sealed acceptance dataset
+E       assert not True
+E        +  where True = exists()
+E        +    where exists = PosixPath('/home/chase/GitHub/RWKV-LH/tests/test_real_agent_holdout_v2.py').exists
+E        +      where PosixPath('/home/chase/GitHub/RWKV-LH/tests/test_real_agent_holdout_v2.py') = joinpath('tests/test_real_agent_holdout_v2.py')
+E        +        where joinpath = PosixPath('/home/chase/GitHub/RWKV-LH').joinpath
+
+tests/test_protocol_contract_inventory.py:57: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_protocol_contract_inventory.py::test_scripts_tests_and_temp_use_shared_role_input_builders
+FAILED tests/test_protocol_contract_inventory.py::test_active_datasets_do_not_expose_retired_synthetic_role_data
+FAILED tests/test_protocol_contract_inventory.py::test_sealed_acceptance_is_outside_the_ordinary_test_suite
+3 failed in 0.48s

@@ -940,7 +940,11 @@ def test_truncated_contract_output_cannot_prove_complete_text_relation() -> None
     )
 
     assert bounded["metadata"]["complete"] is False
-    assert bounded["output_projection"]["truncated"] is True
+    assert bounded["observation"]["projection_complete"] is False
+    assert any(
+        "forbidden-tail" in span["content"]
+        for span in bounded["observation"]["exact_spans"]
+    )
     assert passed is None
     assert "no complete public observation" in reason
 

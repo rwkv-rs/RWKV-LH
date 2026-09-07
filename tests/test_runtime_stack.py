@@ -8,6 +8,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from rwkv_lh.exact_tool_selector.native_network_protocol import (
+    NATIVE_SELECTOR_DECODER_ID,
+    NATIVE_SELECTOR_DECODER_PROTOCOL,
+)
 from rwkv_lh.runtime.stack import RuntimeStackManager, RuntimeStackSettings
 from rwkv_lh.runtime.settings import PROJECT_ROOT
 
@@ -172,16 +176,14 @@ def test_stack_attests_configured_independent_selector_health(
 ) -> None:
     selector_env = {
         "RWKV_SELECTOR_BASE_URL": "http://127.0.0.1:29621",
-        "RWKV_SELECTOR_MODEL": "rwkv7-g1i-2.9b-test",
+        "RWKV_SELECTOR_MODEL": "rwkv7-g1j-2.9b-test",
         "RWKV_SELECTOR_MODEL_SHA256": "1" * 64,
-        "RWKV_SELECTOR_HEAD_SHA256": "2" * 64,
-        "RWKV_SELECTOR_HEAD_HASH": "3" * 64,
-        "RWKV_SELECTOR_FEATURE_PROTOCOL": (
-            "rwkv-lh.vllm-rwkv-final-hidden-mean-last-concat.v1"
+        "RWKV_SELECTOR_DECODER_ID": NATIVE_SELECTOR_DECODER_ID,
+        "RWKV_SELECTOR_DECODER_SHA256": "2" * 64,
+        "RWKV_SELECTOR_DECODER_PROTOCOL": NATIVE_SELECTOR_DECODER_PROTOCOL,
+        "RWKV_SELECTOR_INPUT_PROTOCOL": (
+            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v4"
         ),
-            "RWKV_SELECTOR_INPUT_PROTOCOL": (
-                "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v2"
-            ),
         "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
         "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "4" * 64,
@@ -196,9 +198,9 @@ def test_stack_attests_configured_independent_selector_health(
         "input_protocol": selector_env["RWKV_SELECTOR_INPUT_PROTOCOL"],
         "model": selector_env["RWKV_SELECTOR_MODEL"],
         "model_sha256": selector_env["RWKV_SELECTOR_MODEL_SHA256"],
-        "head_sha256": selector_env["RWKV_SELECTOR_HEAD_SHA256"],
-        "head_hash": selector_env["RWKV_SELECTOR_HEAD_HASH"],
-        "feature_protocol": selector_env["RWKV_SELECTOR_FEATURE_PROTOCOL"],
+        "decoder_id": selector_env["RWKV_SELECTOR_DECODER_ID"],
+        "decoder_sha256": selector_env["RWKV_SELECTOR_DECODER_SHA256"],
+        "decoder_protocol": selector_env["RWKV_SELECTOR_DECODER_PROTOCOL"],
         "profile_id": selector_env["RWKV_SELECTOR_STATE_PROFILE_ID"],
         "profile_sha256": selector_env["RWKV_SELECTOR_STATE_PROFILE_SHA256"],
         "profile_manifest_sha256": selector_env[

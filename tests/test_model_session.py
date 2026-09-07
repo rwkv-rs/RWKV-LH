@@ -7,9 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import executor_args
+from rwkv_lh.goal_state_protocols import executor_args_v4
 from rwkv_lh.model_io import (
     FINAL_ANSWER_DEFINITION,
+    JSON_CALL_STOP_SUFFIXES,
     TOOL_CALL_JSON_CONTINUATION_ANCHOR,
     ModelCommand,
     ModelIOError,
@@ -20,7 +21,6 @@ from rwkv_lh.model_io import (
     render_bootstrap,
     render_event_append,
     render_independent_executor_bootstrap,
-    render_independent_executor_tool_disclosure,
     render_rollover_event_summary,
     render_tool_disclosure,
     validate_final_answer,
@@ -60,6 +60,17 @@ class QueueClient:
     def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
         self.prompts.append(prompt)
         return Response(self.outputs.pop(0))
+
+
+def test_json_generation_stops_at_native_rwkv_dialogue_boundaries() -> None:
+    assert "✿text1✿" in JSON_CALL_STOP_SUFFIXES
+    assert "\n`✿text1✿" in JSON_CALL_STOP_SUFFIXES
+    # A bare "\n{" stop would truncate a leading blank line or a nested object;
+    # a trailing second object is removed by the parser instead.
+    assert "\n{" not in JSON_CALL_STOP_SUFFIXES
+    assert {"\nSystem:", "\nUser:", "\nAssistant:"} <= set(
+        JSON_CALL_STOP_SUFFIXES
+    )
 
 
 class FakeNativeStateClient:
@@ -243,6 +254,67 @@ def test_native_tool_call_string_arguments_are_decoded_without_parameter_mutatio
     assert trace.to_dict()["controller_semantic_fields_generated"] is False
 
 
+def test_structural_escaped_quotes_are_repaired_without_changing_arguments() -> None:
+    raw = (
+        r'{"name":"write_file","arguments":{"path": \"a.txt\", '
+        r'\"content\": \"say \"hello\" now\"}}'
+    )
+    command, trace = parse_model_command_with_trace(raw)
+
+    assert command == ModelCommand(
+        "write_file",
+        {"path": "a.txt", "content": 'say "hello" now'},
+    )
+    assert trace.normalized_payload == {
+        "function": "write_file",
+        "params": {"path": "a.txt", "content": 'say "hello" now'},
+    }
+    assert trace.transformations == (
+        "surface:structural_escaped_quotes_repaired",
+        "call_envelope:name+arguments->function+params",
+    )
+    assert trace.to_dict()["controller_semantic_fields_generated"] is False
+
+
+def test_real_chain_search_text_structural_quote_failure_is_recoverable() -> None:
+    raw = (
+        '{\n  "name": "search_text",\n  "arguments": {"pattern": '
+        r'\"status.*paid\", \"path\": \"orders.json\", \"mode\": '
+        r'\"regex\", \"case_sensitive\": true, \"recursive\": false, '
+        r'\"max_results\": 100, \"start_after\": \"\", \"max_tokens\": '
+        r'4096, \"max_file_bytes\": 5000000, \"max_line_chars\": 800}'
+        "\n}"
+    )
+    command, trace = parse_model_command_with_trace(raw)
+
+    assert command == ModelCommand(
+        "search_text",
+        {
+            "pattern": "status.*paid",
+            "path": "orders.json",
+            "mode": "regex",
+            "case_sensitive": True,
+            "recursive": False,
+            "max_results": 100,
+            "start_after": "",
+            "max_tokens": 4096,
+            "max_file_bytes": 5_000_000,
+            "max_line_chars": 800,
+        },
+    )
+    assert trace.transformations == (
+        "surface:structural_escaped_quotes_repaired",
+        "call_envelope:name+arguments->function+params",
+    )
+
+
+def test_structural_escaped_quote_repair_requires_valid_complete_json() -> None:
+    with pytest.raises(ModelIOError):
+        parse_model_command(
+            r'{"name":"read_file","arguments":{"path": \"a.txt\"}'
+        )
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -371,6 +443,106 @@ def test_independent_executor_bootstrap_has_no_selector_menu_or_schema() -> None
     assert "Assistant:" not in prompt
 
 
+def test_executor_legacy_disclosure_and_retry_renderers_are_removed() -> None:
+    import inspect
+    from rwkv_lh import model_io
+
+    assert not hasattr(model_io, "render_independent_executor_tool_disclosure")
+    assert "independent_executor_retry_operation" not in inspect.signature(render_event_append).parameters
+    for session_type in (ModelSession, NativeRWKVModelSession):
+        parameters = inspect.signature(session_type.disclose_tool).parameters
+        assert "executor_source" in parameters
+        assert "current_requirement" not in parameters
+        assert "rendered_prompt" not in parameters
+
+
+def _executor_input_source():
+    contract = executor_args_v4.build_target_contract(
+        phase="observe", roots=["README.md"],
+        target_descriptors=[{
+            "path": "README.md", "type": "file", "target_kind": "text_file", "exists": True,
+        }],
+        compatible_targets_by_operation={"read_file": ["README.md"]},
+    )
+    state = executor_args_v4.build_execution_state(
+        active_step_id="S1", active_step_revision=1, declared_phase="observe",
+        effective_phase="observe", assigned_actions=(),
+        mechanical_evidence={"missing_read_roots": ["README.md"]}, target_contract=contract,
+    )
+    return executor_args_v4.build_prompt_source(
+        current_requirement="Read the registered file", execution_state=state,
+        selected_operation="read_file",
+        selected_tool_contract={"name": "read_file", "parameters": {"type": "object"}},
+        committed_fact_refs=(), executor_history=(),
+    )
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_independent_executor_session_requires_current_protocol_source(native: bool) -> None:
+    output = '{"function":"read_file","params":{"path":"README.md"}}'
+    session = (
+        NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+        if native else ModelSession(QueueClient([output]), settings=settings())
+    )
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION, "Read the registered file", (),
+        independent_tool_selector=True,
+    )
+    with pytest.raises(ModelIOError, match="current Executor protocol source"):
+        session.disclose_tool(checkpoint, FINAL_ANSWER_DEFINITION)
+    with pytest.raises(ModelIOError, match="input protocol is required"):
+        session.generate(checkpoint)
+
+    source = _executor_input_source()
+    disclosed = session.disclose_tool(
+        checkpoint, source["selected_tool_contract"], executor_source=source,
+    )
+    candidate = session.generate(disclosed)
+    committed = session.commit(candidate, session.parse(candidate))
+    event = ModelEvent(event_type="action_result", event_id="EV-PROTOCOL-REQUIRED",
+                       scope_id=checkpoint.lane_id, payload={"action_id": "A1"})
+    appended = session.append(committed, event, include_generation_anchor=False)
+    with pytest.raises(ModelIOError, match="current Executor protocol source"):
+        session.disclose_tool(appended, source["selected_tool_contract"])
+    compact = session.rollover(
+        appended, source["current_requirement"], (), events=(event,),
+        input_limit=10_000, rollover_id="RO-PROTOCOL-REQUIRED", independent_tool_selector=True,
+    )
+    with pytest.raises(ModelIOError, match="current Executor protocol source"):
+        session.disclose_tool(compact, source["selected_tool_contract"])
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_independent_executor_fork_preserves_the_required_input_contract(native: bool) -> None:
+    output = '{"function":"read_file","params":{"path":"README.md"}}'
+    session = (
+        NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+        if native else ModelSession(QueueClient([output]), settings=settings())
+    )
+    source = _executor_input_source()
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION, source["current_requirement"], (),
+        independent_tool_selector=True,
+    )
+    assignment = ModelEvent(
+        event_type="task_assignment", event_id="EV-EXECUTOR-FORK",
+        scope_id=checkpoint.lane_id, payload={"task": "Continue the recorded file read"},
+    )
+    child = session.fork(checkpoint, ModelLaneKind.ACTION, assignment)
+    with pytest.raises(ModelIOError, match="current Executor protocol source"):
+        session.disclose_tool(child, source["selected_tool_contract"])
+    with pytest.raises(ModelIOError, match="input protocol is required"):
+        session.generate(child)
+    assert child.native_state_metadata["executor_protocol_required"] is True
+    assert not child.transcript.endswith("Assistant: ```json\n")
+
+    disclosed = session.disclose_tool(
+        child, source["selected_tool_contract"], executor_source=source,
+    )
+    candidate = session.generate(disclosed)
+    assert session.parse(candidate).name == "read_file"
+
+
 def test_selected_tool_disclosure_contains_only_one_exact_contract() -> None:
     definition = {
         "name": "read_file",
@@ -389,31 +561,21 @@ def test_selected_tool_disclosure_contains_only_one_exact_contract() -> None:
     assert "final_answer" not in rendered
 
 
-def test_independent_executor_disclosure_puts_closed_requirement_at_tail() -> None:
-    definition = {
-        "name": "read_file",
-        "description": "Read one workspace file.",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"],
-            "additionalProperties": False,
-        },
-    }
-    requirement = "Read exact.txt and report its contents."
-    rendered = render_independent_executor_tool_disclosure(
-        definition,
-        requirement,
+def test_independent_executor_disclosure_uses_only_shared_v4_source() -> None:
+    source = _executor_input_source()
+    session = ModelSession(QueueClient([]), settings=settings())
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION, source["current_requirement"], (),
+        independent_tool_selector=True,
     )
-    prefix = "\n\nUser: Executor continuation input: "
-    assert rendered.startswith(prefix)
-    payload_text, suffix = rendered[len(prefix) :].split("\n\nAssistant:", 1)
-    payload = json.loads(payload_text)
-    assert list(payload)[-1] == "current_requirement"
-    assert payload["current_requirement"] == requirement
-    assert payload["selected_operation"] == "read_file"
-    assert suffix == " ```json\n"
-    assert rendered.count(requirement) == 1
+    disclosed = session.disclose_tool(
+        checkpoint, source["selected_tool_contract"], executor_source=source,
+    )
+    assert disclosed.transcript == (
+        checkpoint.transcript + "\n\n" + executor_args_v4.render_generation_prompt(source)
+    )
+    assert disclosed.native_state_metadata["executor_protocol_required"] is True
+
 
 
 def test_tool_selection_requires_exact_selector_envelope() -> None:
@@ -452,11 +614,15 @@ def test_ranked_tool_choice_rejects_outside_top_k_and_repeated_json() -> None:
             '{"function":"write_file","params":{"path":"x","content":"y"}}',
             ("read_file", "search_text", "list_directory"),
         )
-    with pytest.raises(ModelIOError, match="not one JSON object"):
+    # A trailing second object is dropped by the parser (recorded as a surface
+    # transformation) instead of being cut by a "\n{" stop string.
+    assert (
         parse_ranked_tool_choice(
             '{"function":"read_file"}\n{"function":"read_file"}',
             ("read_file",),
-        )
+        ).selected_operation
+        == "read_file"
+    )
 
 
 def test_event_append_uses_one_generic_observation_envelope() -> None:
@@ -520,14 +686,14 @@ def test_rollover_summary_renders_exact_event_bodies_for_visible_ids() -> None:
     assert rendered in compact.transcript
 
 
-def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
+def test_g1j_executor_history_uses_checkpoint_causal_order(tmp_path) -> None:
     selected_settings = replace(settings(), tool_disclosure_mode="progressive")
     session = ModelSession(QueueClient([]), settings=selected_settings)
     selector = SimpleNamespace()
     model = LongHorizonModel(session, tool_selector=selector)
     goal = model.create_literal_goal(
         "Inspect the fixed project workspace.",
-        "/home/chase/GitHub/RWKV-LH/temp/causal-history-test",
+        tmp_path / "causal-history-test",
     )
     state = RunState(run_id="RUN-CAUSAL-HISTORY", goal=goal)
     first = ModelEvent(
@@ -552,6 +718,12 @@ def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
         event_ids=(first.event_id, second.event_id),
         independent_tool_selector=True,
     )
+    checkpoint = model._bind_executor_fact_scope(
+        state,
+        checkpoint,
+        (),
+        focus_text=goal.request,
+    )
     state.model_states[checkpoint.checkpoint_id] = checkpoint
     state.set_lane_head("executor", checkpoint.checkpoint_id)
 
@@ -561,9 +733,27 @@ def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
         lambda *_args: None,
         model._definitions_by_name["read_file"],
         current_requirement=goal.request,
+        execution_state=executor_args_v4.build_execution_state(
+            active_step_id="S1", active_step_revision=1,
+            declared_phase="observe", effective_phase="observe",
+            assigned_actions=(),
+            mechanical_evidence={"missing_read_roots": ["README.md"]},
+            target_contract=executor_args_v4.build_target_contract(
+                phase="observe", roots=["README.md"],
+                target_descriptors=[
+                    {
+                        "path": "README.md",
+                        "type": "missing",
+                        "target_kind": "missing",
+                        "exists": False,
+                    }
+                ],
+                compatible_targets_by_operation={"read_file": []},
+            ),
+        ),
     )
 
-    payload_text = disclosed.transcript.rsplit("ExecutorArgsPromptV1: ", 1)[1]
+    payload_text = disclosed.transcript.rsplit("ExecutorArgsPromptV4: ", 1)[1]
     payload = json.loads(payload_text.split("\n\n**Tool Call:**", 1)[0])
     assert [item["event_id"] for item in payload["executor_history"]] == [
         first.event_id,
@@ -571,6 +761,36 @@ def test_g1j_executor_history_uses_checkpoint_causal_order() -> None:
     ]
     assert disclosed.transcript.count("Assistant: ```json") == 0
     assert disclosed.transcript.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+
+
+def test_g1j_executor_retry_does_not_depend_on_compacted_native_transcript() -> None:
+    selected_settings = replace(settings(), tool_disclosure_mode="progressive")
+    session = ModelSession(QueueClient([]), settings=selected_settings)
+    model = LongHorizonModel(session, tool_selector=SimpleNamespace())
+    checkpoint = session.bootstrap(
+        ModelLaneKind.ACTION,
+        "Inspect the fixed project workspace.",
+        (),
+        lane_id=model.ACTION_LANE_ID,
+        independent_tool_selector=True,
+    )
+    compacted = replace(
+        checkpoint,
+        transcript='{"function":"search_text","params":{"path":"."}}',
+    )
+    rejection = ModelEvent(
+        event_type="protocol_rejection",
+        event_id="EV-NATIVE-COMPACTED-RETRY",
+        scope_id=model.ACTION_LANE_ID,
+        payload={
+            "selection_id": "NSEL-CONSUMED-1",
+            "selected_operation": "search_text",
+            "error": "path is outside the declared roots",
+            "rejected_arguments": {"path": "."},
+        },
+    )
+
+    assert model._progressive_retry_operation((rejection,), compacted) == "search_text"
 
 
 def test_native_rollover_rebuilds_state_with_retained_event_bodies() -> None:
@@ -1125,3 +1345,19 @@ def test_session_fails_before_network_when_prompt_exceeds_budget() -> None:
     with pytest.raises(InputBudgetError):
         session.generate(checkpoint, max_output_tokens=20)
     assert client.prompts == []
+
+
+def test_json_extraction_keeps_first_object_and_survives_leading_newline() -> None:
+    from rwkv_lh.model_io import parse_model_command
+
+    nested = (
+        '\n{\n"function": "write_file",\n"params":\n{\n"path": "a.txt",'
+        '\n"content": "x"\n}\n}'
+    )
+    command = parse_model_command(nested)
+    assert command.name == "write_file"
+    assert command.arguments["path"] == "a.txt"
+    repeated = parse_model_command(
+        '{"function":"read_file","params":{"path":"a"}}\n{"function":"read_file"}'
+    )
+    assert repeated.arguments == {"path": "a"}

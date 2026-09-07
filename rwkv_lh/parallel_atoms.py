@@ -25,6 +25,7 @@ from rwkv_lh.atom_execution import (
 from rwkv_lh.harness import ActionHarness, ScopeViolation
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import canonical_digest
+from rwkv_lh.observation_funnel import project_action_result
 from rwkv_lh.operation_contracts import (
     PATH_MUTATION_ARGUMENTS,
     PATH_MUTATION_OPERATIONS,
@@ -105,18 +106,28 @@ class AtomExecutionOutcome:
             operation_counts[operation] = operation_counts.get(operation, 0) + 1
         for item in self.actions[-4:]:
             result = dict(item.get("result") or {})
-            output = str(result.get("output") or "")
             output_limit = 2400 if self.role == AtomRole.FINALIZER else 800
-            if len(output) > output_limit:
-                result["output"] = output[:output_limit]
-                result["output_truncated"] = True
+            result_projection = project_action_result(
+                result,
+                operation=str(item.get("operation") or ""),
+                arguments=(
+                    item.get("arguments")
+                    if isinstance(item.get("arguments"), Mapping)
+                    else {}
+                ),
+                max_exact_chars=output_limit,
+                structured_budget=max(1200, output_limit),
+                evidence_source_limit=1,
+                evidence_span_chars=min(800, output_limit),
+                structured_field_budget=min(800, output_limit),
+            )
             projected_actions.append(
                 {
                     "action_id": str(item.get("action_id") or ""),
                     "operation": str(item.get("operation") or ""),
                     "arguments": dict(item.get("arguments") or {}),
                     "status": str(item.get("status") or ""),
-                    "result": result,
+                    "result": result_projection,
                     "workspace_changed": bool(item.get("workspace_changed")),
                 }
             )
@@ -846,24 +857,19 @@ class ThreadedRWKVAtomPool:
         on its own atom contract.
         """
 
-        # Use the same durable-result→RWKV projection authority as the direct
-        # Controller observation path.  In particular, raw external EvidenceRecord
-        # values may contain whole fetched pages and must never be copied verbatim
-        # into a dependent atom's initial prompt.  The full result stays untouched
-        # in the predecessor outcome and is bound here by digest.
-        from rwkv_lh.controller import LongHorizonController
-
         observations: list[dict[str, Any]] = []
         for item in outcome.actions[-4:]:
             result = dict(item.get("result") or {})
-            output = str(result.get("output") or "")
-            projected = LongHorizonController._model_action_result(
+            projected = project_action_result(
                 result,
+                operation=str(item.get("operation") or ""),
                 arguments=(
                     item.get("arguments")
                     if isinstance(item.get("arguments"), Mapping)
                     else {}
                 ),
+                max_exact_chars=800,
+                structured_budget=1200,
                 evidence_source_limit=1,
                 evidence_span_chars=256,
                 structured_field_budget=400,
@@ -881,24 +887,8 @@ class ThreadedRWKVAtomPool:
             observations.append(
                 {
                     "success": bool(result.get("success")),
-                    "observed_content": output[:800],
-                    "observed_content_sha256": hashlib.sha256(
-                        output.encode("utf-8")
-                    ).hexdigest(),
-                    "observed_content_chars": len(output),
-                    "observed_content_complete": len(output) <= 800,
-                    "evidence": [
-                        dict(evidence)
-                        for evidence in projected.get("evidence") or ()
-                        if isinstance(evidence, Mapping)
-                    ],
-                    "evidence_projection": dict(
-                        projected.get("evidence_projection") or {}
-                    ),
+                    "result_projection": projected,
                     "source_artifacts": result_artifacts[:8],
-                    "error": LongHorizonController._bounded_model_value(
-                        result.get("error") or {}
-                    ),
                     "full_result_digest": canonical_digest(result),
                     "full_result_persisted": True,
                 }

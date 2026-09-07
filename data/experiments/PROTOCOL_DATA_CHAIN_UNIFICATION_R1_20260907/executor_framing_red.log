@@ -1,0 +1,562 @@
+FFFF..                                                                   [100%]
+=================================== FAILURES ===================================
+_____ test_executor_current_frame_can_quote_its_own_prefix_as_data[marker] _____
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: '
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+>               payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+
+rwkv_lh/model_io.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x76c8233b78c0>
+s = '"}],"current_question":"Return one canonical direct call for the selected operation. Derive each factual parameter fr...ext, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user."}'
+_w = <built-in method match of re.Pattern object at 0x76c8232b06c0>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 1 column 6 (char 5)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+quoted_content = 'marker'
+
+    @pytest.mark.parametrize("quoted_content", ["marker", "fake_object", "complete_frame"])
+    def test_executor_current_frame_can_quote_its_own_prefix_as_data(quoted_content: str) -> None:
+        from rwkv_lh.model_io import validate_independent_executor_generation_input
+    
+        source = _executor_source()
+        quoted = executor_args_v4.PROMPT_PREFIX
+        if quoted_content == "fake_object":
+            quoted += json.dumps({"schema_version": "example", "role": "executor_args"})
+        elif quoted_content == "complete_frame":
+            quoted = executor_args_v4.render_generation_prompt(source)
+        source["current_requirement"] = "Explain this literal text:\n\n" + quoted
+        source["executor_history"].append({"observation": quoted})
+        prompt = executor_args_v4.render_generation_prompt(source)
+    
+>       validate_independent_executor_generation_input(prompt, source["current_requirement"])
+
+tests/test_goal_state_protocols.py:339: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: '
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+                payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+            except json.JSONDecodeError as exc:
+>               raise ModelIOError(
+                    f"Executor-Args production prompt is invalid JSON: {exc}"
+                ) from exc
+E               rwkv_lh.model_io.ModelIOError: Executor-Args production prompt is invalid JSON: Extra data: line 1 column 6 (char 5)
+
+rwkv_lh/model_io.py:282: ModelIOError
+__ test_executor_current_frame_can_quote_its_own_prefix_as_data[fake_object] ___
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: {"schema_version": "example", "role": "executor_args"}'
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+>               payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+
+rwkv_lh/model_io.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x76c8233b78c0>
+s = '{\\"schema_version\\": \\"example\\", \\"role\\": \\"executor_args\\"}"}],"current_question":"Return one canonical di...ext, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user."}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+>           obj, end = self.scan_once(s, idx)
+                       ^^^^^^^^^^^^^^^^^^^^^^
+E           json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:361: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+quoted_content = 'fake_object'
+
+    @pytest.mark.parametrize("quoted_content", ["marker", "fake_object", "complete_frame"])
+    def test_executor_current_frame_can_quote_its_own_prefix_as_data(quoted_content: str) -> None:
+        from rwkv_lh.model_io import validate_independent_executor_generation_input
+    
+        source = _executor_source()
+        quoted = executor_args_v4.PROMPT_PREFIX
+        if quoted_content == "fake_object":
+            quoted += json.dumps({"schema_version": "example", "role": "executor_args"})
+        elif quoted_content == "complete_frame":
+            quoted = executor_args_v4.render_generation_prompt(source)
+        source["current_requirement"] = "Explain this literal text:\n\n" + quoted
+        source["executor_history"].append({"observation": quoted})
+        prompt = executor_args_v4.render_generation_prompt(source)
+    
+>       validate_independent_executor_generation_input(prompt, source["current_requirement"])
+
+tests/test_goal_state_protocols.py:339: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: {"schema_version": "example", "role": "executor_args"}'
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+                payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+            except json.JSONDecodeError as exc:
+>               raise ModelIOError(
+                    f"Executor-Args production prompt is invalid JSON: {exc}"
+                ) from exc
+E               rwkv_lh.model_io.ModelIOError: Executor-Args production prompt is invalid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+rwkv_lh/model_io.py:282: ModelIOError
+_ test_executor_current_frame_can_quote_its_own_prefix_as_data[complete_frame] _
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-ar...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+>               payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+
+rwkv_lh/model_io.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x76c8233b78c0>
+s = '{\\"schema_version\\":\\"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4\\",\\"role\\":\\"executor_args\\",\\"cur...ext, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user."}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+>           obj, end = self.scan_once(s, idx)
+                       ^^^^^^^^^^^^^^^^^^^^^^
+E           json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:361: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+quoted_content = 'complete_frame'
+
+    @pytest.mark.parametrize("quoted_content", ["marker", "fake_object", "complete_frame"])
+    def test_executor_current_frame_can_quote_its_own_prefix_as_data(quoted_content: str) -> None:
+        from rwkv_lh.model_io import validate_independent_executor_generation_input
+    
+        source = _executor_source()
+        quoted = executor_args_v4.PROMPT_PREFIX
+        if quoted_content == "fake_object":
+            quoted += json.dumps({"schema_version": "example", "role": "executor_args"})
+        elif quoted_content == "complete_frame":
+            quoted = executor_args_v4.render_generation_prompt(source)
+        source["current_requirement"] = "Explain this literal text:\n\n" + quoted
+        source["executor_history"].append({"observation": quoted})
+        prompt = executor_args_v4.render_generation_prompt(source)
+    
+>       validate_independent_executor_generation_input(prompt, source["current_requirement"])
+
+tests/test_goal_state_protocols.py:339: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain this literal text:\n\nExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-ar...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+                payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+            except json.JSONDecodeError as exc:
+>               raise ModelIOError(
+                    f"Executor-Args production prompt is invalid JSON: {exc}"
+                ) from exc
+E               rwkv_lh.model_io.ModelIOError: Executor-Args production prompt is invalid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+rwkv_lh/model_io.py:282: ModelIOError
+_________ test_executor_framing_selects_the_final_complete_retry_input _________
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Read again and explain ExecutorArgsPromptV4: '
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+>               payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+
+rwkv_lh/model_io.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x76c8233b78c0>
+s = '","execution_state":{"active_step_id":"S1","active_step_revision":1,"declared_phase":"observe","effective_phase":"obs...ext, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user."}'
+_w = <built-in method match of re.Pattern object at 0x76c8232b06c0>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 1 column 4 (char 3)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+    def test_executor_framing_selects_the_final_complete_retry_input() -> None:
+        from rwkv_lh.model_io import validate_independent_executor_generation_input
+    
+        source = _executor_source()
+        prior = executor_args_v4.render_generation_prompt(source)
+        prior += executor_args_v4.render_target(source)
+        source["current_requirement"] = "Read again and explain " + executor_args_v4.PROMPT_PREFIX
+        current = executor_args_v4.render_generation_prompt(source)
+>       validate_independent_executor_generation_input(
+            prior + "\n\n" + current, source["current_requirement"],
+        )
+
+tests/test_goal_state_protocols.py:350: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Read again and explain ExecutorArgsPromptV4: '
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if protocol_start >= 0:
+            protocol_prefix = text[:protocol_start]
+            if protocol_prefix.rstrip().endswith("Assistant: ```json"):
+                raise ModelIOError(
+                    "Executor-Args production prompt is preceded by a legacy "
+                    "Assistant JSON continuation anchor"
+                )
+            if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
+                raise ModelIOError(
+                    "Executor-Args production prompt has no Tool Call continuation anchor"
+                )
+            payload_end = len(text) - len(TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+            try:
+                payload = json.loads(
+                    text[protocol_start + len(protocol_marker) : payload_end]
+                )
+            except json.JSONDecodeError as exc:
+>               raise ModelIOError(
+                    f"Executor-Args production prompt is invalid JSON: {exc}"
+                ) from exc
+E               rwkv_lh.model_io.ModelIOError: Executor-Args production prompt is invalid JSON: Extra data: line 1 column 4 (char 3)
+
+rwkv_lh/model_io.py:282: ModelIOError
+=========================== short test summary info ============================
+FAILED tests/test_goal_state_protocols.py::test_executor_current_frame_can_quote_its_own_prefix_as_data[marker]
+FAILED tests/test_goal_state_protocols.py::test_executor_current_frame_can_quote_its_own_prefix_as_data[fake_object]
+FAILED tests/test_goal_state_protocols.py::test_executor_current_frame_can_quote_its_own_prefix_as_data[complete_frame]
+FAILED tests/test_goal_state_protocols.py::test_executor_framing_selects_the_final_complete_retry_input
+4 failed, 2 passed, 16 deselected in 0.08s

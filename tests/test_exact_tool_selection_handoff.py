@@ -6,9 +6,13 @@ from pathlib import Path
 
 import pytest
 
+from rwkv_lh.exact_tool_selector.native_network_protocol import (
+    NATIVE_SELECTOR_DECODER_ID,
+    NATIVE_SELECTOR_DECODER_PROTOCOL,
+    NativeNetworkToolSelection,
+)
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
-    NetworkExactToolSelection,
 )
 from rwkv_lh.schema import (
     CausalEventDraft,
@@ -33,7 +37,7 @@ def _checkpoints() -> tuple[ModelCheckpoint, ModelCheckpoint]:
         lane_id="LANE:SELECTOR",
         lane_kind=ModelLaneKind.SELECTOR,
         parent_checkpoint_id=None,
-        model="rwkv7-g1i-2.9b-20260805-ctx16384",
+        model="rwkv7-g1j-2.9b-20260831-ctx16384",
         transport="native_rwkv",
         transcript="selector bootstrap\nselector step",
         transcript_digest=_digest("selector bootstrap\nselector step"),
@@ -42,7 +46,9 @@ def _checkpoints() -> tuple[ModelCheckpoint, ModelCheckpoint]:
         native_state_digest="3" * 64,
         native_state_metadata={
             "model_sha256": "4" * 64,
-            "head_sha256": "5" * 64,
+            "decoder_id": NATIVE_SELECTOR_DECODER_ID,
+            "decoder_sha256": "5" * 64,
+            "decoder_protocol": NATIVE_SELECTOR_DECODER_PROTOCOL,
             "token_position": 128,
         },
         state_profile_id="selector-base-v1",
@@ -53,7 +59,7 @@ def _checkpoints() -> tuple[ModelCheckpoint, ModelCheckpoint]:
         lane_id="LANE:ACTION",
         lane_kind=ModelLaneKind.ACTION,
         parent_checkpoint_id=None,
-        model="rwkv7-g1i-13.3b-20260805-ctx16384",
+        model="rwkv7-g1j-13.3b-20260831-ctx16384",
         transport="prompt_replay",
         transcript="executor prompt",
         transcript_digest=_digest("executor prompt"),
@@ -71,25 +77,39 @@ def _selection_record(
     *,
     selection_id: str = "SEL-0001",
 ) -> ToolSelectionRecord:
-    logits = [
-        float(index) / 100.0 for index in range(len(NETWORK_EXACT_TOOL_LABELS))
-    ]
-    logits[NETWORK_EXACT_TOOL_LABELS.index("read_file")] = 3.0
-    raw = NetworkExactToolSelection(
+    selected_token_id = 100 + NETWORK_EXACT_TOOL_LABELS.index("read_file")
+    raw = NativeNetworkToolSelection(
         selection_id=selection_id,
         trace_id="TRACE-0001",
         selected_operation="read_file",
-        logits=tuple(logits),
-        temperature=0.8,
         input_digest="1" * 64,
         menu_digest="2" * 64,
         selector_checkpoint_id=selector.checkpoint_id,
         input_token_count=128,
         model=selector.model,
         model_sha256="4" * 64,
-        head_sha256="5" * 64,
+        decoder_id=NATIVE_SELECTOR_DECODER_ID,
+        decoder_sha256="5" * 64,
+        decoder_protocol=NATIVE_SELECTOR_DECODER_PROTOCOL,
         profile_id=selector.state_profile_id,
         profile_sha256=selector.state_profile_sha256,
+        decoder_trace={
+            "schema_version": "rwkv-lh.native-role-suffix-selection.v1",
+            "candidate_labels": list(NETWORK_EXACT_TOOL_LABELS),
+            "prompt_token_count": 128,
+            "selected_label": "read_file",
+            "token_ids": [selected_token_id],
+            "decisions": [
+                {
+                    "position": 0,
+                    "allowed_token_ids": [selected_token_id],
+                    "allowed_token_logits": {str(selected_token_id): 3.0},
+                    "chosen_token_id": selected_token_id,
+                    "chosen_token_logit": 3.0,
+                    "chosen_vs_runner_up_margin": None,
+                }
+            ],
+        },
     )
     return ToolSelectionRecord(
         selection_id=selection_id,
@@ -103,7 +123,9 @@ def _selection_record(
         tool_definition_digest="7" * 64,
         selector_model=selector.model,
         selector_model_sha256="4" * 64,
-        selector_head_sha256="5" * 64,
+        selector_decoder_id=NATIVE_SELECTOR_DECODER_ID,
+        selector_decoder_sha256="5" * 64,
+        selector_decoder_protocol=NATIVE_SELECTOR_DECODER_PROTOCOL,
         selector_profile_id=selector.state_profile_id,
         selector_profile_sha256=selector.state_profile_sha256,
         executor_model=executor.model,

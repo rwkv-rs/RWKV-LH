@@ -1,0 +1,42 @@
+{
+  "round_id": "PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907",
+  "status": "fixed_with_targeted_regression",
+  "root_cause": [
+    "Source provenance hashed every file below benchmarks, including unselected task and acceptance assets.",
+    "Run metadata iterated all registered suites regardless of arguments.suite.",
+    "Unscoped git diff and unconditional E2E-90 reference hashing also accessed resources unrelated to the selected suite.",
+    "Independent Selector architecture metadata retained a retired hard-coded Executor identity."
+  ],
+  "changes": [
+    "Source manifests and git diff share source-only scopes; benchmark dataset files are excluded.",
+    "Suite resources are hashed only for arguments.suite; all expands only FORMAL90_SUITE_KEYS.",
+    "An isolated suite can be read only when explicitly selected; regression uses fake resources, never actual protected data.",
+    "E2E-90 reference metadata is null for suites outside the formal E2E-90 suite keys.",
+    "Independent Selector metadata references executor_args_v4.INPUT_SCHEMA_VERSION."
+  ],
+  "files": [
+    {
+      "path": "scripts/run_rwkv_e2e_benchmark.py",
+      "sha256": "7f56fc1c50c415fd9e6f4572e25d40d777ea06e5ec29f8610c40b71f12263ee6"
+    },
+    {
+      "path": "tests/test_benchmark_protocol_boundary.py",
+      "sha256": "31e838540e0ed698c1a5e5f2c43811ce308ef00a59ab53304cd28a34c75b0fe9"
+    }
+  ],
+  "red": {
+    "command": ".venv/bin/python -m pytest -q tests/test_benchmark_protocol_boundary.py --basetemp=data/test_runs/metadata_r1",
+    "result": "5 failed: source hashing and suite metadata opened resources outside the selected boundary",
+    "path": "BENCHMARK_METADATA_RED.log",
+    "sha256": "a451c170aa302e2a4fdbc1b2dabe0949b54465c8c99a0006136fc990840218dc"
+  },
+  "green": {
+    "command": ".venv/bin/python -m pytest -q tests/test_benchmark_protocol_boundary.py tests/test_retired_role_data_chain.py --basetemp=data/test_runs/metadata_r1",
+    "result": "8 passed in 0.19s",
+    "path": "BENCHMARK_METADATA_GREEN.log",
+    "sha256": "54dbfec11e7faf703fad2a78ddcc7c5a48d8b50115e9cf9df7f1177b60ddde98"
+  },
+  "actual_holdout_data_or_results_read": 0,
+  "model_calls": 0,
+  "full_suite_validation": "owned by main agent after integration"
+}

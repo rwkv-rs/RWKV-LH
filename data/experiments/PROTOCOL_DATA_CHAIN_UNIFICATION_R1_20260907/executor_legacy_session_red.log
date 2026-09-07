@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_independent_executor_session_requires_current_protocol_source[False] ___
+
+native = False
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_session_requires_current_protocol_source(native: bool) -> None:
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([]), settings=settings())
+            if native else ModelSession(QueueClient([]), settings=settings())
+        )
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, "Read the registered file", (),
+            independent_tool_selector=True,
+        )
+>       with pytest.raises(ModelIOError, match="current Executor protocol source"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ModelIOError
+
+tests/test_model_session.py:457: Failed
+___ test_independent_executor_session_requires_current_protocol_source[True] ___
+
+native = True
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_session_requires_current_protocol_source(native: bool) -> None:
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([]), settings=settings())
+            if native else ModelSession(QueueClient([]), settings=settings())
+        )
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, "Read the registered file", (),
+            independent_tool_selector=True,
+        )
+>       with pytest.raises(ModelIOError, match="current Executor protocol source"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ModelIOError
+
+tests/test_model_session.py:457: Failed
+=========================== short test summary info ============================
+FAILED tests/test_model_session.py::test_independent_executor_session_requires_current_protocol_source[False]
+FAILED tests/test_model_session.py::test_independent_executor_session_requires_current_protocol_source[True]
+2 failed, 63 deselected in 0.67s

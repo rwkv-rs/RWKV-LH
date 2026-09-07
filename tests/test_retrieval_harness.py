@@ -49,7 +49,7 @@ def _envelope(
     snapshot = "Official ledger: build-3134 is ready for staged deployment."
     span = EvidenceSpan.create(
         text="build-3134 is ready for staged deployment",
-        locator={"start_char": 17, "end_char": 59},
+        locator={"start_char": 17, "end_char": 58},
     )
     record = EvidenceRecord.create(
         source_object=SourceObject.create(
@@ -158,7 +158,7 @@ def test_external_evidence_round_trip_is_content_addressed_and_exact() -> None:
 
     damaged = envelope.to_dict()
     damaged["records"][0]["exact_spans"][0]["text"] = "invented"
-    with pytest.raises(ValueError, match="span id"):
+    with pytest.raises(ValueError, match="character range|span id"):
         ExternalEvidenceEnvelope.from_dict(damaged)
 
     rerouted = envelope.to_dict()

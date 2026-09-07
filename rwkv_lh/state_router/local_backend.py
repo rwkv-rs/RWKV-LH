@@ -28,7 +28,7 @@ DEFAULT_ROUTER_COMPATIBILITY_SHA256 = (
     "ddd321386a9d45ded66f4805a823bf5135d2681c7f1231053361255ad6561f10"
 )
 DEFAULT_VLLM_RWKV_PYTHON = DEFAULT_VLLM_RWKV_ROOT / ".venv/bin/python"
-DEFAULT_RUNTIME_TEMP = ROOT / "temp/vllm-rwkv-runtime"
+DEFAULT_RUNTIME_TEMP = ROOT / "data/runtime/vllm-rwkv"
 LOCAL_BACKEND_VERSION = "rwkv-lh.local-vllm-rwkv.v1"
 WORKER_REQUEST_SCHEMA = "rwkv-lh.state-router-vllm-worker-request.v1"
 WORKER_RESPONSE_SCHEMA = "rwkv-lh.state-router-vllm-worker-response.v1"
@@ -530,7 +530,7 @@ class LocalVLLMRWKVExtractor:
             "max_tokens": self.settings.max_tokens,
             "wkv_mode": self.settings.wkv_mode,
         }
-        temp_root = ROOT / "temp"
+        temp_root = self.settings.runtime_temp.resolve()
         temp_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(
             prefix="state-router-vllm-", dir=temp_root

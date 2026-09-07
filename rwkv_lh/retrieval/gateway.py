@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -116,6 +117,13 @@ class LiveRetrievalBackend:
                     locator={
                         "start_char": chunk.start_char,
                         "end_char": chunk.end_char,
+                        "start_byte": len(
+                            clean[: chunk.start_char].encode("utf-8")
+                        ),
+                        "end_byte": len(clean[: chunk.end_char].encode("utf-8")),
+                        "content_sha256": hashlib.sha256(
+                            chunk.text.encode("utf-8")
+                        ).hexdigest(),
                         "chunk_index": chunk.index,
                         "snapshot_digest": snapshot.snapshot_digest,
                     },

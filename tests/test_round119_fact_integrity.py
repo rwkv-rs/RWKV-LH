@@ -210,6 +210,33 @@ def test_move_file_moves_bytes_and_is_non_idempotent(tmp_path: Path) -> None:
     assert definition.side_effect is True
 
 
+def test_move_file_rejects_same_resolved_source_and_destination(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "pricing.py"
+    source.write_text("original\n", encoding="utf-8")
+    harness = ActionHarness(sandbox_commands=False)
+    goal = LongHorizonModel(harness=harness).create_literal_goal(
+        "Keep the workspace scoped.",
+        str(workspace),
+    )
+
+    result = harness.execute(
+        TaskAction(
+            "move_file",
+            {"source": "pricing.py", "destination": "./pricing.py"},
+        ),
+        goal,
+    )
+
+    assert result.success is False
+    assert result.error == {
+        "type": "HarnessError",
+        "message": "move_file source and destination must resolve to different paths",
+    }
+    assert source.read_text(encoding="utf-8") == "original\n"
+
+
 def test_file_digest_reports_exact_sha256(tmp_path: Path) -> None:
     controller, _, workspace, _ = build(
         tmp_path,

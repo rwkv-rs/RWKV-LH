@@ -100,6 +100,55 @@ class _AdvanceModel:
         ).reshape(tokens.shape[0], tokens.shape[1], 4)
 
 
+class _SuffixChoiceTokenizer:
+    @staticmethod
+    def encode(text: str, **kwargs: object) -> list[int]:
+        add_special_tokens = bool(kwargs["add_special_tokens"])
+        values = {
+            "prompt": [1],
+            "suffix-a": [2, 3],
+            "suffix-b": [2, 4],
+            "promptsuffix-a": [1, 2, 3],
+            "promptsuffix-b": [1, 2, 4],
+            "bad": [9],
+            "promptbad": [1, 8],
+        }
+        result = list(values[text])
+        return ([0] + result) if add_special_tokens else result
+
+
+class _SuffixChoiceModel:
+    calls: list[list[int]] = []
+
+    @staticmethod
+    def zero_state(batch_size: int):
+        return [
+            torch.zeros((1, 1, batch_size, 2)),
+            torch.zeros((1, batch_size, 1, 2, 2)),
+            torch.zeros((batch_size,), dtype=torch.int32),
+        ]
+
+    @classmethod
+    def forward_all_hidden(
+        cls, tokens: torch.Tensor, state: list[torch.Tensor]
+    ) -> torch.Tensor:
+        cls.calls.append([int(value) for value in tokens.flatten().tolist()])
+        state[2].add_(tokens.shape[1])
+        return tokens.float().unsqueeze(-1)
+
+    @staticmethod
+    def project_logits_fp32(hidden: torch.Tensor) -> torch.Tensor:
+        logits = torch.full((hidden.shape[0], 8), -10.0)
+        previous = hidden[:, 0].to(dtype=torch.long)
+        for row, token_id in enumerate(previous.tolist()):
+            if token_id == 1:
+                logits[row, 2] = 5.0
+            elif token_id == 2:
+                logits[row, 3] = 4.0
+                logits[row, 4] = 1.0
+        return logits
+
+
 def test_tuned_wkv_state_is_copied_to_each_batch_row_without_touching_other_state() -> None:
     extractor = PersistentVLLMRWKVExtractor(LocalVLLMRWKVSettings())
     extractor._model = _FakeModel()
@@ -267,6 +316,56 @@ def test_persistent_suffix_views_reject_nonadditive_token_boundary(
             suffix_start=len("prefix"),
             parent_state=parent,
             continuation=True,
+        )
+
+
+def test_native_suffix_evaluation_uses_one_prompt_forward_and_three_state_clones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extractor = PersistentVLLMRWKVExtractor(LocalVLLMRWKVSettings(max_tokens=32))
+    extractor._model = _SuffixChoiceModel()
+    extractor._tokenizer = _SuffixChoiceTokenizer()
+    extractor._runtime = {}
+    _SuffixChoiceModel.calls = []
+    monkeypatch.setattr(extractor, "load", lambda: None)
+    monkeypatch.setattr(extractor, "_load_base_identity", lambda: {})
+    original_tensor = torch.tensor
+    monkeypatch.setattr(
+        torch,
+        "tensor",
+        lambda *args, **kwargs: original_tensor(
+            *args, **{key: value for key, value in kwargs.items() if key != "device"}
+        ),
+    )
+
+    result, identity = extractor.evaluate_suffix_choices(
+        "prompt",
+        expected_label="a",
+        candidate_suffixes={"a": "suffix-a", "b": "suffix-b"},
+    )
+
+    assert _SuffixChoiceModel.calls.count([0, 1]) == 1
+    assert result["eligible_trie"]["predicted_label"] == "a"
+    assert result["eligible_trie"]["correct"] is True
+    assert result["unrestricted_greedy"]["expected_length_exact"] is True
+    assert result["teacher_forced"]["sequence_exact"] is True
+    assert result["teacher_forced"]["token_top1_correct"] == 2
+    assert identity["post_prompt_state_clones"] == 3
+
+
+def test_native_suffix_evaluation_rejects_nonadditive_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extractor = PersistentVLLMRWKVExtractor(LocalVLLMRWKVSettings(max_tokens=32))
+    extractor._model = _SuffixChoiceModel()
+    extractor._tokenizer = _SuffixChoiceTokenizer()
+    monkeypatch.setattr(extractor, "load", lambda: None)
+
+    with pytest.raises(ValueError, match="not an exact additive suffix"):
+        extractor.evaluate_suffix_choices(
+            "prompt",
+            expected_label="a",
+            candidate_suffixes={"a": "bad"},
         )
 
 

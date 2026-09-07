@@ -1,0 +1,546 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+__________ test_source_manifest_never_hashes_benchmark_dataset_files ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_source_manifest_never_has0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4b752010f0>
+
+    def test_source_manifest_never_hashes_benchmark_dataset_files(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        source = tmp_path / "scripts/runner.py"
+        source.parent.mkdir()
+        source.write_text("# fixture source\n", encoding="utf-8")
+        protected = tmp_path / "benchmarks/isolated/tasks.json"
+        protected.parent.mkdir(parents=True)
+        protected.write_text("unused fixture\n", encoding="utf-8")
+        original_read_bytes = Path.read_bytes
+    
+        def guarded_read_bytes(path: Path) -> bytes:
+            if path == protected:
+                raise AssertionError("source manifest opened a benchmark task resource")
+            return original_read_bytes(path)
+    
+        monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+        monkeypatch.setattr(
+            benchmark,
+            "_git_output",
+            lambda *args: "scripts/runner.py\nbenchmarks/isolated/tasks.json\n",
+        )
+    
+>       manifest = benchmark._source_tree_manifest(tmp_path)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_benchmark_protocol_boundary.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/run_rwkv_e2e_benchmark.py:985: in _source_tree_manifest
+    "sha256": _file_sha256(path),
+              ^^^^^^^^^^^^^^^^^^
+scripts/run_rwkv_e2e_benchmark.py:953: in _file_sha256
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+                          ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_source_manifest_never_has0/benchmarks/isolated/tasks.json')
+
+    def guarded_read_bytes(path: Path) -> bytes:
+        if path == protected:
+>           raise AssertionError("source manifest opened a benchmark task resource")
+E           AssertionError: source manifest opened a benchmark task resource
+
+tests/test_benchmark_protocol_boundary.py:27: AssertionError
+_ test_metadata_reads_only_explicitly_selected_suite_resources[agentladderv1-expected_keys0] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_metadata_reads_only_expli0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4b7540ac40>
+suite_key = 'agentladderv1', expected_keys = ('agentladderv1',)
+
+    @pytest.mark.parametrize(
+        ("suite_key", "expected_keys"),
+        (
+            ("agentladderv1", ("agentladderv1",)),
+            ("core30", ("core30",)),
+            ("all", benchmark.FORMAL90_SUITE_KEYS),
+            ("realagentholdoutv2", ("realagentholdoutv2",)),
+        ),
+    )
+    def test_metadata_reads_only_explicitly_selected_suite_resources(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        suite_key: str,
+        expected_keys: tuple[str, ...],
+    ) -> None:
+        repository = tmp_path / "repository"
+        runner = repository / "scripts/run_fixture.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("# fake benchmark runner\n", encoding="utf-8")
+        vocabulary = repository / "rwkv_lh/vocabulary.txt"
+        vocabulary.parent.mkdir()
+        vocabulary.write_text("fixture vocabulary\n", encoding="utf-8")
+        reference = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+        reference.parent.mkdir(parents=True)
+        reference.write_text("{}\n", encoding="utf-8")
+        output = repository / "run"
+        output.mkdir()
+        accessed_resources: list[tuple[str, str]] = []
+        git_calls: list[tuple[str, ...]] = []
+        reference_reads: list[Path] = []
+        original_read_bytes = Path.read_bytes
+    
+        class FixtureResource:
+            def __init__(self, key: str, name: str) -> None:
+                self.key = key
+                self.name = name
+    
+            def __str__(self) -> str:
+                return str(repository / "benchmarks" / self.key / self.name)
+    
+            def read_bytes(self) -> bytes:
+                if self.key not in expected_keys:
+                    raise AssertionError(f"unselected suite was opened: {self.key}")
+                accessed_resources.append((self.key, self.name))
+                return f"fixture resource {self.key}/{self.name}".encode("utf-8")
+    
+        def guarded_read_bytes(path: Path) -> bytes:
+            if path == reference:
+                if not set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS):
+                    raise AssertionError("non-formal suite opened E2E-90 reference answers")
+                reference_reads.append(path)
+            return original_read_bytes(path)
+    
+        def git_output(*args: str) -> str:
+            git_calls.append(args)
+            if args[0] == "ls-files":
+                return "scripts/run_fixture.py\n"
+            if args[0] == "rev-parse":
+                return "fixture-commit\n"
+            return ""
+    
+        monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+        monkeypatch.setattr(benchmark, "__file__", str(runner))
+        monkeypatch.setattr(benchmark, "VOCAB_PATH", vocabulary)
+        monkeypatch.setattr(benchmark, "_git_output", git_output)
+        monkeypatch.setattr(
+            benchmark,
+            "get_runtime_settings",
+            lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture"),
+        )
+        monkeypatch.setattr(
+            benchmark,
+            "suite_resources",
+            lambda definition: (
+                FixtureResource(definition.key, "tasks.json"),
+                FixtureResource(definition.key, "acceptance.json"),
+            ),
+        )
+        monkeypatch.setattr(executor_args_v4, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+        arguments = argparse.Namespace(
+            suite=suite_key,
+            retry_failures_from=None,
+            max_transitions=5,
+            concurrency=1,
+            stateful_goal=False,
+            supervisor_strategy="static",
+            supervisor_pending_resume_attempts=0,
+        )
+        tasks = [{"task_id": "fixture-case", "level": "basic"}]
+    
+>       benchmark._write_run_metadata(
+            output,
+            arguments=arguments,
+            suite_title="fixture suite",
+            tasks=tasks,
+            selected=tasks,
+            health={},
+            capabilities={},
+            selector_identity={"fixture_identity": "configured"},
+        )
+
+tests/test_benchmark_protocol_boundary.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/run_rwkv_e2e_benchmark.py:1210: in _write_run_metadata
+    "sha256": hashlib.sha256(task_resource.read_bytes()).hexdigest(),
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_benchmark_protocol_boundary.test_metadata_reads_only_explicitly_selected_suite_resources.<locals>.FixtureResource object at 0x7d4b751c63c0>
+
+    def read_bytes(self) -> bytes:
+        if self.key not in expected_keys:
+>           raise AssertionError(f"unselected suite was opened: {self.key}")
+E           AssertionError: unselected suite was opened: core30
+
+tests/test_benchmark_protocol_boundary.py:84: AssertionError
+_ test_metadata_reads_only_explicitly_selected_suite_resources[core30-expected_keys1] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_metadata_reads_only_expli1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4b7522e210>
+suite_key = 'core30', expected_keys = ('core30',)
+
+    @pytest.mark.parametrize(
+        ("suite_key", "expected_keys"),
+        (
+            ("agentladderv1", ("agentladderv1",)),
+            ("core30", ("core30",)),
+            ("all", benchmark.FORMAL90_SUITE_KEYS),
+            ("realagentholdoutv2", ("realagentholdoutv2",)),
+        ),
+    )
+    def test_metadata_reads_only_explicitly_selected_suite_resources(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        suite_key: str,
+        expected_keys: tuple[str, ...],
+    ) -> None:
+        repository = tmp_path / "repository"
+        runner = repository / "scripts/run_fixture.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("# fake benchmark runner\n", encoding="utf-8")
+        vocabulary = repository / "rwkv_lh/vocabulary.txt"
+        vocabulary.parent.mkdir()
+        vocabulary.write_text("fixture vocabulary\n", encoding="utf-8")
+        reference = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+        reference.parent.mkdir(parents=True)
+        reference.write_text("{}\n", encoding="utf-8")
+        output = repository / "run"
+        output.mkdir()
+        accessed_resources: list[tuple[str, str]] = []
+        git_calls: list[tuple[str, ...]] = []
+        reference_reads: list[Path] = []
+        original_read_bytes = Path.read_bytes
+    
+        class FixtureResource:
+            def __init__(self, key: str, name: str) -> None:
+                self.key = key
+                self.name = name
+    
+            def __str__(self) -> str:
+                return str(repository / "benchmarks" / self.key / self.name)
+    
+            def read_bytes(self) -> bytes:
+                if self.key not in expected_keys:
+                    raise AssertionError(f"unselected suite was opened: {self.key}")
+                accessed_resources.append((self.key, self.name))
+                return f"fixture resource {self.key}/{self.name}".encode("utf-8")
+    
+        def guarded_read_bytes(path: Path) -> bytes:
+            if path == reference:
+                if not set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS):
+                    raise AssertionError("non-formal suite opened E2E-90 reference answers")
+                reference_reads.append(path)
+            return original_read_bytes(path)
+    
+        def git_output(*args: str) -> str:
+            git_calls.append(args)
+            if args[0] == "ls-files":
+                return "scripts/run_fixture.py\n"
+            if args[0] == "rev-parse":
+                return "fixture-commit\n"
+            return ""
+    
+        monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+        monkeypatch.setattr(benchmark, "__file__", str(runner))
+        monkeypatch.setattr(benchmark, "VOCAB_PATH", vocabulary)
+        monkeypatch.setattr(benchmark, "_git_output", git_output)
+        monkeypatch.setattr(
+            benchmark,
+            "get_runtime_settings",
+            lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture"),
+        )
+        monkeypatch.setattr(
+            benchmark,
+            "suite_resources",
+            lambda definition: (
+                FixtureResource(definition.key, "tasks.json"),
+                FixtureResource(definition.key, "acceptance.json"),
+            ),
+        )
+        monkeypatch.setattr(executor_args_v4, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+        arguments = argparse.Namespace(
+            suite=suite_key,
+            retry_failures_from=None,
+            max_transitions=5,
+            concurrency=1,
+            stateful_goal=False,
+            supervisor_strategy="static",
+            supervisor_pending_resume_attempts=0,
+        )
+        tasks = [{"task_id": "fixture-case", "level": "basic"}]
+    
+>       benchmark._write_run_metadata(
+            output,
+            arguments=arguments,
+            suite_title="fixture suite",
+            tasks=tasks,
+            selected=tasks,
+            health={},
+            capabilities={},
+            selector_identity={"fixture_identity": "configured"},
+        )
+
+tests/test_benchmark_protocol_boundary.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/run_rwkv_e2e_benchmark.py:1210: in _write_run_metadata
+    "sha256": hashlib.sha256(task_resource.read_bytes()).hexdigest(),
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_benchmark_protocol_boundary.test_metadata_reads_only_explicitly_selected_suite_resources.<locals>.FixtureResource object at 0x7d4b751bb390>
+
+    def read_bytes(self) -> bytes:
+        if self.key not in expected_keys:
+>           raise AssertionError(f"unselected suite was opened: {self.key}")
+E           AssertionError: unselected suite was opened: lh12
+
+tests/test_benchmark_protocol_boundary.py:84: AssertionError
+_ test_metadata_reads_only_explicitly_selected_suite_resources[all-expected_keys2] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_metadata_reads_only_expli2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4b750f8270>
+suite_key = 'all', expected_keys = ('core30', 'lh12', 'extension48')
+
+    @pytest.mark.parametrize(
+        ("suite_key", "expected_keys"),
+        (
+            ("agentladderv1", ("agentladderv1",)),
+            ("core30", ("core30",)),
+            ("all", benchmark.FORMAL90_SUITE_KEYS),
+            ("realagentholdoutv2", ("realagentholdoutv2",)),
+        ),
+    )
+    def test_metadata_reads_only_explicitly_selected_suite_resources(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        suite_key: str,
+        expected_keys: tuple[str, ...],
+    ) -> None:
+        repository = tmp_path / "repository"
+        runner = repository / "scripts/run_fixture.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("# fake benchmark runner\n", encoding="utf-8")
+        vocabulary = repository / "rwkv_lh/vocabulary.txt"
+        vocabulary.parent.mkdir()
+        vocabulary.write_text("fixture vocabulary\n", encoding="utf-8")
+        reference = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+        reference.parent.mkdir(parents=True)
+        reference.write_text("{}\n", encoding="utf-8")
+        output = repository / "run"
+        output.mkdir()
+        accessed_resources: list[tuple[str, str]] = []
+        git_calls: list[tuple[str, ...]] = []
+        reference_reads: list[Path] = []
+        original_read_bytes = Path.read_bytes
+    
+        class FixtureResource:
+            def __init__(self, key: str, name: str) -> None:
+                self.key = key
+                self.name = name
+    
+            def __str__(self) -> str:
+                return str(repository / "benchmarks" / self.key / self.name)
+    
+            def read_bytes(self) -> bytes:
+                if self.key not in expected_keys:
+                    raise AssertionError(f"unselected suite was opened: {self.key}")
+                accessed_resources.append((self.key, self.name))
+                return f"fixture resource {self.key}/{self.name}".encode("utf-8")
+    
+        def guarded_read_bytes(path: Path) -> bytes:
+            if path == reference:
+                if not set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS):
+                    raise AssertionError("non-formal suite opened E2E-90 reference answers")
+                reference_reads.append(path)
+            return original_read_bytes(path)
+    
+        def git_output(*args: str) -> str:
+            git_calls.append(args)
+            if args[0] == "ls-files":
+                return "scripts/run_fixture.py\n"
+            if args[0] == "rev-parse":
+                return "fixture-commit\n"
+            return ""
+    
+        monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+        monkeypatch.setattr(benchmark, "__file__", str(runner))
+        monkeypatch.setattr(benchmark, "VOCAB_PATH", vocabulary)
+        monkeypatch.setattr(benchmark, "_git_output", git_output)
+        monkeypatch.setattr(
+            benchmark,
+            "get_runtime_settings",
+            lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture"),
+        )
+        monkeypatch.setattr(
+            benchmark,
+            "suite_resources",
+            lambda definition: (
+                FixtureResource(definition.key, "tasks.json"),
+                FixtureResource(definition.key, "acceptance.json"),
+            ),
+        )
+        monkeypatch.setattr(executor_args_v4, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+        arguments = argparse.Namespace(
+            suite=suite_key,
+            retry_failures_from=None,
+            max_transitions=5,
+            concurrency=1,
+            stateful_goal=False,
+            supervisor_strategy="static",
+            supervisor_pending_resume_attempts=0,
+        )
+        tasks = [{"task_id": "fixture-case", "level": "basic"}]
+    
+>       benchmark._write_run_metadata(
+            output,
+            arguments=arguments,
+            suite_title="fixture suite",
+            tasks=tasks,
+            selected=tasks,
+            health={},
+            capabilities={},
+            selector_identity={"fixture_identity": "configured"},
+        )
+
+tests/test_benchmark_protocol_boundary.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/run_rwkv_e2e_benchmark.py:1210: in _write_run_metadata
+    "sha256": hashlib.sha256(task_resource.read_bytes()).hexdigest(),
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_benchmark_protocol_boundary.test_metadata_reads_only_explicitly_selected_suite_resources.<locals>.FixtureResource object at 0x7d4b750f8380>
+
+    def read_bytes(self) -> bytes:
+        if self.key not in expected_keys:
+>           raise AssertionError(f"unselected suite was opened: {self.key}")
+E           AssertionError: unselected suite was opened: agentv1
+
+tests/test_benchmark_protocol_boundary.py:84: AssertionError
+_ test_metadata_reads_only_explicitly_selected_suite_resources[realagentholdoutv2-expected_keys3] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/metadata_r1/test_metadata_reads_only_expli3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4b750f87c0>
+suite_key = 'realagentholdoutv2', expected_keys = ('realagentholdoutv2',)
+
+    @pytest.mark.parametrize(
+        ("suite_key", "expected_keys"),
+        (
+            ("agentladderv1", ("agentladderv1",)),
+            ("core30", ("core30",)),
+            ("all", benchmark.FORMAL90_SUITE_KEYS),
+            ("realagentholdoutv2", ("realagentholdoutv2",)),
+        ),
+    )
+    def test_metadata_reads_only_explicitly_selected_suite_resources(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        suite_key: str,
+        expected_keys: tuple[str, ...],
+    ) -> None:
+        repository = tmp_path / "repository"
+        runner = repository / "scripts/run_fixture.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("# fake benchmark runner\n", encoding="utf-8")
+        vocabulary = repository / "rwkv_lh/vocabulary.txt"
+        vocabulary.parent.mkdir()
+        vocabulary.write_text("fixture vocabulary\n", encoding="utf-8")
+        reference = repository / "data/datasets/rwkv_e2e_90_v1/codex_reference_answers.json"
+        reference.parent.mkdir(parents=True)
+        reference.write_text("{}\n", encoding="utf-8")
+        output = repository / "run"
+        output.mkdir()
+        accessed_resources: list[tuple[str, str]] = []
+        git_calls: list[tuple[str, ...]] = []
+        reference_reads: list[Path] = []
+        original_read_bytes = Path.read_bytes
+    
+        class FixtureResource:
+            def __init__(self, key: str, name: str) -> None:
+                self.key = key
+                self.name = name
+    
+            def __str__(self) -> str:
+                return str(repository / "benchmarks" / self.key / self.name)
+    
+            def read_bytes(self) -> bytes:
+                if self.key not in expected_keys:
+                    raise AssertionError(f"unselected suite was opened: {self.key}")
+                accessed_resources.append((self.key, self.name))
+                return f"fixture resource {self.key}/{self.name}".encode("utf-8")
+    
+        def guarded_read_bytes(path: Path) -> bytes:
+            if path == reference:
+                if not set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS):
+                    raise AssertionError("non-formal suite opened E2E-90 reference answers")
+                reference_reads.append(path)
+            return original_read_bytes(path)
+    
+        def git_output(*args: str) -> str:
+            git_calls.append(args)
+            if args[0] == "ls-files":
+                return "scripts/run_fixture.py\n"
+            if args[0] == "rev-parse":
+                return "fixture-commit\n"
+            return ""
+    
+        monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+        monkeypatch.setattr(benchmark, "__file__", str(runner))
+        monkeypatch.setattr(benchmark, "VOCAB_PATH", vocabulary)
+        monkeypatch.setattr(benchmark, "_git_output", git_output)
+        monkeypatch.setattr(
+            benchmark,
+            "get_runtime_settings",
+            lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture"),
+        )
+        monkeypatch.setattr(
+            benchmark,
+            "suite_resources",
+            lambda definition: (
+                FixtureResource(definition.key, "tasks.json"),
+                FixtureResource(definition.key, "acceptance.json"),
+            ),
+        )
+        monkeypatch.setattr(executor_args_v4, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+        arguments = argparse.Namespace(
+            suite=suite_key,
+            retry_failures_from=None,
+            max_transitions=5,
+            concurrency=1,
+            stateful_goal=False,
+            supervisor_strategy="static",
+            supervisor_pending_resume_attempts=0,
+        )
+        tasks = [{"task_id": "fixture-case", "level": "basic"}]
+    
+>       benchmark._write_run_metadata(
+            output,
+            arguments=arguments,
+            suite_title="fixture suite",
+            tasks=tasks,
+            selected=tasks,
+            health={},
+            capabilities={},
+            selector_identity={"fixture_identity": "configured"},
+        )
+
+tests/test_benchmark_protocol_boundary.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/run_rwkv_e2e_benchmark.py:1210: in _write_run_metadata
+    "sha256": hashlib.sha256(task_resource.read_bytes()).hexdigest(),
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_benchmark_protocol_boundary.test_metadata_reads_only_explicitly_selected_suite_resources.<locals>.FixtureResource object at 0x7d4b751c5be0>
+
+    def read_bytes(self) -> bytes:
+        if self.key not in expected_keys:
+>           raise AssertionError(f"unselected suite was opened: {self.key}")
+E           AssertionError: unselected suite was opened: core30
+
+tests/test_benchmark_protocol_boundary.py:84: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_benchmark_protocol_boundary.py::test_source_manifest_never_hashes_benchmark_dataset_files
+FAILED tests/test_benchmark_protocol_boundary.py::test_metadata_reads_only_explicitly_selected_suite_resources[agentladderv1-expected_keys0]
+FAILED tests/test_benchmark_protocol_boundary.py::test_metadata_reads_only_explicitly_selected_suite_resources[core30-expected_keys1]
+FAILED tests/test_benchmark_protocol_boundary.py::test_metadata_reads_only_explicitly_selected_suite_resources[all-expected_keys2]
+FAILED tests/test_benchmark_protocol_boundary.py::test_metadata_reads_only_explicitly_selected_suite_resources[realagentholdoutv2-expected_keys3]
+5 failed in 0.16s

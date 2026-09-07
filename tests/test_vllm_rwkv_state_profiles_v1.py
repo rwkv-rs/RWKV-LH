@@ -118,6 +118,56 @@ def test_profiles_are_pinned_preloaded_and_selected_per_request(tmp_path: Path):
     assert profiles.resolve(None).profile_id == "zero"
 
 
+def test_peft_value_key_layout_is_transposed_once_for_fla_runtime(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "asymmetric.pth"
+    portable = torch.arange(64 * 64, dtype=torch.float32).reshape(64, 64)
+    portable = portable.to(dtype=torch.bfloat16)
+    torch.save(
+        {
+            f"blocks.{layer}.att.time_state": portable.add(layer).unsqueeze(0)
+            for layer in range(2)
+        },
+        state_path,
+    )
+    state_digest = hashlib.sha256(state_path.read_bytes()).hexdigest()
+    manifest = tmp_path / "profiles.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "vllm.rwkv7-state-profiles.v1",
+                "model_artifact": "/models/rwkv-13.3b.pth",
+                "model_revision": "runtime",
+                "default_profile": "zero",
+                "profiles": [
+                    {
+                        "id": "asymmetric",
+                        "format": "rwkv-peft-time-state.v1",
+                        "path": state_path.name,
+                        "sha256": state_digest,
+                    }
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+    profiles = _load(
+        manifest,
+        manifest_digest,
+        total_num_heads=1,
+        num_heads=1,
+    )
+    runtime = profiles.resolve("asymmetric").wkv_state
+
+    assert runtime is not None
+    assert torch.equal(runtime[0, 0], portable.float().transpose(0, 1))
+    assert not torch.equal(runtime[0, 0], portable.float())
+
+
 def test_manifest_requires_an_explicit_request_profile_pair(tmp_path: Path):
     manifest, manifest_digest, _ = _write_manifest(
         tmp_path, {"executor": 2.0}

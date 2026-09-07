@@ -1,0 +1,58 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_independent_executor_fork_preserves_the_required_input_contract[False] __
+
+native = False
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_fork_preserves_the_required_input_contract(native: bool) -> None:
+        output = '{"function":"read_file","params":{"path":"README.md"}}'
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+            if native else ModelSession(QueueClient([output]), settings=settings())
+        )
+        source = _executor_input_source()
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, source["current_requirement"], (),
+            independent_tool_selector=True,
+        )
+        assignment = ModelEvent(
+            event_type="task_assignment", event_id="EV-EXECUTOR-FORK",
+            scope_id=checkpoint.lane_id, payload={"task": "Continue the recorded file read"},
+        )
+        child = session.fork(checkpoint, ModelLaneKind.ACTION, assignment)
+>       with pytest.raises(ModelIOError, match="current Executor protocol source"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ModelIOError
+
+tests/test_model_session.py:532: Failed
+__ test_independent_executor_fork_preserves_the_required_input_contract[True] __
+
+native = True
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_independent_executor_fork_preserves_the_required_input_contract(native: bool) -> None:
+        output = '{"function":"read_file","params":{"path":"README.md"}}'
+        session = (
+            NativeRWKVModelSession(FakeNativeStateClient([output]), settings=settings())
+            if native else ModelSession(QueueClient([output]), settings=settings())
+        )
+        source = _executor_input_source()
+        checkpoint = session.bootstrap(
+            ModelLaneKind.ACTION, source["current_requirement"], (),
+            independent_tool_selector=True,
+        )
+        assignment = ModelEvent(
+            event_type="task_assignment", event_id="EV-EXECUTOR-FORK",
+            scope_id=checkpoint.lane_id, payload={"task": "Continue the recorded file read"},
+        )
+        child = session.fork(checkpoint, ModelLaneKind.ACTION, assignment)
+>       with pytest.raises(ModelIOError, match="current Executor protocol source"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ModelIOError
+
+tests/test_model_session.py:532: Failed
+=========================== short test summary info ============================
+FAILED tests/test_model_session.py::test_independent_executor_fork_preserves_the_required_input_contract[False]
+FAILED tests/test_model_session.py::test_independent_executor_fork_preserves_the_required_input_contract[True]
+2 failed, 66 deselected in 0.67s

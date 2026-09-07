@@ -1,0 +1,41 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model ___
+
+tmp_path = PosixPath('/tmp/pytest-of-chase/pytest-246/test_http_api_serves_ui_capabi0')
+
+    def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tmp_path: Path) -> None:
+        repository = ManualRunRepository(tmp_path)
+        server = build_server("127.0.0.1", 0, tmp_path)
+        fake = FakeManager(repository)
+        server.repository = repository
+        server.manager = fake  # type: ignore[assignment]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            status, capabilities = request_json(base + "/api/capabilities")
+            assert status == 200
+>           assert capabilities["latest_formal"] is None
+E           AssertionError: assert {'round': 'Round46', 'strict': '31/90', 'external': '32/90', 'false_positive': 24, ...} is None
+
+tests/test_web_ui.py:240: AssertionError
+----------------------------- Captured stderr call -----------------------------
+07/Sep/2026 10:10:41 "GET /api/capabilities HTTP/1.1" 200 -
+_____ test_native_runtime_cache_does_not_depend_on_analysis_temp_directory _____
+
+    def test_native_runtime_cache_does_not_depend_on_analysis_temp_directory() -> None:
+        from rwkv_lh.state_router.local_backend import LocalVLLMRWKVSettings
+    
+>       assert LocalVLLMRWKVSettings().runtime_temp.is_relative_to(ROOT / "data/runtime")
+E       AssertionError: assert False
+E        +  where False = is_relative_to((PosixPath('/home/chase/GitHub/RWKV-LH') / 'data/runtime'))
+E        +    where is_relative_to = PosixPath('/home/chase/GitHub/RWKV-LH/temp/vllm-rwkv-runtime').is_relative_to
+E        +      where PosixPath('/home/chase/GitHub/RWKV-LH/temp/vllm-rwkv-runtime') = LocalVLLMRWKVSettings(engine_root=PosixPath('/home/chase/GitHub/vllm-rwkv'), engine_revision='67f0c5996c50dca0ad779da5...sha256='', state_profile_manifest=None, state_profile_manifest_sha256='', state_profile_id='', state_profile_sha256='').runtime_temp
+E        +        where LocalVLLMRWKVSettings(engine_root=PosixPath('/home/chase/GitHub/vllm-rwkv'), engine_revision='67f0c5996c50dca0ad779da5...sha256='', state_profile_manifest=None, state_profile_manifest_sha256='', state_profile_id='', state_profile_sha256='') = <class 'rwkv_lh.state_router.local_backend.LocalVLLMRWKVSettings'>()
+
+tests/test_protocol_contract_inventory.py:71: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_web_ui.py::test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model
+FAILED tests/test_protocol_contract_inventory.py::test_native_runtime_cache_does_not_depend_on_analysis_temp_directory
+2 failed in 0.57s

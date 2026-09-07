@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,33 +16,41 @@ from rwkv_lh.goal_loop_protocol import (
     GOAL_PLAN_PATCH_SCHEMA_VERSION,
     LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
     LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
+    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
     AuditedStep,
     GoalAuditDecision,
     GoalAuditVerdict,
+    GoalObligation,
     GoalPlanPatch,
     GoalPlanStep,
     GoalStageReview,
     GoalStageReviewVerdict,
     RollingGoalPlan,
+    action_mutates_root,
     goal_audit_output_constraints,
     rolling_goal_plan,
     validate_audit_authority,
 )
-from rwkv_lh.exact_tool_selector.network_client import (
-    NETWORK_SELECTOR_SERVICE_RESPONSE_SCHEMA,
-    NetworkExactToolSelectorClient,
-    NetworkExactToolSelectorSettings,
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA,
+    NativeNetworkSelectorClient,
+    NativeNetworkSelectorSettings,
+)
+from rwkv_lh.exact_tool_selector.native_network_protocol import (
+    NATIVE_SELECTOR_DECODER_ID,
+    NATIVE_SELECTOR_DECODER_PROTOCOL,
+    NativeNetworkToolSelection,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
-    NetworkExactToolSelection,
 )
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     goal_frontier_selector_context,
 )
-from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model import LongHorizonModel, ModelProtocolError
+from rwkv_lh.harness import ActionHarness, ActionResult
 from rwkv_lh.model_io import ModelCommand
-from rwkv_lh.model_session import ModelSession
+from rwkv_lh.model_session import InputBudgetError, ModelSession
 from rwkv_lh.product_runtime import (
     build_product_controller,
     supervisor_mode_from_policy,
@@ -52,10 +61,18 @@ from rwkv_lh.retrieval import (
     runtime_policy_document,
 )
 from rwkv_lh.runtime.settings import RuntimeSettings
-from rwkv_lh.schema import GoalState, ModelLaneKind
+from rwkv_lh.schema import (
+    ActionRecord,
+    ActionStatus,
+    GoalState,
+    ModelLaneKind,
+    TaskAction,
+    utc_now,
+)
 from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import SupervisorPolicy
+from rwkv_lh.trace_projection import unresolved_supervisor_pending
 
 
 def test_role_pure_audit_v2_discloses_every_parser_field_invariant() -> None:
@@ -70,6 +87,83 @@ def test_role_pure_audit_v2_discloses_every_parser_field_invariant() -> None:
         "continue requires step_complete true" in item
         for item in active_constraints
     )
+
+
+def test_recent_action_funnel_preserves_complete_negative_json_fact(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "primary.json").write_text('{"value":', encoding="utf-8")
+    goal = LongHorizonModel.create_literal_goal(
+        "Use backup.json when primary.json is not readable JSON.",
+        str(workspace),
+    )
+    result = ActionHarness(sandbox_commands=False).execute(
+        TaskAction("read_json", {"path": "primary.json"}),
+        goal,
+    )
+    state = SimpleNamespace(
+        goal=goal,
+        actions={
+            "A00001": SimpleNamespace(
+                action_id="A00001",
+                sequence=1,
+                action_type="read_json",
+                status=ActionStatus.SUCCEEDED,
+                arguments={"path": "primary.json"},
+                result=result.to_dict(),
+                artifact_refs=(),
+                workspace_digest_after="digest",
+                error=None,
+            )
+        },
+    )
+
+    fact = StatefulGoalLoopController._recent_action_facts(state)[0]
+    packet = json.loads(fact["result_projection"])
+
+    assert len(fact["result_projection"].encode("utf-8")) <= 2400
+    assert packet["metadata"]["valid_json"] is False
+    assert packet["metadata"]["parse_outcome_complete"] is True
+    assert packet["metadata"]["parse_error"]["source_span"]["content"] == '{"value":'
+    assert packet["fact_authority"] == "literal_fields_and_exact_spans_only"
+    assert "digest_and_outcome_only" not in fact["result_projection"]
+
+
+def test_recent_action_facts_bound_multibyte_arguments_instead_of_crashing(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    goal = LongHorizonModel.create_literal_goal("写入中文说明文件。", str(workspace))
+    content = "发布说明：" * 120  # ~600 characters, ~1800 UTF-8 bytes
+    result = ActionHarness(sandbox_commands=False).execute(
+        TaskAction("write_file", {"path": "说明.txt", "content": content}),
+        goal,
+    )
+    state = SimpleNamespace(
+        goal=goal,
+        actions={
+            "A00001": SimpleNamespace(
+                action_id="A00001",
+                sequence=1,
+                action_type="write_file",
+                status=ActionStatus.SUCCEEDED,
+                arguments={"path": "说明.txt", "content": content},
+                result=result.to_dict(),
+                artifact_refs=(),
+                workspace_digest_after="digest",
+                error=None,
+            )
+        },
+    )
+
+    fact = StatefulGoalLoopController._recent_action_facts(state)[0]
+
+    assert len(fact["arguments_projection"].encode("utf-8")) <= 1200
+    assert fact["arguments_truncated"] is True
+    assert "说明.txt" in fact["arguments_projection"]
 
 
 @dataclass
@@ -113,7 +207,7 @@ class _SelectorResponse:
 
 
 class _SelectorHTTP:
-    def __init__(self, settings: NetworkExactToolSelectorSettings, operations: list[str]):
+    def __init__(self, settings: NativeNetworkSelectorSettings, operations: list[str]):
         self.settings = settings
         self.operations = list(operations)
         self.payloads: list[dict] = []
@@ -121,7 +215,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/selector-intent-v2/select")
+        assert url.endswith("/selector-intent-v4/select")
         self.payloads.append(dict(json))
         menu_order_id = str(json.get("menu_order_id") or "")
         if menu_order_id == "canonical":
@@ -130,56 +224,86 @@ class _SelectorHTTP:
             raise AssertionError("non-canonical Selector lane ran before canonical")
         global_peak = self.current_operation
         index = len(self.payloads)
-        logits = [0.0] * len(NETWORK_EXACT_TOOL_LABELS)
-        logits[NETWORK_EXACT_TOOL_LABELS.index(global_peak)] = 10.0
         eligible_labels = tuple(str(item) for item in json["eligible_labels"])
         selected_index = max(
             (
                 NETWORK_EXACT_TOOL_LABELS.index(label)
                 for label in eligible_labels
             ),
-            key=lambda item: (logits[item], -item),
+            key=lambda item: (
+                item == NETWORK_EXACT_TOOL_LABELS.index(global_peak),
+                -item,
+            ),
         )
         operation = NETWORK_EXACT_TOOL_LABELS[selected_index]
-        selection = NetworkExactToolSelection(
+        eligible_token_ids = [
+            100 + NETWORK_EXACT_TOOL_LABELS.index(label)
+            for label in eligible_labels
+        ]
+        selected_token_id = 100 + selected_index
+        selection = NativeNetworkToolSelection(
             selection_id=f"NSEL-{index:04d}",
             trace_id=str(json["trace_id"]),
             selected_operation=operation,
-            logits=tuple(logits),
-            temperature=0.25,
             input_digest=str(json["input_digest"]),
             menu_digest=str(json["menu_digest"]),
             selector_checkpoint_id=f"NSCP-{index:04d}",
             input_token_count=20,
             model=self.settings.model,
             model_sha256=self.settings.model_sha256,
-            head_sha256=self.settings.head_sha256,
+            decoder_id=self.settings.decoder_id,
+            decoder_sha256=self.settings.decoder_sha256,
+            decoder_protocol=self.settings.decoder_protocol,
             profile_id=self.settings.state_profile_id,
             profile_sha256=self.settings.state_profile_sha256,
             eligible_labels=eligible_labels,
+            decoder_trace={
+                "schema_version": "rwkv-lh.native-role-suffix-selection.v1",
+                "candidate_labels": list(eligible_labels),
+                "prompt_token_count": 20,
+                "selected_label": operation,
+                "token_ids": [selected_token_id],
+                "decisions": [
+                    {
+                        "position": 0,
+                        "allowed_token_ids": eligible_token_ids,
+                        "allowed_token_logits": {
+                            str(token_id): (
+                                10.0 if token_id == selected_token_id else 0.0
+                            )
+                            for token_id in eligible_token_ids
+                        },
+                        "chosen_token_id": selected_token_id,
+                        "chosen_token_logit": 10.0,
+                        "chosen_vs_runner_up_margin": (
+                            None if len(eligible_token_ids) == 1 else 10.0
+                        ),
+                    }
+                ],
+            },
         )
         return _SelectorResponse(
             {
-                "schema_version": NETWORK_SELECTOR_SERVICE_RESPONSE_SCHEMA,
+                "schema_version": NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA,
                 "runtime_identity": self.settings.runtime_identity(),
                 "selection": selection.raw_record(),
             }
         )
 
 
-def _selector(operations: list[str]) -> NetworkExactToolSelectorClient:
-    settings = NetworkExactToolSelectorSettings(
+def _selector(operations: list[str]) -> NativeNetworkSelectorClient:
+    settings = NativeNetworkSelectorSettings(
         base_url="http://127.0.0.1:29621",
-        model="test-rwkv-2.9b",
+        model="test-rwkv-g1j-2.9b",
         model_sha256="a" * 64,
-        head_sha256="b" * 64,
-        head_hash="c" * 64,
-        feature_protocol="rwkv-lh.vllm-rwkv-final-hidden-mean.v1",
+        decoder_id=NATIVE_SELECTOR_DECODER_ID,
+        decoder_sha256="b" * 64,
+        decoder_protocol=NATIVE_SELECTOR_DECODER_PROTOCOL,
         state_profile_id="selector-zero-v1",
         state_profile_sha256="d" * 64,
         state_profile_manifest_sha256="e" * 64,
     )
-    return NetworkExactToolSelectorClient(
+    return NativeNetworkSelectorClient(
         settings,
         session=_SelectorHTTP(settings, operations),
     )
@@ -435,6 +559,18 @@ def _audit_call(
     gaps: list[str],
     reason: str,
 ) -> dict:
+    if step_id and verdict in {"continue", "repair"}:
+        reason = (
+            "evidence_complete" if verdict == "continue" else "evidence_incomplete"
+        )
+    elif not step_id and verdict in {"ready_for_final", "repair"}:
+        reason = (
+            "final_evidence_complete"
+            if verdict == "ready_for_final"
+            else "final_evidence_incomplete"
+        )
+        if verdict == "repair" and gaps:
+            gaps = ["candidate_omits_required_result"]
     return {
         "function": "audit_decision",
         "params": {
@@ -664,6 +800,389 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
     assert [step.step_id for step in plan.frontier] == ["S3"]
 
 
+def test_goal_obligation_phases_require_continuation_before_final() -> None:
+    obligation = GoalObligation(
+        obligation_id="O1",
+        predicate="the requested report is grounded and written",
+        required_phases=("observe", "mutate"),
+    )
+    initial = GoalPlanPatch(
+        patch_id="GPP-obligation-observe",
+        base_revision=0,
+        goal_obligations=(obligation,),
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Inspect the source",
+                phase="observe",
+                obligation_ids=("O1",),
+                success_evidence=("source observed",),
+                read_roots=("source.txt",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Observe before writing",
+    )
+    plan = RollingGoalPlan(goal_digest="goal")
+    plan.apply_goal_patch(initial)
+    plan.apply_audit(
+        GoalAuditDecision(
+            audit_id="AUD-observe",
+            verdict=GoalAuditVerdict.CONTINUE,
+            step_id="S1",
+            evidence_refs=("A1",),
+            gaps=(),
+            completed_steps=(AuditedStep("S1", ("A1",)),),
+            reason="source observed",
+        )
+    )
+
+    assert plan.batch_complete is True
+    assert plan.complete is False
+    assert plan.uncovered_obligation_phases == {"O1": ("mutate",)}
+
+    continuation = GoalPlanPatch(
+        patch_id="GPP-obligation-mutate",
+        base_revision=1,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S2",
+                objective="Write the grounded report",
+                phase="mutate",
+                stage=2,
+                depends_on=("S1",),
+                obligation_ids=("O1",),
+                success_evidence=("report written",),
+                write_roots=("report.md",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Cover the remaining mutation phase",
+    )
+    plan.apply_goal_patch(continuation)
+    assert [step.step_id for step in plan.frontier] == ["S2"]
+    plan.apply_audit(
+        GoalAuditDecision(
+            audit_id="AUD-mutate",
+            verdict=GoalAuditVerdict.CONTINUE,
+            step_id="S2",
+            evidence_refs=("A2",),
+            gaps=(),
+            completed_steps=(AuditedStep("S2", ("A2",)),),
+            reason="report written",
+        )
+    )
+    assert plan.complete is True
+    assert plan.uncovered_obligation_phases == {}
+
+
+def test_workspace_target_kinds_compile_exact_observe_menus(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "TYPED-OBSERVE-MENUS")
+    workspace = Path(state.goal.workspace_root)
+    (workspace / "tool.py").write_text("print('ok')\n", encoding="utf-8")
+    (workspace / "config.json").write_text('{"ok": true}\n', encoding="utf-8")
+    (workspace / "invalid.json").write_text("{not-json\n", encoding="utf-8")
+    (workspace / "folder").mkdir()
+    session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
+    model = LongHorizonModel(session, tool_selector=_selector([]))
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+
+    python_operations = controller._goal_step_operations(
+        state,
+        GoalPlanStep(
+            step_id="PY",
+            objective="Inspect tool.py",
+            phase="observe",
+            success_evidence=("tool.py observed",),
+            read_roots=("tool.py",),
+        ),
+    )
+    json_operations = controller._goal_step_operations(
+        state,
+        GoalPlanStep(
+            step_id="JSON",
+            objective="Inspect config.json",
+            phase="observe",
+            success_evidence=("config.json observed",),
+            read_roots=("config.json",),
+        ),
+    )
+    directory_operations = controller._goal_step_operations(
+        state,
+        GoalPlanStep(
+            step_id="DIR",
+            objective="Inspect folder",
+            phase="observe",
+            success_evidence=("folder observed",),
+            read_roots=("folder",),
+        ),
+    )
+    invalid_json_operations = controller._goal_step_operations(
+        state,
+        GoalPlanStep(
+            step_id="INVALID-JSON",
+            objective="Attempt to parse invalid.json and preserve fallback evidence",
+            phase="observe",
+            success_evidence=("invalid.json parse outcome is observed",),
+            read_roots=("invalid.json",),
+        ),
+    )
+
+    assert "read_file" in python_operations
+    assert "read_json" not in python_operations
+    assert "list_directory" not in python_operations
+    assert "read_json" in json_operations
+    assert "read_file" in json_operations
+    assert "list_directory" not in json_operations
+    assert "list_directory" in directory_operations
+    assert "read_file" not in directory_operations
+    assert "read_json" not in directory_operations
+    assert "file_digest" not in directory_operations
+    assert "read_json" in invalid_json_operations
+    assert "read_file" in invalid_json_operations
+    assert model.harness.workspace_target_descriptor(
+        state.goal, "invalid.json"
+    )["target_kind"] == "json_candidate_file"
+
+
+def test_bare_json_scalar_text_file_stays_text_and_directory_write_root_keeps_mutations(
+    tmp_path: Path,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "TYPED-MUTATE-MENUS")
+    workspace = Path(state.goal.workspace_root)
+    (workspace / "VERSION").write_text("2\n", encoding="utf-8")
+    (workspace / "flag.txt").write_text("true\n", encoding="utf-8")
+    (workspace / "data.json").write_text("[1, 2]\n", encoding="utf-8")
+    (workspace / "src").mkdir()
+    (workspace / "src" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
+    model = LongHorizonModel(session, tool_selector=_selector([]))
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+
+    # A plain-text body that happens to parse as a JSON scalar is still text.
+    assert model.harness.workspace_target_descriptor(state.goal, "VERSION")[
+        "target_kind"
+    ] == "text_file"
+    assert model.harness.workspace_target_descriptor(state.goal, "flag.txt")[
+        "target_kind"
+    ] == "text_file"
+    assert model.harness.workspace_target_descriptor(state.goal, "data.json")[
+        "target_kind"
+    ] == "json_file"
+    version_operations = controller._goal_step_operations(
+        state,
+        GoalPlanStep(
+            step_id="VER",
+            objective="Bump VERSION",
+            phase="mutate",
+            success_evidence=("VERSION updated",),
+            write_roots=("VERSION",),
+        ),
+    )
+    assert "append_file" in version_operations
+    assert "replace_text" in version_operations
+
+    # A directory write root authorises creating new files under it, so the
+    # file-writing operations stay eligible and the existing child is typed.
+    operations, contract = controller._goal_step_operation_contract(
+        state,
+        GoalPlanStep(
+            step_id="SRC",
+            objective="Create src/util.py",
+            phase="mutate",
+            success_evidence=("src/util.py exists",),
+            write_roots=("src",),
+        ),
+        mechanical_evidence=None,
+    )
+    assert "write_file" in operations
+    assert "write_json" in operations
+    assert "make_directory" in operations
+    assert "patch_json" not in operations
+    assert contract["compatible_targets_by_operation"]["write_file"] == ["src/app.py"]
+    # write_json has no compatible existing child, so the directory root itself
+    # is the scope hint that keeps new-file creation reachable.
+    assert contract["compatible_targets_by_operation"]["write_json"] == ["src"]
+    assert {"path": "src/app.py", "target_kind": "text_file"} in [
+        {"path": item["path"], "target_kind": item["target_kind"]}
+        for item in contract["target_descriptors"]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("declared_phase", "missing_reads", "missing_writes", "expected_phase"),
+    (
+        ("observe", ("verify_project.py",), (), "observe"),
+        ("mutate", ("verify_project.py",), ("pricing.py",), "observe"),
+        ("mutate", (), ("verify_project.py",), "mutate"),
+    ),
+)
+def test_target_contract_excludes_mechanically_completed_roots(
+    tmp_path: Path,
+    declared_phase: str,
+    missing_reads: tuple[str, ...],
+    missing_writes: tuple[str, ...],
+    expected_phase: str,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "REMAINING-TARGET-CONTRACT")
+    workspace = Path(state.goal.workspace_root)
+    (workspace / "pricing.py").write_text("PRICE = 1\n", encoding="utf-8")
+    (workspace / "verify_project.py").write_text(
+        "print('ok')\n", encoding="utf-8"
+    )
+    model = LongHorizonModel(
+        ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+        tool_selector=_selector([]),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+    step = GoalPlanStep(
+        step_id="MULTI",
+        objective="Inspect and update the relevant implementation files",
+        phase=declared_phase,
+        success_evidence=("both roots have the required evidence",),
+        read_roots=("pricing.py", "verify_project.py"),
+        write_roots=(
+            ("pricing.py", "verify_project.py")
+            if declared_phase == "mutate"
+            else ()
+        ),
+    )
+
+    _operations, contract = controller._goal_step_operation_contract(
+        state,
+        step,
+        mechanical_evidence={
+            "missing_read_roots": list(missing_reads),
+            "missing_write_roots": list(missing_writes),
+        },
+    )
+
+    assert contract["phase"] == expected_phase
+    assert contract["roots"] == ["verify_project.py"]
+    assert {item["path"] for item in contract["target_descriptors"]} == {
+        "verify_project.py"
+    }
+    non_empty_candidates = [
+        candidates
+        for candidates in contract["compatible_targets_by_operation"].values()
+        if candidates
+    ]
+    assert non_empty_candidates
+    assert all(
+        candidates == ["verify_project.py"]
+        for candidates in non_empty_candidates
+    )
+
+
+@pytest.mark.parametrize(
+    ("operation", "invalid_path", "valid_path"),
+    (
+        ("read_json", "tool.py", "config.json"),
+        ("read_file", ".", "tool.py"),
+        ("list_directory", "tool.py", "."),
+    ),
+)
+def test_operation_target_mismatch_is_repaired_before_harness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    invalid_path: str,
+    valid_path: str,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), f"TARGET-PREFLIGHT-{operation}")
+    workspace = Path(state.goal.workspace_root)
+    (workspace / "tool.py").write_text("print('ok')\n", encoding="utf-8")
+    (workspace / "config.json").write_text('{"ok": true}\n', encoding="utf-8")
+    queue = _QueueClient(
+        [
+            json.dumps({"function": operation, "params": {"path": invalid_path}}),
+            json.dumps({"function": operation, "params": {"path": valid_path}}),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the compatible observation succeeded",
+                )
+            ),
+            json.dumps(
+                {"function": "final_answer", "params": {"text": "Observed."}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "ready_for_final",
+                    step_id="",
+                    step_complete=False,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the completed plan has accepted evidence",
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    model = LongHorizonModel(session, tool_selector=_selector([operation]))
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_observe_patch(state, ".")),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=16,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 1
+    assert next(iter(result.state.actions.values())).arguments["path"] == valid_path
+    rejections = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "protocol_rejection_recorded"
+    ]
+    assert len(rejections) == 1
+    assert rejections[0].payload["error"].startswith(
+        "[operation_target_contract]"
+    )
+    assert invalid_path in rejections[0].payload["error"]
+    assert valid_path in rejections[0].payload["error"]
+
+
 def test_new_non_observe_step_reports_exact_mixed_read_contract() -> None:
     with pytest.raises(
         ValueError,
@@ -868,7 +1387,9 @@ def test_nested_v2_goal_plan_patch_infers_phase_only_for_replay() -> None:
     )
 
     assert patch.add_steps[0].phase == "mutate"
-    assert patch.to_dict()["schema_version"] == GOAL_PLAN_PATCH_SCHEMA_VERSION
+    assert patch.to_dict()["schema_version"] == (
+        LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
+    )
 
 
 def test_same_stage_conflicting_roots_are_rejected() -> None:
@@ -952,6 +1473,10 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "READ-ONLY-GOAL-MENU")
+    (Path(state.goal.workspace_root) / "result.txt").write_text(
+        "current\n",
+        encoding="utf-8",
+    )
     session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
     model = LongHorizonModel(session, tool_selector=_selector([]))
     controller = StatefulGoalLoopController(
@@ -994,6 +1519,9 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
     command_mutation_operations = controller._goal_step_operations(
         state, command_mutation
     )
+    _command_operations, command_contract = (
+        controller._goal_step_operation_contract(state, command_mutation)
+    )
 
     assert "read_file" in read_operations
     assert "web_search" not in read_operations
@@ -1006,6 +1534,288 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
     assert "write_file" in write_operations
     assert check_operations == ("check_command",)
     assert command_mutation_operations == ("run_command",)
+    assert command_contract["phase"] == "execute"
+    assert command_contract["roots"] == ["generated.txt"]
+    assert command_contract["target_descriptors"] == [
+        {
+            "path": "generated.txt",
+            "type": "missing",
+            "target_kind": "missing",
+            "exists": False,
+        }
+    ]
+
+
+def test_controller_derives_exact_workspace_path_delta_for_mutating_command() -> None:
+    before = {
+        "cacheable": True,
+        "entries": [
+            {"path": "keep.txt", "type": "file", "size_bytes": 4, "sha256": "a"},
+            {"path": "old.txt", "type": "file", "size_bytes": 3, "sha256": "b"},
+        ],
+    }
+    after = {
+        "cacheable": True,
+        "entries": [
+            {"path": "keep.txt", "type": "file", "size_bytes": 5, "sha256": "c"},
+            {"path": "output", "type": "directory"},
+            {"path": "output/new.txt", "type": "file", "size_bytes": 3, "sha256": "d"},
+        ],
+    }
+
+    changes = LongHorizonController._workspace_change_metadata(before, after)
+
+    assert changes == {
+        "schema_version": "rwkv-lh.workspace-changes.v1",
+        "complete": True,
+        "reason": "",
+        "changed_paths": ["keep.txt", "old.txt", "output", "output/new.txt"],
+        "created_paths": ["output", "output/new.txt"],
+        "modified_paths": ["keep.txt"],
+        "deleted_paths": ["old.txt"],
+    }
+
+
+def test_run_command_root_coverage_and_scope_use_observed_workspace_delta() -> None:
+    action = SimpleNamespace(
+        action_type="run_command",
+        arguments={"argv": ["python", "generate.py"]},
+        result={
+            "success": True,
+            "metadata": {
+                "workspace_changes": {
+                    "complete": True,
+                    "reason": "",
+                    "changed_paths": ["output", "output/generated.txt"],
+                }
+            },
+        },
+    )
+
+    assert action_mutates_root(action, "output/generated.txt") is True
+    assert action_mutates_root(action, "other.txt") is False
+    assert StatefulGoalLoopController._run_command_write_scope_gaps(
+        action, ("output/generated.txt",)
+    ) == ()
+
+    action.result["metadata"]["workspace_changes"]["changed_paths"].append(
+        "outside.txt"
+    )
+    assert StatefulGoalLoopController._run_command_write_scope_gaps(
+        action, ("output/generated.txt",)
+    ) == (
+        "run_command changed paths outside declared write_roots: ['outside.txt']",
+    )
+
+
+def test_run_command_without_complete_workspace_delta_fails_closed() -> None:
+    action = SimpleNamespace(
+        action_type="run_command",
+        arguments={"argv": ["python", "generate.py"]},
+        result={
+            "success": True,
+            "metadata": {
+                "workspace_changes": {
+                    "complete": False,
+                    "reason": "workspace_entry_limit_exceeded",
+                    "changed_paths": [],
+                }
+            },
+        },
+    )
+
+    assert action_mutates_root(action, "generated.txt") is False
+    assert StatefulGoalLoopController._run_command_write_scope_gaps(
+        action, ("generated.txt",)
+    ) == (
+        "run_command workspace changes are not fully observable: "
+        "workspace_entry_limit_exceeded",
+    )
+
+
+def test_stateful_mutating_command_completes_from_observed_path_delta(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-RUN-COMMAND-DELTA")
+    patch = GoalPlanPatch(
+        patch_id="GPP-command-delta",
+        base_revision=0,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Generate generated.txt with a local command",
+                phase="execute",
+                success_evidence=("generated.txt contains generated",),
+                write_roots=("generated.txt",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Exercise a declared mutating command boundary",
+    )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {
+                    "function": "run_command",
+                    "params": {
+                        "argv": [
+                            "python",
+                            "-c",
+                            "from pathlib import Path; Path('generated.txt').write_text('generated\\n')",
+                        ],
+                        "expected_exit_code": 0,
+                    },
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the command created the declared artifact",
+                )
+            ),
+            json.dumps(
+                {
+                    "function": "final_answer",
+                    "params": {"text": "generated.txt was created."},
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "ready_for_final",
+                    step_id="",
+                    step_complete=False,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the completed step has exact command mutation evidence",
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    harness = ActionHarness(sandbox_commands=False)
+    model = LongHorizonModel(
+        session,
+        harness=harness,
+        tool_selector=_selector(["run_command"]),
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=harness,
+        supervisor=_StrongPlanner(patch),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=12,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert (Path(state.goal.workspace_root) / "generated.txt").read_text(
+        encoding="utf-8"
+    ) == "generated\n"
+    action = result.state.actions["A00001"]
+    changes = action.result["metadata"]["workspace_changes"]
+    assert changes["complete"] is True
+    assert changes["changed_paths"] == ["generated.txt"]
+    assert action_mutates_root(action, "generated.txt") is True
+    boundaries = [
+        result.state.causal_records[event_id].payload.get("boundary")
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_audit_boundary_opened"
+    ]
+    assert "mutation_transaction_complete" in boundaries
+
+
+def test_stateful_mutating_command_blocks_on_out_of_scope_path_delta(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-RUN-COMMAND-SCOPE")
+    patch = GoalPlanPatch(
+        patch_id="GPP-command-scope",
+        base_revision=0,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Generate only generated.txt",
+                phase="execute",
+                success_evidence=("generated.txt exists",),
+                write_roots=("generated.txt",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Keep command mutation inside its declared root",
+    )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {
+                    "function": "run_command",
+                    "params": {
+                        "argv": [
+                            "python",
+                            "-c",
+                            (
+                                "from pathlib import Path; "
+                                "Path('generated.txt').write_text('ok'); "
+                                "Path('outside.txt').write_text('not allowed')"
+                            ),
+                        ],
+                        "expected_exit_code": 0,
+                    },
+                }
+            )
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    harness = ActionHarness(sandbox_commands=False)
+    model = LongHorizonModel(
+        session,
+        harness=harness,
+        tool_selector=_selector(["run_command"]),
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=harness,
+        supervisor=_StrongPlanner(patch),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=6,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "blocked"
+    violations = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_command_write_scope_violation"
+    ]
+    assert len(violations) == 1
+    assert violations[0].payload["write_roots"] == ["generated.txt"]
+    assert "outside.txt" in violations[0].payload["gaps"][0]
+    terminal = result.state.causal_records[result.state.causal_order[-1]]
+    assert terminal.payload["reason"] == "run_command_write_scope_violation"
+    assert len(queue.prompts) == 1
 
 
 def test_goal_selector_uses_three_fresh_evaluations_for_executable_frontier(
@@ -1089,6 +1899,130 @@ def test_goal_selector_uses_three_fresh_evaluations_for_executable_frontier(
     assert not any(
         event.event_type == "protocol_rejection_recorded" for event in events
     )
+
+
+def test_incomplete_goal_obligation_coverage_requests_a_continuation_patch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "GOAL-COVERAGE-CONTINUATION")
+    workspace = Path(state.goal.workspace_root)
+    (workspace / "source.txt").write_text("ground truth\n", encoding="utf-8")
+    obligation = GoalObligation(
+        obligation_id="O1",
+        predicate="source.txt is observed and report.md is written",
+        required_phases=("observe", "mutate"),
+    )
+    initial = GoalPlanPatch(
+        patch_id="GPP-coverage-initial",
+        base_revision=0,
+        goal_obligations=(obligation,),
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Read source.txt",
+                phase="observe",
+                obligation_ids=("O1",),
+                success_evidence=("source.txt observed",),
+                read_roots=("source.txt",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Start with grounded observation",
+    )
+    continuation = GoalPlanPatch(
+        patch_id="GPP-coverage-continuation",
+        base_revision=1,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S2",
+                objective="Write report.md with the observed result",
+                phase="mutate",
+                stage=2,
+                depends_on=("S1",),
+                obligation_ids=("O1",),
+                success_evidence=("report.md written",),
+                write_roots=("report.md",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Cover the remaining mutation obligation",
+    )
+    queue = _QueueClient(
+        [
+            json.dumps({"function": "read_file", "params": {"path": "source.txt"}}),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="source observed",
+                )
+            ),
+            json.dumps(
+                {
+                    "function": "write_file",
+                    "params": {"path": "report.md", "content": "ground truth\n"},
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S2",
+                    step_complete=True,
+                    evidence_refs=["A00002"],
+                    gaps=[],
+                    reason="report written",
+                )
+            ),
+            json.dumps(
+                {"function": "final_answer", "params": {"text": "Report written."}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "ready_for_final",
+                    step_id="",
+                    step_complete=False,
+                    evidence_refs=["A00001", "A00002"],
+                    gaps=[],
+                    reason="every obligation phase has accepted evidence",
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    model = LongHorizonModel(
+        session,
+        tool_selector=_selector(["read_file", "write_file"]),
+    )
+    planner = _StrongPlanner((initial, continuation))
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=24,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert [request.plan_revision for request in planner.requests] == [0, 1]
+    assert (workspace / "report.md").read_text(encoding="utf-8") == "ground truth\n"
+    plan = rolling_goal_plan(result.state)
+    assert plan.batch_complete is True
+    assert plan.complete is True
+    assert plan.uncovered_obligation_phases == {}
 
 
 def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
@@ -1365,15 +2299,22 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert len(selector._session.payloads) == 6
     second_selector_step = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV2: "
+            "SelectorIntentPromptV4: "
         )
     )
     assert second_selector_step["current_subtask"]["phase"] == "observe"
     assert second_selector_step["current_subtask"]["objective"] == (
         "Read back result.txt"
     )
-    assert "progress" not in second_selector_step
-    assert "latest_action" not in second_selector_step
+    progress = second_selector_step["current_progress"]
+    assert progress["assigned_action_count"] == 0
+    assert progress["successful_action_count"] == 0
+    assert progress["failed_action_count"] == 0
+    assert progress["last_action"] is None
+    assert progress["missing_read_roots"] == ["result.txt"]
+    assert progress["missing_write_roots"] == []
+    assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+    assert progress["completion_preconditions_satisfied"] is False
     executor_starts = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -1387,16 +2328,144 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert rolling_goal_plan(result.state).complete is True
 
 
-def test_identical_goal_action_failures_block_at_existing_budget(
+def test_clean_executor_turn_reduces_causal_facts_to_fit_input_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "EXECUTOR-BOOTSTRAP-BUDGET-FALLBACK")
+    session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
+    model = LongHorizonModel(session)
+    previous = session.bootstrap(
+        ModelLaneKind.ACTION,
+        model._assignment(state, recent_limit=0, executor_only=True),
+        model._menu_definitions,
+        lane_id=model.ACTION_LANE_ID,
+        progressive_tool_disclosure=True,
+        independent_tool_selector=True,
+    )
+    state.model_states[previous.checkpoint_id] = previous
+    state.set_lane_head("executor", previous.checkpoint_id)
+    fact_action_ids: list[str] = []
+    for sequence in range(1, 13):
+        action_id = f"A{sequence:05d}"
+        fact_action_ids.append(action_id)
+        state.actions[action_id] = ActionRecord(
+            action_id=action_id,
+            sequence=sequence,
+            status=ActionStatus.SUCCEEDED,
+            action_type="read_file",
+            arguments={"path": f"input-{sequence}.txt"},
+            wire_arguments={"path": f"input-{sequence}.txt"},
+            action_fingerprint=f"fingerprint-{sequence}",
+            idempotency_key=f"idem-{sequence}",
+            decision_id=f"D-{sequence}",
+            request_id=f"MR-{sequence}",
+            started_at=utc_now(),
+            ended_at=utc_now(),
+            result={"success": True, "output": f"fact-{sequence}"},
+            outcome_type="success",
+        )
+
+    real_bootstrap = session.bootstrap
+    attempted_counts: list[int] = []
+
+    def budgeted_bootstrap(lane_kind, assignment, definitions, **kwargs):
+        count = int(
+            json.loads(assignment)["recent_action_sequence_range"]["count"]
+        )
+        attempted_counts.append(count)
+        if count > 4:
+            raise InputBudgetError(f"injected count {count} exceeds budget")
+        return real_bootstrap(lane_kind, assignment, definitions, **kwargs)
+
+    monkeypatch.setattr(session, "bootstrap", budgeted_bootstrap)
+    persisted: list[tuple[str, dict]] = []
+
+    checkpoint = model._start_clean_executor_turn(
+        state,
+        previous,
+        lambda _state, event_type, payload: persisted.append(
+            (event_type, dict(payload))
+        ),
+        fact_action_ids=fact_action_ids,
+    )
+
+    assert attempted_counts == [12, 8, 4]
+    assert state.lane_heads["executor"] == checkpoint.checkpoint_id
+    event_type, payload = persisted[-1]
+    assert event_type == "action_session_started"
+    assert payload["causal_fact_recent_limit"] == 4
+    assert payload["causal_fact_action_ids"] == fact_action_ids[-4:]
+    assert payload["causal_fact_requested_action_ids"] == fact_action_ids
+    assert checkpoint.native_state_metadata["executor_fact_action_ids"] == (
+        fact_action_ids[-4:]
+    )
+    assert (
+        checkpoint.native_state_metadata["executor_fact_projection_sha256"]
+        == payload["causal_fact_projection_sha256"]
+    )
+    assert (
+        checkpoint.native_state_metadata["executor_fact_scope_digest"]
+        == payload["causal_fact_scope_digest"]
+    )
+    assert payload["input_budget_fallback_used"] is True
+    assert [item["recent_limit"] for item in payload["input_budget_fallbacks"]] == [
+        12,
+        8,
+    ]
+
+
+def test_stateful_input_budget_exhaustion_records_root_cause_and_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-INPUT-BUDGET-BLOCK")
+    session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
+    model = LongHorizonModel(session, tool_selector=_selector(["write_file"]))
+
+    def exceed_input_budget(*args, **kwargs):
+        del args, kwargs
+        raise InputBudgetError("injected irreducible bootstrap")
+
+    monkeypatch.setattr(model, "next_command", exceed_input_budget)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=4,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "blocked"
+    assert result.state.actions == {}
+    budget_events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "model_input_budget_exceeded"
+    ]
+    assert len(budget_events) == 1
+    assert budget_events[0].payload["error_record"]["type"] == "InputBudgetError"
+    terminal = result.state.causal_records[result.state.causal_order[-1]]
+    assert terminal.event_type == "run_blocked"
+    assert terminal.payload["reason"] == "model_input_budget_unresolvable"
+
+
+def test_repeated_goal_io_failures_route_controller_feedback_before_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-FAILURE")
-    (Path(state.goal.workspace_root) / "invalid.json").write_text(
-        "{not-json\n",
-        encoding="utf-8",
-    )
+    (Path(state.goal.workspace_root) / "invalid.json").write_text("{}\n", encoding="utf-8")
     failed_command = json.dumps(
         {
             "function": "read_json",
@@ -1409,6 +2478,11 @@ def test_identical_goal_action_failures_block_at_existing_budget(
     )
     selector = _selector(["read_json"] * 5)
     model = LongHorizonModel(session, tool_selector=selector)
+
+    def injected_read_failure(*_args, **_kwargs):
+        raise OSError("injected persistent read failure")
+
+    model.harness._handlers["read_json"] = injected_read_failure
     monkeypatch.setattr(
         StatefulGoalLoopController,
         "_validate_contract_patch_semantics",
@@ -1429,17 +2503,23 @@ def test_identical_goal_action_failures_block_at_existing_budget(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "blocked"
-    assert len(result.state.actions) == 5
-    assert len(selector._session.payloads) == 15
-    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 4
-    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 4
-    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
-    assert blocked.payload["reason"] == "identical_failure_budget_exhausted"
+    assert result.state.status.value == "interrupted"
+    assert len(result.state.actions) == 2
+    assert len(selector._session.payloads) == 6
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
+    assert len(controller.supervisor.requests) == 2
+    feedback = controller.supervisor.requests[1].latest_controller_repair
+    assert feedback is not None
+    assert feedback["kind"] == "repeated_mechanical_failure"
+    assert feedback["active_step_id"] == "S1"
+    assert any(
+        event.event_type == "strong_planner_call_failed" for event in events
+    )
     assert controller._pending_audit_boundary(result.state) is None
 
 
-def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
+def test_read_only_step_repair_routes_to_planner_before_identical_repeat(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1455,7 +2535,33 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
         }
     )
     session = ModelSession(
-        _QueueClient([zero_progress_command] * 3),
+        _QueueClient(
+            [
+                zero_progress_command,
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=["phase_evidence_unproved:observe"],
+                        reason="more evidence is required",
+                    )
+                ),
+                zero_progress_command,
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=["A00002"],
+                        gaps=["phase_evidence_unproved:observe"],
+                        reason="more evidence is required",
+                    )
+                ),
+                zero_progress_command,
+            ]
+        ),
         settings=_settings(progressive=True),
     )
     selector = _selector(["read_file"] * 3)
@@ -1469,7 +2575,7 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
         store,
         model=model,
         harness=model.harness,
-        supervisor=_StrongPlanner(_strong_observe_patch(state, "missing.txt")),
+        supervisor=_StrongPlanner(_strong_observe_patch(state, "other.txt")),
         supervisor_policy=SupervisorPolicy(mode="static"),
         max_transitions=20,
     )
@@ -1480,14 +2586,376 @@ def test_identical_goal_read_only_zero_progress_blocks_at_existing_budget(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "blocked"
-    assert len(result.state.actions) == 3
-    assert len(selector._session.payloads) == 9
-    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
-    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
-    blocked = next(event for event in reversed(events) if event.event_type == "run_blocked")
-    assert blocked.payload["reason"] == "identical_success_budget_exhausted"
+    assert result.state.status.value == "interrupted"
+    assert len(result.state.actions) == 1
+    assert len(selector._session.payloads) == 3
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 1
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 1
+    assert len(controller.supervisor.requests) == 2
+    repair = controller.supervisor.requests[1].latest_audit
+    assert repair is not None
+    assert repair["verdict"] == "repair"
+    assert repair["gaps"] == ["phase_evidence_unproved:observe"]
     assert controller._pending_audit_boundary(result.state) is None
+
+
+def test_mutation_noop_repair_routes_to_planner_before_identical_repeat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-MUTATION-NOOP")
+    (Path(state.goal.workspace_root) / "result.txt").write_text(
+        "unchanged\n", encoding="utf-8"
+    )
+    zero_progress_command = json.dumps(
+        {
+            "function": "write_file",
+            "params": {
+                "path": "result.txt",
+                "content": "unchanged\n",
+                "overwrite": True,
+                "create_parents": True,
+            },
+        }
+    )
+    session = ModelSession(
+        _QueueClient(
+            [
+                zero_progress_command,
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=[],
+                        gaps=["phase_evidence_unproved:mutate"],
+                        reason="the workspace did not change",
+                    )
+                ),
+                zero_progress_command,
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=[],
+                        gaps=["phase_evidence_unproved:mutate"],
+                        reason="the workspace did not change",
+                    )
+                ),
+                zero_progress_command,
+            ]
+        ),
+        settings=_settings(progressive=True),
+    )
+    selector = _selector(["write_file"] * 3)
+    model = LongHorizonModel(session, tool_selector=selector)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    )
+
+    result = controller.run(state.run_id)
+
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert result.state.status.value == "interrupted"
+    assert len(result.state.actions) == 1
+    assert len(selector._session.payloads) == 3
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 1
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 1
+    assert len(controller.supervisor.requests) == 2
+    repair = controller.supervisor.requests[1].latest_audit
+    assert repair is not None
+    assert repair["verdict"] == "repair"
+    assert repair["gaps"] == ["phase_evidence_unproved:mutate"]
+    assert all(event.event_type != "run_blocked" for event in events)
+    assert controller._pending_audit_boundary(result.state) is None
+
+
+def test_step_auditor_repair_patch_is_consumed_and_run_recovers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "ACTION-REPAIR-RECOVERY")
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {
+                    "function": "write_file",
+                    "params": {"path": "result.txt", "content": "wrong"},
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "repair",
+                    step_id="S1",
+                    step_complete=False,
+                    evidence_refs=["A00001"],
+                    gaps=["phase_evidence_unproved:mutate"],
+                    reason="readback is required",
+                )
+            ),
+            json.dumps(
+                {"function": "read_file", "params": {"path": "result.txt"}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00002"],
+                    gaps=[],
+                    reason="the current bytes were observed",
+                )
+            ),
+            json.dumps(
+                {"function": "final_answer", "params": {"text": "Recovered."}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "ready_for_final",
+                    step_id="",
+                    step_complete=False,
+                    evidence_refs=["A00002"],
+                    gaps=[],
+                    reason="the repaired plan is complete",
+                )
+            ),
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    selector = _selector(["write_file", "read_file"])
+    model = LongHorizonModel(session, tool_selector=selector)
+    planner = _StrongPlanner(
+        (_strong_patch(state), _strong_readback_correction_patch(state))
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    assert result.final_output == "Recovered."
+    assert len(planner.requests) == 2
+    assert planner.requests[1].latest_audit is not None
+    assert planner.requests[1].latest_audit["verdict"] == "repair"
+    committed = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_plan_patch_committed"
+    ]
+    assert len(committed) == 2
+    assert committed[1].payload["source_audit_id"] == (
+        planner.requests[1].latest_audit["audit_id"]
+    )
+    assert rolling_goal_plan(result.state).step_revisions["S1"] == 2
+
+
+def test_protocol_invalid_step_audit_routes_controller_feedback_and_recovers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
+    (Path(state.goal.workspace_root) / "result.txt").write_text(
+        "verified\n", encoding="utf-8"
+    )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {"function": "read_file", "params": {"path": "result.txt"}}
+            ),
+            "{}",
+            json.dumps(
+                {"function": "read_file", "params": {"path": "result.txt"}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00002"],
+                    gaps=[],
+                    reason="the exact bytes were observed",
+                )
+            ),
+            json.dumps(
+                {"function": "final_answer", "params": {"text": "Recovered."}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "ready_for_final",
+                    step_id="",
+                    step_complete=False,
+                    evidence_refs=["A00002"],
+                    gaps=[],
+                    reason="the repaired audit path is complete",
+                )
+            ),
+        ]
+    )
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["read_file", "read_file"]),
+    )
+    planner = _StrongPlanner(
+        (
+            _strong_observe_patch(state, "result.txt"),
+            _strong_readback_correction_patch(state),
+        )
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "completed"
+    feedback = planner.requests[1].latest_controller_repair
+    assert feedback is not None
+    assert feedback["kind"] == "step_audit_protocol_invalid"
+    committed = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+        if result.state.causal_records[event_id].event_type
+        == "goal_plan_patch_committed"
+    ]
+    assert committed[1].payload["source_controller_repair_id"] == feedback[
+        "feedback_id"
+    ]
+
+
+def test_repeated_executor_provenance_rejection_routes_to_planner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "PROVENANCE-REPAIR-ROUTING")
+    source = "VALUE = 'old'\n"
+    (Path(state.goal.workspace_root) / "result.txt").write_text(
+        source, encoding="utf-8"
+    )
+    base_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    initial = GoalPlanPatch(
+        patch_id="GPP-provenance-initial",
+        base_revision=0,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Inspect result.txt",
+                phase="observe",
+                stage=1,
+                success_evidence=("result.txt exact bytes are observed",),
+                read_roots=("result.txt",),
+            ),
+            GoalPlanStep(
+                step_id="S2",
+                objective="Update result.txt from the observed exact bytes",
+                phase="mutate",
+                stage=2,
+                depends_on=("S1",),
+                success_evidence=("result.txt is updated",),
+                write_roots=("result.txt",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Inspect before exact read-modify-write",
+    )
+    invalid_replace = json.dumps(
+        {
+            "function": "replace_text",
+            "params": {
+                "path": "result.txt",
+                "old": "VALUE = 'invented'",
+                "new": "VALUE = 'new'",
+                "base_sha256": base_sha256,
+            },
+        }
+    )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {"function": "read_file", "params": {"path": "result.txt"}}
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the exact source bytes were observed",
+                )
+            ),
+            invalid_replace,
+            invalid_replace,
+        ]
+    )
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["read_file", "replace_text"]),
+    )
+    planner = _StrongPlanner(initial)
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    )
+
+    result = controller.run(state.run_id)
+
+    assert result.state.status.value == "interrupted"
+    assert len(result.state.actions) == 1
+    assert result.state.protocol_rejections == 2
+    assert len(planner.requests) == 2
+    feedback = planner.requests[1].latest_controller_repair
+    assert feedback is not None
+    assert feedback["kind"] == "action_protocol_rejection"
+    assert feedback["active_step_id"] == "S2"
+    assert len(feedback["evidence_event_ids"]) == 2
 
 
 def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_final(
@@ -1725,8 +3193,9 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         "\n\n**Tool Call:**", 1
     )[0]
     audit_payload = json.loads(
-        audit_prompt.removeprefix("AuditorStepPromptV1: ")
+        audit_prompt.removeprefix("AuditorStepPromptV3: ")
     )
+    assert audit_payload["active_step"]["phase"] == "mutate"
     assert list(audit_payload)[-1] == "current_question"
     assert state.goal.request not in audit_checkpoint.transcript
     assert audit_payload["active_step"]["step_id"] == "S1"
@@ -1741,6 +3210,88 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         state.causal_records[event_id].event_type == "goal_audit_accepted"
         for event_id in state.causal_order
     )
+
+
+def test_rwkv_step_auditor_rejects_gap_outside_visible_v3_catalog(
+    tmp_path: Path,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "STATEFUL-AUDITOR-V3-GAP-BOUNDARY")
+    patch = _strong_patch(state)
+    audits: list[dict] = []
+    session = ModelSession(
+        _QueueClient([]),
+        settings=_settings(),
+        audit_hook=audits.append,
+    )
+    auditor_session = ModelSession(
+        _QueueClient(
+            [
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=[],
+                        gaps=["invented_gap:not_in_prompt"],
+                        reason="evidence_incomplete",
+                    )
+                )
+            ],
+            model_name="test-rwkv-7.2b-auditor",
+        ),
+        settings=RuntimeSettings(
+            **{**_settings().__dict__, "model": "test-rwkv-7.2b-auditor"}
+        ),
+        audit_hook=audits.append,
+    )
+    model = LongHorizonModel(session, auditor_session=auditor_session)
+    controller = LongHorizonController(store, model=model, harness=model.harness)
+    controller._persist(
+        state,
+        "goal_plan_patch_committed",
+        {
+            "patch_id": patch.patch_id,
+            "patch": patch.to_dict(),
+            "plan_revision": 1,
+            "request_digest": state.goal.digest,
+            "supervisor": {"provider": "test", "model": "test-planner"},
+            "planner_can_accept": False,
+            "supervisor_action_executed": False,
+            "rwkv_action_authority": True,
+        },
+        subject_id=patch.patch_id,
+    )
+
+    with pytest.raises(
+        ModelProtocolError,
+        match="repair gaps must be selected verbatim from gap_catalog codes",
+    ):
+        model.audit_goal_boundary(
+            state,
+            controller._persist_callback,
+            boundary="observation_complete",
+            active_step_id="S1",
+            relevant_evidence_refs=(),
+        )
+
+    event_types = [
+        state.causal_records[event_id].event_type for event_id in state.causal_order
+    ]
+    assert event_types.count("goal_audit_recorded") == 1
+    assert event_types.count("goal_audit_rejected") == 1
+    assert "goal_audit_accepted" not in event_types
+    audit_checkpoint = next(
+        checkpoint
+        for checkpoint in state.model_states.values()
+        if checkpoint.lane_kind is ModelLaneKind.STEP_AUDIT
+    )
+    audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
+        "\n\n**Tool Call:**", 1
+    )[0]
+    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV3: "))
+    visible_codes = {item["code"] for item in audit_payload["gap_catalog"]}
+    assert "invented_gap:not_in_prompt" not in visible_codes
 
 
 def test_product_stateful_goal_fails_closed_without_selector_then_builds_with_it(
@@ -2172,10 +3723,11 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
     assert len(selector._session.payloads) == 6
     second_selection = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV2: "
+            "SelectorIntentPromptV4: "
         )
     )
-    assert "progress" not in second_selection
+    assert second_selection["current_progress"]["assigned_action_count"] == 0
+    assert second_selection["current_progress"]["last_action"] is None
     assert second_selection["current_subtask"]["objective"] == (
         "Create result.txt with verified content"
     )
@@ -2185,7 +3737,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         if event.event_type == "protocol_rejection"
     ]
     assert len(retry_events) == 1
-    assert queue.prompts[2].count("ExecutorArgsPromptV1: ") == 1
+    assert queue.prompts[2].count("ExecutorArgsPromptV4: ") == 1
     assert "protocol_rejection" not in queue.prompts[2]
     executor_starts = [
         result.state.causal_records[event_id]
@@ -2243,6 +3795,247 @@ def test_stateful_protocol_budget_blocks_across_controller_slices(
         if resumed.state.causal_records[event_id].event_type == "run_started"
     )
     assert latest_start.payload["protocol_rejection_budget_reset"] is True
+
+
+def test_goal_audit_protocol_budget_stops_repeated_pre_final_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "GOAL-AUDIT-PROTOCOL-BUDGET")
+    invalid_final_audit = json.dumps(
+        _audit_call(
+            "continue",
+            step_id="S1",
+            step_complete=True,
+            evidence_refs=["A00001"],
+            gaps=[],
+            reason="incorrectly tries to complete a step at pre-final",
+        )
+    )
+    final_attempts: list[str] = []
+    for index in range(13):
+        final_attempts.extend(
+            [
+                json.dumps(
+                    {
+                        "function": "final_answer",
+                        "params": {"text": f"candidate {index}"},
+                    }
+                ),
+                invalid_final_audit,
+            ]
+        )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {
+                    "function": "write_file",
+                    "params": {"path": "result.txt", "content": "verified"},
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the mutation action succeeded",
+                )
+            ),
+            *final_attempts,
+        ]
+    )
+    session = ModelSession(queue, settings=_settings(progressive=True))
+    model = LongHorizonModel(session, tool_selector=_selector(["write_file"]))
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=40,
+    ).run(state.run_id)
+
+    assert result.state.status.value == "blocked"
+    # Three protocol-invalid audit releases without new evidence exhaust the
+    # goal-audit budget; the action-lane budget of 12 no longer applies here.
+    assert result.state.protocol_rejections == 3
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert sum(event.event_type == "goal_final_rejected" for event in events) == 3
+    goal_rejections = [
+        event
+        for event in events
+        if event.event_type == "protocol_rejection_recorded"
+        and event.payload["protocol_scope"] == "goal_audit"
+    ]
+    assert len(goal_rejections) == 3
+    terminal = events[-1]
+    assert terminal.event_type == "run_blocked"
+    assert terminal.payload["reason"] == (
+        "goal_audit_protocol_rejection_budget_exhausted"
+    )
+
+
+def test_semantic_final_audit_repair_has_a_fixed_identical_gap_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "FINAL-AUDIT-SEMANTIC-BUDGET")
+    repeated_finals: list[str] = []
+    for index in range(4):
+        repeated_finals.extend(
+            [
+                json.dumps(
+                    {
+                        "function": "final_answer",
+                        "params": {"text": f"Verified candidate {index}."},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=["candidate does not report the committed artifact"],
+                        reason="the final candidate is not evidence-complete",
+                    )
+                ),
+            ]
+        )
+    queue = _QueueClient(
+        [
+            json.dumps(
+                {
+                    "function": "write_file",
+                    "params": {"path": "result.txt", "content": "verified"},
+                }
+            ),
+            json.dumps(
+                _audit_call(
+                    "continue",
+                    step_id="S1",
+                    step_complete=True,
+                    evidence_refs=["A00001"],
+                    gaps=[],
+                    reason="the mutation action succeeded",
+                )
+            ),
+            *repeated_finals,
+        ]
+    )
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["write_file"]),
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    result = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20,
+    ).run(state.run_id)
+
+    events = [
+        result.state.causal_records[event_id]
+        for event_id in result.state.causal_order
+    ]
+    assert result.state.status.value == "blocked"
+    assert sum(event.event_type == "goal_final_rejected" for event in events) == 3
+    assert len(queue.outputs) == 2
+    assert events[-1].event_type == "run_blocked"
+    assert events[-1].payload["reason"] == (
+        "identical_final_audit_rejection_budget_exhausted"
+    )
+
+
+def test_mechanical_repair_appends_failed_action_to_executor_state_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "FAILED-ACTION-OBSERVATION")
+    patch = GoalPlanPatch(
+        patch_id="GPP-failing-check",
+        base_revision=0,
+        add_steps=(
+            GoalPlanStep(
+                step_id="S1",
+                objective="Run one observable command check",
+                phase="execute",
+                success_evidence=("the check exits with the expected code",),
+            ),
+        ),
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Exercise the mechanical failure observation boundary",
+    )
+    model = LongHorizonModel(
+        ModelSession(
+            _QueueClient(
+                [
+                    json.dumps(
+                        {
+                            "function": "check_command",
+                            "params": {
+                                "argv": ["false"],
+                                "cwd": ".",
+                                "expected_exit_code": 0,
+                            },
+                        }
+                    )
+                ]
+            ),
+            settings=_settings(progressive=True),
+        ),
+        tool_selector=_selector(["check_command"]),
+    )
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=_StrongPlanner(patch),
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=3,
+    )
+
+    result = controller.run(state.run_id)
+
+    assert result.state.actions["A00001"].status is ActionStatus.FAILED
+    assert "EV-ACTION-A00001" in result.state.model_events
+    assert controller._first_unappended_action_observation(result.state) is None
+    appended = [
+        event
+        for event in result.state.causal_records.values()
+        if event.event_type == "action_observation_appended"
+        and event.payload.get("event_id") == "EV-ACTION-A00001"
+    ]
+    assert len(appended) == 1
+    assert appended[0].payload["model_event"]["payload"]["result"]["success"] is False
 
 
 def test_final_auditor_repair_returns_to_goal_loop_before_completion(
@@ -2519,6 +4312,137 @@ def test_planner_semantic_repair_is_bounded_and_not_reported_unavailable(
     assert terminal.payload["reason"] == "strong_planner_semantic_invalid"
 
 
+def test_goal_planner_transport_pending_is_durable_and_resolved_on_reentry(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    goal = GoalState.create(
+        request="Create result.txt.",
+        constraints=(),
+        workspace_root=workspace,
+        runtime_policy=runtime_policy_document(
+            RetrievalRuntimeConfig(mode=NetworkPolicyMode.OFFLINE),
+            supervisor_mode="stateful_goal",
+            execution_mode="goal",
+        ),
+    )
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(goal, "GOAL-PLANNER-TRANSPORT-RESUME")
+    model = LongHorizonModel(
+        ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+        tool_selector=_selector([]),
+    )
+    planner = _ScriptedStrongPlanner(
+        (RuntimeError("temporary planner transport failure"), _strong_patch(state))
+    )
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+
+    first = controller.run(state.run_id)
+
+    assert first.state.status.value == "running"
+    assert len(unresolved_supervisor_pending(first.state)) == 1
+    assert first.state.causal_records[first.state.causal_order[-1]].event_type == (
+        "run_yielded"
+    )
+
+    # Retry the exact durable planner boundary. The benchmark lifecycle test
+    # separately proves that a RUNNING+run_yielded state is eligible for this
+    # re-entry; this unit stays isolated from Executor/Selector behavior.
+    second_boundary = controller._issue_strong_plan_patch(
+        first.state,
+        plan=rolling_goal_plan(first.state),
+        transitions=0,
+    )
+
+    assert len(planner.requests) == 2
+    assert second_boundary is None
+    assert unresolved_supervisor_pending(first.state) == ()
+    event_types = [
+        first.state.causal_records[event_id].event_type
+        for event_id in first.state.causal_order
+    ]
+    assert event_types.count("supervisor_call_pending") == 1
+    assert event_types.count("supervisor_call_resolved") == 1
+    assert event_types.count("goal_plan_patch_committed") == 1
+
+
+def test_goal_stage_checker_transport_pending_resolves_after_response(
+    tmp_path: Path,
+) -> None:
+    class RecoveringStagePlanner(_StrongPlanner):
+        def review_goal_stage(self, request):
+            if not self.stage_review_requests:
+                self.stage_review_requests.append(request)
+                raise RuntimeError("temporary stage checker transport failure")
+            return super().review_goal_stage(request)
+
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "GOAL-STAGE-TRANSPORT-RESUME")
+    model = LongHorizonModel(
+        ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+        tool_selector=_selector([]),
+    )
+    planner = RecoveringStagePlanner()
+    controller = StatefulGoalLoopController(
+        store,
+        model=model,
+        harness=model.harness,
+        supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=1,
+    )
+    plan = RollingGoalPlan(goal_digest=state.goal.digest)
+    plan.apply_goal_patch(_strong_patch(state))
+    plan.apply_audit(
+        GoalAuditDecision(
+            audit_id="AUD-stage-transport",
+            verdict=GoalAuditVerdict.CONTINUE,
+            step_id="S1",
+            evidence_refs=("A00001",),
+            gaps=(),
+            completed_steps=(AuditedStep("S1", ("A00001",)),),
+            reason="test evidence",
+        )
+    )
+    stage_key = plan.stage_boundary_key(1)
+
+    first = controller._issue_strong_stage_review(
+        state,
+        plan=plan,
+        stage=1,
+        stage_boundary_key=stage_key,
+        transitions=0,
+    )
+
+    assert first.state.status.value == "interrupted"
+    assert len(unresolved_supervisor_pending(first.state)) == 1
+
+    recovered = controller._issue_strong_stage_review(
+        first.state,
+        plan=plan,
+        stage=1,
+        stage_boundary_key=stage_key,
+        transitions=0,
+    )
+
+    assert isinstance(recovered, GoalStageReview)
+    assert unresolved_supervisor_pending(first.state) == ()
+    event_types = [
+        first.state.causal_records[event_id].event_type
+        for event_id in first.state.causal_order
+    ]
+    assert event_types.count("supervisor_call_pending") == 1
+    assert event_types.count("supervisor_call_resolved") == 1
+
+
 def test_goal_planner_zero_semantic_repairs_never_makes_a_second_call(
     tmp_path: Path,
 ) -> None:
@@ -2565,13 +4489,17 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-STRONG-REPLAN")
+    (Path(state.goal.workspace_root) / "result.txt").write_text(
+        "preexisting\n",
+        encoding="utf-8",
+    )
     session = ModelSession(
         _QueueClient(
             [
                 json.dumps(
                     {
                         "function": "write_file",
-                        "params": {"path": ".", "content": "cannot replace a directory"},
+                        "params": {"path": "result.txt", "content": "verified"},
                     }
                 ),
                 json.dumps(
@@ -2614,6 +4542,24 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
         session,
         tool_selector=_selector(["write_file", "write_file"]),
     )
+    real_execute = model.harness.execute
+    execute_count = 0
+
+    def fail_first_execution(action, goal):
+        nonlocal execute_count
+        execute_count += 1
+        if execute_count == 1:
+            return ActionResult(
+                "write_file",
+                False,
+                error={
+                    "type": "InjectedWriteFailure",
+                    "message": "injected first write failure",
+                },
+            )
+        return real_execute(action, goal)
+
+    monkeypatch.setattr(model.harness, "execute", fail_first_execution)
     planner = _StrongPlanner(_strong_patch(state))
     monkeypatch.setattr(
         StatefulGoalLoopController,
@@ -2655,16 +4601,39 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     selector_payloads = model.tool_selector._session.payloads
     assert all("parent" not in payload for payload in selector_payloads)
     second_step = json.loads(
-        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV2: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV4: ")
     )
     first_step = json.loads(
-        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV2: ")
+        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV4: ")
     )
     assert second_step["current_subtask"] == first_step["current_subtask"]
-    assert "progress" not in second_step
-    assert "latest_action" not in second_step
-    assert "latest_audit_feedback" not in second_step
+    assert first_step["current_progress"]["assigned_action_count"] == 0
+    progress = second_step["current_progress"]
+    assert progress["assigned_action_count"] == 1
+    assert progress["successful_action_count"] == 0
+    assert progress["failed_action_count"] == 1
+    last_action = progress["last_action"]
+    assert last_action["operation"] == "write_file"
+    assert last_action["status"] == "failed"
+    assert last_action["arguments"] == {
+        "content": "verified", "path": "result.txt",
+        "overwrite": "true", "create_parents": "true",
+    }
+    assert last_action["error_type"] == "InjectedWriteFailure"
+    assert last_action["error_message"] == "injected first write failure"
+    assert last_action["result_metadata"] == {"outcome_type": "failed"}
+    assert last_action["observed_roots"] == []
+    assert last_action["mutated_roots"] == []
+    assert progress["missing_read_roots"] == []
+    assert progress["missing_write_roots"] == ["result.txt"]
+    assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+    assert progress["completion_preconditions_satisfied"] is False
     second_executor_prompt = session.client.prompts[1]
+    assert "ExecutorArgsPromptV4: " in second_executor_prompt
+    assert '"error_type":"InjectedWriteFailure"' in second_executor_prompt
+    assert '"error_message":"injected first write failure"' in second_executor_prompt
+    assert '"target_kind":"text_file"' in second_executor_prompt
+    assert '"write_file":["result.txt"]' in second_executor_prompt
     assert '"missing_write_roots":["result.txt"]' in second_executor_prompt
     assert '"completion_preconditions_satisfied":false' in second_executor_prompt
     assert '"completion_authority":false' in second_executor_prompt

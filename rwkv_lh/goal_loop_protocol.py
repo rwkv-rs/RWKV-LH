@@ -32,7 +32,8 @@ GOAL_AUDIT_INPUT_PROTOCOL = "rwkv-lh.role-pure-goal-audit.v2"
 GOAL_AUDIT_OPERATION = "audit_decision"
 LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v1"
 LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2 = "rwkv-lh.goal-plan-patch.v2"
-GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v3"
+LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3 = "rwkv-lh.goal-plan-patch.v3"
+GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v4"
 GOAL_STAGE_REVIEW_SCHEMA_VERSION = "rwkv-lh.goal-stage-review.v1"
 GOAL_AUDIT_DEFINITION: dict[str, Any] = {
     "name": GOAL_AUDIT_OPERATION,
@@ -156,6 +157,68 @@ def parse_json_object(raw_output: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError("structured model output must be a JSON object")
     return dict(value)
+
+
+@dataclass(frozen=True)
+class GoalObligation:
+    """One immutable user-result obligation declared by the Strong Planner.
+
+    The Planner owns the semantic decomposition, while the Controller owns the
+    coverage calculation.  Exact plans may differ between runs: the invariant
+    is only that every declared obligation obtains accepted Harness evidence
+    for every phase the Planner says is required before pre-final can open.
+    """
+
+    obligation_id: str
+    predicate: str
+    required_phases: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "obligation_id",
+            _non_empty(self.obligation_id, "obligation_id"),
+        )
+        object.__setattr__(self, "predicate", _non_empty(self.predicate, "predicate"))
+        phases = tuple(
+            _non_empty(item, "required_phase") for item in self.required_phases
+        )
+        if not phases:
+            raise ValueError("Goal obligation requires at least one execution phase")
+        if len(set(phases)) != len(phases):
+            raise ValueError("Goal obligation required_phases must be unique")
+        unknown = set(phases) - set(GOAL_STEP_PHASES)
+        if unknown:
+            raise ValueError(
+                f"Goal obligation contains unsupported phases: {sorted(unknown)}"
+            )
+        ordered = tuple(phase for phase in GOAL_STEP_PHASES if phase in set(phases))
+        object.__setattr__(self, "required_phases", ordered)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "obligation_id": self.obligation_id,
+            "predicate": self.predicate,
+            "required_phases": list(self.required_phases),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "GoalObligation":
+        if set(value) != {"obligation_id", "predicate", "required_phases"}:
+            raise ValueError(
+                "Goal obligation requires exactly obligation_id, predicate, and "
+                "required_phases"
+            )
+        raw_phases = value.get("required_phases")
+        if not isinstance(raw_phases, Sequence) or isinstance(
+            raw_phases, (str, bytes)
+        ):
+            raise ValueError("Goal obligation required_phases must be an array")
+        return cls(
+            obligation_id=str(value.get("obligation_id") or ""),
+            predicate=str(value.get("predicate") or ""),
+            required_phases=tuple(str(item) for item in raw_phases),
+        )
 
 
 @dataclass(frozen=True)
@@ -291,10 +354,14 @@ class GoalPlanPatch:
     replace_steps: tuple[GoalPlanStep, ...]
     discard_step_ids: tuple[str, ...]
     reason: str
+    goal_obligations: tuple[GoalObligation, ...] = ()
     schema_version: str = GOAL_PLAN_PATCH_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version != GOAL_PLAN_PATCH_SCHEMA_VERSION:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
             raise ValueError("unsupported Goal PlanPatch schema")
         object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
         object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
@@ -320,7 +387,17 @@ class GoalPlanPatch:
             raise ValueError("Goal PlanPatch must change at least one open step")
         if len(self.add_steps) + len(self.replace_steps) > 5:
             raise ValueError("Goal PlanPatch may introduce at most five current steps")
+        obligations = tuple(self.goal_obligations)
+        obligation_ids = tuple(item.obligation_id for item in obligations)
+        if len(set(obligation_ids)) != len(obligation_ids):
+            raise ValueError("Goal PlanPatch contains duplicate obligation ids")
+        if (
+            self.schema_version == LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
+            and obligations
+        ):
+            raise ValueError("legacy v3 Goal PlanPatch cannot contain obligations")
         object.__setattr__(self, "discard_step_ids", discarded_ids)
+        object.__setattr__(self, "goal_obligations", obligations)
 
     @classmethod
     def from_model_value(
@@ -332,11 +409,14 @@ class GoalPlanPatch:
         require_phase: bool = True,
         allow_internal_step_fields: bool = False,
     ) -> "GoalPlanPatch":
+        obligation_contract = "goal_obligations" in value
         expected = {"add_stages", "replace_stages", "discard_step_ids", "reason"}
+        if obligation_contract:
+            expected.add("goal_obligations")
         if set(value) != expected:
             raise ValueError(
-                "Goal PlanPatch requires exactly add_stages, replace_stages, "
-                "discard_step_ids, and reason"
+                "Goal PlanPatch requires exactly goal_obligations (v4), "
+                "add_stages, replace_stages, discard_step_ids, and reason"
             )
 
         def steps(field_name: str) -> tuple[GoalPlanStep, ...]:
@@ -387,6 +467,8 @@ class GoalPlanPatch:
                         "write_roots",
                         "constraints",
                     }
+                    if obligation_contract:
+                        expected_step_fields.add("obligation_ids")
                     if require_phase:
                         expected_step_fields.add("phase")
                     if allow_internal_step_fields:
@@ -428,6 +510,13 @@ class GoalPlanPatch:
             raw_discarded, (str, bytes)
         ):
             raise ValueError("Goal PlanPatch discard_step_ids must be an array")
+        raw_obligations = value.get("goal_obligations") or ()
+        if not isinstance(raw_obligations, Sequence) or isinstance(
+            raw_obligations, (str, bytes)
+        ):
+            raise ValueError("Goal PlanPatch goal_obligations must be an array")
+        if any(not isinstance(item, Mapping) for item in raw_obligations):
+            raise ValueError("Goal PlanPatch goal_obligations must contain objects")
         return cls(
             patch_id=patch_id,
             base_revision=base_revision,
@@ -435,6 +524,14 @@ class GoalPlanPatch:
             replace_steps=steps("replace_stages"),
             discard_step_ids=tuple(str(item) for item in raw_discarded),
             reason=str(value.get("reason") or ""),
+            goal_obligations=tuple(
+                GoalObligation.from_dict(item) for item in raw_obligations
+            ),
+            schema_version=(
+                GOAL_PLAN_PATCH_SCHEMA_VERSION
+                if obligation_contract
+                else LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -457,7 +554,7 @@ class GoalPlanPatch:
                 )
             return selected
 
-        return {
+        value = {
             "schema_version": self.schema_version,
             "patch_id": self.patch_id,
             "base_revision": self.base_revision,
@@ -466,6 +563,11 @@ class GoalPlanPatch:
             "discard_step_ids": list(self.discard_step_ids),
             "reason": self.reason,
         }
+        if self.schema_version == GOAL_PLAN_PATCH_SCHEMA_VERSION:
+            value["goal_obligations"] = [
+                item.to_dict() for item in self.goal_obligations
+            ]
+        return value
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "GoalPlanPatch":
@@ -473,6 +575,7 @@ class GoalPlanPatch:
         if schema_version not in {
             LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
             LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
             GOAL_PLAN_PATCH_SCHEMA_VERSION,
         }:
             raise ValueError("unsupported Goal PlanPatch schema")
@@ -495,22 +598,29 @@ class GoalPlanPatch:
                     str(item) for item in value.get("discard_step_ids") or ()
                 ),
                 reason=str(value.get("reason") or ""),
+                schema_version=LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
             )
         # Durable v2 events use the current nested stage shape but predate the
         # required phase field. GoalPlanStep infers their phase for replay only.
+        fields = [
+            "add_stages",
+            "replace_stages",
+            "discard_step_ids",
+            "reason",
+        ]
+        if schema_version == GOAL_PLAN_PATCH_SCHEMA_VERSION:
+            fields.append("goal_obligations")
         return cls.from_model_value(
-            {
-                key: value.get(key)
-                for key in (
-                    "add_stages",
-                    "replace_stages",
-                    "discard_step_ids",
-                    "reason",
-                )
-            },
+            {key: value.get(key) for key in fields},
             patch_id=str(value.get("patch_id") or ""),
             base_revision=int(value.get("base_revision", -1)),
-            require_phase=(schema_version == GOAL_PLAN_PATCH_SCHEMA_VERSION),
+            require_phase=(
+                schema_version
+                in {
+                    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+                    GOAL_PLAN_PATCH_SCHEMA_VERSION,
+                }
+            ),
             allow_internal_step_fields=True,
         )
 
@@ -529,6 +639,7 @@ class GoalPlanRequest:
     latest_stage_review: Mapping[str, Any] | None = None
     recent_action_facts: tuple[Mapping[str, Any], ...] = ()
     local_validation_repair: Mapping[str, Any] | None = None
+    latest_controller_repair: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _non_empty(self.run_id, "run_id")
@@ -538,6 +649,55 @@ class GoalPlanRequest:
             raise ValueError("Goal plan revision must be non-negative")
         if len(self.recent_action_facts) > 12:
             raise ValueError("Goal Planner request exposes at most twelve action facts")
+        if self.latest_controller_repair is not None:
+            repair = dict(self.latest_controller_repair)
+            required = {
+                "schema_version",
+                "feedback_id",
+                "kind",
+                "active_step_id",
+                "active_step_revision",
+                "gaps",
+                "evidence_event_ids",
+            }
+            if set(repair) != required:
+                raise ValueError(
+                    "Controller repair feedback has an invalid field set"
+                )
+            if repair["schema_version"] != "rwkv-lh.controller-repair-feedback.v1":
+                raise ValueError("unsupported Controller repair feedback schema")
+            _non_empty(str(repair["feedback_id"] or ""), "feedback_id")
+            if repair["kind"] not in {
+                "repeated_mechanical_failure",
+                "action_protocol_rejection",
+                "step_audit_protocol_invalid",
+            }:
+                raise ValueError("Controller repair feedback kind is invalid")
+            _non_empty(str(repair["active_step_id"] or ""), "active_step_id")
+            revision = repair["active_step_revision"]
+            if (
+                isinstance(revision, bool)
+                or not isinstance(revision, int)
+                or revision < 1
+            ):
+                raise ValueError(
+                    "Controller repair feedback requires a positive step revision"
+                )
+            for name in ("gaps", "evidence_event_ids"):
+                values = repair[name]
+                if (
+                    not isinstance(values, list)
+                    or not values
+                    or any(
+                        not isinstance(item, str) or not item.strip()
+                        for item in values
+                    )
+                    or len(values) != len(set(values))
+                ):
+                    raise ValueError(
+                        f"Controller repair feedback {name} requires unique strings"
+                    )
+            object.__setattr__(self, "latest_controller_repair", repair)
         if self.local_validation_repair is not None:
             repair = dict(self.local_validation_repair)
             attempt = repair.get("attempt")
@@ -567,6 +727,11 @@ class GoalPlanRequest:
             "latest_stage_review": (
                 dict(self.latest_stage_review)
                 if self.latest_stage_review is not None
+                else None
+            ),
+            "latest_controller_repair": (
+                dict(self.latest_controller_repair)
+                if self.latest_controller_repair is not None
                 else None
             ),
             "workspace_manifest": dict(self.workspace_manifest),
@@ -905,6 +1070,7 @@ class GoalAuditDecision:
 class RollingGoalPlan:
     goal_digest: str
     steps: dict[str, GoalPlanStep] = field(default_factory=dict)
+    obligations: dict[str, GoalObligation] = field(default_factory=dict)
     completed_evidence: dict[str, tuple[str, ...]] = field(default_factory=dict)
     patch_ids: list[str] = field(default_factory=list)
     step_revisions: dict[str, int] = field(default_factory=dict)
@@ -978,7 +1144,46 @@ class RollingGoalPlan:
 
     @property
     def complete(self) -> bool:
+        return self.batch_complete and not self.uncovered_obligation_phases
+
+    @property
+    def batch_complete(self) -> bool:
+        """Whether every step currently committed by the Planner is complete."""
+
         return bool(self.steps) and not self.open_step_ids
+
+    @property
+    def uncovered_obligation_phases(self) -> dict[str, tuple[str, ...]]:
+        """Return the immutable goal coverage still missing accepted evidence.
+
+        Empty obligations identify replayed pre-v4 plans.  They retain their
+        historical batch-completion behavior, while every newly generated v4
+        plan is required by the production Planner schema to declare at least
+        one obligation in its initial patch.
+        """
+
+        if not self.obligations:
+            return {}
+        covered: dict[str, set[str]] = {
+            obligation_id: set() for obligation_id in self.obligations
+        }
+        for step_id in self.completed_step_ids:
+            step = self.steps[step_id]
+            for obligation_id in step.obligation_ids:
+                if obligation_id in covered:
+                    covered[obligation_id].add(step.phase)
+        return {
+            obligation_id: tuple(
+                phase
+                for phase in obligation.required_phases
+                if phase not in covered[obligation_id]
+            )
+            for obligation_id, obligation in self.obligations.items()
+            if any(
+                phase not in covered[obligation_id]
+                for phase in obligation.required_phases
+            )
+        }
 
     def apply_goal_patch(self, patch: GoalPlanPatch) -> None:
         """Atomically apply one native add/replace/discard plan delta."""
@@ -987,6 +1192,16 @@ class RollingGoalPlan:
             raise ValueError("Goal PlanPatch id was committed more than once")
         if patch.base_revision != len(self.patch_ids):
             raise ValueError("Goal PlanPatch base revision is stale")
+
+        if self.patch_ids and patch.goal_obligations:
+            raise ValueError(
+                "immutable Goal obligations may be declared only by the initial patch"
+            )
+        candidate_obligations = dict(self.obligations)
+        for obligation in patch.goal_obligations:
+            if obligation.obligation_id in candidate_obligations:
+                raise ValueError("Goal PlanPatch cannot redefine an obligation")
+            candidate_obligations[obligation.obligation_id] = obligation
 
         completed = set(self.completed_step_ids)
         open_ids = set(self.open_step_ids)
@@ -1026,6 +1241,29 @@ class RollingGoalPlan:
             candidate_steps[step.step_id] = step
             candidate_revisions[step.step_id] = 1
 
+        if candidate_obligations:
+            unknown_obligations = {
+                obligation_id
+                for step in (*patch.add_steps, *patch.replace_steps)
+                for obligation_id in step.obligation_ids
+                if obligation_id not in candidate_obligations
+            }
+            if unknown_obligations:
+                raise ValueError(
+                    "Goal PlanPatch steps reference unknown obligations: "
+                    f"{sorted(unknown_obligations)}"
+                )
+            unbound_steps = [
+                step.step_id
+                for step in (*patch.add_steps, *patch.replace_steps)
+                if not step.obligation_ids
+            ]
+            if unbound_steps:
+                raise ValueError(
+                    "v4 Goal PlanPatch steps must bind immutable obligations: "
+                    f"{unbound_steps}"
+                )
+
         active_ids = set(candidate_steps)
         unknown_dependencies = {
             dependency
@@ -1052,6 +1290,7 @@ class RollingGoalPlan:
             self.steps = prior_steps
             raise
         self.step_revisions = candidate_revisions
+        self.obligations = candidate_obligations
         self.discarded_step_ids.update(discard_ids)
         self.patch_ids.append(patch.patch_id)
 
@@ -1198,6 +1437,16 @@ class RollingGoalPlan:
             )
         return {
             "goal_digest": self.goal_digest,
+            "goal_obligations": [
+                item.to_dict() for item in self.obligations.values()
+            ],
+            "uncovered_obligation_phases": {
+                obligation_id: list(phases)
+                for obligation_id, phases in self.uncovered_obligation_phases.items()
+            },
+            "batch_complete": self.batch_complete,
+            "goal_coverage_complete": bool(self.obligations)
+            and not self.uncovered_obligation_phases,
             "stages": stages,
             "frontier_step_ids": [item.step_id for item in self.frontier],
             "current_stage": self.current_stage,
@@ -1302,6 +1551,25 @@ def _path_covers_root(path: object, root: str) -> bool:
 def action_mutates_root(action: Any, root: str) -> bool:
     """Return whether one Harness action mechanically targets a write root."""
 
+    if action.action_type == "run_command":
+        result = action.result if isinstance(action.result, Mapping) else {}
+        metadata = (
+            result.get("metadata")
+            if isinstance(result.get("metadata"), Mapping)
+            else {}
+        )
+        changes = (
+            metadata.get("workspace_changes")
+            if isinstance(metadata.get("workspace_changes"), Mapping)
+            else {}
+        )
+        if changes.get("complete") is not True:
+            return False
+        return any(
+            _path_covers_root(path, root)
+            for path in changes.get("changed_paths") or ()
+            if isinstance(path, str)
+        )
     if action.action_type not in PATH_MUTATION_OPERATIONS:
         return False
     return any(
@@ -1517,9 +1785,11 @@ __all__ = [
     "GOAL_PLAN_PATCH_SCHEMA_VERSION",
     "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION",
     "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2",
+    "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3",
     "GOAL_STAGE_REVIEW_SCHEMA_VERSION",
     "GoalAuditDecision",
     "GoalAuditVerdict",
+    "GoalObligation",
     "GoalPlanPatch",
     "GoalPlanRequest",
     "GoalPlanStep",

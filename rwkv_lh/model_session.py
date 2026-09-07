@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol, Sequence
 from uuid import uuid4
 
+from rwkv_lh.goal_state_protocols import executor_args_v4
 from rwkv_lh.model_io import (
     JSON_CALL_STOP_SUFFIXES,
     ModelCommand,
@@ -17,9 +18,9 @@ from rwkv_lh.model_io import (
     render_bootstrap,
     render_event_append,
     render_independent_executor_bootstrap,
-    render_independent_executor_tool_disclosure,
     render_rollover_event_summary,
     render_tool_disclosure,
+    validate_independent_executor_generation_input,
 )
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
 from rwkv_lh.runtime.native_state import (
@@ -214,6 +215,7 @@ class ModelSession:
         transcript: str,
         event_ids: Sequence[str],
         status: ModelCheckpointStatus,
+        parent_metadata: Mapping[str, Any] | None = None,
     ) -> ModelCheckpoint:
         return ModelCheckpoint(
             checkpoint_id=f"CP-{uuid4().hex[:16]}",
@@ -229,11 +231,33 @@ class ModelSession:
             native_state_metadata={
                 "model_sha256": self.settings.model_sha256,
                 "state_profile_delivery": self.settings.state_profile_delivery,
+                **(
+                    {"executor_protocol_required": True}
+                    if (parent_metadata or {}).get("executor_protocol_required") else {}
+                ),
             },
             state_profile_id=self.settings.state_profile_id,
             state_profile_sha256=self.settings.state_profile_sha256,
             status=status,
         )
+
+    @staticmethod
+    def _render_selected_contract(
+        checkpoint: ModelCheckpoint,
+        definition: Mapping[str, Any],
+        executor_source: Mapping[str, Any] | None,
+    ) -> str:
+        """Independent Executor sessions accept only the shared role source."""
+        if executor_source is None:
+            if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
+                raise ModelIOError("current Executor protocol source is required")
+            return render_tool_disclosure(definition)
+        if executor_source.get("selected_tool_contract") != definition:
+            raise ModelIOError("Executor source must match the selected tool contract")
+        try:
+            return "\n\n" + executor_args_v4.render_generation_prompt(executor_source)
+        except ValueError as exc:
+            raise ModelIOError(f"invalid current Executor protocol source: {exc}") from exc
 
     def bootstrap(
         self,
@@ -262,6 +286,7 @@ class ModelSession:
             lane_id=identifier,
             lane_kind=lane_kind,
             parent_checkpoint_id=None,
+            parent_metadata={"executor_protocol_required": independent_tool_selector},
             transcript=transcript,
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
@@ -300,33 +325,24 @@ class ModelSession:
         checkpoint: ModelCheckpoint,
         definition: Mapping[str, Any],
         *,
-        current_requirement: str | None = None,
-        rendered_prompt: str | None = None,
+        executor_source: Mapping[str, Any] | None = None,
     ) -> ModelCheckpoint:
         """Append exactly one selected contract outside the system message."""
 
         self._require_committed(checkpoint)
-        if rendered_prompt is not None and current_requirement is not None:
-            raise ValueError("pass rendered_prompt or current_requirement, not both")
-        disclosure = (
-            str(rendered_prompt)
-            if rendered_prompt is not None
-            else render_independent_executor_tool_disclosure(
-                definition,
-                current_requirement,
-            )
-            if current_requirement is not None
-            else render_tool_disclosure(definition)
-        )
+        disclosure = self._render_selected_contract(checkpoint, definition, executor_source)
         transcript = checkpoint.transcript + disclosure
         disclosed = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=transcript,
             event_ids=checkpoint.event_ids,
             status=ModelCheckpointStatus.COMMITTED,
         )
+        if executor_source is not None:
+            disclosed.native_state_metadata["executor_protocol_required"] = True
         self._emit(
             {
                 "type": "model_session_tool_disclosed",
@@ -337,11 +353,10 @@ class ModelSession:
                 "new_tokens": disclosed.token_count - checkpoint.token_count,
                 "token_count": disclosed.token_count,
                 "system_tool_definition": False,
-                "request_last_closed_payload": (
-                    current_requirement is not None or rendered_prompt is not None
-                ),
                 "goal_state_protocol": (
-                    "executor-args-v1" if rendered_prompt is not None else ""
+                    executor_args_v4.INPUT_SCHEMA_VERSION
+                    if executor_source is not None
+                    else ""
                 ),
                 "state_transport": self.transport,
             }
@@ -355,7 +370,6 @@ class ModelSession:
         visible_definitions: Sequence[Mapping[str, Any]] = (),
         *,
         progressive_tool_disclosure: bool = False,
-        independent_executor_retry_operation: str = "",
         include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
@@ -363,15 +377,13 @@ class ModelSession:
             event,
             visible_definitions,
             progressive_tool_disclosure=progressive_tool_disclosure,
-            independent_executor_retry_operation=(
-                independent_executor_retry_operation
-            ),
             include_generation_anchor=include_generation_anchor,
         )
         appended = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=transcript,
             event_ids=(*checkpoint.event_ids, event.event_id),
             status=ModelCheckpointStatus.COMMITTED,
@@ -420,6 +432,7 @@ class ModelSession:
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=checkpoint.transcript,
             event_ids=(*checkpoint.event_ids, event.event_id),
             status=ModelCheckpointStatus.COMMITTED,
@@ -477,6 +490,11 @@ class ModelSession:
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata={
+                "executor_protocol_required": independent_tool_selector or bool(
+                    (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
+                ),
+            },
             transcript=transcript,
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
@@ -522,12 +540,17 @@ class ModelSession:
         self._require_committed(checkpoint)
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
         transcript = checkpoint.transcript + render_event_append(
-            assignment, visible_definitions
+            assignment,
+            visible_definitions,
+            include_generation_anchor=not bool(
+                (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
+            ),
         )
         child = self._checkpoint(
             lane_id=identifier,
             lane_kind=lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=transcript,
             event_ids=(*checkpoint.event_ids, assignment.event_id),
             status=ModelCheckpointStatus.COMMITTED,
@@ -555,6 +578,8 @@ class ModelSession:
         json_output: bool = True,
     ) -> CandidateGeneration:
         self._require_committed(checkpoint)
+        if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
+            validate_independent_executor_generation_input(checkpoint.transcript)
         selected = sampling or SessionSampling()
         output_limit = max(1, int(max_output_tokens))
         input_limit = self.settings.max_prompt_tokens(output_limit)
@@ -617,6 +642,7 @@ class ModelSession:
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=checkpoint.transcript + raw,
             event_ids=checkpoint.event_ids,
             status=ModelCheckpointStatus.CANDIDATE,
@@ -941,6 +967,7 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=identifier,
             lane_kind=lane_kind,
             parent_checkpoint_id=None,
+            parent_metadata={"executor_protocol_required": independent_tool_selector},
             transcript=transcript,
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
@@ -998,6 +1025,7 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=suffix,
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
@@ -1024,26 +1052,16 @@ class NativeRWKVModelSession(ModelSession):
         checkpoint: ModelCheckpoint,
         definition: Mapping[str, Any],
         *,
-        current_requirement: str | None = None,
-        rendered_prompt: str | None = None,
+        executor_source: Mapping[str, Any] | None = None,
     ) -> ModelCheckpoint:
-        if rendered_prompt is not None and current_requirement is not None:
-            raise ValueError("pass rendered_prompt or current_requirement, not both")
-        disclosure = (
-            str(rendered_prompt)
-            if rendered_prompt is not None
-            else render_independent_executor_tool_disclosure(
-                definition,
-                current_requirement,
-            )
-            if current_requirement is not None
-            else render_tool_disclosure(definition)
-        )
+        disclosure = self._render_selected_contract(checkpoint, definition, executor_source)
         disclosed = self._append_text(
             checkpoint,
             disclosure,
             event_ids=checkpoint.event_ids,
         )
+        if executor_source is not None:
+            disclosed.native_state_metadata["executor_protocol_required"] = True
         self._emit(
             {
                 "type": "model_session_tool_disclosed",
@@ -1052,11 +1070,10 @@ class NativeRWKVModelSession(ModelSession):
                 "parent_checkpoint_id": checkpoint.checkpoint_id,
                 "checkpoint_id": disclosed.checkpoint_id,
                 "new_tokens": get_token_count(disclosure),
-                "request_last_closed_payload": (
-                    current_requirement is not None or rendered_prompt is not None
-                ),
                 "goal_state_protocol": (
-                    "executor-args-v1" if rendered_prompt is not None else ""
+                    executor_args_v4.INPUT_SCHEMA_VERSION
+                    if executor_source is not None
+                    else ""
                 ),
                 "state_transport": self.transport,
             }
@@ -1070,16 +1087,12 @@ class NativeRWKVModelSession(ModelSession):
         visible_definitions: Sequence[Mapping[str, Any]] = (),
         *,
         progressive_tool_disclosure: bool = False,
-        independent_executor_retry_operation: str = "",
         include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         suffix = render_event_append(
             event,
             visible_definitions,
             progressive_tool_disclosure=progressive_tool_disclosure,
-            independent_executor_retry_operation=(
-                independent_executor_retry_operation
-            ),
             include_generation_anchor=include_generation_anchor,
         )
         appended = self._append_text(
@@ -1176,6 +1189,11 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata={
+                "executor_protocol_required": independent_tool_selector or bool(
+                    (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
+                ),
+            },
             transcript=transcript,
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
@@ -1216,12 +1234,19 @@ class NativeRWKVModelSession(ModelSession):
     ) -> ModelCheckpoint:
         self._require_committed(checkpoint)
         identifier = lane_id or f"L-{lane_kind.value.upper()}-{uuid4().hex[:12]}"
-        suffix = render_event_append(assignment, visible_definitions)
+        suffix = render_event_append(
+            assignment,
+            visible_definitions,
+            include_generation_anchor=not bool(
+                (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
+            ),
+        )
         parent_binding = self._binding_from_checkpoint(checkpoint)
         child = self._checkpoint(
             lane_id=identifier,
             lane_kind=lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=suffix,
             event_ids=(*checkpoint.event_ids, assignment.event_id),
             status=ModelCheckpointStatus.COMMITTED,
@@ -1266,6 +1291,8 @@ class NativeRWKVModelSession(ModelSession):
         json_output: bool = True,
     ) -> CandidateGeneration:
         self._require_committed(checkpoint)
+        if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
+            validate_independent_executor_generation_input(checkpoint.transcript)
         selected = sampling or SessionSampling()
         output_limit = max(1, int(max_output_tokens))
         request_id = f"MR-{uuid4().hex[:16]}"
@@ -1308,6 +1335,7 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
             parent_checkpoint_id=checkpoint.checkpoint_id,
+            parent_metadata=checkpoint.native_state_metadata,
             transcript=returned.content,
             event_ids=checkpoint.event_ids,
             status=ModelCheckpointStatus.CANDIDATE,

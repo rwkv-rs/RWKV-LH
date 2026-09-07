@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from rwkv_lh.goal_state_protocols import (
@@ -18,6 +18,7 @@ from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
+PROMPT_PREFIX = "FinalizerAnswerPromptV1: "
 
 _PROMPT_FIELDS = (
     "immutable_goal",
@@ -71,6 +72,31 @@ def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     return selected
 
 
+def build_prompt_source(
+    *,
+    immutable_goal: str,
+    completed_steps: Sequence[Mapping[str, Any]],
+    committed_facts: Sequence[Mapping[str, Any]],
+    evidence_records: Sequence[Mapping[str, Any]],
+    format_contract: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Construct the one Finalizer input without adding completion authority."""
+
+    source = {
+        "immutable_goal": immutable_goal,
+        "completed_steps": [dict(step) for step in completed_steps],
+        "committed_facts": [dict(fact) for fact in committed_facts],
+        "evidence_records": [dict(record) for record in evidence_records],
+        "format_contract": dict(format_contract) if format_contract is not None else {
+            "format_id": "goal-user-response-v1",
+            "language": "match_immutable_goal",
+            "required_sections": [],
+        },
+    }
+    _validate_prompt_source(source)
+    return source
+
+
 def validate_source(source: Any) -> None:
     selected = _exact_fields(source, _SOURCE_FIELDS, "finalizer source")
     _validate_prompt_source({name: selected[name] for name in _PROMPT_FIELDS})
@@ -98,7 +124,7 @@ def render_prompt(source: Any) -> str:
             "do not claim completion authority or emit an audit verdict."
         ),
     }
-    return _render("FinalizerAnswerPromptV1: ", payload)
+    return _render(PROMPT_PREFIX, payload)
 
 
 def render_target(source: Any) -> str:
@@ -115,6 +141,8 @@ def parse_target(target: str) -> ModelCommand:
 __all__ = [
     "INPUT_SCHEMA_VERSION",
     "OUTPUT_SCHEMA_VERSION",
+    "PROMPT_PREFIX",
+    "build_prompt_source",
     "parse_target",
     "render_prompt",
     "render_target",

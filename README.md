@@ -1,62 +1,57 @@
 # RWKV-LH
 
-RWKV-LH 是以 RWKV recurrent State 为核心的持久 Agent 运行时。当前产品结构只有一条控制链：`rwkv-stateful-goal-loop.v5`。
+RWKV-LH 是使用 RWKV 分角色推理与持久化因果记录的 Agent 运行时。产品入口只有 `rwkv-stateful-goal-loop.v7` 一条控制链。
 
 ```text
 Strong Planner
-  -> 2.9B Selector
-  -> 13.3B Executor
+  -> Controller：操作范围、目标类型与机械事实
+  -> Selector 2.9B
+  -> Executor 13.3B
   -> Harness
   -> Mechanical Evidence Gate
-  -> Step Auditor
+  -> Step Auditor 13.3B
   -> Strong Stage Checker
-  -> Finalizer
-  -> Final Auditor
+  -> Finalizer 13.3B
+  -> Final Auditor 13.3B
 ```
 
-这些名称表示同一条链中的职责边界，不是多套架构。全局权威状态始终是 append-only causal ledger；各模型角色使用独立 WKV，避免角色间状态污染。
+全局权威状态是 append-only causal ledger。各角色使用独立 ModelSession；Selector 三种菜单顺序分别从 fresh initial State 求值，Executor 新动作重新初始化，Auditor / Finalizer 按边界初始化。跨动作事实由 ledger 有界投影回输入，WKV 是角色局部的派生缓存。
 
-当前尚不能发布为可靠 Agent：fresh current-subtask Selector 已用 zero-State 和精确投影的 23 类 Head 部署，但该 Head 没有在 v2 输入分布上重训，真实链路仍显示域外泛化缺陷；Executor 的显式状态遵循也仍需通过固定门禁。
+每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v4、Executor 为 v4、Step Auditor 为 v3、Finalizer 为 v1、Final Auditor 为 v2。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
 
-## 文档
+当前仍不能作为可靠 Agent 发布：统一协议下的两遍 all-zero Ladder-10 基线、现有 State 消融与 Agent 验收尚待执行。新的生产 trace 数据流水线尚未实现；协议清理和单元回归不代表 Agent 指标改善。
 
-- [StateTune 下一步](docs/HANDOFF.zh-CN.md)
+## 文档与记录
+
 - [项目工作规范](AGENTS.md)
+- [唯一协议、数据来源与验收规则](docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)
+- [当前交接](docs/HANDOFF.zh-CN.md)
+- [本轮清理与验证记录](data/experiments/PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907/ROUND_ANALYSIS.zh-CN.md)
 
-`data/datasets/` 只保存已纳入 Git 的数据说明与合同，`data/experiments/` 只保存已纳入 Git 的可复核证据。当前工作树不保留未跟踪实验产物。
+`data/datasets/` 保留当前有效公共回归数据和隔离 Holdout；旧角色数据已删除。`data/experiments/` 只保留本轮及后续当前实验记录，历史查询 Git / GitHub。`data/acceptance/` 中的冻结 Holdout 材料只供最终一次验收。
 
-## 运行
+## 运行与回归
 
 项目逻辑只在 WSL `UbuntuRecovered` 中执行：
 
 ```bash
 cd /home/chase/GitHub/RWKV-LH
-uv sync --frozen --dev
+uv sync --frozen --extra selector-runtime --group dev
 cp .env.example .env.local
-uv run rwkv-lh-stack status
-uv run rwkv-lh-runtime-smoke
+.venv/bin/python -m pytest -q tests/
 ```
 
-创建、查询和恢复任务：
+普通回归不执行 `acceptance_tests/`，不得把读取 Holdout 的验收测试加入默认套件。Torch / State 注入测试不能跳过。测试工件默认位于 `data/test_runs/pytest/`。
+
+配置模型服务并完成当前模型、State、协议与 decoder 身份校验后：
 
 ```bash
-uv run rwkv-lh start --request "创建并验证 result.json" --workspace /tmp/rwkv-lh-workspace
-uv run rwkv-lh status RUN_ID
-uv run rwkv-lh resume RUN_ID
+.venv/bin/rwkv-lh-stack status
+.venv/bin/rwkv-lh-runtime-smoke
+.venv/bin/rwkv-lh start --request "创建并验证 result.json" --workspace /tmp/rwkv-lh-workspace
+.venv/bin/rwkv-lh status RUN_ID
+.venv/bin/rwkv-lh resume RUN_ID
+.venv/bin/rwkv-lh-web
 ```
 
-本地界面：
-
-```bash
-uv run rwkv-lh-web
-```
-
-完整验证：
-
-```bash
-uv run pytest -q
-uv run rwkv-lh-runtime-smoke
-uv run rwkv-lh-e2e --suite all --validate-only
-```
-
-模型、Head、State、协议和工具表必须作为同一个发布身份校验；具体字段以交接文档和当前代码为准。
+训练和新建角色数据集版本目录都需要 owner 书面确认。远端部署、基线和 Holdout 没有在本轮清理中执行。

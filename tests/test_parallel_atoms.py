@@ -857,8 +857,8 @@ def test_real_atom_pool_runs_two_rwkv_lanes_concurrently_and_finalizes(
     assert '"immutable_request": "Complete left."' in clients["left"].prompts[0]
     assert "Completed dependency handoffs" in clients["final"].prompts[0]
     assert '\\"observations\\"' in clients["final"].prompts[0]
-    assert '\\"observed_content\\"' in clients["final"].prompts[0]
-    assert '\\"operation\\"' not in clients["final"].prompts[0]
+    assert '\\"result_projection\\"' in clients["final"].prompts[0]
+    assert '\\"action_type\\"' in clients["final"].prompts[0]
     assert '\\"arguments\\"' not in clients["final"].prompts[0]
     assert '\\"candidate_output\\"' not in clients["final"].prompts[0]
     left_state_root = next((tmp_path / "atom-workers").glob("*/left/state"))
@@ -1007,11 +1007,18 @@ def test_dependency_handoff_bounds_full_external_evidence_without_mutation() -> 
     handoff = ThreadedRWKVAtomPool._dependency_handoff(selected)
     encoded = json.dumps(handoff, ensure_ascii=False, sort_keys=True)
 
-    assert len(encoded) < 12_000
+    assert len(encoded) < 16_000
     assert len(handoff["observations"]) == 4
-    assert all(len(item["observed_content"]) == 800 for item in handoff["observations"])
-    assert all(len(item["evidence"]) == 1 for item in handoff["observations"])
-    projected_span = handoff["observations"][0]["evidence"][0]["exact_spans"][0]
+    assert all(
+        "observed_content" not in item for item in handoff["observations"]
+    )
+    assert all(
+        len(item["result_projection"]["evidence"]) == 1
+        for item in handoff["observations"]
+    )
+    projected_span = handoff["observations"][0]["result_projection"][
+        "evidence"
+    ][0]["exact_spans"][0]
     assert len(projected_span["text"]) == 256
     assert projected_span["source_text_chars"] == len(source_text)
     assert handoff["observations"][0]["full_result_persisted"] is True

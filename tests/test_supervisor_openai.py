@@ -8,6 +8,7 @@ from dataclasses import replace
 
 import requests
 import pytest
+import rwkv_lh.supervisor_openai as supervisor_openai_module
 
 from rwkv_lh.contract_graph import (
     ObligationPhase,
@@ -899,6 +900,13 @@ def settings() -> SupervisorAPISettings:
 
 def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role():
     value = {
+        "goal_obligations": [
+            {
+                "obligation_id": "O1",
+                "predicate": "config.json is inspected and corrected",
+                "required_phases": ["observe", "mutate"],
+            }
+        ],
         "add_stages": [
             {
                 "stage": 1,
@@ -908,6 +916,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
                         "objective": "Inspect the current configuration.",
                         "phase": "observe",
                         "depends_on": [],
+                        "obligation_ids": ["O1"],
                         "success_evidence": ["configuration content is observed"],
                         "read_roots": ["config.json"],
                         "write_roots": [],
@@ -920,7 +929,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
         "discard_step_ids": [],
         "reason": "Start with one bounded observation.",
     }
-    fake = FakeSession([responses_response(value)])
+    fake = FakeSession([response(value)])
     client = OpenAICompatibleSupervisorClient(settings(), session=fake)
     request = GoalPlanRequest(
         run_id="RUN-GOAL-PLAN",
@@ -941,14 +950,14 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert "seed" not in posted
     assert "temperature" not in posted
     assert "reasoning" not in posted
-    assert posted["text"] == {"format": {"type": "json_object"}}
-    assert posted["max_output_tokens"] == 4000
-    assert fake.posts[0]["url"].endswith("/responses")
-    assert posted["input"][0]["role"] == "user"
-    assert posted["input"][0]["content"].startswith("json request payload:\n{")
-    payload = json.loads(
-        posted["input"][0]["content"].removeprefix("json request payload:\n")
-    )
+    assert posted["response_format"] == {"type": "json_object"}
+    # Rolling GoalPlan output uses the bounded Planner budget.  The separate
+    # ContractGraph planner retains its larger contract-plan budget.
+    assert posted["max_tokens"] == 1800
+    assert client.settings.max_contract_plan_tokens == 4000
+    assert fake.posts[0]["url"].endswith("/chat/completions")
+    assert posted["messages"][1]["role"] == "user"
+    payload = json.loads(posted["messages"][1]["content"])
     assert list(payload)[-1] == "current_requirement"
     assert payload["current_requirement"] == request.immutable_request
     response_schema = client._goal_plan_patch_schema()
@@ -959,19 +968,24 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert "stage" not in step_schema["properties"]
     assert set(step_schema["required"]) == set(step_schema["properties"])
     assert set(response_schema["required"]) == {
+        "goal_obligations",
         "add_stages",
         "replace_stages",
         "discard_step_ids",
         "reason",
     }
     assert "steps nested inside stage objects" in response_schema["description"]
-    system_prompt = posted["instructions"]
+    system_prompt = posted["messages"][0]["content"]
     assert "Controller has already fixed the one project mother path" in system_prompt
     assert "Every read_roots and write_roots item" in system_prompt
     assert "never invent a '/workspace' prefix" in system_prompt
     assert '"add_stages":[{"stage":1,"steps":[' in system_prompt
     assert "do not flatten steps" in system_prompt
     assert "exactly one phase" in system_prompt
+    assert "sum of the lengths of every steps array" in system_prompt
+    assert "at most five, never five per stage" in system_prompt
+    assert "exactly one literal token from observe, mutate, execute" in system_prompt
+    assert "Never write labels such as 'public-source observe'" in system_prompt
     assert "never name a concrete tool" in system_prompt
     assert "mutate => read_roots=[], write_roots non-empty" in system_prompt
     assert "read-only execute => read_roots=[], write_roots=[]" in system_prompt
@@ -1088,7 +1102,7 @@ def test_goal_planner_places_controller_semantic_repair_at_input_tail():
         "discard_step_ids": [],
         "reason": "Use a fresh id and retain the completed dependency.",
     }
-    fake = FakeSession([responses_response(value)])
+    fake = FakeSession([response(value)])
     client = OpenAICompatibleSupervisorClient(settings(), session=fake)
     request = GoalPlanRequest(
         run_id="RUN-GOAL-PLAN-REPAIR",
@@ -1116,15 +1130,16 @@ def test_goal_planner_places_controller_semantic_repair_at_input_tail():
     client.plan_goal_patch(request)
 
     posted = fake.posts[0]["json"]
-    payload = json.loads(
-        posted["input"][0]["content"].removeprefix("json request payload:\n")
-    )
+    payload = json.loads(posted["messages"][1]["content"])
     assert list(payload)[-1] == "local_validation_repair"
     assert payload["local_validation_repair"]["attempt"] == 1
     assert "cannot reuse existing id S1" in payload["local_validation_repair"][
         "error"
     ]
-    assert "immediately preceding patch was rejected" in posted["instructions"]
+    assert (
+        "immediately preceding patch was rejected"
+        in posted["messages"][0]["content"]
+    )
 
 
 def test_goal_stage_checker_returns_three_fields_with_kernel_bound_provenance():
@@ -1543,8 +1558,15 @@ def test_supervisor_health_requires_configured_model_in_catalog():
     assert health["model_present"] is True
 
 
-def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
+def test_goal_plan_upstream_error_mislabeled_http_400_is_retried_once():
     value = {
+        "goal_obligations": [
+            {
+                "obligation_id": "O1",
+                "predicate": "config.json is inspected",
+                "required_phases": ["observe"],
+            }
+        ],
         "add_stages": [
             {
                 "stage": 1,
@@ -1554,6 +1576,7 @@ def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
                         "objective": "Inspect config.json.",
                         "phase": "observe",
                         "depends_on": [],
+                        "obligation_ids": ["O1"],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
                         "write_roots": [],
@@ -1577,7 +1600,7 @@ def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
                 },
                 status_code=400,
             ),
-            responses_response(value),
+            response(value),
         ]
     )
     client = OpenAICompatibleSupervisorClient(
@@ -1603,7 +1626,7 @@ def test_responses_upstream_error_mislabeled_http_400_is_retried_once():
 
     assert patch.add_steps[0].step_id == "S1"
     assert len(fake.posts) == 2
-    assert all(post["url"].endswith("/responses") for post in fake.posts)
+    assert all(post["url"].endswith("/chat/completions") for post in fake.posts)
 
 
 def test_non_retryable_supervisor_http_error_has_structured_contract():
@@ -2176,6 +2199,25 @@ def test_model_route_falls_back_and_circuit_skips_repeated_primary_failure():
     assert any(item["type"] == "supervisor_route_skipped" for item in audit)
 
 
+def test_pending_retry_delay_tracks_phase_circuit_cooldown(monkeypatch):
+    client = OpenAICompatibleSupervisorClient(
+        replace(
+            settings(),
+            circuit_breaker_failures=2,
+            circuit_breaker_cooldown_seconds=30,
+        ),
+        session=FakeSession([]),
+    )
+    client._model_failures[client.model_name] = 2
+    client._model_opened_at[client.model_name] = 100.0
+    monkeypatch.setattr(supervisor_openai_module.time, "monotonic", lambda: 112.0)
+
+    assert client.pending_retry_delay_seconds("goal_plan") == pytest.approx(18.05)
+
+    client._model_failures[client.model_name] = 1
+    assert client.pending_retry_delay_seconds("goal_plan") == 0
+
+
 def test_validated_contract_plan_cache_avoids_second_api_call(tmp_path):
     cache_dir = tmp_path / "plan-cache"
     configured = replace(
@@ -2219,6 +2261,13 @@ def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
         plan_cache_dir=str(cache_dir.resolve()),
     )
     value = {
+        "goal_obligations": [
+            {
+                "obligation_id": "O1",
+                "predicate": "config.json is inspected",
+                "required_phases": ["observe"],
+            }
+        ],
         "add_stages": [
             {
                 "stage": 1,
@@ -2228,6 +2277,7 @@ def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
                         "objective": "Inspect config.json.",
                         "phase": "observe",
                         "depends_on": [],
+                        "obligation_ids": ["O1"],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
                         "write_roots": [],
@@ -2290,7 +2340,7 @@ def test_validated_goal_plan_cache_ignores_per_run_identity(tmp_path):
         },
         workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
     )
-    first_session = FakeSession([responses_response(value)])
+    first_session = FakeSession([response(value)])
     first = OpenAICompatibleSupervisorClient(configured, session=first_session)
     first_patch = first.plan_goal_patch(first_request)
     first.accept_goal_plan_cache_candidate(first_patch.patch_id)
@@ -2319,6 +2369,13 @@ def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
         plan_cache_dir=str(cache_dir.resolve()),
     )
     value = {
+        "goal_obligations": [
+            {
+                "obligation_id": "O1",
+                "predicate": "config.json is inspected",
+                "required_phases": ["observe"],
+            }
+        ],
         "add_stages": [
             {
                 "stage": 1,
@@ -2328,6 +2385,7 @@ def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
                         "objective": "Inspect config.json.",
                         "phase": "observe",
                         "depends_on": [],
+                        "obligation_ids": ["O1"],
                         "success_evidence": ["config.json is observed"],
                         "read_roots": ["config.json"],
                         "write_roots": [],
@@ -2349,7 +2407,7 @@ def test_rejected_goal_plan_cache_candidate_is_never_replayed(tmp_path):
         latest_audit=None,
         workspace_manifest={"entries": [{"path": "config.json", "sha256": "a"}]},
     )
-    fake = FakeSession([responses_response(value), responses_response(value)])
+    fake = FakeSession([response(value), response(value)])
     client = OpenAICompatibleSupervisorClient(configured, session=fake)
 
     rejected = client.plan_goal_patch(request)

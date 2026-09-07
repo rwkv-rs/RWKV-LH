@@ -1,9 +1,8 @@
-"""Versioned facts for the RWKV action spine and optional hybrid supervision.
+"""Versioned durable facts for the RWKV goal loop.
 
-The runtime stores literal input, model calls, exact tool observations and
-artifact revisions.  The default R126 path has no online plan or reviewer.  In
-hybrid mode, external plans and reviews are attributed causal facts; they do not
-become mutable controller-authored task state or gain Harness execution authority.
+Literal goals, model calls, Harness observations, artifact revisions, Strong
+plans and reviews are attributed causal facts. Recurrent model States are
+derived caches and do not grant Harness execution authority.
 """
 
 from __future__ import annotations
@@ -64,6 +63,9 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "goal_step_evidence_gap_recorded": (
         "rwkv-lh.goal-step-evidence-gap-recorded.v1"
     ),
+    "goal_command_write_scope_violation": (
+        "rwkv-lh.goal-command-write-scope-violation.v1"
+    ),
     "goal_final_rejected": "rwkv-lh.goal-final-rejected.v1",
     "goal_action_plan_step_assigned": "rwkv-lh.goal-action-plan-step-assignment.v1",
     "goal_action_plan_step_linked": "rwkv-lh.goal-action-plan-step-link.v1",
@@ -74,6 +76,7 @@ CAUSAL_EVENT_PAYLOAD_SCHEMAS: dict[str, str] = {
     "idempotent_action_recovered": "rwkv-lh.action-recovery.v1",
     "committed_snapshot_action_recovered": "rwkv-lh.action-recovery.v1",
     "model_transport_failure": "rwkv-lh.model-transport-failure.v1",
+    "model_input_budget_exceeded": "rwkv-lh.model-input-budget-exceeded.v1",
     "supervisor_plan_committed": "rwkv-lh.supervisor-plan-committed.v1",
     "supervisor_directive_committed": "rwkv-lh.supervisor-directive-committed.v1",
     "supervisor_stage_committed": "rwkv-lh.supervisor-stage-committed.v1",
@@ -525,7 +528,9 @@ class ToolSelectionRecord:
     tool_definition_digest: str
     selector_model: str
     selector_model_sha256: str
-    selector_head_sha256: str
+    selector_decoder_id: str
+    selector_decoder_sha256: str
+    selector_decoder_protocol: str
     selector_profile_id: str
     selector_profile_sha256: str
     executor_model: str
@@ -548,6 +553,8 @@ class ToolSelectionRecord:
             self.selector_checkpoint_id,
             self.executor_parent_checkpoint_id,
             self.selector_model,
+            self.selector_decoder_id,
+            self.selector_decoder_protocol,
             self.selector_profile_id,
             self.executor_model,
             self.executor_profile_id,
@@ -560,7 +567,7 @@ class ToolSelectionRecord:
             "menu_digest": self.menu_digest,
             "tool_definition_digest": self.tool_definition_digest,
             "selector_model_sha256": self.selector_model_sha256,
-            "selector_head_sha256": self.selector_head_sha256,
+            "selector_decoder_sha256": self.selector_decoder_sha256,
             "selector_profile_sha256": self.selector_profile_sha256,
             "executor_model_sha256": self.executor_model_sha256,
             "executor_profile_sha256": self.executor_profile_sha256,
@@ -594,12 +601,23 @@ class ToolSelectionRecord:
             "menu_digest": self.menu_digest,
             "model": self.selector_model,
             "model_sha256": self.selector_model_sha256,
-            "head_sha256": self.selector_head_sha256,
             "profile_id": self.selector_profile_id,
             "profile_sha256": self.selector_profile_sha256,
         }
         if any(self.raw_selection.get(key) != value for key, value in bindings.items()):
             raise ValueError("raw Selector output differs from handoff identity")
+        decoder_bindings = {
+            "decoder_id": self.selector_decoder_id,
+            "decoder_sha256": self.selector_decoder_sha256,
+            "decoder_protocol": self.selector_decoder_protocol,
+        }
+        if any(
+            self.raw_selection.get(key) != value
+            for key, value in decoder_bindings.items()
+        ):
+            raise ValueError(
+                "raw native Selector decoder differs from handoff identity"
+            )
         if self.status is ToolSelectionStatus.STAGED:
             if (
                 self.consumed_decision_id
@@ -655,7 +673,13 @@ class ToolSelectionRecord:
             tool_definition_digest=str(value.get("tool_definition_digest") or ""),
             selector_model=str(value.get("selector_model") or ""),
             selector_model_sha256=str(value.get("selector_model_sha256") or ""),
-            selector_head_sha256=str(value.get("selector_head_sha256") or ""),
+            selector_decoder_id=str(value.get("selector_decoder_id") or ""),
+            selector_decoder_sha256=str(
+                value.get("selector_decoder_sha256") or ""
+            ),
+            selector_decoder_protocol=str(
+                value.get("selector_decoder_protocol") or ""
+            ),
             selector_profile_id=str(value.get("selector_profile_id") or ""),
             selector_profile_sha256=str(
                 value.get("selector_profile_sha256") or ""
@@ -1102,7 +1126,9 @@ class RunState:
             "tool_definition_digest",
             "selector_model",
             "selector_model_sha256",
-            "selector_head_sha256",
+            "selector_decoder_id",
+            "selector_decoder_sha256",
+            "selector_decoder_protocol",
             "selector_profile_id",
             "selector_profile_sha256",
             "executor_model",
@@ -1141,7 +1167,9 @@ class RunState:
             "tool_definition_digest",
             "selector_model",
             "selector_model_sha256",
-            "selector_head_sha256",
+            "selector_decoder_id",
+            "selector_decoder_sha256",
+            "selector_decoder_protocol",
             "selector_profile_id",
             "selector_profile_sha256",
             "executor_model",
@@ -1527,13 +1555,20 @@ class RunState:
             ):
                 raise ValueError("tool selection Selector checkpoint identity mismatch")
             selector_metadata = selector_checkpoint.native_state_metadata or {}
-            if (
-                selector_metadata.get("model_sha256")
-                != selection.selector_model_sha256
-                or selector_metadata.get("head_sha256")
-                != selection.selector_head_sha256
+            if selector_metadata.get("model_sha256") != (
+                selection.selector_model_sha256
             ):
                 raise ValueError("tool selection Selector artifact identity mismatch")
+            decoder_matches = (
+                selector_metadata.get("decoder_id")
+                == selection.selector_decoder_id
+                and selector_metadata.get("decoder_sha256")
+                == selection.selector_decoder_sha256
+                and selector_metadata.get("decoder_protocol")
+                == selection.selector_decoder_protocol
+            )
+            if not decoder_matches:
+                raise ValueError("tool selection Selector decoder identity mismatch")
             if (
                 executor_checkpoint.lane_kind is not ModelLaneKind.ACTION
                 or executor_checkpoint.model != selection.executor_model

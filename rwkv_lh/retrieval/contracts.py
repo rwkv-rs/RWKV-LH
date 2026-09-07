@@ -155,6 +155,35 @@ class EvidenceSpan:
     ) -> "EvidenceSpan":
         literal = _literal_text("evidence span text", text, max_chars=16_000)
         locator_value = dict(locator or {})
+        content_digest = str(locator_value.get("content_sha256") or "")
+        if content_digest and content_digest != hashlib.sha256(
+            literal.encode("utf-8")
+        ).hexdigest():
+            raise ValueError("evidence span content_sha256 does not match its text")
+        if "start_char" in locator_value and "end_char" in locator_value:
+            start_char = locator_value["start_char"]
+            end_char = locator_value["end_char"]
+            if (
+                isinstance(start_char, bool)
+                or isinstance(end_char, bool)
+                or not isinstance(start_char, int)
+                or not isinstance(end_char, int)
+                or start_char < 0
+                or end_char - start_char != len(literal)
+            ):
+                raise ValueError("evidence span character range does not match its text")
+        if "start_byte" in locator_value and "end_byte" in locator_value:
+            start_byte = locator_value["start_byte"]
+            end_byte = locator_value["end_byte"]
+            if (
+                isinstance(start_byte, bool)
+                or isinstance(end_byte, bool)
+                or not isinstance(start_byte, int)
+                or not isinstance(end_byte, int)
+                or start_byte < 0
+                or end_byte - start_byte != len(literal.encode("utf-8"))
+            ):
+                raise ValueError("evidence span byte range does not match its text")
         identity = {"text": literal, "locator": locator_value}
         return cls(
             span_id=f"SPAN-{canonical_digest(identity)[:20]}",
@@ -222,6 +251,12 @@ class EvidenceRecord:
                 "evidence record requires exact spans or literal structured fields"
             )
         digest = _sha256("snapshot_digest", snapshot_digest)
+        for span in spans:
+            locator_digest = str(span.locator.get("snapshot_digest") or "")
+            if locator_digest and locator_digest != digest:
+                raise ValueError(
+                    "evidence span locator belongs to another snapshot"
+                )
         url_value = str(url or "").strip()[:4096]
         title_value = str(title or "").strip()[:1000]
         published_value = str(published or "").strip()[:128]
@@ -250,11 +285,37 @@ class EvidenceRecord:
 
     def verify_snapshot(self, snapshot_text: str) -> bool:
         snapshot = str(snapshot_text)
-        return (
+        if (
             hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
-            == self.snapshot_digest
-            and all(span.text in snapshot for span in self.exact_spans)
-        )
+            != self.snapshot_digest
+        ):
+            return False
+        snapshot_bytes = snapshot.encode("utf-8")
+        for span in self.exact_spans:
+            locator = span.locator
+            if "start_byte" in locator and "end_byte" in locator:
+                try:
+                    observed = snapshot_bytes[
+                        int(locator["start_byte"]) : int(locator["end_byte"])
+                    ].decode("utf-8")
+                except (TypeError, ValueError, UnicodeDecodeError):
+                    return False
+                if observed != span.text:
+                    return False
+                continue
+            if "start_char" in locator and "end_char" in locator:
+                try:
+                    observed = snapshot[
+                        int(locator["start_char"]) : int(locator["end_char"])
+                    ]
+                except (TypeError, ValueError):
+                    return False
+                if observed != span.text:
+                    return False
+                continue
+            if span.text not in snapshot:
+                return False
+        return True
 
     def to_dict(self) -> dict[str, Any]:
         return {

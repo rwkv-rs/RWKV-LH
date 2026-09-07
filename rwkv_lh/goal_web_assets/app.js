@@ -102,7 +102,7 @@ function renderTopology() {
   if (!app.topology) return;
   const topology = app.topology;
   const cards = [
-    { index: "01", name: "Strong Planner", ok: topology.supervisor?.configured, detail: `${topology.supervisor?.model || "未配置"} · Contract Graph` },
+    { index: "01", name: "Strong Planner", ok: topology.supervisor?.configured, detail: `${topology.supervisor?.model || "未配置"} · Goal Loop` },
     { index: "02", name: "RWKV Selector", ok: topology.selector?.available, detail: `${topology.selector?.model || "2.9B"} · ${topology.selector?.device || "GPU2"}` },
     { index: "03", name: "RWKV Executor", ok: topology.executor?.available, detail: `${topology.executor?.model || "13.3B"} · ${topology.executor?.device || "GPU1"}` },
     { index: "04", name: "Evidence Harness", ok: topology.harness?.available, detail: `${topology.harness?.scope || "isolated"} · append-only` },

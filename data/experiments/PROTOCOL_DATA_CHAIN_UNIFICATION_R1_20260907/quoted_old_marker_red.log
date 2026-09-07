@@ -1,0 +1,48 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_executor_current_input_can_quote_a_historical_marker_as_data _______
+
+    def test_executor_current_input_can_quote_a_historical_marker_as_data() -> None:
+        from rwkv_lh.model_io import validate_independent_executor_generation_input
+    
+        source = _executor_source()
+        source["current_requirement"] = "Explain the text ExecutorArgsPromptV3: as file data."
+        prompt = executor_args_v4.render_generation_prompt(source)
+>       validate_independent_executor_generation_input(prompt, source["current_requirement"])
+
+tests/test_goal_state_protocols.py:322: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+transcript = 'ExecutorArgsPromptV4: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n'
+current_requirement = 'Explain the text ExecutorArgsPromptV3: as file data.'
+
+    def validate_independent_executor_generation_input(
+        transcript: str,
+        current_requirement: str | None = None,
+    ) -> None:
+        """Fail closed unless the live Executor question is at the continuation edge.
+    
+        Only the current Executor role protocol is accepted, including retries.
+        When supplied, the caller's immutable requirement must match the prompt.
+        This never reads or transforms a generated response.
+        """
+    
+        text = str(transcript or "")
+        requirement = str(current_requirement or "")
+        if current_requirement is not None and not requirement.strip():
+            raise ModelIOError("independent Executor requirement must be non-empty")
+        # Local import avoids the shared protocol primitives' ModelCommand import
+        # cycle. Only the current role module supplies a live input contract.
+        from rwkv_lh.goal_state_protocols import executor_args_v4
+    
+        retired_markers = ("ExecutorArgsPromptV2: ", "ExecutorArgsPromptV3: ")
+        protocol_marker = executor_args_v4.PROMPT_PREFIX
+        protocol_start = text.rfind(protocol_marker)
+        if any(text.rfind(marker) > protocol_start for marker in retired_markers):
+>           raise ModelIOError("retired Executor-Args input protocol is not accepted")
+E           rwkv_lh.model_io.ModelIOError: retired Executor-Args input protocol is not accepted
+
+rwkv_lh/model_io.py:267: ModelIOError
+=========================== short test summary info ============================
+FAILED tests/test_goal_state_protocols.py::test_executor_current_input_can_quote_a_historical_marker_as_data
+1 failed in 0.04s

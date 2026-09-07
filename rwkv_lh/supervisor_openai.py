@@ -68,7 +68,12 @@ from rwkv_lh.supervisor import (
 AuditHook = Callable[[Mapping[str, Any]], None]
 DEFAULT_SUPERVISOR_ENV_FILE = PROJECT_ROOT / ".env"
 _RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
-_RESPONSES_API_PHASES = {"goal_plan"}
+# The configured relay exposes Responses, but the exact GoalPlan v4 request
+# repeatedly returned an upstream HTTP 500 while the byte-equivalent system
+# prompt and payload passed through chat-completions.  Keep the decoder for
+# compatible future routes; production phases currently use the proven chat
+# transport and retain the same local protocol validation.
+_RESPONSES_API_PHASES: frozenset[str] = frozenset()
 _STAGE_CHECKER_PHASES = {"goal_stage_review"}
 _RESPONSES_JSON_INPUT_PREFIX = "json request payload:\n"
 _WORKSPACE_RELATIVE_ROOT_PATTERN = (
@@ -969,6 +974,40 @@ class OpenAICompatibleSupervisorClient:
 
         return self.settings.semantic_repair_attempts
 
+    def pending_retry_delay_seconds(self, phase: str) -> float:
+        """Return the time until at least one phase route leaves its circuit."""
+
+        primary_model = (
+            self.stage_checker_model_name
+            if phase in _STAGE_CHECKER_PHASES
+            else self.model_name
+        )
+        routes = (
+            (primary_model,)
+            if phase in _STAGE_CHECKER_PHASES
+            else (primary_model, *self.settings.fallback_models)
+        )
+        now = time.monotonic()
+        remaining: list[float] = []
+        with self._route_lock:
+            for model in routes:
+                failures = self._model_failures.get(model, 0)
+                if failures < self.settings.circuit_breaker_failures:
+                    return 0.0
+                opened_at = self._model_opened_at.get(model, 0.0)
+                route_remaining = (
+                    self.settings.circuit_breaker_cooldown_seconds
+                    - (now - opened_at)
+                )
+                if route_remaining <= 0:
+                    return 0.0
+                remaining.append(route_remaining)
+        if not remaining:
+            return 0.0
+        # A small guard avoids re-entering a few scheduler ticks before the
+        # exact monotonic deadline and burning a bounded resume attempt.
+        return min(remaining) + 0.05
+
     def _session(self) -> requests.Session:
         session = getattr(self._thread_sessions, "session", None)
         if session is None:
@@ -1252,7 +1291,7 @@ class OpenAICompatibleSupervisorClient:
     ) -> dict[str, Any]:
         call_id = f"SUP-{uuid.uuid4().hex[:20]}"
         schema_revision = (
-            "v3"
+            "v4"
             if phase == "goal_plan"
             else "v8"
             if phase == "contract_plan"
@@ -2193,6 +2232,10 @@ class OpenAICompatibleSupervisorClient:
             latest_stage_review = payload.get("latest_stage_review")
             if isinstance(latest_stage_review, dict):
                 latest_stage_review.pop("review_id", None)
+            latest_controller_repair = payload.get("latest_controller_repair")
+            if isinstance(latest_controller_repair, dict):
+                latest_controller_repair.pop("feedback_id", None)
+                latest_controller_repair.pop("evidence_event_ids", None)
             local_repair = payload.get("local_validation_repair")
             if isinstance(local_repair, dict):
                 rejected_patch = local_repair.get("rejected_patch")
@@ -2587,6 +2630,46 @@ class OpenAICompatibleSupervisorClient:
 
     @staticmethod
     def _goal_plan_patch_schema() -> dict[str, Any]:
+        obligation = {
+            "type": "object",
+            "properties": {
+                "obligation_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                },
+                "predicate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 800,
+                    "description": (
+                        "One observable result or effect required by the immutable "
+                        "user request; this describes acceptance but never claims it."
+                    ),
+                },
+                "required_phases": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "observe",
+                            "mutate",
+                            "execute",
+                            "derive_evidence",
+                        ],
+                    },
+                    "uniqueItems": True,
+                    "minItems": 1,
+                    "maxItems": 4,
+                    "description": (
+                        "Every distinct Harness evidence family required before this "
+                        "obligation may be considered covered."
+                    ),
+                },
+            },
+            "required": ["obligation_id", "predicate", "required_phases"],
+            "additionalProperties": False,
+        }
         step = {
             "type": "object",
             "properties": {
@@ -2610,6 +2693,17 @@ class OpenAICompatibleSupervisorClient:
                     "items": {"type": "string", "minLength": 1, "maxLength": 64},
                     "uniqueItems": True,
                     "maxItems": 5,
+                },
+                "obligation_ids": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "uniqueItems": True,
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "description": (
+                        "Immutable goal obligations whose required phase this step "
+                        "advances; IDs must come from goal_obligations or active_plan."
+                    ),
                 },
                 "success_evidence": {
                     "type": "array",
@@ -2656,6 +2750,7 @@ class OpenAICompatibleSupervisorClient:
                 "objective",
                 "phase",
                 "depends_on",
+                "obligation_ids",
                 "success_evidence",
                 "read_roots",
                 "write_roots",
@@ -2680,10 +2775,16 @@ class OpenAICompatibleSupervisorClient:
         return {
             "type": "object",
             "description": (
-                "One fixed GoalPlanPatch JSON object. Keep steps nested inside "
-                "stage objects; never flatten stage or step fields."
+                "One fixed GoalPlanPatch JSON object with immutable goal obligations. "
+                "Keep steps nested inside stage objects; never flatten stage or step fields."
             ),
             "properties": {
+                "goal_obligations": {
+                    "type": "array",
+                    "items": obligation,
+                    "uniqueItems": True,
+                    "maxItems": 16,
+                },
                 "add_stages": {"type": "array", "items": stage, "maxItems": 5},
                 "replace_stages": {
                     "type": "array",
@@ -2699,6 +2800,7 @@ class OpenAICompatibleSupervisorClient:
                 "reason": {"type": "string", "minLength": 1, "maxLength": 800},
             },
             "required": [
+                "goal_obligations",
                 "add_stages",
                 "replace_stages",
                 "discard_step_ids",
@@ -2721,15 +2823,24 @@ class OpenAICompatibleSupervisorClient:
             "parameters, audit evidence, mark completion, or write a final answer. "
             "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
             "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
-            "The exact top-level keys are add_stages, replace_stages, "
-            "discard_step_ids, and reason. Each stage has exactly stage and steps. "
+            "The exact top-level keys are goal_obligations, add_stages, "
+            "replace_stages, discard_step_ids, and reason. Each stage has exactly "
+            "stage and steps. "
             "Each step has exactly step_id, objective, phase, depends_on, "
-            "success_evidence, read_roots, write_roots, and constraints. Plan only "
-            "the next one to five clear steps. Each step gives the RWKV Executor one "
+            "obligation_ids, success_evidence, read_roots, write_roots, and "
+            "constraints. Plan only the next one to five clear steps. HARD "
+            "CARDINALITY: the sum of the lengths of every steps array across "
+            "add_stages and replace_stages must be at least one and at most five, "
+            "never five per stage. If more work remains, emit only the next five or "
+            "fewer steps; the rolling planner will be called again later. Each step "
+            "gives the RWKV Executor one "
             "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
             "means workspace or public-source inspection; mutate means direct file "
             "changes; execute means local command invocation; derive_evidence means "
-            "calculation, time/date derivation, or evidence binding. A phase only "
+            "calculation, time/date derivation, or evidence binding. The phase value "
+            "must be exactly one literal token from observe, mutate, execute, or "
+            "derive_evidence. Never write labels such as 'public-source observe'; a "
+            "public-source inspection still uses the exact phase value observe. A phase only "
             "narrows the Selector menu; never name a concrete tool. The root arrays "
             "are exact: local observe => read_roots non-empty, write_roots=[]; "
             "public-source observe => read_roots=[], write_roots=[]; mutate => "
@@ -2740,13 +2851,33 @@ class OpenAICompatibleSupervisorClient:
             "mutate, execute, or derive_evidence. Such a step consumes earlier "
             "inspection only through depends_on. Split unrelated files, observation, "
             "mutation, command execution, and verification when their evidence "
-            "differs. Read an available verifier or specification in a prior observe "
-            "step before the mutation it constrains. "
+            "differs. A generic request to verify a file does not authorize an execute "
+            "phase: use a later observe/readback step unless the immutable request or "
+            "inspected workspace names an actual command, test, or executable verifier. "
+            "Read an available verifier or specification in a prior observe step before "
+            "the mutation it constrains. "
             "Return nested stages, each containing its peer steps; do not repeat the "
             "stage number inside a step. Same-stage steps are independent: "
             "they cannot depend on each other and their read/write roots cannot conflict. "
             "Dependencies must point to an earlier stage. A stage is a barrier: all of "
             "its steps are audited and checked before the next stage starts. "
+            "GOAL COVERAGE CONTRACT: On the initial patch, goal_obligations must "
+            "enumerate every explicit result, side effect, prohibition, requested "
+            "verification, and requested deliverable in the immutable request. Each "
+            "obligation has a stable obligation_id, an observable predicate, and the "
+            "minimal required_phases whose successful Harness evidence is necessary. "
+            "Use observe when satisfying it requires inspecting workspace or public "
+            "facts; mutate when it requires creating or changing a local artifact; "
+            "execute when it explicitly requires a command/test/run or when executable "
+            "verification is part of the requested result; derive_evidence only for a "
+            "calculation, time/date derivation, or evidence binding. A prohibition that "
+            "requires a recorded decision still needs the phases used to inspect and "
+            "write that decision. Every step must bind at least one obligation_id and "
+            "advances only its own declared phase. On correction or continuation "
+            "patches, goal_obligations must be [] and step obligation_ids must reuse "
+            "the immutable IDs shown in active_plan. Exact step text, IDs, count, "
+            "stages, and order may vary; only complete obligation-phase evidence gates "
+            "the goal. "
             "Completed steps in active_plan are immutable. Open steps may be replaced "
             "in replace_stages or removed in discard_step_ids; do not retain stale work "
             "merely to preserve append-only history. New ids belong in add_stages. "
@@ -2755,6 +2886,17 @@ class OpenAICompatibleSupervisorClient:
             "later successful Actions must prove; it does not report that work is "
             "already complete. Planner text is never completion evidence. Only the "
             "RWKV Auditor can accept runtime Action evidence. "
+            "FACT CONSUMPTION: recent_action_facts contains bounded typed Harness "
+            "observations. Its arguments_projection and result_projection fields are "
+            "JSON-encoded packets, not prose. Preserve their literal booleans, exact "
+            "diagnostics, and lineage-bound spans when planning the next frontier. A "
+            "complete negative observation is still decisive evidence: for example, "
+            "valid_json=false with parse_outcome_complete=true proves that candidate "
+            "is not readable JSON. When the immutable request names a fallback, move "
+            "to that fallback after the preferred source is disproved. Do not replace "
+            "a repaired frontier with the same phase and roots merely to repeat an "
+            "identical complete observation; consume the observed outcome and change "
+            "the next semantic work. "
             "The Controller has already fixed the one project mother path. You have "
             "no authority to name, infer, replace, expand, or emit that mother path. "
             "Every read_roots and write_roots item is only a project-relative file "
@@ -2763,9 +2905,13 @@ class OpenAICompatibleSupervisorClient:
             "absolute path, never invent a '/workspace' prefix, never use a backslash, "
             "and never use '..'. "
             "FORMAT EXAMPLE (shape only; replace every example value): "
-            '{"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '{"goal_obligations":[{"obligation_id":"O1",'
+            '"predicate":"one observable required result",'
+            '"required_phases":["observe"]}],'
+            '"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
             '"objective":"one coherent responsibility","phase":"observe",'
             '"depends_on":[],'
+            '"obligation_ids":["O1"],'
             '"success_evidence":["successful action evidence covers the required read"],'
             '"read_roots":["."],"write_roots":[],'
             '"constraints":[]}]}],"replace_stages":[],'
@@ -2773,15 +2919,19 @@ class OpenAICompatibleSupervisorClient:
             "Return the same nested shape with real values; do not flatten steps. "
             + (
                 "This is the initial patch: replace_stages and discard_step_ids are "
-                "empty, and add_stages contains the first executable stages."
+                "empty, goal_obligations is non-empty and exhaustive, and add_stages "
+                "contains the first executable stages."
                 if initial
-                else "This is a correction patch: make only the smallest change needed "
-                "for latest_audit or latest_stage_review, replacing or discarding "
+                else "This is a correction or continuation patch: goal_obligations is "
+                "always []; make only the smallest change needed "
+                "for latest_audit, latest_stage_review, or "
+                "latest_controller_repair, replacing or discarding "
                 "obsolete open work or adding one later repair stage. When "
-                "latest_stage_review.verdict is repair and active_plan still has a "
-                "frontier, the patch must replace or discard at least one current "
-                "frontier step so the gap is addressed before unrelated downstream "
-                "work; merely appending a later stage is invalid."
+                "latest_audit.verdict is repair, latest_stage_review.verdict is "
+                "repair, or latest_controller_repair is non-null, and active_plan "
+                "still has a frontier, the patch must replace or discard at least "
+                "one current frontier step so the gap is addressed before unrelated "
+                "downstream work; merely appending a later stage is invalid."
             )
         )
         if request.local_validation_repair is not None:
@@ -2795,7 +2945,7 @@ class OpenAICompatibleSupervisorClient:
             )
         request_payload = request.to_dict()
         schema = self._goal_plan_patch_schema()
-        cache_schema = "rwkv-lh.validated-goal-plan-cache.v1"
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v2"
         cache_path = self._validated_response_cache_path(
             phase="goal_plan",
             cache_schema=cache_schema,
@@ -2818,7 +2968,11 @@ class OpenAICompatibleSupervisorClient:
                 system_prompt=system_prompt,
                 request_payload=request_payload,
                 schema=schema,
-                max_tokens=self.settings.max_contract_plan_tokens,
+                # This is the bounded rolling Goal Planner, not the larger
+                # ContractGraph compiler.  Reusing the 4000-token contract
+                # budget made otherwise valid relay routes cross their
+                # long-generation boundary before returning any plan.
+                max_tokens=self.settings.max_plan_tokens,
             )
         patch = GoalPlanPatch.from_model_value(
             value,
@@ -2831,6 +2985,14 @@ class OpenAICompatibleSupervisorClient:
             )
         if initial and not patch.add_steps:
             raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
+        if initial and not patch.goal_obligations:
+            raise SupervisorProtocolError(
+                "initial Goal PlanPatch requires immutable goal_obligations"
+            )
+        if not initial and patch.goal_obligations:
+            raise SupervisorProtocolError(
+                "continuation Goal PlanPatch cannot redefine goal_obligations"
+            )
         if not cache_hit:
             # Cross-step ids, dependencies, replacement legality, and completed
             # evidence are validated by the Controller against its reconstructed
@@ -3555,6 +3717,9 @@ class OpenAIGoalSupervisorClient:
     @property
     def semantic_repair_attempts(self) -> int:
         return self._client.semantic_repair_attempts
+
+    def pending_retry_delay_seconds(self, phase: str) -> float:
+        return self._client.pending_retry_delay_seconds(phase)
 
     def plan_goal_patch(self, request: Any) -> Any:
         return self._client.plan_goal_patch(request)

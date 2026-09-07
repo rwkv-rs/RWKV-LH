@@ -4,56 +4,59 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
-from statistics import median
 from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
 from rwkv_lh.atom_execution import atom_execution_contract_digest
-from rwkv_lh.exact_tool_selector.network_client import (
-    NetworkExactToolSelectorClient,
+from rwkv_lh.executor_provenance import (
+    EXECUTOR_ARGUMENT_PROVENANCE_VERSION,
+    ExecutorProvenanceError,
+    validate_executor_argument_provenance,
+)
+from rwkv_lh.exact_tool_selector.native_network_client import (
+    NativeNetworkSelectorClient,
+)
+from rwkv_lh.exact_tool_selector.native_network_protocol import (
+    NativeNetworkToolSelection,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_EXACT_TOOL_LABELS,
     NETWORK_SELECTOR_MENU_ORDER_IDS,
-    NetworkExactToolSelection,
 )
 from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     build_network_selector_input,
 )
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
-from rwkv_lh.goal_state_protocols import executor_args as executor_args_protocol
+from rwkv_lh.goal_state_protocols import executor_args_v4 as executor_args_protocol
 from rwkv_lh.goal_state_protocols import auditor_final as auditor_final_protocol
-from rwkv_lh.goal_state_protocols import auditor_step as auditor_step_protocol
+from rwkv_lh.goal_state_protocols import auditor_step_v3 as auditor_step_protocol
 from rwkv_lh.goal_state_protocols import finalizer_answer as finalizer_protocol
-from rwkv_lh.goal_state_protocols import selector_intent as selector_intent_protocol
+from rwkv_lh.goal_state_protocols import (
+    selector_intent_v4 as selector_intent_v4_protocol,
+)
 from rwkv_lh.harness import ActionHarness, HarnessError
 from rwkv_lh.goal_loop_protocol import (
     GOAL_AUDIT_DEFINITION,
-    GOAL_AUDIT_INPUT_PROTOCOL,
     GoalAuditDecision,
     RollingGoalPlan,
     available_evidence_refs,
-    goal_audit_output_constraints,
     rolling_goal_plan,
     validate_audit_authority,
 )
 from rwkv_lh.model_io import (
     FINAL_ANSWER_DEFINITION,
     INDEPENDENT_EXECUTOR_INSTRUCTION,
-    INDEPENDENT_EXECUTOR_REQUEST_LAST_PROTOCOL,
     TOOL_SELECTION_OPERATION,
     ModelCommand,
     ModelIOError,
     canonical_digest,
     parse_tool_selection,
     render_event_append,
-    render_independent_executor_tool_disclosure,
     render_tool_disclosure,
     validate_independent_executor_generation_input,
     validate_final_answer,
@@ -65,6 +68,10 @@ from rwkv_lh.model_session import (
     ModelSessionError,
     SessionSampling,
     create_model_session,
+)
+from rwkv_lh.observation_funnel import (
+    OBSERVATION_PROJECTION_VERSION,
+    project_action_result,
 )
 from rwkv_lh.runtime.protocol import RWKVRuntimeError
 from rwkv_lh.retrieval.runtime import operation_allowed_by_retrieval_policy
@@ -99,6 +106,7 @@ class ModelProtocolError(ValueError):
         selected_operation_schema: Mapping[str, Any] | None = None,
         schema_already_disclosed: bool = False,
         rejected_arguments: Mapping[str, Any] | None = None,
+        error_kind: str = "",
     ):
         super().__init__(message)
         self.decision_id = decision_id
@@ -108,6 +116,7 @@ class ModelProtocolError(ValueError):
         self.selected_operation_schema = dict(selected_operation_schema or {})
         self.schema_already_disclosed = bool(schema_already_disclosed)
         self.rejected_arguments = dict(rejected_arguments or {})
+        self.error_kind = str(error_kind or "")
 
 
 PersistCallback = Callable[[RunState, str, Mapping[str, Any]], None]
@@ -137,35 +146,9 @@ class LongHorizonModel:
         frequency_penalty=0.0,
         penalty_decay=0.996,
     )
-    _RESULT_PROJECTION_VERSION = "action-result-decision-state.v1"
+    _RESULT_PROJECTION_VERSION = OBSERVATION_PROJECTION_VERSION
     _RESULT_OUTPUT_MAX_CHARS = 6000
-    _RESULT_METADATA_KEYS = (
-        "complete",
-        "truncated",
-        "eof",
-        "start_byte",
-        "end_byte",
-        "next_start_byte",
-        "source_size_bytes",
-        "canonical_size_bytes",
-        "source_bytes",
-        "representation",
-        "json_type",
-        "observed_tokens",
-        "match_count",
-        "files_considered",
-        "files_searched",
-        "skipped_file_count",
-        "next_cursor",
-        "expected_exit_code",
-        "exit_code_matched",
-        "output_truncated",
-        "network_policy",
-        "provider",
-        "request_binding_valid",
-        "recovered_committed_snapshot",
-        "committed_snapshot_recovery_attempted",
-    )
+    _EXECUTOR_CAUSAL_FACT_LIMITS = (12, 8, 4, 2, 0)
 
     def validate_goal_role_sessions(self) -> None:
         """Fail closed unless every generative Goal role owns one session."""
@@ -205,7 +188,7 @@ class LongHorizonModel:
         session: ModelSession | None = None,
         *,
         harness: ActionHarness | None = None,
-        tool_selector: NetworkExactToolSelectorClient | None = None,
+        tool_selector: NativeNetworkSelectorClient | None = None,
         auditor_session: ModelSession | None = None,
         step_auditor_session: ModelSession | None = None,
         finalizer_session: ModelSession | None = None,
@@ -311,17 +294,37 @@ class LongHorizonModel:
             for item in self._all_definitions
         )
 
-    def _max_disclosure_tokens_for_state(self, state: RunState) -> int:
+    def _max_disclosure_tokens_for_state(
+        self,
+        state: RunState,
+        checkpoint: ModelCheckpoint,
+        *,
+        current_requirement: str,
+        fact_action_ids: Sequence[str] | None,
+        execution_state: Mapping[str, Any] | None,
+        eligible_operations: Sequence[str] | None = None,
+    ) -> int:
         if self.tool_selector is None:
             return self._max_disclosure_tokens
+        definitions = (
+            self._action_definitions
+            if eligible_operations is None
+            else [self._definitions_by_name[name] for name in eligible_operations]
+        )
         return max(
             get_token_count(
-                render_independent_executor_tool_disclosure(
-                    item,
-                    state.goal.request,
+                "\n\n" + executor_args_protocol.render_generation_prompt(
+                    self._executor_prompt_source(
+                        state,
+                        checkpoint,
+                        item,
+                        current_requirement=current_requirement,
+                        fact_action_ids=fact_action_ids,
+                        execution_state=execution_state,
+                    )[0]
                 )
             )
-            for item in self._all_definitions
+            for item in definitions
         )
 
     @staticmethod
@@ -371,6 +374,7 @@ class LongHorizonModel:
         selector_stage_context: SelectorStageContext | None = None,
         current_requirement: str | None = None,
         executor_fact_action_ids: Sequence[str] | None = None,
+        executor_execution_state: Mapping[str, Any] | None = None,
     ) -> ActionDecision:
         if event is not None and events:
             raise ValueError("pass either event or events, not both")
@@ -389,6 +393,15 @@ class LongHorizonModel:
                 dict.fromkeys(str(item) for item in executor_fact_action_ids if str(item))
             )
         )
+        selected_execution_state = (
+            None
+            if executor_execution_state is None
+            else dict(executor_execution_state)
+        )
+        if self.tool_selector is not None and selected_execution_state is None:
+            raise ValueError(
+                "independent G1J Executor requires controller execution_state"
+            )
         if selected_fact_action_ids is not None:
             unknown_fact_actions = set(selected_fact_action_ids) - set(state.actions)
             if unknown_fact_actions:
@@ -423,6 +436,7 @@ class LongHorizonModel:
                 max_output_tokens=max_output_tokens,
                 current_requirement=selected_requirement,
                 executor_fact_action_ids=selected_fact_action_ids,
+                executor_execution_state=selected_execution_state,
             )
         retry_operation = self._progressive_retry_operation(
             pending_events,
@@ -438,15 +452,38 @@ class LongHorizonModel:
             use_g1j_executor_args
             and not state.pending_selection_id
             and not retry_operation
-            and bool(state.tool_selections)
+            and (bool(state.tool_selections) or bool(state.actions))
         ):
             checkpoint = self._start_clean_executor_turn(
                 state,
                 checkpoint,
                 persist,
                 fact_action_ids=selected_fact_action_ids,
+                focus_text=selected_requirement,
             )
-        progressive_suffix_reserve = self._max_disclosure_tokens_for_state(state) + (
+        if (
+            use_g1j_executor_args
+            and not state.pending_selection_id
+            and not retry_operation
+            and "executor_fact_scope_schema_version"
+            not in (checkpoint.native_state_metadata or {})
+        ):
+            checkpoint = self._bind_executor_fact_scope(
+                state,
+                checkpoint,
+                (),
+                focus_text=selected_requirement,
+            )
+            state.model_states[checkpoint.checkpoint_id] = checkpoint
+            state.set_lane_head("executor", checkpoint.checkpoint_id)
+        progressive_suffix_reserve = self._max_disclosure_tokens_for_state(
+            state,
+            checkpoint,
+            current_requirement=selected_requirement,
+            fact_action_ids=selected_fact_action_ids,
+            execution_state=selected_execution_state,
+            eligible_operations=selected_eligible,
+        ) + (
             0
             if self.tool_selector is not None
             else self._TOOL_SELECTION_MAX_OUTPUT_TOKENS
@@ -533,12 +570,6 @@ class LongHorizonModel:
                         and not retry_operation
                         else ()
                     ),
-                    independent_executor_retry_operation=(
-                        retry_operation
-                        if self.tool_selector is not None
-                        and not use_g1j_executor_args
-                        else ""
-                    ),
                     include_generation_anchor=not use_g1j_executor_args,
                 )
         if self._progressive_tool_disclosure and retry_operation:
@@ -551,6 +582,7 @@ class LongHorizonModel:
                     definition,
                     current_requirement=selected_requirement,
                     fact_action_ids=selected_fact_action_ids,
+                    execution_state=selected_execution_state,
                 )
                 return self._generate(
                     state,
@@ -561,6 +593,7 @@ class LongHorizonModel:
                     disclosed_operation=retry_operation,
                     inherited_selection_id=retry_selection_id,
                     current_requirement=selected_requirement,
+                    executor_execution_state=selected_execution_state,
                 )
             generation_input_limit = self.session.settings.max_prompt_tokens(
                 max_output_tokens
@@ -574,12 +607,7 @@ class LongHorizonModel:
                     definitions=(definition,),
                     force=True,
                     input_reserve_tokens=get_token_count(
-                        render_independent_executor_tool_disclosure(
-                            definition,
-                            selected_requirement,
-                        )
-                        if self.tool_selector is not None
-                        else render_tool_disclosure(definition)
+                        render_tool_disclosure(definition)
                     ),
                 )
                 checkpoint = self._disclose_selected_tool(
@@ -589,6 +617,7 @@ class LongHorizonModel:
                     definition,
                     current_requirement=selected_requirement,
                     fact_action_ids=selected_fact_action_ids,
+                    execution_state=selected_execution_state,
                 )
             return self._generate(
                 state,
@@ -642,6 +671,7 @@ class LongHorizonModel:
                 selection=handoff,
                 current_requirement=selected_requirement,
                 fact_action_ids=selected_fact_action_ids,
+                execution_state=selected_execution_state,
             )
             return self._generate(
                 state,
@@ -651,6 +681,7 @@ class LongHorizonModel:
                 max_output_tokens=max_output_tokens,
                 disclosed_operation=selected_operation,
                 current_requirement=selected_requirement,
+                executor_execution_state=selected_execution_state,
             )
         direct_definitions = (
             self._all_definitions
@@ -678,6 +709,11 @@ class LongHorizonModel:
     ) -> ActionDecision:
         """Ask the same causal session for Final without opening a reviewer lane."""
 
+        if self.tool_selector is not None:
+            raise ModelProtocolError(
+                "independent G1J final answers require the dedicated Finalizer "
+                "and Final Auditor"
+            )
         checkpoint = self._checkpoint(state, persist)
         if self._progressive_tool_disclosure:
             checkpoint = self._rollover_if_needed(
@@ -691,7 +727,7 @@ class LongHorizonModel:
                     or "System: Tools:" in checkpoint.transcript
                 ),
                 input_reserve_tokens=(
-                    self._max_disclosure_tokens_for_state(state)
+                    get_token_count(render_tool_disclosure(FINAL_ANSWER_DEFINITION))
                     + get_token_count(render_event_append(event))
                 ),
             )
@@ -763,18 +799,17 @@ class LongHorizonModel:
                 }
             )
         )
-        evidence_records = self._audit_evidence_records(state, evidence_refs)
-        prompt_source = {
-            "immutable_goal": state.goal.request,
-            "completed_steps": self._completed_step_records(plan),
-            "committed_facts": self._committed_fact_records(evidence_records),
-            "evidence_records": evidence_records,
-            "format_contract": {
-                "format_id": "goal-user-response-v1",
-                "language": "match_immutable_goal",
-                "required_sections": [],
-            },
-        }
+        evidence_records = self._audit_evidence_records(
+            state,
+            evidence_refs,
+            focus_text=state.goal.request,
+        )
+        prompt_source = finalizer_protocol.build_prompt_source(
+            immutable_goal=state.goal.request,
+            completed_steps=self._completed_step_records(plan),
+            committed_facts=self._committed_fact_records(evidence_records),
+            evidence_records=evidence_records,
+        )
         assignment = finalizer_protocol.render_prompt(prompt_source)
         finalizer_checkpoint = self.finalizer_session.bootstrap(
             ModelLaneKind.FINALIZER,
@@ -979,20 +1014,24 @@ class LongHorizonModel:
                 )
         active_step = None
         if selected_step_id:
-            # phase is a Planner→Controller→Selector routing field.  The Step
-            # Auditor already receives objective, roots, and success evidence;
-            # keeping phase out preserves its independent input protocol.
-            active_step = {
-                key: value
-                for key, value in plan.steps[selected_step_id].to_dict().items()
-                if key != "phase"
-            }
+            # The declared phase is evidence semantics, not just routing.  Without
+            # it an Auditor can incorrectly demand a mutation from an observe step.
+            active_step = plan.steps[selected_step_id].to_dict()
         completed_steps = self._completed_step_records(plan)
         evidence_records = self._audit_evidence_records(
             state,
             bounded_evidence_refs,
+            focus_text="\n".join(
+                item
+                for item in (
+                    state.goal.request,
+                    json.dumps(active_step, ensure_ascii=False, sort_keys=True)
+                    if active_step is not None
+                    else "",
+                )
+                if item
+            ),
         )
-        committed_facts = self._committed_fact_records(evidence_records)
         if final_candidate and final_candidate_command is None:
             raise ModelProtocolError("Final Audit requires the Finalizer candidate")
         if not final_candidate and final_candidate_command is not None:
@@ -1007,17 +1046,16 @@ class LongHorizonModel:
                 audit_session = self.final_auditor_session
                 lane_kind = ModelLaneKind.FINAL_AUDIT
                 lane_role = "auditor_final"
-                prompt_source = {
-                    "immutable_goal": state.goal.request,
-                    "completed_steps": completed_steps,
-                    "committed_facts": committed_facts,
-                    "available_evidence_refs": list(bounded_evidence_refs),
-                    "evidence_records": evidence_records,
-                    "final_candidate": {
+                prompt_source = auditor_final_protocol.build_prompt_source(
+                    immutable_goal=state.goal.request,
+                    completed_steps=completed_steps,
+                    available_evidence_refs=bounded_evidence_refs,
+                    evidence_records=evidence_records,
+                    final_candidate={
                         "function": final_candidate_command.name,
                         "params": dict(final_candidate_command.arguments),
                     },
-                }
+                )
             else:
                 if active_step is None:
                     raise ModelProtocolError("Step Audit requires one active plan step")
@@ -1025,12 +1063,12 @@ class LongHorizonModel:
                 audit_session = self.step_auditor_session
                 lane_kind = ModelLaneKind.STEP_AUDIT
                 lane_role = "auditor_step"
-                prompt_source = {
-                    "boundary": str(boundary),
-                    "active_step": active_step,
-                    "available_evidence_refs": list(bounded_evidence_refs),
-                    "evidence_records": evidence_records,
-                }
+                prompt_source = auditor_step_protocol.build_prompt_source(
+                    boundary=str(boundary),
+                    active_step=active_step,
+                    available_evidence_refs=bounded_evidence_refs,
+                    evidence_records=evidence_records,
+                )
             assignment = protocol_module.render_prompt(prompt_source)
             audit_definition = deepcopy(GOAL_AUDIT_DEFINITION)
             audit_definition["parameters"]["properties"]["verdict"]["enum"] = (
@@ -1259,11 +1297,39 @@ class LongHorizonModel:
             str(last_error), request_id=last_request_id
         ) from last_error
 
+    def append_action_observation(
+        self,
+        state: RunState,
+        persist: PersistCallback,
+        event: ModelEvent,
+    ) -> ModelCheckpoint:
+        """Commit one Harness result to the recurrent Executor lane.
+
+        Mechanical evidence gating can reject a step without spending an
+        Auditor generation. The Harness result must still enter the Executor
+        State exactly once; otherwise a later controller slice rediscovers the
+        finished action as crash-recovery work and the next Executor call lacks
+        the failure details.
+        """
+
+        if event.event_type != "action_result":
+            raise ModelProtocolError(
+                "only a Harness action_result may enter the Executor observation lane"
+            )
+        if event.scope_id != self.ACTION_LANE_ID:
+            raise ModelProtocolError(
+                "Harness action_result must target the Executor action lane"
+            )
+        checkpoint = self._checkpoint(state, persist)
+        return self._append_event(state, checkpoint, event, persist)
+
     @classmethod
     def _audit_evidence_records(
         cls,
         state: RunState,
         evidence_refs: Sequence[str],
+        *,
+        focus_text: str = "",
     ) -> list[dict[str, Any]]:
         """Project bounded Harness facts so the Auditor can resolve every ref."""
 
@@ -1290,19 +1356,15 @@ class LongHorizonModel:
                 raise ModelProtocolError(
                     f"Audit evidence {evidence_ref!r} has no Harness action fact"
                 )
-            result = cls._project_action_result(action.result or {})
-            output = str(result.get("output") or "")
-            if len(output) > 1600:
-                result["output"] = output[:1600]
-                metadata = dict(result.get("metadata") or {})
-                metadata.update(
-                    {
-                        "complete": False,
-                        "projection_truncated": True,
-                        "original_output_chars": len(output),
-                    }
-                )
-                result["metadata"] = metadata
+            result = cls._project_action_result(
+                action.result or {},
+                operation=action.action_type,
+                arguments=action.arguments,
+                focus_text=focus_text or state.goal.request,
+                max_exact_chars=2400,
+                structured_budget=3600,
+                evidence_span_chars=900,
+            )
             related_artifacts = [
                 dict(vars(item))
                 for artifact_id in action.artifact_refs
@@ -1474,6 +1536,7 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         fact_action_ids: Sequence[str] | None,
+        focus_text: str = "",
     ) -> ModelCheckpoint:
         """Start one argument-filling turn without inheriting the prior tool WKV.
 
@@ -1484,22 +1547,61 @@ class LongHorizonModel:
         Executor State profile remains the only recurrent initialization.
         """
 
-        checkpoint = self.session.bootstrap(
-            ModelLaneKind.ACTION,
-            self._assignment(
+        checkpoint: ModelCheckpoint | None = None
+        retained_fact_action_ids: tuple[str, ...] = ()
+        selected_recent_limit = 0
+        budget_fallbacks: list[dict[str, Any]] = []
+        last_budget_error: InputBudgetError | None = None
+        for recent_limit in self._EXECUTOR_CAUSAL_FACT_LIMITS:
+            retained = self._bounded_assignment_action_ids(
                 state,
-                recent_limit=12,
-                executor_only=True,
+                recent_limit=recent_limit,
                 action_ids=fact_action_ids,
-            ),
-            self._menu_definitions,
-            lane_id=self.ACTION_LANE_ID,
-            event_ids=(),
-            progressive_tool_disclosure=True,
-            independent_tool_selector=True,
+            )
+            try:
+                checkpoint = self.session.bootstrap(
+                    ModelLaneKind.ACTION,
+                    self._assignment(
+                        state,
+                        recent_limit=recent_limit,
+                        executor_only=True,
+                        action_ids=fact_action_ids,
+                        focus_text=focus_text,
+                    ),
+                    self._menu_definitions,
+                    lane_id=self.ACTION_LANE_ID,
+                    event_ids=(),
+                    progressive_tool_disclosure=True,
+                    independent_tool_selector=True,
+                )
+            except InputBudgetError as exc:
+                last_budget_error = exc
+                budget_fallbacks.append(
+                    {
+                        "recent_limit": recent_limit,
+                        "retained_action_ids": list(retained),
+                        "error_type": type(exc).__name__,
+                        "error": str(exc)[:1000],
+                    }
+                )
+                continue
+            retained_fact_action_ids = retained
+            selected_recent_limit = recent_limit
+            break
+        if checkpoint is None:
+            raise InputBudgetError(
+                "clean Executor bootstrap exceeds the input boundary after "
+                "causal-fact limits 12, 8, 4, 2, and 0"
+            ) from last_budget_error
+        checkpoint = self._bind_executor_fact_scope(
+            state,
+            checkpoint,
+            retained_fact_action_ids,
+            focus_text=focus_text,
         )
         state.model_states[checkpoint.checkpoint_id] = checkpoint
         state.set_lane_head("executor", checkpoint.checkpoint_id)
+        fact_scope_metadata = checkpoint.native_state_metadata or {}
         persist(
             state,
             "action_session_started",
@@ -1514,16 +1616,148 @@ class LongHorizonModel:
                 "session_scope": "one_selected_action",
                 "executor_parent_checkpoint_id": previous.checkpoint_id,
                 "executor_state_inherited": False,
-                "causal_facts_projected": True,
+                "causal_facts_projected": bool(retained_fact_action_ids),
                 "causal_fact_scope": (
                     "controller_step_and_dependencies"
                     if fact_action_ids is not None
                     else "legacy_global"
                 ),
-                "causal_fact_action_ids": list(fact_action_ids or ()),
+                "causal_fact_requested_action_ids": list(fact_action_ids or ()),
+                "causal_fact_action_ids": list(retained_fact_action_ids),
+                "causal_fact_recent_limit": selected_recent_limit,
+                "causal_fact_projection_sha256": str(
+                    fact_scope_metadata.get("executor_fact_projection_sha256") or ""
+                ),
+                "causal_fact_scope_digest": str(
+                    fact_scope_metadata.get("executor_fact_scope_digest") or ""
+                ),
+                "input_budget_fallback_used": bool(budget_fallbacks),
+                "input_budget_fallbacks": budget_fallbacks,
             },
         )
         return checkpoint
+
+    def _executor_fact_records(
+        self,
+        state: RunState,
+        action_ids: Sequence[str],
+        *,
+        focus_text: str,
+    ) -> tuple[dict[str, Any], ...]:
+        """Rebuild the exact projections represented by a bound fact scope."""
+
+        selected_focus = "\n".join(
+            item for item in (str(focus_text), state.goal.request) if item
+        )
+        records: list[dict[str, Any]] = []
+        for action_id in action_ids:
+            action = state.actions.get(str(action_id))
+            if action is None:
+                raise ModelProtocolError(
+                    f"Executor fact binding references missing action: {action_id}"
+                )
+            records.append(
+                {
+                    "action_id": action.action_id,
+                    "operation": action.action_type,
+                    "arguments": dict(action.arguments),
+                    "result": self._project_action_result(
+                        action.result or {},
+                        operation=action.action_type,
+                        arguments=action.arguments,
+                        focus_text=selected_focus,
+                    ),
+                }
+            )
+        return tuple(records)
+
+    def _bind_executor_fact_scope(
+        self,
+        state: RunState,
+        checkpoint: ModelCheckpoint,
+        action_ids: Sequence[str],
+        *,
+        focus_text: str,
+    ) -> ModelCheckpoint:
+        """Bind the facts actually retained by this clean Executor checkpoint."""
+
+        selected_ids = tuple(str(item) for item in action_ids)
+        if len(set(selected_ids)) != len(selected_ids):
+            raise ModelProtocolError("Executor fact binding contains duplicate action IDs")
+        records = self._executor_fact_records(
+            state,
+            selected_ids,
+            focus_text=focus_text,
+        )
+        scope = {
+            "schema_version": "rwkv-lh.executor-fact-scope.v1",
+            "fact_action_ids": list(selected_ids),
+            "fact_projection_sha256": canonical_digest(records),
+            "focus_sha256": hashlib.sha256(
+                str(focus_text).encode("utf-8")
+            ).hexdigest(),
+        }
+        metadata = dict(checkpoint.native_state_metadata or {})
+        metadata.update(
+            {
+                "executor_fact_scope_schema_version": scope["schema_version"],
+                "executor_fact_action_ids": list(selected_ids),
+                "executor_fact_projection_sha256": scope[
+                    "fact_projection_sha256"
+                ],
+                "executor_fact_focus_sha256": scope["focus_sha256"],
+                "executor_fact_scope_digest": canonical_digest(scope),
+            }
+        )
+        return replace(checkpoint, native_state_metadata=metadata)
+
+    def _bound_executor_fact_records(
+        self,
+        state: RunState,
+        checkpoint: ModelCheckpoint,
+        *,
+        focus_text: str,
+    ) -> tuple[dict[str, Any], ...]:
+        """Verify and materialize only facts bound to the generation checkpoint."""
+
+        metadata = checkpoint.native_state_metadata or {}
+        if (
+            metadata.get("executor_fact_scope_schema_version")
+            != "rwkv-lh.executor-fact-scope.v1"
+        ):
+            raise ModelProtocolError("Executor checkpoint has no exact fact-scope binding")
+        raw_ids = metadata.get("executor_fact_action_ids")
+        if not isinstance(raw_ids, list) or any(
+            not isinstance(item, str) or not item for item in raw_ids
+        ):
+            raise ModelProtocolError("Executor checkpoint fact IDs are invalid")
+        selected_ids = tuple(raw_ids)
+        if len(set(selected_ids)) != len(selected_ids):
+            raise ModelProtocolError("Executor checkpoint fact IDs are duplicated")
+        focus_sha256 = hashlib.sha256(str(focus_text).encode("utf-8")).hexdigest()
+        if metadata.get("executor_fact_focus_sha256") != focus_sha256:
+            raise ModelProtocolError(
+                "Executor requirement changed after its exact fact scope was bound"
+            )
+        records = self._executor_fact_records(
+            state,
+            selected_ids,
+            focus_text=focus_text,
+        )
+        projection_sha256 = canonical_digest(records)
+        if metadata.get("executor_fact_projection_sha256") != projection_sha256:
+            raise ModelProtocolError(
+                "Executor bound fact projection changed before generation"
+            )
+        scope = {
+            "schema_version": "rwkv-lh.executor-fact-scope.v1",
+            "fact_action_ids": list(selected_ids),
+            "fact_projection_sha256": projection_sha256,
+            "focus_sha256": focus_sha256,
+        }
+        if metadata.get("executor_fact_scope_digest") != canonical_digest(scope):
+            raise ModelProtocolError("Executor fact-scope digest is invalid")
+        return records
 
     def _rebuild_native_executor_cache(
         self,
@@ -1541,7 +1775,7 @@ class LongHorizonModel:
             else self._all_definitions
         )
         last_budget_error: Exception | None = None
-        for recent_limit in (12, 8, 4, 2, 0):
+        for recent_limit in self._EXECUTOR_CAUSAL_FACT_LIMITS:
             try:
                 rebuilt = self.session.bootstrap(
                     ModelLaneKind.ACTION,
@@ -1589,8 +1823,9 @@ class LongHorizonModel:
                 },
             )
             return rebuilt
-        raise ModelProtocolError(
-            "authoritative state projection exceeds native RWKV bootstrap boundary"
+        raise InputBudgetError(
+            "authoritative state projection exceeds the native RWKV bootstrap "
+            "boundary after causal-fact limits 12, 8, 4, 2, and 0"
         ) from last_budget_error
 
     def _append_event(
@@ -1601,7 +1836,6 @@ class LongHorizonModel:
         persist: PersistCallback,
         *,
         definitions: Sequence[Mapping[str, Any]] = (),
-        independent_executor_retry_operation: str = "",
         include_generation_anchor: bool = True,
     ) -> ModelCheckpoint:
         if event.event_id in state.model_events:
@@ -1616,11 +1850,9 @@ class LongHorizonModel:
             progressive_tool_disclosure=(
                 self._progressive_tool_disclosure and bool(definitions)
             ),
-            independent_executor_retry_operation=(
-                independent_executor_retry_operation
-            ),
             include_generation_anchor=include_generation_anchor,
         )
+        appended = self._inherit_executor_semantic_metadata(checkpoint, appended)
         state.model_events[event.event_id] = event
         state.model_states[appended.checkpoint_id] = appended
         state.set_lane_head("executor", appended.checkpoint_id)
@@ -1649,6 +1881,10 @@ class LongHorizonModel:
                 raise ModelProtocolError("model event id collision")
             return checkpoint
         acknowledged = self.session.acknowledge_projected_event(checkpoint, event)
+        acknowledged = self._inherit_executor_semantic_metadata(
+            checkpoint,
+            acknowledged,
+        )
         state.model_events[event.event_id] = event
         state.model_states[acknowledged.checkpoint_id] = acknowledged
         state.set_lane_head("executor", acknowledged.checkpoint_id)
@@ -1679,6 +1915,15 @@ class LongHorizonModel:
         selected = str(event.payload.get("selected_operation") or "")
         if selected not in self._definitions_by_name:
             return ""
+        # Native RWKV committed generation snapshots intentionally retain the
+        # recurrent cache and causal binding but may compact ``transcript`` to
+        # the generated command.  The Controller creates this retry event only
+        # from a consumed, schema-bound Selector record, and ``_generate``
+        # revalidates its selection_id before accepting a call.  Therefore the
+        # transcript string is not an authority check on the independent G1J
+        # path and must not force an accidental second Selector invocation.
+        if self.tool_selector is not None:
+            return selected
         if (
             "selected_tool_contract" not in checkpoint.transcript
             or f'"selected_operation":"{selected}"' not in checkpoint.transcript
@@ -1688,65 +1933,36 @@ class LongHorizonModel:
 
     @staticmethod
     def _selector_ensemble_choice(
-        selections: Sequence[NetworkExactToolSelection],
+        selections: Sequence[NativeNetworkToolSelection],
         *,
         eligible_labels: Sequence[str],
     ) -> tuple[str, dict[str, Any]]:
-        """Aggregate three canonical-label logits with a pre-registered rule."""
+        """Aggregate three native-trie votes with the pre-registered rule."""
 
         if len(selections) != len(NETWORK_SELECTOR_MENU_ORDER_IDS):
             raise ModelProtocolError("Selector ensemble requires exactly three lanes")
         eligible = tuple(str(item) for item in eligible_labels)
+        if not eligible or any(
+            selection.eligible_labels != eligible
+            or selection.selected_operation not in eligible
+            for selection in selections
+        ):
+            raise ModelProtocolError("Selector ensemble eligibility changed by lane")
         votes = tuple(item.selected_operation for item in selections)
         counts = Counter(votes)
         majority = next(
             (label for label, count in counts.items() if count >= 2),
             "",
         )
-        tie_metrics: dict[str, dict[str, float]] = {}
         if majority:
             selected = majority
             rule = "two_of_three_majority"
         else:
-            contenders = set(votes)
-            ranks: dict[str, list[int]] = {label: [] for label in contenders}
-            normalized: dict[str, list[float]] = {
-                label: [] for label in contenders
-            }
-            indices = {
-                label: NETWORK_EXACT_TOOL_LABELS.index(label)
-                for label in eligible
-            }
-            for selection in selections:
-                ordered = sorted(
-                    eligible,
-                    key=lambda label: (-selection.logits[indices[label]], indices[label]),
-                )
-                lane_values = [selection.logits[indices[label]] for label in eligible]
-                mean = sum(lane_values) / len(lane_values)
-                variance = sum((value - mean) ** 2 for value in lane_values) / len(
-                    lane_values
-                )
-                scale = math.sqrt(variance) or 1.0
-                for label in contenders:
-                    ranks[label].append(ordered.index(label))
-                    normalized[label].append(
-                        (selection.logits[indices[label]] - mean) / scale
-                    )
-            for label in contenders:
-                tie_metrics[label] = {
-                    "median_rank": float(median(ranks[label])),
-                    "median_normalized_logit": float(median(normalized[label])),
-                }
             selected = min(
-                contenders,
-                key=lambda label: (
-                    tie_metrics[label]["median_rank"],
-                    -tie_metrics[label]["median_normalized_logit"],
-                    NETWORK_EXACT_TOOL_LABELS.index(label),
-                ),
+                set(votes),
+                key=lambda label: NETWORK_EXACT_TOOL_LABELS.index(label),
             )
-            rule = "three_way_tie_median_rank_then_normalized_logit"
+            rule = "three_way_tie_registered_class_order"
         return selected, {
             "schema_version": "rwkv-lh.selector-menu-order-ensemble.v1",
             "menu_order_ids": list(NETWORK_SELECTOR_MENU_ORDER_IDS),
@@ -1757,7 +1973,7 @@ class LongHorizonModel:
                 if counts[label]
             },
             "aggregation_rule": rule,
-            "tie_metrics": tie_metrics,
+            "tie_metrics": {},
             "selected_operation": selected,
             "state_policy": "three_fresh_initial_state_evaluations",
         }
@@ -1770,7 +1986,7 @@ class LongHorizonModel:
         eligible_labels: tuple[str, ...],
         stage_context: SelectorStageContext,
         menu_order_id: str,
-    ) -> tuple[NetworkExactToolSelection, ModelCheckpoint]:
+    ) -> tuple[NativeNetworkToolSelection, ModelCheckpoint]:
         selector_input = build_network_selector_input(
             stage_context,
             eligible_labels=eligible_labels,
@@ -1851,6 +2067,37 @@ class LongHorizonModel:
             }
         )
         return replace(checkpoint, native_state_metadata=metadata)
+
+    @staticmethod
+    def _inherit_executor_semantic_metadata(
+        parent: ModelCheckpoint,
+        child: ModelCheckpoint,
+    ) -> ModelCheckpoint:
+        """Carry semantic bindings without overwriting a child's WKV identity."""
+
+        parent_metadata = parent.native_state_metadata or {}
+        semantic_keys = {
+            key
+            for key in parent_metadata
+            if key.startswith("executor_")
+        } | {
+            "tool_selection_id",
+            "selector_checkpoint_id",
+            "selected_operation",
+            "tool_definition_digest",
+            "atom_execution_contract_digest",
+        }
+        child_metadata = dict(child.native_state_metadata or {})
+        for key in semantic_keys:
+            if key not in parent_metadata:
+                continue
+            existing = child_metadata.get(key)
+            if existing is not None and existing != parent_metadata[key]:
+                raise ModelProtocolError(
+                    f"Executor checkpoint continuation changed semantic binding {key}"
+                )
+            child_metadata[key] = deepcopy(parent_metadata[key])
+        return replace(child, native_state_metadata=child_metadata)
 
     def _select_tool_independently(
         self,
@@ -1967,20 +2214,13 @@ class LongHorizonModel:
 
         raw_selection.update(
             {
-                "selection_rule": (
-                    "three_menu_order_vote_v1"
-                ),
+                "selection_rule": "three_menu_order_vote_v1",
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "input_protocol": self.tool_selector.settings.input_protocol,
-                "protocol_schema_version": (
-                    selector_intent_protocol.INPUT_SCHEMA_VERSION
-                ),
-                "protocol_sha256": self._protocol_sha256(
-                    selector_intent_protocol
-                ),
-                "head_hash": self.tool_selector.settings.head_hash,
-                "selector_input_scope": "current_subtask_only",
+                "protocol_schema_version": selector_intent_v4_protocol.INPUT_SCHEMA_VERSION,
+                "protocol_sha256": self._protocol_sha256(selector_intent_v4_protocol),
+                "selector_input_scope": "current_subtask_mechanical_progress_and_last_action_outcome",
                 "selector_state_policy": "fresh_initial_state_per_evaluation",
             }
         )
@@ -1996,7 +2236,9 @@ class LongHorizonModel:
             tool_definition_digest=canonical_digest(definition),
             selector_model=selection.model,
             selector_model_sha256=selection.model_sha256,
-            selector_head_sha256=selection.head_sha256,
+            selector_decoder_id=selection.decoder_id,
+            selector_decoder_sha256=selection.decoder_sha256,
+            selector_decoder_protocol=selection.decoder_protocol,
             selector_profile_id=selection.profile_id,
             selector_profile_sha256=selection.profile_sha256,
             executor_model=checkpoint.model,
@@ -2015,20 +2257,21 @@ class LongHorizonModel:
                 "selection_id": handoff.selection_id,
                 "selected_operation": handoff.selected_operation,
                 "selection": handoff.to_dict(),
-                "raw_logits_preserved": True,
+                "raw_decoder_trace_preserved": True,
+                "raw_logits_preserved": False,
                 "generated_rwkv_text": False,
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "executor_checkpoint_unchanged": True,
-                "selector_input_scope": "current_subtask_only",
+                "selector_input_scope": "current_subtask_mechanical_progress_and_last_action_outcome",
                 "selector_state_policy": "fresh_initial_state_per_evaluation",
                 "selector_attestation": {
                     **self.tool_selector.settings.runtime_identity(),
                     "protocol_schema_version": (
-                        selector_intent_protocol.INPUT_SCHEMA_VERSION
+                        selector_intent_v4_protocol.INPUT_SCHEMA_VERSION
                     ),
                     "protocol_sha256": self._protocol_sha256(
-                        selector_intent_protocol
+                        selector_intent_v4_protocol
                     ),
                 },
             },
@@ -2044,6 +2287,7 @@ class LongHorizonModel:
         max_output_tokens: int,
         current_requirement: str,
         executor_fact_action_ids: Sequence[str] | None,
+        executor_execution_state: Mapping[str, Any] | None,
     ) -> ActionDecision:
         selection = state.tool_selections.get(state.pending_selection_id)
         if selection is None or selection.status is not ToolSelectionStatus.STAGED:
@@ -2086,6 +2330,7 @@ class LongHorizonModel:
                 selection=selection,
                 current_requirement=current_requirement,
                 fact_action_ids=executor_fact_action_ids,
+                execution_state=executor_execution_state,
             )
         else:
             metadata = checkpoint.native_state_metadata or {}
@@ -2107,6 +2352,7 @@ class LongHorizonModel:
             max_output_tokens=max_output_tokens,
             disclosed_operation=selection.selected_operation,
             current_requirement=current_requirement,
+            executor_execution_state=executor_execution_state,
         )
 
     def _select_tool(
@@ -2235,28 +2481,22 @@ class LongHorizonModel:
         )
         return selected_operation, committed
 
-    def _disclose_selected_tool(
+    def _executor_prompt_source(
         self,
         state: RunState,
         checkpoint: ModelCheckpoint,
-        persist: PersistCallback,
         definition: Mapping[str, Any],
         *,
-        selection: ToolSelectionRecord | None = None,
-        current_requirement: str | None = None,
-        fact_action_ids: Sequence[str] | None = None,
-    ) -> ModelCheckpoint:
-        selected_requirement = str(
-            state.goal.request
-            if current_requirement is None
-            else current_requirement
-        ).strip()
-        selected_action_ids = (
-            set(state.actions)
-            if fact_action_ids is None
-            else set(str(item) for item in fact_action_ids)
-        )
-        fact_refs = tuple(sorted(selected_action_ids))
+        current_requirement: str,
+        fact_action_ids: Sequence[str] | None,
+        execution_state: Mapping[str, Any] | None,
+    ) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
+        """Build from the same retained causal facts for sizing and disclosure."""
+
+        if execution_state is None:
+            raise ModelProtocolError(
+                "G1J Executor disclosure requires controller execution_state"
+            )
         history = []
         for event_id in checkpoint.event_ids[-12:]:
             event = state.model_events.get(event_id)
@@ -2272,35 +2512,80 @@ class LongHorizonModel:
                     "content_refs": list(event.content_refs),
                 }
             )
-        use_goal_state_protocol = bool(
-            self.tool_selector is not None
-            and str(definition["name"]) != "final_answer"
+        bound_fact_records = self._bound_executor_fact_records(
+            state,
+            checkpoint,
+            focus_text=current_requirement,
         )
+        fact_refs = tuple(sorted(str(item["action_id"]) for item in bound_fact_records))
+        if fact_action_ids is not None and not set(fact_refs) <= {
+            str(item) for item in fact_action_ids
+        }:
+            raise ModelProtocolError(
+                "Executor checkpoint contains facts outside the Controller request"
+            )
+        # Name only the facts actually retained by this checkpoint after any
+        # input-budget fallback, never the pre-fallback requested scope.
+        source = executor_args_protocol.build_prompt_source(
+            current_requirement=current_requirement,
+            execution_state=execution_state,
+            selected_operation=str(definition["name"]),
+            selected_tool_contract=definition,
+            committed_fact_refs=fact_refs,
+            executor_history=history,
+        )
+        return source, bound_fact_records
+
+    def _disclose_selected_tool(
+        self,
+        state: RunState,
+        checkpoint: ModelCheckpoint,
+        persist: PersistCallback,
+        definition: Mapping[str, Any],
+        *,
+        selection: ToolSelectionRecord | None = None,
+        current_requirement: str | None = None,
+        fact_action_ids: Sequence[str] | None = None,
+        execution_state: Mapping[str, Any] | None = None,
+    ) -> ModelCheckpoint:
+        use_goal_state_protocol = self.tool_selector is not None
+        if use_goal_state_protocol and str(definition["name"]) == "final_answer":
+            raise ModelProtocolError(
+                "independent G1J final answers require the dedicated Finalizer "
+                "and Final Auditor"
+            )
+        selected_requirement = str(
+            state.goal.request
+            if current_requirement is None
+            else current_requirement
+        ).strip()
+        bound_fact_records: tuple[dict[str, Any], ...] = ()
+        fact_refs: tuple[str, ...] = ()
+        protocol_source: dict[str, Any] | None = None
+        if use_goal_state_protocol:
+            protocol_source, bound_fact_records = self._executor_prompt_source(
+                state,
+                checkpoint,
+                definition,
+                current_requirement=selected_requirement,
+                fact_action_ids=fact_action_ids,
+                execution_state=execution_state,
+            )
+            fact_refs = tuple(protocol_source["committed_fact_refs"])
         protocol_prompt = (
             "\n\n"
-            + executor_args_protocol.render_generation_prompt(
-                {
-                    "current_requirement": selected_requirement,
-                    "selected_operation": str(definition["name"]),
-                    "selected_tool_contract": dict(definition),
-                    "committed_fact_refs": list(fact_refs),
-                    "executor_history": history,
-                }
-            )
-            if use_goal_state_protocol
+            + executor_args_protocol.render_generation_prompt(protocol_source)
+            if protocol_source is not None
             else None
         )
         disclosed = self.session.disclose_tool(
             checkpoint,
             definition,
-            rendered_prompt=(
-                protocol_prompt if self.tool_selector is not None else None
-            ),
-            current_requirement=(
-                selected_requirement
-                if self.tool_selector is not None and protocol_prompt is None
-                else None
-            ),
+            executor_source=protocol_source,
+        )
+        disclosed = self._inherit_executor_semantic_metadata(
+            checkpoint,
+            disclosed,
         )
         if selection is not None:
             if checkpoint.checkpoint_id != selection.executor_parent_checkpoint_id:
@@ -2308,6 +2593,22 @@ class LongHorizonModel:
                     "tool disclosure changed the committed Executor parent"
                 )
             disclosed = self._bind_executor_handoff(disclosed, selection)
+        if use_goal_state_protocol:
+            disclosed_metadata = dict(disclosed.native_state_metadata or {})
+            disclosed_metadata.update(
+                {
+                    "executor_execution_state_sha256": canonical_digest(
+                        dict(execution_state or {})
+                    ),
+                    "executor_argument_provenance_version": (
+                        EXECUTOR_ARGUMENT_PROVENANCE_VERSION
+                    ),
+                }
+            )
+            disclosed = replace(
+                disclosed,
+                native_state_metadata=disclosed_metadata,
+            )
         state.model_states[disclosed.checkpoint_id] = disclosed
         state.set_lane_head("executor", disclosed.checkpoint_id)
         persist(
@@ -2336,6 +2637,22 @@ class LongHorizonModel:
                     if selection is not None
                     else {}
                 ),
+                **(
+                    {
+                        "executor_fact_action_ids": list(fact_refs),
+                        "executor_fact_projection_sha256": canonical_digest(
+                            bound_fact_records
+                        ),
+                        "executor_execution_state_sha256": canonical_digest(
+                            dict(execution_state or {})
+                        ),
+                        "executor_argument_provenance_version": (
+                            EXECUTOR_ARGUMENT_PROVENANCE_VERSION
+                        ),
+                    }
+                    if use_goal_state_protocol
+                    else {}
+                ),
             },
         )
         return disclosed
@@ -2351,6 +2668,7 @@ class LongHorizonModel:
         disclosed_operation: str = "",
         inherited_selection_id: str = "",
         current_requirement: str | None = None,
+        executor_execution_state: Mapping[str, Any] | None = None,
     ) -> ActionDecision:
         if self.tool_selector is not None:
             selected_requirement = str(
@@ -2450,6 +2768,7 @@ class LongHorizonModel:
         selected_operation = disclosed_operation
         wire_command: ModelCommand | None = None
         model_output_normalization: dict[str, Any] = {}
+        argument_provenance: dict[str, Any] = {}
         try:
             wire_command, output_trace = self.session.parse_with_trace(candidate)
             model_output_normalization = output_trace.to_dict()
@@ -2483,7 +2802,42 @@ class LongHorizonModel:
                     normalized_action.action_type,
                     dict(normalized_action.arguments),
                 )
+                if self.tool_selector is not None and disclosed_operation:
+                    if executor_execution_state is None:
+                        raise ModelIOError(
+                            "independent G1J Executor generation lacks execution_state"
+                        )
+                    bound_fact_records = self._bound_executor_fact_records(
+                        state,
+                        checkpoint,
+                        focus_text=selected_requirement,
+                    )
+                    execution_state_digest = canonical_digest(
+                        dict(executor_execution_state)
+                    )
+                    if (
+                        (checkpoint.native_state_metadata or {}).get(
+                            "executor_execution_state_sha256"
+                        )
+                        != execution_state_digest
+                    ):
+                        raise ModelIOError(
+                            "Executor execution_state changed after tool disclosure"
+                        )
+                    argument_provenance = (
+                        validate_executor_argument_provenance(
+                            command.name,
+                            command.arguments,
+                            current_requirement=selected_requirement,
+                            fact_records=bound_fact_records,
+                            execution_state=executor_execution_state,
+                        )
+                    )
             committed = self.session.commit(candidate, wire_command)
+            committed = self._inherit_executor_semantic_metadata(
+                checkpoint,
+                committed,
+            )
             if handoff is not None:
                 committed = self._bind_executor_handoff(committed, handoff)
         except (ModelIOError, HarnessError, ValueError) as exc:
@@ -2540,6 +2894,11 @@ class LongHorizonModel:
                         if model_output_normalization
                         else {}
                     ),
+                    **(
+                        {"argument_provenance": argument_provenance}
+                        if argument_provenance
+                        else {}
+                    ),
                     "action_executed": False,
                     "decision": record.to_dict(),
                     "temp_decision": temp.__dict__,
@@ -2588,6 +2947,11 @@ class LongHorizonModel:
                 schema_already_disclosed=bool(disclosed_operation),
                 rejected_arguments=(
                     wire_command.arguments if wire_command is not None else {}
+                ),
+                error_kind=(
+                    "ExecutorProvenanceError"
+                    if isinstance(exc, ExecutorProvenanceError)
+                    else type(exc).__name__
                 ),
             ) from exc
 
@@ -2641,6 +3005,11 @@ class LongHorizonModel:
                 "executable_command_digest": command.digest,
                 "model_output_normalization": model_output_normalization,
                 "argument_normalization": argument_normalization,
+                **(
+                    {"argument_provenance": argument_provenance}
+                    if argument_provenance
+                    else {}
+                ),
                 "tool_disclosure_mode": (
                     "progressive" if disclosed_operation else "full"
                 ),
@@ -2853,57 +3222,41 @@ class LongHorizonModel:
         raise ModelProtocolError("unable to fit deterministic action session rollover")
 
     @classmethod
-    def _project_action_result(cls, value: Mapping[str, Any]) -> dict[str, Any]:
-        """Project one full archived result into the bounded model decision state.
+    def _project_action_result(
+        cls,
+        value: Mapping[str, Any],
+        *,
+        operation: str = "",
+        arguments: Mapping[str, Any] | None = None,
+        focus_text: str = "",
+        max_exact_chars: int | None = None,
+        structured_budget: int | None = None,
+        evidence_source_limit: int = 2,
+        evidence_span_chars: int = 1200,
+        structured_field_budget: int = 1400,
+    ) -> dict[str, Any]:
+        """Project one durable result through the shared typed funnel."""
 
-        The append-only ActionRecord remains authoritative. This projection keeps
-        the exact observation bytes and progress/error fields needed for the next
-        decision, while omitting duplicate artifact and evidence structures. When
-        the output itself must be projected, incompleteness is explicit so a prefix
-        can never masquerade as complete evidence.
-        """
-
-        result = dict(value)
-        projected: dict[str, Any] = {
-            "success": bool(result.get("success")),
-            "outcome_type": str(result.get("outcome_type") or "pending"),
-        }
-        output = str(result.get("output") or "")
-        output_truncated = len(output) > cls._RESULT_OUTPUT_MAX_CHARS
-        if output:
-            projected["output"] = output[: cls._RESULT_OUTPUT_MAX_CHARS]
-        if result.get("exit_code") is not None:
-            projected["exit_code"] = int(result["exit_code"])
-        if isinstance(result.get("error"), Mapping):
-            projected["error"] = dict(result["error"])
-
-        source_metadata = (
-            dict(result["metadata"])
-            if isinstance(result.get("metadata"), Mapping)
-            else {}
+        exact_budget = (
+            cls._RESULT_OUTPUT_MAX_CHARS
+            if max_exact_chars is None
+            else max(256, int(max_exact_chars))
         )
-        metadata = {
-            key: deepcopy(source_metadata[key])
-            for key in cls._RESULT_METADATA_KEYS
-            if key in source_metadata
-        }
-        if output_truncated:
-            if "complete" in source_metadata:
-                metadata["source_complete"] = bool(source_metadata["complete"])
-            if "truncated" in source_metadata:
-                metadata["source_truncated"] = bool(source_metadata["truncated"])
-            metadata.update(
-                {
-                    "complete": False,
-                    "truncated": True,
-                    "projection_truncated": True,
-                    "original_output_chars": len(output),
-                    "retained_output_chars": cls._RESULT_OUTPUT_MAX_CHARS,
-                }
-            )
-        if metadata:
-            projected["metadata"] = metadata
-        return projected
+        return project_action_result(
+            value,
+            operation=operation,
+            arguments=arguments,
+            focus_text=focus_text,
+            max_exact_chars=exact_budget,
+            structured_budget=(
+                exact_budget
+                if structured_budget is None
+                else max(512, int(structured_budget))
+            ),
+            evidence_source_limit=evidence_source_limit,
+            evidence_span_chars=evidence_span_chars,
+            structured_field_budget=structured_field_budget,
+        )
 
     def _assignment(
         self,
@@ -2912,6 +3265,7 @@ class LongHorizonModel:
         recent_limit: int,
         executor_only: bool = False,
         action_ids: Sequence[str] | None = None,
+        focus_text: str = "",
     ) -> str:
         manifest = self.harness.workspace_manifest(
             state.goal,
@@ -2920,35 +3274,36 @@ class LongHorizonModel:
         )
         recent_actions: list[dict[str, Any]] = []
         recent_sequences: list[int] = []
-        if recent_limit:
-            allowed_action_ids = (
-                None if action_ids is None else set(str(item) for item in action_ids)
+        retained_action_ids = self._bounded_assignment_action_ids(
+            state,
+            recent_limit=recent_limit,
+            action_ids=action_ids,
+        )
+        for action_id in retained_action_ids:
+            action = state.actions[action_id]
+            recent_sequences.append(action.sequence)
+            recent_actions.append(
+                {
+                    "operation": action.action_type,
+                    "arguments": action.arguments,
+                    "result": self._project_action_result(
+                        action.result or {},
+                        operation=action.action_type,
+                        arguments=action.arguments,
+                        focus_text="\n".join(
+                            item
+                            for item in (str(focus_text), state.goal.request)
+                            if item
+                        ),
+                    ),
+                }
             )
-            actions = sorted(
-                (
-                    action
-                    for action in state.actions.values()
-                    if allowed_action_ids is None
-                    or action.action_id in allowed_action_ids
-                ),
-                key=lambda item: item.sequence,
-            )[-recent_limit:]
-            for action in actions:
-                recent_sequences.append(action.sequence)
-                recent_actions.append(
-                    {
-                        "operation": action.action_type,
-                        "arguments": action.arguments,
-                        "result": self._project_action_result(action.result or {}),
-                    }
-                )
-        # The legacy single-model lane keeps the verified R126 closed-JSON request-last
-        # bootstrap.  In the independent architecture the Executor never generates from
-        # this bootstrap alone, so its one verbatim request is delivered later as the
-        # final closed field of the selected-operation disclosure.  It is not duplicated.
+        # The independent Executor never generates from this role bootstrap alone.
+        # Its exact current requirement arrives in the current protocol's selected
+        # operation input after the Controller has committed execution state.
         payload = {
             "protocol": (
-                INDEPENDENT_EXECUTOR_REQUEST_LAST_PROTOCOL
+                executor_args_protocol.INPUT_SCHEMA_VERSION
                 if executor_only
                 else "single-rwkv-direct-action.v1"
             ),
@@ -2975,6 +3330,32 @@ class LongHorizonModel:
             # Keep this field last; the R126 byte layout is an established invariant.
             payload["immutable_request"] = state.goal.request
         return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _bounded_assignment_action_ids(
+        state: RunState,
+        *,
+        recent_limit: int,
+        action_ids: Sequence[str] | None,
+    ) -> tuple[str, ...]:
+        """Return the exact action IDs retained by one bounded assignment."""
+
+        limit = max(0, int(recent_limit))
+        if not limit:
+            return ()
+        allowed_action_ids = (
+            None if action_ids is None else set(str(item) for item in action_ids)
+        )
+        actions = sorted(
+            (
+                action
+                for action in state.actions.values()
+                if allowed_action_ids is None
+                or action.action_id in allowed_action_ids
+            ),
+            key=lambda item: item.sequence,
+        )[-limit:]
+        return tuple(action.action_id for action in actions)
 
 
 __all__ = [

@@ -237,10 +237,9 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
     try:
         status, capabilities = request_json(base + "/api/capabilities")
         assert status == 200
-        assert capabilities["latest_formal"]["strict"] == "31/90"
-        assert capabilities["latest_diagnostic"]["strict_passed"] == 0
-        assert capabilities["latest_diagnostic"]["strict_total"] == 3
-        assert capabilities["latest_diagnostic"]["web_search_passed"] == 7
+        assert capabilities["latest_formal"] is None
+        assert capabilities["latest_diagnostic"] is None
+        assert capabilities["validation_status"] == "awaiting_all_zero_baseline"
         assert capabilities["experimental"] is True
         status, created = request_json(
             base + "/api/runs",

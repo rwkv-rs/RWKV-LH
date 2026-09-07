@@ -74,6 +74,9 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             "transformers_version": transformers.__version__,
             "runtime_temp": str(self.settings.runtime_temp.resolve()),
             "runtime_compute_dtype": str(model.z["blocks.0.att.key.weight"].dtype),
+            "initial_state_checkpoint_layout": "[layer,head,value,key]",
+            "initial_state_runtime_layout": "[layer,head,key,value]",
+            "initial_state_layout_conversion": "transpose(-2,-1)-in-profile-loader",
         }
         tokenizer_values = {
             "tokenizer_class": type(tokenizer).__name__,
@@ -108,7 +111,12 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
         self._initial_wkv_state = initial_wkv_state
 
     def _load_initial_wkv_state(self, model: Any) -> Any | None:
-        """Load one explicitly pinned selector state without changing model weights."""
+        """Load one explicitly pinned selector state without changing model weights.
+
+        The profile loader converts portable PEFT ``[L,H,V,K]`` tensors to the
+        recurrent runtime's ``[L,H,K,V]`` layout.  ``_new_state`` therefore
+        performs only the batch expansion and copy, never another transpose.
+        """
 
         manifest = self.settings.state_profile_manifest
         if manifest is None:
@@ -340,6 +348,423 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
             }
             self._last_identity = identity
             return features, exported_state, len(token_ids), identity
+
+    def evaluate_suffix_choices(
+        self,
+        prompt: str,
+        *,
+        expected_label: str,
+        candidate_suffixes: Mapping[str, str],
+    ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+        """Evaluate one exact role suffix without training a downstream decoder.
+
+        The prompt is advanced exactly once from the configured fresh initial
+        State.  Teacher-forced scoring, unrestricted greedy decoding, and
+        eligible-trie decoding then receive independent clones of the same
+        post-prompt recurrent State.  Candidate strings must be exact additive
+        tokenizer suffixes of the supplied prompt.
+        """
+
+        if not str(prompt):
+            raise ValueError("persistent vllm-rwkv suffix prompt must be non-empty")
+        if not candidate_suffixes or expected_label not in candidate_suffixes:
+            raise ValueError("suffix candidates must contain the expected label")
+        normalized = {str(label): str(value) for label, value in candidate_suffixes.items()}
+        if (
+            len(normalized) != len(candidate_suffixes)
+            or any(not label or not value for label, value in normalized.items())
+        ):
+            raise ValueError("suffix candidate labels and values must be non-empty")
+        if len(set(normalized.values())) != len(normalized):
+            raise ValueError("suffix candidate values must be unique")
+
+        import torch
+
+        with self._lock, torch.inference_mode():
+            self.load()
+            assert self._tokenizer is not None and self._model is not None
+            prompt_ids = self._tokenizer.encode(
+                str(prompt), truncation=False, add_special_tokens=True
+            )
+            if not prompt_ids or len(prompt_ids) > self.settings.max_tokens:
+                raise ValueError("persistent vllm-rwkv suffix prompt token count is invalid")
+
+            candidate_ids: dict[str, tuple[int, ...]] = {}
+            for label, suffix in normalized.items():
+                suffix_ids = tuple(
+                    int(value)
+                    for value in self._tokenizer.encode(
+                        suffix, truncation=False, add_special_tokens=False
+                    )
+                )
+                combined_ids = self._tokenizer.encode(
+                    str(prompt) + suffix,
+                    truncation=False,
+                    add_special_tokens=True,
+                )
+                if (
+                    not suffix_ids
+                    or list(prompt_ids) + list(suffix_ids) != list(combined_ids)
+                    or len(combined_ids) > self.settings.max_tokens
+                ):
+                    raise ValueError(
+                        "persistent vllm-rwkv candidate is not an exact additive suffix"
+                    )
+                candidate_ids[label] = suffix_ids
+            if len(set(candidate_ids.values())) != len(candidate_ids):
+                raise ValueError("suffix candidates must have unique token sequences")
+
+            trie: dict[object, Any] = {}
+            terminal = object()
+            for label, token_ids in candidate_ids.items():
+                node = trie
+                for token_id in token_ids:
+                    if terminal in node:
+                        raise ValueError("suffix candidate token sequences have a prefix collision")
+                    node = node.setdefault(token_id, {})
+                if node:
+                    raise ValueError("suffix candidate token sequences have a prefix collision")
+                node[terminal] = label
+
+            prompt_state = self._new_state(1)
+            prompt_tensor = torch.tensor(
+                [prompt_ids], dtype=torch.long, device="cuda"
+            )
+            prompt_hidden = self._model.forward_all_hidden(prompt_tensor, prompt_state)
+            first_logits = self._model.project_logits_fp32(
+                prompt_hidden[:, -1, :]
+            ).float()
+            if first_logits.ndim != 2 or first_logits.shape[0] != 1:
+                raise RuntimeError("persistent vllm-rwkv returned invalid suffix logits")
+
+            def cloned_state() -> list[Any]:
+                return [value.clone() for value in prompt_state]
+
+            def advance_one(
+                token_id: int,
+                state: list[Any],
+            ) -> Any:
+                token = torch.tensor([[token_id]], dtype=torch.long, device="cuda")
+                hidden = self._model.forward_all_hidden(token, state)
+                return self._model.project_logits_fp32(hidden[:, -1, :]).float()
+
+            def token_metrics(logits: Any, target_id: int) -> dict[str, Any]:
+                row = logits[0]
+                if not bool(torch.isfinite(row).all()):
+                    raise RuntimeError("persistent vllm-rwkv returned non-finite suffix logits")
+                target_logit = row[target_id]
+                predicted_id = int(torch.argmax(row).item())
+                rank = 1 + int(torch.count_nonzero(row > target_logit).item())
+                top_values, top_indices = torch.topk(row, k=min(2, int(row.numel())))
+                if int(top_indices[0].item()) == target_id and len(top_values) > 1:
+                    best_other = top_values[1]
+                elif int(top_indices[0].item()) == target_id:
+                    best_other = torch.tensor(float("-inf"), device=row.device)
+                else:
+                    best_other = top_values[0]
+                log_probability = torch.log_softmax(row, dim=-1)[target_id]
+                return {
+                    "target_token_id": int(target_id),
+                    "predicted_token_id": predicted_id,
+                    "top1_correct": predicted_id == target_id,
+                    "target_rank": rank,
+                    "target_log_probability": float(log_probability.item()),
+                    "target_vs_best_other_margin": float(
+                        (target_logit - best_other).item()
+                    ),
+                }
+
+            expected_ids = candidate_ids[expected_label]
+            teacher_state = cloned_state()
+            teacher_logits = first_logits
+            teacher_tokens: list[dict[str, Any]] = []
+            for position, target_id in enumerate(expected_ids):
+                metrics = token_metrics(teacher_logits, target_id)
+                metrics["position"] = position
+                teacher_tokens.append(metrics)
+                if position + 1 < len(expected_ids):
+                    teacher_logits = advance_one(target_id, teacher_state)
+            total_nll = -sum(
+                float(row["target_log_probability"]) for row in teacher_tokens
+            )
+
+            unrestricted_state = cloned_state()
+            unrestricted_logits = first_logits
+            unrestricted_ids: list[int] = []
+            for position in range(len(expected_ids)):
+                generated = int(torch.argmax(unrestricted_logits[0]).item())
+                unrestricted_ids.append(generated)
+                if position + 1 < len(expected_ids):
+                    unrestricted_logits = advance_one(generated, unrestricted_state)
+
+            constrained_state = cloned_state()
+            constrained_logits = first_logits
+            constrained_ids: list[int] = []
+            constrained_decisions: list[dict[str, Any]] = []
+            node = trie
+            while terminal not in node:
+                allowed = sorted(int(key) for key in node if key is not terminal)
+                if not allowed:
+                    raise RuntimeError("suffix candidate trie reached an empty branch")
+                chosen = max(
+                    allowed,
+                    key=lambda token_id: (
+                        float(constrained_logits[0, token_id].item()),
+                        -token_id,
+                    ),
+                )
+                ordered = sorted(
+                    (
+                        (float(constrained_logits[0, token_id].item()), token_id)
+                        for token_id in allowed
+                    ),
+                    key=lambda value: (-value[0], value[1]),
+                )
+                margin = (
+                    ordered[0][0] - ordered[1][0]
+                    if len(ordered) > 1
+                    else None
+                )
+                constrained_decisions.append(
+                    {
+                        "position": len(constrained_ids),
+                        "allowed_token_ids": allowed,
+                        "allowed_token_logits": {
+                            str(token_id): float(
+                                constrained_logits[0, token_id].item()
+                            )
+                            for token_id in allowed
+                        },
+                        "chosen_token_id": chosen,
+                        "chosen_token_logit": float(
+                            constrained_logits[0, chosen].item()
+                        ),
+                        "chosen_vs_runner_up_margin": margin,
+                    }
+                )
+                constrained_ids.append(chosen)
+                node = node[chosen]
+                if terminal not in node:
+                    constrained_logits = advance_one(chosen, constrained_state)
+            predicted_label = str(node[terminal])
+
+            result = {
+                "schema_version": "rwkv-lh.native-role-suffix-evaluation.v1",
+                "expected_label": expected_label,
+                "candidate_labels": list(normalized),
+                "prompt_token_count": len(prompt_ids),
+                "target_token_ids": list(expected_ids),
+                "target_token_count": len(expected_ids),
+                "teacher_forced": {
+                    "tokens": teacher_tokens,
+                    "total_nll": total_nll,
+                    "mean_nll": total_nll / len(teacher_tokens),
+                    "token_top1_correct": sum(
+                        int(bool(row["top1_correct"])) for row in teacher_tokens
+                    ),
+                    "sequence_exact": all(
+                        bool(row["top1_correct"]) for row in teacher_tokens
+                    ),
+                },
+                "unrestricted_greedy": {
+                    "token_ids": unrestricted_ids,
+                    "expected_length_exact": tuple(unrestricted_ids) == expected_ids,
+                },
+                "eligible_trie": {
+                    "token_ids": constrained_ids,
+                    "predicted_label": predicted_label,
+                    "correct": predicted_label == expected_label,
+                    "decisions": constrained_decisions,
+                },
+            }
+            identity = {
+                **self._load_base_identity(),
+                "feature_protocol": "rwkv-lh.native-role-suffix-evaluation.v1",
+                "runtime": dict(self._runtime or {}),
+                "persistent_process": True,
+                "fresh_initial_state": True,
+                "one_prompt_forward": True,
+                "post_prompt_state_clones": 3,
+                "token_sequence_exact": True,
+                "downstream_decoder_trained": False,
+            }
+            self._last_identity = identity
+            return result, identity
+
+    def select_suffix_choices(
+        self,
+        prompt: str,
+        *,
+        candidate_suffixes: Mapping[str, str],
+    ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+        """Select one exact suffix with the frozen LM head and eligible trie.
+
+        This serving path deliberately has no expected label, teacher-forced
+        branch, unrestricted generation branch, hidden-feature classifier, or
+        learned downstream decoder.  It advances the prompt once, then follows
+        the same deterministic eligible-token trie used by offline evaluation.
+        """
+
+        if not str(prompt):
+            raise ValueError("persistent vllm-rwkv suffix prompt must be non-empty")
+        if not candidate_suffixes:
+            raise ValueError("native suffix selection requires candidates")
+        normalized = {
+            str(label): str(value) for label, value in candidate_suffixes.items()
+        }
+        if (
+            len(normalized) != len(candidate_suffixes)
+            or any(not label or not value for label, value in normalized.items())
+            or len(set(normalized.values())) != len(normalized)
+        ):
+            raise ValueError("native suffix candidates must be non-empty and unique")
+
+        import torch
+
+        with self._lock, torch.inference_mode():
+            self.load()
+            assert self._tokenizer is not None and self._model is not None
+            prompt_ids = self._tokenizer.encode(
+                str(prompt), truncation=False, add_special_tokens=True
+            )
+            if not prompt_ids or len(prompt_ids) > self.settings.max_tokens:
+                raise ValueError(
+                    "persistent vllm-rwkv suffix prompt token count is invalid"
+                )
+
+            candidate_ids: dict[str, tuple[int, ...]] = {}
+            for label, suffix in normalized.items():
+                suffix_ids = tuple(
+                    int(value)
+                    for value in self._tokenizer.encode(
+                        suffix, truncation=False, add_special_tokens=False
+                    )
+                )
+                combined_ids = self._tokenizer.encode(
+                    str(prompt) + suffix,
+                    truncation=False,
+                    add_special_tokens=True,
+                )
+                if (
+                    not suffix_ids
+                    or list(prompt_ids) + list(suffix_ids) != list(combined_ids)
+                    or len(combined_ids) > self.settings.max_tokens
+                ):
+                    raise ValueError(
+                        "persistent vllm-rwkv candidate is not an exact additive suffix"
+                    )
+                candidate_ids[label] = suffix_ids
+            if len(set(candidate_ids.values())) != len(candidate_ids):
+                raise ValueError("suffix candidates must have unique token sequences")
+
+            trie: dict[object, Any] = {}
+            terminal = object()
+            for label, token_ids in candidate_ids.items():
+                node = trie
+                for token_id in token_ids:
+                    if terminal in node:
+                        raise ValueError(
+                            "suffix candidate token sequences have a prefix collision"
+                        )
+                    node = node.setdefault(token_id, {})
+                if node:
+                    raise ValueError(
+                        "suffix candidate token sequences have a prefix collision"
+                    )
+                node[terminal] = label
+
+            prompt_state = self._new_state(1)
+            prompt_tensor = torch.tensor(
+                [prompt_ids], dtype=torch.long, device="cuda"
+            )
+            prompt_hidden = self._model.forward_all_hidden(
+                prompt_tensor, prompt_state
+            )
+            logits = self._model.project_logits_fp32(
+                prompt_hidden[:, -1, :]
+            ).float()
+            if (
+                logits.ndim != 2
+                or logits.shape[0] != 1
+                or not bool(torch.isfinite(logits).all())
+            ):
+                raise RuntimeError(
+                    "persistent vllm-rwkv returned invalid suffix logits"
+                )
+
+            node = trie
+            selected_ids: list[int] = []
+            decisions: list[dict[str, Any]] = []
+            while terminal not in node:
+                allowed = sorted(int(key) for key in node if key is not terminal)
+                if not allowed:
+                    raise RuntimeError("suffix candidate trie reached an empty branch")
+                ordered = sorted(
+                    (
+                        (float(logits[0, token_id].item()), token_id)
+                        for token_id in allowed
+                    ),
+                    key=lambda value: (-value[0], value[1]),
+                )
+                chosen = ordered[0][1]
+                decisions.append(
+                    {
+                        "position": len(selected_ids),
+                        "allowed_token_ids": allowed,
+                        "allowed_token_logits": {
+                            str(token_id): float(logits[0, token_id].item())
+                            for token_id in allowed
+                        },
+                        "chosen_token_id": chosen,
+                        "chosen_token_logit": float(logits[0, chosen].item()),
+                        "chosen_vs_runner_up_margin": (
+                            ordered[0][0] - ordered[1][0]
+                            if len(ordered) > 1
+                            else None
+                        ),
+                    }
+                )
+                selected_ids.append(chosen)
+                node = node[chosen]
+                if terminal not in node:
+                    token = torch.tensor(
+                        [[chosen]], dtype=torch.long, device="cuda"
+                    )
+                    hidden = self._model.forward_all_hidden(token, prompt_state)
+                    logits = self._model.project_logits_fp32(
+                        hidden[:, -1, :]
+                    ).float()
+                    if not bool(torch.isfinite(logits).all()):
+                        raise RuntimeError(
+                            "persistent vllm-rwkv returned non-finite suffix logits"
+                        )
+
+            result = {
+                "schema_version": "rwkv-lh.native-role-suffix-selection.v1",
+                "candidate_labels": list(normalized),
+                "prompt_token_count": len(prompt_ids),
+                "selected_label": str(node[terminal]),
+                "token_ids": selected_ids,
+                "decisions": decisions,
+            }
+            identity = {
+                **self._load_base_identity(),
+                "feature_protocol": "rwkv-lh.native-role-suffix-selection.v1",
+                "runtime": dict(self._runtime or {}),
+                "persistent_process": True,
+                "fresh_initial_state": True,
+                "one_prompt_forward": True,
+                "post_prompt_state_clones": 0,
+                "token_sequence_exact": True,
+                "expected_label_supplied": False,
+                "teacher_forcing_invoked": False,
+                "unrestricted_generation_invoked": False,
+                "generated_rwkv_text": False,
+                "sampling_invoked": False,
+                "downstream_decoder_trained": False,
+            }
+            self._last_identity = identity
+            return result, identity
 
     def advance_hidden_suffix_views(
         self,

@@ -54,6 +54,10 @@ from rwkv_lh.model_io import (
     parse_model_command,
     validate_final_answer,
 )
+from rwkv_lh.observation_funnel import (
+    bounded_model_value,
+    project_action_result,
+)
 from rwkv_lh.parallel_atoms import (
     PATH_MUTATION_OPERATIONS,
     AtomExecutionOutcome,
@@ -1330,6 +1334,7 @@ class LongHorizonController:
                             if isinstance(action.get("arguments"), Mapping)
                             else {}
                         ),
+                        focus_text=state.goal.request,
                     )
                     model_result["durable_result_digest"] = canonical_digest(
                         durable_result
@@ -1611,21 +1616,16 @@ class LongHorizonController:
     @staticmethod
     def _bounded_contract_result(result: Mapping[str, Any]) -> dict[str, Any]:
         selected = dict(result)
-        output = str(selected.get("output") or "")
-        if len(output) > 8000:
-            selected["output"] = output[:8000]
-            raw_metadata = selected.get("metadata")
-            metadata = dict(raw_metadata) if isinstance(raw_metadata, Mapping) else {}
-            metadata["source_complete"] = metadata.get("complete", True)
-            metadata["complete"] = False
-            metadata["projection_complete"] = False
-            selected["metadata"] = metadata
-            selected["output_projection"] = {
-                "truncated": True,
-                "original_chars": len(output),
-                "retained_chars": 8000,
-                "full_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
-            }
+        if not isinstance(selected.get("observation"), Mapping):
+            selected = project_action_result(
+                selected,
+                operation=str(selected.get("action_type") or ""),
+                max_exact_chars=8000,
+                structured_budget=8000,
+                evidence_source_limit=2,
+                evidence_span_chars=1200,
+                structured_field_budget=1400,
+            )
         encoded = json.dumps(
             selected,
             ensure_ascii=False,
@@ -4039,16 +4039,23 @@ class LongHorizonController:
             final_outcomes[0] if final_outcomes else None
         )
 
-    def _online_action_projection(self, action: ActionRecord) -> dict[str, Any]:
-        result = dict(action.result or {})
-        observed_output = str(result.get("output") or "")
-        if len(observed_output) > 2000:
-            result["output"] = observed_output[:2000]
-            result["output_projection"] = {
-                "truncated": True,
-                "original_chars": len(observed_output),
-                "retained_chars": 2000,
-            }
+    def _online_action_projection(
+        self,
+        action: ActionRecord,
+        *,
+        focus_text: str = "",
+    ) -> dict[str, Any]:
+        result = project_action_result(
+            action.result or {},
+            operation=action.action_type,
+            arguments=action.arguments,
+            focus_text=focus_text,
+            max_exact_chars=2000,
+            structured_budget=2800,
+            evidence_source_limit=1,
+            evidence_span_chars=600,
+            structured_field_budget=500,
+        )
         return {
             "action_id": action.action_id,
             "sequence": action.sequence,
@@ -4187,7 +4194,11 @@ class LongHorizonController:
             worker_outcome=worker_outcome,
             action_count=len(ordered),
             actions=tuple(
-                self._online_action_projection(action) for action in ordered[-32:]
+                self._online_action_projection(
+                    action,
+                    focus_text=state.goal.request,
+                )
+                for action in ordered[-32:]
             ),
             artifacts=self._online_artifacts(state),
             workspace_manifest=self.harness.workspace_manifest(
@@ -4539,15 +4550,17 @@ class LongHorizonController:
         actions: list[dict[str, Any]] = []
         ordered = sorted(state.actions.values(), key=lambda item: item.sequence)
         for action in ordered[-96:]:
-            result = dict(action.result or {})
-            observed_output = str(result.get("output") or "")
-            if len(observed_output) > 4000:
-                result["output"] = observed_output[:4000]
-                result["output_projection"] = {
-                    "truncated": True,
-                    "original_chars": len(observed_output),
-                    "retained_chars": 4000,
-                }
+            result = project_action_result(
+                action.result or {},
+                operation=action.action_type,
+                arguments=action.arguments,
+                focus_text=state.goal.request,
+                max_exact_chars=4000,
+                structured_budget=4800,
+                evidence_source_limit=2,
+                evidence_span_chars=1000,
+                structured_field_budget=1000,
+            )
             actions.append(
                 {
                     "action_id": action.action_id,
@@ -4919,13 +4932,72 @@ class LongHorizonController:
                 False,
                 error={"type": type(exc).__name__, "message": str(exc)[:2000]},
             )
-        return self._finish_action(state, record, result)
+        return self._finish_action(
+            state,
+            record,
+            result,
+            workspace_snapshot_before=before,
+        )
+
+    @staticmethod
+    def _workspace_change_metadata(
+        before: Mapping[str, Any],
+        after: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Derive an exact bounded path delta from Controller-owned snapshots."""
+
+        if not bool(before.get("cacheable")) or not bool(after.get("cacheable")):
+            return {
+                "schema_version": "rwkv-lh.workspace-changes.v1",
+                "complete": False,
+                "reason": (
+                    str(before.get("reason") or "")
+                    or str(after.get("reason") or "")
+                    or "workspace_snapshot_not_cacheable"
+                ),
+                "changed_paths": [],
+                "created_paths": [],
+                "modified_paths": [],
+                "deleted_paths": [],
+            }
+
+        def by_path(snapshot: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+            selected: dict[str, Mapping[str, Any]] = {}
+            for raw in snapshot.get("entries") or ():
+                if not isinstance(raw, Mapping):
+                    continue
+                path = str(raw.get("path") or "").strip()
+                if path:
+                    selected[path] = raw
+            return selected
+
+        left = by_path(before)
+        right = by_path(after)
+        created = sorted(set(right) - set(left))
+        deleted = sorted(set(left) - set(right))
+        modified = sorted(
+            path
+            for path in set(left) & set(right)
+            if canonical_digest(left[path]) != canonical_digest(right[path])
+        )
+        changed = sorted({*created, *modified, *deleted})
+        return {
+            "schema_version": "rwkv-lh.workspace-changes.v1",
+            "complete": True,
+            "reason": "",
+            "changed_paths": changed,
+            "created_paths": created,
+            "modified_paths": modified,
+            "deleted_paths": deleted,
+        }
 
     def _finish_action(
         self,
         state: RunState,
         record: ActionRecord,
         result: ActionResult,
+        *,
+        workspace_snapshot_before: Mapping[str, Any] | None = None,
     ) -> ActionRecord:
         authoritative = state.actions.get(record.action_id)
         if authoritative is None or authoritative.status != ActionStatus.RUNNING:
@@ -4938,6 +5010,17 @@ class LongHorizonController:
             )
         finished = ActionRecord.from_dict(authoritative.to_dict())
         after = self.harness.workspace_observation_snapshot(state.goal)
+        if (
+            authoritative.action_type == "run_command"
+            and workspace_snapshot_before is not None
+        ):
+            result.metadata = {
+                **dict(result.metadata),
+                "workspace_changes": self._workspace_change_metadata(
+                    workspace_snapshot_before,
+                    after,
+                ),
+            }
         external_evidence = result.metadata.get("external_evidence")
         if isinstance(external_evidence, Mapping):
             # Bind a handler-produced evidence packet to the Controller-owned
@@ -5162,6 +5245,7 @@ class LongHorizonController:
                 "result": self._model_action_result(
                     action.result or {},
                     arguments=action.arguments,
+                    focus_text=state.goal.request,
                 ),
                 "artifact_refs": list(action.artifact_refs),
                 "artifact_revisions": revisions,
@@ -5179,206 +5263,7 @@ class LongHorizonController:
 
     @staticmethod
     def _bounded_model_value(value: Any, *, depth: int = 0) -> Any:
-        if depth >= 4:
-            return None
-        if value is None or isinstance(value, (bool, int, float)):
-            return value
-        if isinstance(value, str):
-            return value[:2000]
-        if isinstance(value, Mapping):
-            return {
-                str(key)[:160]: projected
-                for key, item in list(value.items())[:32]
-                if (
-                    projected := LongHorizonController._bounded_model_value(
-                        item, depth=depth + 1
-                    )
-                )
-                is not None
-            }
-        if isinstance(value, (list, tuple)):
-            return [
-                projected
-                for item in value[:12]
-                if (
-                    projected := LongHorizonController._bounded_model_value(
-                        item, depth=depth + 1
-                    )
-                )
-                is not None
-            ]
-        return str(value)[:500]
-
-    _STRUCTURED_FIELD_PRIORITY = (
-        "full_name",
-        "default_branch",
-        "html_url",
-        "tag_name",
-        "published_at",
-        "sha",
-        "name",
-        "version",
-        "info",
-        "message",
-        "current",
-        "current_units",
-        "timezone",
-        "latitude",
-        "longitude",
-        "DOI",
-        "doi",
-        "title",
-        "published",
-        "author",
-        "url",
-    )
-    _EVIDENCE_QUERY_TOKEN_PATTERN = re.compile(r"[a-z0-9]+|[\u3400-\u9fff]")
-    _EVIDENCE_PROJECTION_VERSION = "query-exact-source-chunk.v2"
-
-    @classmethod
-    def _evidence_query_terms(cls, query: str) -> tuple[str, ...]:
-        """Return frozen exact-match terms without adding semantic expansion."""
-
-        return tuple(
-            dict.fromkeys(
-                cls._EVIDENCE_QUERY_TOKEN_PATTERN.findall(str(query).casefold())
-            )
-        )
-
-    @staticmethod
-    def _evidence_search_text(record: Mapping[str, Any]) -> str:
-        spans = [
-            str(span.get("text") or "")
-            for span in record.get("exact_spans") or ()
-            if isinstance(span, Mapping)
-        ]
-        return "\n".join(
-            (
-                str(record.get("title") or ""),
-                canonical_json(record.get("structured_fields") or {}),
-                *spans,
-            )
-        ).casefold()
-
-    @staticmethod
-    def _evidence_match_score(
-        text: str,
-        terms: tuple[str, ...],
-    ) -> tuple[int, int]:
-        matched = tuple(term for term in terms if term and term in text)
-        return sum(len(term) for term in matched), len(matched)
-
-    @classmethod
-    def _evidence_projection_window(
-        cls,
-        source_text: str,
-        terms: tuple[str, ...],
-        *,
-        limit: int = 512,
-    ) -> tuple[int, str]:
-        folded = source_text.casefold()
-        matches = [
-            (len(term), folded.find(term), term)
-            for term in terms
-            if term and folded.find(term) >= 0
-        ]
-        if matches:
-            _length, position, _term = min(
-                matches,
-                key=lambda item: (-item[0], item[1], item[2]),
-            )
-            start = max(0, position - 128)
-        else:
-            start = 0
-        return start, source_text[start : start + max(1, int(limit))]
-
-    @classmethod
-    def _best_record_per_source(
-        cls,
-        records: list[Mapping[str, Any]],
-        terms: tuple[str, ...],
-    ) -> list[Mapping[str, Any]]:
-        source_order: list[str] = []
-        selected: dict[str, tuple[tuple[int, int], int, Mapping[str, Any]]] = {}
-        for index, item in enumerate(records):
-            source = item.get("source_object")
-            source_id = (
-                str(source.get("source_object_id") or "")
-                if isinstance(source, Mapping)
-                else ""
-            )
-            identity = source_id or str(item.get("url") or "") or str(
-                item.get("evidence_record_id") or ""
-            )
-            if identity not in selected:
-                source_order.append(identity)
-            score = cls._evidence_match_score(
-                cls._evidence_search_text(item),
-                terms,
-            )
-            previous = selected.get(identity)
-            if previous is None or score > previous[0]:
-                selected[identity] = (score, index, item)
-        return [selected[identity][2] for identity in source_order]
-
-    @classmethod
-    def _structured_model_value(
-        cls,
-        value: Any,
-        *,
-        budget: int = 1400,
-        depth: int = 0,
-    ) -> Any:
-        """Project structured facts into a deterministic total character budget."""
-
-        limit = max(2, int(budget))
-        if value is None or isinstance(value, (bool, int, float)):
-            return value
-        if isinstance(value, str):
-            overhead = 2
-            return value[: max(0, min(300, limit - overhead))]
-        if depth >= 3:
-            return None
-        if isinstance(value, Mapping):
-            keys = [key for key in cls._STRUCTURED_FIELD_PRIORITY if key in value]
-            keys.extend(key for key in value if key not in keys)
-            projected: dict[str, Any] = {}
-            for raw_key in keys[:32]:
-                key = str(raw_key)[:160]
-                remaining = limit - len(canonical_json(projected)) - len(key) - 6
-                if remaining < 8:
-                    break
-                item = cls._structured_model_value(
-                    value[raw_key],
-                    budget=remaining,
-                    depth=depth + 1,
-                )
-                if item is None:
-                    continue
-                candidate = {**projected, key: item}
-                if len(canonical_json(candidate)) > limit:
-                    continue
-                projected = candidate
-            return projected
-        if isinstance(value, (list, tuple)):
-            projected_items: list[Any] = []
-            for item in value[:3]:
-                remaining = limit - len(canonical_json(projected_items)) - 2
-                if remaining < 8:
-                    break
-                projected = cls._structured_model_value(
-                    item,
-                    budget=remaining,
-                    depth=depth + 1,
-                )
-                if projected is None:
-                    continue
-                candidate = [*projected_items, projected]
-                if len(canonical_json(candidate)) > limit:
-                    continue
-                projected_items = candidate
-            return projected_items
-        return str(value)[: max(0, min(300, limit - 2))]
+        return bounded_model_value(value, depth=depth)
 
     @classmethod
     def _model_action_result(
@@ -5386,161 +5271,27 @@ class LongHorizonController:
         result: Mapping[str, Any],
         *,
         arguments: Mapping[str, Any] | None = None,
+        focus_text: str = "",
         evidence_source_limit: int = 2,
         evidence_span_chars: int = 512,
         structured_field_budget: int = 1400,
     ) -> dict[str, Any]:
-        """Project full durable results into one bounded RWKV observation."""
+        """Compatibility entry point backed by the shared observation funnel."""
 
-        source_limit = max(1, int(evidence_source_limit))
-        span_limit = max(1, int(evidence_span_chars))
-        structured_budget = max(8, int(structured_field_budget))
-
-        selected = dict(result)
-        raw_metadata = selected.get("metadata")
-        metadata = dict(raw_metadata) if isinstance(raw_metadata, Mapping) else {}
-        external = metadata.get("external_evidence")
-        if isinstance(external, Mapping):
-            raw_records = [
-                item
-                for item in selected.get("evidence") or ()
-                if isinstance(item, Mapping)
-            ]
-            query = str((arguments or {}).get("query") or "")
-            query_terms = cls._evidence_query_terms(query)
-            source_records = cls._best_record_per_source(raw_records, query_terms)
-            records: list[dict[str, Any]] = []
-            for item in source_records:
-                source = item.get("source_object")
-                source_id = (
-                    str(source.get("source_object_id") or "")
-                    if isinstance(source, Mapping)
-                    else ""
-                )
-                spans: list[dict[str, Any]] = []
-                candidate_spans = [
-                    span
-                    for span in item.get("exact_spans") or ()
-                    if isinstance(span, Mapping)
-                ]
-                candidate_spans.sort(
-                    key=lambda span: cls._evidence_match_score(
-                        str(span.get("text") or "").casefold(),
-                        query_terms,
-                    ),
-                    reverse=True,
-                )
-                for span in candidate_spans[:1]:
-                    source_text = str(span.get("text") or "")
-                    source_offset, projected_text = cls._evidence_projection_window(
-                        source_text,
-                        query_terms,
-                        limit=span_limit,
-                    )
-                    source_locator = cls._bounded_model_value(
-                        span.get("locator") or {}
-                    )
-                    start_char = (
-                        int(source_locator.get("start_char", 0) or 0)
-                        if isinstance(source_locator, Mapping)
-                        else 0
-                    )
-                    spans.append(
-                        {
-                            "source_span_id": str(span.get("span_id") or ""),
-                            "text": projected_text,
-                            "text_sha256": hashlib.sha256(
-                                projected_text.encode("utf-8")
-                            ).hexdigest(),
-                            "source_text_chars": len(source_text),
-                            "projection": {
-                                "source_offset_start": source_offset,
-                                "source_offset_end": source_offset
-                                + len(projected_text),
-                                "document_start_char": start_char + source_offset,
-                                "document_end_char": start_char
-                                + source_offset
-                                + len(projected_text),
-                                "complete_source_span": len(projected_text)
-                                == len(source_text)
-                                and source_offset == 0,
-                            },
-                            "source_locator": source_locator,
-                        }
-                    )
-                records.append(
-                    {
-                        "evidence_record_id": str(
-                            item.get("evidence_record_id") or ""
-                        ),
-                        "source_object_id": source_id,
-                        "source_object_type": (
-                            str(source.get("source_object_type") or "")
-                            if isinstance(source, Mapping)
-                            else ""
-                        ),
-                        "snapshot_digest": str(item.get("snapshot_digest") or ""),
-                        "url": str(item.get("url") or ""),
-                        "title": str(item.get("title") or ""),
-                        "published": str(item.get("published") or ""),
-                        "structured_fields": cls._structured_model_value(
-                            item.get("structured_fields") or {},
-                            budget=structured_budget,
-                        ),
-                        "exact_spans": spans,
-                    }
-                )
-                if len(records) >= source_limit:
-                    break
-            external_identity = {
-                key: cls._bounded_model_value(external.get(key))
-                for key in (
-                    "route_id",
-                    "request_digest",
-                    "status",
-                    "as_of",
-                    "provider_attempts",
-                    "truncated",
-                )
-                if external.get(key) is not None
-            }
-            return {
-                "success": bool(selected.get("success")),
-                "outcome_type": str(selected.get("outcome_type") or ""),
-                "action_type": str(selected.get("action_type") or ""),
-                "error": cls._bounded_model_value(selected.get("error") or {}),
-                "metadata": {
-                    "network_policy": cls._bounded_model_value(
-                        metadata.get("network_policy") or {}
-                    ),
-                    "external_evidence": external_identity,
-                    "projection_complete": False,
-                },
-                "evidence": records,
-                "evidence_projection": {
-                    "full_record_count": len(raw_records),
-                    "projected_source_count": len(records),
-                    "content_addressed_full_result_persisted": True,
-                    "selection_protocol": cls._EVIDENCE_PROJECTION_VERSION,
-                    "query_digest": hashlib.sha256(
-                        query.encode("utf-8")
-                    ).hexdigest(),
-                },
-            }
-        output = str(selected.get("output") or "")
-        if len(output) > 8000:
-            selected["output"] = output[:8000]
-            metadata["source_complete"] = metadata.get("complete", True)
-            metadata["complete"] = False
-            metadata["projection_complete"] = False
-            selected["metadata"] = metadata
-            selected["output_projection"] = {
-                "truncated": True,
-                "original_chars": len(output),
-                "retained_chars": 8000,
-                "full_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
-            }
-        return selected
+        return project_action_result(
+            result,
+            operation=str(result.get("action_type") or ""),
+            arguments=arguments,
+            focus_text=(
+                str(focus_text)
+                or str((arguments or {}).get("query") or "")
+            ),
+            max_exact_chars=8000,
+            structured_budget=8000,
+            evidence_source_limit=evidence_source_limit,
+            evidence_span_chars=evidence_span_chars,
+            structured_field_budget=structured_field_budget,
+        )
 
     def _first_unappended_action_observation(
         self,
@@ -5809,6 +5560,8 @@ class LongHorizonController:
             "contract_final_presentation_review_committed": (
                 "contract_final_presentation_review"
             ),
+            "goal_plan_patch_committed": "goal_plan",
+            "goal_stage_review_committed": "goal_stage_review",
         }
         pending_sequences = {
             str(event.payload.get("pending_id") or ""): event.sequence

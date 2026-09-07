@@ -1,0 +1,101 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_____ test_role_builder_preserves_registered_prompt_bytes[auditor_step_v3] _____
+
+protocol_name = 'auditor_step_v3'
+
+    @pytest.mark.parametrize('protocol_name', tuple(_PROTOCOLS))
+    def test_role_builder_preserves_registered_prompt_bytes(protocol_name: str) -> None:
+        baseline = json.loads(_BASELINE.read_text(encoding='utf-8'))
+        record = next(item for item in baseline['records'] if item['protocol'] == protocol_name)
+        protocol = _PROTOCOLS[protocol_name]
+>       source = protocol.build_prompt_source(**record['arguments'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'rwkv_lh.goal_state_protocols.auditor_step_v3' has no attribute 'build_prompt_source'
+
+tests/test_role_prompt_builders.py:27: AttributeError
+______ test_role_builder_preserves_registered_prompt_bytes[auditor_final] ______
+
+protocol_name = 'auditor_final'
+
+    @pytest.mark.parametrize('protocol_name', tuple(_PROTOCOLS))
+    def test_role_builder_preserves_registered_prompt_bytes(protocol_name: str) -> None:
+        baseline = json.loads(_BASELINE.read_text(encoding='utf-8'))
+        record = next(item for item in baseline['records'] if item['protocol'] == protocol_name)
+        protocol = _PROTOCOLS[protocol_name]
+>       source = protocol.build_prompt_source(**record['arguments'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'rwkv_lh.goal_state_protocols.auditor_final' has no attribute 'build_prompt_source'
+
+tests/test_role_prompt_builders.py:27: AttributeError
+____ test_role_builder_preserves_registered_prompt_bytes[finalizer_answer] _____
+
+protocol_name = 'finalizer_answer'
+
+    @pytest.mark.parametrize('protocol_name', tuple(_PROTOCOLS))
+    def test_role_builder_preserves_registered_prompt_bytes(protocol_name: str) -> None:
+        baseline = json.loads(_BASELINE.read_text(encoding='utf-8'))
+        record = next(item for item in baseline['records'] if item['protocol'] == protocol_name)
+        protocol = _PROTOCOLS[protocol_name]
+>       source = protocol.build_prompt_source(**record['arguments'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'rwkv_lh.goal_state_protocols.finalizer_answer' has no attribute 'build_prompt_source'
+
+tests/test_role_prompt_builders.py:27: AttributeError
+_______ test_auditor_builder_owns_catalog_construction[auditor_step_v3] ________
+
+protocol_name = 'auditor_step_v3'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x700eda7f2f10>
+
+    @pytest.mark.parametrize('protocol_name', ('auditor_step_v3', 'auditor_final'))
+    def test_auditor_builder_owns_catalog_construction(
+        protocol_name: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = json.loads(_BASELINE.read_text(encoding='utf-8'))
+        record = next(item for item in baseline['records'] if item['protocol'] == protocol_name)
+        protocol = _PROTOCOLS[protocol_name]
+        calls = []
+        original = protocol.build_gap_catalog
+    
+        def record_catalog(*args):
+            calls.append(args)
+            return original(*args)
+    
+        monkeypatch.setattr(protocol, 'build_gap_catalog', record_catalog)
+>       source = protocol.build_prompt_source(**record['arguments'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'rwkv_lh.goal_state_protocols.auditor_step_v3' has no attribute 'build_prompt_source'
+
+tests/test_role_prompt_builders.py:47: AttributeError
+________ test_auditor_builder_owns_catalog_construction[auditor_final] _________
+
+protocol_name = 'auditor_final'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x700eda7f3790>
+
+    @pytest.mark.parametrize('protocol_name', ('auditor_step_v3', 'auditor_final'))
+    def test_auditor_builder_owns_catalog_construction(
+        protocol_name: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = json.loads(_BASELINE.read_text(encoding='utf-8'))
+        record = next(item for item in baseline['records'] if item['protocol'] == protocol_name)
+        protocol = _PROTOCOLS[protocol_name]
+        calls = []
+        original = protocol.build_gap_catalog
+    
+        def record_catalog(*args):
+            calls.append(args)
+            return original(*args)
+    
+        monkeypatch.setattr(protocol, 'build_gap_catalog', record_catalog)
+>       source = protocol.build_prompt_source(**record['arguments'])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'rwkv_lh.goal_state_protocols.auditor_final' has no attribute 'build_prompt_source'
+
+tests/test_role_prompt_builders.py:47: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_role_prompt_builders.py::test_role_builder_preserves_registered_prompt_bytes[auditor_step_v3]
+FAILED tests/test_role_prompt_builders.py::test_role_builder_preserves_registered_prompt_bytes[auditor_final]
+FAILED tests/test_role_prompt_builders.py::test_role_builder_preserves_registered_prompt_bytes[finalizer_answer]
+FAILED tests/test_role_prompt_builders.py::test_auditor_builder_owns_catalog_construction[auditor_step_v3]
+FAILED tests/test_role_prompt_builders.py::test_auditor_builder_owns_catalog_construction[auditor_final]
+5 failed in 0.03s
