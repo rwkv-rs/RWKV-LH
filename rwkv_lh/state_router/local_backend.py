@@ -6,10 +6,11 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.model_io import canonical_digest
@@ -34,12 +35,18 @@ WORKER_REQUEST_SCHEMA = "rwkv-lh.state-router-vllm-worker-request.v1"
 WORKER_RESPONSE_SCHEMA = "rwkv-lh.state-router-vllm-worker-response.v1"
 MODEL_MANIFEST_SCHEMA = "rwkv-lh.vllm-rwkv-artifact.v1"
 MODEL_COMPATIBILITY_SCHEMA = "rwkv-lh.vllm-rwkv-portable-identity.v1"
+ENGINE_SOURCE_MANIFEST_SCHEMA = "rwkv-lh.uploaded-engine-source-manifest.v1"
+# This schema binds every regular file under engine_root, including root-level
+# modules and native libraries. Only these directories are outside its scope;
+# bare .pyc/.pyo files remain covered because Python can import them directly.
+ENGINE_SOURCE_EXCLUDED_DIRECTORIES = frozenset({".git", ".venv", "__pycache__"})
 RUNTIME_DERIVATION_SCHEMA = "rwkv-lh.vllm-rwkv-runtime-derivation.v1"
 RUNTIME_SOURCE_VALIDATION_SCHEMA = (
     "rwkv-lh.vllm-rwkv-fp32-cmix-source-validation.v1"
 )
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _file_sha256(path: Path) -> str:
@@ -58,6 +65,84 @@ def _git_value(root: Path, *arguments: str) -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def _engine_source_inventory(root: Path) -> dict[str, tuple[str, int]]:
+    """Inventory the complete uploaded tree without Git or symlink traversal."""
+
+    files: dict[str, tuple[str, int]] = {}
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        for path in sorted(directory.iterdir()):
+            info = path.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                if path.name not in ENGINE_SOURCE_EXCLUDED_DIRECTORIES:
+                    pending.append(path)
+            elif stat.S_ISREG(info.st_mode):
+                files[path.relative_to(root).as_posix()] = (
+                    _file_sha256(path), info.st_size
+                )
+            else:
+                raise RuntimeError(
+                    f"local engine source contains a symlink or special file: {path}"
+                )
+    return files
+
+
+def _validate_engine_source_manifest(
+    path: Path, expected_sha256: str, *, engine_root: Path, engine_revision: str
+) -> dict[str, Any]:
+    """Verify an explicitly uploaded source identity without invoking Git."""
+
+    resolved = path.resolve()
+    if resolved.is_relative_to(engine_root):
+        raise RuntimeError("local engine source manifest must be outside the engine tree")
+    if not resolved.is_file() or _file_sha256(resolved) != expected_sha256:
+        raise RuntimeError("local engine source manifest checksum mismatch")
+    value = json.loads(resolved.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or set(value) != {
+        "schema_version", "engine_root", "engine_revision", "source_root", "files"
+    }:
+        raise RuntimeError("local engine source manifest fields mismatch")
+    if not (
+        value["schema_version"] == ENGINE_SOURCE_MANIFEST_SCHEMA
+        and value["engine_root"] == str(engine_root)
+        and value["engine_revision"] == engine_revision
+        and _REVISION_PATTERN.fullmatch(engine_revision)
+        and value["source_root"] == "."
+        and isinstance(value["files"], list)
+        and value["files"]
+    ):
+        raise RuntimeError("local engine source manifest identity mismatch")
+    expected: dict[str, tuple[str, int]] = {}
+    for entry in value["files"]:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "bytes"}:
+            raise RuntimeError("local engine source manifest file fields mismatch")
+        name, digest, size = entry["path"], entry["sha256"], entry["bytes"]
+        if not isinstance(name, str) or not name or "\\" in name or "\x00" in name:
+            raise RuntimeError("local engine source manifest file path is invalid")
+        relative = PurePosixPath(name)
+        if (
+            relative.is_absolute() or relative.as_posix() != name
+            or name == "." or ".." in relative.parts or name in expected
+            or any(part in ENGINE_SOURCE_EXCLUDED_DIRECTORIES for part in relative.parts[:-1])
+            or not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest)
+            or type(size) is not int or size < 0
+        ):
+            raise RuntimeError("local engine source manifest file identity is invalid")
+        expected[name] = (digest, size)
+    actual = _engine_source_inventory(engine_root)
+    if actual.keys() != expected.keys():
+        raise RuntimeError("local engine source file set differs from uploaded manifest")
+    if actual != expected:
+        raise RuntimeError("local engine source file checksum or size mismatch")
+    return {
+        "engine_source_manifest": str(resolved),
+        "engine_source_manifest_sha256": expected_sha256,
+        "engine_source_file_count": len(expected),
+        "engine_identity_backend": "uploaded_source_manifest",
+    }
 
 
 def _validate_runtime_derivation(
@@ -204,10 +289,22 @@ class LocalVLLMRWKVSettings:
     state_profile_manifest_sha256: str = ""
     state_profile_id: str = ""
     state_profile_sha256: str = ""
+    engine_source_manifest: Path | None = None
+    engine_source_manifest_sha256: str = ""
 
     def __post_init__(self) -> None:
         for name in ("engine_root", "engine_python", "model", "runtime_temp"):
             object.__setattr__(self, name, Path(getattr(self, name)).expanduser())
+        source_configured = (
+            self.engine_source_manifest is not None,
+            bool(self.engine_source_manifest_sha256),
+        )
+        if any(source_configured) and not all(source_configured):
+            raise ValueError("local engine source requires manifest and manifest SHA-256")
+        if self.engine_source_manifest is not None:
+            object.__setattr__(self, "engine_source_manifest", Path(self.engine_source_manifest).expanduser())
+            if not _SHA256_PATTERN.fullmatch(self.engine_source_manifest_sha256):
+                raise ValueError("local engine source manifest SHA-256 is invalid")
         if self.runtime_derivation_manifest is not None:
             object.__setattr__(
                 self,
@@ -317,15 +414,28 @@ class LocalVLLMRWKVExtractor:
         runtime_temp = settings.runtime_temp.resolve()
         if not (engine_root / "vllm/model_executor/models/rwkv7.py").is_file():
             raise RuntimeError(f"missing local vllm-rwkv source tree: {engine_root}")
-        revision = _git_value(engine_root, "rev-parse", "HEAD")
-        if revision != settings.engine_revision:
-            raise RuntimeError(
-                "local vllm-rwkv revision mismatch: "
-                f"expected={settings.engine_revision} actual={revision}"
+        engine_source_identity: dict[str, Any] = {}
+        if settings.engine_source_manifest is not None:
+            engine_source_identity = _validate_engine_source_manifest(
+                settings.engine_source_manifest,
+                settings.engine_source_manifest_sha256,
+                engine_root=engine_root,
+                engine_revision=settings.engine_revision,
             )
-        dirty = bool(_git_value(engine_root, "status", "--short"))
-        if dirty:
-            raise RuntimeError("local vllm-rwkv source tree must be clean")
+            revision = settings.engine_revision
+            # Git was not queried. The separate manifest identity attests the
+            # uploaded snapshot without claiming a clean Git working tree.
+            dirty = None
+        else:
+            revision = _git_value(engine_root, "rev-parse", "HEAD")
+            if revision != settings.engine_revision:
+                raise RuntimeError(
+                    "local vllm-rwkv revision mismatch: "
+                    f"expected={settings.engine_revision} actual={revision}"
+                )
+            dirty = bool(_git_value(engine_root, "status", "--short"))
+            if dirty:
+                raise RuntimeError("local vllm-rwkv source tree must be clean")
         if not engine_python.is_file() or not os.access(engine_python, os.X_OK):
             raise RuntimeError(f"missing local vllm-rwkv Python: {engine_python}")
         manifest_path = model / "manifest.json"
@@ -403,6 +513,7 @@ class LocalVLLMRWKVExtractor:
                 / "vllm/model_executor/models/rwkv7.py",
             )
         base = {
+            **engine_source_identity,
             "backend_version": LOCAL_BACKEND_VERSION,
             "engine_root": str(engine_root),
             "engine_revision": revision,

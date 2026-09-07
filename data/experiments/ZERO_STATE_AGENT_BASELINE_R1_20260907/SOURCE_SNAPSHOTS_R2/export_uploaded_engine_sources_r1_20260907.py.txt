@@ -1,0 +1,26 @@
+"""Export full engine file SHA records to stdout without Git or model calls."""
+from pathlib import Path
+import hashlib
+import json
+import os
+import stat
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+EXCLUDED={'.git','.venv','__pycache__'}
+result={}
+for name in ('vllm-rwkv-67f0c5996c50','vllm-rwkv-67f0c5996c50-selector-clean'):
+    root=ROOT/'data/runtime/engines'/name
+    files=[]
+    for directory,folders,names in os.walk(root,followlinks=False):
+        parent=Path(directory)
+        folders[:]=[folder for folder in folders if folder not in EXCLUDED]
+        for folder in folders:
+            path=parent/folder
+            if path.is_symlink():raise RuntimeError(f'symlink directory rejected: {path}')
+        for filename in names:
+            path=parent/filename;info=path.lstat()
+            if not stat.S_ISREG(info.st_mode):raise RuntimeError(f'non-regular file rejected: {path}')
+            files.append({'path':path.relative_to(root).as_posix(),
+                          'bytes':info.st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+    result[name]=sorted(files,key=lambda item:item['path'])
+print(json.dumps(result,ensure_ascii=False,indent=2))

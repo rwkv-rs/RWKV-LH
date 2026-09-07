@@ -1,0 +1,47 @@
+"""Finalize R2 prose and preserve helper source evidence before freezing."""
+from pathlib import Path
+import hashlib
+import json
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+assert not (ROUND / 'FROZEN_EXECUTION_MANIFEST_R2.json').exists()
+path = ROUND / 'PREREGISTRATION_R2.zh-CN.md'
+text = path.read_text()
+text = text.replace('METRIC_DEFINITIONS.json', 'METRIC_DEFINITIONS_R2.json')
+text = text.replace('6834ffd52339fed7032f8b6da423105b36466c365ed23aa798456f89dd74c399',
+                    '77491c782a9482de0be4ce419c250915667411345dff4be357d3829cad5eb02c')
+text = text.replace('完整 `tests/` 674 项通过且无跳过', '上传清单修改后的完整 `tests/` 697 项通过且无跳过')
+text = text.replace('collector 已实现且通过 33 项人工 fixture 自验',
+                    'collector 已实现且通过 33 项人工 fixture 自验和 9 项 R2 绑定检查')
+text = text.replace('其他无 reason 用事件类型。缺 state 用 runner failure/not_created。',
+                    '其余缺失、空值或非字符串 reason 均为 unknown；缺 state 或缺 terminal event 也为 unknown，另保留事件类型及 runner failure，不拿它们替代 reason。')
+text = text.replace('`PUBLIC_CONFIG_FROZEN.json`', '`PUBLIC_CONFIG_FREEZE_ATTESTED_R2.json`')
+text += '\n指标采集必须使用冻结清单中的 metric_argv，显式传入 --definitions 指向 METRIC_DEFINITIONS_R2.json；不能使用 collector 的历史默认登记。\n'
+path.write_text(text)
+
+names = [
+    'run_frozen_zero_baseline_r1_20260907.py',
+    'execute_frozen_real_project_baseline_r1_20260907.py',
+    'attest_current_zero_remote_r1_20260907.py',
+    'collect_zero_project_metrics_r1_20260907.py',
+    'inventory_uploaded_engine_sources_r1_20260907.py',
+    'export_uploaded_engine_sources_r1_20260907.py',
+    'prepare_uploaded_engine_manifests_r1_20260907.py',
+    'prepare_uploaded_selector_launcher_r1_20260907.py',
+    'selftest_zero_project_metrics_r1_20260907.py',
+    'finalize_upload_only_registration_r2_20260907.py',
+]
+dest = ROUND / 'SOURCE_SNAPSHOTS_R2'
+dest.mkdir(exist_ok=False)
+records = []
+for name in names:
+    source = ROOT / 'temp' / name
+    data = source.read_bytes()
+    target = dest / (name + '.txt')
+    target.write_bytes(data)
+    records.append({'source': str(source.relative_to(ROOT)),
+                    'snapshot': str(target.relative_to(ROOT)),
+                    'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
+(ROUND / 'SOURCE_SNAPSHOTS_R2.json').write_text(json.dumps(records, indent=2) + '\n')
+print(json.dumps({'source_snapshots':len(records), 'registration_sha256':hashlib.sha256(path.read_bytes()).hexdigest()}))

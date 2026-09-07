@@ -6,6 +6,8 @@
 ## 1. 执行环境
 
 - 项目命令、测试、分析与验证只在 WSL `UbuntuRecovered` 中执行，不在 Windows 端执行项目逻辑。
+- **服务器禁止使用 Git，只能从本地上传。** 所有 Git 版本管理与查询（包括 clone/fetch/pull、commit、rev-parse/status 和历史查询）仅在本地执行；通过 SSH 配合 rsync/SCP 上传已冻结的源码和清单。服务器启动、部署、健康检查及身份核验不得调用 Git。
+- engine 身份使用本地生成并上传的完整源码文件清单：登记相对路径、逐文件 SHA-256 和 manifest 自身 SHA-256，服务核对实际文件与冻结清单一致。不得以远端 `git rev-parse` / `git status` 代替文件身份，也不得在清单缺失或不一致时退回 Git；部署与运行证据在本地记录关联的提交和清单 SHA。
 - 用 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev` 准备完整环境，再运行 `.venv/bin/python -m playwright install chromium` 安装浏览器；测试用 `.venv/bin/python -m pytest -q tests/`，提交前必须全绿且不得跳过 Torch / State 注入或必需的浏览器验证。默认测试工件写入 `data/test_runs/pytest/`。
 - 临时分析、调试和验证脚本统一放在项目根目录 `temp/`，用绝对路径执行，文件名清晰、唯一并说明用途。`temp/` 不是生产代码，`rwkv_lh/`、`scripts/`、`tests/` 不得依赖它。
 

@@ -1,0 +1,25 @@
+"""Read deployment-file metadata without Git or model execution."""
+from pathlib import Path
+import json
+import os
+import stat
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+EXCLUDED={'.git','.venv','__pycache__'}
+result={}
+for name in ('vllm-rwkv-67f0c5996c50','vllm-rwkv-67f0c5996c50-selector-clean'):
+    root=ROOT/'data/runtime/engines'/name
+    files=[];special=[]
+    for directory,folders,names in os.walk(root,followlinks=False):
+        parent=Path(directory)
+        folders[:]=[folder for folder in folders if folder not in EXCLUDED]
+        for folder in folders:
+            path=parent/folder
+            if path.is_symlink():special.append({'path':str(path.relative_to(root)),'type':'symlink_directory','target':os.readlink(path)})
+        for filename in names:
+            path=parent/filename;info=path.lstat()
+            if stat.S_ISREG(info.st_mode):files.append({'path':str(path.relative_to(root)),'bytes':info.st_size})
+            else:special.append({'path':str(path.relative_to(root)),'type':'symlink' if path.is_symlink() else 'non_regular','target':os.readlink(path) if path.is_symlink() else ''})
+    result[name]={'files':len(files),'bytes':sum(f['bytes'] for f in files),'special':special,
+                  'largest':sorted(files,key=lambda f:f['bytes'],reverse=True)[:15]}
+print(json.dumps(result,ensure_ascii=False,indent=2))

@@ -1,0 +1,311 @@
+{
+  "schema_version": "rwkv-lh.round-run-protocol.v1",
+  "started_at": "2026-09-07T03:53:04.582805+00:00",
+  "round": "real_project_zero_a",
+  "suite": "RWKV-LH-REAL-PROJECT-DEV-V1",
+  "total_catalog_cases": 12,
+  "selected_case_count": 12,
+  "selected_case_ids": [
+    "RP-API-01",
+    "RP-API-02",
+    "RP-MAINT-01",
+    "RP-MAINT-02",
+    "RP-CLI-01",
+    "RP-CLI-02",
+    "RP-DATA-01",
+    "RP-DATA-02",
+    "RP-FULL-01",
+    "RP-FULL-02",
+    "RP-WEB-01",
+    "RP-WEB-02"
+  ],
+  "retry_failures_from": "",
+  "difficulty_groups": {
+    "basic": 0,
+    "medium": 0,
+    "hard": 0
+  },
+  "max_transitions": 200,
+  "concurrency": 1,
+  "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+  "backend_profile": "vllm-rwkv-native",
+  "tool_disclosure_mode": "progressive",
+  "architecture": "rwkv-stateful-goal-loop.v7",
+  "supervisor": {
+    "enabled": true,
+    "provider": "openai_compatible",
+    "model": "gpt-5.6-sol",
+    "role": "planner",
+    "planner_protocol": "rwkv-lh.goal-plan-patch.v4",
+    "policy": {
+      "mode": "goal_stages",
+      "max_review_repairs": 1,
+      "max_online_directives": 64,
+      "online_actions_per_directive": 6,
+      "online_protocol_rejections_per_directive": 2,
+      "max_parallel_stages": 16,
+      "max_parallel_atoms": 4,
+      "atom_max_transitions": 40,
+      "max_graph_patches": 12,
+      "max_reviewer_rounds": 12,
+      "max_graph_atoms": 64,
+      "max_graph_stagnant_rounds": 2,
+      "semantic_repair_attempts": 1,
+      "transport_retry_attempts": 2,
+      "pending_resume_attempts": 0,
+      "serialize_requests": false
+    },
+    "independent_terminal_review": false,
+    "strong_reviewer_enabled": false,
+    "parent_atom_action_projection": false,
+    "result_capsules_only": false,
+    "finalizer_min_actions": 0,
+    "hidden_acceptance_visible": false,
+    "tool_execution_authority": false,
+    "rwkv_output_rewritten": false
+  },
+  "stateful_goal": {
+    "enabled": true,
+    "persistent_executor_state_count": 0,
+    "executor_state_scope": "one_selected_action",
+    "selector_tool_decisions_per_action": 1,
+    "selector_model_evaluations_per_action": 3,
+    "selector_state_count_per_step": 0,
+    "selector_state_policy": "three_fresh_initial_state_evaluations",
+    "selector_input_scope": "current_subtask_only",
+    "selector_menu_order_ids": [
+      "canonical",
+      "rotate_8",
+      "rotate_17"
+    ],
+    "selector_vote_rule": "three_menu_order_vote_v1",
+    "auditor_state_isolated": true,
+    "rwkv_audit_required": true,
+    "audit_wkv_merge": false,
+    "strong_model_dependency": true,
+    "strong_planner_required": true,
+    "strong_planner_protocol": "rwkv-lh.goal-plan-patch.v4",
+    "strong_reviewer_enabled": false
+  },
+  "goal_role_runtimes": {
+    "executor_args": {
+      "settings": {
+        "base_url": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+        "backend_profile": "vllm-rwkv-native",
+        "api_key_configured": false,
+        "proxy_configured": false,
+        "state_transport": "native_required",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_profile_delivery": "request",
+        "max_model_len": 16384
+      },
+      "health": {
+        "available": true,
+        "endpoint": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "models": [
+          "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        ],
+        "latency_ms": 80.1,
+        "error": ""
+      },
+      "capabilities": {
+        "source": "http://127.0.0.1:29613/v1/capabilities",
+        "prompt_replay": false,
+        "native_tool_calls_declared": false,
+        "recurrent_state": {
+          "create": true,
+          "resume": true,
+          "fork": true,
+          "commit": true,
+          "rollback": true,
+          "export": true,
+          "import": true,
+          "protocol": "rwkv-lh.native-state.v1",
+          "durable": true
+        },
+        "error": ""
+      }
+    },
+    "auditor_step": {
+      "settings": {
+        "base_url": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+        "backend_profile": "vllm-rwkv-native",
+        "api_key_configured": false,
+        "proxy_configured": false,
+        "state_transport": "native_required",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_profile_delivery": "request",
+        "max_model_len": 16384
+      },
+      "health": {
+        "available": true,
+        "endpoint": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "models": [
+          "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        ],
+        "latency_ms": 80.0,
+        "error": ""
+      },
+      "capabilities": {
+        "source": "http://127.0.0.1:29613/v1/capabilities",
+        "prompt_replay": false,
+        "native_tool_calls_declared": false,
+        "recurrent_state": {
+          "create": true,
+          "resume": true,
+          "fork": true,
+          "commit": true,
+          "rollback": true,
+          "export": true,
+          "import": true,
+          "protocol": "rwkv-lh.native-state.v1",
+          "durable": true
+        },
+        "error": ""
+      }
+    },
+    "finalizer_answer": {
+      "settings": {
+        "base_url": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+        "backend_profile": "vllm-rwkv-native",
+        "api_key_configured": false,
+        "proxy_configured": false,
+        "state_transport": "native_required",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_profile_delivery": "request",
+        "max_model_len": 16384
+      },
+      "health": {
+        "available": true,
+        "endpoint": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "models": [
+          "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        ],
+        "latency_ms": 115.0,
+        "error": ""
+      },
+      "capabilities": {
+        "source": "http://127.0.0.1:29613/v1/capabilities",
+        "prompt_replay": false,
+        "native_tool_calls_declared": false,
+        "recurrent_state": {
+          "create": true,
+          "resume": true,
+          "fork": true,
+          "commit": true,
+          "rollback": true,
+          "export": true,
+          "import": true,
+          "protocol": "rwkv-lh.native-state.v1",
+          "durable": true
+        },
+        "error": ""
+      }
+    },
+    "auditor_final": {
+      "settings": {
+        "base_url": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+        "backend_profile": "vllm-rwkv-native",
+        "api_key_configured": false,
+        "proxy_configured": false,
+        "state_transport": "native_required",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_profile_delivery": "request",
+        "max_model_len": 16384
+      },
+      "health": {
+        "available": true,
+        "endpoint": "http://127.0.0.1:29613/v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "models": [
+          "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        ],
+        "latency_ms": 117.0,
+        "error": ""
+      },
+      "capabilities": {
+        "source": "http://127.0.0.1:29613/v1/capabilities",
+        "prompt_replay": false,
+        "native_tool_calls_declared": false,
+        "recurrent_state": {
+          "create": true,
+          "resume": true,
+          "fork": true,
+          "commit": true,
+          "rollback": true,
+          "export": true,
+          "import": true,
+          "protocol": "rwkv-lh.native-state.v1",
+          "durable": true
+        },
+        "error": ""
+      }
+    }
+  },
+  "sampling": {
+    "sampling_policy": {
+      "scope": "all_semantic_lanes",
+      "temperature": 0.1,
+      "semantic_resample_count": 0
+    },
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "source_resources": [
+    {
+      "suite": "realprojectdevv1",
+      "role": "visible_tasks",
+      "path": "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/tasks.json",
+      "sha256": "460f079a24d66d19e0d45ce40135c27953ef8faa84010e74c08c0a5084b446c5"
+    },
+    {
+      "suite": "realprojectdevv1",
+      "role": "hidden_acceptance",
+      "path": "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/acceptance.json",
+      "sha256": "99cde8e04cd3af3e026af4a16a3e534049c0f6063a016c200c28d03af48f346f"
+    }
+  ],
+  "codex_reference_answers": null,
+  "code": {
+    "commit": "1cc1c7745921a3644a0918be57b1d855d32f94f1",
+    "status": [
+      " M data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/METRIC_DEFINITIONS.json",
+      " M data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PREREGISTRATION.zh-CN.md",
+      "?? benchmarks/rwkv_e2e/rwkv_real_agent_holdout_v2/",
+      "?? data/acceptance/",
+      "?? data/datasets/rwkv_lh_real_agent_holdout_v2/",
+      "?? data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/FROZEN_EXECUTION_MANIFEST.json",
+      "?? data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PUBLIC_CONFIG_BEFORE_A.json",
+      "?? data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PUBLIC_CONFIG_FREEZE_ATTESTED.json",
+      "?? data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/REMOTE_BEFORE_A.json",
+      "?? data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/REMOTE_FREEZE_ATTESTED.json"
+    ],
+    "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runner_sha256": "8906ecd16c708901403a93c7ec1014c7cdf6f2c54afcccc1bc6fd4f20a056d41",
+    "source_tree_file_count": 132,
+    "source_tree_manifest_sha256": "7a71ac6828875e6d563fb4c17384472cd0bc4f3ee85a1c801ab00ad2a1b98877"
+  },
+  "non_intervention": {
+    "final_output": "byte-exact raw RWKV response",
+    "semantic_answer_filtering": false,
+    "hidden_acceptance_available_during_generation": false
+  }
+}

@@ -452,6 +452,8 @@ def main() -> int:
     parser.add_argument("--engine-root", type=Path, required=True)
     parser.add_argument("--engine-revision", required=True)
     parser.add_argument("--engine-python", type=Path, required=True)
+    parser.add_argument("--engine-source-manifest", type=Path)
+    parser.add_argument("--engine-source-manifest-sha256", default="")
     parser.add_argument("--model-artifact", type=Path, required=True)
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--model-sha256", required=True)
@@ -494,6 +496,8 @@ def main() -> int:
             engine_root=args.engine_root,
             engine_revision=args.engine_revision,
             engine_python=args.engine_python,
+            engine_source_manifest=args.engine_source_manifest,
+            engine_source_manifest_sha256=args.engine_source_manifest_sha256,
             model=args.model_artifact,
             batch_size=1,
             max_tokens=4096,

@@ -1,8 +1,18 @@
+# 上传部署约束后的 R2 执行登记
+
+owner 明确“服务器上不能使用Git，只能本地上传”。首次 A 已停止并标 INVALID_ATTEMPT_01，B 未启动，不能用于成绩、噪声估计或训练。旧冻结清单与原始中止记录保持不变。
+
+本登记在相同 12 题、相同验收、相同采样与预算下重跑完整两臂，使用全新的 _r2 工作区。唯一新增的部署要求是：Git 版本管理/查询只在本地，服务器使用本地上传文件及完整 engine 文件清单进行 SHA 核验，包括 Selector 启动和每臂前后 attestation；缺失或不匹配的清单失败退出，不在服务器回退到 Git。
+
+两套 engine 的清单覆盖完整部署目录，固定排除 .git、.venv、__pycache__ 目录，包含原生编译模块。清单在本地生成后通过 rsync 上传，清单 SHA 在 launcher/执行登记中绑定。revision 是此前记录的来源标签；当前内容身份由全部文件 SHA 证明，不冒称 Git clean。此修改不改变角色协议、RWKV 采样、State 递推或评分。
+
+完整回归与远端验证见 UPLOAD_ONLY_* 记录。最终代码 commit、各文件/依赖/运行身份 SHA 以新 FROZEN_EXECUTION_MANIFEST_R2.json 为准。下文继承原预注册的全部指标、噪声、全量分析和训练边界；原文的准备提交 1cc1c774 只代表新题集基础版本。
+
 # 新真实项目开发集：双零基线预注册
 
 轮次：`ZERO_STATE_AGENT_BASELINE_R1_20260907`。日期：2026-09-07。
 
-状态：**准备检查已完成；同目录 FROZEN_EXECUTION_MANIFEST.json 的 status=FROZEN 是本预注册生效的唯一冻结标志，该文件绑定本文件最终 SHA。本文不记录模型成绩，运行状态另见两臂目录与 ARM_*_COMPLETION.json。**
+状态：**准备检查已完成；同目录 FROZEN_EXECUTION_MANIFEST_R2.json 的 status=FROZEN 是本预注册生效的唯一冻结标志，该文件绑定本文件最终 SHA。本文不记录模型成绩，运行状态另见两臂目录与 ARM_*_COMPLETION_R2.json。**
 
 owner 最新书面选择是“先补真实项目任务和验收，再全面测”，并已授权新建开发评测集 `data/datasets/rwkv_lh_real_project_dev_v1/`。本轮直接对 `realprojectdevv1` 的 12 题跑两遍 all-zero，**不先跑 Ladder，不跑 E2E-90**。这一顺序来自 owner 最新授权，覆盖旧规范中先 Ladder 的本轮安排；不修改旧题集、旧评分，也不改最终 Holdout 纪律。
 
@@ -24,8 +34,8 @@ RP-FULL-01, RP-FULL-02, RP-WEB-01, RP-WEB-02
 
 拟用绝对输出目录：
 
-- `/home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a`
-- `/home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_b`
+- `/home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a_r2`
+- `/home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_b_r2`
 
 缺题、进程异常、服务错误仍占原分母，并显式标记未完成。不能从 12 中删除失败题，不能换题或只重跑失败题取最好结果。身份变化或必要源码修复使受影响双零比较 INVALID，保留原始事实，重新冻结后重跑两遍。
 
@@ -49,13 +59,13 @@ RP-FULL-01, RP-FULL-02, RP-WEB-01, RP-WEB-02
 | Strong Planner / Stage Checker | 保持生产角色职责；模型版本、token 上限、reasoning/请求参数、超时重试等待 root 脱敏配置冻结；不注入接口不支持的 temperature |
 | 内部传输重试 | 等待实际 settings 快照；pending 恢复=0 不表示客户端内部 retry/backoff=0，不得混淆 |
 
-采样代码依据：`rwkv_lh/model.py:141` 定义 `_SAMPLING`，Finalizer（:844）、两个 Auditor（:1128）和 Executor（:2747）均在 generate 调用中显式传入；`rwkv_lh/model_session.py:1296` 优先采用该传入值，并把同一 `selected.to_dict()` 写入 generation_started 及发送给 native `state_generate`。当前 runner 的运行元数据也从 `LongHorizonModel._SAMPLING` 读取实际值。早期 `PUBLIC_CONFIG_FROZEN_PROPOSED.json` 的 semantic_sampling=0.05 是已识别的报告失真，不能用作本轮有效参数；最终以 root 新生成并核对 trace 的 `PUBLIC_CONFIG_FROZEN.json` 为准。此次修正只使报告与既有实际采样一致，实际生成 temperature 始终是 0.1。Selector 采用上表的原生 argmax 路径，不套用四个生成角色的随机采样；Strong Planner / Stage Checker 客户端未显式传 temperature，按最终冻结的模型与提供方默认行为单独记录。
+采样代码依据：`rwkv_lh/model.py:141` 定义 `_SAMPLING`，Finalizer（:844）、两个 Auditor（:1128）和 Executor（:2747）均在 generate 调用中显式传入；`rwkv_lh/model_session.py:1296` 优先采用该传入值，并把同一 `selected.to_dict()` 写入 generation_started 及发送给 native `state_generate`。当前 runner 的运行元数据也从 `LongHorizonModel._SAMPLING` 读取实际值。早期 `PUBLIC_CONFIG_FROZEN_PROPOSED.json` 的 semantic_sampling=0.05 是已识别的报告失真，不能用作本轮有效参数；最终以 root 新生成并核对 trace 的 `PUBLIC_CONFIG_FREEZE_ATTESTED_R2.json` 为准。此次修正只使报告与既有实际采样一致，实际生成 temperature 始终是 0.1。Selector 采用上表的原生 argmax 路径，不套用四个生成角色的随机采样；Strong Planner / Stage Checker 客户端未显式传 temperature，按最终冻结的模型与提供方默认行为单独记录。
 
-执行环境为 WSL `UbuntuRecovered`，完整依赖按 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev`；Chromium 已安装，完整 `tests/` 674 项通过且无跳过。服务器为 owner 指定的 `rwkv-8222`。冻结清单记录新服务、engine、模型、State、协议、decoder 和当前源码 SHA，每臂前后核对身份。模型完整 safetensors SHA 实测见服务器清理报告；每臂另外绑定文件 inode、大小、mtime 和 manifest。
+执行环境为 WSL `UbuntuRecovered`，完整依赖按 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev`；Chromium 已安装，上传清单修改后的完整 `tests/` 697 项通过且无跳过。服务器为 owner 指定的 `rwkv-8222`。冻结清单记录新服务、engine、模型、State、协议、decoder 和当前源码 SHA，每臂前后核对身份。模型完整 safetensors SHA 实测见服务器清理报告；每臂另外绑定文件 inode、大小、mtime 和 manifest。
 
 ## 3. 指标口径
 
-机器可读定义见同目录 `METRIC_DEFINITIONS.json`。collector 已实现且通过 33 项人工 fixture 自验；脚本为 temp/collect_zero_project_metrics_r1_20260907.py，SHA-256 为 6834ffd52339fed7032f8b6da423105b36466c365ed23aa798456f89dd74c399。runner 没有直接导出 mutation_count / operation_target_invalid_count / state_database_bytes，按冻结 collector 派生，缺失不得填造为 0。
+机器可读定义见同目录 `METRIC_DEFINITIONS_R2.json`。collector 已实现且通过 33 项人工 fixture 自验和 9 项 R2 绑定检查；脚本为 temp/collect_zero_project_metrics_r1_20260907.py，SHA-256 为 77491c782a9482de0be4ce419c250915667411345dff4be357d3829cad5eb02c。runner 没有直接导出 mutation_count / operation_target_invalid_count / state_database_bytes，按冻结 collector 派生，缺失不得填造为 0。
 
 | 指标 | 当前可复核口径 |
 |---|---|
@@ -66,7 +76,7 @@ RP-FULL-01, RP-FULL-02, RP-WEB-01, RP-WEB-02
 | check/run 证据 | 单列成功 run_command 动作数及命令/输出；成功 echo 不自动证明完成了有效项目验证，实际检查依据 trace 审计 |
 | operation-target invalid | 按唯一 causal record id，event_type=`protocol_rejection_recorded` 且 payload.error **以**精确标记 `[operation_target_contract]` 开头。标记来自 Controller `_validate_decision_target_contract` 的目标类型/路径根合同拒绝；任意日志里的引用不计。不能在多个导出副本中重复计数，也不能混入一般 parser/schema 拒绝；state/事件缺失为 unknown |
 | protocol_rejection_count | runner 现有字段，来自 state.protocol_rejections；与目标 invalid 分开 |
-| 终止原因 | 报 `status`，并从 causal_order 找最后一个 run_completed/run_blocked/run_yielded/run_interrupted/run_failed，保留 event id/type 与 payload.reason；run_completed 无 reason 时规范化为 completed，其他无 reason 用事件类型。缺 state 用 runner failure/not_created。所有预算 blocked、协议 blocked、基础设施 yield 必须明确区分 |
+| 终止原因 | 报 `status`，并从 causal_order 找最后一个 run_completed/run_blocked/run_yielded/run_interrupted/run_failed，保留 event id/type 与 payload.reason；run_completed 无 reason 时规范化为 completed，其余缺失、空值或非字符串 reason 均为 unknown；缺 state 或缺 terminal event 也为 unknown，另保留事件类型及 runner failure，不拿它们替代 reason。所有预算 blocked、协议 blocked、基础设施 yield 必须明确区分 |
 | 状态库字节 | 每题收尾时，Controller/客户端关闭并导出 trace 后、任何清理/VACUUM/压缩前，对 `<case>/state/long_horizon.db` 加仍存在的 `-wal`、`-shm` 使用 stat.st_size 求和，记录各组件。100 MB 定义为 **100,000,000 bytes**。缺主 DB 为 unknown。该门是本地 SQLite 最终大小，不是峰值磁盘/RAM/VRAM；不含 workspace、导出 JSON/gzip、模型权重和远端 WKV 缓存 |
 
 目标 invalid 的数值只代表上述固定拒绝边界，不证明所有工具错误/安全路径均无问题；其他异常保留原始统计与首错分析。本轮新 12 题没有 runner 定义的 FN，不把 E2E-90 的 FN 指标拼入或声称已达标。
@@ -105,6 +115,8 @@ Agent 仅获得 task.json 的自然请求、公开接口合同、初始文件与
 
 12 题与验收质量记录见 PROJECT_SUITE_REPORT.zh-CN.md：生产隔离的 36 次正负控制全部符合预期，完整 tests/ 674 项通过。代码提交为 1cc1c774；完整题集与相似度审计位于 data/datasets/rwkv_lh_real_project_dev_v1/MANIFEST.json。
 
-最终冻结清单由 temp/execute_frozen_real_project_baseline_r1_20260907.py --freeze 创建一次，绑定源码/runner/lock/题集/私有验收/本文件/指标定义/collector、完整依赖与配置 SHA，并登记实际 argv、题序、远端 source/engine/服务身份。PUBLIC_CONFIG_FREEZE_ATTESTED.json 和 REMOTE_FREEZE_ATTESTED.json 是冻结时实测；此前 PROPOSED/READY/PENDING 的快照是准备过程证据，不能代替最终冻结配置。Strong Planner 与 Stage Checker 均为 gpt-5.6-sol，供应商未公开可固定的权重 revision，客户端未显式发送的采样参数保持其原请求行为并在配置记录这一限制。
+最终冻结清单由 temp/execute_frozen_real_project_baseline_r1_20260907.py --freeze 创建一次，绑定源码/runner/lock/题集/私有验收/本文件/指标定义/collector、完整依赖与配置 SHA，并登记实际 argv、题序、远端 source/engine/服务身份。PUBLIC_CONFIG_FREEZE_ATTESTED_R2.json 和 REMOTE_FREEZE_ATTESTED_R2.json 是冻结时实测；此前 PROPOSED/READY/PENDING 的快照是准备过程证据，不能代替最终冻结配置。Strong Planner 与 Stage Checker 均为 gpt-5.6-sol，供应商未公开可固定的权重 revision，客户端未显式发送的采样参数保持其原请求行为并在配置记录这一限制。
 
 每轮先汇报 Agent Strict / completed / mutation / 终止原因，再角色数字；附状态库统计、硬门、首错证据、未知/缺失字段与 SHA。完成后按 AGENTS 跑完整 tests/，全绿且无 Torch/State 跳过，再本地提交本轮 id；push 依据 owner 授权处理。当前文件不记录任何已经启动或完成的模型运行。
+
+指标采集必须使用冻结清单中的 metric_argv，显式传入 --definitions 指向 METRIC_DEFINITIONS_R2.json；不能使用 collector 的历史默认登记。

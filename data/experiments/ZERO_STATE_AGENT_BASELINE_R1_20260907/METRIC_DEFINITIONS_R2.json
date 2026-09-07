@@ -7,14 +7,14 @@
   "expected_case_order": [
     "RP-API-01",
     "RP-API-02",
+    "RP-MAINT-01",
+    "RP-MAINT-02",
     "RP-CLI-01",
     "RP-CLI-02",
     "RP-DATA-01",
     "RP-DATA-02",
     "RP-FULL-01",
     "RP-FULL-02",
-    "RP-MAINT-01",
-    "RP-MAINT-02",
     "RP-WEB-01",
     "RP-WEB-02"
   ],
@@ -97,7 +97,7 @@
       "implemented_in_runner": "status direct; reason derived",
       "runner_status_field": "results[].status",
       "reason_source": "latest causal record in causal_order among run_completed/run_blocked/run_yielded/run_interrupted/run_failed",
-      "reason_formula": "payload.reason when present; run_completed without reason maps to completed; otherwise event_type; no run_state => runner failure/not_created",
+      "reason_formula": "Use a nonempty string payload.reason on the latest terminal causal event; run_completed with missing or falsy reason maps to completed; a non-completed terminal event with missing, empty, or non-string reason is unknown; a truthy non-string reason is unknown; no run_state, incomplete events, or no terminal event is unknown. Do not substitute event_type, runner failure, or not_created for an unknown reason; retain event_type and runner failure separately.",
       "companion_fields": [
         "event_type",
         "event_id",
@@ -202,9 +202,20 @@
   },
   "collector": {
     "path": "temp/collect_zero_project_metrics_r1_20260907.py",
-    "sha256": "6834ffd52339fed7032f8b6da423105b36466c365ed23aa798456f89dd74c399",
-    "selftest": "METRIC_COLLECTOR_SELFTEST/SELFTEST_RESULT.json",
-    "selftest_checks": 33
+    "sha256": "77491c782a9482de0be4ce419c250915667411345dff4be357d3829cad5eb02c",
+    "selftest": "METRIC_COLLECTOR_R2_VERIFICATION/FINAL/SELFTEST/SELFTEST_RESULT.json",
+    "selftest_checks": 33,
+    "definitions_argument": "--definitions /home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/METRIC_DEFINITIONS_R2.json"
   },
-  "final_identity_binding": "FROZEN_EXECUTION_MANIFEST.json binds this definition and all final source/configuration/runtime identities"
+  "final_identity_binding": "FROZEN_EXECUTION_MANIFEST_R2.json binds this R2 definition and all final source/configuration/runtime identities",
+  "revision": {
+    "id": "R2",
+    "purpose": "Correct prelaunch registration to actual compiled task order and existing collector missing-reason behavior; metric algorithms unchanged",
+    "supersedes_document": "METRIC_DEFINITIONS.json",
+    "supersedes_document_sha256": "bd6827aa53188163653e345fd09f95976a4a55b486d2eb2a9224ca85b22a8b2e",
+    "case_order_source": "/home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/real_project_zero_a/RUN_PROTOCOL.json",
+    "case_order_source_sha256": "6ef88c36ba1365b39cb1fa9eb689b0b8b6efb6c8e62e87c0b1482f03315a62a8",
+    "source_attempt_status": "INVALID_ATTEMPT_01; source used only to verify frozen task order, never as baseline or training data",
+    "execution_status": "not launched; root must bind R2 definitions and collector SHA in the new execution freeze"
+  }
 }

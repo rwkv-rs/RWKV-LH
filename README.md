@@ -19,9 +19,9 @@ Strong Planner
 
 每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v4、Executor 为 v4、Step Auditor 为 v3、Finalizer 为 v1、Final Auditor 为 v2。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
 
-当前没有新的 Strict / completed / mutation / 终止原因基线结果，统一协议下的双零比较、现有 State 消融与 Agent 验收尚待执行。推理服务器已确认为 `rwkv-8222`；当前 Strong Planner 与 Strong Stage Checker 均配置为 `gpt-5.6-sol`。服务清理和部署进度见本轮记录，端口可用或作者参考实现通过都不代表 Agent 能力提升。
+当前没有有效的新 Strict / completed / mutation / 终止原因基线结果。首次 `real_project_zero_a` 已因 owner 明确“服务器上不能使用 Git，只能本地上传”而中止并登记 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json)，B 臂未启动；本次尝试不能用于成绩、噪声估计或训练来源。完成上传部署与身份核验后，另行登记同 12 题的两遍全新 all-zero，不先跑 Ladder、不跑 E2E-90。推理服务器已确认为 `rwkv-8222`；当前 Strong Planner 与 Strong Stage Checker 均配置为 `gpt-5.6-sol`。端口可用或作者参考实现通过都不代表 Agent 能力提升。
 
-owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，本轮尚未据此运行模型基线。
+owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。
 
 现有 Ladder-10 可用于有限的小项目/接口闭环；E2E-90 主要是文件、工具与恢复机制回归，含 2 个已有脚手架的迷你项目，不能称为 90 个真实项目。E2E-LH09 的 `mock_api` 与当前生产菜单仍存在适配冲突；不改旧题或分母来掩盖该问题。新的生产 trace 抽取器尚未实现。
 
@@ -49,6 +49,8 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 ```
 
 首次设置参考 `.env.example` 创建 `.env.local`；已有配置应保留。普通回归不执行 `acceptance_tests/`，不得把读取 Holdout 的验收测试加入默认套件。Torch / State 注入和必需的浏览器验证不能跳过。测试工件默认位于 `data/test_runs/pytest/`。CI 安装同样的两个 extra，并使用 `playwright install --with-deps chromium` 准备浏览器和系统依赖；同步完成后直接调用 `.venv/bin/`，避免默认依赖同步移除 extra。
+
+服务器禁止使用 Git，所有 Git 版本管理和查询都在本地完成；源码仅通过 SSH 配合 rsync/SCP 从本地上传。部署时同时上传完整 engine 源码清单，包含相对路径与逐文件 SHA-256，并冻结 manifest 自身 SHA-256。服务须根据上传清单验证实际文件身份；启动、健康检查和 attestation 均不得执行 `git rev-parse`、`git status` 或其他 Git 命令。该部署方式及最终身份仍须完成验证，不因写入文档视为已通过。
 
 新开发套件的目录与验收合同可独立校验，该命令不调用模型：
 

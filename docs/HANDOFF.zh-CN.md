@@ -1,12 +1,12 @@
 # RWKV-LH 当前交接
 
-更新时间：2026-09-07。当前准备轮次：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
+更新时间：2026-09-07。基线准备与首次无效尝试记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；新的 R2 执行注册待最终冻结。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
 
-当前阶段：服务器旧资源清理、当前源码部署与身份核验、新增 12 题项目开发基准及隔离验收集成。双零模型基线和 Agent 验收尚未执行；作者参考自验、整体 bubblewrap 验证和完整 pytest 应分开报告，最终结果以本轮记录为准。
+当前阶段：落实“服务器禁止使用 Git，只能本地上传”，补齐上传源码清单的部署与身份核验，重新登记同 12 题双零。首次 A 臂已中止并标 INVALID，B 臂未启动，没有有效双零结果；作者参考自验、整体 bubblewrap 验证和完整 pytest 应分开报告，最终结果以本轮记录为准。
 
 ## 1. Agent 级状态
 
-当前代码没有新的 Strict / completed / mutation / 终止原因评测结果。本轮尚未训练或运行真实模型 benchmark，也未重评分历史 confirmation。旧成绩对应旧代码，不作为当前基线。
+当前代码没有有效的新 Strict / completed / mutation / 终止原因基线结果。首次 `real_project_zero_a` 因 owner 的服务器禁用 Git 约束而中止，证据见 [INVALID_ATTEMPT_01.json](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json)；B 臂未启动。原始中断证据保留，不能用于有效成绩、噪声估计或训练来源。本轮没有启动训练，也未重评分历史 confirmation。旧成绩对应旧代码，不作为当前基线。
 
 单元回归仅证明代码合同与恢复路径，不证明 Agent 增益。最终发布仍须满足统一规范和 AGENTS §7。
 
@@ -30,6 +30,8 @@ Strong Planner 提供 active step
 入口为 `product_runtime.build_product_controller()`，架构常量为 `stateful_goal_loop.STATEFUL_GOAL_LOOP_ARCHITECTURE`（v7）。Controller 不读取隐藏 acceptance、不重写 Final。
 
 owner 已确认推理服务器为 `rwkv-8222`；当前 Strong Planner 与 Strong Stage Checker 均为 `gpt-5.6-sol`。服务器旧服务/缓存清理与当前源码部署的路径、删除清单及运行身份见 [服务器清理轮记录](../data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/)。最初本地端口预检只是历史准备证据，不能替代部署后的 attestation。
+
+owner 新硬约束：所有 Git 版本管理与查询只能在本地执行，服务器不运行任何 Git 命令，包括启动或 attestation 中的 `git rev-parse` / `git status`。本地冻结源码后通过 SSH 配合 rsync/SCP 上传；engine 同时上传完整源码 manifest，登记文件相对路径、逐文件 SHA-256 与 manifest 自身 SHA-256，服务按清单核验实际文件。部署证据将本地提交与上传清单绑定，服务器无需 Git 仓库；清单缺失或不一致时不得退回远端 Git。运行时清单配置已上传，两项服务重启后通过完整文件核验和健康检查；本地完整回归 697 项通过。证据见本轮 `UPLOAD_ONLY_REPORT.zh-CN.md`，这不代表已获得模型基线成绩。
 
 durable causal ledger 是全局事实权威。各角色 session 独立；Executor State 范围是单次 selected action，新动作通常重新 bootstrap；跨动作事实从 ledger 投影。Auditor / Finalizer 从各自初始 State 开始，不继承 Executor WKV。Selector 三次菜单求值也不共享递推 State。这些调用属于当前登记架构，不能据角色分数单独声称 RWKV 长程能力提高。
 
@@ -75,8 +77,8 @@ Real Agent Holdout V2 的题集/隐藏验收仍隔离于原 benchmark 和 datase
 
 可见审计确认：Ladder-10 包含 5 新建、4 修复/扩展、1 数据，Agentv1 账本与 L4 Ledger 同族；公开 Web 检查原先没有浏览器。E2E-90 为 2 迷你补全、13 修复扩展、34 工作流、41 孤立任务，0 从零产品；LH09 `mock_api` 与当前生产菜单冲突。原题集与评分保持原状，新项目套件另行冻结身份和比较参数。
 
-1. 完成新套件的全部 reference/mutant 隔离验收与完整代码回归，固定数据、评分和源码 SHA；完成当前服务的模型/State/协议/decoder attestation。
-2. 固定代码和参数运行双零，先检查 Ladder-10 硬门，再按预注册的新 12 题项目开发范围进行比较。要求 mutation > 0、operation-target invalid = 0、无状态库 > 100 MB、无 controller_slice_exhausted；各题集独立记录两遍 Strict 差和逐题翻转，不复用其他题集噪声带。
+1. 汇总新套件的 reference/mutant 隔离验收及最终完整代码回归，固定数据、评分和源码 SHA；从本地上传源码与完整 engine manifest，并核验当前服务的模型/State/协议/decoder 和文件身份，全程不在服务器使用 Git。
+2. 保留 R1 原冻结注册与中断证据，新增 R2 执行注册并冻结配置/SHA后，用全新 workspace 和 State 重跑同 12 题的两遍 all-zero。按 owner 最新授权不先跑 Ladder、不跑 E2E-90，不接续中断 A，也不只补 B。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted；其他硬门以新的执行注册为准。独立记录两遍 Strict 差和逐题翻转，不复用无效尝试或其他题集噪声带。
 3. 达标后实现 `role_trace_dataset_v1.py`，只从生产 durable trace 重建完整 checkpoint/State 输入链；native causal_ledger 的 input.prompt 仅是最后 delta，不能直接训练。唯一 builder 重算正文还需绑定 bootstrap、实际初态、rollover/fork 和原始 token IDs。冻结角色回归集和新建角色数据版本仍需 owner 书面确认。
 4. 对现有 State 做同代码消融；扩大边界/异常/恢复/安全覆盖。E2E-90 保持机制回归定位，其生产适配冲突须显式处理，不能删题或改评分放行。
 5. 训练需 owner 确认且先完成轮次对账；Holdout 仅在最后运行一次，结果不用于返工。

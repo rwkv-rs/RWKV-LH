@@ -1,0 +1,319 @@
+"""Review current-zero configuration; optional GET-only health, never benchmark."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import asdict, fields, replace
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+sys.path.insert(0, str(ROOT))
+
+from rwkv_lh.goal_state_protocols import (  # noqa: E402
+    auditor_final, auditor_step_v3, executor_args_v4,
+    finalizer_answer, selector_intent_v4,
+)
+from rwkv_lh.exact_tool_selector.native_network_client import NativeNetworkSelectorSettings
+from rwkv_lh.exact_tool_selector.native_network_protocol import (
+    NATIVE_SELECTOR_DECODER_ID, NATIVE_SELECTOR_DECODER_PROTOCOL,
+)
+from rwkv_lh.runtime.executor_profiles import (
+    EXECUTOR_PROFILE_ROUTING_DISABLED, PROFILE_ROUTING_ENV,
+)
+from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+from rwkv_lh.runtime.settings import RuntimeSettings, load_local_env, reset_runtime_settings
+from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.stateful_goal_loop import STATEFUL_GOAL_LOOP_ARCHITECTURE
+from rwkv_lh.supervisor_openai import (
+    OpenAIGoalSupervisorClient, SupervisorAPISettings, supervisor_policy_from_env,
+)
+import requests
+
+
+ZERO_SHA = '0' * 64
+MODEL_13 = 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+MODEL_13_SHA = '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65'
+MODEL_29 = 'rwkv7-g1j-2.9b-vllm-v1'
+MODEL_29_SHA = 'c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c'
+DECODER_SHA = '9049329c79e89f057e2631bdba7cae771074e025c1df8b23bd4494e4f36f776b'
+PROTOCOLS = {
+    'executor': executor_args_v4,
+    'auditor_step': auditor_step_v3,
+    'finalizer': finalizer_answer,
+    'auditor_final': auditor_final,
+}
+PRIVATE_FIELDS = {'api_key', 'cf_access_client_id', 'cf_access_client_secret', 'proxy_url'}
+EXECUTOR_SUFFIXES = (
+    'BASE_URL', 'API_KEY', 'MODEL', 'MODEL_SHA256', 'BACKEND_PROFILE',
+    'CF_ACCESS_CLIENT_ID', 'CF_ACCESS_CLIENT_SECRET', 'PROXY_URL',
+    'CONNECT_TIMEOUT', 'READ_TIMEOUT', 'RETRY_ATTEMPTS', 'RETRY_BACKOFF',
+    'DEFAULT_TEMPERATURE', 'DEFAULT_TOP_P', 'DEFAULT_TOP_K',
+    'DEFAULT_PRESENCE_PENALTY', 'DEFAULT_FREQUENCY_PENALTY',
+    'DEFAULT_PENALTY_DECAY', 'MAX_MODEL_LEN', 'CONTEXT_SAFETY_MARGIN',
+    'BOS_TOKEN_COUNT', 'RETURN_TOKEN_IDS', 'TRUST_ENV', 'VERIFY_TLS',
+    'TOOL_DISCLOSURE_MODE', 'STATE_TRANSPORT', 'STATE_PROFILE_ID',
+    'STATE_PROFILE_SHA256', 'STATE_PROFILE_DELIVERY',
+    'REMOTE_SSH_ALIAS', 'REMOTE_SERVICE', 'REMOTE_PORT',
+)
+
+
+def apply_current_zero_overrides() -> dict[str, str]:
+    """Only mutate this process; caller must review before using future argv."""
+    load_local_env(ROOT / '.env.local')
+    overrides = {
+        'RWKV_RUNTIME_MODE': 'external',
+        PROFILE_ROUTING_ENV: EXECUTOR_PROFILE_ROUTING_DISABLED,
+        'RWKV_NETWORK_EXECUTOR_STATE_PROFILE_ID': 'zero',
+        'RWKV_NETWORK_EXECUTOR_STATE_PROFILE_SHA256': ZERO_SHA,
+        'RWKV_LH_PLANNER_PLAN_CACHE_ENABLED': 'false',
+        'SUPERVISOR_PLAN_CACHE_ENABLED': 'false',
+    }
+    common = {
+        'BASE_URL': 'http://127.0.0.1:29613/v1',
+        'MODEL': MODEL_13, 'MODEL_SHA256': MODEL_13_SHA,
+        'BACKEND_PROFILE': 'vllm-rwkv-native',
+        'STATE_PROFILE_ID': 'zero', 'STATE_PROFILE_SHA256': ZERO_SHA,
+        'STATE_PROFILE_DELIVERY': 'request', 'STATE_TRANSPORT': 'native_required',
+        'MAX_MODEL_LEN': '16384', 'RETURN_TOKEN_IDS': 'true',
+        'TOOL_DISCLOSURE_MODE': 'progressive',
+        # These loopback services have no authentication; keep Planner secrets separate.
+        'API_KEY': '', 'CF_ACCESS_CLIENT_ID': '', 'CF_ACCESS_CLIENT_SECRET': '',
+        'PROXY_URL': '', 'TRUST_ENV': 'false',
+    }
+    for role in PROTOCOLS:
+        for suffix, value in common.items():
+            overrides[f'RWKV_LH_{role.upper()}_{suffix}'] = value
+    selector = {
+        'BASE_URL': 'http://127.0.0.1:29621',
+        'MODEL': MODEL_29, 'MODEL_SHA256': MODEL_29_SHA,
+        'DECODER_ID': NATIVE_SELECTOR_DECODER_ID,
+        'DECODER_SHA256': DECODER_SHA,
+        'DECODER_PROTOCOL': NATIVE_SELECTOR_DECODER_PROTOCOL,
+        'INPUT_PROTOCOL': selector_intent_v4.INPUT_SCHEMA_VERSION,
+        'STATE_PROFILE_ID': 'zero', 'STATE_PROFILE_SHA256': ZERO_SHA,
+        'STATE_PROFILE_MANIFEST_SHA256': ZERO_SHA,
+        'LAUNCHER': '',
+    }
+    for suffix, value in selector.items():
+        overrides[f'RWKV_LH_SELECTOR_{suffix}'] = value
+        overrides[f'RWKV_SELECTOR_{suffix}'] = value
+    os.environ.update(overrides)
+    for suffix in EXECUTOR_SUFFIXES:
+        canonical, legacy = f'RWKV_LH_EXECUTOR_{suffix}', f'RWKV_{suffix}'
+        if canonical in os.environ or legacy in os.environ:
+            value = os.environ.get(canonical, os.environ.get(legacy, ''))
+            os.environ[canonical] = value
+            os.environ[legacy] = value
+    reset_runtime_settings()
+    return overrides
+
+
+def public_url(value: str) -> str:
+    parsed = urlsplit(value)
+    hostname = parsed.hostname or ''
+    port = f':{parsed.port}' if parsed.port else ''
+    return urlunsplit((parsed.scheme, hostname + port, parsed.path, '', ''))
+
+
+def public_runtime(settings: RuntimeSettings) -> dict:
+    result = {field.name: getattr(settings, field.name) for field in fields(settings)
+              if field.name not in PRIVATE_FIELDS}
+    result['base_url'] = public_url(settings.base_url)
+    for name in PRIVATE_FIELDS:
+        result[name + '_configured'] = bool(getattr(settings, name))
+    return result
+
+
+def safe_error(exc: Exception) -> dict:
+    # Exception bodies can echo URLs, request headers or credential values.
+    names = sorted(set(re.findall(r'\b(?:RWKV_LH|RWKV|SUPERVISOR)_[A-Z][A-Z0-9_]*\b', str(exc))))
+    return {'error_type': type(exc).__name__, 'configuration_fields_mentioned': names,
+            'error_details_redacted': True}
+
+
+def future_argv() -> dict:
+    common = [
+        str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/run_rwkv_e2e_benchmark.py'),
+        '--suite', 'realprojectdevv1', '--supervisor', 'openai',
+        '--supervisor-strategy', 'goal_stages', '--stateful-goal',
+        '--independent-selector', '--max-transitions', '200',
+        '--tool-disclosure-mode', 'progressive', '--concurrency', '1',
+        '--supervisor-pending-resume-attempts', '0',
+    ]
+    return {arm: [*common, '--output', str(ROUND / f'real_project_zero_{arm.lower()}_r2')]
+            for arm in ('A', 'B')}
+
+
+def preflight(roles: dict, selector: NativeNetworkSelectorSettings,
+              planner: SupervisorAPISettings | None) -> dict:
+    """Only catalog/capability GETs; no tokenization or generation endpoints."""
+    checks = {}
+    executor = roles['executor']
+    client = OpenAICompatibleRWKVClient(replace(
+        executor, connect_timeout_seconds=5, read_timeout_seconds=15, retry_attempts=1,
+    ))
+    try:
+        health = client.health()
+        capabilities = client.capabilities()
+        checks['rwkv_models'] = {
+            'available': health.available,
+            'configured_model_present': executor.model in health.models,
+            'endpoint': public_url(executor.base_url) + '/models',
+            'model': executor.model,
+            'error_present': bool(health.error),
+        }
+        checks['rwkv_capabilities'] = {
+            'durable_recurrent_state': capabilities.durable_recurrent_state,
+            'recurrent_state_protocol': capabilities.recurrent_state_protocol,
+            'expected_recurrent_state_protocol': NATIVE_STATE_PROTOCOL_VERSION,
+            'native_state_supported': capabilities.durable_recurrent_state
+                and capabilities.recurrent_state_protocol == NATIVE_STATE_PROTOCOL_VERSION,
+        }
+    except Exception as exc:
+        checks['rwkv_preflight_error'] = safe_error(exc)
+    finally:
+        client.close()
+    try:
+        with requests.Session() as session:
+            session.trust_env = False
+            response = session.get(selector.base_url + '/healthz', timeout=(5, 15),
+                                   allow_redirects=False)
+            response.raise_for_status()
+            value = response.json()
+        expected = selector.runtime_identity()
+        actual = value.get('runtime_identity', {})
+        checks['selector'] = {
+            'available': value.get('status') == 'ok',
+            'identity_matches': actual == expected,
+            'identity_match_by_field': {key: actual.get(key) == expected_value
+                                        for key, expected_value in expected.items()},
+            'endpoint': selector.base_url + '/healthz',
+        }
+    except Exception as exc:
+        checks['selector'] = {'available': False, **safe_error(exc)}
+    if planner is None:
+        checks['strong_planner_stage_checker'] = {'available': False,
+                                                  'reason': 'configuration_invalid'}
+    else:
+        supervisor = OpenAIGoalSupervisorClient(replace(
+            planner, connect_timeout_seconds=5, read_timeout_seconds=15,
+        ))
+        try:
+            health = supervisor.health()
+            checks['strong_planner_stage_checker'] = {
+                key: health.get(key) for key in (
+                    'available', 'model_present', 'planner_model_present',
+                    'stage_checker_model_present', 'latency_ms',
+                )
+            }
+            checks['strong_planner_stage_checker']['error_present'] = bool(health.get('error'))
+        finally:
+            supervisor.close()
+    checks['limits'] = [
+        'GET health/catalog/capability checks do not prove actual generation correctness.',
+        '13.3B model weight SHA and zero-profile absence require remote deployment attestation.',
+        'No inference request, State bootstrap, benchmark, dataset or training performed.',
+    ]
+    return checks
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mode', choices=('config', 'preflight'), default='config')
+    parser.add_argument('--output', type=Path)
+    args = parser.parse_args()
+    if os.environ.get('WSL_DISTRO_NAME') != 'UbuntuRecovered':
+        raise RuntimeError('this driver must run in WSL UbuntuRecovered')
+    apply_current_zero_overrides()
+    executor = RuntimeSettings.from_env()
+    roles = {'executor': executor, **{
+        role: RuntimeSettings.for_role(role, fallback=executor)
+        for role in PROTOCOLS if role != 'executor'
+    }}
+    selector = NativeNetworkSelectorSettings.from_env()
+    if selector is None:
+        raise RuntimeError('current Selector configuration missing')
+    planner = None
+    try:
+        # Match production: RWKV uses .env.local; Strong roles load allowed .env prefixes.
+        planner = SupervisorAPISettings.from_env()
+        planner_public = planner.public_dict()
+        planner_public['base_url'] = public_url(planner.base_url)
+        planner_public['sampling'] = 'not explicitly sent by current supervisor client; provider default'
+        planner_public['policy'] = asdict(supervisor_policy_from_env(mode='static'))
+    except Exception as exc:
+        planner_public = {
+            'configuration_valid': False, **safe_error(exc),
+            'configuration_presence': {
+                suffix: {
+                    'canonical_configured': bool(os.environ.get(f'RWKV_LH_PLANNER_{suffix}')),
+                    'legacy_configured': bool(os.environ.get(f'SUPERVISOR_{suffix}')),
+                    'aliases_conflict': f'RWKV_LH_PLANNER_{suffix}' in os.environ
+                        and f'SUPERVISOR_{suffix}' in os.environ
+                        and os.environ[f'RWKV_LH_PLANNER_{suffix}'].strip()
+                            != os.environ[f'SUPERVISOR_{suffix}'].strip(),
+                } for suffix in ('BASE_URL', 'MODEL', 'API_KEY')
+            },
+            'stage_checker_model_configured': bool(os.environ.get('RWKV_LH_STAGE_CHECKER_MODEL')),
+        }
+    config = {
+        'schema': 'rwkv-lh.current-zero-preflight-config.v1',
+        'status': 'DRAFT_REQUIRES_FREEZE_REVIEW',
+        'configuration_sources': ['.env.local', '.env (Strong-role allowed prefixes only)'],
+        'architecture': STATEFUL_GOAL_LOOP_ARCHITECTURE,
+        'server': 'rwkv-8222', 'server_ports': {'executor': 18234, 'selector': 18239},
+        'roles': {role: {**public_runtime(settings),
+                         'input_protocol': PROTOCOLS[role].INPUT_SCHEMA_VERSION}
+                  for role, settings in roles.items()},
+        'selector': {**selector.runtime_identity(), 'base_url': selector.base_url,
+                     'connect_timeout_seconds': selector.connect_timeout_seconds,
+                     'read_timeout_seconds': selector.read_timeout_seconds},
+        'executor_profile_routing': os.environ[PROFILE_ROUTING_ENV],
+        'strong_planner_stage_checker': planner_public,
+        'semantic_sampling': {**LongHorizonModel._SAMPLING.to_dict(), 'semantic_resample_count': 0},
+        'independent_run_argv': future_argv(),
+        'execution_notes': [
+            'This script has no benchmark execution mode; listed argv are review proposals only.',
+            'Future argv must inherit apply_current_zero_overrides() from the reviewed process.',
+            'Running the benchmark argv directly in a normal shell would reload unmodified .env.local.',
+            'Two arm output directories differ; all other argv and captured settings match.',
+            'Planner plan cache is disabled to prevent reuse of prior-run plans.',
+            'No dataset or Holdout files are accessed by this driver.',
+        ],
+    }
+    encoded = json.dumps(config, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+    report = {
+        'created_at_utc': datetime.now(timezone.utc).isoformat(),
+        'mode': args.mode, 'inference_requests': 0, 'benchmark_started': False,
+        'PUBLIC_CONFIG': config,
+        'PUBLIC_CONFIG_sha256': hashlib.sha256(encoded).hexdigest(),
+        'driver_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'health': preflight(roles, selector, planner) if args.mode == 'preflight'
+                  else {'status': 'not_requested_config_only'},
+    }
+    text = json.dumps(report, ensure_ascii=False, indent=2)
+    if args.output:
+        output = args.output.expanduser().resolve()
+        if output.parent != ROUND or output.suffix != '.json':
+            raise ValueError('output must be a JSON file directly under the current experiment')
+        output.write_text(text + '\n', encoding='utf-8')
+    print(text)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception as failure:
+        print(json.dumps({'status': 'configuration_error', **safe_error(failure)}))
+        raise SystemExit(2) from None

@@ -1,0 +1,62 @@
+{
+  "schema_version": "rwkv-lh.validation-tool-output-record.v1",
+  "evidence_type": "conversation_tool_output_record",
+  "recorded_date": "2026-09-07",
+  "working_directory": "/home/chase/GitHub/RWKV-LH",
+  "environment": "WSL UbuntuRecovered",
+  "source": "Completed tools.exec_command results returned through functions.exec in the baseline_runtime_audit subagent conversation",
+  "limitations": [
+    "These runs did not persist separate raw stdout/stderr log files at execution time.",
+    "This file records tool-returned commands, result summaries and output excerpts; it is not an original pytest log.",
+    "The first failing run output was truncated by the tool; only its returned summary and representative errors are recorded here.",
+    "No model generation, training or remote command was performed during these test runs."
+  ],
+  "runs": [
+    {
+      "phase": "red_before_production_implementation",
+      "command": ".venv/bin/python -m pytest -q tests/test_uploaded_engine_source_identity.py",
+      "tool_chunk_id": "eee053",
+      "exit_code": 1,
+      "tool_wall_time_seconds": 0.511840141,
+      "pytest_summary": "4 failed, 17 errors in 0.42s",
+      "output_was_truncated": true,
+      "representative_errors": [
+        "TypeError: LocalVLLMRWKVSettings.__init__() got an unexpected keyword argument 'engine_source_manifest'",
+        "selector-service: error: unrecognized arguments: --engine-source-manifest ... --engine-source-manifest-sha256 ..."
+      ]
+    },
+    {
+      "phase": "green_initial_implementation",
+      "command": ".venv/bin/python -m pytest -q tests/test_uploaded_engine_source_identity.py",
+      "tool_chunk_id": "24c5b8",
+      "exit_code": 0,
+      "tool_wall_time_seconds": 0.163363811,
+      "pytest_summary": "21 passed in 0.11s",
+      "stdout": ".....................                                                    [100%]\n21 passed in 0.11s\n"
+    },
+    {
+      "phase": "green_final_related_regression",
+      "command": ".venv/bin/python -m pytest -q tests/test_uploaded_engine_source_identity.py tests/test_native_network_selector_service.py tests/test_persistent_vllm_rwkv_state_injection.py",
+      "tool_chunk_id": "8064a7",
+      "exit_code": 0,
+      "tool_wall_time_seconds": 2.66198715,
+      "pytest_summary": "45 passed in 1.79s",
+      "stdout": ".............................................                            [100%]\n45 passed in 1.79s\n",
+      "new_identity_and_cli_test_count": 23,
+      "notes": "Includes two additional checks for unchanged local Git fallback and mandatory build-profile validation, plus native Selector service and persistent State injection regressions."
+    },
+    {
+      "phase": "whitespace_validation",
+      "command": "git diff --check -- rwkv_lh/state_router/local_backend.py rwkv_lh/exact_tool_selector/native_network_service.py tests/test_uploaded_engine_source_identity.py",
+      "execution_host": "local WSL only",
+      "tool_chunk_id": "8b7aff",
+      "exit_code": 0,
+      "stdout": ""
+    }
+  ],
+  "final_files_sha256": {
+    "rwkv_lh/state_router/local_backend.py": "525fd436909dbc19fa72cd9d92f4c5e8ded43f0e91f0d1e9aebb0c806051cf41",
+    "rwkv_lh/exact_tool_selector/native_network_service.py": "49b1a5158a31a472dfda9feef9ba1b6306913cf0cea86d65005def0d67250b68",
+    "tests/test_uploaded_engine_source_identity.py": "1fbf87f3350d61a233a6202842d8533d128183a4b512b395d4d14eb12b33ba34"
+  }
+}

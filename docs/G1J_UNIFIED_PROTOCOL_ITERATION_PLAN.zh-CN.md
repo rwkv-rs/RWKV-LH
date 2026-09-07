@@ -49,6 +49,12 @@ result_metadata, observed_roots, mutated_roots
 4. 每行数据的 prompt 必须能由该行绑定的 durable action / boundary 事实通过当前 builder+renderer 逐字节重算；不一致整批拒绝。
 5. 运行身份绑定模型、State、协议与 decoder 源码 SHA；引用当前常量，不能只校验同名字符串。
 
+### 1.3 服务器上传与文件身份
+
+owner 已明确服务器禁止使用 Git，只能从本地上传。所有 Git 版本管理及查询均在本地 WSL 完成，包括 clone/fetch/pull、提交、历史和 rev-parse/status；服务器部署、服务启动、健康检查及身份核验均不得执行 Git，也不要求服务器保留 Git 仓库。
+
+本地冻结项目与 engine 源码后，通过 SSH 配合 rsync/SCP 上传。engine 必须有完整源码文件清单，登记相对路径、逐文件 SHA-256，并冻结 manifest 自身 SHA-256；服务核验实际源码与上传清单一致。完整清单用于证明上传的整个 engine 源码身份，不能用少量抽查文件或一个未经文件核验的提交号代替。模型、State、协议及 decoder 身份仍需同时核验。本地实验记录保存本地提交、源码清单、manifest SHA、上传和服务核验事实，形成可复核绑定；清单缺失或不一致时不得通过身份门，也不得回退远端 Git。此处规定验收方式，不代表当前服务已经完成该验证。
+
 ## 2. 数据来源与清理规则
 
 旧合成角色数据链已删除，不保留本地归档或 stub，也不得恢复旧生成器以继续训练。旧实验只查 Git / GitHub；当前工作树只保存当前有效数据、隔离验收材料和本轮及后续证据。
@@ -83,11 +89,11 @@ result_metadata, observed_roots, mutated_roots
 ## 3. 迭代顺序与比较纪律
 
 1. 唯一协议、旧链清理、新开发题整体隔离验收及完整单元回归；使用 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev` 和 `.venv/bin/python -m playwright install chromium` 准备环境；Torch / State 注入及必需浏览器验证不得跳过。
-2. 当前服务 identity attestation 后，固定代码/题集/参数 all-zero 两遍 Ladder-10。要求 mutation > 0、operation-target invalid = 0、每题状态库不超过 100 MB、无 controller_slice_exhausted。两遍 Strict 差为噪声带；不达标修根因，禁止进入训练。
+2. 按 owner 2026-09-07 最新授权，本轮在当前服务通过 §1.3 的上传文件 identity attestation 后，直接固定代码/题集/参数跑 `realprojectdevv1` 同 12 题的两遍 all-zero，不先跑 Ladder、不跑 E2E-90。首次 A 臂已中止并标 INVALID，B 臂未启动；保留原冻结文件，另行 R2 注册并用全新 workspace/State 完整重跑两遍。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted，其他硬门按新的执行预注册执行。两遍有效 Strict 差为该集合噪声带；不达标修根因，禁止进入训练。
 3. 实现生产 trace 抽取并在 owner 确认后冻结回归集。
 4. 当前 State 同代码做 2⁴ 消融，或至少 all-zero/全开/四个单开；增益必须超过噪声带。
 5. 只有有可归因残差、尚有合法轮次且 owner 书面确认时才训练。
-6. Agent 回归先检查 Ladder-10 硬门，再按冻结的 `realprojectdevv1` 开发范围双零及候选比较，随后扩大边界/异常/恢复/安全和已确认适配的机制回归。每个集合独立报告分母、噪声带与逐题翻转；新项目分数不替代既有 E2E-90 结果。
+6. 本轮先完成 §3 第 2 项授权的项目开发集双零；后续候选比较、Ladder-10 和 E2E-90 机制回归在各自冻结范围开展，保留其既有门槛，再扩大边界/异常/恢复/安全覆盖。每个集合独立报告分母、噪声带与逐题翻转；新项目分数不替代既有 E2E-90 结果。
 7. 最终一次 Holdout；结果只报告，不用于返工。
 
 对照两臂之间不得修改 rwkv_lh/；修改后两臂都重跑，旧比较标 INVALID。题集、参数、阈值、相似度算法预先冻结，运行后不得调整。读取 confirmation 后不修改评分/parser/stop boundary 并 rescore；发现缺陷记录后进入下一轮。单次 Strict 约 ±3 的波动不能直接作为改善，必须对照实际双零噪声带。
@@ -112,6 +118,6 @@ Agent 门：Ladder-10 Strict 严格高于 all-zero 且超过噪声带，zero 已
 
 ## 6. 当前执行状态
 
-上一轮已统一五角色 builder 并删除旧协议与数据链。本轮 owner 确认服务器 `rwkv-8222` 后执行旧资源清理与当前源码部署准备，同时授权并编写 12 题项目开发基准；完整隔离验收和本轮 pytest 最终结果仍以本轮记录为准。当前 Strong Planner 和 Strong Stage Checker 均配置为 `gpt-5.6-sol`，服务/协议身份须以当前 attestation 证明。
+上一轮已统一五角色 builder 并删除旧协议与数据链。本轮 owner 确认服务器 `rwkv-8222` 后执行旧资源清理与当前源码部署准备，同时授权并编写 12 题项目开发基准；完整隔离验收和本轮 pytest 最终结果仍以本轮记录为准。owner 随后明确服务器禁止使用 Git，当前正在改用本地上传的完整 engine 源码清单与 manifest SHA 核验身份。当前 Strong Planner 和 Strong Stage Checker 均配置为 `gpt-5.6-sol`，新的服务/协议身份尚需最终核验，不能提前称为通过。
 
-尚无本轮模型 Strict / completed / mutation / 终止原因结果，没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，基线准备与题集审查见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。
+首次 `real_project_zero_a` 已按上述约束中止并记录于 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json`，B 臂未启动；尚无有效的本轮 Strict / completed / mutation / 终止原因基线结果，中断尝试不用于成绩、噪声或训练来源。完成新注册及身份核验后重跑同 12 题双零，没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，基线准备与题集审查见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。

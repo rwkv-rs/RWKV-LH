@@ -1,0 +1,19 @@
+from pathlib import Path
+import hashlib
+import json
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+ROUND=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+manifests=json.loads((ROUND/'UPLOAD_ONLY_MANIFESTS.json').read_text())
+record=next(item for item in manifests if item['name'].endswith('-selector-clean'))
+path=ROOT/'data/runtime/launchers/selector_current_zero.sh'
+source=path.read_text()
+assert '--engine-source-manifest' not in source
+assert source.count(' --engine-python ')==1
+source=source.replace(' --engine-python ',
+    ' --engine-source-manifest '+record['path']+' --engine-source-manifest-sha256 '+record['sha256']+' --engine-python ')
+path.write_text(source)
+value={'path':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'content':source,
+       'engine_source_manifest':record,'git_on_server':False}
+(ROUND/'UPLOAD_ONLY_SELECTOR_LAUNCHER.json').write_text(json.dumps(value,indent=2)+'\n')
+print(value['sha256'])
