@@ -1109,7 +1109,7 @@ class OpenAICompatibleSupervisorClient:
             return (
                 self.settings.base_url + "/completions",
                 supervisor_vllm_rwkv.build_completion_payload(
-                    model=selected_model, system_prompt=system_prompt,
+                    phase=phase, model=selected_model, system_prompt=system_prompt,
                     payload_text=payload_text, max_tokens=max_tokens,
                 ),
                 transport,
@@ -1332,6 +1332,10 @@ class OpenAICompatibleSupervisorClient:
             schema=schema,
         )
         payload_bytes = payload_text.encode("utf-8")
+        native_envelope = (
+            supervisor_vllm_rwkv.envelope_for_phase(phase)
+            if transport == supervisor_vllm_rwkv.TRANSPORT else None
+        )
         self._emit(
             {
                 "type": "supervisor_request_started",
@@ -1343,8 +1347,8 @@ class OpenAICompatibleSupervisorClient:
                 "model": selected_model,
                 "transport": transport,
                 "input_envelope": (
-                    supervisor_vllm_rwkv.INPUT_ENVELOPE
-                    if transport == supervisor_vllm_rwkv.TRANSPORT
+                    native_envelope.input_envelope
+                    if native_envelope is not None
                     else "easy_user_message_json_prefix_v1"
                     if transport == "responses"
                     else "chat_messages_v1"
@@ -1359,7 +1363,8 @@ class OpenAICompatibleSupervisorClient:
                     {
                         "prompt_sha256": hashlib.sha256(body["prompt"].encode("utf-8")).hexdigest(),
                         "prompt_chars": len(body["prompt"]),
-                        "prefill_sha256": hashlib.sha256(supervisor_vllm_rwkv.GENERATION_PREFILL.encode("utf-8")).hexdigest(),
+                        "prefill_sha256": hashlib.sha256(native_envelope.generation_prefill.encode("utf-8")).hexdigest(),
+                        "generation_mode": native_envelope.generation_mode,
                         "state_profile_id": supervisor_vllm_rwkv.STATE_PROFILE_ID,
                         "state_profile_sha256": supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
                         "sampling": {
@@ -1370,7 +1375,7 @@ class OpenAICompatibleSupervisorClient:
                             )
                         },
                     }
-                    if transport == supervisor_vllm_rwkv.TRANSPORT else {}
+                    if native_envelope is not None else {}
                 ),
             }
         )
@@ -1431,7 +1436,7 @@ class OpenAICompatibleSupervisorClient:
                     })
                     try:
                         decoded = supervisor_vllm_rwkv.decode_completion(
-                            data, latency_ms=latency_ms, attempts=attempt,
+                            data, phase=phase, latency_ms=latency_ms, attempts=attempt,
                         )
                     except RWKVProtocolError as exc:
                         raise SupervisorProtocolError(str(exc)) from exc
@@ -1468,11 +1473,11 @@ class OpenAICompatibleSupervisorClient:
                         )
                     finish_reason = str(choices[0].get("finish_reason") or "")
                 # Restore only the exact prefix sent in this native request.
-                # The model still supplies the complete closing tag and JSON;
-                # truncation, unknown wrappers and semantic errors stay errors.
+                # Planner continues an already empty thinking tag; Stage Checker
+                # supplies its reasoning and closing tag. Neither output is repaired.
                 decoder_content = (
-                    supervisor_vllm_rwkv.GENERATION_PREFILL + content
-                    if transport == supervisor_vllm_rwkv.TRANSPORT else content
+                    native_envelope.generation_prefill + content
+                    if native_envelope is not None else content
                 )
                 value, content_normalization = _decode_supervisor_json_content(decoder_content)
                 if content_normalization is not None:

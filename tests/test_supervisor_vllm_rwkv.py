@@ -126,12 +126,14 @@ class _Session:
         return _Response(self.payload)
 
 
-def _response(value, *, text=None, finish_reason="stop"):
+def _response(value, *, text=None, finish_reason="stop", open_think=False):
     return {
         "model": "fixture-planner-13b",
         "choices": [{
             "index": 0,
-            "text": text if text is not None else ">fixture reasoning</think>\n" + json.dumps(value),
+            "text": text if text is not None else (
+                ">fixture reasoning</think>\n" if open_think else ">"
+            ) + json.dumps(value),
             "finish_reason": finish_reason,
             "token_ids": [10, 11, 12],
         }],
@@ -227,9 +229,10 @@ def test_native_wire_has_exact_prompt_sampling_and_zero_identity(phase, monkeypa
             schema_revision="fixture", schema=client._goal_plan_patch_schema(),
         )
     assert endpoint == "http://supervisor.invalid/v1/completions"
+    prefill = "<think></think" if phase == "goal_plan" else "<think"
     _assert_native_payload(
         body, model="fixture-selected-model", max_tokens=8192,
-        prompt=f"System✿{system_prompt}✿\nUser✿{payload_text}✿\nBot✿<think",
+        prompt=f"System✿{system_prompt}✿\nUser✿{payload_text}✿\nBot✿{prefill}",
     )
 
 
@@ -251,7 +254,7 @@ def test_native_backend_does_not_change_non_goal_wire():
 @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
 def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phase):
     request, expected, value = _plan_materials(19) if phase == "goal_plan" else _review_materials()
-    payload = _response(value)
+    payload = _response(value, open_think=phase == "goal_stage_review")
     session = _Session(payload)
     audit = []
     settings = _native_settings()
@@ -272,7 +275,8 @@ def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phas
     body = posted["json"]
     expected_model = settings.model if phase == "goal_plan" else settings.stage_checker_model
     expected_budget = 8192 if phase == "goal_plan" else 2400
-    tail = "✿\nUser✿" + _render_user_payload(request.to_dict()) + "✿\nBot✿<think"
+    prefill = "<think></think" if phase == "goal_plan" else "<think"
+    tail = "✿\nUser✿" + _render_user_payload(request.to_dict()) + "✿\nBot✿" + prefill
     assert body["prompt"].startswith("System✿")
     assert body["prompt"].endswith(tail)
     _assert_native_payload(body, model=expected_model, prompt=body["prompt"], max_tokens=expected_budget)
@@ -280,7 +284,10 @@ def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phas
     returned = next(item for item in audit if item["type"] == "supervisor_request_returned")
     raw = payload["choices"][0]["text"]
     assert started["prompt_sha256"] == hashlib.sha256(body["prompt"].encode()).hexdigest()
-    assert started["prefill_sha256"] == hashlib.sha256(b"<think").hexdigest()
+    assert started["prefill_sha256"] == hashlib.sha256(prefill.encode()).hexdigest()
+    assert started["input_envelope"] == (
+        "rwkv_native_bot_fake_think" if phase == "goal_plan" else "rwkv_native_bot_open_think"
+    )
     assert returned["raw_output"] == raw
     assert returned["raw_output_sha256"] == hashlib.sha256(raw.encode()).hexdigest()
     assert returned["output_sha256"] == hashlib.sha256(raw.encode()).hexdigest()
@@ -317,8 +324,8 @@ def test_native_rejects_malformed_completion_boundary(fault):
         "leading_prose": "prose" + choice["text"],
         "trailing_prose": choice["text"] + " trailing prose",
         "second_json": choice["text"] + valid_json,
-        "truncated_json": ">reasoning</think>" + valid_json[:-1],
-        "non_object": ">reasoning</think>[]",
+        "truncated_json": ">" + valid_json[:-1],
+        "non_object": ">[]",
         "wrong_text_type": [choice["text"]],
         "empty_text": "",
     }
@@ -451,3 +458,36 @@ def test_native_non_object_usage_is_a_protocol_error(usage):
         client.plan_goal_patch(request)
     raw = next(event for event in events if event["type"] == "supervisor_raw_response_returned")
     assert raw["raw_response"] == payload
+
+
+@pytest.mark.parametrize("prefix", [
+    ">reasoning</think>", "><think>reasoning</think>", "><analysis>reasoning</analysis>",
+    ">Here is the answer:", ">```json\n",
+])
+def test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw(prefix):
+    request, _, value = _plan_materials()
+    payload = _response(value, text=prefix + json.dumps(value))
+    events = []
+    session = _Session(payload)
+    client = OpenAICompatibleSupervisorClient(
+        _native_settings(), session=session, audit_hook=events.append,
+    )
+    with pytest.raises(SupervisorProtocolError):
+        client.plan_goal_patch(request)
+    assert len(session.posts) == 1
+    raw = next(event for event in events if event["type"] == "supervisor_raw_response_returned")
+    assert raw["raw_response"] == payload
+    assert not any(event["type"] == "supervisor_request_returned" for event in events)
+
+
+def test_native_planner_empty_thinking_prefill_accepts_json_whitespace_without_output_rewrite():
+    request, expected, value = _plan_materials()
+    text = ">\n\n  " + json.dumps(value) + "\n"
+    events = []
+    client = OpenAICompatibleSupervisorClient(
+        _native_settings(), session=_Session(_response(value, text=text)), audit_hook=events.append,
+    )
+    assert client.plan_goal_patch(request).add_steps == expected.add_steps
+    returned = next(event for event in events if event["type"] == "supervisor_request_returned")
+    assert returned["raw_output"] == text
+    assert returned["output_sha256"] == hashlib.sha256(text.encode()).hexdigest()

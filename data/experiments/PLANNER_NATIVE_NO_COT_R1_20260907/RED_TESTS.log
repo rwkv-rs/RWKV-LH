@@ -1,0 +1,920 @@
+......F..F.............................FFF...........FF...F              [100%]
+=================================== FAILURES ===================================
+___ test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_plan] ____
+
+phase = 'goal_plan'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773dfb522450>
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_wire_has_exact_prompt_sampling_and_zero_identity(phase, monkeypatch):
+        for role in ("EXECUTOR", "AUDITOR_STEP", "FINALIZER", "AUDITOR_FINAL"):
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_ID", "foreign-candidate")
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_SHA256", "f" * 64)
+        request, _, _ = _plan_materials()
+        payload_text = _render_user_payload(request.to_dict())
+        system_prompt = "Fixture system instruction, including Unicode 中文."
+        client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session({}))
+        with sampling_parameters(1.8, seed=123, request_id="foreign-executor",
+                                 top_p=0.4, top_k=9, presence_penalty=1,
+                                 frequency_penalty=1, penalty_decay=0.1):
+            endpoint, body, _ = client._wire_request(
+                phase=phase, selected_model="fixture-selected-model",
+                system_prompt=system_prompt, payload_text=payload_text, max_tokens=8192,
+                schema_revision="fixture", schema=client._goal_plan_patch_schema(),
+            )
+        assert endpoint == "http://supervisor.invalid/v1/completions"
+        prefill = "<think></think" if phase == "goal_plan" else "<think"
+>       _assert_native_payload(
+            body, model="fixture-selected-model", max_tokens=8192,
+            prompt=f"System✿{system_prompt}✿\nUser✿{payload_text}✿\nBot✿{prefill}",
+        )
+
+tests/test_supervisor_vllm_rwkv.py:233: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+body = {'model': 'fixture-selected-model', 'prompt': 'System✿Fixture system instruction, including Unicode 中文.✿\nUser✿{"run_i...:[],"current_requirement":"Inspect the requested sources."}✿\nBot✿<think', 'max_tokens': 8192, 'temperature': 0.1, ...}
+model = 'fixture-selected-model'
+prompt = 'System✿Fixture system instruction, including Unicode 中文.✿\nUser✿{"run_id":"RUN-native-supervisor","goal_digest":"fixt...ace_manifest":{},"recent_action_facts":[],"current_requirement":"Inspect the requested sources."}✿\nBot✿<think></think'
+max_tokens = 8192
+
+    def _assert_native_payload(body, *, model, prompt, max_tokens):
+        expected = TextCompletionRequest(
+            prompt=prompt, max_tokens=max_tokens, temperature=0.1,
+            top_p=1.0, top_k=0, presence_penalty=0.0, frequency_penalty=0.0,
+            penalty_decay=0.996, stop=("✿",), stop_token_ids=(0,),
+            add_special_tokens=True, return_token_ids=True,
+        ).payload(model, sampler_mode="native")
+        expected["vllm_xargs"] = {
+            "rwkv_state_profile": "zero", "rwkv_state_profile_sha256": "0" * 64,
+        }
+>       assert body == expected
+E       assert {'model': 'fi...re': 0.1, ...} == {'model': 'fi...re': 0.1, ...}
+E         
+E         Omitting 15 identical items, use -vv to show
+E         Differing items:
+E         {'prompt': 'System✿Fixture system instruction, including Unicode 中文.✿\nUser✿{"run_id":"RUN-native-supervisor","goal_di..."workspace_manifest":{},"recent_action_facts":[],"current_requirement":"Inspect the requested sources."}✿\nBot✿<think'} != {'prompt': 'System✿Fixture system instruction, including Unicode 中文.✿\nUser✿{"run_id":"RUN-native-supervisor","goal_di...ce_manifest":{},"recent_action_facts":[],"current_requirement":"Inspect the requested sources."}✿\nBot✿<think></think'}
+E         Use -v to get more diff
+
+tests/test_supervisor_vllm_rwkv.py:155: AssertionError
+_ test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_plan] _
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+>           value = json.loads(stripped)
+                    ^^^^^^^^^^^^^^^^^^^^
+
+rwkv_lh/supervisor_openai.py:883: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x773dfc6e38c0>
+s = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:363: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+phase = 'goal_plan'
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phase):
+        request, expected, value = _plan_materials(19) if phase == "goal_plan" else _review_materials()
+        payload = _response(value, open_think=phase == "goal_stage_review")
+        session = _Session(payload)
+        audit = []
+        settings = _native_settings()
+        client = OpenAICompatibleSupervisorClient(settings, session=session, audit_hook=audit.append)
+>       result = client.plan_goal_patch(request) if phase == "goal_plan" else client.review_goal_stage(request)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:262: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1477: in _request_json_single
+    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as direct_error:
+            if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+                prefix = "```json\n"
+                suffix = "\n```"
+                payload = stripped[len(prefix) : -len(suffix)].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": "provider_json_fence_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(
+                        prefix.encode("utf-8")
+                    ).hexdigest(),
+                    "suffix_chars": len(suffix),
+                    "suffix_sha256": hashlib.sha256(
+                        suffix.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+            for tag in ("analysis", "think"):
+                opening = f"<{tag}>"
+                closing = f"</{tag}>"
+                if not stripped.startswith(opening):
+                    continue
+                closing_offset = stripped.find(closing, len(opening))
+                if closing_offset < 0:
+                    break
+                prefix_end = closing_offset + len(closing)
+                prefix = stripped[:prefix_end]
+                payload = stripped[prefix_end:].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": f"provider_{tag}_prefix_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+>           raise SupervisorProtocolError(
+                "supervisor content is not one JSON object"
+            ) from direct_error
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: supervisor content is not one JSON object
+
+rwkv_lh/supervisor_openai.py:938: SupervisorProtocolError
+_ test_native_missing_token_ids_remain_unavailable_without_rejecting_json[False] _
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+>           value = json.loads(stripped)
+                    ^^^^^^^^^^^^^^^^^^^^
+
+rwkv_lh/supervisor_openai.py:883: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x773dfc6e38c0>
+s = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:363: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+missing = False
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_native_missing_token_ids_remain_unavailable_without_rejecting_json(missing):
+        request, expected, value = _plan_materials()
+        payload = _response(value)
+        if missing:
+            payload.pop("prompt_token_ids")
+            payload["choices"][0].pop("token_ids")
+        else:
+            payload["prompt_token_ids"] = None
+            payload["choices"][0]["token_ids"] = None
+        audit = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=audit.append,
+        )
+>       assert client.plan_goal_patch(request).add_steps == expected.add_steps
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1477: in _request_json_single
+    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as direct_error:
+            if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+                prefix = "```json\n"
+                suffix = "\n```"
+                payload = stripped[len(prefix) : -len(suffix)].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": "provider_json_fence_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(
+                        prefix.encode("utf-8")
+                    ).hexdigest(),
+                    "suffix_chars": len(suffix),
+                    "suffix_sha256": hashlib.sha256(
+                        suffix.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+            for tag in ("analysis", "think"):
+                opening = f"<{tag}>"
+                closing = f"</{tag}>"
+                if not stripped.startswith(opening):
+                    continue
+                closing_offset = stripped.find(closing, len(opening))
+                if closing_offset < 0:
+                    break
+                prefix_end = closing_offset + len(closing)
+                prefix = stripped[:prefix_end]
+                payload = stripped[prefix_end:].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": f"provider_{tag}_prefix_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+>           raise SupervisorProtocolError(
+                "supervisor content is not one JSON object"
+            ) from direct_error
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: supervisor content is not one JSON object
+
+rwkv_lh/supervisor_openai.py:938: SupervisorProtocolError
+_ test_native_missing_token_ids_remain_unavailable_without_rejecting_json[True] _
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+>           value = json.loads(stripped)
+                    ^^^^^^^^^^^^^^^^^^^^
+
+rwkv_lh/supervisor_openai.py:883: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x773dfc6e38c0>
+s = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:363: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+missing = True
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_native_missing_token_ids_remain_unavailable_without_rejecting_json(missing):
+        request, expected, value = _plan_materials()
+        payload = _response(value)
+        if missing:
+            payload.pop("prompt_token_ids")
+            payload["choices"][0].pop("token_ids")
+        else:
+            payload["prompt_token_ids"] = None
+            payload["choices"][0]["token_ids"] = None
+        audit = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=audit.append,
+        )
+>       assert client.plan_goal_patch(request).add_steps == expected.add_steps
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1477: in _request_json_single
+    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "observe", ...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as direct_error:
+            if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+                prefix = "```json\n"
+                suffix = "\n```"
+                payload = stripped[len(prefix) : -len(suffix)].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": "provider_json_fence_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(
+                        prefix.encode("utf-8")
+                    ).hexdigest(),
+                    "suffix_chars": len(suffix),
+                    "suffix_sha256": hashlib.sha256(
+                        suffix.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+            for tag in ("analysis", "think"):
+                opening = f"<{tag}>"
+                closing = f"</{tag}>"
+                if not stripped.startswith(opening):
+                    continue
+                closing_offset = stripped.find(closing, len(opening))
+                if closing_offset < 0:
+                    break
+                prefix_end = closing_offset + len(closing)
+                prefix = stripped[:prefix_end]
+                payload = stripped[prefix_end:].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": f"provider_{tag}_prefix_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+>           raise SupervisorProtocolError(
+                "supervisor content is not one JSON object"
+            ) from direct_error
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: supervisor content is not one JSON object
+
+rwkv_lh/supervisor_openai.py:938: SupervisorProtocolError
+___________ test_native_transport_does_not_repair_invalid_goal_phase ___________
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "public-sou...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+>           value = json.loads(stripped)
+                    ^^^^^^^^^^^^^^^^^^^^
+
+rwkv_lh/supervisor_openai.py:883: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x773dfc6e38c0>
+s = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "public-sou...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:363: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+    def test_native_transport_does_not_repair_invalid_goal_phase():
+        request, _, value = _plan_materials()
+        value["add_stages"][0]["steps"][0]["phase"] = "public-source observe"
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(_response(value)),
+        )
+        with pytest.raises(ValueError, match="phase"):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:390: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1477: in _request_json_single
+    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+content = '<think>{"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "public-sou...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as direct_error:
+            if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+                prefix = "```json\n"
+                suffix = "\n```"
+                payload = stripped[len(prefix) : -len(suffix)].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": "provider_json_fence_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(
+                        prefix.encode("utf-8")
+                    ).hexdigest(),
+                    "suffix_chars": len(suffix),
+                    "suffix_sha256": hashlib.sha256(
+                        suffix.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+            for tag in ("analysis", "think"):
+                opening = f"<{tag}>"
+                closing = f"</{tag}>"
+                if not stripped.startswith(opening):
+                    continue
+                closing_offset = stripped.find(closing, len(opening))
+                if closing_offset < 0:
+                    break
+                prefix_end = closing_offset + len(closing)
+                prefix = stripped[:prefix_end]
+                payload = stripped[prefix_end:].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": f"provider_{tag}_prefix_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+>           raise SupervisorProtocolError(
+                "supervisor content is not one JSON object"
+            ) from direct_error
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: supervisor content is not one JSON object
+
+rwkv_lh/supervisor_openai.py:938: SupervisorProtocolError
+_ test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw[>reasoning</think>] _
+
+prefix = '>reasoning</think>'
+
+    @pytest.mark.parametrize("prefix", [
+        ">reasoning</think>", "><think>reasoning</think>", "><analysis>reasoning</analysis>",
+        ">Here is the answer:", ">```json\n",
+    ])
+    def test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw(prefix):
+        request, _, value = _plan_materials()
+        payload = _response(value, text=prefix + json.dumps(value))
+        events = []
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=session, audit_hook=events.append,
+        )
+>       with pytest.raises(SupervisorProtocolError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_vllm_rwkv.py:475: Failed
+_ test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw[><think>reasoning</think>] _
+
+prefix = '><think>reasoning</think>'
+
+    @pytest.mark.parametrize("prefix", [
+        ">reasoning</think>", "><think>reasoning</think>", "><analysis>reasoning</analysis>",
+        ">Here is the answer:", ">```json\n",
+    ])
+    def test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw(prefix):
+        request, _, value = _plan_materials()
+        payload = _response(value, text=prefix + json.dumps(value))
+        events = []
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=session, audit_hook=events.append,
+        )
+>       with pytest.raises(SupervisorProtocolError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_vllm_rwkv.py:475: Failed
+_ test_native_planner_empty_thinking_prefill_accepts_json_whitespace_without_output_rewrite _
+
+content = '<think>\n\n  {"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "obse...ons": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}\n'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+>           value = json.loads(stripped)
+                    ^^^^^^^^^^^^^^^^^^^^
+
+rwkv_lh/supervisor_openai.py:883: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x773dfc6e38c0>
+s = '<think>\n\n  {"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "obse...tions": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:363: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+    def test_native_planner_empty_thinking_prefill_accepts_json_whitespace_without_output_rewrite():
+        request, expected, value = _plan_materials()
+        text = ">\n\n  " + json.dumps(value) + "\n"
+        events = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(_response(value, text=text)), audit_hook=events.append,
+        )
+>       assert client.plan_goal_patch(request).add_steps == expected.add_steps
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1477: in _request_json_single
+    value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+content = '<think>\n\n  {"add_stages": [{"stage": 1, "steps": [{"step_id": "S1", "objective": "Inspect source 1", "phase": "obse...ons": [{"obligation_id": "O1", "predicate": "All requested sources are inspected", "required_phases": ["observe"]}]}\n'
+
+    def _decode_supervisor_json_content(
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Decode one JSON object, tolerating only a known reasoning envelope.
+    
+        Some OpenAI-compatible providers serialize their private reasoning before
+        the JSON as an ``analysis`` or ``think`` XML element, or wrap JSON mode in
+        one exact Markdown ``json`` fence. Removing those provider-owned envelopes
+        is a transport normalization: it neither repairs nor synthesizes fields in
+        the supervisor object. Any other prefix, malformed envelope, trailing
+        prose, or non-object JSON stays a hard protocol error.
+        """
+    
+        stripped = content.strip()
+        try:
+            value = json.loads(stripped)
+        except json.JSONDecodeError as direct_error:
+            if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+                prefix = "```json\n"
+                suffix = "\n```"
+                payload = stripped[len(prefix) : -len(suffix)].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": "provider_json_fence_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(
+                        prefix.encode("utf-8")
+                    ).hexdigest(),
+                    "suffix_chars": len(suffix),
+                    "suffix_sha256": hashlib.sha256(
+                        suffix.encode("utf-8")
+                    ).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+            for tag in ("analysis", "think"):
+                opening = f"<{tag}>"
+                closing = f"</{tag}>"
+                if not stripped.startswith(opening):
+                    continue
+                closing_offset = stripped.find(closing, len(opening))
+                if closing_offset < 0:
+                    break
+                prefix_end = closing_offset + len(closing)
+                prefix = stripped[:prefix_end]
+                payload = stripped[prefix_end:].strip()
+                try:
+                    value = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor content is not one JSON object"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise SupervisorProtocolError(
+                        "supervisor content must be one JSON object"
+                    )
+                return value, {
+                    "normalization": f"provider_{tag}_prefix_removed",
+                    "prefix_chars": len(prefix),
+                    "prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+                    "controller_semantic_fields_generated": False,
+                }
+>           raise SupervisorProtocolError(
+                "supervisor content is not one JSON object"
+            ) from direct_error
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: supervisor content is not one JSON object
+
+rwkv_lh/supervisor_openai.py:938: SupervisorProtocolError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_plan]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_plan]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_missing_token_ids_remain_unavailable_without_rejecting_json[False]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_missing_token_ids_remain_unavailable_without_rejecting_json[True]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_transport_does_not_repair_invalid_goal_phase
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw[>reasoning</think>]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_planner_no_cot_rejects_generated_reasoning_or_prose_and_keeps_raw[><think>reasoning</think>]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_planner_empty_thinking_prefill_accepts_json_whitespace_without_output_rewrite
+8 failed, 51 passed in 0.40s

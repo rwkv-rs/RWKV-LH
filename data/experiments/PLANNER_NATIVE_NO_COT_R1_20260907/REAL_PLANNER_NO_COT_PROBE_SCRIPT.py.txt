@@ -1,0 +1,154 @@
+"""One owner-authorized production Planner connection probe; no Agent scoring."""
+from copy import deepcopy
+from dataclasses import replace
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+import runpy
+import sys
+import time
+from types import SimpleNamespace
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH-zero-baseline-r4')
+BASE = ROOT / 'data/experiments/PLANNER_NATIVE_NO_COT_R1_20260907'
+AUDIT = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R5_20260907/real_project_zero_a_r5/cases/RP-API-01/audit.json'
+DRIVER = ROOT / 'temp/run_frozen_zero_baseline_r6_20260907.py'
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.goal_loop_protocol import GoalPlanRequest, rolling_goal_plan
+from rwkv_lh.harness import ActionHarness
+from rwkv_lh.runtime import supervisor_vllm_rwkv
+from rwkv_lh.schema import RunState
+from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
+from rwkv_lh.supervisor_openai import OpenAIGoalSupervisorClient, SupervisorAPISettings, _render_user_payload, _decode_supervisor_json_content
+
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def textsha(value): return hashlib.sha256(value.encode('utf-8')).hexdigest()
+def now(): return datetime.now(timezone.utc).isoformat()
+def write(name, value):
+    with (BASE / name).open('x') as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2); handle.write('\n')
+def error(exc): return {'type': type(exc).__name__, 'message': str(exc)[:4000]}
+
+def main():
+    BASE.mkdir(parents=True, exist_ok=True)
+    assert not (BASE / 'REAL_PLANNER_NO_COT_PROBE.json').exists()
+    assert not (BASE / 'REAL_PLANNER_NO_COT_HTTP_ATTEMPT.json').exists()
+    source_audit = json.loads(AUDIT.read_text())
+    original = next(row for row in source_audit['supervisor_trace'] if row['type'] == 'supervisor_request_started' and row['phase'] == 'goal_plan')
+    state = RunState.from_dict(source_audit['run_state'])
+    plan = rolling_goal_plan(state)
+    assert not state.actions and not plan.patch_ids and not plan.steps
+    harness = ActionHarness()
+    request = GoalPlanRequest(
+        run_id=state.run_id, immutable_request=state.goal.request, goal_digest=state.goal.digest,
+        plan_revision=len(plan.patch_ids), active_plan=plan.to_model_dict(), latest_audit=None,
+        workspace_manifest=harness.workspace_manifest(state.goal, max_entries=256, max_tokens=1800),
+        latest_stage_review=None, recent_action_facts=StatefulGoalLoopController._recent_action_facts(state),
+        latest_controller_repair=None, local_validation_repair=None,
+    )
+    payload = request.to_dict(); payload_text = _render_user_payload(payload)
+    provenance = {'source': str(AUDIT), 'source_sha256': sha(AUDIT), 'original_call_id': original['call_id'],
+        'original_input_sha256': original['input_sha256'], 'reconstructed_input_sha256': textsha(payload_text),
+        'input_SHA_matches': textsha(payload_text) == original['input_sha256'],
+        'original_request_digest': original['request_digest'], 'reconstructed_goal_digest': request.goal_digest,
+        'plan_revision': request.plan_revision, 'action_count': len(state.actions),
+        'builder': 'GoalPlanRequest.to_dict + rolling_goal_plan + production _recent_action_facts and ActionHarness.workspace_manifest',
+        'request_payload': payload}
+    write('REAL_PLANNER_NO_COT_INPUT_RECONSTRUCTION.json', provenance)
+    if not provenance['input_SHA_matches']:
+        write('REAL_PLANNER_NO_COT_PROBE.json', {'status': 'INPUT_SHA_MISMATCH_NO_REQUEST', 'model_requests': 0, 'provenance': provenance})
+        print(json.dumps({'status': 'INPUT_SHA_MISMATCH_NO_REQUEST', 'model_requests': 0, 'provenance': {k: v for k, v in provenance.items() if k != 'request_payload'}}), flush=True)
+        return 2
+    runpy.run_path(str(DRIVER))['apply_current_zero_overrides']()
+    inherited = SupervisorAPISettings.from_env()
+    settings = replace(inherited, retry_attempts=1, semantic_repair_attempts=0, plan_cache_enabled=False)
+    assert settings.backend_profile == supervisor_vllm_rwkv.BACKEND_PROFILE
+    assert settings.max_plan_tokens == 8192 and settings.read_timeout_seconds == 240
+    assert not settings.fallback_models
+    assert supervisor_vllm_rwkv.envelope_for_phase('goal_plan').generation_prefill == '<think></think'
+    assert supervisor_vllm_rwkv.envelope_for_phase('goal_stage_review').generation_prefill == '<think'
+    source_paths = [AUDIT, DRIVER, Path(__file__), ROOT / 'rwkv_lh/goal_loop_protocol.py',
+        ROOT / 'rwkv_lh/stateful_goal_loop.py', ROOT / 'rwkv_lh/harness.py',
+        ROOT / 'rwkv_lh/supervisor_openai.py', ROOT / 'rwkv_lh/runtime/supervisor_vllm_rwkv.py']
+    source_shas = {str(path): sha(path) for path in source_paths}
+    snapshot = BASE / 'REAL_PLANNER_NO_COT_PROBE_SCRIPT.py.txt'
+    with snapshot.open('x') as handle: handle.write(Path(__file__).read_text())
+    trace = []; client = OpenAIGoalSupervisorClient(settings=settings, audit_hook=trace.append)
+    original_post = client._client._post_completion
+    requests_made = 0
+    def record_post(endpoint, body):
+        nonlocal requests_made
+        requests_made += 1
+        assert requests_made == 1, 'probe permits exactly one HTTP inference request'
+        assert endpoint.endswith('/completions') and body['prompt'].endswith('\nBot✿<think></think')
+        assert body['max_tokens'] == 8192 and 'response_format' not in body
+        write('REAL_PLANNER_NO_COT_WIRE_BODY.json', body)
+        write('REAL_PLANNER_NO_COT_HTTP_ATTEMPT.json', {'started_at_utc': now(), 'attempt': 1,
+            'prompt_sha256': textsha(body['prompt']), 'input_sha256': textsha(payload_text), 'source_SHA256': source_shas})
+        return original_post(endpoint, body)
+    client._client._post_completion = record_post
+    print(json.dumps({'status': 'INPUT_SHA_VERIFIED_ONE_REQUEST_STARTING', 'input_sha256': textsha(payload_text),
+                      'max_tokens': settings.max_plan_tokens, 'read_timeout_seconds': settings.read_timeout_seconds,
+                      'retry_attempts': 1, 'semantic_repair_attempts': 0, 'cache': False}), flush=True)
+    started = time.perf_counter(); started_at = now(); returned_patch = None; call_error = None
+    try:
+        returned_patch = client.plan_goal_patch(request)
+    except Exception as exc:
+        call_error = error(exc)
+    finally:
+        client.close()
+    elapsed = time.perf_counter() - started
+    write('REAL_PLANNER_NO_COT_SUPERVISOR_TRACE.json', trace)
+    raw_events = [row for row in trace if row['type'] == 'supervisor_raw_response_returned']
+    raw_event = raw_events[-1] if raw_events else None
+    parsed_json = None; decode_error = None
+    if raw_event is not None:
+        try:
+            decoded = supervisor_vllm_rwkv.decode_completion(raw_event['raw_response'], phase='goal_plan', latency_ms=elapsed*1000, attempts=1)
+            parsed_json, _ = _decode_supervisor_json_content(supervisor_vllm_rwkv.PLANNER_ENVELOPE.generation_prefill + decoded.content)
+        except Exception as exc:
+            decode_error = error(exc)
+    validation = {'client_GoalPlanPatch_contract_passed': returned_patch is not None,
+                  'client_error': call_error, 'rolling_plan_contract_passed': None, 'target_contract_passed': None}
+    if returned_patch is not None:
+        candidate = deepcopy(plan)
+        try:
+            candidate.apply_goal_patch(returned_patch)
+            validation['rolling_plan_contract_passed'] = True
+        except Exception as exc:
+            validation['rolling_plan_contract_passed'] = False; validation['rolling_plan_error'] = error(exc)
+        if validation['rolling_plan_contract_passed']:
+            context = SimpleNamespace(harness=harness, _target_within_roots=StatefulGoalLoopController._target_within_roots)
+            try:
+                StatefulGoalLoopController._validate_plan_patch_target_contract(context, state, candidate, returned_patch)
+                validation['target_contract_passed'] = True
+            except Exception as exc:
+                validation['target_contract_passed'] = False; validation['target_contract_error'] = error(exc)
+        client.discard_goal_plan_cache_candidate(returned_patch.patch_id)
+    raw = raw_event.get('raw_output') if raw_event else None
+    raw_response = raw_event.get('raw_response') if raw_event else None
+    result = {'status': 'PROBE_FINISHED', 'started_at_utc': started_at, 'finished_at_utc': now(), 'elapsed_seconds': elapsed,
+        'scope': 'one connection diagnostic from SHA-verified real production initial request; excluded from Agent score, StateTune data and training',
+        'model_requests': requests_made, 'model': settings.model, 'backend_profile': settings.backend_profile,
+        'retry_attempts': 1, 'semantic_repair_attempts': 0, 'cache_enabled': False, 'max_tokens': 8192, 'read_timeout_seconds': 240,
+        'input_provenance': {k: v for k, v in provenance.items() if k != 'request_payload'},
+        'raw_response': raw_response, 'raw_output': raw,
+        'finish_reason': raw_event.get('finish_reason') if raw_event else None,
+        'natural_stop': raw_event.get('finish_reason') == 'stop' if raw_event else None,
+        'direct_JSON_after_empty_think_prefix': isinstance(raw, str) and raw.startswith('>') and raw[1:].lstrip().startswith('{') if raw_event else None,
+        'strict_JSON_decoded': parsed_json is not None, 'decoded_JSON': parsed_json, 'decode_error': decode_error,
+        'validation': validation, 'returned_patch': returned_patch.to_dict() if returned_patch else None,
+        'source_SHA256': source_shas, 'sources_unchanged_after_probe': all(sha(Path(p)) == value for p, value in source_shas.items()),
+        'wire_body_sha256': sha(BASE / 'REAL_PLANNER_NO_COT_WIRE_BODY.json') if requests_made else None,
+        'supervisor_trace_sha256': sha(BASE / 'REAL_PLANNER_NO_COT_SUPERVISOR_TRACE.json'),
+        'script_snapshot_sha256': sha(snapshot), 'production_modified': False, 'raw_output_modified': False,
+        'Agent_score': None, 'training_started': False, 'sealed_assets_read': False}
+    write('REAL_PLANNER_NO_COT_PROBE.json', result)
+    print(json.dumps({'status': result['status'], 'model_requests': requests_made, 'natural_stop': result['natural_stop'],
+        'direct_JSON_after_empty_think_prefix': result['direct_JSON_after_empty_think_prefix'], 'strict_JSON_decoded': result['strict_JSON_decoded'],
+        'validation': validation, 'evidence': str(BASE / 'REAL_PLANNER_NO_COT_PROBE.json'),
+        'sha256': sha(BASE / 'REAL_PLANNER_NO_COT_PROBE.json')}), flush=True)
+    return 0
+
+if __name__ == '__main__': raise SystemExit(main())

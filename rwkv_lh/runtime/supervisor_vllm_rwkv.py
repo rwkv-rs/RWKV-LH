@@ -1,12 +1,13 @@
 """Native vllm-rwkv text transport for the existing Goal Supervisor contracts.
 
-The System/User/Bot rendering matches vllm.tokenizers.rwkv_defaults with
-open_think. The role payload and system instruction are supplied unchanged by
-the existing Supervisor builder; this module only owns the wire envelope.
+The System/User/Bot rendering matches vllm.tokenizers.rwkv_defaults. Planner
+uses its empty fake_think prefix; Stage Checker retains open_think. The role
+payload and system instruction still come from the existing Supervisor builder.
 """
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
@@ -14,17 +15,40 @@ from rwkv_lh.runtime.protocol import CompletionResponse, RWKVProtocolError, Text
 
 BACKEND_PROFILE = "vllm-rwkv-native"
 TRANSPORT = "vllm_rwkv_completions"
-INPUT_ENVELOPE = "rwkv_native_bot_open_think"
-GENERATION_PREFILL = "<think"
 STATE_PROFILE_ID = "zero"
 STATE_PROFILE_SHA256 = "0" * 64
 
 
+@dataclass(frozen=True)
+class NativeSupervisorEnvelope:
+    input_envelope: str
+    generation_prefill: str
+    generation_mode: str
+
+
+# These are exact deployed tokenizer prefixes; the model supplies the final >.
+PLANNER_ENVELOPE = NativeSupervisorEnvelope(
+    "rwkv_native_bot_fake_think", "<think></think", "fake_think",
+)
+STAGE_REVIEW_ENVELOPE = NativeSupervisorEnvelope(
+    "rwkv_native_bot_open_think", "<think", "open_think",
+)
+
+
+def envelope_for_phase(phase: str) -> NativeSupervisorEnvelope:
+    if phase == "goal_plan":
+        return PLANNER_ENVELOPE
+    if phase == "goal_stage_review":
+        return STAGE_REVIEW_ENVELOPE
+    raise ValueError(f"unsupported native Supervisor phase: {phase!r}")
+
+
 def build_completion_payload(
-    *, model: str, system_prompt: str, payload_text: str, max_tokens: int,
+    *, phase: str, model: str, system_prompt: str, payload_text: str, max_tokens: int,
 ) -> dict[str, Any]:
+    envelope = envelope_for_phase(phase)
     prompt = (
-        f"System✿{system_prompt}✿\nUser✿{payload_text}✿\nBot✿{GENERATION_PREFILL}"
+        f"System✿{system_prompt}✿\nUser✿{payload_text}✿\nBot✿{envelope.generation_prefill}"
     )
     body = TextCompletionRequest(
         prompt=prompt, max_tokens=max_tokens, temperature=0.1,
@@ -42,8 +66,9 @@ def build_completion_payload(
 
 
 def decode_completion(
-    data: Mapping[str, Any], *, latency_ms: float, attempts: int,
+    data: Mapping[str, Any], *, phase: str, latency_ms: float, attempts: int,
 ) -> CompletionResponse:
+    envelope = envelope_for_phase(phase)
     choices = data.get("choices")
     if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):
         raise RWKVProtocolError("native Supervisor requires exactly one completion choice")
@@ -54,7 +79,13 @@ def decode_completion(
         )
     raw = choice.get("text")
     if not isinstance(raw, str) or not raw.startswith(">"):
-        raise RWKVProtocolError("native Supervisor text must continue the sent <think prefill")
+        raise RWKVProtocolError(
+            f"native Supervisor text must continue the sent {envelope.generation_prefill} prefill"
+        )
+    if envelope.generation_mode == "fake_think" and not raw[1:].lstrip().startswith("{"):
+        raise RWKVProtocolError(
+            "native Planner no-CoT completion must continue the empty thinking prefix with one JSON object"
+        )
     if data.get("usage") is not None and not isinstance(data["usage"], Mapping):
         raise RWKVProtocolError("native Supervisor usage must be an object")
     for name, tokens in (
