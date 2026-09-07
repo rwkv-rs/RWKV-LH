@@ -1,0 +1,214 @@
+............FFF                                                          [100%]
+=================================== FAILURES ===================================
+_ test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[None] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/test_runs/pytest/test_run_case_exports_with_mis0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e0575d29250>
+leaked_suite = None
+
+    @pytest.mark.parametrize("leaked_suite", (None, "core30", "fixture_optional_missing"))
+    def test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leaked_suite: str | None,
+    ) -> None:
+        """Exercise real case finalization with explicit mock model/verifier results."""
+        optional = benchmark.SuiteDefinition(
+            key="fixture_optional_missing", title="Optional fixture", package="benchmarks.rwkv_e2e.fixture_optional_missing",
+            tasks_schema="fixture.tasks", acceptance_schema="fixture.acceptance", expected_count=1,
+            level_counts={"project": 1},
+        )
+        monkeypatch.setattr(benchmark, "SUITES", {**benchmark.SUITES, optional.key: optional})
+        resource_imports = []
+    
+        def unavailable_resource(package: str):
+            resource_imports.append(package)
+            raise ModuleNotFoundError(f"optional suite unavailable: {package}")
+    
+        monkeypatch.setattr(benchmark.importlib.resources, "files", unavailable_resource)
+        text = "ordinary model trace with no private path"
+        if leaked_suite is not None:
+            definition = benchmark.SUITES[leaked_suite]
+            text = str(Path(benchmark.__file__).resolve().parents[1].joinpath(*definition.package.split("."), "acceptance.json"))
+    
+        def session_factory(*, client, settings, audit_hook):
+            audit_hook({"type": "fixture_model_observation", "text": text})
+            return object()
+    
+        literal_goal = benchmark.LongHorizonModel.create_literal_goal
+    
+        class FixtureModel:
+            create_literal_goal = staticmethod(literal_goal)
+    
+            def __init__(self, *args, **kwargs):
+                pass
+    
+        def completed_controller(store, model, harness, task_id, **kwargs):
+            state = store.load(task_id)
+            state.status = RunStatus.COMPLETED
+            state = store.save(state)
+            return ControllerResult(state=state, final_output="fixture answer", transitions=0)
+    
+        settings = RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture")
+        binding = ExecutorProfileBinding(settings, EXECUTOR_PROFILE_ROUTING_DISABLED, NetworkPolicyMode.OFFLINE, "executor")
+        monkeypatch.setattr(benchmark, "executor_profile_binding_for_run", lambda state: binding)
+        monkeypatch.setattr(benchmark, "OpenAICompatibleRWKVClient", lambda settings: SimpleNamespace(close=lambda: None))
+        monkeypatch.setattr(benchmark, "create_model_session", session_factory)
+        monkeypatch.setattr(benchmark, "LongHorizonModel", FixtureModel)
+        monkeypatch.setattr(benchmark, "_run_controller", completed_controller)
+        monkeypatch.setattr(benchmark, "_agent_process_tree_closed", lambda workspace: True)
+        monkeypatch.setattr(benchmark, "final_output_non_intervention_evidence", lambda *args, **kwargs: ("fixture answer", "fixture answer", True))
+        monkeypatch.setattr(benchmark, "run_isolated_verifier", lambda *args, **kwargs: IsolatedVerifierResult(
+            checks=(CheckResult("fixture", True, {}),), metadata={"backend": "bubblewrap"},
+        ))
+        result = benchmark.run_case(
+            {"task_id": "OPTIONAL-PACKAGE-FIXTURE", "level": "project", "user_request": "Exercise case finalization only.", "workspace_files": {}},
+            {"checks": []}, tmp_path, max_transitions=1,
+        )
+        audit = json.loads((tmp_path / result["audit"]).read_text())
+        assert resource_imports == []
+>       assert result["agent_completed"] is True
+E       assert False is True
+
+tests/test_benchmark_protocol_boundary.py:256: AssertionError
+_ test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[core30] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/test_runs/pytest/test_run_case_exports_with_mis1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e0575d293d0>
+leaked_suite = 'core30'
+
+    @pytest.mark.parametrize("leaked_suite", (None, "core30", "fixture_optional_missing"))
+    def test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leaked_suite: str | None,
+    ) -> None:
+        """Exercise real case finalization with explicit mock model/verifier results."""
+        optional = benchmark.SuiteDefinition(
+            key="fixture_optional_missing", title="Optional fixture", package="benchmarks.rwkv_e2e.fixture_optional_missing",
+            tasks_schema="fixture.tasks", acceptance_schema="fixture.acceptance", expected_count=1,
+            level_counts={"project": 1},
+        )
+        monkeypatch.setattr(benchmark, "SUITES", {**benchmark.SUITES, optional.key: optional})
+        resource_imports = []
+    
+        def unavailable_resource(package: str):
+            resource_imports.append(package)
+            raise ModuleNotFoundError(f"optional suite unavailable: {package}")
+    
+        monkeypatch.setattr(benchmark.importlib.resources, "files", unavailable_resource)
+        text = "ordinary model trace with no private path"
+        if leaked_suite is not None:
+            definition = benchmark.SUITES[leaked_suite]
+            text = str(Path(benchmark.__file__).resolve().parents[1].joinpath(*definition.package.split("."), "acceptance.json"))
+    
+        def session_factory(*, client, settings, audit_hook):
+            audit_hook({"type": "fixture_model_observation", "text": text})
+            return object()
+    
+        literal_goal = benchmark.LongHorizonModel.create_literal_goal
+    
+        class FixtureModel:
+            create_literal_goal = staticmethod(literal_goal)
+    
+            def __init__(self, *args, **kwargs):
+                pass
+    
+        def completed_controller(store, model, harness, task_id, **kwargs):
+            state = store.load(task_id)
+            state.status = RunStatus.COMPLETED
+            state = store.save(state)
+            return ControllerResult(state=state, final_output="fixture answer", transitions=0)
+    
+        settings = RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture")
+        binding = ExecutorProfileBinding(settings, EXECUTOR_PROFILE_ROUTING_DISABLED, NetworkPolicyMode.OFFLINE, "executor")
+        monkeypatch.setattr(benchmark, "executor_profile_binding_for_run", lambda state: binding)
+        monkeypatch.setattr(benchmark, "OpenAICompatibleRWKVClient", lambda settings: SimpleNamespace(close=lambda: None))
+        monkeypatch.setattr(benchmark, "create_model_session", session_factory)
+        monkeypatch.setattr(benchmark, "LongHorizonModel", FixtureModel)
+        monkeypatch.setattr(benchmark, "_run_controller", completed_controller)
+        monkeypatch.setattr(benchmark, "_agent_process_tree_closed", lambda workspace: True)
+        monkeypatch.setattr(benchmark, "final_output_non_intervention_evidence", lambda *args, **kwargs: ("fixture answer", "fixture answer", True))
+        monkeypatch.setattr(benchmark, "run_isolated_verifier", lambda *args, **kwargs: IsolatedVerifierResult(
+            checks=(CheckResult("fixture", True, {}),), metadata={"backend": "bubblewrap"},
+        ))
+        result = benchmark.run_case(
+            {"task_id": "OPTIONAL-PACKAGE-FIXTURE", "level": "project", "user_request": "Exercise case finalization only.", "workspace_files": {}},
+            {"checks": []}, tmp_path, max_transitions=1,
+        )
+        audit = json.loads((tmp_path / result["audit"]).read_text())
+        assert resource_imports == []
+>       assert result["agent_completed"] is True
+E       assert False is True
+
+tests/test_benchmark_protocol_boundary.py:256: AssertionError
+_ test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[fixture_optional_missing] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/test_runs/pytest/test_run_case_exports_with_mis2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e0575e90ec0>
+leaked_suite = 'fixture_optional_missing'
+
+    @pytest.mark.parametrize("leaked_suite", (None, "core30", "fixture_optional_missing"))
+    def test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leaked_suite: str | None,
+    ) -> None:
+        """Exercise real case finalization with explicit mock model/verifier results."""
+        optional = benchmark.SuiteDefinition(
+            key="fixture_optional_missing", title="Optional fixture", package="benchmarks.rwkv_e2e.fixture_optional_missing",
+            tasks_schema="fixture.tasks", acceptance_schema="fixture.acceptance", expected_count=1,
+            level_counts={"project": 1},
+        )
+        monkeypatch.setattr(benchmark, "SUITES", {**benchmark.SUITES, optional.key: optional})
+        resource_imports = []
+    
+        def unavailable_resource(package: str):
+            resource_imports.append(package)
+            raise ModuleNotFoundError(f"optional suite unavailable: {package}")
+    
+        monkeypatch.setattr(benchmark.importlib.resources, "files", unavailable_resource)
+        text = "ordinary model trace with no private path"
+        if leaked_suite is not None:
+            definition = benchmark.SUITES[leaked_suite]
+            text = str(Path(benchmark.__file__).resolve().parents[1].joinpath(*definition.package.split("."), "acceptance.json"))
+    
+        def session_factory(*, client, settings, audit_hook):
+            audit_hook({"type": "fixture_model_observation", "text": text})
+            return object()
+    
+        literal_goal = benchmark.LongHorizonModel.create_literal_goal
+    
+        class FixtureModel:
+            create_literal_goal = staticmethod(literal_goal)
+    
+            def __init__(self, *args, **kwargs):
+                pass
+    
+        def completed_controller(store, model, harness, task_id, **kwargs):
+            state = store.load(task_id)
+            state.status = RunStatus.COMPLETED
+            state = store.save(state)
+            return ControllerResult(state=state, final_output="fixture answer", transitions=0)
+    
+        settings = RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture")
+        binding = ExecutorProfileBinding(settings, EXECUTOR_PROFILE_ROUTING_DISABLED, NetworkPolicyMode.OFFLINE, "executor")
+        monkeypatch.setattr(benchmark, "executor_profile_binding_for_run", lambda state: binding)
+        monkeypatch.setattr(benchmark, "OpenAICompatibleRWKVClient", lambda settings: SimpleNamespace(close=lambda: None))
+        monkeypatch.setattr(benchmark, "create_model_session", session_factory)
+        monkeypatch.setattr(benchmark, "LongHorizonModel", FixtureModel)
+        monkeypatch.setattr(benchmark, "_run_controller", completed_controller)
+        monkeypatch.setattr(benchmark, "_agent_process_tree_closed", lambda workspace: True)
+        monkeypatch.setattr(benchmark, "final_output_non_intervention_evidence", lambda *args, **kwargs: ("fixture answer", "fixture answer", True))
+        monkeypatch.setattr(benchmark, "run_isolated_verifier", lambda *args, **kwargs: IsolatedVerifierResult(
+            checks=(CheckResult("fixture", True, {}),), metadata={"backend": "bubblewrap"},
+        ))
+        result = benchmark.run_case(
+            {"task_id": "OPTIONAL-PACKAGE-FIXTURE", "level": "project", "user_request": "Exercise case finalization only.", "workspace_files": {}},
+            {"checks": []}, tmp_path, max_transitions=1,
+        )
+        audit = json.loads((tmp_path / result["audit"]).read_text())
+        assert resource_imports == []
+>       assert result["agent_completed"] is True
+E       assert False is True
+
+tests/test_benchmark_protocol_boundary.py:256: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_benchmark_protocol_boundary.py::test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[None]
+FAILED tests/test_benchmark_protocol_boundary.py::test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[core30]
+FAILED tests/test_benchmark_protocol_boundary.py::test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard[fixture_optional_missing]
+3 failed, 12 passed in 0.65s

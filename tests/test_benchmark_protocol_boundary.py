@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 import pytest
 
 from rwkv_lh.goal_state_protocols import executor_args_v4
+from rwkv_lh.benchmark_verifier import CheckResult, IsolatedVerifierResult
+from rwkv_lh.controller import ControllerResult
 from rwkv_lh.model_session import SessionSampling
+from rwkv_lh.retrieval.policy import NetworkPolicyMode
+from rwkv_lh.runtime.executor_profiles import ExecutorProfileBinding, EXECUTOR_PROFILE_ROUTING_DISABLED
 from rwkv_lh.runtime.settings import RuntimeSettings
+from rwkv_lh.schema import CausalEventDraft, RunStatus
 from scripts import run_rwkv_e2e_benchmark as benchmark
 
 
@@ -159,3 +167,98 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
     assert "--" in diff_calls[0], "metadata must restrict git diff to source paths"
     assert "benchmarks" not in diff_calls[0]
     assert "data" not in diff_calls[0]
+
+
+@pytest.mark.parametrize("suite_key", (*benchmark.FORMAL90_SUITE_KEYS, "agentv1", "agentladderv1", "realprojectdevv1"))
+def test_suite_path_identity_preserves_existing_public_resource_strings(suite_key: str) -> None:
+    definition = benchmark.SUITES[suite_key]
+    # Only these explicitly public packages are loaded; no sealed resource is read.
+    expected = tuple(str(item) for item in benchmark.suite_resources(definition))
+    assert tuple(str(item) for item in benchmark.suite_resource_paths(definition)) == expected
+
+
+def test_importing_runner_does_not_import_default_or_optional_suite_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_resource_import(package: str):
+        raise AssertionError(f"unselected resource import: {package}")
+
+    monkeypatch.setattr(benchmark.importlib.resources, "files", forbidden_resource_import)
+    name = "fixture_benchmark_without_suite_resources"
+    spec = importlib.util.spec_from_file_location(name, benchmark.__file__)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    assert str(module.ACCEPTANCE_RESOURCE) == str(benchmark.ACCEPTANCE_RESOURCE)
+    assert str(module.TASKS_RESOURCE) == str(benchmark.TASKS_RESOURCE)
+
+
+@pytest.mark.parametrize("leaked_suite", (None, "core30", "fixture_optional_missing"))
+def test_run_case_exports_with_missing_optional_suite_and_retains_global_leak_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leaked_suite: str | None,
+) -> None:
+    """Exercise real case finalization with explicit mock model/verifier results."""
+    optional = benchmark.SuiteDefinition(
+        key="fixture_optional_missing", title="Optional fixture", package="benchmarks.rwkv_e2e.fixture_optional_missing",
+        tasks_schema="fixture.tasks", acceptance_schema="fixture.acceptance", expected_count=1,
+        level_counts={"project": 1},
+    )
+    monkeypatch.setattr(benchmark, "SUITES", {**benchmark.SUITES, optional.key: optional})
+    resource_imports = []
+
+    def unavailable_resource(package: str):
+        resource_imports.append(package)
+        raise ModuleNotFoundError(f"optional suite unavailable: {package}")
+
+    monkeypatch.setattr(benchmark.importlib.resources, "files", unavailable_resource)
+    text = "ordinary model trace with no private path"
+    if leaked_suite is not None:
+        definition = benchmark.SUITES[leaked_suite]
+        text = str(Path(benchmark.__file__).resolve().parents[1].joinpath(*definition.package.split("."), "acceptance.json"))
+
+    def session_factory(*, client, settings, audit_hook):
+        audit_hook({"type": "fixture_model_observation", "text": text})
+        return object()
+
+    literal_goal = benchmark.LongHorizonModel.create_literal_goal
+
+    class FixtureModel:
+        create_literal_goal = staticmethod(literal_goal)
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+    def completed_controller(store, model, harness, task_id, **kwargs):
+        state = store.load(task_id)
+        state.status = RunStatus.COMPLETED
+        state = store.save(state, causal_event=CausalEventDraft.create(
+            "run_completed", {"reason": "explicit_mock_completion"}, subject_id=task_id,
+        ))
+        return ControllerResult(state=state, final_output="fixture answer", transitions=0)
+
+    settings = RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture")
+    binding = ExecutorProfileBinding(settings, EXECUTOR_PROFILE_ROUTING_DISABLED, NetworkPolicyMode.OFFLINE, "executor")
+    monkeypatch.setattr(benchmark, "executor_profile_binding_for_run", lambda state: binding)
+    monkeypatch.setattr(benchmark, "OpenAICompatibleRWKVClient", lambda settings: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(benchmark, "create_model_session", session_factory)
+    monkeypatch.setattr(benchmark, "LongHorizonModel", FixtureModel)
+    monkeypatch.setattr(benchmark, "_run_controller", completed_controller)
+    monkeypatch.setattr(benchmark, "_agent_process_tree_closed", lambda workspace: True)
+    monkeypatch.setattr(benchmark, "final_output_non_intervention_evidence", lambda *args, **kwargs: ("fixture answer", "fixture answer", True))
+    monkeypatch.setattr(benchmark, "run_isolated_verifier", lambda *args, **kwargs: IsolatedVerifierResult(
+        checks=(CheckResult("fixture", True, {}),), metadata={"backend": "bubblewrap"},
+    ))
+    result = benchmark.run_case(
+        {"task_id": "OPTIONAL-PACKAGE-FIXTURE", "level": "project", "user_request": "Exercise case finalization only.", "workspace_files": {}},
+        {"checks": []}, tmp_path, max_transitions=1,
+    )
+    audit = json.loads((tmp_path / result["audit"]).read_text())
+    assert resource_imports == []
+    assert result["agent_completed"] is True
+    assert result["external_passed"] is True
+    assert result["failure"] == ""
+    assert result["passed"] is (leaked_suite is None)
+    assert audit["anti_cheating"]["acceptance_resource_path_absent_from_model_trace"] is (leaked_suite is None)
+    assert audit["model_trace"][0]["text"] == text
+    assert (tmp_path / "cases/OPTIONAL-PACKAGE-FIXTURE/model_trace.json").is_file()

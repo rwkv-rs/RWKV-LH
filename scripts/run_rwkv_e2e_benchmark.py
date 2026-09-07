@@ -90,6 +90,17 @@ class SuiteDefinition:
     level_counts: Mapping[str, int]
 
 
+def suite_resource_paths(definition: SuiteDefinition) -> tuple[Path, Path]:
+    """Name checkout resources without importing or opening a suite package.
+
+    Metadata and execution already use this runner's filesystem checkout.
+    A registered optional package need not be installed for its private path
+    to remain forbidden in model traces.
+    """
+    package = Path(__file__).resolve().parents[1].joinpath(*definition.package.split("."))
+    return package / "tasks.json", package / "acceptance.json"
+
+
 SUITES = {
     "core30": SuiteDefinition(
         key="core30",
@@ -176,8 +187,7 @@ SUITES = {
 FORMAL90_SUITE_KEYS = ("core30", "lh12", "extension48")
 SOURCE_TREE_SCOPES = ("rwkv_lh", "scripts", "tests", "pyproject.toml", "uv.lock")
 PACKAGE = SUITES["core30"].package
-TASKS_RESOURCE = importlib.resources.files(PACKAGE).joinpath("tasks.json")
-ACCEPTANCE_RESOURCE = importlib.resources.files(PACKAGE).joinpath("acceptance.json")
+TASKS_RESOURCE, ACCEPTANCE_RESOURCE = suite_resource_paths(SUITES["core30"])
 VISIBLE_TASK_KEYS = {
     "task_id",
     "level",
@@ -2378,7 +2388,7 @@ def run_case(
         verifier_failure = f"{type(exc).__name__}: {exc}"[:4000]
         verifier_metadata = {"backend": "failed_closed", "error": verifier_failure}
     hidden_resource_paths = {
-        str(suite_resources(definition)[1]) for definition in SUITES.values()
+        str(suite_resource_paths(definition)[1]) for definition in SUITES.values()
     }
     acceptance_reference_leaked = any(
         hidden_path in json.dumps(event, ensure_ascii=False, sort_keys=True)

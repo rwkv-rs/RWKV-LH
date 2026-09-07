@@ -1,0 +1,52 @@
+{
+  "purpose": "Read-only metadata inventory for R4 and repair evidence commit",
+  "exclude": [
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/TRACE_FINDINGS_R4_02_FIRST_CASE_STATE.sqlite",
+      "bytes": 81920,
+      "reason": "ignored binary runtime/snapshot state; preserve locally and keep its SHA plus causal JSON review"
+    },
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/real_project_zero_a_r4/cases/**",
+      "reason": "per-case runtime, workspaces or temporary verification fixtures; metadata boundary only, no traversal"
+    },
+    {
+      "path": "data/test_runs/pytest/**",
+      "reason": "default pytest runtime workspaces and temporary fixture databases; ignored, no traversal"
+    },
+    {
+      "path": "temp/**",
+      "reason": "temporary scripts are ignored; record source SHA or explicit reviewed snapshots, do not force-add directory"
+    },
+    {
+      "path": "data/runtime/**",
+      "reason": "shared runtime symlink/dependencies; ignored, no traversal"
+    },
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R5_20260907/**",
+      "reason": "outside this R4 invalidation + repair commit scope; R5 identity freeze is owned by root, not inspected or modified"
+    }
+  ],
+  "large_round_evidence_to_preserve": [
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/REMOTE_FREEZE_ATTESTED_R4.json",
+      "bytes": 2660363,
+      "reason": "round evidence manifest; preserve, not a temporary fixture"
+    },
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/REMOTE_BEFORE_A_R4.json",
+      "bytes": 2660363,
+      "reason": "round evidence manifest; preserve, not a temporary fixture"
+    },
+    {
+      "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/FROZEN_EXECUTION_MANIFEST_R4.json",
+      "bytes": 2837818,
+      "reason": "round evidence manifest; preserve, not a temporary fixture"
+    }
+  ],
+  "preserve": [
+    "R4 freeze/start/stop/results/invalidation/trace-findings JSON and reports",
+    "repair RED/GREEN/intermediate/full test logs and source SHA reports"
+  ],
+  "no_files_deleted_or_moved": true
+}
