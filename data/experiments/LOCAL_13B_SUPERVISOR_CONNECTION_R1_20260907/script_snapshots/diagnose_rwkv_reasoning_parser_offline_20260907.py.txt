@@ -1,0 +1,56 @@
+"""Read-only tokenizer/parser construction check; no model or generation."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import socket
+import subprocess
+import sys
+import traceback
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ENGINE = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'
+MODEL = ROOT / 'data/models/rwkv7-g1j-13.3b-vllm-v1'
+sys.path[:0] = [str(ENGINE), str(ROOT)]
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+original_popen = subprocess.Popen
+
+
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('offline diagnostic forbids Git')
+    return original_popen(args, *rest, **kwargs)
+
+
+def no_network(*args, **kwargs):
+    raise RuntimeError('offline diagnostic forbids network')
+
+
+subprocess.Popen = guarded_popen
+socket.create_connection = no_network
+socket.socket.connect = no_network
+report = {'at': datetime.now(timezone.utc).isoformat(),
+          'model_loaded': False, 'generation_performed': False,
+          'git_executed': False, 'network_performed': False,
+          'production_changed': False,
+          'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+try:
+    from vllm.tokenizers.rwkv import RWKVTokenizer
+    tokenizer = RWKVTokenizer.from_pretrained(MODEL)
+    report['marker_tokenization'] = {
+        marker: {'single_vocab_entry': tokenizer.get_vocab().get(marker),
+                 'encoded_ids': tokenizer.encode(marker, add_special_tokens=False)}
+        for marker in ('<think>', '</think>')
+    }
+    from vllm.reasoning.deepseek_r1_reasoning_parser import DeepSeekR1ReasoningParser
+    parser = DeepSeekR1ReasoningParser(tokenizer)
+    report['deepseek_r1_construction_passed'] = True
+except Exception as exc:
+    report['deepseek_r1_construction_passed'] = False
+    report['exception_type'] = type(exc).__name__
+    report['exception_message'] = str(exc)
+    report['traceback'] = traceback.format_exc()
+print(json.dumps(report, ensure_ascii=False, indent=2))

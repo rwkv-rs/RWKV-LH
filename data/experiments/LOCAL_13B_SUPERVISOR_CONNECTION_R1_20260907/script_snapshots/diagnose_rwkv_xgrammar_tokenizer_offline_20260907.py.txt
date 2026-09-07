@@ -1,0 +1,98 @@
+"""CPU tokenizer-only compatibility probe; no model, generation, Git, or network."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import hashlib
+import inspect
+import json
+import os
+from pathlib import Path
+import shlex
+import socket
+import subprocess
+import sys
+import traceback
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ENGINE = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'
+MODEL = ROOT / 'data/models/rwkv7-g1j-13.3b-vllm-v1'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ENGINE))
+
+original_popen = subprocess.Popen
+
+
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('offline diagnostic forbids Git')
+    return original_popen(args, *rest, **kwargs)
+
+
+def no_network(*args, **kwargs):
+    raise RuntimeError('offline diagnostic forbids network')
+
+
+subprocess.Popen = guarded_popen
+socket.create_connection = no_network
+socket.socket.connect = no_network
+
+
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def source_record(obj):
+    path = inspect.getsourcefile(obj)
+    return {'path': path, 'sha256': sha(path)} if path else None
+
+
+report = {
+    'at': datetime.now(timezone.utc).isoformat(),
+    'purpose': 'Reproduce XgrammarBackend TokenizerInfo.from_huggingface with the deployed RWKV tokenizer only',
+    'model_loaded': False,
+    'generation_performed': False,
+    'git_executed': False,
+    'network_performed': False,
+    'production_changed': False,
+    'cuda_visible_devices_for_this_diagnostic_only': '',
+    'script_sha256': sha(__file__),
+    'python_executable': sys.executable,
+    'engine_root': str(ENGINE),
+    'tokenizer_artifact_directory': str(MODEL),
+    'stages': [],
+}
+stage = 'import_rwkv_tokenizer'
+try:
+    from vllm.tokenizers.rwkv import RWKVTokenizer
+    report['tokenizer_source'] = source_record(RWKVTokenizer)
+    report['stages'].append({'stage': stage, 'passed': True})
+    stage = 'construct_rwkv_tokenizer_from_local_vocabulary'
+    tokenizer = RWKVTokenizer.from_pretrained(MODEL)
+    report['tokenizer'] = {
+        'class': type(tokenizer).__name__,
+        'module': type(tokenizer).__module__,
+        'vocab_size': tokenizer.vocab_size,
+        'is_fast': tokenizer.is_fast,
+        'eos_token_id': tokenizer.eos_token_id,
+        'vocabulary_sha256': sha(MODEL / 'rwkv_vocab_v20230424.txt'),
+    }
+    report['stages'].append({'stage': stage, 'passed': True})
+    stage = 'import_xgrammar'
+    import xgrammar as xgr
+    report['xgrammar_source'] = source_record(xgr.TokenizerInfo)
+    report['stages'].append({'stage': stage, 'passed': True})
+    stage = 'TokenizerInfo.from_huggingface'
+    info = xgr.TokenizerInfo.from_huggingface(tokenizer, vocab_size=tokenizer.vocab_size)
+    report['stages'].append({'stage': stage, 'passed': True,
+                             'result_class': type(info).__name__})
+    report['compatibility_passed'] = True
+except Exception as exc:
+    report['compatibility_passed'] = False
+    report['stages'].append({'stage': stage, 'passed': False,
+                             'exception_type': type(exc).__name__,
+                             'exception_message': str(exc),
+                             'traceback': traceback.format_exc()})
+
+print(json.dumps(report, ensure_ascii=False, indent=2))

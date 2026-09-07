@@ -1,0 +1,126 @@
+"""Offline contract checks and tokenization only for one preserved Planner response."""
+from dataclasses import fields
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import urllib.error
+import urllib.request
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+SOURCE = ROUND / 'OUTPUT_INSPECTION_PLAIN_COMPLETE.json'
+OUTPUT = ROUND / 'PLAIN_COMPLETE_OFFLINE_CONTRACT_TOKEN_AUDIT.json'
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest, RollingGoalPlan
+from rwkv_lh.supervisor_openai import _decode_supervisor_json_content
+
+def attempt(fn):
+    try:
+        value = fn()
+        return {'passed': True}, value
+    except Exception as exc:
+        return {'passed': False, 'error_type': type(exc).__name__, 'error': str(exc)}, None
+
+def tokenize(text, model):
+    body = {'model': model, 'prompt': text, 'add_special_tokens': False, 'return_token_strs': False}
+    raw = json.dumps(body, ensure_ascii=False).encode()
+    request = urllib.request.Request('http://127.0.0.1:29613/tokenize', data=raw, headers={'Content-Type': 'application/json'}, method='POST')
+    result = {'request_sha256': hashlib.sha256(raw).hexdigest(), 'text_sha256': hashlib.sha256(text.encode()).hexdigest(), 'chars': len(text), 'add_special_tokens': False}
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = response.read(); data = json.loads(payload)
+            result.update(http_status=response.status, response_sha256=hashlib.sha256(payload).hexdigest(), response=data)
+    except urllib.error.HTTPError as exc:
+        payload = exc.read(); result.update(http_status=exc.code, error=payload.decode(errors='replace')[:2000])
+    except (OSError, ValueError) as exc:
+        result.update(http_status=None, error_type=type(exc).__name__, error=str(exc))
+    return result
+
+def main():
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    assert not OUTPUT.exists()
+    raw = SOURCE.read_bytes(); record = json.loads(raw)
+    content = record['raw_content']; assert isinstance(content, str)
+    wire = record['request_body']; envelope = json.loads(record['response_text'])
+    choice = envelope['choices'][0]
+    assert choice['message']['content'] == content
+    full_json, _ = attempt(lambda: json.loads(content))
+    full_decoder, _ = attempt(lambda: _decode_supervisor_json_content(content))
+    canonical = json.loads(next(message['content'] for message in reversed(wire['messages']) if message['role'] == 'user'))
+    request_args = {field.name: canonical[field.name] for field in fields(GoalPlanRequest) if field.name in canonical}
+    request_args['immutable_request'] = canonical['current_requirement']
+    if 'recent_action_facts' in request_args: request_args['recent_action_facts'] = tuple(request_args['recent_action_facts'])
+    request_status, request = attempt(lambda: GoalPlanRequest(**request_args))
+    if request is not None: request_status['canonical_roundtrip_equal'] = request.to_dict() == canonical
+    report = {
+        'at': datetime.now(timezone.utc).isoformat(),
+        'purpose': 'Read the complete preserved output, then validate syntax/current contracts and independently retokenize text; no Agent completion claim',
+        'source_path': str(SOURCE), 'source_sha256': hashlib.sha256(raw).hexdigest(),
+        'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'production_source_or_config_changed': False, 'generation_requests': 0, 'sqlite_opened': False,
+        'finish_reason': record['finish_reason'], 'usage': record['usage'], 'raw_content_chars': len(content),
+        'raw_content_sha256': hashlib.sha256(content.encode()).hexdigest(),
+        'raw_content_start': content[:160], 'raw_content_end': content[-500:],
+        'closing_think_count': content.count('</think>'), 'opening_think_present': content.startswith('<think>'),
+        'full_content_json_loads': full_json, 'full_content_existing_decoder': full_decoder,
+        'canonical_request_validation': request_status,
+        'canonical_request_fields': sorted(canonical),
+        'generated_token_ids_available': isinstance(choice.get('token_ids'), list),
+        'existing_generated_token_ids': choice.get('token_ids'),
+        'source_module_sha256': {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (ROOT / 'rwkv_lh/goal_loop_protocol.py', ROOT / 'rwkv_lh/supervisor_openai.py')},
+    }
+    if record['finish_reason'] == 'length':
+        report['outcome'] = 'TRUNCATED_OUTPUT_STOP_HERE_NO_FURTHER_GENERATION'
+    elif content.count('</think>') != 1:
+        report['outcome'] = 'NO_UNIQUE_REASONING_CLOSE_BOUNDARY'
+    else:
+        offset = content.index('</think>'); reasoning = content[:offset]; marker = '</think>'; suffix = content[offset + len(marker):]; final_json = suffix.strip()
+        suffix_json, parsed = attempt(lambda: json.loads(suffix))
+        suffix_decoder, decoded = attempt(lambda: _decode_supervisor_json_content(suffix))
+        report.update(reasoning_chars=len(reasoning), final_suffix_chars=len(suffix), final_json_chars=len(final_json),
+                      suffix_json_loads=suffix_json, suffix_existing_decoder=suffix_decoder,
+                      final_object=parsed, marker_char_interval=[offset, offset + len(marker)],
+                      final_json_offset_in_content=len(content) - len(suffix) + len(suffix) - len(suffix.lstrip()))
+        if suffix_json['passed'] and suffix_decoder['passed']:
+            suffix_decoder['same_object_as_json_loads'] = decoded[0] == parsed
+            suffix_decoder['normalization'] = decoded[1]
+        patch = None
+        if isinstance(parsed, dict) and request is not None:
+            patch_status, patch = attempt(lambda: GoalPlanPatch.from_model_value(parsed, patch_id='GPP-DIAGNOSTIC-' + hashlib.sha256(content.encode()).hexdigest()[:16], base_revision=request.plan_revision))
+            report['GoalPlanPatch_from_model_value'] = patch_status
+            report['field_inventory'] = {'top_level_keys': sorted(parsed), 'goal_obligation_count': len(parsed.get('goal_obligations', [])),
+                'add_stage_count': len(parsed.get('add_stages', [])), 'add_step_count': sum(len(stage.get('steps', [])) for stage in parsed.get('add_stages', [])),
+                'replace_stage_count': len(parsed.get('replace_stages', [])), 'discard_step_count': len(parsed.get('discard_step_ids', []))}
+        if patch is not None:
+            report['initial_patch_guards'] = {'passed': bool(request.plan_revision == 0 and patch.add_steps and patch.goal_obligations and not patch.replace_steps and not patch.discard_step_ids),
+                'scope': 'Same initial patch prerequisites used by current supervisor client; no repair or field rewriting'}
+            plan = RollingGoalPlan(goal_digest=request.goal_digest)
+            report['empty_plan_matches_canonical_active_plan'] = plan.to_model_dict() == request.active_plan
+            if report['empty_plan_matches_canonical_active_plan']:
+                apply_status, _ = attempt(lambda: plan.apply_goal_patch(patch))
+                report['RollingGoalPlan_apply'] = apply_status
+                report['rolling_plan_after'] = plan.to_model_dict()
+                report['in_memory_only_no_controller_commit'] = True
+            else:
+                report['RollingGoalPlan_apply'] = {'passed': None, 'reason': 'Canonical source was not the same empty initial rolling plan; no state was invented'}
+        else:
+            report['RollingGoalPlan_apply'] = {'passed': None, 'reason': 'Current GoalPlanPatch constructor did not produce a validated patch'}
+        sections = {'reasoning_before_close': reasoning, 'reasoning_plus_close_marker': reasoning + marker, 'answer_suffix_verbatim': suffix,
+                    'final_json_trimmed': final_json, 'full_content': content}
+        report['plain_tokenization'] = {name: tokenize(text, wire['model']) for name, text in sections.items()}
+        report['tokenization_requests'] = len(sections)
+        report['tokenization_scope'] = 'Fresh encoding of each exact text slice with add_special_tokens=False; not a claimed partition of sampled generation token IDs. Independent slice counts need not sum across byte/token boundaries or hidden stop tokens.'
+        report['outcome'] = 'OFFLINE_OUTPUT_INSPECTION_COMPLETE_NOT_AGENT_RESULT'
+    report['not_verified'] = ['Agent task execution or completion', 'Stage Checker behavior', 'same output within production 1800-token ceiling',
+        'model behavior after a genuinely effective fake_think prefix', 'semantic exhaustiveness of obligations relative to the full project requirements', 'actual Harness evidence for any claimed result']
+    with OUTPUT.open('x') as handle:
+        json.dump(report, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({key: report.get(key) for key in ('finish_reason', 'usage', 'full_content_existing_decoder', 'suffix_json_loads', 'suffix_existing_decoder', 'GoalPlanPatch_from_model_value', 'initial_patch_guards', 'empty_plan_matches_canonical_active_plan', 'RollingGoalPlan_apply', 'field_inventory')}, ensure_ascii=False, indent=2))
+    print('FULL PRESERVED CONTENT FOR AUTHOR REVIEW:')
+    print(content)
+    print(json.dumps({'output': str(OUTPUT), 'sha256': hashlib.sha256(OUTPUT.read_bytes()).hexdigest(), 'token_counts': {key: value.get('response', {}).get('count') for key, value in report.get('plain_tokenization', {}).items()}}, ensure_ascii=False))
+
+if __name__ == '__main__': main()

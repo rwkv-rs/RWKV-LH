@@ -1,0 +1,135 @@
+"""Offline canonical Planner body reconstruction and existing 13B response decoding."""
+from pathlib import Path
+import hashlib
+import json
+import socket
+import sys
+import requests
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+
+def no_network(*_args, **_kwargs):
+    raise RuntimeError('read-only audit forbids network')
+
+requests.sessions.Session.request = no_network
+socket.create_connection = no_network
+socket.socket.connect = no_network
+
+from rwkv_lh.goal_loop_protocol import GoalPlanRequest
+from rwkv_lh.supervisor_openai import (
+    OpenAICompatibleSupervisorClient, SupervisorAPISettings,
+    _render_user_payload, _decode_supervisor_json_content,
+)
+
+OUT = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+source = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+source_raw = source.read_bytes()
+original = json.loads(source_raw)
+payload = json.loads(original['messages'][1]['content'])
+request = GoalPlanRequest(
+    run_id=payload['run_id'], immutable_request=payload['current_requirement'],
+    goal_digest=payload['goal_digest'], plan_revision=payload['plan_revision'],
+    active_plan=payload['active_plan'], latest_audit=payload['latest_audit'],
+    workspace_manifest=payload['workspace_manifest'],
+    latest_stage_review=payload.get('latest_stage_review'),
+    recent_action_facts=tuple(payload.get('recent_action_facts') or ()),
+    local_validation_repair=payload.get('local_validation_repair'),
+    latest_controller_repair=payload.get('latest_controller_repair'),
+)
+client = OpenAICompatibleSupervisorClient(SupervisorAPISettings(
+    base_url='http://127.0.0.1:1/v1', api_key='unused-offline-placeholder',
+    model=original['model'], stage_checker_model=original['model'],
+    plan_cache_enabled=False,
+))
+captured = {}
+
+class CapturedBeforeHTTP(Exception):
+    pass
+
+def capture(**kwargs):
+    captured.update(kwargs)
+    raise CapturedBeforeHTTP()
+
+client._request_json = capture
+try:
+    client.plan_goal_patch(request)
+except CapturedBeforeHTTP:
+    pass
+assert captured
+endpoint, rebuilt, transport = client._wire_request(
+    phase=captured['phase'], selected_model=original['model'],
+    system_prompt=captured['system_prompt'],
+    payload_text=_render_user_payload(captured['request_payload']),
+    max_tokens=captured['max_tokens'], schema_revision='v4', schema=captured['schema'],
+)
+client.close()
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+rows = []
+for name in ('EXISTING_WIRE_PROBE.json', 'WIRE_MINIMAL.json', 'WIRE_FAKE_THINK.json'):
+    path = OUT / name
+    raw = path.read_bytes()
+    probe = json.loads(raw)
+    envelope = json.loads(probe['response_text'])
+    row = {'source': name, 'source_sha256': sha(raw), 'http_status': probe['http_status'],
+           'elapsed_seconds': probe.get('elapsed_seconds'),
+           'request_body_fields': list(probe['request_body']),
+           'request_max_tokens': probe['request_body'].get('max_tokens')}
+    choices = envelope.get('choices')
+    if probe['http_status'] == 200 and choices:
+        message = choices[0]['message']
+        content = message['content']
+        row.update({'content_chars': len(content), 'content_sha256': sha(content.encode()),
+                    'content_first_character': content[:1],
+                    'starts_with_complete_open_think': content.strip().startswith('<think>'),
+                    'has_close_think': '</think>' in content,
+                    'has_json_fence': '```json\n' in content,
+                    'separate_reasoning_present': bool(message.get('reasoning')),
+                    'finish_reason': choices[0].get('finish_reason'),
+                    'stop_reason': choices[0].get('stop_reason'),
+                    'usage': envelope.get('usage')})
+        try:
+            value, normalization = _decode_supervisor_json_content(content)
+            row.update({'production_decoder_passed': True,
+                        'decoded_top_level_fields': list(value), 'normalization': normalization})
+        except Exception as exc:
+            row.update({'production_decoder_passed': False,
+                        'decode_error': type(exc).__name__ + ': ' + str(exc)})
+    else:
+        row['provider_error'] = envelope.get('error')
+        row['model_content_received'] = False
+    rows.append(row)
+
+sources = [
+    'rwkv_lh/goal_loop_protocol.py', 'rwkv_lh/stateful_goal_loop.py',
+    'rwkv_lh/supervisor_openai.py', 'tests/test_supervisor_openai.py',
+]
+record = {
+    'purpose': 'Read-only canonical Planner JSON chain and already-recorded 13B response audit',
+    'network_calls': 0, 'generation_calls': 0, 'production_modified': False,
+    'request_source': str(source.relative_to(ROOT)), 'request_source_sha256': sha(source_raw),
+    'canonical_body_rebuild': {'method': 'GoalPlanRequest -> plan_goal_patch intercepted before HTTP -> _render_user_payload -> _wire_request',
+                             'transport': transport, 'endpoint_suffix': endpoint.removeprefix('http://127.0.0.1:1/v1'),
+                             'body_equals_recorded_original': rebuilt == original,
+                             'changed_fields': [key for key in sorted(set(rebuilt) | set(original)) if rebuilt.get(key) != original.get(key)],
+                             'body_fields': list(rebuilt),
+                             'payload_fields_in_wire_order': list(json.loads(rebuilt['messages'][1]['content'])),
+                             'response_format': rebuilt.get('response_format'),
+                             'full_schema_sent_in_body': 'json_schema' in json.dumps(rebuilt.get('response_format')),
+                             'system_prompt_chars': len(rebuilt['messages'][0]['content']),
+                             'user_payload_chars': len(rebuilt['messages'][1]['content']),
+                             'max_tokens': rebuilt.get('max_tokens')},
+    'probes': rows,
+    'source_sha256': {relative: sha((ROOT / relative).read_bytes()) for relative in sources},
+    'script_sha256': sha(Path(__file__).read_bytes()),
+}
+target = OUT / 'PLANNER_JSON_CHAIN_OFFLINE_EVIDENCE.json'
+with target.open('x', encoding='utf-8') as stream:
+    json.dump(record, stream, ensure_ascii=False, indent=2)
+    stream.write('\n')
+print(json.dumps({'output': str(target), 'sha256': sha(target.read_bytes()),
+                  'canonical_rebuild_equal': rebuilt == original,
+                  'network_calls': 0, 'probe_count': len(rows)}, ensure_ascii=False))

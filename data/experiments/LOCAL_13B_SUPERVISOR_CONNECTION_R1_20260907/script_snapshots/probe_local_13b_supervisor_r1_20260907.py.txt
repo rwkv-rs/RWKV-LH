@@ -1,0 +1,60 @@
+"""Check the existing local 13.3B endpoint with a current production Planner request."""
+from pathlib import Path
+from dataclasses import replace
+from datetime import datetime,timezone
+import hashlib
+import json
+import sys
+import time
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import SupervisorAPISettings,OpenAICompatibleSupervisorClient,_decode_supervisor_json_content
+ROUND=ROOT/'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+ROUND.mkdir(exist_ok=True)
+output=ROUND/'EXISTING_WIRE_PROBE.json'
+assert not output.exists()
+driver.apply_current_zero_overrides()
+settings=replace(SupervisorAPISettings.from_env(),base_url='http://127.0.0.1:29613/v1',
+    api_key='local-no-auth',model=driver.MODEL_13,stage_checker_model=driver.MODEL_13,
+    fallback_models=(),plan_cache_enabled=False)
+settings.validate()
+client=OpenAICompatibleSupervisorClient(settings)
+source=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+body=json.loads(source.read_text())
+body['model']=settings.model
+record={'at':datetime.now(timezone.utc).isoformat(),'purpose':'Owner-authorized local 13.3B connection validation, not Agent score or training data',
+    'authorization':['先直接使用13.3','所有中转站都存在问题；不需要其他角色调整'],
+    'source_body_path':str(source.relative_to(ROOT)),'source_body_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+    'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'request_body':body,'endpoint':settings.base_url+'/chat/completions',
+    'credential_mode':'loopback service has no authentication; required client key uses non-secret local placeholder',
+    'other_roles_changed':False,'production_source_changed':False}
+record['health']=client.health()
+start=time.monotonic()
+try:
+    response=client._post_completion(settings.base_url+'/chat/completions',body)
+    record['http_status']=response.status_code
+    record['response_sha256']=hashlib.sha256(response.content).hexdigest()
+    record['response_text']=response.text[:40000]
+    if response.status_code==200:
+        data=response.json()
+        record['finish_reason']=data['choices'][0].get('finish_reason')
+        record['usage']=data.get('usage')
+        try:
+            value,normalization=_decode_supervisor_json_content(data['choices'][0]['message']['content'])
+            record['production_decoder_passed']=True
+            record['decoded_value']=value
+            record['normalization']=normalization
+        except Exception as exc:
+            record['production_decoder_passed']=False
+            record['decoder_error']=str(exc)
+except Exception as exc:
+    record['error_type']=type(exc).__name__
+    record['error']=str(exc)[:1500]
+finally:
+    record['elapsed_seconds']=round(time.monotonic()-start,3)
+    client.close()
+    output.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'output':str(output),'http_status':record.get('http_status'),
+    'production_decoder_passed':record.get('production_decoder_passed'),'elapsed_seconds':record['elapsed_seconds']}))

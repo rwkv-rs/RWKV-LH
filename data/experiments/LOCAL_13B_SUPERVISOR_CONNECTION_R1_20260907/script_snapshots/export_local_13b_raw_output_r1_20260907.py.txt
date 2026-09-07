@@ -1,0 +1,28 @@
+"""Export exact observed text for review; these are diagnostic artifacts, not plans."""
+from pathlib import Path
+import hashlib
+import json
+
+root = Path('/home/chase/GitHub/RWKV-LH')
+folder = root / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+source = folder / 'OUTPUT_INSPECTION_PLAIN_COMPLETE.json'
+record = json.loads(source.read_text())
+outputs = {
+    'PLANNER_RAW_CONTENT.txt': record['raw_content'],
+    'PLANNER_OBSERVED_ANSWER_SUFFIX.txt': record['observed_answer_suffix'],
+    'PLANNER_OBSERVED_JSON.pretty.json': json.dumps(record['answer_suffix_value'], ensure_ascii=False, indent=2) + '\n',
+}
+manifest = {'purpose': 'Read-only review exports; never submitted to Controller or used as training data',
+            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+            'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'files': {}}
+for name, content in outputs.items():
+    path = folder / name
+    assert not path.exists(), path
+    path.write_text(content)
+    manifest['files'][name] = {
+        'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+        'exact_text': name != 'PLANNER_OBSERVED_JSON.pretty.json',
+    }
+(folder / 'OUTPUT_EXPORT_MANIFEST.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps(manifest, ensure_ascii=False))

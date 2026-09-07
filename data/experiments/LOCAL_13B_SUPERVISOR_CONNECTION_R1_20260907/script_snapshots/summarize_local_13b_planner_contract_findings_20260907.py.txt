@@ -1,0 +1,47 @@
+"""Describe preserved output without importing changing production validators again."""
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+SOURCE = ROUND / 'PLAIN_COMPLETE_OFFLINE_CONTRACT_TOKEN_AUDIT.json'
+raw = SOURCE.read_bytes(); audit = json.loads(raw); value = audit['final_object']
+steps = [(stage['stage'], step) for stage in value['add_stages'] for step in stage['steps']]
+stage_by_id = {step['step_id']: stage for stage, step in steps}
+step_evidence_strings = [step['step_id'] for _, step in steps if isinstance(step.get('success_evidence'), str)]
+extra_obligations = [{'obligation_id': item['obligation_id'], 'extra_fields': sorted(set(item) - {'obligation_id', 'predicate', 'required_phases'})} for item in value['goal_obligations'] if set(item) - {'obligation_id', 'predicate', 'required_phases'}]
+same_stage_dependencies = [{'step_id': step['step_id'], 'stage': stage, 'dependency': dependency} for stage, step in steps for dependency in step.get('depends_on', []) if stage_by_id.get(dependency) == stage]
+mutate_reads = [{'step_id': step['step_id'], 'read_roots': step['read_roots']} for _, step in steps if step.get('phase') == 'mutate' and step.get('read_roots')]
+targets = defaultdict(list)
+for stage, step in steps:
+    for root in step.get('write_roots', []): targets[(stage, root)].append(step['step_id'])
+shared_write_roots = [{'stage': stage, 'write_root': root, 'step_ids': ids} for (stage, root), ids in targets.items() if len(ids) > 1]
+tokens = {}
+for name, result in audit['plain_tokenization'].items():
+    data = result.get('response', {}); ids = data.get('tokens', [])
+    tokens[name] = {'reported_count': data.get('count'), 'first_token_ids': ids[:8], 'last_token_ids': ids[-8:],
+                    'leading_id_is_native_bos_zero': bool(ids) and ids[0] == 0,
+                    'count_without_one_observed_leading_zero': len(ids) - 1 if ids and ids[0] == 0 else None}
+result = {'at': datetime.now(timezone.utc).isoformat(), 'source_sha256': hashlib.sha256(raw).hexdigest(),
+          'contract_evaluation_timing': 'Existing GoalPlanPatch validator was called before owner authorized removing the Planner step count limit. No production imports, reruns, repairs or rescoring were done by this summary.',
+          'owner_scope_change': 'Remove step count/five-step requirements. The observed 19 steps are descriptive only under the new authorization, not a new-contract defect.',
+          'before_contract_source_sha256': audit['source_module_sha256'],
+          'step_count_descriptive': len(steps), 'stage_count_descriptive': len(value['add_stages']),
+          'first_actual_constructor_error': audit['GoalPlanPatch_from_model_value'],
+          'step_success_evidence_strings': step_evidence_strings,
+          'extra_obligation_fields': extra_obligations,
+          'same_stage_dependencies': same_stage_dependencies,
+          'mutate_steps_with_read_roots': mutate_reads,
+          'same_stage_shared_write_roots': shared_write_roots,
+          'token_count_details': tokens,
+          'generated_token_ids_available': audit['generated_token_ids_available'],
+          'generation_requests': 0, 'tokenization_requests_in_this_summary': 0,
+          'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+output = ROUND / 'PLAIN_COMPLETE_FIELD_SEMANTIC_FINDINGS.json'
+with output.open('x') as handle:
+    json.dump(result, handle, ensure_ascii=False, indent=2); handle.write('\n')
+print(json.dumps(result, ensure_ascii=False, indent=2))
+print(json.dumps({'output': str(output), 'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}))

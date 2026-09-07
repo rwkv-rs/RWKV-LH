@@ -1,0 +1,301 @@
+{
+  "goal_obligations": [
+    {
+      "obligation_id": "O1",
+      "predicate": "All existing files (README.md, server.py, verify_public.py) have been read and understood.",
+      "required_phases": ["observe"],
+      "success_evidence": "A summary of the current code and requirements is documented."
+    },
+    {
+      "obligation_id": "O2",
+      "predicate": "A SQLite schema for orders, inventory, and idempotency keys is defined and documented.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Schema files exist and are correct."
+    },
+    {
+      "obligation_id": "O3",
+      "predicate": "The core logic for atomic cross-SKU deduction and concurrency-safe stockout prevention is implemented and passes unit tests.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Unit tests pass."
+    },
+    {
+      "obligation_id": "O4",
+      "predicate": "The HTTP server is implemented with request validation, idempotency key handling, order processing, and error handling.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Server runs and responds correctly to simple requests."
+    },
+    {
+      "obligation_id": "O5",
+      "predicate": "The verify_public.py script is implemented and can run tests.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Script runs without errors."
+    },
+    {
+      "obligation_id": "O6",
+      "predicate": "README.md is updated with the new implementation details.",
+      "required_phases": ["mutate"],
+      "success_evidence": "README.md contains updated documentation."
+    },
+    {
+      "obligation_id": "O7",
+      "predicate": "The service is tested with real HTTP requests (success, failure, retry) and all paths work as expected.",
+      "required_phases": ["execute"],
+      "success_evidence": "Test results show all paths pass."
+    },
+    {
+      "obligation_id": "O8",
+      "predicate": "The final state of the service is verified against the requirements.",
+      "required_phases": ["observe"],
+      "success_evidence": "All requirements are met."
+    }
+  ],
+  "add_stages": [
+    {
+      "stage": 1,
+      "steps": [
+        {
+          "step_id": "S1-1",
+          "objective": "Read README.md to understand the expected behavior.",
+          "phase": "observe",
+          "depends_on": [],
+          "obligation_ids": ["O1"],
+          "success_evidence": "README.md content is understood.",
+          "read_roots": ["README.md"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-2",
+          "objective": "Read server.py to see current implementation.",
+          "phase": "observe",
+          "depends_on": ["S1-1"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "server.py content is understood.",
+          "read_roots": ["server.py"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-3",
+          "objective": "Read verify_public.py to see test structure.",
+          "phase": "observe",
+          "depends_on": ["S1-2"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "verify_public.py content is understood.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-4",
+          "objective": "Extract requirements from README.md.",
+          "phase": "observe",
+          "depends_on": ["S1-3"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "Requirements are documented.",
+          "read_roots": ["README.md"],
+          "write_roots": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "steps": [
+        {
+          "step_id": "S2-1",
+          "objective": "Design SQLite schema for orders, inventory, and idempotency keys.",
+          "phase": "mutate",
+          "depends_on": ["S1-4"],
+          "obligation_ids": ["O2"],
+          "success_evidence": "Schema files exist and are correct.",
+          "read_roots": [],
+          "write_roots": ["schema.sql"],
+          "constraints": []
+        },
+        {
+          "step_id": "S2-2",
+          "objective": "Define idempotency key handling logic.",
+          "phase": "mutate",
+          "depends_on": ["S2-1"],
+          "obligation_ids": ["O2"],
+          "success_evidence": "Idempotency key logic is documented.",
+          "read_roots": ["schema.sql"],
+          "write_roots": ["idempotency.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "steps": [
+        {
+          "step_id": "S3-1",
+          "objective": "Implement atomic cross-SKU deduction.",
+          "phase": "mutate",
+          "depends_on": ["S2-2"],
+          "obligation_ids": ["O3"],
+          "success_evidence": "Unit tests for atomic deduction pass.",
+          "read_roots": ["schema.sql", "idempotency.py"],
+          "write_roots": ["deduction.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S3-2",
+          "objective": "Implement concurrency-safe stockout prevention.",
+          "phase": "mutate",
+          "depends_on": ["S3-1"],
+          "obligation_ids": ["O3"],
+          "success_evidence": "Unit tests for concurrency safety pass.",
+          "read_roots": ["deduction.py"],
+          "write_roots": ["concurrency.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "steps": [
+        {
+          "step_id": "S4-1",
+          "objective": "Implement request validation.",
+          "phase": "mutate",
+          "depends_on": ["S3-2"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Validation logic is implemented.",
+          "read_roots": ["concurrency.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-2",
+          "objective": "Implement idempotency key handling in server.",
+          "phase": "mutate",
+          "depends_on": ["S4-1"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Idempotency key handling is implemented.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-3",
+          "objective": "Implement order processing with database.",
+          "phase": "mutate",
+          "depends_on": ["S4-2"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Order processing works with database.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-4",
+          "objective": "Implement error handling and response formatting.",
+          "phase": "mutate",
+          "depends_on": ["S4-3"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Error handling is implemented.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "steps": [
+        {
+          "step_id": "S5-1",
+          "objective": "Write tests for success path.",
+          "phase": "mutate",
+          "depends_on": ["S4-4"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Success path tests pass.",
+          "read_roots": ["server.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S5-2",
+          "objective": "Write tests for failure paths.",
+          "phase": "mutate",
+          "depends_on": ["S5-1"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Failure path tests pass.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S5-3",
+          "objective": "Write tests for retry paths.",
+          "phase": "mutate",
+          "depends_on": ["S5-2"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Retry path tests pass.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "steps": [
+        {
+          "step_id": "S6-1",
+          "objective": "Update README.md with new implementation details.",
+          "phase": "mutate",
+          "depends_on": ["S5-3"],
+          "obligation_ids": ["O6"],
+          "success_evidence": "README.md is updated.",
+          "read_roots": ["README.md"],
+          "write_roots": ["README.md"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "steps": [
+        {
+          "step_id": "S7-1",
+          "objective": "Run the server.",
+          "phase": "execute",
+          "depends_on": ["S6-1"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "Server is running.",
+          "read_roots": [],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S7-2",
+          "objective": "Send HTTP requests using curl or Python requests.",
+          "phase": "execute",
+          "depends_on": ["S7-1"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "Requests are sent and responses received.",
+          "read_roots": [],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S7-3",
+          "objective": "Verify responses and database state.",
+          "phase": "observe",
+          "depends_on": ["S7-2"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "All paths work as expected.",
+          "read_roots": ["server.py", "verify_public.py"],
+          "write_roots": [],
+          "constraints": []
+        }
+      ]
+    }
+  ],
+  "replace_stages": [],
+  "discard_step_ids": [],
+  "reason": "Planned stages and steps to implement the inventory order HTTP service with all required features, including idempotency keys, atomic deduction, concurrency safety, SQLite persistence, validation, and testing. Each step has a clear objective and phase, with dependencies ensuring logical order."
+}

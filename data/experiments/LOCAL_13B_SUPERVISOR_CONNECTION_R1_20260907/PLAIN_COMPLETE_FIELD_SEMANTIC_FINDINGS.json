@@ -1,0 +1,371 @@
+{
+  "at": "2026-09-07T05:17:04.308039+00:00",
+  "source_sha256": "e35da21c31aca12d6a59b39110b55e5313b257f973d68f24cca290669eb812ea",
+  "contract_evaluation_timing": "Existing GoalPlanPatch validator was called before owner authorized removing the Planner step count limit. No production imports, reruns, repairs or rescoring were done by this summary.",
+  "owner_scope_change": "Remove step count/five-step requirements. The observed 19 steps are descriptive only under the new authorization, not a new-contract defect.",
+  "before_contract_source_sha256": {
+    "rwkv_lh/goal_loop_protocol.py": "4fa73dc26321d304b812dfbbc09e6a4eeb605c2fd600b2064a7db85567a7991b",
+    "rwkv_lh/supervisor_openai.py": "5ee0e8580b0fb77fd6a6ed95c04b9044034ada7c3c4450c94681ad47c87252e3"
+  },
+  "step_count_descriptive": 19,
+  "stage_count_descriptive": 7,
+  "first_actual_constructor_error": {
+    "passed": false,
+    "error_type": "ValueError",
+    "error": "success_evidence item must be non-empty"
+  },
+  "step_success_evidence_strings": [
+    "S1-1",
+    "S1-2",
+    "S1-3",
+    "S1-4",
+    "S2-1",
+    "S2-2",
+    "S3-1",
+    "S3-2",
+    "S4-1",
+    "S4-2",
+    "S4-3",
+    "S4-4",
+    "S5-1",
+    "S5-2",
+    "S5-3",
+    "S6-1",
+    "S7-1",
+    "S7-2",
+    "S7-3"
+  ],
+  "extra_obligation_fields": [
+    {
+      "obligation_id": "O1",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O2",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O3",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O4",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O5",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O6",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O7",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O8",
+      "extra_fields": [
+        "success_evidence"
+      ]
+    }
+  ],
+  "same_stage_dependencies": [
+    {
+      "step_id": "S1-2",
+      "stage": 1,
+      "dependency": "S1-1"
+    },
+    {
+      "step_id": "S1-3",
+      "stage": 1,
+      "dependency": "S1-2"
+    },
+    {
+      "step_id": "S1-4",
+      "stage": 1,
+      "dependency": "S1-3"
+    },
+    {
+      "step_id": "S2-2",
+      "stage": 2,
+      "dependency": "S2-1"
+    },
+    {
+      "step_id": "S3-2",
+      "stage": 3,
+      "dependency": "S3-1"
+    },
+    {
+      "step_id": "S4-2",
+      "stage": 4,
+      "dependency": "S4-1"
+    },
+    {
+      "step_id": "S4-3",
+      "stage": 4,
+      "dependency": "S4-2"
+    },
+    {
+      "step_id": "S4-4",
+      "stage": 4,
+      "dependency": "S4-3"
+    },
+    {
+      "step_id": "S5-2",
+      "stage": 5,
+      "dependency": "S5-1"
+    },
+    {
+      "step_id": "S5-3",
+      "stage": 5,
+      "dependency": "S5-2"
+    },
+    {
+      "step_id": "S7-2",
+      "stage": 7,
+      "dependency": "S7-1"
+    },
+    {
+      "step_id": "S7-3",
+      "stage": 7,
+      "dependency": "S7-2"
+    }
+  ],
+  "mutate_steps_with_read_roots": [
+    {
+      "step_id": "S2-2",
+      "read_roots": [
+        "schema.sql"
+      ]
+    },
+    {
+      "step_id": "S3-1",
+      "read_roots": [
+        "schema.sql",
+        "idempotency.py"
+      ]
+    },
+    {
+      "step_id": "S3-2",
+      "read_roots": [
+        "deduction.py"
+      ]
+    },
+    {
+      "step_id": "S4-1",
+      "read_roots": [
+        "concurrency.py"
+      ]
+    },
+    {
+      "step_id": "S4-2",
+      "read_roots": [
+        "server.py"
+      ]
+    },
+    {
+      "step_id": "S4-3",
+      "read_roots": [
+        "server.py"
+      ]
+    },
+    {
+      "step_id": "S4-4",
+      "read_roots": [
+        "server.py"
+      ]
+    },
+    {
+      "step_id": "S5-1",
+      "read_roots": [
+        "server.py"
+      ]
+    },
+    {
+      "step_id": "S5-2",
+      "read_roots": [
+        "verify_public.py"
+      ]
+    },
+    {
+      "step_id": "S5-3",
+      "read_roots": [
+        "verify_public.py"
+      ]
+    },
+    {
+      "step_id": "S6-1",
+      "read_roots": [
+        "README.md"
+      ]
+    }
+  ],
+  "same_stage_shared_write_roots": [
+    {
+      "stage": 4,
+      "write_root": "server.py",
+      "step_ids": [
+        "S4-1",
+        "S4-2",
+        "S4-3",
+        "S4-4"
+      ]
+    },
+    {
+      "stage": 5,
+      "write_root": "verify_public.py",
+      "step_ids": [
+        "S5-1",
+        "S5-2",
+        "S5-3"
+      ]
+    }
+  ],
+  "token_count_details": {
+    "reasoning_before_close": {
+      "reported_count": 2253,
+      "first_token_ids": [
+        0,
+        63,
+        1589,
+        31506,
+        4811,
+        31699,
+        22590,
+        31515
+      ],
+      "last_token_ids": [
+        261,
+        6202,
+        460,
+        52573,
+        22590,
+        38491,
+        45175,
+        47
+      ],
+      "leading_id_is_native_bos_zero": true,
+      "count_without_one_observed_leading_zero": 2252
+    },
+    "reasoning_plus_close_marker": {
+      "reported_count": 2255,
+      "first_token_ids": [
+        0,
+        63,
+        1589,
+        31506,
+        4811,
+        31699,
+        22590,
+        31515
+      ],
+      "last_token_ids": [
+        460,
+        52573,
+        22590,
+        38491,
+        45175,
+        5364,
+        35762,
+        63
+      ],
+      "leading_id_is_native_bos_zero": true,
+      "count_without_one_observed_leading_zero": 2254
+    },
+    "answer_suffix_verbatim": {
+      "reported_count": 2623,
+      "first_token_ids": [
+        0,
+        124,
+        3331,
+        35,
+        25512,
+        96,
+        8285,
+        49246
+      ],
+      "last_token_ids": [
+        32487,
+        64350,
+        56129,
+        52154,
+        39189,
+        575,
+        11,
+        126
+      ],
+      "leading_id_is_native_bos_zero": true,
+      "count_without_one_observed_leading_zero": 2622
+    },
+    "final_json_trimmed": {
+      "reported_count": 2623,
+      "first_token_ids": [
+        0,
+        124,
+        3331,
+        35,
+        25512,
+        96,
+        8285,
+        49246
+      ],
+      "last_token_ids": [
+        32487,
+        64350,
+        56129,
+        52154,
+        39189,
+        575,
+        11,
+        126
+      ],
+      "leading_id_is_native_bos_zero": true,
+      "count_without_one_observed_leading_zero": 2622
+    },
+    "full_content": {
+      "reported_count": 4876,
+      "first_token_ids": [
+        0,
+        63,
+        1589,
+        31506,
+        4811,
+        31699,
+        22590,
+        31515
+      ],
+      "last_token_ids": [
+        32487,
+        64350,
+        56129,
+        52154,
+        39189,
+        575,
+        11,
+        126
+      ],
+      "leading_id_is_native_bos_zero": true,
+      "count_without_one_observed_leading_zero": 4875
+    }
+  },
+  "generated_token_ids_available": false,
+  "generation_requests": 0,
+  "tokenization_requests_in_this_summary": 0,
+  "script_sha256": "534f98e4ace798f1314ac9cdf76fdbe407a223011e67e077471adc8a7cbd6784"
+}

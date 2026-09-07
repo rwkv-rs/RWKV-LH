@@ -1,0 +1,128 @@
+{
+  "purpose": "Read-only canonical Planner JSON chain and already-recorded 13B response audit",
+  "network_calls": 0,
+  "generation_calls": 0,
+  "production_modified": false,
+  "request_source": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json",
+  "request_source_sha256": "ad638ded320db5a603f75a7298f0bce49646729bf2ea969b6cfa451e29bb491b",
+  "canonical_body_rebuild": {
+    "method": "GoalPlanRequest -> plan_goal_patch intercepted before HTTP -> _render_user_payload -> _wire_request",
+    "transport": "chat_completions",
+    "endpoint_suffix": "/chat/completions",
+    "body_equals_recorded_original": true,
+    "changed_fields": [],
+    "body_fields": [
+      "model",
+      "messages",
+      "max_tokens",
+      "response_format"
+    ],
+    "payload_fields_in_wire_order": [
+      "run_id",
+      "goal_digest",
+      "plan_revision",
+      "active_plan",
+      "latest_audit",
+      "latest_stage_review",
+      "latest_controller_repair",
+      "workspace_manifest",
+      "recent_action_facts",
+      "current_requirement"
+    ],
+    "response_format": {
+      "type": "json_object"
+    },
+    "full_schema_sent_in_body": false,
+    "system_prompt_chars": 6486,
+    "user_payload_chars": 1358,
+    "max_tokens": 1800
+  },
+  "probes": [
+    {
+      "source": "EXISTING_WIRE_PROBE.json",
+      "source_sha256": "5426cdd596bab27adc18f5e729f6efde1eceadab9d1ead224b3f119ab92fe810",
+      "http_status": 500,
+      "elapsed_seconds": 0.065,
+      "request_body_fields": [
+        "model",
+        "messages",
+        "max_tokens",
+        "response_format"
+      ],
+      "request_max_tokens": 1800,
+      "provider_error": {
+        "message": "",
+        "type": "InternalServerError",
+        "param": null,
+        "code": 500
+      },
+      "model_content_received": false
+    },
+    {
+      "source": "WIRE_MINIMAL.json",
+      "source_sha256": "938591f640633a0cea63086fce0a40cb38d494daf6d622fcf31ce1b423a68aa8",
+      "http_status": 200,
+      "elapsed_seconds": 1.021,
+      "request_body_fields": [
+        "model",
+        "messages",
+        "max_tokens"
+      ],
+      "request_max_tokens": 1800,
+      "content_chars": 249,
+      "content_sha256": "7b5ce6d194ba7f0f4e74c9b1fc16f1467f52ae58a31d8c12e92b5e2194b6fc8d",
+      "content_first_character": ">",
+      "starts_with_complete_open_think": false,
+      "has_close_think": true,
+      "has_json_fence": false,
+      "separate_reasoning_present": false,
+      "finish_reason": "stop",
+      "stop_reason": "✿",
+      "usage": {
+        "prompt_tokens": 39,
+        "total_tokens": 104,
+        "completion_tokens": 65,
+        "prompt_tokens_details": null
+      },
+      "production_decoder_passed": false,
+      "decode_error": "SupervisorProtocolError: supervisor content is not one JSON object"
+    },
+    {
+      "source": "WIRE_FAKE_THINK.json",
+      "source_sha256": "7f274aec0e6278b4210118638769c65676425cfa855adfc76b7dd0d930635aff",
+      "http_status": 200,
+      "elapsed_seconds": 24.483,
+      "request_body_fields": [
+        "model",
+        "messages",
+        "max_tokens",
+        "chat_template_kwargs"
+      ],
+      "request_max_tokens": 1800,
+      "content_chars": 7139,
+      "content_sha256": "05164ea4e15b724bd94694bb14f7cde75ae35bab65561f25b24a94923f1c7332",
+      "content_first_character": ">",
+      "starts_with_complete_open_think": false,
+      "has_close_think": false,
+      "has_json_fence": false,
+      "separate_reasoning_present": false,
+      "finish_reason": "length",
+      "stop_reason": null,
+      "usage": {
+        "prompt_tokens": 1984,
+        "total_tokens": 3784,
+        "completion_tokens": 1800,
+        "prompt_tokens_details": null
+      },
+      "production_decoder_passed": false,
+      "decode_error": "SupervisorProtocolError: supervisor content is not one JSON object"
+    }
+  ],
+  "source_sha256": {
+    "rwkv_lh/goal_loop_protocol.py": "4fa73dc26321d304b812dfbbc09e6a4eeb605c2fd600b2064a7db85567a7991b",
+    "rwkv_lh/stateful_goal_loop.py": "dfd87e18d3fe57454812a492ee8070f3cafeaeee71f2c661e689d907982d9245",
+    "rwkv_lh/supervisor_openai.py": "5ee0e8580b0fb77fd6a6ed95c04b9044034ada7c3c4450c94681ad47c87252e3",
+    "tests/test_supervisor_openai.py": "cff8dd9d5e162ace25fb51d32397f3d8a5c334c6898b5fe9c505fef8bed22e18"
+  },
+  "script_sha256": "ceefa8a7a642e6ee6a03f59d4ac617cbd4e290fc3325e019b9bdce14b49c66ab"
+}

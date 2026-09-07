@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-07T04:58:52.429628+00:00",
+  "purpose": "Connection diagnosis only; excluded from benchmark/training",
+  "mode": "minimal",
+  "request_body": {
+    "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "messages": [
+      {
+        "role": "system",
+        "content": "Return exactly one JSON object with the key ok and boolean value true. Do not include explanations."
+      },
+      {
+        "role": "user",
+        "content": "Please return the requested JSON object."
+      }
+    ],
+    "max_tokens": 1800
+  },
+  "production_source_changed": false,
+  "script_sha256": "ba2b08337fe90109732b88e725b13ddfe0ac892d29d48c0d8f68a3d6e389c2ce",
+  "http_status": 200,
+  "response_text": "{\"id\":\"chatcmpl-8b36d3beba26e6d2\",\"object\":\"chat.completion\",\"created\":1788757132,\"model\":\"rwkv7-g1j-13.3b-zero-state-capability-ctx16384\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\">We need to return a JSON object with key \\\"ok\\\" and boolean value true. The user says \\\"Please return the requested JSON object.\\\" So we should output exactly: {\\\"ok\\\": true} or {\\\"ok\\\": true} with no extra text. Ensure it's valid JSON.</think>{\\\"ok\\\": true}\",\"refusal\":null,\"annotations\":null,\"audio\":null,\"function_call\":null,\"reasoning\":null},\"logprobs\":null,\"finish_reason\":\"stop\",\"stop_reason\":\"✿\",\"token_ids\":null,\"routed_experts\":null}],\"service_tier\":null,\"system_fingerprint\":\"vllm-0.23.1rc1.dev1942+g67f0c5996-nohash\",\"usage\":{\"prompt_tokens\":39,\"total_tokens\":104,\"completion_tokens\":65,\"prompt_tokens_details\":null},\"prompt_logprobs\":null,\"prompt_token_ids\":null,\"prompt_text\":null,\"kv_transfer_params\":null,\"ec_transfer_params\":null,\"metrics\":null}",
+  "finish_reason": "stop",
+  "usage": {
+    "prompt_tokens": 39,
+    "total_tokens": 104,
+    "completion_tokens": 65,
+    "prompt_tokens_details": null
+  },
+  "production_decoder_passed": false,
+  "decoder_error": "supervisor content is not one JSON object",
+  "elapsed_seconds": 1.021
+}

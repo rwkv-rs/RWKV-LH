@@ -1,0 +1,98 @@
+"""Tokenization-only comparison: never calls generation endpoints or mutates service."""
+from copy import deepcopy
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import urllib.error
+import urllib.request
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+SOURCE = ROUND / 'WIRE_FAKE_THINK.json'
+OUTPUT = ROUND / 'TOKENIZATION_KWARGS_RENDER_COMPARISON.json'
+ORIGIN = 'http://127.0.0.1:29613'
+CALLS = []
+
+def request(path, body=None):
+    assert path in ('/v1/models', '/tokenize', '/detokenize'), 'generation endpoints forbidden'
+    payload = json.dumps(body, ensure_ascii=False).encode() if body is not None else None
+    req = urllib.request.Request(ORIGIN + path, data=payload, headers={'Content-Type': 'application/json'} if payload else {}, method='POST' if payload else 'GET')
+    item = {'endpoint': path, 'request_sha256': hashlib.sha256(payload).hexdigest() if payload else None}
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            raw = response.read(); item.update(http_status=response.status, response_sha256=hashlib.sha256(raw).hexdigest(), response=json.loads(raw))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(); item.update(http_status=exc.code, response_sha256=hashlib.sha256(raw).hexdigest(), error_body=raw.decode(errors='replace')[:2000])
+    except (OSError, ValueError) as exc:
+        item.update(http_status=None, error_type=type(exc).__name__, error=str(exc))
+    CALLS.append(item)
+    return item
+
+def main():
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    assert not OUTPUT.exists(), 'evidence is immutable'
+    raw = SOURCE.read_bytes(); source = json.loads(raw); wire = source['request_body']
+    health = request('/v1/models')
+    available = health.get('http_status') == 200 and wire['model'] in {row.get('id') for row in health.get('response', {}).get('data', [])}
+    if not available:
+        report = {'status': 'SERVICE_NOT_READY_NO_PROTOCOL_CONCLUSION', 'at': datetime.now(timezone.utc).isoformat(), 'generation_requests': 0, 'calls': CALLS}
+        wait = ROUND / ('TOKENIZATION_SERVICE_NOT_READY_' + datetime.now(timezone.utc).strftime('%H%M%S') + '.json')
+        wait.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+        print(json.dumps({'status': report['status'], 'evidence': str(wait)})); return 2
+    base = {key: deepcopy(wire[key]) for key in ('model', 'messages', 'chat_template', 'tools', 'media_io_kwargs', 'mm_processor_kwargs') if key in wire}
+    base.update(add_generation_prompt=True, add_special_tokens=False, return_token_strs=False)
+    variants = {}
+    for name, kwargs, add_prompt in (
+        ('open_think', {'rwkv_generation_prompt': 'open_think'}, True),
+        ('fake_think', {'rwkv_generation_prompt': 'fake_think'}, True),
+        ('invalid_mode_control', {'rwkv_generation_prompt': 'diagnostic_invalid_mode'}, True),
+        ('no_generation_prompt_control', {'rwkv_generation_prompt': 'open_think'}, False),
+    ):
+        body = deepcopy(base); body['chat_template_kwargs'] = kwargs; body['add_generation_prompt'] = add_prompt
+        tokenized = request('/tokenize', body)
+        record = {'request_body': body, 'tokenize': tokenized}
+        data = tokenized.get('response', {})
+        tokens = data.get('tokens')
+        if tokenized.get('http_status') == 200 and isinstance(tokens, list) and all(isinstance(token, int) and not isinstance(token, bool) for token in tokens):
+            detokenized = request('/detokenize', {'model': wire['model'], 'tokens': tokens})
+            record['detokenize'] = detokenized
+            prompt = detokenized.get('response', {}).get('prompt')
+            if detokenized.get('http_status') == 200 and isinstance(prompt, str):
+                record['rendered'] = {'count': data.get('count'), 'max_model_len': data.get('max_model_len'),
+                    'token_count_matches_list': data.get('count') == len(tokens), 'token_ids_sha256': hashlib.sha256(json.dumps(tokens, separators=(',', ':')).encode()).hexdigest(),
+                    'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(), 'prompt_chars': len(prompt),
+                    'tail_text': prompt[-140:], 'tail_token_ids': tokens[-24:], 'ends_open_think': prompt.endswith('<think'),
+                    'ends_fake_think': prompt.endswith('<think></think')}
+        variants[name] = record
+    opened = variants['open_think'].get('rendered'); fake = variants['fake_think'].get('rendered')
+    if opened is None or fake is None:
+        conclusion = {'status': 'NO_RESULT', 'reason': 'Tokenization or detokenization did not return both valid renderings; no inference about model behavior.'}
+    elif opened['token_ids_sha256'] == fake['token_ids_sha256']:
+        conclusion = {'status': 'CUSTOM_KWARG_NOT_REFLECTED_IN_RENDERING', 'same_tokens': True, 'same_prompt_text': opened['prompt_sha256'] == fake['prompt_sha256'],
+            'token_count_delta_fake_minus_open': fake['count'] - opened['count'],
+            'scope': 'Observed tokenization path renders open_think and fake_think identically; previous generation cannot establish model reasoning after an effective fake_think prefix.'}
+    else:
+        conclusion = {'status': 'CUSTOM_KWARG_CHANGES_RENDERING', 'same_tokens': False, 'same_prompt_text': opened['prompt_sha256'] == fake['prompt_sha256'],
+            'token_count_delta_fake_minus_open': fake['count'] - opened['count'],
+            'scope': 'Different tokenized prefixes are observed; this probe performs no generation and alone cannot establish subsequent model behavior.'}
+    report = {'at': datetime.now(timezone.utc).isoformat(), 'purpose': 'Isolate actual chat-template kwarg rendering; connection diagnosis only, excluded from benchmark/training',
+        'generation_requests': 0, 'git_executed': False, 'server_modified': False, 'production_config_modified': False,
+        'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'source_wire_path': str(SOURCE), 'source_wire_sha256': hashlib.sha256(raw).hexdigest(),
+        'endpoint_origin': ORIGIN, 'schema_evidence': {'remote_engine': str(ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'),
+            'tokenize_protocol_sha256': '5cc5cb021b827ae34e5e3ce8fdd72ee0e07b6e6b95de74d3f075f3b3edb8ac21',
+            'tokenize_serving_sha256': '3faa09f7824a068165769ee882158ac2caa9202b7f1905dc96b5d608aa9a762b',
+            'rwkv_tokenizer_sha256': '3bfbc1b7e578ffa8d6236ba0a6cf5b8ee0f46c1f1eace89922a1638c4d26deb4',
+            'rwkv_defaults_sha256': 'eb0e3e8f7269e63e04b32024bd64c565c430a43f5428d256fc22cb82b43ca0de',
+            'hf_renderer_sha256': '0582690828c173bd49cfeb8b43b05b0892cf6031dc08c9cef62b8f06a1ca658f',
+            'chat_completion_protocol_sha256': '049dcccfd7d1c8c94db818ea46d3702604e4f144b4a9e5906a04d824b418117b'},
+        'health': health, 'variants': variants, 'conclusion': conclusion,
+        'allowed_endpoint_call_counts': {endpoint: sum(call['endpoint'] == endpoint for call in CALLS) for endpoint in ('/v1/models', '/tokenize', '/detokenize')}}
+    with OUTPUT.open('x') as handle:
+        json.dump(report, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'output': str(OUTPUT), 'sha256': hashlib.sha256(OUTPUT.read_bytes()).hexdigest(), 'conclusion': conclusion,
+                      'rendered': {name: value.get('rendered') for name, value in variants.items()}}, ensure_ascii=False))
+    return 0
+
+if __name__ == '__main__': raise SystemExit(main())

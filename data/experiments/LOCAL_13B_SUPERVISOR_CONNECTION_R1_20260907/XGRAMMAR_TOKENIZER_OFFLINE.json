@@ -1,0 +1,44 @@
+{
+  "at": "2026-09-07T05:01:08.284025+00:00",
+  "purpose": "Reproduce XgrammarBackend TokenizerInfo.from_huggingface with the deployed RWKV tokenizer only",
+  "model_loaded": false,
+  "generation_performed": false,
+  "git_executed": false,
+  "network_performed": false,
+  "production_changed": false,
+  "cuda_visible_devices_for_this_diagnostic_only": "",
+  "script_sha256": "a65f139790c42419e90563dff62d3afe8ce83527ad3e61ec6c8f1fbed82b182c",
+  "python_executable": "/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python",
+  "engine_root": "/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50",
+  "tokenizer_artifact_directory": "/home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-13.3b-vllm-v1",
+  "stages": [
+    {
+      "stage": "import_rwkv_tokenizer",
+      "passed": true
+    },
+    {
+      "stage": "construct_rwkv_tokenizer_from_local_vocabulary",
+      "passed": true
+    },
+    {
+      "stage": "import_xgrammar",
+      "passed": false,
+      "exception_type": "ModuleNotFoundError",
+      "exception_message": "No module named 'xgrammar'",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/diagnose_rwkv_xgrammar_tokenizer_offline_20260907.py\", line 83, in <module>\n    import xgrammar as xgr\nModuleNotFoundError: No module named 'xgrammar'\n"
+    }
+  ],
+  "tokenizer_source": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/vllm/tokenizers/rwkv.py",
+    "sha256": "3bfbc1b7e578ffa8d6236ba0a6cf5b8ee0f46c1f1eace89922a1638c4d26deb4"
+  },
+  "tokenizer": {
+    "class": "RWKVTokenizer",
+    "module": "vllm.tokenizers.rwkv",
+    "vocab_size": 65536,
+    "is_fast": false,
+    "eos_token_id": 0,
+    "vocabulary_sha256": "e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89"
+  },
+  "compatibility_passed": false
+}

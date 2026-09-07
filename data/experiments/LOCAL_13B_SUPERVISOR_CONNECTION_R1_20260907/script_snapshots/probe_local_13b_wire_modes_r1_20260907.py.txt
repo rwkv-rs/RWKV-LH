@@ -1,0 +1,52 @@
+"""Bounded local connection probes, using existing Planner payload and server options."""
+from pathlib import Path
+from dataclasses import replace
+from datetime import datetime,timezone
+import argparse
+import hashlib
+import json
+import sys
+import time
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import SupervisorAPISettings,OpenAICompatibleSupervisorClient,_decode_supervisor_json_content
+parser=argparse.ArgumentParser()
+parser.add_argument('--mode',choices=['plain','fake_think','minimal'],required=True)
+args=parser.parse_args()
+ROUND=ROOT/'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+output=ROUND/f'WIRE_{args.mode.upper()}.json'
+assert not output.exists()
+driver.apply_current_zero_overrides()
+settings=replace(SupervisorAPISettings.from_env(),base_url='http://127.0.0.1:29613/v1',api_key='local-no-auth',
+    model=driver.MODEL_13,stage_checker_model=driver.MODEL_13,plan_cache_enabled=False,fallback_models=())
+settings.validate()
+client=OpenAICompatibleSupervisorClient(settings)
+source=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+body=json.loads(source.read_text())
+body['model']=settings.model
+del body['response_format']
+if args.mode=='fake_think':body['chat_template_kwargs']={'rwkv_generation_prompt':'fake_think'}
+if args.mode=='minimal':
+    minimal=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_ENVELOPE_PROBE_R1_plain.json'
+    body=json.loads(minimal.read_text())['request_body']
+    body['model']=settings.model
+record={'at':datetime.now(timezone.utc).isoformat(),'purpose':'Connection diagnosis only; excluded from benchmark/training',
+    'mode':args.mode,'request_body':body,'production_source_changed':False,
+    'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+start=time.monotonic()
+try:
+    response=client._post_completion(settings.base_url+'/chat/completions',body)
+    record['http_status']=response.status_code
+    record['response_text']=response.text[:40000]
+    if response.status_code==200:
+        data=response.json();record['finish_reason']=data['choices'][0].get('finish_reason');record['usage']=data.get('usage')
+        try:
+            value,normalization=_decode_supervisor_json_content(data['choices'][0]['message']['content'])
+            record['production_decoder_passed']=True;record['decoded_value']=value;record['normalization']=normalization
+        except Exception as exc:record['production_decoder_passed']=False;record['decoder_error']=str(exc)
+except Exception as exc:record['error_type']=type(exc).__name__;record['error']=str(exc)[:1200]
+finally:
+    record['elapsed_seconds']=round(time.monotonic()-start,3);client.close()
+    output.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({k:record.get(k) for k in ('mode','http_status','production_decoder_passed','elapsed_seconds')}))

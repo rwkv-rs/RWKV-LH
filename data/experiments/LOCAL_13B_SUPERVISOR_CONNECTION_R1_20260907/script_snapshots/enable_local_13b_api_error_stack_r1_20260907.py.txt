@@ -1,0 +1,21 @@
+"""Enable API exception evidence without changing model/role sampling or state settings."""
+from pathlib import Path
+from datetime import datetime,timezone
+import hashlib
+import json
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+ROUND=ROOT/'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+launcher=ROOT/'data/runtime/launchers/executor_current_zero.sh'
+old=launcher.read_bytes()
+assert b'--log-error-stack' not in old
+(ROUND/'EXECUTOR_LAUNCHER_BEFORE_LOGGING.txt').write_bytes(old)
+new=old.rstrip()+b' --log-error-stack\n'
+launcher.write_bytes(new)
+(ROUND/'EXECUTOR_LAUNCHER_WITH_LOGGING.txt').write_bytes(new)
+record={'at':datetime.now(timezone.utc).isoformat(),'change':'API exception stack logging only',
+    'sampling_changed':False,'role_policy_changed':False,'state_profile_changed':False,
+    'before_sha256':hashlib.sha256(old).hexdigest(),'after_sha256':hashlib.sha256(new).hexdigest(),
+    'reason':'Current API errors return empty 500 and log_error_stack is disabled',
+    'comparison_policy':'Prior relay R2 deployment snapshot is historical; new 13.3B backend baseline needs a fresh freeze and both arms'}
+(ROUND/'LOGGING_DEPLOYMENT_CHANGE.json').write_text(json.dumps(record,indent=2)+'\n')
+print(json.dumps(record))

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /home/chase/GitHub/RWKV-LH
+unset VLLM_RWKV7_STATE_PROFILE_MANIFEST
+unset VLLM_RWKV7_STATE_PROFILE_MANIFEST_SHA256
+export VLLM_USE_V2_MODEL_RUNNER=1
+export VLLM_USE_FLASHINFER_SAMPLER=0
+export VLLM_USE_RAPID_SAMPLER=0
+export CUDA_VISIBLE_DEVICES=0
+export PYTHONPATH=/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50:/home/chase/GitHub/RWKV-LH
+export VLLM_PLUGINS=rwkv_lh_native_state
+export VLLM_RWKV7_NATIVE_STATE_ENABLED=1
+export VLLM_RWKV7_NATIVE_STATE_DIR=/home/chase/GitHub/RWKV-LH/data/runtime/native_state/current_zero
+export VLLM_RWKV7_NATIVE_STATE_CACHE_CAPACITY=16
+export VLLM_RWKV7_NATIVE_STATE_STORE_CAPACITY=32
+export VLLM_RWKV7_WKV_MODE=fp32io16
+exec /home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python -m vllm.entrypoints.cli.main serve /home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-13.3b-vllm-v1 --host 127.0.0.1 --port 18234 --tokenizer-mode rwkv --trust-request-chat-template --enable-auto-tool-choice --tool-call-parser rwkv --max-model-len 16384 --served-model-name rwkv7-g1j-13.3b-zero-state-capability-ctx16384 --gpu-memory-utilization 0.35 --max-num-batched-tokens 32768 --max-num-seqs 16 '--override-generation-config={"temperature":0.1}' --log-error-stack

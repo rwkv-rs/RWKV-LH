@@ -1,0 +1,486 @@
+>We need to plan the next steps for the inventory order HTTP service. The goal is to implement the service according to the README, with idempotency keys, atomic cross-SKU deduction, concurrency-safe stockout prevention, SQLite persistence for restart recovery, and HTTP request validation with success/failure/retry paths, plus updated docs.
+
+We have recent_action_facts empty, so we need to start from scratch. The active_plan is empty. We need to create a plan with goal_obligations, add_stages, etc.
+
+Let's break down the requirements:
+
+1. Implement idempotency keys: each request has an idempotency key; if same key is used again, return the same response without re-executing.
+2. Atomic cross-SKU deduction: when multiple SKUs are ordered, the deduction must be atomic (all or nothing).
+3. Concurrency-safe stockout prevention: prevent overselling when multiple requests hit simultaneously.
+4. SQLite persistence for restart recovery: use SQLite to store order state so that after restart, the service can resume.
+5. HTTP request validation: validate requests (e.g., required fields, valid SKUs, etc.).
+6. Verify success, failure, and retry paths with real HTTP requests.
+7. Update runtime documentation.
+
+We need to plan stages and steps. Since we have no existing code, we need to create the server.py, verify_public.py, and README.md. The README already exists but may need updating.
+
+We should start by inspecting the existing files to understand the current state. But the recent_action_facts is empty, so we need to do a public observation first.
+
+We'll create a plan with stages:
+
+- Stage 1: Inspect existing code and requirements.
+- Stage 2: Design the database schema and idempotency key handling.
+- Stage 3: Implement the core logic (deduction, concurrency control).
+- Stage 4: Implement HTTP server with validation.
+- Stage 5: Implement verify_public.py for testing.
+- Stage 6: Update README.md.
+- Stage 7: Test with real HTTP requests.
+
+But we need to be more specific and ensure each step has a clear objective and phase.
+
+Let's define the goal_obligations:
+
+- O1: Implement idempotency key handling (observe and mutate)
+- O2: Implement atomic cross-SKU deduction (mutate)
+- O3: Implement concurrency-safe stockout prevention (mutate)
+- O4: Implement SQLite persistence for restart recovery (mutate)
+- O5: Implement HTTP request validation (mutate)
+- O6: Implement success, failure, and retry paths (mutate)
+- O7: Update runtime documentation (mutate)
+- O8: Verify with real HTTP requests (observe and execute)
+
+We need to assign phases: observe for inspection, mutate for code changes, execute for running tests, derive_evidence for calculations.
+
+We'll create a plan with stages. Let's think about the dependencies.
+
+We need to first inspect the existing files to understand the current state. Then design the database schema. Then implement the core logic. Then implement the server. Then implement the verifier. Then update docs. Then test.
+
+We'll create stages:
+
+Stage 1: Inspect existing code and requirements.
+- Step 1: Read README.md to understand the expected behavior.
+- Step 2: Read server.py to see current implementation (if any).
+- Step 3: Read verify_public.py to see test structure.
+- Step 4: Read README.md again to extract requirements.
+
+Stage 2: Design database schema and idempotency key handling.
+- Step 1: Design SQLite schema for orders, inventory, idempotency keys.
+- Step 2: Define idempotency key handling logic.
+
+Stage 3: Implement core logic (atomic deduction, concurrency control).
+- Step 1: Implement atomic deduction across SKUs.
+- Step 2: Implement concurrency-safe stockout prevention (e.g., using transactions and row-level locking).
+
+Stage 4: Implement HTTP server.
+- Step 1: Implement request validation.
+- Step 2: Implement idempotency key handling.
+- Step 3: Implement order processing with database.
+- Step 4: Implement error handling and response formatting.
+
+Stage 5: Implement verify_public.py.
+- Step 1: Write tests for success path.
+- Step 2: Write tests for failure paths (insufficient stock, invalid SKU, etc.).
+- Step 3: Write tests for retry paths.
+
+Stage 6: Update README.md.
+- Step 1: Update documentation to reflect new implementation.
+
+Stage 7: Test with real HTTP requests.
+- Step 1: Run the server.
+- Step 2: Send HTTP requests using curl or Python requests.
+- Step 3: Verify responses and database state.
+
+We need to ensure each step has a clear objective and phase. Also, we need to consider dependencies.
+
+Let's create the plan. We'll use the format:
+
+{
+  "goal_obligations": [...],
+  "add_stages": [...],
+  "replace_stages": [],
+  "discard_step_ids": [],
+  "reason": "..."
+}
+
+We'll create goal_obligations with IDs O1 to O8, each with obligation_id, predicate, required_phases, and success_evidence.
+
+We'll create add_stages with stages 1-7, each with steps.
+
+We need to be careful with the phase values: observe, mutate, execute, derive_evidence.
+
+Let's draft the goal_obligations:
+
+O1: Inspect existing code and requirements.
+- predicate: "All existing files (README.md, server.py, verify_public.py) have been read and understood."
+- required_phases: ["observe"]
+- success_evidence: "A summary of the current code and requirements is documented."
+
+O2: Design database schema and idempotency key handling.
+- predicate: "A SQLite schema for orders, inventory, and idempotency keys is defined and documented."
+- required_phases: ["mutate"] (since we need to create files)
+- success_evidence: "Schema files exist and are correct."
+
+O3: Implement core logic (atomic deduction, concurrency control).
+- predicate: "The core logic for atomic cross-SKU deduction and concurrency-safe stockout prevention is implemented and passes unit tests."
+- required_phases: ["mutate"]
+- success_evidence: "Unit tests pass."
+
+O4: Implement HTTP server.
+- predicate: "The HTTP server is implemented with request validation, idempotency key handling, order processing, and error handling."
+- required_phases: ["mutate"]
+- success_evidence: "Server runs and responds correctly to simple requests."
+
+O5: Implement verify_public.py.
+- predicate: "The verify_public.py script is implemented and can run tests."
+- required_phases: ["mutate"]
+- success_evidence: "Script runs without errors."
+
+O6: Update README.md.
+- predicate: "README.md is updated with the new implementation details."
+- required_phases: ["mutate"]
+- success_evidence: "README.md contains updated documentation."
+
+O7: Test with real HTTP requests.
+- predicate: "The service is tested with real HTTP requests (success, failure, retry) and all paths work as expected."
+- required_phases: ["execute"]
+- success_evidence: "Test results show all paths pass."
+
+O8: Verify final state.
+- predicate: "The final state of the service is verified against the requirements."
+- required_phases: ["observe"]
+- success_evidence: "All requirements are met."
+
+Now, we need to create add_stages. We'll create 7 stages.
+
+Stage 1: Inspect existing code and requirements.
+- Step 1: Read README.md to understand the expected behavior. (observe)
+- Step 2: Read server.py to see current implementation. (observe)
+- Step 3: Read verify_public.py to see test structure. (observe)
+- Step 4: Read README.md again to extract requirements. (observe)
+
+Stage 2: Design database schema and idempotency key handling.
+- Step 1: Design SQLite schema for orders, inventory, and idempotency keys. (mutate)
+- Step 2: Define idempotency key handling logic. (mutate)
+
+Stage 3: Implement core logic.
+- Step 1: Implement atomic deduction across SKUs. (mutate)
+- Step 2: Implement concurrency-safe stockout prevention. (mutate)
+
+Stage 4: Implement HTTP server.
+- Step 1: Implement request validation. (mutate)
+- Step 2: Implement idempotency key handling. (mutate)
+- Step 3: Implement order processing with database. (mutate)
+- Step 4: Implement error handling and response formatting. (mutate)
+
+Stage 5: Implement verify_public.py.
+- Step 1: Write tests for success path. (mutate)
+- Step 2: Write tests for failure paths. (mutate)
+- Step 3: Write tests for retry paths. (mutate)
+
+Stage 6: Update README.md.
+- Step 1: Update README.md with new implementation details. (mutate)
+
+Stage 7: Test with real HTTP requests.
+- Step 1: Run the server. (execute)
+- Step 2: Send HTTP requests using curl or Python requests. (execute)
+- Step 3: Verify responses and database state. (observe)
+
+We need to ensure that each step has a clear objective and phase. Also, we need to consider dependencies. For example, Stage 2 depends on Stage 1 (understanding requirements). Stage 3 depends on Stage 2 (schema). Stage 4 depends on Stage 3 (core logic). Stage 5 depends on Stage 4 (server). Stage 6 depends on Stage 5 (tests). Stage 7 depends on Stage 6 (updated docs).
+
+We'll set depends_on accordingly.
+
+Now, we need to format the JSON. Let's write it.
+
+We'll also include a brief reason.
+
+Let's produce the final answer.</think>{
+  "goal_obligations": [
+    {
+      "obligation_id": "O1",
+      "predicate": "All existing files (README.md, server.py, verify_public.py) have been read and understood.",
+      "required_phases": ["observe"],
+      "success_evidence": "A summary of the current code and requirements is documented."
+    },
+    {
+      "obligation_id": "O2",
+      "predicate": "A SQLite schema for orders, inventory, and idempotency keys is defined and documented.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Schema files exist and are correct."
+    },
+    {
+      "obligation_id": "O3",
+      "predicate": "The core logic for atomic cross-SKU deduction and concurrency-safe stockout prevention is implemented and passes unit tests.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Unit tests pass."
+    },
+    {
+      "obligation_id": "O4",
+      "predicate": "The HTTP server is implemented with request validation, idempotency key handling, order processing, and error handling.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Server runs and responds correctly to simple requests."
+    },
+    {
+      "obligation_id": "O5",
+      "predicate": "The verify_public.py script is implemented and can run tests.",
+      "required_phases": ["mutate"],
+      "success_evidence": "Script runs without errors."
+    },
+    {
+      "obligation_id": "O6",
+      "predicate": "README.md is updated with the new implementation details.",
+      "required_phases": ["mutate"],
+      "success_evidence": "README.md contains updated documentation."
+    },
+    {
+      "obligation_id": "O7",
+      "predicate": "The service is tested with real HTTP requests (success, failure, retry) and all paths work as expected.",
+      "required_phases": ["execute"],
+      "success_evidence": "Test results show all paths pass."
+    },
+    {
+      "obligation_id": "O8",
+      "predicate": "The final state of the service is verified against the requirements.",
+      "required_phases": ["observe"],
+      "success_evidence": "All requirements are met."
+    }
+  ],
+  "add_stages": [
+    {
+      "stage": 1,
+      "steps": [
+        {
+          "step_id": "S1-1",
+          "objective": "Read README.md to understand the expected behavior.",
+          "phase": "observe",
+          "depends_on": [],
+          "obligation_ids": ["O1"],
+          "success_evidence": "README.md content is understood.",
+          "read_roots": ["README.md"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-2",
+          "objective": "Read server.py to see current implementation.",
+          "phase": "observe",
+          "depends_on": ["S1-1"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "server.py content is understood.",
+          "read_roots": ["server.py"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-3",
+          "objective": "Read verify_public.py to see test structure.",
+          "phase": "observe",
+          "depends_on": ["S1-2"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "verify_public.py content is understood.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S1-4",
+          "objective": "Extract requirements from README.md.",
+          "phase": "observe",
+          "depends_on": ["S1-3"],
+          "obligation_ids": ["O1"],
+          "success_evidence": "Requirements are documented.",
+          "read_roots": ["README.md"],
+          "write_roots": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "steps": [
+        {
+          "step_id": "S2-1",
+          "objective": "Design SQLite schema for orders, inventory, and idempotency keys.",
+          "phase": "mutate",
+          "depends_on": ["S1-4"],
+          "obligation_ids": ["O2"],
+          "success_evidence": "Schema files exist and are correct.",
+          "read_roots": [],
+          "write_roots": ["schema.sql"],
+          "constraints": []
+        },
+        {
+          "step_id": "S2-2",
+          "objective": "Define idempotency key handling logic.",
+          "phase": "mutate",
+          "depends_on": ["S2-1"],
+          "obligation_ids": ["O2"],
+          "success_evidence": "Idempotency key logic is documented.",
+          "read_roots": ["schema.sql"],
+          "write_roots": ["idempotency.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "steps": [
+        {
+          "step_id": "S3-1",
+          "objective": "Implement atomic cross-SKU deduction.",
+          "phase": "mutate",
+          "depends_on": ["S2-2"],
+          "obligation_ids": ["O3"],
+          "success_evidence": "Unit tests for atomic deduction pass.",
+          "read_roots": ["schema.sql", "idempotency.py"],
+          "write_roots": ["deduction.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S3-2",
+          "objective": "Implement concurrency-safe stockout prevention.",
+          "phase": "mutate",
+          "depends_on": ["S3-1"],
+          "obligation_ids": ["O3"],
+          "success_evidence": "Unit tests for concurrency safety pass.",
+          "read_roots": ["deduction.py"],
+          "write_roots": ["concurrency.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "steps": [
+        {
+          "step_id": "S4-1",
+          "objective": "Implement request validation.",
+          "phase": "mutate",
+          "depends_on": ["S3-2"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Validation logic is implemented.",
+          "read_roots": ["concurrency.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-2",
+          "objective": "Implement idempotency key handling in server.",
+          "phase": "mutate",
+          "depends_on": ["S4-1"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Idempotency key handling is implemented.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-3",
+          "objective": "Implement order processing with database.",
+          "phase": "mutate",
+          "depends_on": ["S4-2"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Order processing works with database.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S4-4",
+          "objective": "Implement error handling and response formatting.",
+          "phase": "mutate",
+          "depends_on": ["S4-3"],
+          "obligation_ids": ["O4"],
+          "success_evidence": "Error handling is implemented.",
+          "read_roots": ["server.py"],
+          "write_roots": ["server.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "steps": [
+        {
+          "step_id": "S5-1",
+          "objective": "Write tests for success path.",
+          "phase": "mutate",
+          "depends_on": ["S4-4"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Success path tests pass.",
+          "read_roots": ["server.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S5-2",
+          "objective": "Write tests for failure paths.",
+          "phase": "mutate",
+          "depends_on": ["S5-1"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Failure path tests pass.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        },
+        {
+          "step_id": "S5-3",
+          "objective": "Write tests for retry paths.",
+          "phase": "mutate",
+          "depends_on": ["S5-2"],
+          "obligation_ids": ["O5"],
+          "success_evidence": "Retry path tests pass.",
+          "read_roots": ["verify_public.py"],
+          "write_roots": ["verify_public.py"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "steps": [
+        {
+          "step_id": "S6-1",
+          "objective": "Update README.md with new implementation details.",
+          "phase": "mutate",
+          "depends_on": ["S5-3"],
+          "obligation_ids": ["O6"],
+          "success_evidence": "README.md is updated.",
+          "read_roots": ["README.md"],
+          "write_roots": ["README.md"],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "steps": [
+        {
+          "step_id": "S7-1",
+          "objective": "Run the server.",
+          "phase": "execute",
+          "depends_on": ["S6-1"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "Server is running.",
+          "read_roots": [],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S7-2",
+          "objective": "Send HTTP requests using curl or Python requests.",
+          "phase": "execute",
+          "depends_on": ["S7-1"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "Requests are sent and responses received.",
+          "read_roots": [],
+          "write_roots": [],
+          "constraints": []
+        },
+        {
+          "step_id": "S7-3",
+          "objective": "Verify responses and database state.",
+          "phase": "observe",
+          "depends_on": ["S7-2"],
+          "obligation_ids": ["O7"],
+          "success_evidence": "All paths work as expected.",
+          "read_roots": ["server.py", "verify_public.py"],
+          "write_roots": [],
+          "constraints": []
+        }
+      ]
+    }
+  ],
+  "replace_stages": [],
+  "discard_step_ids": [],
+  "reason": "Planned stages and steps to implement the inventory order HTTP service with all required features, including idempotency keys, atomic deduction, concurrency safety, SQLite persistence, validation, and testing. Each step has a clear objective and phase, with dependencies ensuring logical order."
+}

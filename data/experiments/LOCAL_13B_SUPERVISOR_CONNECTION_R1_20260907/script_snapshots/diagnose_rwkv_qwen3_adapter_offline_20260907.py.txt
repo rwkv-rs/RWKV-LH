@@ -1,0 +1,73 @@
+"""Try an existing reasoning adapter on an already-saved response, offline."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import socket
+import subprocess
+import sys
+import traceback
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ENGINE = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'
+MODEL = ROOT / 'data/models/rwkv7-g1j-13.3b-vllm-v1'
+sys.path[:0] = [str(ENGINE), str(ROOT)]
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+original_popen = subprocess.Popen
+
+
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('offline diagnostic forbids Git')
+    return original_popen(args, *rest, **kwargs)
+
+
+def no_network(*args, **kwargs):
+    raise RuntimeError('offline diagnostic forbids network')
+
+
+subprocess.Popen = guarded_popen
+socket.create_connection = no_network
+socket.socket.connect = no_network
+source_bytes = sys.stdin.buffer.read()
+report = {'at': datetime.now(timezone.utc).isoformat(),
+          'model_loaded': False, 'generation_performed': False,
+          'git_executed': False, 'network_performed': False,
+          'production_changed': False,
+          'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+          'input_artifact_sha256': hashlib.sha256(source_bytes).hexdigest()}
+stage = 'read_saved_response'
+try:
+    record = json.loads(source_bytes)
+    body = json.loads(record['response_text'])
+    content = body['choices'][0]['message']['content']
+    report['input_content_sha256'] = hashlib.sha256(content.encode()).hexdigest()
+    stage = 'construct_tokenizer_and_existing_qwen3_adapter'
+    from vllm.tokenizers.rwkv import RWKVTokenizer
+    from vllm.reasoning.qwen3_engine_reasoning_parser import Qwen3ParserReasoningAdapter
+    tokenizer = RWKVTokenizer.from_pretrained(MODEL)
+    parser = Qwen3ParserReasoningAdapter(tokenizer)
+    stage = 'extract_reasoning_non_streaming'
+    reasoning, parsed = parser.extract_reasoning(content, None)
+    report['adapter_construction_and_extraction_passed'] = True
+    report['reasoning_chars'] = len(reasoning or '')
+    report['reasoning_sha256'] = hashlib.sha256((reasoning or '').encode()).hexdigest()
+    report['content_after_separation'] = parsed
+    report['content_after_separation_sha256'] = hashlib.sha256((parsed or '').encode()).hexdigest()
+    report['unchanged_suffix_after_first_think_closer'] = (
+        '</think>' in content and parsed == content.partition('</think>')[2])
+    stage = 'current_supervisor_decoder'
+    from rwkv_lh.supervisor_openai import _decode_supervisor_json_content
+    decoded, normalization = _decode_supervisor_json_content(parsed or '')
+    report['current_decoder_passed'] = True
+    report['decoded_value'] = decoded
+    report['normalization'] = normalization
+except Exception as exc:
+    report['failed_stage'] = stage
+    report['exception_type'] = type(exc).__name__
+    report['exception_message'] = str(exc)
+    report['traceback'] = traceback.format_exc()
+print(json.dumps(report, ensure_ascii=False, indent=2))

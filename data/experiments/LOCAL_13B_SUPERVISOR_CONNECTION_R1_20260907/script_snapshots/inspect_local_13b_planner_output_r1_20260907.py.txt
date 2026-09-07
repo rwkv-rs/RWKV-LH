@@ -1,0 +1,97 @@
+"""Inspect one current Planner wire response without changing production settings."""
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import sys
+import time
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as driver
+from rwkv_lh.supervisor_openai import (
+    OpenAICompatibleSupervisorClient, SupervisorAPISettings,
+    _decode_supervisor_json_content,
+)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--mode', choices=['json_error_stack', 'plain_complete'], required=True)
+args = parser.parse_args()
+round_dir = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907'
+output = round_dir / f'OUTPUT_INSPECTION_{args.mode.upper()}.json'
+assert not output.exists(), output
+source = round_dir / 'EXISTING_WIRE_PROBE.json'
+body = json.loads(source.read_text())['request_body']
+changes = []
+if args.mode == 'plain_complete':
+    del body['response_format']
+    body['max_tokens'] = 8192
+    changes = ['omit response_format to inspect unconstrained native output',
+               'diagnostic completion ceiling 8192; production ceiling remains 1800']
+driver.apply_current_zero_overrides()
+settings = replace(SupervisorAPISettings.from_env(),
+    base_url='http://127.0.0.1:29613/v1', api_key='local-no-auth',
+    model=driver.MODEL_13, stage_checker_model=driver.MODEL_13,
+    plan_cache_enabled=False, fallback_models=(), read_timeout_seconds=240.0)
+settings.validate()
+client = OpenAICompatibleSupervisorClient(settings)
+record = {
+    'at': datetime.now(timezone.utc).isoformat(), 'mode': args.mode,
+    'purpose': 'Owner requested raw 13.3B output and Planner JSON inspection; excluded from baseline and training',
+    'production_source_changed': False, 'production_config_changed': False,
+    'request_body': body, 'diagnostic_changes': changes,
+    'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+}
+start = time.monotonic()
+try:
+    response = client._post_completion(settings.base_url + '/chat/completions', body)
+    record['http_status'] = response.status_code
+    record['response_sha256'] = hashlib.sha256(response.content).hexdigest()
+    record['response_text'] = response.text
+    if response.status_code == 200:
+        envelope = response.json()
+        choice = envelope['choices'][0]
+        message = choice['message']
+        content = message['content']
+        record['usage'] = envelope.get('usage')
+        record['finish_reason'] = choice.get('finish_reason')
+        record['stop_reason'] = choice.get('stop_reason')
+        record['message_keys'] = list(message)
+        record['reasoning_field'] = message.get('reasoning')
+        record['raw_content'] = content
+        record['opening_think_present'] = content.startswith('<think>')
+        record['closing_think_count'] = content.count('</think>')
+        try:
+            value, normalization = _decode_supervisor_json_content(content)
+            record['production_decoder_passed'] = True
+            record['decoded_value'] = value
+            record['normalization'] = normalization
+        except Exception as exc:
+            record['production_decoder_passed'] = False
+            record['decoder_error'] = str(exc)
+        # Offline diagnostic only: preserve raw text and never feed this suffix to the Controller.
+        if content.count('</think>') == 1:
+            reasoning, answer = content.split('</think>', 1)
+            record['observed_reasoning_chars'] = len(reasoning)
+            record['observed_answer_suffix'] = answer
+            try:
+                value, normalization = _decode_supervisor_json_content(answer)
+                record['answer_suffix_decoder_passed'] = True
+                record['answer_suffix_value'] = value
+                record['answer_suffix_normalization'] = normalization
+            except Exception as exc:
+                record['answer_suffix_decoder_passed'] = False
+                record['answer_suffix_error'] = str(exc)
+except Exception as exc:
+    record['error_type'] = type(exc).__name__
+    record['error'] = str(exc)[:2000]
+finally:
+    record['elapsed_seconds'] = round(time.monotonic() - start, 3)
+    client.close()
+    output.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({key: record.get(key) for key in (
+    'mode', 'http_status', 'elapsed_seconds', 'finish_reason', 'usage',
+    'production_decoder_passed', 'closing_think_count', 'answer_suffix_decoder_passed')}, ensure_ascii=False))
