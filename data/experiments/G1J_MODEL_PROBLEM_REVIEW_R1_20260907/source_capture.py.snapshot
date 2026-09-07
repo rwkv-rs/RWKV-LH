@@ -1,0 +1,143 @@
+"""Freeze explicit review sources without restoring or executing retired assets."""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path("/home/chase/GitHub/RWKV-LH")
+OUT = ROOT / "data/experiments/G1J_MODEL_PROBLEM_REVIEW_R1_20260907"
+NATIVE = "data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/"
+BASELINE = "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/"
+LOCAL = "data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/"
+CURRENT = [
+    ("E01", BASELINE + "R2_A_RUN_REPORT.zh-CN.md", "Agent metrics and attribution limits"),
+    ("E02", NATIVE + "PRODUCTION_PLANNER_NATIVE_PROBE.json", "Unchanged native Planner request and response"),
+    ("E03", NATIVE + "PLANNER_NATIVE_RESPONSE_INSPECTION.json", "Existing read-only field observations; no rescore"),
+    ("E04", LOCAL + "PLAIN_COMPLETE_OUTPUT_REVIEW.zh-CN.md", "Prior full Planner output; historical contract"),
+    ("E05", NATIVE + "SMALL_STAGE_CHECKER_NATIVE_CONNECTION_PROBE.json", "Small real generation from mock-audit fixture"),
+    ("E06", NATIVE + "SMALL_STAGE_CHECKER_CONNECTION_FIXTURE_PROVENANCE.json", "Fixture evidence authority and limits"),
+    ("E07", NATIVE + "STAGE_CHECKER_NATIVE_CONTEXT_PREFLIGHT.json", "Large-stage tokenization only; no generation"),
+    ("E08", BASELINE + "TRACE_READINESS.zh-CN.md", "State lifecycle and trace reconstruction gaps"),
+    ("E09", "docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md", "Current pipeline and migration evidence"),
+    ("E10", "rwkv_lh/supervisor_openai.py", "Production Goal role prompts and contracts"),
+    ("E11", "rwkv_lh/runtime/supervisor_vllm_rwkv.py", "Zero State, native envelope and sampling"),
+    ("E12", "rwkv_lh/model.py", "Executor one-action State and fresh Selector lanes"),
+    ("E13", "docs/HANDOFF.zh-CN.md", "Current role architecture and status snapshot"),
+    ("E14", BASELINE + "TRAINING_ROUND_ACCOUNTING_REVIEW.zh-CN.md", "Training count and authorization uncertainty"),
+    ("E15", "AGENTS.md", "Repository review, verification and evidence rules"),
+    ("E16", "docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md", "Evaluation and model attribution requirements"),
+]
+C1 = "164967c5fa70c322cbc23e2e8a48722c8e1b80e7"
+C2 = "3ad7933a5b8a14f36bd08d5ee74e4689ec786c88"
+OLD = "data/experiments/RWKV_EXECUTOR_INPUT_CONTRACT_V5_20260904/"
+HISTORY = [
+    ("H01", C1, OLD + "R5_CONTROLLER_COUNTERFACTUAL_PREREGISTRATION.md",
+     "e83e27201904bafb81ee48d6c54809fd0f025d663eaf2c9d506920d7c63fd437", "7,11-20",
+     "Real zero 13.3B and Controller/Harness; fixed Planner and Selector; four transitions."),
+    ("H02", C1, OLD + "R5_CONTROLLER_COUNTERFACTUAL_RESULT.md",
+     "3a80e409543add20514bf95dc43056559b8a76edd3fe4d5534801b9b227fe342", "9-31",
+     "725-token second input explicitly completed pricing.py and remaining verify_project.py; repeats pricing.py; no protocol rejection."),
+    ("H03", C1, OLD + "RESULT.md",
+     "d4c86bab136108a9a3e3d84b53fac9baa28c98a815f635e70e227cab22600f17", "7-32,46-49",
+     "Historical E5 zero role probe: 33/42; local observe 9/9, external/calculation 15/15, mutate 9/12, commands 0/6."),
+    ("H04", C1, "data/experiments/RWKV_EXECUTOR_INPUT_CONTRACT_V4_20260904/RESULT.md",
+     "e5f1f62750524fc627d6fcd27595cef734c782d88592a71cbc69a97ccd8f547e", "7,14-29",
+     "Historical short read-only matrix 18/18; not full-fact production transfer proof."),
+    ("H05", C2, "data/experiments/G1J_VS_G1I_ROLE_COMPARISON_20260901/RESULT.md",
+     "3f7ddcfd8805e18b5cb8064bb24be633d463cd4139ed6248ca933a6e6ea5b34f", "all report sections; no linked raw datasets read",
+     "Post-hoc paired S60/V7 dev, zero 2.9B plus separately fitted matching h64 Heads. G1i 2532/2571; G1J 2513/2571; fixes 10, regressions 29, both wrong 29. No matched 13.3B raw trace."),
+    ("H06", C2, "scripts/generate_network_selector_full_request_last_s56_v1.py",
+     None, "39-66 source-path metadata only",
+     "Source family names for S28/S39/S52/S53/S55; no generator execution or dataset read."),
+]
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def git(*args: str) -> bytes:
+    return subprocess.check_output(["git", *args], cwd=ROOT)
+
+
+def write_json(name: str, value: object) -> None:
+    (OUT / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def main() -> None:
+    source_rows = []
+    for identifier, relative, purpose in CURRENT:
+        assert "holdout" not in relative.lower() and "/acceptance/" not in relative
+        body = (ROOT / relative).read_bytes()
+        source_rows.append({"id": identifier, "path": relative, "sha256": sha(body),
+                            "bytes": len(body), "purpose": purpose})
+    historical_rows = []
+    for identifier, commit, relative, expected, lines, summary in HISTORY:
+        body = git("show", f"{commit}:{relative}")
+        actual = sha(body)
+        if expected:
+            assert actual == expected, (identifier, actual, expected)
+        historical_rows.append({"id": identifier, "commit": commit, "path": relative,
+                                "blob_oid": git("rev-parse", f"{commit}:{relative}").decode().strip(),
+                                "sha256": actual, "bytes": len(body), "review_locator": lines,
+                                "summary": summary, "full_content_restored": False,
+                                "linked_raw_data_read": False})
+    script_body = Path(__file__).read_bytes()
+    write_json("EVIDENCE_INDEX.json", {
+        "round_id": OUT.name,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "initial_head": "2d9b9273",
+        "source_capture_head": git("rev-parse", "HEAD").decode().strip(),
+        "source_capture_is_review_snapshot_not_new_model_run": True,
+        "source_script": str(Path(__file__).relative_to(ROOT)),
+        "source_script_sha256": sha(script_body),
+        "sources": source_rows,
+    })
+    write_json("HISTORICAL_EVIDENCE.json", {
+        "scope": "Local Git source identity and summaries only; no restored retired artifacts or evaluations",
+        "sources": historical_rows,
+    })
+    (OUT / "source_capture.py.snapshot").write_bytes(script_body)
+    report = (OUT / "REPORT.zh-CN.md").read_text(encoding="utf-8")
+    referenced = set(re.findall(r"\b[EH]\d{2}\b", report))
+    indexed = {row["id"] for row in source_rows + historical_rows}
+    assert referenced <= indexed, referenced - indexed
+    assert 2503 + 10 + 29 + 29 == 2571
+    assert 2503 + 29 == 2532 and 2503 + 10 == 2513
+    assert sum([749, 831, 390, 324, 238]) == 2532
+    assert sum([750, 815, 389, 320, 239]) == 2513
+    assert sum([750, 857, 399, 325, 240]) == 2571
+    pytest_log = (OUT / "full_pytest.txt").read_text(encoding="utf-8")
+    assert "764 passed in 60.09s" in pytest_log
+    assert " skipped" not in pytest_log and " failed" not in pytest_log
+    write_json("REVIEW_VALIDATION.json", {
+        "existing_evidence_only": True,
+        "new_model_calls": 0,
+        "new_agent_or_role_scores": False,
+        "historical_scores_rescored": False,
+        "production_code_changed_by_this_review": False,
+        "holdout_or_private_acceptance_read": False,
+        "training_started": False,
+        "dataset_version_created": False,
+        "historical_expected_hash_checks": 5,
+        "source_reference_ids_resolve": True,
+        "paired_metric_arithmetic_checked": True,
+        "arithmetic_is_not_raw_prediction_rescoring": True,
+        "pytest": {"passed": 764, "skipped": 0, "seconds": 60.09, "path": "full_pytest.txt"},
+    })
+    entries = []
+    for path in sorted(OUT.iterdir()):
+        if path.is_file() and path.name != "SHA256SUMS":
+            entries.append(f"{sha(path.read_bytes())}  {path.name}")
+    (OUT / "SHA256SUMS").write_text("\n".join(entries) + "\n", encoding="utf-8")
+    print(json.dumps({"report_sha256": sha((OUT / "REPORT.zh-CN.md").read_bytes()),
+                      "current_sources": len(source_rows), "historical_sources": len(historical_rows),
+                      "validation": "passed"}))
+
+
+if __name__ == "__main__":
+    main()
