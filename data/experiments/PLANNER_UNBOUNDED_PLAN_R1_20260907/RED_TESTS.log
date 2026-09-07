@@ -1,0 +1,636 @@
+FFFFFFFFFFF                                                              [100%]
+=================================== FAILURES ===================================
+______ test_large_plan_round_trip_preserves_every_step_and_stage[6-False] ______
+
+count = 6, serial = False
+
+    @pytest.mark.parametrize("count,serial", [(6, False), (19, True), (64, False)])
+    def test_large_plan_round_trip_preserves_every_step_and_stage(count, serial):
+>       patch = _initial_patch(_steps(count, serial=serial))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+______ test_large_plan_round_trip_preserves_every_step_and_stage[19-True] ______
+
+count = 19, serial = True
+
+    @pytest.mark.parametrize("count,serial", [(6, False), (19, True), (64, False)])
+    def test_large_plan_round_trip_preserves_every_step_and_stage(count, serial):
+>       patch = _initial_patch(_steps(count, serial=serial))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+_____ test_large_plan_round_trip_preserves_every_step_and_stage[64-False] ______
+
+count = 64, serial = False
+
+    @pytest.mark.parametrize("count,serial", [(6, False), (19, True), (64, False)])
+    def test_large_plan_round_trip_preserves_every_step_and_stage(count, serial):
+>       patch = _initial_patch(_steps(count, serial=serial))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+__ test_continuation_can_grow_existing_open_plan_and_replace_or_discard_many ___
+
+    def test_continuation_can_grow_existing_open_plan_and_replace_or_discard_many():
+        steps = _steps(9)
+        plan = RollingGoalPlan(goal_digest="goal")
+        plan.apply_goal_patch(_initial_patch(steps[:4]))
+>       plan.apply_goal_patch(GoalPlanPatch(
+            patch_id="GPP-extend", base_revision=1, add_steps=steps[4:],
+            replace_steps=(), discard_step_ids=(), reason="Include remaining sources",
+        ))
+
+tests/test_goal_planner_plan_size.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = RollingGoalPlan(goal_digest='goal', steps={'S1': GoalPlanStep(step_id='S1', objective='Inspect source 1', phase='obser...evisions={'S1': 1, 'S2': 1, 'S3': 1, 'S4': 1}, discarded_step_ids=set(), obligation_ids=set(), contract_node_ids=set())
+patch = GoalPlanPatch(patch_id='GPP-extend', base_revision=1, add_steps=(GoalPlanStep(step_id='S5', objective='Inspect source ...card_step_ids=(), reason='Include remaining sources', goal_obligations=(), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def apply_goal_patch(self, patch: GoalPlanPatch) -> None:
+        """Atomically apply one native add/replace/discard plan delta."""
+    
+        if patch.patch_id in self.patch_ids:
+            raise ValueError("Goal PlanPatch id was committed more than once")
+        if patch.base_revision != len(self.patch_ids):
+            raise ValueError("Goal PlanPatch base revision is stale")
+    
+        if self.patch_ids and patch.goal_obligations:
+            raise ValueError(
+                "immutable Goal obligations may be declared only by the initial patch"
+            )
+        candidate_obligations = dict(self.obligations)
+        for obligation in patch.goal_obligations:
+            if obligation.obligation_id in candidate_obligations:
+                raise ValueError("Goal PlanPatch cannot redefine an obligation")
+            candidate_obligations[obligation.obligation_id] = obligation
+    
+        completed = set(self.completed_step_ids)
+        open_ids = set(self.open_step_ids)
+        replace_ids = {item.step_id for item in patch.replace_steps}
+        add_ids = {item.step_id for item in patch.add_steps}
+        discard_ids = set(patch.discard_step_ids)
+        if not replace_ids <= open_ids:
+            raise ValueError(
+                "Goal PlanPatch may replace only currently open steps: "
+                f"{sorted(replace_ids - open_ids)}"
+            )
+        if not discard_ids <= open_ids:
+            raise ValueError(
+                "Goal PlanPatch may discard only currently open steps: "
+                f"{sorted(discard_ids - open_ids)}"
+            )
+        known_ids = set(self.steps) | set(self.discarded_step_ids)
+        if add_ids & known_ids:
+            raise ValueError(
+                "Goal PlanPatch cannot reuse an existing or discarded step id: "
+                f"{sorted(add_ids & known_ids)}"
+            )
+        if completed & (replace_ids | discard_ids):
+            raise ValueError("Goal PlanPatch cannot change an evidence-complete step")
+    
+        candidate_steps = dict(self.steps)
+        candidate_revisions = dict(self.step_revisions)
+        for step_id in discard_ids:
+            candidate_steps.pop(step_id)
+            candidate_revisions.pop(step_id, None)
+        for step in patch.replace_steps:
+            candidate_steps[step.step_id] = step
+            candidate_revisions[step.step_id] = (
+                candidate_revisions.get(step.step_id, 1) + 1
+            )
+        for step in patch.add_steps:
+            candidate_steps[step.step_id] = step
+            candidate_revisions[step.step_id] = 1
+    
+        if candidate_obligations:
+            unknown_obligations = {
+                obligation_id
+                for step in (*patch.add_steps, *patch.replace_steps)
+                for obligation_id in step.obligation_ids
+                if obligation_id not in candidate_obligations
+            }
+            if unknown_obligations:
+                raise ValueError(
+                    "Goal PlanPatch steps reference unknown obligations: "
+                    f"{sorted(unknown_obligations)}"
+                )
+            unbound_steps = [
+                step.step_id
+                for step in (*patch.add_steps, *patch.replace_steps)
+                if not step.obligation_ids
+            ]
+            if unbound_steps:
+                raise ValueError(
+                    "v4 Goal PlanPatch steps must bind immutable obligations: "
+                    f"{unbound_steps}"
+                )
+    
+        active_ids = set(candidate_steps)
+        unknown_dependencies = {
+            dependency
+            for step in candidate_steps.values()
+            for dependency in step.depends_on
+            if dependency not in active_ids
+        }
+        if unknown_dependencies:
+            raise ValueError(
+                "Goal PlanPatch leaves active steps dependent on discarded or "
+                f"unknown steps: {sorted(unknown_dependencies)}"
+            )
+        if len(
+            [step_id for step_id in candidate_steps if step_id not in completed]
+        ) > 5:
+>           raise ValueError("rolling Goal plan may expose at most five open steps")
+E           ValueError: rolling Goal plan may expose at most five open steps
+
+rwkv_lh/goal_loop_protocol.py:1282: ValueError
+_______ test_large_completed_stage_delivers_every_step_to_stage_checker ________
+
+    def test_large_completed_stage_delivers_every_step_to_stage_checker():
+        steps = _steps(8)
+        plan = RollingGoalPlan(goal_digest="goal")
+>       plan.apply_goal_patch(_initial_patch(steps))
+                              ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+______________ test_stage_review_has_no_independent_step_ceiling _______________
+
+    def test_stage_review_has_no_independent_step_ceiling():
+>       request = GoalStageReviewRequest(
+            run_id="RUN-review", immutable_request="Inspect every source",
+            goal_digest="goal", stage=1,
+            stage_steps=tuple(step.to_dict() for step in _steps(8)),
+            workspace_manifest={},
+        )
+
+tests/test_goal_planner_plan_size.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+<string>:10: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalStageReviewRequest(run_id='RUN-review', immutable_request='Inspect every source', goal_digest='goal', stage=1, sta...txt'], 'write_roots': [], 'allowed_operations': [], 'constraints': []}), workspace_manifest={}, recent_action_facts=())
+
+    def __post_init__(self) -> None:
+        _non_empty(self.run_id, "run_id")
+        _non_empty(self.immutable_request, "immutable_request")
+        _non_empty(self.goal_digest, "goal_digest")
+        if (
+            isinstance(self.stage, bool)
+            or not isinstance(self.stage, int)
+            or self.stage < 1
+        ):
+            raise ValueError("Goal stage review requires a positive stage")
+        if not self.stage_steps:
+            raise ValueError("Goal stage review requires completed stage steps")
+        if len(self.stage_steps) > 5:
+>           raise ValueError("Goal stage review exposes at most five steps")
+E           ValueError: Goal stage review exposes at most five steps
+
+rwkv_lh/goal_loop_protocol.py:778: ValueError
+_ test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[unknown_dependency] _
+
+fault = 'unknown_dependency'
+
+    @pytest.mark.parametrize("fault", ["unknown_dependency", "same_stage_dependency", "root_conflict"])
+    def test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots(fault):
+        steps = _steps(8)
+        plan = RollingGoalPlan(goal_digest="goal")
+>       plan.apply_goal_patch(_initial_patch(steps))
+                              ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+_ test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[same_stage_dependency] _
+
+fault = 'same_stage_dependency'
+
+    @pytest.mark.parametrize("fault", ["unknown_dependency", "same_stage_dependency", "root_conflict"])
+    def test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots(fault):
+        steps = _steps(8)
+        plan = RollingGoalPlan(goal_digest="goal")
+>       plan.apply_goal_patch(_initial_patch(steps))
+                              ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+_ test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[root_conflict] _
+
+fault = 'root_conflict'
+
+    @pytest.mark.parametrize("fault", ["unknown_dependency", "same_stage_dependency", "root_conflict"])
+    def test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots(fault):
+        steps = _steps(8)
+        plan = RollingGoalPlan(goal_digest="goal")
+>       plan.apply_goal_patch(_initial_patch(steps))
+                              ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_goal_planner_plan_size.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_goal_planner_plan_size.py:36: in _initial_patch
+    return GoalPlanPatch(
+<string>:11: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoalPlanPatch(patch_id='GPP-initial', base_revision=0, add_steps=(GoalPlanStep(step_id='S1', objective='Inspect source...te='All requested sources are inspected', required_phases=('observe',)),), schema_version='rwkv-lh.goal-plan-patch.v4')
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in {
+            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
+            GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        }:
+            raise ValueError("unsupported Goal PlanPatch schema")
+        object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
+        object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
+        if isinstance(self.base_revision, bool) or self.base_revision < 0:
+            raise ValueError("Goal PlanPatch base_revision must be non-negative")
+        added_ids = tuple(item.step_id for item in self.add_steps)
+        replaced_ids = tuple(item.step_id for item in self.replace_steps)
+        discarded_ids = tuple(
+            _non_empty(item, "discard_step_id") for item in self.discard_step_ids
+        )
+        for name, values in (
+            ("add_steps", added_ids),
+            ("replace_steps", replaced_ids),
+            ("discard_step_ids", discarded_ids),
+        ):
+            if len(set(values)) != len(values):
+                raise ValueError(f"Goal PlanPatch {name} contains duplicate ids")
+        if set(replaced_ids) & set(discarded_ids):
+            raise ValueError("Goal PlanPatch cannot replace and discard the same step")
+        if set(added_ids) & set(replaced_ids):
+            raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
+        if not (self.add_steps or self.replace_steps or discarded_ids):
+            raise ValueError("Goal PlanPatch must change at least one open step")
+        if len(self.add_steps) + len(self.replace_steps) > 5:
+>           raise ValueError("Goal PlanPatch may introduce at most five current steps")
+E           ValueError: Goal PlanPatch may introduce at most five current steps
+
+rwkv_lh/goal_loop_protocol.py:389: ValueError
+________ test_planner_schema_does_not_cap_plan_size_or_dependency_count ________
+
+    def test_planner_schema_does_not_cap_plan_size_or_dependency_count():
+        properties = OpenAICompatibleSupervisorClient._goal_plan_patch_schema()["properties"]
+        for name in ("add_stages", "replace_stages"):
+            stages = properties[name]
+            stage = stages["items"]["properties"]
+            steps = stage["steps"]
+>           assert "maxItems" not in stages
+E           AssertionError: assert 'maxItems' not in {'type': 'array', 'items': {'type': 'object', 'properties': {'stage': {'type': 'integer', 'minimum': 1, 'maximum': 100... False}, 'minItems': 1, 'maxItems': 5}}, 'required': ['stage', 'steps'], 'additionalProperties': False}, 'maxItems': 5}
+
+tests/test_goal_planner_plan_size.py:153: AssertionError
+__ test_goal_planner_returns_replaceable_steps_without_stealing_selector_role __
+
+    def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role():
+        value = {
+            "goal_obligations": [
+                {
+                    "obligation_id": "O1",
+                    "predicate": "config.json is inspected and corrected",
+                    "required_phases": ["observe", "mutate"],
+                }
+            ],
+            "add_stages": [
+                {
+                    "stage": 1,
+                    "steps": [
+                        {
+                            "step_id": "S1",
+                            "objective": "Inspect the current configuration.",
+                            "phase": "observe",
+                            "depends_on": [],
+                            "obligation_ids": ["O1"],
+                            "success_evidence": ["configuration content is observed"],
+                            "read_roots": ["config.json"],
+                            "write_roots": [],
+                            "constraints": [],
+                        }
+                    ],
+                }
+            ],
+            "replace_stages": [],
+            "discard_step_ids": [],
+            "reason": "Start with one bounded observation.",
+        }
+        fake = FakeSession([response(value)])
+        client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-GOAL-PLAN",
+            immutable_request="Inspect and correct config.json.",
+            goal_digest="goal-digest",
+            plan_revision=0,
+            active_plan={"stages": []},
+            latest_audit=None,
+            workspace_manifest={"entries": [{"path": "config.json"}]},
+        )
+    
+        patch = client.plan_goal_patch(request)
+    
+        assert patch.add_steps[0].allowed_operations == ()
+        assert patch.add_steps[0].phase == "observe"
+        posted = fake.posts[0]["json"]
+        assert posted["model"] == "gpt-test"
+        assert "seed" not in posted
+        assert "temperature" not in posted
+        assert "reasoning" not in posted
+        assert posted["response_format"] == {"type": "json_object"}
+        # Rolling GoalPlan output uses the bounded Planner budget.  The separate
+        # ContractGraph planner retains its larger contract-plan budget.
+        assert posted["max_tokens"] == 1800
+        assert client.settings.max_contract_plan_tokens == 4000
+        assert fake.posts[0]["url"].endswith("/chat/completions")
+        assert posted["messages"][1]["role"] == "user"
+        payload = json.loads(posted["messages"][1]["content"])
+        assert list(payload)[-1] == "current_requirement"
+        assert payload["current_requirement"] == request.immutable_request
+        response_schema = client._goal_plan_patch_schema()
+        step_schema = response_schema["properties"]["add_stages"]["items"][
+            "properties"
+        ]["steps"]["items"]
+        assert "allowed_operations" not in step_schema["properties"]
+        assert "stage" not in step_schema["properties"]
+        assert set(step_schema["required"]) == set(step_schema["properties"])
+        assert set(response_schema["required"]) == {
+            "goal_obligations",
+            "add_stages",
+            "replace_stages",
+            "discard_step_ids",
+            "reason",
+        }
+        assert "steps nested inside stage objects" in response_schema["description"]
+        system_prompt = posted["messages"][0]["content"]
+        assert "Controller has already fixed the one project mother path" in system_prompt
+        assert "Every read_roots and write_roots item" in system_prompt
+        assert "never invent a '/workspace' prefix" in system_prompt
+        assert '"add_stages":[{"stage":1,"steps":[' in system_prompt
+        assert "do not flatten steps" in system_prompt
+        assert "exactly one phase" in system_prompt
+>       assert "Plan the steps needed for the task" in system_prompt
+E       AssertionError: assert 'Plan the steps needed for the task' in 'ROLE: You are only the Strong Planner for an RWKV execution loop. Plan; never execute tools, select or restrict tool ...step_ids are empty, goal_obligations is non-empty and exhaustive, and add_stages contains the first executable stages.'
+
+tests/test_supervisor_openai.py:985: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_round_trip_preserves_every_step_and_stage[6-False]
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_round_trip_preserves_every_step_and_stage[19-True]
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_round_trip_preserves_every_step_and_stage[64-False]
+FAILED tests/test_goal_planner_plan_size.py::test_continuation_can_grow_existing_open_plan_and_replace_or_discard_many
+FAILED tests/test_goal_planner_plan_size.py::test_large_completed_stage_delivers_every_step_to_stage_checker
+FAILED tests/test_goal_planner_plan_size.py::test_stage_review_has_no_independent_step_ceiling
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[unknown_dependency]
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[same_stage_dependency]
+FAILED tests/test_goal_planner_plan_size.py::test_large_plan_still_rejects_invalid_dependencies_and_conflicting_roots[root_conflict]
+FAILED tests/test_goal_planner_plan_size.py::test_planner_schema_does_not_cap_plan_size_or_dependency_count
+FAILED tests/test_supervisor_openai.py::test_goal_planner_returns_replaceable_steps_without_stealing_selector_role
+11 failed in 0.20s

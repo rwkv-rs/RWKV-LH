@@ -385,8 +385,6 @@ class GoalPlanPatch:
             raise ValueError("Goal PlanPatch add/replace step ids must be disjoint")
         if not (self.add_steps or self.replace_steps or discarded_ids):
             raise ValueError("Goal PlanPatch must change at least one open step")
-        if len(self.add_steps) + len(self.replace_steps) > 5:
-            raise ValueError("Goal PlanPatch may introduce at most five current steps")
         obligations = tuple(self.goal_obligations)
         obligation_ids = tuple(item.obligation_id for item in obligations)
         if len(set(obligation_ids)) != len(obligation_ids):
@@ -774,8 +772,6 @@ class GoalStageReviewRequest:
             raise ValueError("Goal stage review requires a positive stage")
         if not self.stage_steps:
             raise ValueError("Goal stage review requires completed stage steps")
-        if len(self.stage_steps) > 5:
-            raise ValueError("Goal stage review exposes at most five steps")
         if len(self.recent_action_facts) > 12:
             raise ValueError("Goal stage review exposes at most twelve action facts")
 
@@ -1276,11 +1272,6 @@ class RollingGoalPlan:
                 "Goal PlanPatch leaves active steps dependent on discarded or "
                 f"unknown steps: {sorted(unknown_dependencies)}"
             )
-        if len(
-            [step_id for step_id in candidate_steps if step_id not in completed]
-        ) > 5:
-            raise ValueError("rolling Goal plan may expose at most five open steps")
-
         prior_steps = self.steps
         self.steps = candidate_steps
         try:

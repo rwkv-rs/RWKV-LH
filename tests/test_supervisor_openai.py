@@ -982,8 +982,11 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert '"add_stages":[{"stage":1,"steps":[' in system_prompt
     assert "do not flatten steps" in system_prompt
     assert "exactly one phase" in system_prompt
-    assert "sum of the lengths of every steps array" in system_prompt
-    assert "at most five, never five per stage" in system_prompt
+    assert "Plan the steps needed for the task" in system_prompt
+    assert "HARD CARDINALITY" not in system_prompt
+    assert "one to five" not in system_prompt
+    assert "at most five" not in system_prompt
+    assert "next five" not in system_prompt
     assert "exactly one literal token from observe, mutate, execute" in system_prompt
     assert "Never write labels such as 'public-source observe'" in system_prompt
     assert "never name a concrete tool" in system_prompt

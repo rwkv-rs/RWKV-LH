@@ -2692,7 +2692,6 @@ class OpenAICompatibleSupervisorClient:
                     "type": "array",
                     "items": {"type": "string", "minLength": 1, "maxLength": 64},
                     "uniqueItems": True,
-                    "maxItems": 5,
                 },
                 "obligation_ids": {
                     "type": "array",
@@ -2761,12 +2760,11 @@ class OpenAICompatibleSupervisorClient:
         stage = {
             "type": "object",
             "properties": {
-                "stage": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "stage": {"type": "integer", "minimum": 1},
                 "steps": {
                     "type": "array",
                     "items": step,
                     "minItems": 1,
-                    "maxItems": 5,
                 },
             },
             "required": ["stage", "steps"],
@@ -2785,17 +2783,15 @@ class OpenAICompatibleSupervisorClient:
                     "uniqueItems": True,
                     "maxItems": 16,
                 },
-                "add_stages": {"type": "array", "items": stage, "maxItems": 5},
+                "add_stages": {"type": "array", "items": stage},
                 "replace_stages": {
                     "type": "array",
                     "items": stage,
-                    "maxItems": 5,
                 },
                 "discard_step_ids": {
                     "type": "array",
                     "items": {"type": "string", "minLength": 1, "maxLength": 64},
                     "uniqueItems": True,
-                    "maxItems": 5,
                 },
                 "reason": {"type": "string", "minLength": 1, "maxLength": 800},
             },
@@ -2828,12 +2824,8 @@ class OpenAICompatibleSupervisorClient:
             "stage and steps. "
             "Each step has exactly step_id, objective, phase, depends_on, "
             "obligation_ids, success_evidence, read_roots, write_roots, and "
-            "constraints. Plan only the next one to five clear steps. HARD "
-            "CARDINALITY: the sum of the lengths of every steps array across "
-            "add_stages and replace_stages must be at least one and at most five, "
-            "never five per stage. If more work remains, emit only the next five or "
-            "fewer steps; the rolling planner will be called again later. Each step "
-            "gives the RWKV Executor one "
+            "constraints. Plan the steps needed for the task. Each step gives the "
+            "RWKV Executor one "
             "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
             "means workspace or public-source inspection; mutate means direct file "
             "changes; execute means local command invocation; derive_evidence means "
@@ -2926,7 +2918,7 @@ class OpenAICompatibleSupervisorClient:
                 "always []; make only the smallest change needed "
                 "for latest_audit, latest_stage_review, or "
                 "latest_controller_repair, replacing or discarding "
-                "obsolete open work or adding one later repair stage. When "
+                "obsolete open work or adding later repair stages. When "
                 "latest_audit.verdict is repair, latest_stage_review.verdict is "
                 "repair, or latest_controller_repair is non-null, and active_plan "
                 "still has a frontier, the patch must replace or discard at least "
@@ -2968,10 +2960,8 @@ class OpenAICompatibleSupervisorClient:
                 system_prompt=system_prompt,
                 request_payload=request_payload,
                 schema=schema,
-                # This is the bounded rolling Goal Planner, not the larger
-                # ContractGraph compiler.  Reusing the 4000-token contract
-                # budget made otherwise valid relay routes cross their
-                # long-generation boundary before returning any plan.
+                # Goal Planner has its own response-token budget, independent
+                # of the number of steps required by the task.
                 max_tokens=self.settings.max_plan_tokens,
             )
         patch = GoalPlanPatch.from_model_value(

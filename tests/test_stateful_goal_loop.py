@@ -4731,3 +4731,290 @@ def test_stage_repair_survives_planner_outage_and_resumes_before_final(
     ][-1]
     assert committed.payload["source_stage_review_id"] == repair_review_id
     assert rolling_goal_plan(resumed.state).current_stage == 2
+
+
+def _large_controller_plan_steps(
+    state, *, two_stages: bool,
+) -> tuple[GoalPlanStep, ...]:
+    """Use real workspace roots and the production plan dataclasses."""
+    workspace = Path(state.goal.workspace_root)
+    steps = []
+    for index in range(1, 20):
+        root = f"source-{index}.txt"
+        (workspace / root).write_text(f"Source {index} observed\n", encoding="utf-8")
+        later_stage = two_stages and index > 10
+        steps.append(GoalPlanStep(
+            step_id=f"S{index:02d}",
+            objective=f"Inspect source {index}",
+            phase="observe",
+            stage=2 if later_stage else 1,
+            depends_on=tuple(f"S{prior:02d}" for prior in range(1, 11))
+            if later_stage else (),
+            obligation_ids=("O1",),
+            success_evidence=(f"Source {index} has successful observation evidence",),
+            read_roots=(root,),
+        ))
+    return tuple(steps)
+
+
+def _large_controller_initial_patch(
+    steps: tuple[GoalPlanStep, ...],
+) -> GoalPlanPatch:
+    return GoalPlanPatch(
+        patch_id="GPP-large-initial",
+        base_revision=0,
+        add_steps=steps,
+        replace_steps=(),
+        discard_step_ids=(),
+        reason="Inspect every requested source",
+        goal_obligations=(GoalObligation(
+            obligation_id="O1",
+            predicate="Every requested source is inspected",
+            required_phases=("observe",),
+        ),),
+    )
+
+
+def test_large_goal_controller_persists_full_plan_and_rejects_invalid_revision(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "LARGE-PLAN-DURABLE")
+    steps = _large_controller_plan_steps(state, two_stages=True)
+    initial = _large_controller_initial_patch(steps)
+    replacement = GoalPlanPatch(
+        patch_id="GPP-large-replace", base_revision=1, add_steps=(),
+        replace_steps=tuple(
+            replace(step, objective=f"Inspect revised {step.step_id}")
+            for step in steps[10:]
+        ),
+        discard_step_ids=(), reason="Revise all nine later-stage observations",
+    )
+    discard = GoalPlanPatch(
+        patch_id="GPP-large-discard", base_revision=2, add_steps=(),
+        replace_steps=(), discard_step_ids=tuple(step.step_id for step in steps[11:]),
+        reason="Remove eight superseded later-stage observations",
+    )
+    invalid = GoalPlanPatch(
+        patch_id="GPP-large-invalid", base_revision=3, add_steps=(),
+        replace_steps=(replace(steps[0], depends_on=("missing",)),),
+        discard_step_ids=(), reason="Invalid dependency must not reach durable state",
+    )
+    planner = _StrongPlanner((initial, replacement, discard, invalid))
+    planner.semantic_repair_attempts = 0
+    queue = _QueueClient([])
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector([]),
+    )
+    controller = StatefulGoalLoopController(
+        store, model=model, harness=model.harness, supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=1,
+    )
+
+    for revision, patch in enumerate((initial, replacement, discard), start=1):
+        assert controller._issue_strong_plan_patch(
+            state, plan=rolling_goal_plan(state), transitions=0,
+        ) is None
+        # Reload the durable store after every Controller commit; an in-memory
+        # candidate alone cannot prove that complete plans survive persistence.
+        state = store.load(state.run_id)
+        plan = rolling_goal_plan(state)
+        expected_steps = steps if revision < 3 else steps[:11]
+        assert tuple(plan.steps) == tuple(step.step_id for step in expected_steps)
+        assert {step_id: step.stage for step_id, step in plan.steps.items()} == {
+            step.step_id: step.stage for step in expected_steps
+        }
+        assert plan.step_revisions == {
+            step.step_id: 2 if revision >= 2 and step.stage == 2 else 1
+            for step in expected_steps
+        }
+        assert plan.steps["S11"].depends_on == tuple(
+            step.step_id for step in steps[:10]
+        )
+        if revision >= 2:
+            assert plan.steps["S11"].objective == "Inspect revised S11"
+        assert plan.patch_ids == [
+            item.patch_id for item in (initial, replacement, discard)[:revision]
+        ]
+        assert plan.discarded_step_ids == (
+            set(discard.discard_step_ids) if revision == 3 else set()
+        )
+        assert not plan.batch_complete
+        assert not plan.complete
+        assert state.status.value != "completed"
+        assert not state.final_output
+        committed = [
+            event for event in store.event_records(state.run_id)
+            if event["type"] == "goal_plan_patch_committed"
+        ]
+        assert len(committed) == revision
+        assert committed[-1]["data"]["plan_revision"] == revision
+        assert committed[-1]["data"]["patch"] == patch.to_dict()
+
+    before = plan.to_model_dict()
+    before_revisions = dict(plan.step_revisions)
+    before_discarded = set(plan.discarded_step_ids)
+    rejected = controller._issue_strong_plan_patch(state, plan=plan, transitions=0)
+    assert rejected is not None
+    assert plan.to_model_dict() == before
+    state = store.load(state.run_id)
+    durable_plan = rolling_goal_plan(state)
+    assert durable_plan.to_model_dict() == before
+    assert durable_plan.step_revisions == before_revisions
+    assert durable_plan.discarded_step_ids == before_discarded
+    assert invalid.patch_id not in durable_plan.patch_ids
+    events = store.event_records(state.run_id)
+    assert sum(event["type"] == "goal_plan_patch_committed" for event in events) == 3
+    rejection = [event for event in events if event["type"] == "strong_planner_patch_rejected"]
+    assert len(rejection) == 1
+    assert "unknown steps" in rejection[0]["data"]["error"]["message"]
+    assert "missing" in rejection[0]["data"]["error"]["message"]
+    assert rejection[0]["data"]["rejected_patch"] == invalid.to_dict()
+    assert [request.plan_revision for request in planner.requests] == [0, 1, 2, 3]
+    assert not any(event["type"] == "run_completed" for event in events)
+    assert state.status.value != "completed"
+    assert not state.final_output
+    assert queue.prompts == []
+
+
+def test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "LARGE-STAGE-REVIEW-DURABLE")
+    steps = _large_controller_plan_steps(state, two_stages=False)
+    initial = _large_controller_initial_patch(steps)
+    replacement = GoalPlanPatch(
+        patch_id="GPP-large-stage-replace", base_revision=1, add_steps=(),
+        replace_steps=(replace(steps[-1], objective="Inspect the revised final source"),),
+        discard_step_ids=(), reason="Revise one peer before gathering evidence",
+    )
+    planner = _StrongPlanner((initial, replacement))
+    # ModelCommand provides the production wire representation. Every model
+    # response is supplied locally; the Harness still performs real file reads.
+    queue = _QueueClient([
+        ModelCommand("read_file", {"path": step.read_roots[0]}).canonical
+        for step in steps
+    ])
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["read_file"] * len(steps)),
+    )
+    controller = StatefulGoalLoopController(
+        store, model=model, harness=model.harness, supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=1,
+    )
+    for _ in (initial, replacement):
+        assert controller._issue_strong_plan_patch(
+            state, plan=rolling_goal_plan(state), transitions=0,
+        ) is None
+        state = store.load(state.run_id)
+
+    action_ids = []
+    for index, step in enumerate(steps, start=1):
+        plan = rolling_goal_plan(state)
+        assert not plan.batch_complete
+        active_step = plan.steps[step.step_id]
+        step_revision = plan.step_revisions[step.step_id]
+        mechanical_evidence = controller._step_mechanical_evidence_coverage(
+            state, step.step_id, step_revision,
+        )
+        eligible_operations, target_contract = controller._goal_step_operation_contract(
+            state, active_step, mechanical_evidence=mechanical_evidence,
+        )
+        selector_progress = controller._selector_current_progress(
+            state, step.step_id, step_revision, mechanical_evidence,
+            target_contract=target_contract,
+        )
+        decision = model.next_command(
+            state, controller._persist_callback, eligible_operations=eligible_operations,
+            selector_stage_context=goal_frontier_selector_context(
+                active_step.to_dict(), current_progress=selector_progress,
+            ),
+            current_requirement=active_step.objective,
+            executor_fact_action_ids=controller._step_executor_fact_action_ids(
+                state, step.step_id, step_revision,
+            ),
+            executor_execution_state=controller._executor_execution_state(
+                state, step.step_id, step_revision, mechanical_evidence,
+                effective_phase=active_step.phase, target_contract=target_contract,
+            ),
+        )
+        action = controller._execute_decision(state, decision)
+        assert action.status is ActionStatus.SUCCEEDED
+        action_ids.append(action.action_id)
+        controller._persist(
+            state, "goal_action_plan_step_assigned",
+            {
+                "action_id": action.action_id,
+                "step_id": step.step_id,
+                "step_revision": plan.step_revisions[step.step_id],
+                "strong_planner_patch_ids": list(plan.patch_ids),
+            },
+            subject_id=action.action_id,
+        )
+        refs = (action.action_id,)
+        audit = GoalAuditDecision(
+            audit_id=f"AUD-large-{index}", verdict=GoalAuditVerdict.CONTINUE,
+            step_id=step.step_id, evidence_refs=refs, gaps=(),
+            completed_steps=(AuditedStep(step.step_id, refs),),
+            reason="The assigned source has a successful Harness observation",
+        )
+        validate_audit_authority(
+            state, plan, audit, final_candidate=False,
+            active_step_id=step.step_id, allowed_evidence_refs=refs,
+        )
+        controller._persist(
+            state, "goal_audit_accepted",
+            {"audit_id": audit.audit_id, "audit": audit.to_dict(), "kernel_validated": True},
+            subject_id=audit.audit_id,
+        )
+        state = store.load(state.run_id)
+        plan = rolling_goal_plan(state)
+        assert plan.batch_complete == (index == len(steps))
+        assert state.status.value != "completed"
+        assert not state.final_output
+
+    assert plan.complete
+    assert controller._next_unreviewed_completed_stage(state, plan) == (
+        1, plan.stage_boundary_key(1),
+    )
+    review = controller._issue_strong_stage_review(
+        state, plan=plan, stage=1, stage_boundary_key=plan.stage_boundary_key(1),
+        transitions=0,
+    )
+    assert isinstance(review, GoalStageReview)
+    assert len(planner.stage_review_requests) == 1
+    request = planner.stage_review_requests[0]
+    expected_ids = tuple(step.step_id for step in steps)
+    assert tuple(item["step_id"] for item in request.stage_steps) == expected_ids
+    assert tuple(item["step_revision"] for item in request.stage_steps) == (1,) * 18 + (2,)
+    assert tuple(tuple(item["accepted_evidence_refs"]) for item in request.stage_steps) == tuple(
+        (action_id,) for action_id in action_ids
+    )
+    # Step identities, revisions and accepted refs are complete. Action facts
+    # are a separate, deliberately bounded budget, not all 19 action results.
+    assert tuple(fact["action_id"] for fact in request.recent_action_facts) == tuple(action_ids[-8:])
+    assert len(request.recent_action_facts) == 8
+    assert review.reviewed_step_ids == expected_ids
+    assert review.evidence_refs == tuple(action_ids)
+    state = store.load(state.run_id)
+    durable_plan = rolling_goal_plan(state)
+    assert durable_plan.step_revisions == plan.step_revisions
+    assert durable_plan.completed_evidence == plan.completed_evidence
+    assert controller._next_unreviewed_completed_stage(state, durable_plan) is None
+    events = store.event_records(state.run_id)
+    committed = [event for event in events if event["type"] == "goal_stage_review_committed"]
+    assert len(committed) == 1
+    assert committed[0]["data"]["review"] == review.to_dict()
+    # Completed steps and a Strong stage ADVANCE never replace an explicit
+    # RWKV final decision or authorize Controller completion by plan size.
+    assert not any(event["type"] == "run_completed" for event in events)
+    assert state.status.value != "completed"
+    assert not state.final_output
+    assert len(queue.prompts) == len(steps)

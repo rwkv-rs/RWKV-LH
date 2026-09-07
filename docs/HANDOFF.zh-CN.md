@@ -2,7 +2,7 @@
 
 更新时间：2026-09-07。基线准备与执行记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；R2 已冻结并执行完整 A 臂，B 臂尚未启动。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
 
-当前阶段：服务器上传部署与完整源码清单核验已完成，本地生产提交 `eab0a699`。R2 A 的 12 题全部以 `strong_planner_unavailable` 停止，正在按 owner 要求排查 Planner 上游请求格式及转发故障；B 臂暂未启动，没有有效双零能力基线。作者参考自验、整体 bubblewrap 验证和完整 pytest 均须与模型结果分开报告。
+当前阶段：R2 A 的 12 题全部以 `strong_planner_unavailable` 停止，B 臂未启动，没有有效双零能力基线。owner 要求绕开所有中转，先检查现有 13.3B 的原始输出和 Planner JSON，并随后明确取消 Planner 的步数要求。连接检查已得到完整输出；步骤数量限制按授权从整条计划链移除。后端切换仍需完成格式与合同验证，尚未开始新的模型评测。作者参考自验、整体 bubblewrap 验证和完整 pytest 均须与模型结果分开报告。
 
 ## 1. Agent 级状态
 
@@ -13,6 +13,10 @@ R2 A 已执行完整 12 题：Strict **0/12**、completed **0/12**、mutation **
 Planner 与 Stage Checker 当前统一使用 `chat/completions` + JSON mode。已重建的 Planner user payload 与原 trace SHA 完全匹配；同一个最小 JSON-mode 请求先 500 后 200，完整请求保留或删除 `response_format` 均 500，增加 `stream=true` 后也在任何 SSE 之前返回 500。已有 200 响应都通过当前 decoder，不能凭此删字段、改为流式或判定请求格式是根因。结论与六次独立诊断见 [PLANNER_UPSTREAM_DIAGNOSIS_R1.zh-CN.md](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_UPSTREAM_DIAGNOSIS_R1.zh-CN.md)，SHA-256 `9424950c36c67d64d31a552b81a2b4216bdc21160fad115df80f3c2a4676dc35`。所有诊断调用排除在 Agent 分数和角色数据之外；具体内部原因仍需中转后台按请求ID核实。
 
 单元回归仅证明代码合同与恢复路径，不证明 Agent 增益。最终发布仍须满足统一规范和 AGENTS §7。
+
+最新 13.3B 诊断：普通 chat 返回 `>思考文本</think>{JSON}`，开头 `<think` 已由服务预填，完整 content 因边界不匹配被当前 decoder 拒绝；单独观察的 JSON 后缀语法正确。完整 Planner 请求在诊断上限 8,192 下自然结束，生成 4,876 tokens，含 19 步；该请求不计入成绩或训练。JSON mode 的即时 500 已由服务 traceback 定位为生成前缺少 `lmformatenforcer`；`fake_think` 自定义参数也在渲染链被过滤。另有字段类型、同阶段依赖和 mutate/read_roots 错误。详见 [输出检查](../data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/REPORT.zh-CN.md)。诊断预算没有改写生产 1,800-token 配置，正式接入仍需按模型上下文确定并冻结预算。
+
+owner 随后明确 Planner 不应受步数要求约束。本轮已去掉五步限制及相关阶段/依赖数量上限，同时解除计划补丁、累计未完成步骤与阶段检查请求的五步拦截；阶段检查仍承担原职责，只是接收完整已完成阶段。数量由任务决定；不允许用步数超限拒绝计划，也不允许截取前几步后丢失其余计划。原始诊断按修改前合同保留，19 步不再作为新合同缺陷，其他字段和语义问题不因此消失。见 [整改与回归](../data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/REPORT.zh-CN.md)。本轮生产改动要求后续两臂重新冻结并完整运行，不能接续旧 R2 B。
 
 ## 2. 生产架构与 State
 
@@ -33,7 +37,7 @@ Strong Planner 提供 active step
 
 入口为 `product_runtime.build_product_controller()`，架构常量为 `stateful_goal_loop.STATEFUL_GOAL_LOOP_ARCHITECTURE`（v7）。Controller 不读取隐藏 acceptance、不重写 Final。
 
-owner 已确认推理服务器为 `rwkv-8222`；当前 Strong Planner 与 Strong Stage Checker 均为 `gpt-5.6-sol`。服务器旧服务/缓存清理与当前源码部署的路径、删除清单及运行身份见 [服务器清理轮记录](../data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/)。最初本地端口预检只是历史准备证据，不能替代部署后的 attestation。
+owner 已确认推理服务器为 `rwkv-8222`。R2 时 Strong Planner 与 Strong Stage Checker 均为中转 `gpt-5.6-sol`；最新目标为使用现有 13.3B 服务，不再发起中转诊断。此次仅通过独立请求检查连接，生产 endpoint 尚未宣称切换完成；Selector 2.9B 和其余角色模型、职责、State 保持原样。服务器旧服务/缓存清理与当前源码部署的路径、删除清单及运行身份见 [服务器清理轮记录](../data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/)。为定位 JSON mode 500，现有 13.3B 服务增加日志开关并从本地上传重启，变更已登记；旧 R2 服务快照不能代替新运行 attestation。
 
 owner 新硬约束：所有 Git 版本管理与查询只能在本地执行，服务器不运行任何 Git 命令，包括启动或 attestation 中的 `git rev-parse` / `git status`。本地冻结源码后通过 SSH 配合 rsync/SCP 上传；engine 同时上传完整源码 manifest，登记文件相对路径、逐文件 SHA-256 与 manifest 自身 SHA-256，服务按清单核验实际文件。部署证据将本地提交与上传清单绑定，服务器无需 Git 仓库；清单缺失或不一致时不得退回远端 Git。运行时清单配置已上传，两项服务重启后通过完整文件核验和健康检查；本地完整回归 697 项通过。证据见本轮 `UPLOAD_ONLY_REPORT.zh-CN.md`，这不代表已获得模型基线成绩。
 

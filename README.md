@@ -19,7 +19,9 @@ Strong Planner
 
 每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v4、Executor 为 v4、Step Auditor 为 v3、Finalizer 为 v1、Final Auditor 为 v2。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
 
-服务器 `rwkv-8222` 的本地上传部署及完整源码身份核验已通过，完整回归 697 项通过。新冻结 R2 A 已运行 12 题：Strict **0/12**、completed **0/12**、mutation **0**，12 题均因 `strong_planner_unavailable` 停止，11 题没有 RWKV 生成。当前正在排查 `next-token.cc` 上的 Planner 转发故障；B 臂暂未启动，不能计算双零噪声或进入训练，详见 [A 臂报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。此前中断的 R1 尝试仍单独按 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留。当前 Strong Planner 与 Strong Stage Checker 均配置为 `gpt-5.6-sol`；端口可用和作者参考实现通过都不代表 Agent 能力提升。
+服务器 `rwkv-8222` 已按本地上传方式部署。R2 A 已运行 12 题：Strict **0/12**、completed **0/12**、mutation **0**，12 题均因 `strong_planner_unavailable` 停止，11 题没有 RWKV 生成；B 臂未启动，不能计算双零噪声或进入训练，详见 [A 臂报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。此前中断的 R1 尝试仍按 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留。
+
+owner 已要求绕开所有中转，先检查现有 13.3B 的 Planner 输出；角色职责保持原样。完整诊断证实模型在思考后返回合法 JSON，但服务 JSON mode 缺依赖、思考前缀传递及计划字段/依赖合同尚未通过接入验证，详见 [13.3B 输出检查](data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/REPORT.zh-CN.md)。正式后端切换和新双零运行尚未完成。按后续明确授权，Planner 的步骤和阶段数量由任务决定，已删除提示词、schema、计划补丁、未完成计划及阶段检查入口的数量上限；依赖、职责、根路径与证据约束继续校验，见 [数量限制整改](data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/REPORT.zh-CN.md)。旧输出不重评分，后续运行重新冻结。
 
 owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。
 

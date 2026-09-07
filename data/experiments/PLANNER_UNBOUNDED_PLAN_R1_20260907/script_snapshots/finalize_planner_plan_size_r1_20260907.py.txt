@@ -1,0 +1,43 @@
+"""Bind completed plan-size regression and upload evidence to exact local sources."""
+from pathlib import Path
+import hashlib
+import json
+import shutil
+import subprocess
+
+root = Path('/home/chase/GitHub/RWKV-LH')
+folder = root / 'data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907'
+test_result = (folder / 'FULL_TESTS.log').read_text().splitlines()[-1]
+assert ' passed in ' in test_result and 'failed' not in test_result and 'skipped' not in test_result
+upload = json.loads((folder / 'UPLOAD_VERIFICATION.json').read_text())
+assert upload['verified_file_count'] == 9
+manifest = json.loads((folder / 'UPLOAD_SOURCE_MANIFEST.json').read_text())
+for entry in manifest['files']:
+    assert hashlib.sha256((root / entry['path']).read_bytes()).hexdigest() == entry['sha256'], entry['path']
+record = {
+    'round_id': folder.name,
+    'owner_instructions': ['这个五步的要求去除掉，对于planner来说就不应该存在步数的要求',
+                           '这种步数的和我们让rwkv仔细选择结束是存在冲突的'],
+    'base_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
+    'full_regression': test_result,
+    'new_agent_metrics': None,
+    'model_invocations': 0,
+    'training_runs': 0,
+    'historical_outputs_rescored': False,
+    'changed_files': manifest['files'],
+    'server_git_used': False,
+}
+(folder / 'CHANGE_RECORD.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+report = folder / 'REPORT.zh-CN.md'
+report.write_text(report.read_text().replace('完整回归以 `FULL_TESTS.log` 为准；',
+    f'完整回归为 **{test_result}**，无跳过，详见 `FULL_TESTS.log`；'))
+snapshots = folder / 'script_snapshots'
+snapshots.mkdir(exist_ok=False)
+for name in (Path(__file__).name, 'upload_planner_plan_size_r1_20260907.py'):
+    shutil.copyfile(root / 'temp' / name, snapshots / (name + '.txt'))
+sha_file = folder / 'ROUND_SHA256SUMS'
+assert not sha_file.exists()
+files = sorted(path for path in folder.rglob('*') if path.is_file())
+sha_file.write_text(''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(folder)}\n' for path in files))
+print(json.dumps({'test_result': test_result, 'report_sha256': hashlib.sha256(report.read_bytes()).hexdigest(),
+                  'manifest_sha256': hashlib.sha256(sha_file.read_bytes()).hexdigest(), 'files': len(files)}))

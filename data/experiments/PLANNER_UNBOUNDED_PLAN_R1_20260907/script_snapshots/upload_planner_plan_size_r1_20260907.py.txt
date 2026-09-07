@@ -1,0 +1,70 @@
+"""Upload explicit verified files and validate their bytes; never run server Git."""
+from datetime import datetime, timezone
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import shlex
+import subprocess
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907'
+MANIFEST = ROOT / 'data/runtime/manifests/planner_plan_size_r1_20260907.source.json'
+FILES = (
+    'rwkv_lh/goal_loop_protocol.py', 'rwkv_lh/supervisor_openai.py',
+    'tests/test_goal_planner_plan_size.py', 'tests/test_supervisor_openai.py',
+    'tests/test_stateful_goal_loop.py', 'AGENTS.md', 'README.md',
+    'docs/HANDOFF.zh-CN.md', 'docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md',
+)
+
+
+def verify():
+    manifest = json.loads(MANIFEST.read_text())
+    checked = []
+    for entry in manifest['files']:
+        path = ROOT / entry['path']
+        assert path.is_file() and not path.is_symlink(), path
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == entry['sha256'], path
+        checked.append(entry['path'])
+    return {'verified_file_count': len(checked), 'verified_files': checked,
+            'manifest_sha256': hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
+            'server_git_used': False}
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--verify-upload', action='store_true')
+args = parser.parse_args()
+if args.verify_upload:
+    print(json.dumps(verify()))
+else:
+    output = ROUND / 'UPLOAD_VERIFICATION.json'
+    assert not output.exists(), output
+    test_log = (ROUND / 'FULL_TESTS.log').read_text()
+    assert ' passed in ' in test_log.splitlines()[-1]
+    assert 'failed' not in test_log.splitlines()[-1] and 'skipped' not in test_log.splitlines()[-1]
+    manifest = {
+        'round_id': ROUND.name,
+        'at': datetime.now(timezone.utc).isoformat(),
+        'content_identity': 'exact uploaded file SHA-256; production commit recorded locally after validation',
+        'files': [{'path': name, 'sha256': hashlib.sha256((ROOT/name).read_bytes()).hexdigest()} for name in FILES],
+    }
+    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    (ROUND / 'UPLOAD_SOURCE_MANIFEST.json').write_bytes(MANIFEST.read_bytes())
+    upload_list = ROOT / 'temp/planner_plan_size_r1_20260907_upload_files.txt'
+    upload_list.write_text('\n'.join((*FILES, str(MANIFEST.relative_to(ROOT)), str(Path(__file__).relative_to(ROOT)))) + '\n')
+    subprocess.run(['rsync', '-a', '--files-from', str(upload_list), str(ROOT)+'/',
+                    'rwkv-8222:'+str(ROOT)+'/'], check=True, capture_output=True, text=True)
+    remote = subprocess.run(['ssh', 'rwkv-8222', shlex.join(['python3', str(Path(__file__)), '--verify-upload'])],
+                            check=True, capture_output=True, text=True)
+    evidence = json.loads(remote.stdout)
+    local = verify()
+    assert local == evidence
+    evidence.update({'at': datetime.now(timezone.utc).isoformat(),
+                     'method': 'local rsync upload plus read-only server SHA-256 verification',
+                     'test_log_sha256': hashlib.sha256((ROUND/'FULL_TESTS.log').read_bytes()).hexdigest(),
+                     'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                     'services_restarted': False,
+                     'model_or_state_changed': False})
+    output.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + '\n')
+    print(json.dumps(evidence))
