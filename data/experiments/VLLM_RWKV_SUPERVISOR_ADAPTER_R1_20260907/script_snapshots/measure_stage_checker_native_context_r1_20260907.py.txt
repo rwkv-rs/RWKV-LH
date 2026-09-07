@@ -1,0 +1,46 @@
+"""Measure the exact captured native Stage request, without generation or truncation."""
+from pathlib import Path
+import hashlib
+import json
+import runpy
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+source = ROOT / 'temp/probe_vllm_rwkv_stage_checker_adapter_r1_20260907.py'
+sys.path.insert(0, str(ROOT))
+# Execute declarations only, reusing the canonical request reconstruction.
+text = source.read_text().split('record = {', 1)[0]
+text = text.replace('assert not OUTPUT.exists(), OUTPUT', '')
+ns = {'__file__': str(source)}
+exec(compile(text, str(source), 'exec'), ns)
+from rwkv_lh.supervisor_openai import SupervisorAPISettings, OpenAICompatibleSupervisorClient
+
+output = ns['ROUND'] / 'STAGE_CHECKER_NATIVE_CONTEXT_PREFLIGHT.json'
+assert not output.exists()
+record = {'purpose': 'No generation; exact untruncated canonical 19-step fixture context check',
+          'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+
+class Capture(OpenAICompatibleSupervisorClient):
+    def _post_completion(self, endpoint, body):
+        response = self._session().post('http://127.0.0.1:29613/tokenize', json={
+            'model': ns['MODEL'], 'prompt': body['prompt'], 'add_special_tokens': True,
+        }, timeout=20)
+        response.raise_for_status()
+        record.update(request_body=body, tokenization=response.json(), context_limit=16384)
+        record['requested_total_context'] = record['tokenization']['count'] + body['max_tokens']
+        record['fits_context'] = record['requested_total_context'] <= 16384
+        raise RuntimeError('Tokenization-only capture: generation is intentionally not called')
+
+client = Capture(SupervisorAPISettings(
+    base_url='http://127.0.0.1:29613/v1', api_key='local-no-auth', model=ns['MODEL'],
+    stage_checker_model=ns['MODEL'], backend_profile='vllm-rwkv-native',
+    retry_attempts=1, semantic_repair_attempts=0, plan_cache_enabled=False,
+))
+try:
+    client.review_goal_stage(ns['request'])
+except RuntimeError as exc:
+    record['capture_stop'] = str(exc)
+finally:
+    client.close()
+    output.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({key: record.get(key) for key in ('requested_total_context', 'context_limit', 'fits_context')}))

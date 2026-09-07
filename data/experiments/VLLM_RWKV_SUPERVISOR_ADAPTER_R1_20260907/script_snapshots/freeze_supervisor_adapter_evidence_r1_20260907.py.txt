@@ -1,0 +1,65 @@
+"""Freeze only this authorized round's evidence and non-executable script snapshots."""
+from pathlib import Path
+import hashlib
+import json
+import subprocess
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+scripts = [
+    'apply_supervisor_native_env_whitelist_20260907.py',
+    'measure_stage_checker_native_context_r1_20260907.py',
+    'probe_vllm_rwkv_stage_checker_adapter_r1_20260907.py',
+    'probe_vllm_rwkv_small_stage_checker_adapter_r1_20260907.py',
+    'audit_vllm_rwkv_supervisor_wire_render_offline_20260907.py',
+    'audit_vllm_rwkv_canonical_completion_parity_20260907.py',
+    'probe_vllm_rwkv_supervisor_adapter_r1_20260907.py',
+    'capture_stage_checker_connection_fixture_r1_20260907.py',
+    'capture_small_stage_checker_connection_fixture_r1_20260907.py',
+    'deploy_vllm_rwkv_supervisor_adapter_r1_20260907.py',
+    'audit_vllm_rwkv_supervisor_wire_tokenize_20260907.py',
+    'analyze_planner_native_response_r1_20260907.py',
+    Path(__file__).name,
+]
+destination = ROUND / 'script_snapshots'
+assert not destination.exists()
+destination.mkdir()
+for name in scripts:
+    (destination / (name + '.txt')).write_bytes((ROOT / 'temp' / name).read_bytes())
+# Do not print environment contents. Reject accidental inclusion of actual local secrets.
+secrets = set()
+for name in ('.env', '.env.local'):
+    for line in (ROOT / name).read_text().splitlines():
+        key, sep, value = line.partition('=')
+        if sep and any(marker in key.upper() for marker in ('API_KEY', 'PASSWORD', 'SECRET')):
+            value = value.strip().strip('"\'')
+            if len(value) >= 12 and value != 'local-no-auth':
+                secrets.add(value.encode())
+files = sorted(path for path in ROUND.rglob('*') if path.is_file())
+assert all(not path.is_symlink() for path in files)
+for path in files:
+    raw = path.read_bytes()
+    assert not any(secret in raw for secret in secrets), 'Sensitive value detected in evidence artifact'
+manifest = ROUND / 'SHA256SUMS'
+assert not manifest.exists()
+manifest.write_text(''.join(
+    hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + str(path.relative_to(ROUND)) + '\n'
+    for path in files
+))
+subprocess.run(['sha256sum', '--check', '--quiet', str(manifest)], cwd=ROUND, check=True)
+# Upload only this frozen round from local; remote verification does not call Git.
+subprocess.run(['rsync', '-a', '--checksum', str(ROUND) + '/',
+                'rwkv-8222:' + str(ROUND) + '/'], check=True)
+verification = subprocess.run(['ssh', 'rwkv-8222',
+    'cd /home/chase/GitHub/RWKV-LH/data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907 && sha256sum --check --quiet SHA256SUMS'],
+    check=True, capture_output=True, text=True)
+receipt = ROUND / 'EVIDENCE_UPLOAD_RECEIPT.json'
+assert not receipt.exists()
+receipt.write_text(json.dumps({
+    'manifest_sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+    'report_sha256': hashlib.sha256((ROUND/'REPORT.zh-CN.md').read_bytes()).hexdigest(),
+    'artifact_count': len(files), 'remote_hash_check_exit_code': verification.returncode,
+    'remote_hash_check_stdout': verification.stdout, 'server_git_used': False,
+}, ensure_ascii=False, indent=2) + '\n')
+subprocess.run(['rsync', '-a', '--checksum', str(receipt), 'rwkv-8222:' + str(receipt)], check=True)
+print(receipt.read_text())

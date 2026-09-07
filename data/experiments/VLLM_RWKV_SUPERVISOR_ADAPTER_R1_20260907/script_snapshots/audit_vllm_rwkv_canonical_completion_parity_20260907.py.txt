@@ -1,0 +1,164 @@
+"""Canonical Planner transport parity audit. Every mode forbids generation."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import socket
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ENGINE = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+SOURCE = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/PLANNER_WIRE_DIAGNOSTIC_R2/SUP-9bb02f7be600485aaedc.reconstructed_body.json'
+MODEL = 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+MODE = sys.argv[1]
+assert MODE in ('export', 'remote', 'http')
+
+def sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+def record(name, value):
+    path = ROUND / name
+    with path.open('x') as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'output': str(path), 'sha256': sha(path.read_bytes())}))
+
+def metadata():
+    return {'at': datetime.now(timezone.utc).isoformat(), 'script_sha256': sha(Path(__file__).read_bytes()),
+            'generation_requests': 0, 'model_loaded': False, 'git_executed': False, 'production_changed': False}
+
+original_popen = subprocess.Popen
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('Git is forbidden')
+    return original_popen(args, *rest, **kwargs)
+subprocess.Popen = guarded_popen
+
+def no_network(*args, **kwargs):
+    raise RuntimeError('Offline mode forbids network')
+
+if MODE != 'http':
+    socket.create_connection = no_network
+    socket.socket.connect = no_network
+
+if MODE == 'export':
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    sys.path.insert(0, str(ROOT))
+    from rwkv_lh.goal_loop_protocol import GoalPlanRequest
+    from rwkv_lh.supervisor_openai import OpenAICompatibleSupervisorClient, SupervisorAPISettings, _render_user_payload
+    original = json.loads(SOURCE.read_bytes())
+    payload = json.loads(original['messages'][1]['content'])
+    request = GoalPlanRequest(
+        run_id=payload['run_id'], immutable_request=payload['current_requirement'],
+        goal_digest=payload['goal_digest'], plan_revision=payload['plan_revision'],
+        active_plan=payload['active_plan'], latest_audit=payload['latest_audit'],
+        workspace_manifest=payload['workspace_manifest'], latest_stage_review=payload.get('latest_stage_review'),
+        recent_action_facts=tuple(payload.get('recent_action_facts') or ()),
+        local_validation_repair=payload.get('local_validation_repair'),
+        latest_controller_repair=payload.get('latest_controller_repair'),
+    )
+    client = OpenAICompatibleSupervisorClient(SupervisorAPISettings(
+        base_url='http://127.0.0.1:1/v1', api_key='offline-not-used', model=MODEL,
+        stage_checker_model=MODEL, plan_cache_enabled=False))
+    captured = {}
+    class Captured(Exception):
+        pass
+    def capture(**kwargs):
+        captured.update(kwargs)
+        raise Captured()
+    client._request_json = capture
+    try:
+        client.plan_goal_patch(request)
+    except Captured:
+        pass
+    finally:
+        client.close()
+    assert captured, 'Must capture sole production Planner builder before network'
+    system = captured['system_prompt']; user = _render_user_payload(captured['request_payload'])
+    def control(name, system, user):
+        # Transport framing only. No role protocol fields are authored here.
+        return {'name': name, 'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
+                'proposed_prompt': f'System✿{system}✿\nUser✿{user}✿\nBot✿<think'}
+    cases = [control('current_canonical_goal_plan', system, user),
+             control('transport_unicode_delimiters_control', 'JSON only\r\n✿<think>中文🙂',
+                     'User: quoted "value"\\path\nBot✿literal\r\n</think>\tEnd')]
+    record('CANONICAL_COMPLETION_PARITY_INPUT.json', {**metadata(),
+        'method': 'Saved visible canonical request -> current GoalPlanRequest -> current plan_goal_patch capture before HTTP -> sole _render_user_payload',
+        'input_source': str(SOURCE), 'input_source_sha256': sha(SOURCE.read_bytes()),
+        'source_sha256': {p: sha((ROOT / p).read_bytes()) for p in ('rwkv_lh/goal_loop_protocol.py', 'rwkv_lh/supervisor_openai.py')},
+        'current_plan_budget_at_capture': captured['max_tokens'], 'canonical_payload_roundtrip_equal': request.to_dict() == payload,
+        'system_chars': len(system), 'user_chars': len(user), 'cases': cases,
+        'negative_controls': 'Missing separator and wrong assistant label must differ from deployed native rendering.',
+        'proposed_zero_state_xargs': {'rwkv_state_profile': 'zero', 'rwkv_state_profile_sha256': '0' * 64},
+    })
+elif MODE == 'remote':
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    sys.path.insert(0, str(ENGINE))
+    from vllm.tokenizers.rwkv import RWKVTokenizer
+    from vllm.tokenizers.rwkv_defaults import render_rwkv_chat_template
+    inputs = json.load(sys.stdin)
+    tokenizer = RWKVTokenizer()
+    rows = []
+    for case in inputs['cases']:
+        native = render_rwkv_chat_template(case['messages'], add_generation_prompt=True, rwkv_generation_prompt='open_think')
+        native_tokens = tokenizer.apply_chat_template(case['messages'], tokenize=True, add_generation_prompt=True,
+                                                      rwkv_generation_prompt='open_think')
+        proposed_tokens = tokenizer.encode(case['proposed_prompt'], add_special_tokens=True)
+        negative = {'missing_user_separator': case['proposed_prompt'].replace('✿\nUser✿', '\nUser✿', 1),
+                    'wrong_assistant_label': case['proposed_prompt'].removesuffix('Bot✿<think') + 'Assistant: <think'}
+        row = {'name': case['name'], 'utf8_equal': native.encode() == case['proposed_prompt'].encode(),
+               'token_ids_equal': native_tokens == proposed_tokens, 'token_count': len(native_tokens),
+               'native_prompt_sha256': sha(native.encode()), 'proposed_prompt_sha256': sha(case['proposed_prompt'].encode()),
+               'token_ids_sha256': sha(json.dumps(native_tokens, separators=(',', ':')).encode()),
+               'exactly_one_leading_zero': native_tokens[0] == 0 and native_tokens[1] != 0,
+               'negative_controls': {name: {'utf8_equal': text.encode() == native.encode(),
+                   'token_ids_equal': tokenizer.encode(text, add_special_tokens=True) == native_tokens}
+                   for name, text in negative.items()}}
+        assert row['utf8_equal'] and row['token_ids_equal'] and row['exactly_one_leading_zero']
+        assert all(not value['utf8_equal'] and not value['token_ids_equal'] for value in row['negative_controls'].values())
+        rows.append(row)
+    source_paths = ['vllm/tokenizers/rwkv_defaults.py', 'vllm/tokenizers/rwkv.py', 'vllm/renderers/hf.py',
+                    'vllm/renderers/base.py', 'vllm/entrypoints/openai/completion/protocol.py',
+                    'vllm/entrypoints/openai/completion/serving.py', 'vllm/entrypoints/openai/chat_completion/protocol.py',
+                    'vllm/entrypoints/openai/chat_completion/serving.py', 'vllm/entrypoints/serve/tokenize/protocol.py',
+                    'vllm/entrypoints/serve/tokenize/serving.py', 'tests/tokenizers_/test_rwkv.py',
+                    'tests/tokenization/test_rwkv_serving_contract.py', 'docs/getting_started/quickstart.md']
+    print(json.dumps({**metadata(), 'engine_root': str(ENGINE), 'tokenizer_class': type(tokenizer).__name__,
+        'input_script_sha256': inputs['script_sha256'], 'cases': rows,
+        'source_sha256': {p: sha((ENGINE / p).read_bytes()) for p in source_paths},
+        'positive_parity_checks_passed': len(rows), 'negative_controls_rejected': sum(len(row['negative_controls']) for row in rows),
+        'limits': 'CPU tokenizer/rendering parity only. No sampler, State resolution or generation was executed.'}, ensure_ascii=False, indent=2))
+else:
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    import urllib.request
+    source = ROUND / 'CANONICAL_COMPLETION_PARITY_INPUT.json'
+    inputs = json.loads(source.read_bytes()); case = inputs['cases'][0]
+    calls = []
+    def call(path, body=None):
+        assert path in ('/v1/models', '/tokenize', '/detokenize')
+        raw = json.dumps(body, ensure_ascii=False).encode() if body is not None else None
+        req = urllib.request.Request('http://127.0.0.1:29613' + path, data=raw,
+            headers={'Content-Type': 'application/json'} if raw else {}, method='POST' if raw else 'GET')
+        with urllib.request.urlopen(req, timeout=30) as response:
+            received = response.read(); decoded = json.loads(received)
+            calls.append({'path': path, 'status': response.status, 'request_sha256': sha(raw) if raw else None,
+                          'response_sha256': sha(received), 'response': decoded})
+        return decoded
+    assert MODEL in {item['id'] for item in call('/v1/models')['data']}
+    raw_tokens = call('/tokenize', {'model': MODEL, 'prompt': case['proposed_prompt'], 'add_special_tokens': True})
+    chat_tokens = call('/tokenize', {'model': MODEL, 'messages': case['messages'], 'add_generation_prompt': True,
+                                   'add_special_tokens': False})
+    decoded = call('/detokenize', {'model': MODEL, 'tokens': raw_tokens['tokens']})
+    assert raw_tokens['tokens'] == chat_tokens['tokens']
+    assert decoded['prompt'].encode() == case['proposed_prompt'].encode()
+    record('CANONICAL_COMPLETION_HTTP_PARITY.json', {**metadata(), 'source_sha256': sha(source.read_bytes()),
+        'raw_chat_token_ids_equal': True, 'raw_utf8_roundtrip_equal': True, 'input_tokens': raw_tokens['count'],
+        'max_model_len': raw_tokens['max_model_len'], 'room_for_8192_output': raw_tokens['count'] + 8192 <= raw_tokens['max_model_len'],
+        'token_ids_sha256': sha(json.dumps(raw_tokens['tokens'], separators=(',', ':')).encode()),
+        'request_prompt_sha256': sha(case['proposed_prompt'].encode()), 'calls': calls,
+        'limits': 'No completion request. The proposed State xargs are not validated by tokenization.',
+    })

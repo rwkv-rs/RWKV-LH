@@ -1,0 +1,98 @@
+"""Zero-generation HTTP tokenize/detokenize contract comparison only."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import urllib.error
+import urllib.request
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+SOURCE = ROUND / 'DEPLOYED_NATIVE_RENDER_OFFLINE.json'
+OUTPUT = ROUND / 'WIRE_TOKENIZATION_CONTRACT.json'
+ORIGIN = 'http://127.0.0.1:29613'
+MODEL = 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+calls = []
+
+def request(path, body=None):
+    assert path in ('/v1/models', '/tokenize', '/detokenize')
+    data = json.dumps(body, ensure_ascii=False).encode() if body is not None else None
+    item = {'path': path, 'request_body': body,
+            'request_sha256': hashlib.sha256(data).hexdigest() if data is not None else None}
+    req = urllib.request.Request(ORIGIN + path, data=data,
+                                 headers={'Content-Type': 'application/json'} if data else {},
+                                 method='POST' if data else 'GET')
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            raw = response.read()
+            item.update(status=response.status, response=json.loads(raw),
+                        response_sha256=hashlib.sha256(raw).hexdigest())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        item.update(status=exc.code, error_body=raw.decode(errors='replace'),
+                    response_sha256=hashlib.sha256(raw).hexdigest())
+    calls.append(item)
+    return item
+
+def main():
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    assert not OUTPUT.exists(), 'Evidence must not be overwritten'
+    source = json.loads(SOURCE.read_bytes())
+    health = request('/v1/models')
+    assert health.get('status') == 200 and MODEL in {v['id'] for v in health['response']['data']}
+    messages = source['messages']
+    base = {'model': MODEL, 'messages': messages, 'add_generation_prompt': True,
+            'add_special_tokens': False}
+    assistant_messages = [*messages, {'role': 'assistant', 'content': '<think></think>'}]
+    variants = {
+        'chat_default_open': base,
+        'chat_fake_kwarg': {**base, 'chat_template_kwargs': {'rwkv_generation_prompt': 'fake_think'}},
+        'chat_final_assistant_continue_false': {**base, 'messages': assistant_messages,
+            'add_generation_prompt': False, 'continue_final_message': False},
+        'chat_final_assistant_continue_true': {**base, 'messages': assistant_messages,
+            'add_generation_prompt': False, 'continue_final_message': True},
+    }
+    for mode, value in source['variants'].items():
+        variants['raw_native_' + mode] = {'model': MODEL, 'prompt': value['prompt'], 'add_special_tokens': True}
+    variants['raw_closed_fake_boundary'] = {'model': MODEL,
+        'prompt': source['variants']['fake_think']['prompt'] + '>', 'add_special_tokens': True}
+    records = {}
+    for name, body in variants.items():
+        tokenized = request('/tokenize', body)
+        record = {'request_body': body, 'tokenize_call_index': len(calls) - 1, 'status': tokenized['status']}
+        if tokenized['status'] == 200:
+            tokens = tokenized['response']['tokens']
+            decoded = request('/detokenize', {'model': MODEL, 'tokens': tokens})
+            record['detokenize_call_index'] = len(calls) - 1
+            record['token_ids_sha256'] = hashlib.sha256(json.dumps(tokens, separators=(',', ':')).encode()).hexdigest()
+            record['count'] = len(tokens)
+            record['max_model_len'] = tokenized['response']['max_model_len']
+            record['leading_token_ids'] = tokens[:8]
+            if decoded['status'] == 200:
+                prompt = decoded['response']['prompt']
+                record.update(rendered_prompt=prompt, rendered_sha256=hashlib.sha256(prompt.encode()).hexdigest(),
+                              raw_prompt_preserved=body.get('prompt') == prompt if 'prompt' in body else None)
+        records[name] = record
+    def equal(a, b):
+        av, bv = records[a].get('token_ids_sha256'), records[b].get('token_ids_sha256')
+        return av is not None and av == bv
+    report = {'at': datetime.now(timezone.utc).isoformat(), 'purpose': 'Tokenization only; no generation or role evaluation',
+        'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'source_path': str(SOURCE), 'source_sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+        'origin': ORIGIN, 'model': MODEL, 'generation_requests': 0, 'production_changed': False,
+        'server_modified': False, 'git_executed': False, 'variants': records, 'calls': calls,
+        'comparisons': {
+            'raw_native_open_equals_chat_default': equal('raw_native_open_think', 'chat_default_open'),
+            'chat_fake_kwarg_equals_chat_default': equal('chat_fake_kwarg', 'chat_default_open'),
+            'raw_native_fake_differs_from_raw_open': not equal('raw_native_fake_think', 'raw_native_open_think'),
+            'continue_final_message_does_not_change_tokens': equal('chat_final_assistant_continue_true', 'chat_final_assistant_continue_false'),
+        },
+    }
+    with OUTPUT.open('x') as handle:
+        json.dump(report, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'output': str(OUTPUT), 'sha256': hashlib.sha256(OUTPUT.read_bytes()).hexdigest(),
+        'comparisons': report['comparisons'], 'variants': records}, ensure_ascii=False))
+
+if __name__ == '__main__':
+    main()

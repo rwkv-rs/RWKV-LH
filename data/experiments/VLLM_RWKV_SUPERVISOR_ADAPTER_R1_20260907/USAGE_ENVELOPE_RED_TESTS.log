@@ -1,0 +1,521 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___________ test_native_non_object_usage_is_a_protocol_error[usage0] ___________
+
+usage = ['bad']
+
+    @pytest.mark.parametrize("usage", [["bad"], 42, []])
+    def test_native_non_object_usage_is_a_protocol_error(usage):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"] = usage
+        events = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:451: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7d3f952ee660>
+phase = 'goal_plan', run_id = 'RUN-native-supervisor'
+request_digest = 'fixture-goal-digest'
+system_prompt = 'ROLE: You are only the Strong Planner for an RWKV execution loop. Plan; never execute tools, select or restrict tool ...step_ids are empty, goal_obligations is non-empty and exhaustive, and add_stages contains the first executable stages.'
+request_payload = {'run_id': 'RUN-native-supervisor', 'goal_digest': 'fixture-goal-digest', 'plan_revision': 0, 'active_plan': {'goal_di...: 'fixture-goal-digest', 'goal_obligations': [], 'uncovered_obligation_phases': {}, 'batch_complete': False, ...}, ...}
+schema = {'type': 'object', 'description': 'One fixed GoalPlanPatch JSON object with immutable goal obligations. Keep steps nes...ems': True}, ...}, 'required': ['goal_obligations', 'add_stages', 'replace_stages', 'discard_step_ids', 'reason'], ...}
+max_tokens = 8192, selected_model = 'fixture-planner-13b'
+
+    def _request_json_single(
+        self,
+        *,
+        phase: str,
+        run_id: str,
+        request_digest: str,
+        system_prompt: str,
+        request_payload: Mapping[str, Any],
+        schema: Mapping[str, Any],
+        max_tokens: int,
+        selected_model: str,
+    ) -> dict[str, Any]:
+        call_id = f"SUP-{uuid.uuid4().hex[:20]}"
+        schema_revision = (
+            "v4"
+            if phase == "goal_plan"
+            else "v8"
+            if phase == "contract_plan"
+            else "v2"
+            if phase == "contract_review"
+            else "v1"
+        )
+        payload_text = _render_user_payload(request_payload)
+        endpoint, body, transport = self._wire_request(
+            phase=phase,
+            selected_model=selected_model,
+            system_prompt=system_prompt,
+            payload_text=payload_text,
+            max_tokens=max_tokens,
+            schema_revision=schema_revision,
+            schema=schema,
+        )
+        payload_bytes = payload_text.encode("utf-8")
+        self._emit(
+            {
+                "type": "supervisor_request_started",
+                "call_id": call_id,
+                "phase": phase,
+                "run_id": run_id,
+                "request_digest": request_digest,
+                "provider": self.provider_name,
+                "model": selected_model,
+                "transport": transport,
+                "input_envelope": (
+                    supervisor_vllm_rwkv.INPUT_ENVELOPE
+                    if transport == supervisor_vllm_rwkv.TRANSPORT
+                    else "easy_user_message_json_prefix_v1"
+                    if transport == "responses"
+                    else "chat_messages_v1"
+                ),
+                "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+                "input_chars": len(payload_bytes.decode("utf-8")),
+                "max_tokens": int(max_tokens),
+                "response_format": (
+                    None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
+                ),
+                **(
+                    {
+                        "prompt_sha256": hashlib.sha256(body["prompt"].encode("utf-8")).hexdigest(),
+                        "prompt_chars": len(body["prompt"]),
+                        "prefill_sha256": hashlib.sha256(supervisor_vllm_rwkv.GENERATION_PREFILL.encode("utf-8")).hexdigest(),
+                        "state_profile_id": supervisor_vllm_rwkv.STATE_PROFILE_ID,
+                        "state_profile_sha256": supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
+                        "sampling": {
+                            key: body[key] for key in (
+                                "temperature", "top_p", "top_k", "presence_penalty",
+                                "frequency_penalty", "penalty_decay", "add_special_tokens",
+                                "stop", "stop_token_ids",
+                            )
+                        },
+                    }
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else {}
+                ),
+            }
+        )
+        last_status = 0
+        for attempt in range(1, self.settings.retry_attempts + 1):
+            started = time.perf_counter()
+            try:
+                self._emit(
+                    {
+                        "type": "supervisor_http_attempt_started",
+                        "call_id": call_id,
+                        "phase": phase,
+                        "run_id": run_id,
+                        "request_digest": request_digest,
+                        "attempt": attempt,
+                    }
+                )
+                response = self._post_completion(endpoint, body)
+                last_status = response.status_code
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code in _RETRYABLE_STATUS and attempt < self.settings.retry_attempts:
+                    delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
+                    if delay:
+                        time.sleep(delay)
+                    continue
+                if response.status_code >= 400:
+                    raise _supervisor_http_error(
+                        response.status_code,
+                        phase,
+                        response=response,
+                    )
+                try:
+                    data = response.json()
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor returned invalid JSON"
+                    ) from exc
+                if not isinstance(data, Mapping):
+                    raise SupervisorProtocolError(
+                        "supervisor returned a non-object response envelope"
+                    )
+                native_metadata: dict[str, Any] = {}
+                if transport == supervisor_vllm_rwkv.TRANSPORT:
+                    choices = data.get("choices")
+                    raw_choice = (
+                        choices[0] if isinstance(choices, list) and choices
+                        and isinstance(choices[0], Mapping) else {}
+                    )
+                    raw_output = raw_choice.get("text")
+                    self._emit({
+                        "type": "supervisor_raw_response_returned", "call_id": call_id,
+                        "phase": phase, "run_id": run_id, "transport": transport,
+                        "attempt": attempt, "raw_response": deepcopy(dict(data)),
+                        "raw_output": raw_output if isinstance(raw_output, str) else None,
+                        "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest() if isinstance(raw_output, str) else None,
+                        "finish_reason": raw_choice.get("finish_reason"),
+                        "usage": data.get("usage"),
+                    })
+                    try:
+                        decoded = supervisor_vllm_rwkv.decode_completion(
+                            data, latency_ms=latency_ms, attempts=attempt,
+                        )
+                    except RWKVProtocolError as exc:
+                        raise SupervisorProtocolError(str(exc)) from exc
+                    content, finish_reason = decoded.content, decoded.finish_reason
+                    native_metadata = {
+                        "raw_output": content,
+                        "raw_output_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                        "raw_token_ids": decoded.metadata.get("token_ids"),
+                        "prompt_token_ids": decoded.metadata.get("prompt_token_ids"),
+                        "raw_token_ids_available": isinstance(decoded.metadata.get("token_ids"), list),
+                        "prompt_token_ids_available": isinstance(decoded.metadata.get("prompt_token_ids"), list),
+                    }
+                elif transport == "responses":
+                    content, finish_reason = self._decode_responses_api_content(data)
+                else:
+                    choices = data.get("choices")
+                    if (
+                        not isinstance(choices, list)
+                        or not choices
+                        or not isinstance(choices[0], Mapping)
+                    ):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no valid choices[0]"
+                        )
+                    message = choices[0].get("message")
+                    if not isinstance(message, Mapping):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no assistant message"
+                        )
+                    content = message.get("content")
+                    if not isinstance(content, str) or not content.strip():
+                        raise SupervisorProtocolError(
+                            "supervisor response has empty JSON content"
+                        )
+                    finish_reason = str(choices[0].get("finish_reason") or "")
+                # Restore only the exact prefix sent in this native request.
+                # The model still supplies the complete closing tag and JSON;
+                # truncation, unknown wrappers and semantic errors stay errors.
+                decoder_content = (
+                    supervisor_vllm_rwkv.GENERATION_PREFILL + content
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else content
+                )
+                value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                if content_normalization is not None:
+                    self._emit(
+                        {
+                            "type": "supervisor_content_envelope_normalized",
+                            "call_id": call_id,
+                            "phase": phase,
+                            "run_id": run_id,
+                            "request_digest": request_digest,
+                            **content_normalization,
+                        }
+                    )
+                self._emit(
+                    {
+                        "type": "supervisor_request_returned",
+                        "call_id": call_id,
+                        "phase": phase,
+                        "run_id": run_id,
+                        "request_digest": request_digest,
+                        "provider": self.provider_name,
+                        "model": str(data.get("model") or selected_model),
+                        "transport": transport,
+                        "latency_ms": latency_ms,
+                        "http_attempts": attempt,
+                        "finish_reason": finish_reason,
+>                       "usage": dict(data.get("usage") or {}),
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        "output_sha256": hashlib.sha256(
+                            content.encode("utf-8")
+                        ).hexdigest(),
+                        "output_chars": len(content),
+                        **native_metadata,
+                    }
+                )
+E               ValueError: dictionary update sequence element #0 has length 3; 2 is required
+
+rwkv_lh/supervisor_openai.py:1502: ValueError
+_____________ test_native_non_object_usage_is_a_protocol_error[42] _____________
+
+usage = 42
+
+    @pytest.mark.parametrize("usage", [["bad"], 42, []])
+    def test_native_non_object_usage_is_a_protocol_error(usage):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"] = usage
+        events = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:451: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3053: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1585: in _request_json_single
+    raise error
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7d3f952d7610>
+phase = 'goal_plan', run_id = 'RUN-native-supervisor'
+request_digest = 'fixture-goal-digest'
+system_prompt = 'ROLE: You are only the Strong Planner for an RWKV execution loop. Plan; never execute tools, select or restrict tool ...step_ids are empty, goal_obligations is non-empty and exhaustive, and add_stages contains the first executable stages.'
+request_payload = {'run_id': 'RUN-native-supervisor', 'goal_digest': 'fixture-goal-digest', 'plan_revision': 0, 'active_plan': {'goal_di...: 'fixture-goal-digest', 'goal_obligations': [], 'uncovered_obligation_phases': {}, 'batch_complete': False, ...}, ...}
+schema = {'type': 'object', 'description': 'One fixed GoalPlanPatch JSON object with immutable goal obligations. Keep steps nes...ems': True}, ...}, 'required': ['goal_obligations', 'add_stages', 'replace_stages', 'discard_step_ids', 'reason'], ...}
+max_tokens = 8192, selected_model = 'fixture-planner-13b'
+
+    def _request_json_single(
+        self,
+        *,
+        phase: str,
+        run_id: str,
+        request_digest: str,
+        system_prompt: str,
+        request_payload: Mapping[str, Any],
+        schema: Mapping[str, Any],
+        max_tokens: int,
+        selected_model: str,
+    ) -> dict[str, Any]:
+        call_id = f"SUP-{uuid.uuid4().hex[:20]}"
+        schema_revision = (
+            "v4"
+            if phase == "goal_plan"
+            else "v8"
+            if phase == "contract_plan"
+            else "v2"
+            if phase == "contract_review"
+            else "v1"
+        )
+        payload_text = _render_user_payload(request_payload)
+        endpoint, body, transport = self._wire_request(
+            phase=phase,
+            selected_model=selected_model,
+            system_prompt=system_prompt,
+            payload_text=payload_text,
+            max_tokens=max_tokens,
+            schema_revision=schema_revision,
+            schema=schema,
+        )
+        payload_bytes = payload_text.encode("utf-8")
+        self._emit(
+            {
+                "type": "supervisor_request_started",
+                "call_id": call_id,
+                "phase": phase,
+                "run_id": run_id,
+                "request_digest": request_digest,
+                "provider": self.provider_name,
+                "model": selected_model,
+                "transport": transport,
+                "input_envelope": (
+                    supervisor_vllm_rwkv.INPUT_ENVELOPE
+                    if transport == supervisor_vllm_rwkv.TRANSPORT
+                    else "easy_user_message_json_prefix_v1"
+                    if transport == "responses"
+                    else "chat_messages_v1"
+                ),
+                "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+                "input_chars": len(payload_bytes.decode("utf-8")),
+                "max_tokens": int(max_tokens),
+                "response_format": (
+                    None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
+                ),
+                **(
+                    {
+                        "prompt_sha256": hashlib.sha256(body["prompt"].encode("utf-8")).hexdigest(),
+                        "prompt_chars": len(body["prompt"]),
+                        "prefill_sha256": hashlib.sha256(supervisor_vllm_rwkv.GENERATION_PREFILL.encode("utf-8")).hexdigest(),
+                        "state_profile_id": supervisor_vllm_rwkv.STATE_PROFILE_ID,
+                        "state_profile_sha256": supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
+                        "sampling": {
+                            key: body[key] for key in (
+                                "temperature", "top_p", "top_k", "presence_penalty",
+                                "frequency_penalty", "penalty_decay", "add_special_tokens",
+                                "stop", "stop_token_ids",
+                            )
+                        },
+                    }
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else {}
+                ),
+            }
+        )
+        last_status = 0
+        for attempt in range(1, self.settings.retry_attempts + 1):
+            started = time.perf_counter()
+            try:
+                self._emit(
+                    {
+                        "type": "supervisor_http_attempt_started",
+                        "call_id": call_id,
+                        "phase": phase,
+                        "run_id": run_id,
+                        "request_digest": request_digest,
+                        "attempt": attempt,
+                    }
+                )
+                response = self._post_completion(endpoint, body)
+                last_status = response.status_code
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code in _RETRYABLE_STATUS and attempt < self.settings.retry_attempts:
+                    delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
+                    if delay:
+                        time.sleep(delay)
+                    continue
+                if response.status_code >= 400:
+                    raise _supervisor_http_error(
+                        response.status_code,
+                        phase,
+                        response=response,
+                    )
+                try:
+                    data = response.json()
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise SupervisorProtocolError(
+                        "supervisor returned invalid JSON"
+                    ) from exc
+                if not isinstance(data, Mapping):
+                    raise SupervisorProtocolError(
+                        "supervisor returned a non-object response envelope"
+                    )
+                native_metadata: dict[str, Any] = {}
+                if transport == supervisor_vllm_rwkv.TRANSPORT:
+                    choices = data.get("choices")
+                    raw_choice = (
+                        choices[0] if isinstance(choices, list) and choices
+                        and isinstance(choices[0], Mapping) else {}
+                    )
+                    raw_output = raw_choice.get("text")
+                    self._emit({
+                        "type": "supervisor_raw_response_returned", "call_id": call_id,
+                        "phase": phase, "run_id": run_id, "transport": transport,
+                        "attempt": attempt, "raw_response": deepcopy(dict(data)),
+                        "raw_output": raw_output if isinstance(raw_output, str) else None,
+                        "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest() if isinstance(raw_output, str) else None,
+                        "finish_reason": raw_choice.get("finish_reason"),
+                        "usage": data.get("usage"),
+                    })
+                    try:
+                        decoded = supervisor_vllm_rwkv.decode_completion(
+                            data, latency_ms=latency_ms, attempts=attempt,
+                        )
+                    except RWKVProtocolError as exc:
+                        raise SupervisorProtocolError(str(exc)) from exc
+                    content, finish_reason = decoded.content, decoded.finish_reason
+                    native_metadata = {
+                        "raw_output": content,
+                        "raw_output_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                        "raw_token_ids": decoded.metadata.get("token_ids"),
+                        "prompt_token_ids": decoded.metadata.get("prompt_token_ids"),
+                        "raw_token_ids_available": isinstance(decoded.metadata.get("token_ids"), list),
+                        "prompt_token_ids_available": isinstance(decoded.metadata.get("prompt_token_ids"), list),
+                    }
+                elif transport == "responses":
+                    content, finish_reason = self._decode_responses_api_content(data)
+                else:
+                    choices = data.get("choices")
+                    if (
+                        not isinstance(choices, list)
+                        or not choices
+                        or not isinstance(choices[0], Mapping)
+                    ):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no valid choices[0]"
+                        )
+                    message = choices[0].get("message")
+                    if not isinstance(message, Mapping):
+                        raise SupervisorProtocolError(
+                            "supervisor response has no assistant message"
+                        )
+                    content = message.get("content")
+                    if not isinstance(content, str) or not content.strip():
+                        raise SupervisorProtocolError(
+                            "supervisor response has empty JSON content"
+                        )
+                    finish_reason = str(choices[0].get("finish_reason") or "")
+                # Restore only the exact prefix sent in this native request.
+                # The model still supplies the complete closing tag and JSON;
+                # truncation, unknown wrappers and semantic errors stay errors.
+                decoder_content = (
+                    supervisor_vllm_rwkv.GENERATION_PREFILL + content
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else content
+                )
+                value, content_normalization = _decode_supervisor_json_content(decoder_content)
+                if content_normalization is not None:
+                    self._emit(
+                        {
+                            "type": "supervisor_content_envelope_normalized",
+                            "call_id": call_id,
+                            "phase": phase,
+                            "run_id": run_id,
+                            "request_digest": request_digest,
+                            **content_normalization,
+                        }
+                    )
+                self._emit(
+                    {
+                        "type": "supervisor_request_returned",
+                        "call_id": call_id,
+                        "phase": phase,
+                        "run_id": run_id,
+                        "request_digest": request_digest,
+                        "provider": self.provider_name,
+                        "model": str(data.get("model") or selected_model),
+                        "transport": transport,
+                        "latency_ms": latency_ms,
+                        "http_attempts": attempt,
+                        "finish_reason": finish_reason,
+>                       "usage": dict(data.get("usage") or {}),
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        "output_sha256": hashlib.sha256(
+                            content.encode("utf-8")
+                        ).hexdigest(),
+                        "output_chars": len(content),
+                        **native_metadata,
+                    }
+                )
+E               TypeError: 'int' object is not iterable
+
+rwkv_lh/supervisor_openai.py:1502: TypeError
+___________ test_native_non_object_usage_is_a_protocol_error[usage2] ___________
+
+usage = []
+
+    @pytest.mark.parametrize("usage", [["bad"], 42, []])
+    def test_native_non_object_usage_is_a_protocol_error(usage):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"] = usage
+        events = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=events.append,
+        )
+>       with pytest.raises(SupervisorProtocolError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_vllm_rwkv.py:450: Failed
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_non_object_usage_is_a_protocol_error[usage0]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_non_object_usage_is_a_protocol_error[42]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_non_object_usage_is_a_protocol_error[usage2]
+3 failed, 50 deselected in 0.17s

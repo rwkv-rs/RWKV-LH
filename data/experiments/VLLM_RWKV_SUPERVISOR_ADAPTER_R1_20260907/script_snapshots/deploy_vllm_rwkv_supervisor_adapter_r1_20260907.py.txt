@@ -1,0 +1,52 @@
+"""Upload explicit local source files and verify hashes remotely without server Git."""
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+phase = sys.argv[1]
+assert phase in {'source', 'final'}
+paths = ['rwkv_lh/supervisor_openai.py', 'rwkv_lh/runtime/supervisor_vllm_rwkv.py',
+         'tests/test_supervisor_openai.py', 'tests/test_supervisor_vllm_rwkv.py']
+if phase == 'final':
+    paths += ['.env.example', 'README.md', 'docs/HANDOFF.zh-CN.md',
+              'docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md']
+manifest = ROUND / (phase.upper() + '_UPLOAD_MANIFEST.json')
+assert not manifest.exists()
+record = {
+    'timestamp_utc': datetime.now(timezone.utc).isoformat(),
+    'local_parent_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'server': 'rwkv-8222', 'remote_root': str(ROOT), 'server_git_used': False,
+    'files': [{'path': name, 'sha256': hashlib.sha256((ROOT/name).read_bytes()).hexdigest(),
+               'size_bytes': (ROOT/name).stat().st_size} for name in paths],
+}
+manifest.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+listing = ROOT / 'temp' / ('vllm_rwkv_supervisor_' + phase + '_upload_files_r1_20260907.txt')
+listing.write_text('\n'.join(paths + [str(manifest.relative_to(ROOT))]) + '\n')
+subprocess.run(['rsync', '-a', '--checksum', '--relative', '--files-from=' + str(listing),
+                str(ROOT) + '/', 'rwkv-8222:' + str(ROOT) + '/'], check=True)
+remote_script = '''from pathlib import Path
+import hashlib, json
+root = Path('/home/chase/GitHub/RWKV-LH')
+manifest = root / REPLACE_MANIFEST
+data = json.loads(manifest.read_text())
+checks = [{'path': item['path'], 'sha256': hashlib.sha256((root/item['path']).read_bytes()).hexdigest(),
+           'matches': hashlib.sha256((root/item['path']).read_bytes()).hexdigest() == item['sha256']}
+          for item in data['files']]
+assert all(item['matches'] for item in checks)
+print(json.dumps({'manifest_sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                  'files': checks, 'all_match': True, 'server_git_used': False}))
+'''.replace('REPLACE_MANIFEST', repr(str(manifest.relative_to(ROOT))))
+result = subprocess.run(['ssh', 'rwkv-8222', 'python3 -'], input=remote_script, text=True,
+                        capture_output=True, check=True)
+verification = json.loads(result.stdout)
+assert verification['manifest_sha256'] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+output = ROUND / (phase.upper() + '_UPLOAD_VERIFIED.json')
+assert not output.exists()
+output.write_text(json.dumps(verification, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({'phase': phase, 'files': len(paths), 'all_match': verification['all_match']}))

@@ -1,0 +1,185 @@
+"""Capture a canonical Stage Checker request from an offline Controller test."""
+
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+import pytest
+
+from rwkv_lh.goal_loop_protocol import GoalStageReviewRequest, rolling_goal_plan
+from rwkv_lh.schema import ActionStatus
+from rwkv_lh.store import LongHorizonStore
+
+OUT = ROOT / "data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907"
+TEST_PATH = ROOT / "tests/test_stateful_goal_loop.py"
+TEST_NAME = "test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts"
+REQUEST_PATH = OUT / "STAGE_CHECKER_CONNECTION_FIXTURE_REQUEST.json"
+PROVENANCE_PATH = OUT / "STAGE_CHECKER_CONNECTION_FIXTURE_PROVENANCE.json"
+LOG_PATH = OUT / "STAGE_CHECKER_CONNECTION_FIXTURE_PYTEST.log"
+SHA_PATH = OUT / "STAGE_CHECKER_CONNECTION_FIXTURE_SHA256SUMS.txt"
+RUNTIME_PATH = OUT / "stage_checker_connection_fixture_runtime"
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json(path: Path, value) -> None:
+    with path.open("x", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+
+
+class CapturePlugin:
+    def __init__(self):
+        self.captured = []
+        self.tmp_path = None
+        self.original = None
+        self.module = None
+
+    def pytest_runtest_setup(self, item):
+        assert item.name == TEST_NAME
+        self.module = item.module
+        self.original = self.module._StrongPlanner.review_goal_stage
+        original = self.original
+
+        def capture(planner, request):
+            assert isinstance(request, GoalStageReviewRequest)
+            self.captured.append(request.to_dict())
+            return original(planner, request)
+
+        self.module._StrongPlanner.review_goal_stage = capture
+
+    def pytest_runtest_teardown(self, item, nextitem):
+        del nextitem
+        self.tmp_path = Path(item.funcargs["tmp_path"]).resolve()
+        self.tmp_path.relative_to(RUNTIME_PATH.resolve())
+        self.module._StrongPlanner.review_goal_stage = self.original
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    for path in (REQUEST_PATH, PROVENANCE_PATH, LOG_PATH, SHA_PATH, RUNTIME_PATH):
+        if path.exists():
+            raise RuntimeError(f"refusing to overwrite an existing fixture artifact: {path}")
+    sources = (
+        Path(__file__).resolve(), TEST_PATH,
+        ROOT / "rwkv_lh/stateful_goal_loop.py",
+        ROOT / "rwkv_lh/goal_loop_protocol.py",
+        ROOT / "rwkv_lh/controller.py",
+        ROOT / "rwkv_lh/harness.py",
+        ROOT / "rwkv_lh/store.py",
+    )
+    before = {str(path): sha256(path) for path in sources}
+    plugin = CapturePlugin()
+    argv = [
+        "-q", str(TEST_PATH) + "::" + TEST_NAME,
+        "--basetemp", str(RUNTIME_PATH),
+    ]
+    started_at = datetime.now(timezone.utc).isoformat()
+    with LOG_PATH.open("x", encoding="utf-8") as log:
+        with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+            result = int(pytest.main(argv, plugins=[plugin]))
+    if result:
+        raise RuntimeError(f"fixture source test failed with exit code {result}; see {LOG_PATH}")
+    assert len(plugin.captured) == 1
+    assert plugin.tmp_path is not None
+    after = {str(path): sha256(path) for path in sources}
+    assert before == after, "source changed while fixture was captured"
+
+    # Read only this newly created offline test run, never a benchmark database.
+    store = LongHorizonStore(plugin.tmp_path / "state")
+    state = store.load("LARGE-STAGE-REVIEW-DURABLE")
+    plan = rolling_goal_plan(state)
+    actions = sorted(state.actions.values(), key=lambda item: item.sequence)
+    accepted = [state.causal_records[event_id] for event_id in state.causal_order
+                if state.causal_records[event_id].event_type == "goal_audit_accepted"]
+    stage_reviews = [state.causal_records[event_id] for event_id in state.causal_order
+                     if state.causal_records[event_id].event_type == "goal_stage_review_committed"]
+    snapshot = plugin.captured[0]
+    assert len(actions) == 19
+    assert all(action.status is ActionStatus.SUCCEEDED and action.action_type == "read_file"
+               and action.result.get("success") is True for action in actions)
+    assert len(accepted) == 19
+    assert len(stage_reviews) == 1
+    assert len(snapshot["stage_steps"]) == 19
+    assert len(snapshot["recent_action_facts"]) == 8
+    assert tuple(tuple(step["accepted_evidence_refs"]) for step in snapshot["stage_steps"]) == tuple(
+        (action.action_id,) for action in actions
+    )
+    assert snapshot["stage_steps"][-1]["step_revision"] == 2
+    assert plan.batch_complete and plan.complete
+    assert state.status.value != "completed"
+    assert not state.final_output
+    assert not any(state.causal_records[event_id].event_type == "run_completed"
+                   for event_id in state.causal_order)
+    write_json(REQUEST_PATH, snapshot)
+    workspace_files = [
+        {"path": str(Path(state.goal.workspace_root) / action.arguments["path"]),
+         "sha256": sha256(Path(state.goal.workspace_root) / action.arguments["path"])}
+        for action in actions
+    ]
+    provenance = {
+        "purpose": "stage_checker_connection_fixture_only",
+        "source_kind": "offline_pytest_controller_fixture_with_real_harness_reads_and_mock_audits",
+        "is_production_trace": False,
+        "is_agent_score_or_baseline": False,
+        "eligible_for_statetune_training": False,
+        "accepted_audits_are_mock": True,
+        "mock_audit_semantics": "GoalAuditDecision fixture dataclasses; production validate_audit_authority accepted real assigned Harness read evidence; no RWKV Auditor generation",
+        "executor_and_selector_responses_are_mock": True,
+        "planner_and_stage_checker_responses_are_mock": True,
+        "real_model_calls_by_capture_script": 0,
+        "real_harness_read_count": len(actions),
+        "accepted_mock_audit_count": len(accepted),
+        "stage_step_count": len(snapshot["stage_steps"]),
+        "accepted_evidence_reference_count": sum(len(item["accepted_evidence_refs"]) for item in snapshot["stage_steps"]),
+        "recent_action_fact_count": len(snapshot["recent_action_facts"]),
+        "facts_scope": "latest eight accepted Harness records; complete step refs do not imply all action facts are present",
+        "last_step_revision": snapshot["stage_steps"][-1]["step_revision"],
+        "agent_completed": False,
+        "capture_point": "existing _StrongPlanner.review_goal_stage receives actual StatefulGoalLoopController._issue_strong_stage_review request; stored via GoalStageReviewRequest.to_dict only",
+        "source_test": str(TEST_PATH) + "::" + TEST_NAME,
+        "pytest_argv": argv,
+        "pytest_exit_code": result,
+        "pytest_log_path": str(LOG_PATH),
+        "pytest_log_sha256": sha256(LOG_PATH),
+        "request_path": str(REQUEST_PATH),
+        "request_sha256": sha256(REQUEST_PATH),
+        "source_sha256_before": before,
+        "source_sha256_after": after,
+        "source_unchanged": True,
+        "started_at_utc": started_at,
+        "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "run_id": state.run_id,
+        "runtime_directory": str(plugin.tmp_path),
+        "action_ids": [action.action_id for action in actions],
+        "accepted_mock_audit_event_ids": [event.event_id for event in accepted],
+        "mock_stage_review_event_ids": [event.event_id for event in stage_reviews],
+        "workspace_files": workspace_files,
+        "freeze_status": "captured_and_frozen_do_not_overwrite",
+    }
+    write_json(PROVENANCE_PATH, provenance)
+    frozen = (Path(__file__).resolve(), REQUEST_PATH, PROVENANCE_PATH, LOG_PATH)
+    with SHA_PATH.open("x", encoding="utf-8") as handle:
+        for path in frozen:
+            handle.write(f"{sha256(path)}  {path}\n")
+    print(json.dumps({
+        "request": str(REQUEST_PATH), "request_sha256": sha256(REQUEST_PATH),
+        "provenance": str(PROVENANCE_PATH), "provenance_sha256": sha256(PROVENANCE_PATH),
+        "log": str(LOG_PATH), "log_sha256": sha256(LOG_PATH),
+        "sha_manifest": str(SHA_PATH), "sha_manifest_sha256": sha256(SHA_PATH),
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

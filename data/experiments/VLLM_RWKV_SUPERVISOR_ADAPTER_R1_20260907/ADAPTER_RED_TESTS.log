@@ -1,0 +1,3260 @@
+FFFF.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                          [100%]
+=================================== FAILURES ===================================
+____ test_supervisor_defaults_expand_planner_only_and_public_config_is_safe ____
+
+    def test_supervisor_defaults_expand_planner_only_and_public_config_is_safe():
+        settings = _settings()
+>       assert settings.backend_profile == "openai-compatible"
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SupervisorAPISettings' object has no attribute 'backend_profile'
+
+tests/test_supervisor_vllm_rwkv.py:158: AttributeError
+_______ test_supervisor_native_env_loading_and_alias_conflicts[defaults] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_supervisor_native_env_loa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x762b1098d220>
+mode = 'defaults'
+
+    @pytest.mark.parametrize("mode", ["defaults", "canonical", "matching_aliases", "conflicting_aliases"])
+    def test_supervisor_native_env_loading_and_alias_conflicts(tmp_path, monkeypatch, mode):
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        lines = [
+            "RWKV_LH_PLANNER_BASE_URL=http://supervisor.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-env-secret",
+            "RWKV_LH_PLANNER_MODEL=fixture-local-13b",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+            "RWKV_LH_EXECUTOR_STATE_PROFILE_ID=must-not-load",
+        ]
+        if mode != "defaults":
+            lines.extend(("RWKV_LH_PLANNER_MAX_PLAN_TOKENS=9000", "RWKV_LH_PLANNER_READ_TIMEOUT=300"))
+        if mode in {"matching_aliases", "conflicting_aliases"}:
+            lines.append("SUPERVISOR_MAX_PLAN_TOKENS=" + ("9000" if mode == "matching_aliases" else "1800"))
+            lines.append("SUPERVISOR_READ_TIMEOUT=300")
+        monkeypatch.delenv("RWKV_LH_EXECUTOR_STATE_PROFILE_ID", raising=False)
+        path = tmp_path / "supervisor-fixture.env"
+        path.write_text("\n".join(lines), encoding="utf-8")
+        if mode == "conflicting_aliases":
+            with pytest.raises(ValueError, match="conflicting role settings"):
+                SupervisorAPISettings.from_env(path)
+            return
+        loaded = SupervisorAPISettings.from_env(path)
+>       assert loaded.backend_profile == "vllm-rwkv-native"
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SupervisorAPISettings' object has no attribute 'backend_profile'
+
+tests/test_supervisor_vllm_rwkv.py:199: AttributeError
+______ test_supervisor_native_env_loading_and_alias_conflicts[canonical] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_supervisor_native_env_loa1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x762b1033b410>
+mode = 'canonical'
+
+    @pytest.mark.parametrize("mode", ["defaults", "canonical", "matching_aliases", "conflicting_aliases"])
+    def test_supervisor_native_env_loading_and_alias_conflicts(tmp_path, monkeypatch, mode):
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        lines = [
+            "RWKV_LH_PLANNER_BASE_URL=http://supervisor.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-env-secret",
+            "RWKV_LH_PLANNER_MODEL=fixture-local-13b",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+            "RWKV_LH_EXECUTOR_STATE_PROFILE_ID=must-not-load",
+        ]
+        if mode != "defaults":
+            lines.extend(("RWKV_LH_PLANNER_MAX_PLAN_TOKENS=9000", "RWKV_LH_PLANNER_READ_TIMEOUT=300"))
+        if mode in {"matching_aliases", "conflicting_aliases"}:
+            lines.append("SUPERVISOR_MAX_PLAN_TOKENS=" + ("9000" if mode == "matching_aliases" else "1800"))
+            lines.append("SUPERVISOR_READ_TIMEOUT=300")
+        monkeypatch.delenv("RWKV_LH_EXECUTOR_STATE_PROFILE_ID", raising=False)
+        path = tmp_path / "supervisor-fixture.env"
+        path.write_text("\n".join(lines), encoding="utf-8")
+        if mode == "conflicting_aliases":
+            with pytest.raises(ValueError, match="conflicting role settings"):
+                SupervisorAPISettings.from_env(path)
+            return
+        loaded = SupervisorAPISettings.from_env(path)
+>       assert loaded.backend_profile == "vllm-rwkv-native"
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SupervisorAPISettings' object has no attribute 'backend_profile'
+
+tests/test_supervisor_vllm_rwkv.py:199: AttributeError
+___ test_supervisor_native_env_loading_and_alias_conflicts[matching_aliases] ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_supervisor_native_env_loa2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x762b100318c0>
+mode = 'matching_aliases'
+
+    @pytest.mark.parametrize("mode", ["defaults", "canonical", "matching_aliases", "conflicting_aliases"])
+    def test_supervisor_native_env_loading_and_alias_conflicts(tmp_path, monkeypatch, mode):
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        lines = [
+            "RWKV_LH_PLANNER_BASE_URL=http://supervisor.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-env-secret",
+            "RWKV_LH_PLANNER_MODEL=fixture-local-13b",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+            "RWKV_LH_EXECUTOR_STATE_PROFILE_ID=must-not-load",
+        ]
+        if mode != "defaults":
+            lines.extend(("RWKV_LH_PLANNER_MAX_PLAN_TOKENS=9000", "RWKV_LH_PLANNER_READ_TIMEOUT=300"))
+        if mode in {"matching_aliases", "conflicting_aliases"}:
+            lines.append("SUPERVISOR_MAX_PLAN_TOKENS=" + ("9000" if mode == "matching_aliases" else "1800"))
+            lines.append("SUPERVISOR_READ_TIMEOUT=300")
+        monkeypatch.delenv("RWKV_LH_EXECUTOR_STATE_PROFILE_ID", raising=False)
+        path = tmp_path / "supervisor-fixture.env"
+        path.write_text("\n".join(lines), encoding="utf-8")
+        if mode == "conflicting_aliases":
+            with pytest.raises(ValueError, match="conflicting role settings"):
+                SupervisorAPISettings.from_env(path)
+            return
+        loaded = SupervisorAPISettings.from_env(path)
+>       assert loaded.backend_profile == "vllm-rwkv-native"
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SupervisorAPISettings' object has no attribute 'backend_profile'
+
+tests/test_supervisor_vllm_rwkv.py:199: AttributeError
+_____________ test_supervisor_unknown_backend_profile_is_rejected ______________
+
+    def test_supervisor_unknown_backend_profile_is_rejected():
+        with pytest.raises(ValueError, match="backend_profile|BACKEND_PROFILE"):
+>           _settings(backend_profile="guess-from-model-name").validate()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'guess-from-model-name', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+___ test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_plan] ____
+
+phase = 'goal_plan'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x762b10979c50>
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_wire_has_exact_prompt_sampling_and_zero_identity(phase, monkeypatch):
+        for role in ("EXECUTOR", "AUDITOR_STEP", "FINALIZER", "AUDITOR_FINAL"):
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_ID", "foreign-candidate")
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_SHA256", "f" * 64)
+        request, _, _ = _plan_materials()
+        payload_text = _render_user_payload(request.to_dict())
+        system_prompt = "Fixture system instruction, including Unicode 中文."
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session({}))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_stage_review] _
+
+phase = 'goal_stage_review'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x762b10320e60>
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_wire_has_exact_prompt_sampling_and_zero_identity(phase, monkeypatch):
+        for role in ("EXECUTOR", "AUDITOR_STEP", "FINALIZER", "AUDITOR_FINAL"):
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_ID", "foreign-candidate")
+            monkeypatch.setenv(f"RWKV_LH_{role}_STATE_PROFILE_SHA256", "f" * 64)
+        request, _, _ = _plan_materials()
+        payload_text = _render_user_payload(request.to_dict())
+        system_prompt = "Fixture system instruction, including Unicode 中文."
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session({}))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______________ test_native_backend_does_not_change_non_goal_wire _______________
+
+    def test_native_backend_does_not_change_non_goal_wire():
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session({}))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_plan] _
+
+phase = 'goal_plan'
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phase):
+        request, expected, value = _plan_materials(19) if phase == "goal_plan" else _review_materials()
+        payload = _response(value)
+        session = _Session(payload)
+        audit = []
+>       settings = _native_settings()
+                   ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_stage_review] _
+
+phase = 'goal_stage_review'
+
+    @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
+    def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phase):
+        request, expected, value = _plan_materials(19) if phase == "goal_plan" else _review_materials()
+        payload = _response(value)
+        session = _Session(payload)
+        audit = []
+>       settings = _native_settings()
+                   ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_________ test_native_rejects_non_stop_even_with_complete_json[length] _________
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_non_stop_even_with_complete_json[content_filter] _____
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+____________ test_native_rejects_non_stop_even_with_complete_json[] ____________
+
+finish_reason = ''
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+__________ test_native_rejects_non_stop_even_with_complete_json[None] __________
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_______ test_native_rejects_non_stop_even_with_complete_json[unexpected] _______
+
+finish_reason = 'unexpected'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_________ test_native_rejects_malformed_completion_boundary[bare_json] _________
+
+fault = 'bare_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_completion_boundary[full_think_prefix] _____
+
+fault = 'full_think_prefix'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______ test_native_rejects_malformed_completion_boundary[unclosed_think] _______
+
+fault = 'unclosed_think'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_______ test_native_rejects_malformed_completion_boundary[leading_space] _______
+
+fault = 'leading_space'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_______ test_native_rejects_malformed_completion_boundary[leading_prose] _______
+
+fault = 'leading_prose'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______ test_native_rejects_malformed_completion_boundary[trailing_prose] _______
+
+fault = 'trailing_prose'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+________ test_native_rejects_malformed_completion_boundary[second_json] ________
+
+fault = 'second_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______ test_native_rejects_malformed_completion_boundary[truncated_json] _______
+
+fault = 'truncated_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+________ test_native_rejects_malformed_completion_boundary[non_object] _________
+
+fault = 'non_object'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______ test_native_rejects_malformed_completion_boundary[missing_choices] ______
+
+fault = 'missing_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_______ test_native_rejects_malformed_completion_boundary[empty_choices] _______
+
+fault = 'empty_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_completion_boundary[multiple_choices] ______
+
+fault = 'multiple_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_______ test_native_rejects_malformed_completion_boundary[missing_text] ________
+
+fault = 'missing_text'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+______ test_native_rejects_malformed_completion_boundary[wrong_text_type] ______
+
+fault = 'wrong_text_type'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+________ test_native_rejects_malformed_completion_boundary[empty_text] _________
+
+fault = 'empty_text'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">reasoning</think>" + valid_json[:-1],
+            "non_object": ">reasoning</think>[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens0-prompt] _____
+
+location = 'prompt', bad_tokens = [True]
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens0-output] _____
+
+location = 'output', bad_tokens = [True]
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens1-prompt] _____
+
+location = 'prompt', bad_tokens = [-1]
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens1-output] _____
+
+location = 'output', bad_tokens = [-1]
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens2-prompt] _____
+
+location = 'prompt', bad_tokens = ['12']
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_____ test_native_rejects_malformed_returned_token_ids[bad_tokens2-output] _____
+
+location = 'output', bad_tokens = ['12']
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_________ test_native_rejects_malformed_returned_token_ids[12-prompt] __________
+
+location = 'prompt', bad_tokens = '12'
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_________ test_native_rejects_malformed_returned_token_ids[12-output] __________
+
+location = 'output', bad_tokens = '12'
+
+    @pytest.mark.parametrize("location", ["prompt", "output"])
+    @pytest.mark.parametrize("bad_tokens", [[True], [-1], ["12"], "12"])
+    def test_native_rejects_malformed_returned_token_ids(location, bad_tokens):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        if location == "prompt":
+            payload["prompt_token_ids"] = bad_tokens
+        else:
+            payload["choices"][0]["token_ids"] = bad_tokens
+>       client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+                                                  ^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_missing_token_ids_remain_unavailable_without_rejecting_json[False] _
+
+missing = False
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_native_missing_token_ids_remain_unavailable_without_rejecting_json(missing):
+        request, expected, value = _plan_materials()
+        payload = _response(value)
+        if missing:
+            payload.pop("prompt_token_ids")
+            payload["choices"][0].pop("token_ids")
+        else:
+            payload["prompt_token_ids"] = None
+            payload["choices"][0]["token_ids"] = None
+        audit = []
+        client = OpenAICompatibleSupervisorClient(
+>           _native_settings(), session=_Session(payload), audit_hook=audit.append,
+            ^^^^^^^^^^^^^^^^^^
+        )
+
+tests/test_supervisor_vllm_rwkv.py:366: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_missing_token_ids_remain_unavailable_without_rejecting_json[True] _
+
+missing = True
+
+    @pytest.mark.parametrize("missing", [False, True])
+    def test_native_missing_token_ids_remain_unavailable_without_rejecting_json(missing):
+        request, expected, value = _plan_materials()
+        payload = _response(value)
+        if missing:
+            payload.pop("prompt_token_ids")
+            payload["choices"][0].pop("token_ids")
+        else:
+            payload["prompt_token_ids"] = None
+            payload["choices"][0]["token_ids"] = None
+        audit = []
+        client = OpenAICompatibleSupervisorClient(
+>           _native_settings(), session=_Session(payload), audit_hook=audit.append,
+            ^^^^^^^^^^^^^^^^^^
+        )
+
+tests/test_supervisor_vllm_rwkv.py:366: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+___________ test_native_transport_does_not_repair_invalid_goal_phase ___________
+
+    def test_native_transport_does_not_repair_invalid_goal_phase():
+        request, _, value = _plan_materials()
+        value["add_stages"][0]["steps"][0]["phase"] = "public-source observe"
+        client = OpenAICompatibleSupervisorClient(
+>           _native_settings(), session=_Session(_response(value)),
+            ^^^^^^^^^^^^^^^^^^
+        )
+
+tests/test_supervisor_vllm_rwkv.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'base_url': 'http://supervisor.invalid/v1', 'api_key': 'fixture-secret-never-audited', 'model': 'fixture-planner-13b', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_cache_identity_changes_with_actual_transport_configuration[transport] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha0')
+difference = 'transport'
+
+    @pytest.mark.parametrize("difference", ["transport", "endpoint", "plan_budget", "review_budget"])
+    def test_native_cache_identity_changes_with_actual_transport_configuration(tmp_path, difference):
+>       settings = _native_settings(plan_cache_enabled=True, plan_cache_dir=str(tmp_path))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'plan_cache_enabled': True, 'plan_cache_dir': '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha0', 'base_url': 'http://supervisor.invalid/v1', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_cache_identity_changes_with_actual_transport_configuration[endpoint] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha1')
+difference = 'endpoint'
+
+    @pytest.mark.parametrize("difference", ["transport", "endpoint", "plan_budget", "review_budget"])
+    def test_native_cache_identity_changes_with_actual_transport_configuration(tmp_path, difference):
+>       settings = _native_settings(plan_cache_enabled=True, plan_cache_dir=str(tmp_path))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'plan_cache_enabled': True, 'plan_cache_dir': '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha1', 'base_url': 'http://supervisor.invalid/v1', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_cache_identity_changes_with_actual_transport_configuration[plan_budget] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha2')
+difference = 'plan_budget'
+
+    @pytest.mark.parametrize("difference", ["transport", "endpoint", "plan_budget", "review_budget"])
+    def test_native_cache_identity_changes_with_actual_transport_configuration(tmp_path, difference):
+>       settings = _native_settings(plan_cache_enabled=True, plan_cache_dir=str(tmp_path))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'plan_cache_enabled': True, 'plan_cache_dir': '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha2', 'base_url': 'http://supervisor.invalid/v1', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_native_cache_identity_changes_with_actual_transport_configuration[review_budget] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha3')
+difference = 'review_budget'
+
+    @pytest.mark.parametrize("difference", ["transport", "endpoint", "plan_budget", "review_budget"])
+    def test_native_cache_identity_changes_with_actual_transport_configuration(tmp_path, difference):
+>       settings = _native_settings(plan_cache_enabled=True, plan_cache_dir=str(tmp_path))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_vllm_rwkv.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_supervisor_vllm_rwkv.py:46: in _native_settings
+    return _settings(backend_profile="vllm-rwkv-native", **overrides)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_supervisor_vllm_rwkv.py:34: in _settings
+    return replace(SupervisorAPISettings(
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='http://supervisor.invalid/v1', api_key='fixture-secret-never-audited', model='fixture-...oldown_seconds=30.0, plan_cache_enabled=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans')
+changes = {'backend_profile': 'vllm-rwkv-native', 'plan_cache_enabled': True, 'plan_cache_dir': '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_cache_identity_cha3', 'base_url': 'http://supervisor.invalid/v1', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'backend_profile'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+__ test_goal_planner_returns_replaceable_steps_without_stealing_selector_role __
+
+    def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role():
+        value = {
+            "goal_obligations": [
+                {
+                    "obligation_id": "O1",
+                    "predicate": "config.json is inspected and corrected",
+                    "required_phases": ["observe", "mutate"],
+                }
+            ],
+            "add_stages": [
+                {
+                    "stage": 1,
+                    "steps": [
+                        {
+                            "step_id": "S1",
+                            "objective": "Inspect the current configuration.",
+                            "phase": "observe",
+                            "depends_on": [],
+                            "obligation_ids": ["O1"],
+                            "success_evidence": ["configuration content is observed"],
+                            "read_roots": ["config.json"],
+                            "write_roots": [],
+                            "constraints": [],
+                        }
+                    ],
+                }
+            ],
+            "replace_stages": [],
+            "discard_step_ids": [],
+            "reason": "Start with one bounded observation.",
+        }
+        fake = FakeSession([response(value)])
+        client = OpenAICompatibleSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-GOAL-PLAN",
+            immutable_request="Inspect and correct config.json.",
+            goal_digest="goal-digest",
+            plan_revision=0,
+            active_plan={"stages": []},
+            latest_audit=None,
+            workspace_manifest={"entries": [{"path": "config.json"}]},
+        )
+    
+        patch = client.plan_goal_patch(request)
+    
+        assert patch.add_steps[0].allowed_operations == ()
+        assert patch.add_steps[0].phase == "observe"
+        posted = fake.posts[0]["json"]
+        assert posted["model"] == "gpt-test"
+        assert "seed" not in posted
+        assert "temperature" not in posted
+        assert "reasoning" not in posted
+        assert posted["response_format"] == {"type": "json_object"}
+        # Rolling GoalPlan output uses the bounded Planner budget.  The separate
+        # ContractGraph planner retains its larger contract-plan budget.
+>       assert posted["max_tokens"] == 8192
+E       assert 1800 == 8192
+
+tests/test_supervisor_openai.py:956: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_supervisor_defaults_expand_planner_only_and_public_config_is_safe
+FAILED tests/test_supervisor_vllm_rwkv.py::test_supervisor_native_env_loading_and_alias_conflicts[defaults]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_supervisor_native_env_loading_and_alias_conflicts[canonical]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_supervisor_native_env_loading_and_alias_conflicts[matching_aliases]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_supervisor_unknown_backend_profile_is_rejected
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_plan]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_wire_has_exact_prompt_sampling_and_zero_identity[goal_stage_review]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_backend_does_not_change_non_goal_wire
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_plan]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output[goal_stage_review]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[length]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[content_filter]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[None]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[unexpected]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[bare_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[full_think_prefix]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[unclosed_think]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[leading_space]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[leading_prose]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[trailing_prose]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[second_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[truncated_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[non_object]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[missing_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[empty_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[multiple_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[missing_text]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[wrong_text_type]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[empty_text]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens0-prompt]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens0-output]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens1-prompt]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens1-output]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens2-prompt]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[bad_tokens2-output]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[12-prompt]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_returned_token_ids[12-output]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_missing_token_ids_remain_unavailable_without_rejecting_json[False]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_missing_token_ids_remain_unavailable_without_rejecting_json[True]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_transport_does_not_repair_invalid_goal_phase
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_cache_identity_changes_with_actual_transport_configuration[transport]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_cache_identity_changes_with_actual_transport_configuration[endpoint]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_cache_identity_changes_with_actual_transport_configuration[plan_budget]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_cache_identity_changes_with_actual_transport_configuration[review_budget]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_returns_replaceable_steps_without_stealing_selector_role
+46 failed, 1 passed in 0.97s

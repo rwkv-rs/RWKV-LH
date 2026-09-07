@@ -61,6 +61,37 @@ owner 于 2026-09-07 明确取消 Planner 步数要求。Planner 按任务需要
 
 每步仍有一个职责 phase，阶段内步骤独立且根路径不冲突，依赖只能指向更早阶段；义务绑定、字段类型、有效根、证据权威、完成步骤不可改写及非空阶段等语义合同继续生效。模型上下文、输出 token 和执行资源预算独立登记，不把这些资源预算伪装成固定步数要求。规模政策改变后新运行重新冻结，历史输出及成绩保留原始口径，不重评分。
 
+取消计划数量上限不等于模型上下文无限。当前 13.3B 服务窗口为 16,384 tokens，请求必须核对实际输入与登记的输出预算；超出窗口不能静默截断计划、删证据、临时降低预算或伪装为模型完成。任务结束仍由 RWKV 结合目标覆盖和执行证据判断，并通过既有完成校验；资源不足只能明确报告中断或阻塞。
+
+### 1.5 本地 13.3B Supervisor 原生传输
+
+owner 于 2026-09-07 授权 Planner 与 Stage Checker 使用同一现有 13.3B 服务。当前配置如下；`SupervisorAPISettings` 的通用 backend 默认仍是 `openai-compatible`，本地部署必须显式选择原生 profile。
+
+| 配置 | 当前值 |
+|---|---|
+| `RWKV_LH_PLANNER_BACKEND_PROFILE` | `vllm-rwkv-native` |
+| Planner / Stage Checker 模型 alias | `rwkv7-g1j-13.3b-zero-state-capability-ctx16384` |
+| 本地 base URL / 远端端口 | `http://127.0.0.1:29613/v1` / `rwkv-8222:18234/v1` |
+| `RWKV_LH_PLANNER_MAX_PLAN_TOKENS` | `8192` |
+| `RWKV_LH_PLANNER_READ_TIMEOUT` | `240` 秒，两个 Supervisor 角色共用 |
+| `RWKV_LH_PLANNER_MAX_CONTRACT_REVIEW_TOKENS` | Stage Checker 保持 `2400` |
+| `RWKV_LH_PLANNER_PLAN_CACHE_ENABLED` | `false` |
+| `RWKV_LH_PLANNER_FALLBACK_MODELS` | 空 |
+
+原生适配只用于 `goal_plan` / `goal_stage_review`。Planner 仍只输出计划补丁，Stage Checker 仍只审查已完成阶段；Selector、Executor、Step Auditor、Finalizer、Final Auditor 的模型、预算、职责和 State 不变。唯一的角色请求构造与 system prompt 不变，传输模块仅将已有 payload 按 `_render_user_payload` 序列化后包装为下列原生文本：
+
+```text
+System✿{system_prompt}✿
+User✿{payload_text}✿
+Bot✿<think
+```
+
+向 `/completions` 发送 `TextCompletionRequest.payload(..., sampler_mode="native")`，不发送 `response_format` / `structured_outputs`，从而避开本部署缺少 `lmformatenforcer` 的约束生成路径。明确传入 temperature 0.1、top_p 1、top_k 0、presence/frequency penalty 0、decay 0.996、stop `✿`、stop token 0、BOS 和返回 token IDs；每次请求显式指定 `zero` / 64 个 `0` 的 State SHA，不继承其他角色的采样上下文、WKV 或 State handle。
+
+响应必须是唯一 choice，`text` 非空且从 `>` 开始，`finish_reason` 严格为 `stop`；`length` 即使伴随完整 JSON 也拒绝。只把本次实际发出的 `<think` prefill 合回原文后交既有严格 JSON decoder，再执行原 GoalPlanPatch / StageReview 合同校验。不得扫描任意 JSON 后缀、补写字段或放宽语义约束。审计保存 raw output、prompt/prefill/output SHA 及返回的 token IDs；IDs 缺失/null不单独否定 JSON，但不能声称已有完整 token trace；已返回的非法 token 类型必须拒绝。缓存身份绑定实际 endpoint、传输参数、预算和 zero 身份，本轮配置仍关闭缓存。
+
+连接探针和使用 mock 审计的 Controller fixture 均不计 Agent 分数、双零噪声或 StateTune 来源。完整源码、测试与连接证据见 [本轮原生适配报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
+
 ## 2. 数据来源与清理规则
 
 旧合成角色数据链已删除，不保留本地归档或 stub，也不得恢复旧生成器以继续训练。旧实验只查 Git / GitHub；当前工作树只保存当前有效数据、隔离验收材料和本轮及后续证据。
@@ -95,7 +126,7 @@ owner 于 2026-09-07 明确取消 Planner 步数要求。Planner 按任务需要
 ## 3. 迭代顺序与比较纪律
 
 1. 唯一协议、旧链清理、新开发题整体隔离验收及完整单元回归；使用 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev` 和 `.venv/bin/python -m playwright install chromium` 准备环境；Torch / State 注入及必需浏览器验证不得跳过。
-2. 按 owner 2026-09-07 最新授权，本轮在当前服务通过 §1.3 的上传文件 identity attestation 后，直接固定代码/题集/参数跑 `realprojectdevv1` 同 12 题的两遍 all-zero，不先跑 Ladder、不跑 E2E-90。首次 A 臂已中止并标 INVALID，B 臂未启动；保留原冻结文件，另行 R2 注册并用全新 workspace/State 完整重跑两遍。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted，其他硬门按新的执行预注册执行。两遍有效 Strict 差为该集合噪声带；不达标修根因，禁止进入训练。
+2. 按 owner 2026-09-07 最新授权，先解决当前 Planner 输出合同缺陷并完成两个 Goal 角色的接入验证，再核验 §1.3 的上传文件身份。保留 R1 无效尝试与 R2 A 原始冻结记录，重新登记当前代码/服务/题集/参数，用全新 workspace/State 完整运行 `realprojectdevv1` 同 12 题的两遍 all-zero，不先跑 Ladder、不跑 E2E-90，也不接续旧 R2 B。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted，其他硬门按新的执行预注册执行。两遍有效 Strict 差为该集合噪声带；不达标修根因，禁止进入训练。
 3. 实现生产 trace 抽取并在 owner 确认后冻结回归集。
 4. 当前 State 同代码做 2⁴ 消融，或至少 all-zero/全开/四个单开；增益必须超过噪声带。
 5. 只有有可归因残差、尚有合法轮次且 owner 书面确认时才训练。
@@ -124,8 +155,16 @@ Agent 门：Ladder-10 Strict 严格高于 all-zero 且超过噪声带，zero 已
 
 ## 6. 当前执行状态
 
-最新更新：owner 已要求绕开中转并先检查 13.3B 输出。独立诊断已观察到自然结束的完整 JSON；当前尚有服务 JSON mode 依赖、思考前缀传递和计划字段/依赖问题，不能宣称正式后端接入成功。其后按明确授权实施 §1.4 的计划数量整改，其他角色职责、模型和 State 不变。诊断及变更分别见 `data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/` 与 `data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/`。下述 R2 数字是原始历史记录，后续需要新的冻结和双零两臂。
+Agent 级：本轮原生适配没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。下述 R2 数字仍是历史原始记录，不重评分；新双零两臂需要重新冻结并完整运行。
 
-上一轮已统一五角色 builder 并删除旧协议与数据链。本轮 owner 确认服务器 `rwkv-8222` 后执行旧资源清理与当前源码部署准备，同时授权并编写 12 题项目开发基准；完整隔离验收和本轮 pytest 最终结果仍以本轮记录为准。owner 随后明确服务器禁止使用 Git，当前正在改用本地上传的完整 engine 源码清单与 manifest SHA 核验身份。当前 Strong Planner 和 Strong Stage Checker 均配置为 `gpt-5.6-sol`，新的服务/协议身份尚需最终核验，不能提前称为通过。
+当前 Planner 与 Stage Checker 已按 §1.5 配置为本地同一 13.3B alias，本地与远端各三种生产 loader 核验均通过。真实生产 Planner 单次探针返回 HTTP 200，自然 `stop`，1,918 输入 + 4,651 输出 = 6,569 tokens，耗时 62.601 秒；恢复实际 prefill 后 JSON 语法通过，生产 GoalPlanPatch 首先因额外顶层 `goal_digest` 拒绝。完整原文的独立审计另发现 7/7 `success_evidence` 为字符串、S1 义务绑定为空、其余非 observe 步骤仍有 read roots，不能将这些写成生产 parser 已逐项报错。因此不能把传输成功当作全面问题解决或基线启动资格。完整回归已通过 764 项，无跳过，耗时 62.43 秒；其代码验证结论不代表模型能力通过。报告与原始证据位于 `data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/`。
 
-首次 `real_project_zero_a` 已按上述约束中止并记录于 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json`，不用于成绩、噪声或训练来源。后续上传身份核验与 R2 冻结已完成；R2 A 完整运行 12 题，Strict 0/12、completed 0/12、mutation 0，全部终止于 `strong_planner_unavailable`，operation-target invalid 2，11 题没有 RWKV 生成。B 臂暂未启动，上游诊断独立于 Agent 评分，尚无合格的双零能力基线；必须先恢复 Planner 可用性并解决硬门问题，不能进入训练。没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，本轮结果见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。
+Stage Checker 的 19 步 Controller 连接 fixture 有 19 次真实 Harness 读取和明确的 mock accepted audits；完整阶段引用保留，recent facts 独立限于 8 条。该输入预检为 15,067 tokens，加原定 2,400 输出预算得到 17,467，超过服务 16,384 窗口，因而没有发起生成，没有删步骤、截事实或降低预算。此为连接 fixture 的物理上下文限制，不是 Stage Checker 模型成绩；后续较小既有 fixture 的连接结果单独登记。
+
+独立的既有 1 步 / 1 条事实 fixture（真实 Harness 写入、明确 mock 审计）在原定 Stage Checker 2,400-token 预算下返回 HTTP 200，但重复思考后 `finish_reason=length`，因此没有有效 JSON 判定。输入 1,005、输出 2,400 tokens，耗时 32.352 秒；原文及拒绝证据见本轮 `SMALL_STAGE_CHECKER_NATIVE_CONNECTION_PROBE.json`。此为连接失败样本，不属于能力评测或训练来源。
+
+§1.4 的计划数量整改仍生效，其他字段、依赖、阶段和证据约束不因数量放开而取消。此前诊断与整改分别位于 `data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/` 和 `data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/`，其冻结报告保持原样。
+
+上一轮已统一五角色 builder 并删除旧协议与数据链。owner 确认服务器 `rwkv-8222` 后执行旧资源清理与当前源码部署，并授权编写 12 题项目开发基准。服务器禁止使用 Git，部署和身份核验只使用本地上传的完整 engine 源码清单与 manifest SHA；每次新运行均绑定相应核验记录。R2 的中转 `gpt-5.6-sol` 配置只属于历史冻结状态，不代表当前本地原生配置。
+
+首次 `real_project_zero_a` 已按上述约束中止并记录于 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json`，不用于成绩、噪声或训练来源。后续上传身份核验与 R2 冻结已完成；R2 A 完整运行 12 题，Strict 0/12、completed 0/12、mutation 0，全部终止于 `strong_planner_unavailable`，operation-target invalid 2，11 题没有 RWKV 生成。B 臂暂未启动，上游诊断独立于 Agent 评分，尚无合格的双零能力基线；必须先解决当前 Planner 输出合同和硬门问题，不能进入训练。没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，本轮结果见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。

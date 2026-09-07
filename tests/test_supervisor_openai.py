@@ -953,7 +953,7 @@ def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role()
     assert posted["response_format"] == {"type": "json_object"}
     # Rolling GoalPlan output uses the bounded Planner budget.  The separate
     # ContractGraph planner retains its larger contract-plan budget.
-    assert posted["max_tokens"] == 1800
+    assert posted["max_tokens"] == 8192
     assert client.settings.max_contract_plan_tokens == 4000
     assert fake.posts[0]["url"].endswith("/chat/completions")
     assert posted["messages"][1]["role"] == "user"

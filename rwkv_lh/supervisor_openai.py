@@ -30,6 +30,8 @@ except ImportError:  # pragma: no cover - project runtime is WSL/Linux
 
 from rwkv_lh.runtime.role_config import role_bool, role_env, role_float, role_int
 from rwkv_lh.runtime.settings import PROJECT_ROOT, load_local_env
+from rwkv_lh.runtime import supervisor_vllm_rwkv
+from rwkv_lh.runtime.protocol import RWKVProtocolError
 from rwkv_lh.contract_graph import (
     ContractAssertion,
     ContractGraphNode,
@@ -164,11 +166,11 @@ class SupervisorAPISettings:
     model: str
     stage_checker_model: str
     connect_timeout_seconds: float = 10.0
-    read_timeout_seconds: float = 60.0
+    read_timeout_seconds: float = 240.0
     retry_attempts: int = 2
     retry_backoff_seconds: float = 0.5
     verify_tls: bool = True
-    max_plan_tokens: int = 1800
+    max_plan_tokens: int = 8192
     max_review_tokens: int = 1400
     max_directive_tokens: int = 1200
     max_contract_plan_tokens: int = 4000
@@ -181,6 +183,7 @@ class SupervisorAPISettings:
     circuit_breaker_cooldown_seconds: float = 30.0
     plan_cache_enabled: bool = True
     plan_cache_dir: str = str(PROJECT_ROOT / "data" / "cache" / "supervisor_plans")
+    backend_profile: str = "openai-compatible"
 
     @classmethod
     def from_env(
@@ -209,6 +212,9 @@ class SupervisorAPISettings:
                 "model",
                 default=planner_model,
             ),
+            backend_profile=role_env(
+                "planner", "backend_profile", default="openai-compatible",
+            ),
             connect_timeout_seconds=role_float(
                 "planner",
                 "connect_timeout",
@@ -219,7 +225,7 @@ class SupervisorAPISettings:
                 "planner",
                 "read_timeout",
                 legacy="SUPERVISOR_READ_TIMEOUT",
-                default=60.0,
+                default=240.0,
             ),
             retry_attempts=role_int(
                 "planner",
@@ -243,7 +249,7 @@ class SupervisorAPISettings:
                 "planner",
                 "max_plan_tokens",
                 legacy="SUPERVISOR_MAX_PLAN_TOKENS",
-                default=1800,
+                default=8192,
             ),
             max_review_tokens=role_int(
                 "planner",
@@ -325,6 +331,8 @@ class SupervisorAPISettings:
         return settings
 
     def validate(self) -> None:
+        if self.backend_profile not in {"openai-compatible", supervisor_vllm_rwkv.BACKEND_PROFILE}:
+            raise ValueError("RWKV_LH_PLANNER_BACKEND_PROFILE is unsupported")
         parsed = urlparse(self.base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError(
@@ -373,6 +381,7 @@ class SupervisorAPISettings:
 
     def public_dict(self) -> dict[str, Any]:
         return {
+            "backend_profile": self.backend_profile,
             "base_url": self.base_url,
             "model": self.model,
             "stage_checker_model": self.stage_checker_model,
@@ -1072,10 +1081,14 @@ class OpenAICompatibleSupervisorClient:
         # envelope minimal and enforce the full schema locally after decode.
         return {"type": "json_object"}
 
-    @staticmethod
-    def _transport_for_phase(phase: str) -> str:
+    def _transport_for_phase(self, phase: str) -> str:
         """Return the fixed wire protocol for each current Goal role."""
 
+        if (
+            self.settings.backend_profile == supervisor_vllm_rwkv.BACKEND_PROFILE
+            and phase in {"goal_plan", "goal_stage_review"}
+        ):
+            return supervisor_vllm_rwkv.TRANSPORT
         if phase in _RESPONSES_API_PHASES:
             return "responses"
         return "chat_completions"
@@ -1092,6 +1105,15 @@ class OpenAICompatibleSupervisorClient:
         schema: Mapping[str, Any],
     ) -> tuple[str, dict[str, Any], str]:
         transport = self._transport_for_phase(phase)
+        if transport == supervisor_vllm_rwkv.TRANSPORT:
+            return (
+                self.settings.base_url + "/completions",
+                supervisor_vllm_rwkv.build_completion_payload(
+                    model=selected_model, system_prompt=system_prompt,
+                    payload_text=payload_text, max_tokens=max_tokens,
+                ),
+                transport,
+            )
         if transport == "responses":
             body: dict[str, Any] = {
                 "model": selected_model,
@@ -1321,14 +1343,35 @@ class OpenAICompatibleSupervisorClient:
                 "model": selected_model,
                 "transport": transport,
                 "input_envelope": (
-                    "easy_user_message_json_prefix_v1"
+                    supervisor_vllm_rwkv.INPUT_ENVELOPE
+                    if transport == supervisor_vllm_rwkv.TRANSPORT
+                    else "easy_user_message_json_prefix_v1"
                     if transport == "responses"
                     else "chat_messages_v1"
                 ),
                 "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
                 "input_chars": len(payload_bytes.decode("utf-8")),
                 "max_tokens": int(max_tokens),
-                "response_format": "json_object",
+                "response_format": (
+                    None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
+                ),
+                **(
+                    {
+                        "prompt_sha256": hashlib.sha256(body["prompt"].encode("utf-8")).hexdigest(),
+                        "prompt_chars": len(body["prompt"]),
+                        "prefill_sha256": hashlib.sha256(supervisor_vllm_rwkv.GENERATION_PREFILL.encode("utf-8")).hexdigest(),
+                        "state_profile_id": supervisor_vllm_rwkv.STATE_PROFILE_ID,
+                        "state_profile_sha256": supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
+                        "sampling": {
+                            key: body[key] for key in (
+                                "temperature", "top_p", "top_k", "presence_penalty",
+                                "frequency_penalty", "penalty_decay", "add_special_tokens",
+                                "stop", "stop_token_ids",
+                            )
+                        },
+                    }
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else {}
+                ),
             }
         )
         last_status = 0
@@ -1369,7 +1412,39 @@ class OpenAICompatibleSupervisorClient:
                     raise SupervisorProtocolError(
                         "supervisor returned a non-object response envelope"
                     )
-                if transport == "responses":
+                native_metadata: dict[str, Any] = {}
+                if transport == supervisor_vllm_rwkv.TRANSPORT:
+                    choices = data.get("choices")
+                    raw_choice = (
+                        choices[0] if isinstance(choices, list) and choices
+                        and isinstance(choices[0], Mapping) else {}
+                    )
+                    raw_output = raw_choice.get("text")
+                    self._emit({
+                        "type": "supervisor_raw_response_returned", "call_id": call_id,
+                        "phase": phase, "run_id": run_id, "transport": transport,
+                        "attempt": attempt, "raw_response": deepcopy(dict(data)),
+                        "raw_output": raw_output if isinstance(raw_output, str) else None,
+                        "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest() if isinstance(raw_output, str) else None,
+                        "finish_reason": raw_choice.get("finish_reason"),
+                        "usage": data.get("usage"),
+                    })
+                    try:
+                        decoded = supervisor_vllm_rwkv.decode_completion(
+                            data, latency_ms=latency_ms, attempts=attempt,
+                        )
+                    except RWKVProtocolError as exc:
+                        raise SupervisorProtocolError(str(exc)) from exc
+                    content, finish_reason = decoded.content, decoded.finish_reason
+                    native_metadata = {
+                        "raw_output": content,
+                        "raw_output_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                        "raw_token_ids": decoded.metadata.get("token_ids"),
+                        "prompt_token_ids": decoded.metadata.get("prompt_token_ids"),
+                        "raw_token_ids_available": isinstance(decoded.metadata.get("token_ids"), list),
+                        "prompt_token_ids_available": isinstance(decoded.metadata.get("prompt_token_ids"), list),
+                    }
+                elif transport == "responses":
                     content, finish_reason = self._decode_responses_api_content(data)
                 else:
                     choices = data.get("choices")
@@ -1392,7 +1467,14 @@ class OpenAICompatibleSupervisorClient:
                             "supervisor response has empty JSON content"
                         )
                     finish_reason = str(choices[0].get("finish_reason") or "")
-                value, content_normalization = _decode_supervisor_json_content(content)
+                # Restore only the exact prefix sent in this native request.
+                # The model still supplies the complete closing tag and JSON;
+                # truncation, unknown wrappers and semantic errors stay errors.
+                decoder_content = (
+                    supervisor_vllm_rwkv.GENERATION_PREFILL + content
+                    if transport == supervisor_vllm_rwkv.TRANSPORT else content
+                )
+                value, content_normalization = _decode_supervisor_json_content(decoder_content)
                 if content_normalization is not None:
                     self._emit(
                         {
@@ -1422,6 +1504,7 @@ class OpenAICompatibleSupervisorClient:
                             content.encode("utf-8")
                         ).hexdigest(),
                         "output_chars": len(content),
+                        **native_metadata,
                     }
                 )
                 return value
@@ -2241,10 +2324,24 @@ class OpenAICompatibleSupervisorClient:
                 rejected_patch = local_repair.get("rejected_patch")
                 if isinstance(rejected_patch, dict):
                     rejected_patch.pop("patch_id", None)
+        wire_identity: dict[str, Any] = {
+            "backend_profile": self.settings.backend_profile,
+            "base_url": self.settings.base_url,
+        }
+        if phase in {"goal_plan", "goal_stage_review"}:
+            endpoint, wire_body, transport = self._wire_request(
+                phase=phase,
+                selected_model=self.stage_checker_model_name if phase == "goal_stage_review" else self.model_name,
+                system_prompt=system_prompt, payload_text=_render_user_payload(payload),
+                max_tokens=self.settings.max_contract_review_tokens if phase == "goal_stage_review" else self.settings.max_plan_tokens,
+                schema_revision=cache_schema, schema=schema,
+            )
+            wire_identity.update(endpoint=endpoint, transport=transport, body=wire_body)
         cache_key = hashlib.sha256(
             json.dumps(
                 {
                     "cache_schema": cache_schema,
+                    "wire_identity": wire_identity,
                     "models": (
                         [self.stage_checker_model_name]
                         if phase == "goal_stage_review"

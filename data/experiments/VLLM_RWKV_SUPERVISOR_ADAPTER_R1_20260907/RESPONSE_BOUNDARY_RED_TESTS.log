@@ -1,0 +1,170 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[invalid] _
+
+bad_count = 'invalid'
+
+    @pytest.mark.parametrize("bad_count", ["invalid", {"bad": "value"}, float("inf")])
+    def test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence(bad_count):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"]["prompt_tokens"] = bad_count
+        events = []
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=session, audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3052: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1584: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1432: in _request_json_single
+    decoded = supervisor_vllm_rwkv.decode_completion(
+rwkv_lh/runtime/supervisor_vllm_rwkv.py:67: in decode_completion
+    return OpenAICompatibleRWKVClient._completion_response(data, latency_ms, attempts)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:281: in _completion_response
+    usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'rwkv_lh.runtime.protocol.TokenUsage'>
+value = {'prompt_tokens': 'invalid', 'completion_tokens': 3, 'total_tokens': 6}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any] | None) -> "TokenUsage":
+        raw = value if isinstance(value, Mapping) else {}
+>       prompt = int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: invalid literal for int() with base 10: 'invalid'
+
+rwkv_lh/runtime/protocol.py:44: ValueError
+_ test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[bad_count1] _
+
+bad_count = {'bad': 'value'}
+
+    @pytest.mark.parametrize("bad_count", ["invalid", {"bad": "value"}, float("inf")])
+    def test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence(bad_count):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"]["prompt_tokens"] = bad_count
+        events = []
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=session, audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3052: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1584: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1432: in _request_json_single
+    decoded = supervisor_vllm_rwkv.decode_completion(
+rwkv_lh/runtime/supervisor_vllm_rwkv.py:67: in decode_completion
+    return OpenAICompatibleRWKVClient._completion_response(data, latency_ms, attempts)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:281: in _completion_response
+    usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'rwkv_lh.runtime.protocol.TokenUsage'>
+value = {'prompt_tokens': {'bad': 'value'}, 'completion_tokens': 3, 'total_tokens': 6}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any] | None) -> "TokenUsage":
+        raw = value if isinstance(value, Mapping) else {}
+>       prompt = int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'dict'
+
+rwkv_lh/runtime/protocol.py:44: TypeError
+_ test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[inf] __
+
+bad_count = inf
+
+    @pytest.mark.parametrize("bad_count", ["invalid", {"bad": "value"}, float("inf")])
+    def test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence(bad_count):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["usage"]["prompt_tokens"] = bad_count
+        events = []
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=session, audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_vllm_rwkv.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3052: in plan_goal_patch
+    value = self._request_json(
+rwkv_lh/supervisor_openai.py:1297: in _request_json
+    raise last_error
+rwkv_lh/supervisor_openai.py:1263: in _request_json
+    value = self._request_json_single(
+rwkv_lh/supervisor_openai.py:1584: in _request_json_single
+    raise error
+rwkv_lh/supervisor_openai.py:1432: in _request_json_single
+    decoded = supervisor_vllm_rwkv.decode_completion(
+rwkv_lh/runtime/supervisor_vllm_rwkv.py:67: in decode_completion
+    return OpenAICompatibleRWKVClient._completion_response(data, latency_ms, attempts)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:281: in _completion_response
+    usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'rwkv_lh.runtime.protocol.TokenUsage'>
+value = {'prompt_tokens': inf, 'completion_tokens': 3, 'total_tokens': 6}
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any] | None) -> "TokenUsage":
+        raw = value if isinstance(value, Mapping) else {}
+>       prompt = int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       OverflowError: cannot convert float infinity to integer
+
+rwkv_lh/runtime/protocol.py:44: OverflowError
+________ test_native_rejected_token_ids_remain_in_raw_response_evidence ________
+
+    def test_native_rejected_token_ids_remain_in_raw_response_evidence():
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        payload["choices"][0]["token_ids"] = [True]
+        events = []
+        client = OpenAICompatibleSupervisorClient(
+            _native_settings(), session=_Session(payload), audit_hook=events.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+        raw = next(event for event in events if event["type"] == "supervisor_raw_response_returned")
+>       assert raw["attempt"] == 1
+               ^^^^^^^^^^^^^^
+E       KeyError: 'attempt'
+
+tests/test_supervisor_vllm_rwkv.py:437: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[invalid]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[bad_count1]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_bad_usage_stays_transport_protocol_error_with_raw_evidence[inf]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejected_token_ids_remain_in_raw_response_evidence
+4 failed, 46 deselected in 0.19s

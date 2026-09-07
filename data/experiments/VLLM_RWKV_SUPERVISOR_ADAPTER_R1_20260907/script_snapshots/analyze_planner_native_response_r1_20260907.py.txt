@@ -1,0 +1,42 @@
+"""Inspect this round's untouched Planner response with the current contract schema."""
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.supervisor_openai import OpenAICompatibleSupervisorClient, _decode_supervisor_json_content
+from rwkv_lh.runtime.supervisor_vllm_rwkv import GENERATION_PREFILL
+
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+source = ROUND / 'PRODUCTION_PLANNER_NATIVE_PROBE.json'
+output = ROUND / 'PLANNER_NATIVE_RESPONSE_INSPECTION.json'
+assert not output.exists()
+probe = json.loads(source.read_text())
+response = json.loads(probe['http_requests'][0]['response_text'])
+raw = response['choices'][0]['text']
+value, normalization = _decode_supervisor_json_content(GENERATION_PREFILL + raw)
+expected_keys = set(OpenAICompatibleSupervisorClient._goal_plan_patch_schema()['properties'])
+observations = [{
+    'step_id': step['step_id'], 'phase': step['phase'],
+    'success_evidence_python_type': type(step.get('success_evidence')).__name__,
+    'obligation_ids': step.get('obligation_ids'), 'read_roots': step.get('read_roots'),
+} for stage in value.get('add_stages', []) for step in stage['steps']]
+record = {
+    'purpose': 'Inspect the unchanged new connection probe only. No field repair, no old baseline rescore, no training.',
+    'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'raw_output_sha256': hashlib.sha256(raw.encode()).hexdigest(),
+    'json_syntax_valid': True, 'content_normalization': normalization,
+    'top_level_keys': list(value), 'stage_count': len(value.get('add_stages', [])),
+    'step_count': sum(len(stage['steps']) for stage in value.get('add_stages', [])),
+    'extra_top_level_keys': sorted(set(value) - expected_keys),
+    'missing_top_level_keys': sorted(expected_keys - set(value)),
+    'step_field_observations': observations,
+    'production_rejection': {'error_type': probe['error_type'], 'error': probe['error']},
+    'finish_reason': response['choices'][0]['finish_reason'], 'usage': response['usage'],
+    'field_repair_applied': False,
+}
+output.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps(record, ensure_ascii=False, indent=2))

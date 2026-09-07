@@ -1,0 +1,211 @@
+"""Capture an existing small Controller/Harness test's canonical stage request.
+
+All model and audit responses are the original unit-test mocks. This author
+fixture is neither a production trace nor a benchmark score or training row.
+"""
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import json
+import socket
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+import pytest
+import requests
+
+from rwkv_lh.goal_loop_protocol import GoalStageReviewRequest, rolling_goal_plan
+from rwkv_lh.schema import ActionStatus
+from rwkv_lh.store import LongHorizonStore
+
+OUT = ROOT / "data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907"
+TEST_PATH = ROOT / "tests/test_stateful_goal_loop.py"
+TEST_NAME = "test_stateful_goal_loop_completes_only_after_rwkv_audit"
+PREFIX = "SMALL_STAGE_CHECKER_CONNECTION_FIXTURE"
+REQUEST_PATH = OUT / f"{PREFIX}_REQUEST.json"
+PROVENANCE_PATH = OUT / f"{PREFIX}_PROVENANCE.json"
+LOG_PATH = OUT / f"{PREFIX}_PYTEST.log"
+SHA_PATH = OUT / f"{PREFIX}_SHA256SUMS.txt"
+RUNTIME_PATH = OUT / "small_stage_checker_connection_fixture_runtime"
+ORIGINAL_LARGE_FIXTURE = OUT / "STAGE_CHECKER_CONNECTION_FIXTURE_REQUEST.json"
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json(path: Path, value) -> None:
+    with path.open("x", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+
+
+class CapturePlugin:
+    def __init__(self):
+        self.captured = []
+        self.tmp_path = None
+        self.original = None
+        self.module = None
+
+    def pytest_runtest_setup(self, item):
+        assert item.name == TEST_NAME
+        self.module = item.module
+        self.original = self.module._StrongPlanner.review_goal_stage
+        original = self.original
+
+        def capture(planner, request):
+            assert isinstance(request, GoalStageReviewRequest)
+            self.captured.append(request.to_dict())
+            return original(planner, request)
+
+        self.module._StrongPlanner.review_goal_stage = capture
+
+    def pytest_runtest_teardown(self, item, nextitem):
+        del nextitem
+        self.tmp_path = Path(item.funcargs["tmp_path"]).resolve()
+        self.tmp_path.relative_to(RUNTIME_PATH.resolve())
+        self.module._StrongPlanner.review_goal_stage = self.original
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    for path in (REQUEST_PATH, PROVENANCE_PATH, LOG_PATH, SHA_PATH, RUNTIME_PATH):
+        if path.exists():
+            raise RuntimeError(f"refusing to overwrite existing fixture artifact: {path}")
+    sources = tuple(ROOT / relative for relative in (
+        "temp/capture_small_stage_checker_connection_fixture_r1_20260907.py",
+        "tests/test_stateful_goal_loop.py", "tests/conftest.py",
+        "rwkv_lh/stateful_goal_loop.py", "rwkv_lh/goal_loop_protocol.py",
+        "rwkv_lh/controller.py", "rwkv_lh/harness.py", "rwkv_lh/store.py",
+        "rwkv_lh/model.py", "rwkv_lh/model_session.py", "rwkv_lh/schema.py",
+        "rwkv_lh/goal_state_protocols/auditor_step_v3.py",
+        "rwkv_lh/goal_state_protocols/auditor_final.py",
+        "rwkv_lh/goal_state_protocols/finalizer_answer.py",
+    ))
+    before = {str(path): sha256(path) for path in sources}
+    large_before = sha256(ORIGINAL_LARGE_FIXTURE)
+    plugin = CapturePlugin()
+    argv = ["-q", str(TEST_PATH) + "::" + TEST_NAME, "--basetemp", str(RUNTIME_PATH)]
+    started_at = datetime.now(timezone.utc).isoformat()
+    network_attempts = []
+
+    def forbid_network(*_args, **_kwargs):
+        network_attempts.append("blocked_network_attempt")
+        raise RuntimeError("offline fixture capture forbids real network requests")
+
+    with contextlib.ExitStack() as guards:
+        guards.enter_context(patch.object(requests.sessions.Session, "request", forbid_network))
+        guards.enter_context(patch.object(socket, "create_connection", forbid_network))
+        guards.enter_context(patch.object(socket.socket, "connect", forbid_network))
+        guards.enter_context(patch.object(socket.socket, "connect_ex", forbid_network))
+        with LOG_PATH.open("x", encoding="utf-8") as log:
+            with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+                result = int(pytest.main(argv, plugins=[plugin]))
+    if result:
+        raise RuntimeError(f"source test failed with exit code {result}; see {LOG_PATH}")
+    assert not network_attempts
+    assert len(plugin.captured) == 1
+    assert plugin.tmp_path is not None
+    after = {str(path): sha256(path) for path in sources}
+    assert before == after, "source changed during fixture capture"
+    large_after = sha256(ORIGINAL_LARGE_FIXTURE)
+    assert large_before == large_after, "existing large fixture must remain unchanged"
+
+    # This is only the newly created offline unit-test database.
+    state = LongHorizonStore(plugin.tmp_path / "state").load("STATEFUL-END-TO-END")
+    plan = rolling_goal_plan(state)
+    actions = sorted(state.actions.values(), key=lambda item: item.sequence)
+    events = [state.causal_records[event_id] for event_id in state.causal_order]
+    accepted = [event for event in events if event.event_type == "goal_audit_accepted"]
+    step_audits = [event for event in accepted if event.payload.get("boundary") != "pre_final"]
+    final_audits = [event for event in accepted if event.payload.get("boundary") == "pre_final"]
+    stage_reviews = [event for event in events if event.event_type == "goal_stage_review_committed"]
+    snapshot = plugin.captured[0]
+    assert len(actions) == 1
+    action = actions[0]
+    assert action.status is ActionStatus.SUCCEEDED
+    assert action.action_type == "write_file" and action.result.get("success") is True
+    assert len(step_audits) == len(final_audits) == len(stage_reviews) == 1
+    assert len(snapshot["stage_steps"]) == len(snapshot["recent_action_facts"]) == 1
+    assert snapshot["stage_steps"][0]["accepted_evidence_refs"] == [action.action_id]
+    assert snapshot["recent_action_facts"][0]["operation"] == "write_file"
+    assert plan.complete and state.status.value == "completed"
+    artifact_path = Path(state.goal.workspace_root) / str(action.arguments["path"])
+    assert artifact_path.read_text(encoding="utf-8") == "verified"
+    write_json(REQUEST_PATH, snapshot)
+    provenance = {
+        "purpose": "small_stage_checker_connection_fixture_only",
+        "source_kind": "existing_offline_pytest_controller_fixture_with_real_harness_write_and_mock_models",
+        "source_selection": "an independent existing one-step test, not a truncated large-stage fixture",
+        "is_production_trace": False,
+        "is_agent_score_or_baseline": False,
+        "eligible_for_statetune_training": False,
+        "all_model_responses_are_mock": True,
+        "executor_and_selector_responses_are_mock": True,
+        "planner_and_stage_checker_responses_are_mock": True,
+        "step_and_final_auditor_responses_are_mock": True,
+        "finalizer_response_is_mock": True,
+        "mock_semantics": "Existing _QueueClient, _SelectorHTTP and _StrongPlanner fixtures; the real Controller, Harness and protocol validators consume scripted responses. The original test also stubs _validate_contract_patch_semantics.",
+        "real_model_calls_by_capture_script": 0,
+        "real_network_calls_by_capture_script": 0,
+        "blocked_network_attempt_count": len(network_attempts),
+        "network_guard": "requests.Session.request and socket create/connect/connect_ex forbidden for the complete pytest invocation",
+        "real_harness_write_count": len(actions),
+        "accepted_mock_step_audit_count": len(step_audits),
+        "accepted_mock_final_audit_count": len(final_audits),
+        "mock_stage_review_count": len(stage_reviews),
+        "stage_step_count": len(snapshot["stage_steps"]),
+        "accepted_evidence_reference_count": sum(len(step["accepted_evidence_refs"]) for step in snapshot["stage_steps"]),
+        "recent_action_fact_count": len(snapshot["recent_action_facts"]),
+        "fixture_controller_completed": True,
+        "fixture_completion_is_not_an_agent_capability_result": True,
+        "capture_point": "Existing _StrongPlanner.review_goal_stage receives the full StatefulGoalLoopController request; persisted exclusively with GoalStageReviewRequest.to_dict(). No fields, stage steps or action facts are removed.",
+        "source_test": str(TEST_PATH) + "::" + TEST_NAME,
+        "pytest_argv": argv,
+        "pytest_exit_code": result,
+        "pytest_log_path": str(LOG_PATH),
+        "pytest_log_sha256": sha256(LOG_PATH),
+        "request_path": str(REQUEST_PATH),
+        "request_sha256": sha256(REQUEST_PATH),
+        "source_sha256_before": before,
+        "source_sha256_after": after,
+        "source_unchanged": True,
+        "original_large_fixture_path": str(ORIGINAL_LARGE_FIXTURE),
+        "original_large_fixture_sha256_before": large_before,
+        "original_large_fixture_sha256_after": large_after,
+        "original_large_fixture_unchanged": True,
+        "started_at_utc": started_at,
+        "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "run_id": state.run_id,
+        "runtime_directory": str(plugin.tmp_path),
+        "action_ids": [action.action_id],
+        "accepted_mock_step_audit_event_ids": [event.event_id for event in step_audits],
+        "accepted_mock_final_audit_event_ids": [event.event_id for event in final_audits],
+        "mock_stage_review_event_ids": [event.event_id for event in stage_reviews],
+        "workspace_files": [{"path": str(artifact_path), "sha256": sha256(artifact_path)}],
+        "freeze_status": "captured_and_frozen_do_not_overwrite",
+    }
+    write_json(PROVENANCE_PATH, provenance)
+    with SHA_PATH.open("x", encoding="utf-8") as handle:
+        for path in (Path(__file__).resolve(), REQUEST_PATH, PROVENANCE_PATH, LOG_PATH):
+            handle.write(f"{sha256(path)}  {path}\n")
+    print(json.dumps({
+        "request": str(REQUEST_PATH), "request_sha256": sha256(REQUEST_PATH),
+        "provenance": str(PROVENANCE_PATH), "provenance_sha256": sha256(PROVENANCE_PATH),
+        "log": str(LOG_PATH), "log_sha256": sha256(LOG_PATH),
+        "sha_manifest": str(SHA_PATH), "sha_manifest_sha256": sha256(SHA_PATH),
+        "stage_step_count": len(snapshot["stage_steps"]),
+        "recent_action_fact_count": len(snapshot["recent_action_facts"]),
+        "network_calls": 0,
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

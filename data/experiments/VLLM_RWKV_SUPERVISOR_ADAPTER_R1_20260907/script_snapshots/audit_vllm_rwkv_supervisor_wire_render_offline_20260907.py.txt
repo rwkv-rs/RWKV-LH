@@ -1,0 +1,52 @@
+"""Read deployed native rendering with no model, generation, network, or Git."""
+from datetime import datetime, timezone
+import hashlib
+import inspect
+import json
+import os
+from pathlib import Path
+import shlex
+import socket
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ENGINE = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+sys.path.insert(0, str(ENGINE))
+original_popen = subprocess.Popen
+
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('Git is forbidden in this offline diagnostic')
+    return original_popen(args, *rest, **kwargs)
+
+def no_network(*args, **kwargs):
+    raise RuntimeError('Network is forbidden in this offline diagnostic')
+
+subprocess.Popen = guarded_popen
+socket.create_connection = no_network
+socket.socket.connect = no_network
+
+from vllm.tokenizers.rwkv_defaults import render_rwkv_chat_template
+
+messages = [
+    {'role': 'system', 'content': 'Return one JSON object only.'},
+    {'role': 'user', 'content': 'Return {"ok":true}.'},
+]
+variants = {}
+for mode in ('open_think', 'fake_think'):
+    prompt = render_rwkv_chat_template(messages, add_generation_prompt=True,
+                                      rwkv_generation_prompt=mode)
+    variants[mode] = {'prompt': prompt, 'prompt_utf8_sha256': hashlib.sha256(prompt.encode()).hexdigest()}
+source = Path(inspect.getsourcefile(render_rwkv_chat_template))
+print(json.dumps({
+    'at': datetime.now(timezone.utc).isoformat(),
+    'purpose': 'Read-only deployed native renderer contract; isolated text controls, not role training data',
+    'engine_root': str(ENGINE), 'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'source_path': str(source), 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+    'model_loaded': False, 'generation_requests': 0, 'git_executed': False,
+    'network_performed': False, 'production_changed': False,
+    'messages': messages, 'variants': variants,
+}, ensure_ascii=False, indent=2))

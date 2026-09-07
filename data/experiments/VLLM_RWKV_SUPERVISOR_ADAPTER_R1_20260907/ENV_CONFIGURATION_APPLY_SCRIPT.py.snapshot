@@ -1,0 +1,247 @@
+"""Owner-authorized Planner-only configuration deployment; never print secrets."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+SELF = ROOT / 'temp/apply_supervisor_native_env_whitelist_20260907.py'
+PENDING = ROUND / 'ENV_CONFIGURATION_APPLIED.pending.json'
+OUTPUT = ROUND / 'ENV_CONFIGURATION_APPLIED.json'
+REMOTE = 'rwkv-8222'
+MODEL = 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+sys.dont_write_bytecode = True
+STAGE = 'start'
+
+def digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+def targets(host):
+    return {'RWKV_LH_PLANNER_BACKEND_PROFILE': 'vllm-rwkv-native',
+            'RWKV_LH_PLANNER_BASE_URL': 'http://127.0.0.1:' + ('29613' if host == 'local' else '18234') + '/v1',
+            'RWKV_LH_PLANNER_API_KEY': 'local-no-auth', 'RWKV_LH_PLANNER_MODEL': MODEL,
+            'RWKV_LH_STAGE_CHECKER_MODEL': MODEL, 'RWKV_LH_PLANNER_MAX_PLAN_TOKENS': '8192',
+            'RWKV_LH_PLANNER_READ_TIMEOUT': '240', 'RWKV_LH_PLANNER_FALLBACK_MODELS': '',
+            'RWKV_LH_PLANNER_PLAN_CACHE_ENABLED': 'false'}
+
+def legacy_keys():
+    suffixes = [key.removeprefix('RWKV_LH_PLANNER_') for key in targets('local') if key.startswith('RWKV_LH_PLANNER_')]
+    return {prefix + suffix for prefix in ('SUPERVISOR_', 'RWKV_LH_SUPERVISOR_') for suffix in suffixes}
+
+def key_of(line):
+    stripped = line.strip()
+    if not stripped or stripped.startswith(b'#') or b'=' not in stripped:
+        return None
+    return stripped.split(b'=', 1)[0].strip().decode('utf-8')
+
+def metadata(path):
+    if not path.exists():
+        return {'exists': False, 'sha256': None, 'mode': None, 'bytes': 0}
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError('Refusing non-regular configuration path')
+    current = path.stat()
+    return {'exists': True, 'sha256': digest(path.read_bytes()), 'mode': format(stat.S_IMODE(current.st_mode), '04o'),
+            'bytes': current.st_size, 'uid': current.st_uid, 'gid': current.st_gid}
+
+def run(args, **kwargs):
+    result = subprocess.run(args, capture_output=True, **kwargs)
+    if result.returncode:
+        raise RuntimeError('Subprocess failed; output deliberately withheld')
+    return result.stdout
+
+def remote(mode, *args, python='/usr/bin/python3'):
+    command = ' '.join(shlex.quote(str(v)) for v in (python, SELF, mode, *args))
+    return json.loads(run(['ssh', REMOTE, command]))
+
+def secret_file(raw):
+    fd, name = tempfile.mkstemp(prefix='supervisor-env-secret-20260907-', dir=ROOT / 'temp')
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(raw)
+    return Path(name)
+
+def update_bytes(before, host):
+    desired = targets(host); legacy = legacy_keys(); allowed = set(desired) | legacy
+    lines = before.splitlines(keepends=True)
+    newline = b'\r\n' if b'\r\n' in before else b'\n'
+    emitted = set(); after_lines = []; removed = set(); changed = set()
+    for line in lines:
+        key = key_of(line)
+        if key in legacy:
+            removed.add(key)
+            continue
+        if key in desired:
+            if key not in emitted:
+                replacement = key.encode() + b'=' + desired[key].encode() + newline
+                after_lines.append(replacement); emitted.add(key)
+                if line != replacement: changed.add(key)
+            else:
+                changed.add(key)
+        else:
+            after_lines.append(line)
+    missing = [key for key in desired if key not in emitted]
+    if missing and after_lines and not after_lines[-1].endswith((b'\n', b'\r')):
+        # Preserve the preceding bytes; a separator is necessary to append a key.
+        after_lines.append(newline)
+    for key in missing:
+        after_lines.append(key.encode() + b'=' + desired[key].encode() + newline)
+        changed.add(key)
+    after = b''.join(after_lines)
+    old_other = [line for line in lines if key_of(line) not in allowed]
+    new_other = [line for line in after.splitlines(keepends=True) if key_of(line) not in allowed]
+    # Empty final separator only changes terminal newline, never another value.
+    assert b''.join(old_other).rstrip(b'\r\n') == b''.join(new_other).rstrip(b'\r\n')
+    names = sorted({key_of(line) for line in lines if key_of(line) is not None and key_of(line) not in allowed})
+    per_key = []
+    for key in names:
+        old = [line.rstrip(b'\r\n') for line in lines if key_of(line) == key]
+        new = [line.rstrip(b'\r\n') for line in after.splitlines(keepends=True) if key_of(line) == key]
+        assert old == new
+        per_key.append({'key': key, 'unchanged': True, 'occurrences': len(old)})
+    return after, {'changed_or_added_keys': sorted(changed), 'removed_corresponding_legacy_keys': sorted(removed),
+                   'other_key_checks': per_key, 'all_other_keys_unchanged': True,
+                   'non_whitelist_content_preserved_except_necessary_terminal_newline': True}
+
+def fresh_verify(host, mode):
+    global STAGE
+    STAGE = 'fresh-production-loader-' + host + '-' + mode
+    # Clear everything before imports and file loading: no inherited role, proxy,
+    # or old relay variables can win load_local_env's setdefault precedence.
+    os.environ.clear()
+    def no_network(*args, **kwargs):
+        raise RuntimeError('Configuration verification forbids network')
+    socket.create_connection = no_network
+    socket.socket.connect = no_network
+    sys.path.insert(0, str(ROOT))
+    from rwkv_lh.runtime.settings import load_local_env
+    from rwkv_lh.supervisor_openai import SupervisorAPISettings
+    if mode == 'product_order':
+        load_local_env()
+        settings = SupervisorAPISettings.from_env()
+    elif mode == 'env_local_direct':
+        settings = SupervisorAPISettings.from_env(ROOT / '.env.local')
+    else:
+        assert mode == 'default_env'
+        settings = SupervisorAPISettings.from_env()
+    expected = targets(host)
+    checks = {
+        'backend_profile': settings.backend_profile == expected['RWKV_LH_PLANNER_BACKEND_PROFILE'],
+        'base_url': settings.base_url == expected['RWKV_LH_PLANNER_BASE_URL'],
+        'model': settings.model == MODEL, 'stage_checker_model': settings.stage_checker_model == MODEL,
+        'api_key_matches_authorized_placeholder': settings.api_key == expected['RWKV_LH_PLANNER_API_KEY'],
+        'max_plan_tokens': settings.max_plan_tokens == 8192, 'read_timeout_seconds': settings.read_timeout_seconds == 240,
+        'fallback_models': settings.fallback_models == (), 'plan_cache_enabled': settings.plan_cache_enabled is False,
+    }
+    assert all(checks.values())
+    return {'host': host, 'mode': mode, 'fresh_process_environment_cleared': True, 'checks': checks,
+            'public_settings': settings.public_dict(),
+            'loader_source_sha256': {p: digest((ROOT / p).read_bytes()) for p in (
+                'rwkv_lh/supervisor_openai.py', 'rwkv_lh/runtime/settings.py', 'rwkv_lh/runtime/role_config.py')},
+            'network_requests': 0, 'generation_requests': 0}
+
+def main():
+    global STAGE
+    mode = sys.argv[1]
+    if mode == 'remote-meta':
+        path = Path(sys.argv[2]); assert path in (ROOT / '.env', ROOT / '.env.local')
+        print(json.dumps(metadata(path))); return
+    if mode == 'remote-commit':
+        staging, target = Path(sys.argv[2]), Path(sys.argv[3])
+        before_sha, after_sha = sys.argv[4:6]
+        assert staging.parent == ROOT / 'temp' and staging.name.startswith('supervisor-env-secret-20260907-')
+        assert target in (ROOT / '.env', ROOT / '.env.local')
+        current = metadata(target)
+        assert (current['sha256'] or 'ABSENT') == before_sha
+        assert digest(staging.read_bytes()) == after_sha
+        os.chmod(staging, int(current['mode'], 8) if current['exists'] else 0o600)
+        os.replace(staging, target)
+        print(json.dumps(metadata(target))); return
+    if mode == 'verify':
+        print(json.dumps(fresh_verify(sys.argv[2], sys.argv[3]))); return
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    if mode == 'apply':
+        assert not PENDING.exists() and not OUTPUT.exists()
+        run(['scp', str(SELF), f'{REMOTE}:{SELF}'])
+        rows = []; cleaned = []
+        for host in ('local', 'remote'):
+            for filename in ('.env', '.env.local'):
+                STAGE = 'apply-' + host + '-' + filename
+                path = ROOT / filename; staged = None; downloaded = None
+                before_meta = metadata(path) if host == 'local' else remote('remote-meta', path)
+                try:
+                    if host == 'local':
+                        before = path.read_bytes() if before_meta['exists'] else b''
+                    elif before_meta['exists']:
+                        downloaded = secret_file(b'')
+                        run(['scp', f'{REMOTE}:{path}', str(downloaded)])
+                        os.chmod(downloaded, 0o600)
+                        before = downloaded.read_bytes()
+                    else:
+                        before = b''
+                    assert not before_meta['exists'] or digest(before) == before_meta['sha256']
+                    after, checks = update_bytes(before, host)
+                    staged = secret_file(after)
+                    if host == 'local':
+                        assert metadata(path) == before_meta
+                        os.chmod(staged, int(before_meta['mode'], 8) if before_meta['exists'] else 0o600)
+                        os.replace(staged, path)
+                        after_meta = metadata(path)
+                    else:
+                        run(['scp', str(staged), f'{REMOTE}:{staged}'])
+                        after_meta = remote('remote-commit', staged, path, before_meta['sha256'] or 'ABSENT', digest(after))
+                    assert after_meta['sha256'] == digest(after)
+                    rows.append({'host': host, 'path': str(path), 'before': before_meta, 'after': after_meta,
+                                 'new_values': {k: v for k, v in targets(host).items() if not k.endswith('_API_KEY')},
+                                 'api_key_value_omitted': True, **checks})
+                finally:
+                    for temporary in (staged, downloaded):
+                        if temporary is not None:
+                            temporary.unlink(missing_ok=True)
+                            cleaned.append({'local_path': str(temporary), 'removed': not temporary.exists()})
+        local_checks = [json.loads(run([str(ROOT / '.venv/bin/python'), str(SELF), 'verify', 'local', variant]))
+                        for variant in ('default_env', 'product_order', 'env_local_direct')]
+        report = {'schema_version': 'rwkv-lh.planner-env-configuration-applied.v1',
+                  'at': datetime.now(timezone.utc).isoformat(), 'files': rows,
+                  'script_sha256': digest(SELF.read_bytes()), 'local_fresh_loader_checks': local_checks,
+                  'remote_fresh_loader_checks': [], 'remote_loader_pending_production_source_upload': True,
+                  'created_secret_copies_cleanup': cleaned, 'server_git_executed': False,
+                  'server_content_edited_in_place': False, 'remote_changes_by_local_upload_only': True,
+                  'model_restarted': False, 'generation_requests': 0, 'dependencies_changed': False}
+        with PENDING.open('x') as handle:
+            json.dump(report, handle, ensure_ascii=False, indent=2); handle.write('\n')
+        print(json.dumps({'pending_report': str(PENDING), 'files_applied': len(rows), 'local_loader_checks_passed': len(local_checks),
+                          'all_other_keys_unchanged': True, 'created_secret_copies_removed': all(v['removed'] for v in cleaned)}))
+    elif mode == 'finalize':
+        assert PENDING.exists() and not OUTPUT.exists()
+        report = json.loads(PENDING.read_bytes())
+        for item in report['files']:
+            current = metadata(Path(item['path'])) if item['host'] == 'local' else remote('remote-meta', item['path'])
+            assert current == item['after'], 'Applied configuration changed before final verification'
+        remote_python = ROOT / 'data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python'
+        report['remote_fresh_loader_checks'] = [remote('verify', 'remote', variant, python=remote_python)
+                                                for variant in ('default_env', 'product_order', 'env_local_direct')]
+        report['remote_loader_pending_production_source_upload'] = False
+        report['final_verified_at'] = datetime.now(timezone.utc).isoformat()
+        report['all_six_loader_checks_passed'] = True
+        with OUTPUT.open('x') as handle:
+            json.dump(report, handle, ensure_ascii=False, indent=2); handle.write('\n')
+        PENDING.unlink()
+        print(json.dumps({'output': str(OUTPUT), 'sha256': digest(OUTPUT.read_bytes()), 'all_six_loader_checks_passed': True}))
+    else:
+        raise RuntimeError('Unsupported mode')
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print(json.dumps({'stage': STAGE, 'error_type': type(exc).__name__, 'details_withheld_to_protect_configuration': True}))
+        raise SystemExit(1)

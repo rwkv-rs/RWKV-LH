@@ -1,0 +1,82 @@
+"""One native Stage Checker connection probe from an explicitly mocked audit fixture."""
+from dataclasses import fields
+from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import json
+import sys
+import time
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.goal_loop_protocol import GoalStageReviewRequest
+from rwkv_lh.supervisor_openai import SupervisorAPISettings, OpenAICompatibleSupervisorClient
+
+ROUND = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+OUTPUT = ROUND / 'STAGE_CHECKER_NATIVE_CONNECTION_PROBE.json'
+assert not OUTPUT.exists(), OUTPUT
+SOURCE = ROUND / 'STAGE_CHECKER_CONNECTION_FIXTURE_REQUEST.json'
+PROVENANCE = ROUND / 'STAGE_CHECKER_CONNECTION_FIXTURE_PROVENANCE.json'
+canonical = json.loads(SOURCE.read_text())
+values = {field.name: canonical[field.name] for field in fields(GoalStageReviewRequest) if field.name in canonical}
+values['immutable_request'] = canonical['current_requirement']
+values['stage_steps'] = tuple(values['stage_steps'])
+values['recent_action_facts'] = tuple(values['recent_action_facts'])
+request = GoalStageReviewRequest(**values)
+assert request.to_dict() == canonical
+MODEL = 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+record = {
+    'at': datetime.now(timezone.utc).isoformat(),
+    'purpose': 'Connection fixture only: 19 real Harness reads and 19 explicitly mock accepted audits. Not production trace, Agent score, or training data.',
+    'source_sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+    'source_provenance_sha256': hashlib.sha256(PROVENANCE.read_bytes()).hexdigest(),
+    'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    'canonical_request': request.to_dict(), 'events': [], 'http_requests': [],
+    'source_module_sha256': {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
+                            for name in ('rwkv_lh/supervisor_openai.py', 'rwkv_lh/runtime/supervisor_vllm_rwkv.py', 'rwkv_lh/goal_loop_protocol.py')},
+}
+
+
+class RecordingClient(OpenAICompatibleSupervisorClient):
+    def _post_completion(self, endpoint, body):
+        assert endpoint == self.settings.base_url + '/completions'
+        assert body['max_tokens'] == 2400
+        token_response = self._session().post('http://127.0.0.1:29613/tokenize', json={
+            'model': MODEL, 'prompt': body['prompt'], 'add_special_tokens': True,
+        }, timeout=20)
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        assert token_data['count'] + body['max_tokens'] <= 16384
+        item = {'endpoint': endpoint, 'request_body': body, 'tokenization': token_data,
+                'context_limit': 16384, 'requested_total_context': token_data['count'] + body['max_tokens']}
+        record['http_requests'].append(item)
+        result = super()._post_completion(endpoint, body)
+        item.update(http_status=result.status_code, response_text=result.text,
+                    response_sha256=hashlib.sha256(result.content).hexdigest())
+        return result
+
+
+settings = SupervisorAPISettings(
+    base_url='http://127.0.0.1:29613/v1', api_key='local-no-auth',
+    model=MODEL, stage_checker_model=MODEL, backend_profile='vllm-rwkv-native',
+    max_plan_tokens=8192, read_timeout_seconds=240,
+    retry_attempts=1, semantic_repair_attempts=0, plan_cache_enabled=False,
+    fallback_models=(),
+)
+settings.validate()
+record['settings'] = settings.public_dict()
+client = RecordingClient(settings, audit_hook=record['events'].append)
+start = time.monotonic()
+try:
+    review = client.review_goal_stage(request)
+    record['stage_review_contract_passed'] = True
+    record['review'] = review.to_dict()
+except Exception as exc:
+    record['error_type'] = type(exc).__name__
+    record['error'] = str(exc)
+finally:
+    client.close()
+    record['elapsed_seconds'] = round(time.monotonic() - start, 3)
+    OUTPUT.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({key: record.get(key) for key in (
+    'stage_review_contract_passed', 'error_type', 'error', 'elapsed_seconds')}, ensure_ascii=False))
