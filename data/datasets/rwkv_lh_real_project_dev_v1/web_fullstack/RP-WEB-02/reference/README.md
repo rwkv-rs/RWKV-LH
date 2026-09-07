@@ -1,0 +1,9 @@
+# Author reference
+
+为阅读小组从零创建阅读清单网页。书籍有非空标题、非空作者和多个标签（逗号输入，trim、小写、去重）；可新增、删除。可按标题/作者搜索，多个标签复选框使用 AND 交集且与搜索相交。支持导出整个清单为可下载 JSON，并通过文件选择导入替换清单；导入必须整批验证后才替换，任何错误都显示 role=alert 包含 rejected，原清单保持原样。
+JSON 合同：{"version":1,"books":[{"id":"稳定唯一非空字符串","title":"非空字符串","author":"非空字符串","tags":["标签字符串"]}]}。校验版本、数组、字段类型、非空标题/作者/id及重复id；有效导入不要求保留原顺序外的任何固定数据。
+公开 UI：字段 Book title、Author、Tags；按钮 Add book、Export JSON、Import books；文件选择输入 Import JSON；搜索 Search books；每个标签复选框可访问名称 `Tag: 标签`。每书 article 名称 `Book 标题`，显示作者和标签，含 Delete 按钮。
+运行方式：项目根目录提供 index.html，可由 `python -m http.server PORT --bind 127.0.0.1 --directory WORKSPACE` 服务。浏览器初始没有数据；使用 localStorage 持久化，刷新保留所有已提交变化。初始目录仅有需求，需实现页面和逻辑。
+
+交付时保持工作区为自包含项目，README 说明启动与人工验证方法。不得依赖远程 CDN、外网或需要下载的包。页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。
+

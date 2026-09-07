@@ -1,0 +1,16 @@
+{
+  "task_id": "RP-MAINT-01",
+  "source": "owner-authorized authored development benchmark",
+  "production_user_request": false,
+  "role_statetune_dataset": false,
+  "reference_visibility": "author validation only; NEVER copy reference or private_verify.py into Agent workspace",
+  "seed_policy": "fixed authored seed in private verifier; no existing acceptance data consumed",
+  "negative_mutation": {
+    "file": "config_store/values.py",
+    "replace": "return 'boolean'",
+    "with": "return 'string'",
+    "expected_rejection": "all JSON types and Unicode preserved"
+  },
+  "public_contract": "README.md and user_request in task.json",
+  "verifier_interface": "python private_verify.py WORKSPACE"
+}

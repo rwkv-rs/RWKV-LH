@@ -1,0 +1,16 @@
+{
+  "task_id": "RP-API-02",
+  "source": "owner-authorized authored development benchmark",
+  "production_user_request": false,
+  "role_statetune_dataset": false,
+  "reference_visibility": "author validation only; NEVER copy reference or private_verify.py into Agent workspace",
+  "seed_policy": "fixed authored seed in private verifier; no existing acceptance data consumed",
+  "negative_mutation": {
+    "file": "server.py",
+    "replace": "return 200, json.loads(previous['payload'])",
+    "with": "raise APIError(409, 'replay_wrongly_rejected')",
+    "expected_rejection": "semantic replay"
+  },
+  "public_contract": "README.md and user_request in task.json",
+  "verifier_interface": "python private_verify.py WORKSPACE"
+}

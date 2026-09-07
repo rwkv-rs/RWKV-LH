@@ -1,0 +1,147 @@
+"""Author and validate these development tasks; never used by Agent runtime."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH/data/datasets/rwkv_lh_real_project_dev_v1/cli_data')
+CONTRACTS = {
+'RP-CLI-01': ("Build a small backup utility for our team's local work folders. We need to snapshot a directory, restore it after accidental edits, and trust that a corrupt or hostile backup cannot destroy an existing destination or write outside it. Deliver a Python standard-library CLI, tests, and usage documentation following README.md.", 'backup.py', '''# Portable team-folder backup
+
+Implement `backup.py` with Python standard library only. Support these commands from any working directory:
+
+- `python backup.py snapshot SOURCE ARCHIVE`
+- `python backup.py restore ARCHIVE DESTINATION`
+
+SOURCE is a directory; ARCHIVE must be outside it. Include regular files recursively (including hidden, binary, Unicode names and zero-byte files) and preserve empty directories. Reject symbolic links and other non-regular entries. A failed snapshot must not replace a previous ARCHIVE. Directory/file permissions and timestamps do not need preservation.
+
+Use a ZIP archive with a UTF-8 `manifest.json`: `version` is 1, `directories` lists relative POSIX directory paths, and `files` lists objects with `path`, byte `size`, and lowercase `sha256`. File payloads use ZIP member names `files/<relative path>`. Do not add ZIP directory entries. This is an interoperability format, not an instruction to trust the archive.
+
+Restore must validate version, unique names, declared members, file sizes and digests before replacing DESTINATION. Reject undeclared/duplicate members, absolute paths, parent traversal, backslashes, invalid normalized paths and file/directory conflicts. Symlink destinations are invalid. Existing directory contents are replaced only after complete validation; corrupt input or another failure must leave the previous destination intact. Successful restore must not retain old files. Invalid input must never write outside the destination staging area. Support an empty directory snapshot and restore.
+
+Each successful command writes one JSON object to stdout: `files` and `bytes` count restored/snapshotted regular files and their total original byte size. Failures exit nonzero and explain the problem on stderr. Each invocation is a separate process; no process-memory state is available. Keep staging files beside their final target so replacement can be atomic on the same filesystem. Provide self-authored unit tests and document how to use and validate the utility.
+''', ['cli_project','filesystem','backup_restore','path_security','failure_atomicity']),
+'RP-CLI-02': ("Create a local time-recording CLI for a small team that imports records from different time zones. It must keep its data between runs, prevent duplicate imports, and produce correct daily project totals when work spans midnight. Build the executable project, tests, and documentation described in README.md.", 'timebook.py', '''# Team timebook
+
+Implement `timebook.py` using only Python's standard library and durable SQLite storage. Commands:
+
+- `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`
+- `python timebook.py import DB INPUT_JSON`
+- `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`
+
+An event has exactly `id`, `project`, `start`, `end`, all nonempty strings. Preserve nonempty IDs/project names exactly; reject whitespace-only ones. Timestamps use ISO 8601 with explicit UTC offset or Z, whole-second precision, and end strictly after start. Import is a JSON array of events. No overlap restriction is imposed: recorded durations are summed independently.
+
+Events are identified globally by ID. Normalize timestamps to UTC for duplicate comparisons. Reimporting an identical ID/project/time interval is a no-op; a conflicting ID is an error. An invalid record or conflicting ID rejects the entire import transaction, including earlier valid records from that batch. Empty imports are valid. Add and import print `{"inserted": N, "duplicates": N}`; add follows the same duplicate rules. A new DB is created as needed.
+
+Stats uses UTC calendar dates and a half-open range `[from, to)`, where `to` is the excluded midnight. Reject invalid or reversed/empty date ranges. Split intervals at UTC midnight and clip to the requested range, including leap days and offset conversions. Return `{"days": [{"date": "YYYY-MM-DD", "projects": {"project": integer_seconds}, "total_seconds": integer_seconds}], "total_seconds": integer_seconds}`. Include only days with recorded duration, ordered chronologically; project keys must be emitted in sorted order. Empty results contain an empty days array and total 0. Each CLI invocation is a new process, so persistence and duplicate detection must survive restarts. Errors exit nonzero with diagnostics; successful stdout is one JSON document. Include your own tests and update this README with usage and verification instructions.
+''', ['cli_project','sqlite','transaction','utc_time','restart','deduplication']),
+'RP-DATA-01': ("Our finance team receives separate invoice and payment CSV exports. Build a repeatable reconciliation project that reports underpayments and overpayments without floating-point errors, quarantines bad rows, and leaves the previous report intact when an input file is unusable. Use the public interface and reporting rules in README.md, with tests and operating instructions.", 'reconcile.py', '''# Invoice and payment reconciliation
+
+Implement a standard-library-only CLI:
+
+`python reconcile.py --invoices INVOICES.csv --payments PAYMENTS.csv --output OUTPUT_DIR`
+
+Read UTF-8 CSV (optional BOM). Exact ordered headers are `invoice_id,currency,amount` and `payment_id,invoice_id,currency,amount`. IDs must be nonempty strings (whitespace-only is invalid) and currencies are USD/EUR/CNY. Invoice amounts cannot be negative; payment amounts may be negative for refunds. Amounts are finite decimal strings with at most four fractional digits. Round every accepted row to cents using decimal ROUND_HALF_UP before aggregation. Preserve IDs and never use binary floating point for money.
+
+Invoice IDs and payment IDs are unique within their respective export types. An identical normalized row repeats no work and increments duplicate_rows. A repeated ID with differing normalized values is rejected as duplicate_id. For payments, normalize amount before comparing duplicate content. Payments require an accepted invoice and matching currency. Process invoice rows first, then payment rows, in source order.
+
+Bad rows are quarantined and do not stop other valid rows. Apply these reasons in order: missing_fields (missing/extra/blank fields); invalid_currency; invalid_amount; duplicate_id; unknown_invoice; currency_mismatch. Nonfinite or overprecision values are invalid_amount. Exact duplicates skip later validation and count only as duplicates. Retain every rejected row's source kind (`invoices` or `payments`), 1-based CSV record number (header is record 1), and reason. CSV quoted fields are supported; record number counts logical records, not physical lines.
+
+Create exactly three report files in OUTPUT_DIR:
+
+- `reconciliation.csv`, header `invoice_id,currency,invoiced,paid,balance,status`, sorted by invoice ID. All money fields have exactly two decimal places. Paid is the sum of accepted distinct payment amounts; balance=invoiced-paid. Status is settled when balance=0, underpaid when positive, overpaid when negative. Include invoices without payments.
+- `rejected.csv`, header `source,row,reason`, ordered by source processing order then record number.
+- `summary.json`, with `currencies` mapping each present currency to `invoices` (count), `invoiced`, `paid`, `balance` (two-decimal strings), plus integer `rejected_rows` and `duplicate_rows` at the top level. Emit currency keys sorted.
+
+Print the same summary JSON to stdout. Empty exports with valid headers succeed with empty CSV data, currencies={} and zero counts. Missing/unreadable files, malformed CSV structure or invalid headers are fatal: exit nonzero and preserve an existing output directory without partial overwrite. Outputs of successful repeated runs must be byte-identical. Publish the report set together using a staging directory; do not retain obsolete output files. Document CLI usage and add self-authored tests, especially decimal rounding, duplicate/conflict handling, and failure recovery.
+''', ['data_project','csv','decimal_money','reconciliation','quarantine','atomic_publish']),
+'RP-DATA-02': ("Build a local access-log analysis project for a service whose JSONL logs grow throughout the day. Operators should ingest repeatedly or after a restart without double-counting, inspect quarantined records, and query traffic totals by time, path, and status. Follow README.md and provide a reliable CLI with tests and run instructions.", 'accesslog.py', '''# Incremental access-log store
+
+Implement `accesslog.py` with Python standard library and a durable SQLite database:
+
+- `python accesslog.py ingest DB SOURCE_JSONL`
+- `python accesslog.py query DB --from ISO --to ISO [--status-min INTEGER] [--prefix PATH_PREFIX]`
+- `python accesslog.py rejections DB`
+
+Each JSONL record has exactly `id`, `timestamp`, `path`, `status`, `bytes`. ID is a nonempty string; path starts with `/`; status is a true integer 100..599; bytes is a true nonnegative integer (booleans are not integers for this format). Timestamp is an ISO 8601 string with explicit offset or Z and whole-second precision. Normalize timestamps to UTC. Event IDs are global across source files. An identical normalized event is a duplicate; conflicting content for an existing ID is quarantined without overwriting the original.
+
+Persist each resolved absolute source path's committed byte offset and a cryptographic digest of its consumed prefix. Consume only newline-terminated records. Leave an incomplete final line unconsumed until a later append completes it. On process restart, continue at the saved byte offset. A repeat with no new complete records returns zero work. Reject truncation or rewriting of any consumed prefix as a fatal error with no DB changes; do not silently reset the offset. Different source files have separate offsets but share event deduplication.
+
+Invalid UTF-8/JSON lines are `invalid_json`; invalid event schemas/values are `invalid_event`; conflicting existing IDs are `conflicting_id`. Advance past quarantined complete lines, storing the resolved source path, line-start byte offset and reason once. Apply event inserts, quarantine entries and new offset atomically for an ingest invocation. The successful result is `{"inserted": N, "duplicates": N, "rejected": N, "offset": N}` with byte offset after the last consumed newline.
+
+Query selects timestamps in half-open `[from, to)`, status >= status-min (default 100), and literal path.startswith(prefix) (default `/`). The range must be nonempty; status-min must be 100..599. Return `{"count": N, "bytes": N, "by_status": {"status": N}, "by_path": {"path": {"count": N, "bytes": N}}}`. Empty queries return zero totals and empty maps. JSON object keys must be sorted. `rejections` returns `{"rejected": N, "rows": [{"source": "absolute path", "offset": N, "reason": "code"}]}` ordered by source then offset. Successful stdout is one JSON document; errors exit nonzero with diagnostics. Include tests and document restart, malformed-line and source-rotation behavior; use no external packages or services.
+''', ['data_project','jsonl','sqlite','incremental_ingestion','restart','quarantine','query'])}
+
+
+def build():
+    for task_id, (request, entrypoint, contract, capabilities) in CONTRACTS.items():
+        task = {'task_id': task_id, 'level': 'project', 'user_request': request,
+                'capabilities': capabilities, 'workspace_files': [{'path':'README.md','content':contract}], 'workspace_generators':[]}
+        (ROOT/task_id/'task.json').write_text(json.dumps(task, ensure_ascii=False, indent=2)+'\n')
+
+
+def validate():
+    results = []
+    runtime = ROOT/'author_validation'
+    runtime.mkdir(exist_ok=True)
+    temporary = runtime/'temporary'
+    temporary.mkdir(exist_ok=True)
+    environment = dict(os.environ, TMPDIR=str(temporary), TEMP=str(temporary), TMP=str(temporary), PYTHONDONTWRITEBYTECODE='1')
+    for task_id, (_, entrypoint, _, _) in CONTRACTS.items():
+        task_root = ROOT/task_id
+        for variant in ('reference','mutant'):
+            workspace = runtime/task_id/variant
+            workspace.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(task_root/'reference'/entrypoint, workspace/entrypoint)
+            if variant == 'mutant':
+                mutation = json.loads((task_root/'mutation.json').read_text())
+                path = workspace/mutation['file']
+                text = path.read_text()
+                assert text.count(mutation['replace']) == 1
+                path.write_text(text.replace(mutation['replace'],mutation['with']))
+            result = subprocess.run([sys.executable, str(task_root/'private_verify.py'), str(workspace)],
+                                    cwd=workspace, env=environment,capture_output=True,text=True,timeout=120)
+            (runtime/f'{task_id}_{variant}.log').write_text(result.stdout+result.stderr)
+            expected = result.returncode == 0 if variant == 'reference' else result.returncode != 0
+            results.append({'task_id':task_id,'variant':variant,'returncode':result.returncode,'expectation_met':expected,
+                            'candidate_sha256':hashlib.sha256((workspace/entrypoint).read_bytes()).hexdigest(),
+                            'verifier_sha256':hashlib.sha256((task_root/'private_verify.py').read_bytes()).hexdigest(),
+                            'log':str((runtime/f'{task_id}_{variant}.log').relative_to(ROOT))})
+            print(task_id,variant,result.returncode,'OK' if expected else 'FAILED')
+            shutil.rmtree(workspace)
+        (runtime/task_id).rmdir()
+    (runtime/'RESULTS.json').write_text(json.dumps(results, indent=2)+'\n')
+    return all(row['expectation_met'] for row in results)
+
+
+def manifest():
+    paths = [path for path in ROOT.rglob('*') if path.is_file() and path.name not in {'MANIFEST.json','SHA256SUMS'} and '__pycache__' not in path.parts]
+    entries = [{'path':str(path.relative_to(ROOT)), 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes':path.stat().st_size} for path in sorted(paths)]
+    value = {'schema_version':'rwkv-lh.real-project-cli-data-authoring.v1',
+             'source':'owner-authorized authored development benchmark',
+             'author_script':{'path':str(Path(__file__).resolve()),'sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
+             'production_trace':False, 'statetune_samples_generated':0,
+             'source_run':'author_validation/RESULTS.json',
+             'split_policy':'fixed authored development projects; no confirmation/holdout split created',
+             'role_protocol_applicability':'not a role prompt dataset; Agent runner owns shared role protocol construction',
+             'similarity_audit':'cross-family similarity and dataset freeze owned by root integrator; not claimed completed here',
+             'task_ids':list(CONTRACTS), 'seeds':{'RP-CLI-01':721809,'RP-CLI-02':561020,'RP-DATA-01':402918,'RP-DATA-02':331071},
+             'agent_visibility':'only task.json.workspace_files and workspace_generators',
+             'private_evaluation':'black-box child CLI processes on fixed-seed generated inputs, standalone standard library verifiers',
+             'files':entries}
+    (ROOT/'MANIFEST.json').write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+    paths.append(ROOT/'MANIFEST.json')
+    (ROOT/'SHA256SUMS').write_text(''.join(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(ROOT)}\n" for path in sorted(paths)))
+
+
+if __name__ == '__main__':
+    if '--manifest-only' in sys.argv:
+        manifest()
+        raise SystemExit(0)
+    build()
+    successful = validate()
+    manifest()
+    raise SystemExit(0 if successful else 1)

@@ -1,0 +1,40 @@
+# 真实项目开发题与验收准备报告
+
+轮次：REAL_PROJECT_DEV_SUITE_R1_20260907。状态：开发题与验收已就绪；本报告不包含 RWKV Agent 基线成绩。
+
+Agent 级 Strict / completed / mutation / 终止原因尚未产生。下面的 12/12 指作者参考实现与评分器验证，不能作为模型能力进展。
+
+## 交付与范围
+
+owner 授权后新增 realprojectdevv1：12 个任务族，Web、完整前后端、HTTP API、CLI、数据处理、既有多模块项目维护各 2 题，共 10 个新建项目和 2 个维护项目。来源为作者编写的开发评测，未声称来自真实用户日志。自然需求与公开接口合同进入工作区；私有断言、参考实现、错误变异只属于验收构建。
+
+目录：data/datasets/rwkv_lh_real_project_dev_v1/；题目总览见其中 README.zh-CN.md。运行资源为 benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/。12 题共享固定任务顺序、源码和评分，之后进行双零；最终保留集未读取。
+
+## 验证结果与修复
+
+- 12 个参考实现通过，12 个关键语义缺陷被拒绝，12 个初始未完成项目被拒绝，全部经生产 bubblewrap 验收，36/36 符合预期，候选源文件均未被改写。
+- Web 与前后端使用 Playwright 1.61.0 + Chromium，实际操作、刷新、持久化、导入导出和服务重启；其余题实际执行 CLI/HTTP/SQLite，覆盖并发、原子失败、备份恢复和 Unicode。
+- 新通用 project_behavior 支持私有程序 SHA 绑定、只读 workspace、临时运行数据、隔离 loopback 和浏览器依赖。
+- 复核发现候选子进程可读同 namespace 的私有程序，已统一增加候选 mount/PID 隔离并遮蔽私有程序和父进程，保留外层 loopback 与临时数据；不是逐题路径特判。
+- 修复 CRLF 程序文本与字节 SHA 不一致：编译和执行校验统一原始 UTF-8 字节。
+- 修复 RUN_PROTOCOL 采样报告写死 0.05：直接读取 LongHorizonModel._SAMPLING。实际生成一直是 0.1，此修改只修复元数据，不改变模型行为。
+- 每项基础缺陷保留先红后绿证据。最终完整回归 674 passed，无 skip；指标采集器另有 33 项人工 fixture 自验。
+
+UTF-8 byte 5-gram cosine 固定阈值 0.95，本集 66 对公开需求比较的最大值为 0.521629，无近重复触发项。语义任务族另在 manifest 列明；这不是跨最终 Holdout 的相似度证明，未读取该保留集。
+
+## 全局影响与限制
+
+新增验收路径仅在 Agent 进程树关闭后的外部评分阶段执行，未改变五角色协议、RWKV State 递推、Controller 决策或模型输出。通用验收器的旧检查也已由完整回归覆盖。候选 Python 通过可信 grader 的 sys.executable 入口启动；独立进程 namespace 阻止读取评分源码，真实 HTTP 服务仍在外层隔离 loopback 内可达。
+
+这是 12 族开发项目样本，未覆盖大型仓库或外部联网项目，不等于完整行业 Agent 能力证明。旧 E2E-90 的 LH09 mock_api 与现行 23 工具菜单冲突仍单列；不删题后宣称全 90 题完成。当前尚未启动 StateTune、角色数据生成或最终 Holdout 验收。
+
+## 关键 SHA-256
+
+- Dataset manifest：4367b3efaf9396f8133f9f939b83da33735e0783cba703239e3e5bb6426e02c8
+- 完整隔离结果：81083349974b274e32996441ee345f209ecc0da32005c34d0cc83264bcd017d2
+- 完整回归日志：ca141612abc67cd9a2b27d7c8f8c794b77ad35cfa93c57d74d2bfa66cf3b937f
+- 通用 verifier：689db9bfcaab387a175199635338255a4918e185fe780a0c09f9513210d7e85d
+- 编译脚本：3389c702ecd6ff01f5c38035100edb41bc97346d2144b7aaaf1f29a2bfa12c6a
+- 指标采集脚本：6834ffd52339fed7032f8b6da423105b36466c365ed23aa798456f89dd74c399
+
+分析脚本的原始文本保存在本轮 SOURCE_SNAPSHOTS/，生产代码不依赖 temp/；模型运行采用单独 FROZEN_EXECUTION_MANIFEST.json 冻结源码、配置、依赖与远端身份。服务器清理另见 SERVER_RUNTIME_CLEANUP_R1_20260907/REPORT.md（约72.4 GB 已清理，本地提交 7e16fa7b）。

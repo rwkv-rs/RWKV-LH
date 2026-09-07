@@ -1,0 +1,180 @@
+[
+  {
+    "source": "benchmarks/rwkv_e2e/rwkv_agent_capability_ladder_v1/tasks.json",
+    "sha256": "23cf009831fb38dd05bd3fad69e246a822a59ab6bd725833c6df2aaaf45c93bb",
+    "task_count": 10,
+    "levels": {
+      "tier1_closed_loop": 2,
+      "tier2_small_workflow": 2,
+      "tier3_cross_file": 2,
+      "tier4_medium_project": 2,
+      "tier5_networked_project": 2
+    },
+    "tasks": [
+      {
+        "task_id": "AGENT-LADDER-L1-FIX01",
+        "user_request": "pricing.py 的折扣计算在生产样例中出现负数；公开验证器和函数接口已给出。不得修改 verify_project.py。请定位根因、修复通用计价与输入校验、补充 README，并在结束前运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "bug_diagnosis",
+          "targeted_code_repair",
+          "verification",
+          "documentation"
+        ],
+        "initial_files": [
+          "pricing.py",
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L1-DATA01",
+        "user_request": "transactions.json 是不可修改的原始交易数据，month 指定统计月份。不得修改 transactions.json 或 verify_project.py。请生成 summary.json（精确字段由公开验证器定义）、补充 README 说明输入输出，并在结束前运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "data_inspection",
+          "deterministic_transformation",
+          "verification",
+          "documentation"
+        ],
+        "initial_files": [
+          "transactions.json",
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L2-CLI01",
+        "user_request": "需要一个只用 Python 标准库的持久化笔记工具。数据库是 JSON；函数接口为 load_notes、add_note、list_notes、remove_note，CLI 支持全局 --db 以及 add/list/remove 子命令，输出 JSON。不得修改 verify_project.py。请创建 notes_store.py、notes_cli.py、README.md，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "small_project_creation",
+          "json_persistence",
+          "cli_design",
+          "verification"
+        ],
+        "initial_files": [
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L2-REPAIR01",
+        "user_request": "inventory 包发生失败预留仍扣库存、release 刷新后丢失等事务缺陷；必须保持 inventory.__init__ 暴露的 API，只用标准库。不得修改 verify_project.py。请系统修复 storage.py/service.py 的校验、原子失败与持久化，补充 README，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "cross_file_bug_repair",
+          "transaction_semantics",
+          "persistence",
+          "regression_verification"
+        ],
+        "initial_files": [
+          "inventory/__init__.py",
+          "inventory/storage.py",
+          "inventory/service.py",
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L3-WEB01",
+        "user_request": "现有原生物品目录网页只有骨架。需要完善响应式界面、关键词与分类联合筛选、不可变编辑、JSON 导入导出和 localStorage 持久化；无 document 时仍暴露 window.CatalogApp 的公开纯函数。不得修改 verify_project.py。请协调修改 index.html、styles.css、app.js，补充 README，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "existing_web_extension",
+          "multi_file_coordination",
+          "persistent_state",
+          "behavioral_verification"
+        ],
+        "initial_files": [
+          "index.html",
+          "styles.css",
+          "app.js",
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L3-QUEUE01",
+        "user_request": "queue_app 的持久队列在 claim、ack、fail 和重启后破坏 FIFO/重试语义。保持 DurableQueue API，只用标准库；失败任务移到队尾，达到 max_attempts 后进入 failed。不得修改 verify_project.py。请修复跨模块实现、补充 README，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "cross_module_repair",
+          "durable_state_machine",
+          "retry_semantics",
+          "regression_verification"
+        ],
+        "initial_files": [
+          "queue_app/__init__.py",
+          "queue_app/storage.py",
+          "queue_app/queue.py",
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L4-LEDGER01",
+        "user_request": "产品需要一个简洁好看的个人记账网页：原生 HTML/CSS/JavaScript，记录收入和支出，按所选月份自动显示收入、支出、结余，支持删除，刷新后 localStorage 数据仍在；纯函数在无 document 环境可测。不得修改 verify_project.py。请从零创建 index.html、styles.css、app.js、README.md，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "medium_project_creation",
+          "responsive_web_ui",
+          "persistent_local_state",
+          "end_to_end_verification"
+        ],
+        "initial_files": [
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L4-TRACKER01",
+        "user_request": "需要从零交付只用 Python 标准库的 issue tracker：tracker 包负责 JSON 持久化与 create/close/list/stats/export/import，tracker_cli.py 提供对应 JSON CLI，ID 稳定且支持状态筛选。不得修改 verify_project.py。请创建完整多文件项目和 README，并运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "medium_project_creation",
+          "multi_module_architecture",
+          "cli_and_persistence",
+          "end_to_end_verification"
+        ],
+        "initial_files": [
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L5-PACKAGING01",
+        "user_request": "需要依据当前官方 Python Packaging User Guide 创建一个 src-layout 示例包，项目名 evidence-demo、版本 0.1.0、Python >=3.11、setuptools 后端、CLI 入口 evidence-demo，并在 SOURCES.md 记录实际使用的官方证据 URL。不得修改 verify_project.py。请先使用 web_search 获取公开证据，再创建 pyproject.toml、src/evidence_demo/__init__.py、src/evidence_demo/cli.py、README.md、SOURCES.md，最后运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "public_web_retrieval",
+          "evidence_grounding",
+          "packaging_project_creation",
+          "verification"
+        ],
+        "initial_files": [
+          "verify_project.py"
+        ]
+      },
+      {
+        "task_id": "AGENT-LADDER-L5-RWKV01",
+        "user_request": "需要基于 BlinkDL 官方 GitHub 公开页面创建一个原生、响应式、可搜索和按分类筛选的 RWKV 资料网页。data.json 至少 3 条、至少 2 类，字段严格为 title/category/url/summary；SOURCES.md 必须逐条引用实际检索证据 URL。不得修改 verify_project.py。请先使用 web_search 检索真实证据，再创建 index.html、styles.css、app.js、data.json、README.md、SOURCES.md，最后运行 python verify_project.py 直到通过。",
+        "capabilities": [
+          "public_web_retrieval",
+          "multi_source_evidence",
+          "networked_web_project",
+          "end_to_end_verification"
+        ],
+        "initial_files": [
+          "verify_project.py"
+        ]
+      }
+    ]
+  },
+  {
+    "source": "benchmarks/rwkv_e2e/rwkv_agent_v1/tasks.json",
+    "sha256": "87f54fabcf2584ebc74840559e4abb86b31e5e9744c4037d052c318e884c176f",
+    "task_count": 1,
+    "levels": {
+      "project": 1
+    },
+    "tasks": [
+      {
+        "task_id": "AGENT-V1-WEB01",
+        "user_request": "创建一个简洁好看的个人记账网页，可以记录收入和支出，自动显示所选月份的收入、支出与结余，支持删除记录；刷新后数据仍保存在 localStorage。只使用原生 HTML、CSS 和 JavaScript，提供 index.html、styles.css、app.js、README.md。不要修改 verify_app.py；完成前运行 python verify_app.py 并修复所有失败。为可测试性，app.js 必须暴露 window.LedgerApp，其中 calculateMonthlySummary(records, monthKey)、loadRecords(storage)、saveRecords(records, storage)、addRecord(records, record)、deleteRecord(records, id) 都是可在没有 document 时调用的函数；记录结构为 {id,type,amount,date,note}，月度汇总结构严格为 {income,expense,balance}。",
+        "capabilities": [
+          "medium_project_creation",
+          "multi_file_web_implementation",
+          "persistent_local_state",
+          "test_driven_verification"
+        ],
+        "initial_files": [
+          "verify_app.py"
+        ]
+      }
+    ]
+  }
+]

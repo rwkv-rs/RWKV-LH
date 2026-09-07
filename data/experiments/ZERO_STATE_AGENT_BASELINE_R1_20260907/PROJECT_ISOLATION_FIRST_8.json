@@ -1,0 +1,870 @@
+{
+  "source": "production bubblewrap grader; no model run",
+  "script_sha256": "1eb57a37ea36cd9305ada179b50a7cae32156b0b183ae542e095379fbbe5fde3",
+  "grader_sha256": "4c2c231df30d2b917ae4c391ba43f79e1f0c8987136f213fcdec855077e3d0a6",
+  "tasks": 8,
+  "checks": 24,
+  "all_expectations_met": true,
+  "results": [
+    {
+      "task_id": "RP-CLI-01",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+      "workspace_source_sha256": {
+        "README.md": "4176ebc6353f7ea618903e5632e5408030b5ed55e711463c56687fec73b3a033"
+      },
+      "seconds": 0.098,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 72, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 35, in main\n    assert run('snapshot', source, archive) == {'files': len(expected), 'bytes': sum(map(len, expected.values()))}\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 17, in run\n    assert (result.returncode == 0) == good, (arguments, result.returncode, result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('snapshot', PosixPath('/tmp/backup-private-euwdtoi_/source'), PosixPath('/tmp/backup-private-euwdtoi_/archive.zip')), 2, \"/opt/verifier-python/bin/python3.13: can't open file '/workspace/backup.py': [Errno 2] No such file or directory\\n\")\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+      "workspace_source_sha256": {
+        "backup.py": "ef003d0d61000058a4e597c6118000065ebbab6076bdafe4aa69ca42505e3470",
+        "README.md": "4176ebc6353f7ea618903e5632e5408030b5ed55e711463c56687fec73b3a033"
+      },
+      "seconds": 0.199,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 72, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 61, in main\n    run('restore', malicious, destination, good=False)\n    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41.py\", line 17, in run\n    assert (result.returncode == 0) == good, (arguments, result.returncode, result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('restore', PosixPath('/tmp/backup-private-37gdezdo/malicious.zip'), PosixPath('/tmp/backup-private-37gdezdo/restored')), 0, '')\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+      "workspace_source_sha256": {
+        "backup.py": "1c33f48740ee23dec8c338865447c32f6adf4c0453b2346f0d202b366588c1ea",
+        "README.md": "4176ebc6353f7ea618903e5632e5408030b5ed55e711463c56687fec73b3a033"
+      },
+      "seconds": 0.255,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "e9488a9f611c018c908592242b345281263a5de052b0bfdf0d4b39611f765a41",
+            "actual_exit_code": 0,
+            "output": "backup black-box acceptance passed\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+      "workspace_source_sha256": {
+        "README.md": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6"
+      },
+      "seconds": 0.079,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 72, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 50, in main\n    assert run('import', database, input_file) == {'inserted': len(events), 'duplicates': 0}\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 16, in run\n    assert (result.returncode == 0) == good, (arguments, result.returncode, result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('import', PosixPath('/tmp/timebook-private-nd_6gj21/ledger.sqlite'), PosixPath('/tmp/timebook-private-nd_6gj21/events.json')), 2, \"/opt/verifier-python/bin/python3.13: can't open file '/workspace/timebook.py': [Errno 2] No such file or directory\\n\")\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+      "workspace_source_sha256": {
+        "timebook.py": "f185e564a2b6cfca2a116a2b8a8fcd0a553a55ac3f5c008948a44547b2a7522f",
+        "README.md": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6"
+      },
+      "seconds": 0.196,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 72, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 59, in main\n    run('import', database, input_file, good=False)\n    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8.py\", line 16, in run\n    assert (result.returncode == 0) == good, (arguments, result.returncode, result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('import', PosixPath('/tmp/timebook-private-l4kjr4u3/ledger.sqlite'), PosixPath('/tmp/timebook-private-l4kjr4u3/events.json')), 0, '')\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+      "workspace_source_sha256": {
+        "timebook.py": "4208e46a318b3a4a0f5eb22535b5ce8fac86e3c80e73fd5473b3c282d33f1e34",
+        "README.md": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6"
+      },
+      "seconds": 0.289,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "1b85dd35950e228dc8eb41f50d253382e5ac87c6ac98b7e3928dfa43cfd9bfc8",
+            "actual_exit_code": 0,
+            "output": "timebook black-box acceptance passed\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-01",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+      "workspace_source_sha256": {
+        "README.md": "34e94b4f7acfad626c88b4980ee3ec691dde8237ce4ff6bfdb92f08a82d07a6c"
+      },
+      "seconds": 0.079,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967.py\", line 91, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967.py\", line 49, in main\n    summary = run()\n  File \"/opt/verifier/programs/9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967.py\", line 47, in run\n    assert (result.returncode == 0) == good, (result.returncode, result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (2, \"/opt/verifier-python/bin/python3.13: can't open file '/workspace/reconcile.py': [Errno 2] No such file or directory\\n\")\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-01",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+      "workspace_source_sha256": {
+        "reconcile.py": "afa9536ed4cb7879475561399e0171c01e44366226bad3a5036267cc5ba70cac",
+        "README.md": "34e94b4f7acfad626c88b4980ee3ec691dde8237ce4ff6bfdb92f08a82d07a6c"
+      },
+      "seconds": 0.091,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967.py\", line 91, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967.py\", line 63, in main\n    assert rows == expected, 'reconciliation amount/order/status mismatch'\n           ^^^^^^^^^^^^^^^^\nAssertionError: reconciliation amount/order/status mismatch\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-01",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+      "workspace_source_sha256": {
+        "reconcile.py": "775876afe7c8d307b558a230dae8ea1a4d825438f014eb20feda236701bcac63",
+        "README.md": "34e94b4f7acfad626c88b4980ee3ec691dde8237ce4ff6bfdb92f08a82d07a6c"
+      },
+      "seconds": 0.168,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "9bc05e8caa5ab61294b8fd619af09a412627801e2f05d187ab1f15f7141e5967",
+            "actual_exit_code": 0,
+            "output": "reconciliation black-box acceptance passed\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+      "workspace_source_sha256": {
+        "README.md": "befcd3c770650cbfaf0dc198ac4e2d053245ef401453fd6c555ef100809e398b"
+      },
+      "seconds": 0.077,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 81, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 48, in main\n    assert run('ingest',database,source) == {'inserted':43,'duplicates':0,'rejected':0,'offset':len(prefix)}\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 24, in run\n    assert (result.returncode == 0) == good, (arguments,result.returncode,result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('ingest', PosixPath('/tmp/accesslog-private-fz8gkeb3/events.sqlite'), PosixPath('/tmp/accesslog-private-fz8gkeb3/access.jsonl')), 2, \"/opt/verifier-python/bin/python3.13: can't open file '/workspace/accesslog.py': [Errno 2] No such file or directory\\n\")\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+      "workspace_source_sha256": {
+        "README.md": "befcd3c770650cbfaf0dc198ac4e2d053245ef401453fd6c555ef100809e398b",
+        "accesslog.py": "2a9af1d100c9035c7db63b486267a347a93373906ec322508f0ae38ea92927ed"
+      },
+      "seconds": 0.116,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 81, in <module>\n    main(sys.argv[1])\n    ~~~~^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 49, in main\n    assert run('ingest',database,source) == {'inserted':0,'duplicates':0,'rejected':0,'offset':len(prefix)}\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a.py\", line 24, in run\n    assert (result.returncode == 0) == good, (arguments,result.returncode,result.stderr)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: (('ingest', PosixPath('/tmp/accesslog-private-jr250r7f/events.sqlite'), PosixPath('/tmp/accesslog-private-jr250r7f/access.jsonl')), 2, 'previously consumed source was truncated or rewritten\\n')\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+      "workspace_source_sha256": {
+        "README.md": "befcd3c770650cbfaf0dc198ac4e2d053245ef401453fd6c555ef100809e398b",
+        "accesslog.py": "a09bce5a64c123e19cf838a2a885fc6b7b5bc4ebe1a82f88e5e40045f53889fd"
+      },
+      "seconds": 0.321,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "87ae2cb8775695a94a19e9ca855328623707673e74802f88814e440cc39a449a",
+            "actual_exit_code": 0,
+            "output": "accesslog black-box acceptance passed\n",
+            "browser": false
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-01",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+      "workspace_source_sha256": {
+        "README.md": "5edc37f37b28fd09f206d36e6317fd2db9ec8a3e48cc9421396537bfd6235176"
+      },
+      "seconds": 0.246,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 106, in main\n    service.start()\n    ~~~~~~~~~~~~~^^\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 35, in start\n    if self.process and self.process.poll() is not None: raise AssertionError('server exited before ready')\n                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: server exited before ready\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-01",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+      "workspace_source_sha256": {
+        "index.html": "1b82e6c3196b434183d6d33809d1aa6c9cce266f3c590623d34f634d8ee76ce2",
+        "README.md": "23a98db9232c1041064deb58439cde9953c5276b42e15ed9dc2904c6b22cd740",
+        "server.py": "f68fa0f73f93933c544bb728a4974817918d0ded91278dd5580a800a0f0c3828"
+      },
+      "seconds": 1.457,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 85, in tickets\n    again=next(t for t in request(service.base,'/api/tickets')['tickets'] if t['id']==ticket['id']);require(again['assignee']=='Ada' and again['status']=='closed','invalid patch partially changed ticket')\n                                                                                                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5.py\", line 12, in require\n    if not v: raise AssertionError(message)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: invalid patch partially changed ticket\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-01",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+      "workspace_source_sha256": {
+        "index.html": "1b82e6c3196b434183d6d33809d1aa6c9cce266f3c590623d34f634d8ee76ce2",
+        "README.md": "23a98db9232c1041064deb58439cde9953c5276b42e15ed9dc2904c6b22cd740",
+        "server.py": "f23d1532e7c8c2dcbd2c10fa1ffecc08f59aafc7b369eda9badc74d749cdd342"
+      },
+      "seconds": 1.684,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "a13fc6f06edab30a15355617616c15b1bed17281e0ea0d41b746de5209b52cd5",
+            "actual_exit_code": 0,
+            "output": "{\"task_id\": \"RP-FULL-01\", \"passed\": true, \"verification\": \"real_browser_and_runtime_behavior\"}\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+      "workspace_source_sha256": {
+        "README.md": "4e828a2e448cd7f552d9b69044accd35de0b69a6732aa2f09c67696295b7252f"
+      },
+      "seconds": 0.243,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 106, in main\n    service.start()\n    ~~~~~~~~~~~~~^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 35, in start\n    if self.process and self.process.poll() is not None: raise AssertionError('server exited before ready')\n                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: server exited before ready\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+      "workspace_source_sha256": {
+        "index.html": "4f569e52206aeaaf2071f3d6f8a6f87f344e597768db62f77b88fee953384e97",
+        "README.md": "1887aa58ef188f153a29a0117cba53ca5bd2d92e1bc7bd357669781e5be9803f",
+        "server.py": "2400c0792a3aba3ffd339d700d9556a3317c60f9908527d7911f1ff5ba82d40c"
+      },
+      "seconds": 1.302,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 97, in votes\n    first.get_by_role('button',name='Close voting',exact=True).click();expect(first).to_contain_text('Voting closed');expect(first.get_by_role('button',name='Remove vote',exact=True)).to_be_disabled();request(service.base,f'/api/proposals/{ident}/vote','PUT',{'voter':'Cara','active':True},409);request(service.base,f'/api/proposals/{ident}/vote','PUT',{'voter':'Bob','active':False},409)\n                                                                                                                                                                                                         ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 21, in request\n    require(status==expected,f'{method} {path}: expected HTTP {expected}, got {status}')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4.py\", line 12, in require\n    if not v: raise AssertionError(message)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: PUT /api/proposals/1/vote: expected HTTP 409, got 200\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+      "workspace_source_sha256": {
+        "index.html": "4f569e52206aeaaf2071f3d6f8a6f87f344e597768db62f77b88fee953384e97",
+        "README.md": "1887aa58ef188f153a29a0117cba53ca5bd2d92e1bc7bd357669781e5be9803f",
+        "server.py": "86f0b9a56433107cd9ae78c679db319b10ecfc2e37a64c8eae268d0f50466215"
+      },
+      "seconds": 1.441,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "374b954fbc137c3102db19ae3b240c82d2047a420801725160e9b63a67d903b4",
+            "actual_exit_code": 0,
+            "output": "{\"task_id\": \"RP-FULL-02\", \"passed\": true, \"verification\": \"real_browser_and_runtime_behavior\"}\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-01",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+      "workspace_source_sha256": {
+        "README.md": "81d22ff4b04a6c6d71a0ecede11c0738ea0b7abd0851dffa51805c938cf03f6c"
+      },
+      "seconds": 9.178,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 53, in kanban\n    title.fill('Release alpha');page.get_by_label('Description',exact=True).fill('First pass');page.get_by_label('Priority',exact=True).select_option('high');title.press('Enter')\n    ~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier-site/playwright/sync_api/_generated.py\", line 18030, in fill\n    self._sync(\n    ~~~~~~~~~~^\n        self._impl_obj.fill(\n        ^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n        )\n        ^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_sync_base.py\", line 115, in _sync\n    return task.result()\n           ~~~~~~~~~~~^^\n  File \"/opt/verifier-site/playwright/_impl/_locator.py\", line 216, in fill\n    return await self._frame.fill(self._selector, strict=True, **params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier-site/playwright/_impl/_frame.py\", line 632, in fill\n    await self._fill(**locals_to_params(locals()))\n  File \"/opt/verifier-site/playwright/_impl/_frame.py\", line 644, in _fill\n    await self._channel.send(\"fill\", self._timeout, locals_to_params(locals()))\n  File \"/opt/verifier-site/playwright/_impl/_connection.py\", line 69, in send\n    return await self._connection.wrap_api_call(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_connection.py\", line 563, in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nplaywright._impl._errors.TimeoutError: Locator.fill: Timeout 8000ms exceeded.\nCall log:\n  - waiting for get_by_label(\"Task title\", exact=True)\n\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-01",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+      "workspace_source_sha256": {
+        "index.html": "142d365093df785121238c2de76e44a285d5197bcaad4ed98cc3e3ab3212c42c",
+        "README.md": "616c3c683ccbc59669ad8a1fee0e7e443f7e4c38e087f503a36b417a4fc5dbda"
+      },
+      "seconds": 6.456,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f.py\", line 62, in kanban\n    page.reload();page.get_by_label('Search tasks').fill('');page.get_by_label('Status filter').select_option('all');page.get_by_label('Priority filter').select_option('all');expect(first).to_be_visible();expect(first).to_contain_text('doing');expect(first).to_contain_text('medium')\n                                                                                                                                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/opt/verifier-site/playwright/sync_api/_generated.py\", line 23019, in to_be_visible\n    self._sync(\n    ~~~~~~~~~~^\n        self._impl_obj.to_be_visible(\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n            visible=visible, timeout=to_milliseconds(timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        )\n        ^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_sync_base.py\", line 115, in _sync\n    return task.result()\n           ~~~~~~~~~~~^^\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 841, in to_be_visible\n    await self._expect_impl(\n    ...<5 lines>...\n    )\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 126, in _expect_impl\n    _record_soft_or_raise(\n    ~~~~~~~~~~~~~~~~~~~~~^\n        AssertionError(\n        ^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        self._is_soft,\n        ^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 60, in _record_soft_or_raise\n    raise error\nAssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"article\", name=\"Task Release beta\", exact=True)\n\nAria snapshot:\n- main:\n  - heading \"Team Kanban\" [level=1]\n  - paragraph: Plan work and move it forward. Changes are saved in this browser.\n  - text: Task title\n  - textbox \"Task title\"\n  - text: Description\n  - textbox \"Description\"\n  - text: Priority\n  - combobox \"Priority\":\n    - option \"low\"\n    - option \"medium\" [selected]\n    - option \"high\"\n  - button \"Add task\"\n  - alert\n  - text: Search tasks\n  - textbox \"Search tasks\"\n  - text: Status filter\n  - combobox \"Status filter\":\n    - option \"all\" [selected]\n    - option \"todo\"\n    - option \"doing\"\n    - option \"done\"\n  - text: Priority filter\n  - combobox \"Priority filter\":\n    - option \"all\" [selected]\n    - option \"low\"\n    - option \"medium\"\n    - option \"high\"\n  - region \"Tasks\":\n    - paragraph: No matching tasks\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-01",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+      "workspace_source_sha256": {
+        "index.html": "275d359deceb7e4872402d44edd6f03e8f931e0bfd63307f4cb03e6841bfb096",
+        "README.md": "616c3c683ccbc59669ad8a1fee0e7e443f7e4c38e087f503a36b417a4fc5dbda"
+      },
+      "seconds": 1.545,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "d408d53a856233ed449a031102bd64d823cdea719f13a54445d86fb1356ba19f",
+            "actual_exit_code": 0,
+            "output": "{\"task_id\": \"RP-WEB-01\", \"passed\": true, \"verification\": \"real_browser_and_runtime_behavior\"}\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-02",
+      "arm": "initial",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+      "workspace_source_sha256": {
+        "README.md": "659f02ddb3ba9dda604d7821369179cfb003e996d3c0017198fa332921775bba"
+      },
+      "seconds": 9.143,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 68, in reading\n    page.get_by_label('Book title',exact=True).fill(title);page.get_by_label('Author',exact=True).fill(author);page.get_by_label('Tags',exact=True).fill(tags);page.get_by_role('button',name='Add book',exact=True).click()\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/opt/verifier-site/playwright/sync_api/_generated.py\", line 18030, in fill\n    self._sync(\n    ~~~~~~~~~~^\n        self._impl_obj.fill(\n        ^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n        )\n        ^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_sync_base.py\", line 115, in _sync\n    return task.result()\n           ~~~~~~~~~~~^^\n  File \"/opt/verifier-site/playwright/_impl/_locator.py\", line 216, in fill\n    return await self._frame.fill(self._selector, strict=True, **params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier-site/playwright/_impl/_frame.py\", line 632, in fill\n    await self._fill(**locals_to_params(locals()))\n  File \"/opt/verifier-site/playwright/_impl/_frame.py\", line 644, in _fill\n    await self._channel.send(\"fill\", self._timeout, locals_to_params(locals()))\n  File \"/opt/verifier-site/playwright/_impl/_connection.py\", line 69, in send\n    return await self._connection.wrap_api_call(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_connection.py\", line 563, in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nplaywright._impl._errors.TimeoutError: Locator.fill: Timeout 8000ms exceeded.\nCall log:\n  - waiting for get_by_label(\"Book title\", exact=True)\n\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-02",
+      "arm": "mutant",
+      "expected_pass": false,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+      "workspace_source_sha256": {
+        "index.html": "66f5a110d5c7f496b6ddf46ddc63b577babb9bb3f05321db615e0b07abdc8dc2",
+        "README.md": "42b2a77a7f65513dd5fee8df914c6f5f14cbaa5ce94270f820958d2f8cbd40dd"
+      },
+      "seconds": 6.825,
+      "passed": false,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": false,
+          "observation": {
+            "program_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+            "actual_exit_code": 1,
+            "output": "Traceback (most recent call last):\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 113, in <module>\n    if __name__=='__main__':main()\n                            ~~~~^^\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 109, in main\n    {'RP-WEB-01':kanban,'RP-WEB-02':reading,'RP-FULL-01':tickets,'RP-FULL-02':votes}[TASK](page,service,tmp)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/opt/verifier/programs/1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920.py\", line 75, in reading\n    bad={'version':1,'books':[good['books'][0],{'id':'broken','title':'Bad partial','author':'Nobody','tags':7}]};path=tmp/'bad.json';path.write_text(json.dumps(bad));page.get_by_label('Import JSON',exact=True).set_input_files(path);page.get_by_role('button',name='Import books',exact=True).click();expect(page.get_by_role('alert')).to_contain_text('rejected');page.reload();expect(page.get_by_role('article')).to_have_count(1);expect(page.get_by_role('article',name='Book Coastal Atlas',exact=True)).to_be_visible()\n                                                                                                                                                                                                                                                                                                                                                                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/opt/verifier-site/playwright/sync_api/_generated.py\", line 22052, in to_have_count\n    self._sync(\n    ~~~~~~~~~~^\n        self._impl_obj.to_have_count(\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n            count=count, timeout=to_milliseconds(timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        )\n        ^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_sync_base.py\", line 115, in _sync\n    return task.result()\n           ~~~~~~~~~~~^^\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 454, in to_have_count\n    await self._expect_impl(\n    ...<5 lines>...\n    )\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 126, in _expect_impl\n    _record_soft_or_raise(\n    ~~~~~~~~~~~~~~~~~~~~~^\n        AssertionError(\n        ^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        self._is_soft,\n        ^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/opt/verifier-site/playwright/_impl/_assertions.py\", line 60, in _record_soft_or_raise\n    raise error\nAssertionError: Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for get_by_role(\"article\")\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    },
+    {
+      "task_id": "RP-WEB-02",
+      "arm": "reference",
+      "expected_pass": true,
+      "expectation_met": true,
+      "workspace_unchanged": true,
+      "verifier_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+      "workspace_source_sha256": {
+        "index.html": "d4160179a0b64568c7e71ea064a74edb075e69d28a61ef6cf695df1aab0a7e35",
+        "README.md": "42b2a77a7f65513dd5fee8df914c6f5f14cbaa5ce94270f820958d2f8cbd40dd"
+      },
+      "seconds": 1.838,
+      "passed": true,
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "passed": true,
+          "observation": {
+            "program_sha256": "1e3562a551ace0f4d923cf9f772d7bf5a70c2f58d041dbef88f07e7bfcaff920",
+            "actual_exit_code": 0,
+            "output": "{\"task_id\": \"RP-WEB-02\", \"passed\": true, \"verification\": \"real_browser_and_runtime_behavior\"}\n",
+            "browser": true
+          },
+          "error": ""
+        }
+      ],
+      "metadata": {
+        "backend": "bubblewrap",
+        "acceptance_transport": "stdin",
+        "workspace_mount": "read_only_snapshot",
+        "network": "unshared",
+        "pid_namespace": "private",
+        "repository_mounted": false,
+        "verifier_logs_exposed_to_agent": false
+      }
+    }
+  ]
+}

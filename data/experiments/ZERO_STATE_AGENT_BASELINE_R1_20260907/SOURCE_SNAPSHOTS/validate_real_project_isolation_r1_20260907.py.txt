@@ -1,0 +1,88 @@
+"""Execute reference, semantic mutant and initial seeds with the production grader."""
+from __future__ import annotations
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+import time
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.benchmark_verifier import run_isolated_verifier
+from scripts.run_rwkv_e2e_benchmark import materialize_workspace
+
+DATASET = ROOT / 'data/datasets/rwkv_lh_real_project_dev_v1'
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+
+def hashes(root):
+    return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in root.rglob('*') if p.is_file()}
+
+def validate(path, arm):
+    start = time.monotonic()
+    task = json.loads(path.read_text())
+    program = path.with_name('private_verify.py').read_text()
+    check = {'kind': 'project_behavior', 'program': program,
+             'program_sha256': hashlib.sha256(program.encode()).hexdigest(),
+             'browser': task['task_id'].startswith(('RP-WEB-', 'RP-FULL-')), 'timeout':120}
+    scratch = ROUND / 'grader_validation_scratch'
+    scratch.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=scratch, prefix=task['task_id']+'-'+arm+'-') as folder:
+        root = Path(folder)
+        candidate = root / 'candidate'
+        materialize_workspace(task, candidate)
+        if arm != 'initial':
+            shutil.copytree(path.parent / 'reference', candidate, dirs_exist_ok=True)
+        if arm == 'mutant':
+            if (path.parent / 'mutant').is_dir():
+                shutil.copytree(path.parent / 'mutant', candidate, dirs_exist_ok=True)
+            elif path.with_name('mutation.json').is_file():
+                change = json.loads(path.with_name('mutation.json').read_text())
+                target = candidate / change['file']
+                source = target.read_text()
+                assert source.count(change['replace']) == 1
+                target.write_text(source.replace(change['replace'], change['with']))
+            else:
+                negative = path.parent.parent / 'self_validation/negative_workspaces' / task['task_id']
+                assert negative.is_dir()
+                shutil.copytree(negative, candidate, dirs_exist_ok=True)
+        before = hashes(candidate)
+        try:
+            result = run_isolated_verifier({'checks':[check]}, candidate, [], {}, private_root=root/'private')
+            value = {'passed': result.passed, 'checks':[asdict(c) for c in result.checks], 'metadata':result.metadata}
+        except Exception as exc:
+            value = {'passed':False, 'infrastructure_error':type(exc).__name__+': '+str(exc)}
+        expected = arm == 'reference'
+        return {'task_id':task['task_id'], 'arm':arm, 'expected_pass':expected,
+                'expectation_met':value['passed']==expected and 'infrastructure_error' not in value,
+                'workspace_unchanged':hashes(candidate)==before,
+                'verifier_sha256':check['program_sha256'], 'workspace_source_sha256':before,
+                'seconds':round(time.monotonic()-start,3), **value}
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--groups', nargs='+', default=['cli_data','web_fullstack','api_maintenance'])
+    parser.add_argument('--output', type=Path, required=True)
+    args=parser.parse_args()
+    paths=sorted(p for group in args.groups for p in (DATASET/group).glob('RP-*/task.json'))
+    rows=[]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures=[pool.submit(validate,path,arm) for path in paths for arm in ('reference','mutant','initial')]
+        for future in as_completed(futures):
+            row=future.result();rows.append(row)
+            print(json.dumps({k:row[k] for k in ('task_id','arm','expectation_met','seconds')},ensure_ascii=False),flush=True)
+    value={'source':'production bubblewrap grader; no model run',
+           'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+           'grader_sha256':hashlib.sha256((ROOT/'rwkv_lh/benchmark_verifier.py').read_bytes()).hexdigest(),
+           'tasks':len(paths),'checks':len(rows),
+           'all_expectations_met':all(r['expectation_met'] and r['workspace_unchanged'] for r in rows),
+           'results':sorted(rows,key=lambda r:(r['task_id'],r['arm']))}
+    args.output.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+    return 0 if value['all_expectations_met'] else 1
+
+if __name__=='__main__':raise SystemExit(main())

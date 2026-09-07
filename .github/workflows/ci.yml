@@ -16,10 +16,12 @@ jobs:
       - run: uv python install 3.13
       - name: Install verifier sandbox
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
-      - run: uv sync --frozen --dev
-      - run: uv run pytest -q
-      - run: uv run rwkv-lh-e2e --suite all --validate-only
-      - run: uv run rwkv-lh-control --output /tmp/lh-control-30
+      - run: uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
+      - name: Install browser and system dependencies
+        run: .venv/bin/python -m playwright install --with-deps chromium
+      - run: .venv/bin/python -m pytest -q tests/
+      - run: .venv/bin/rwkv-lh-e2e --suite all --validate-only
+      - run: .venv/bin/rwkv-lh-e2e --suite realprojectdevv1 --validate-only
       - run: uv build
 
   real-rwkv-e2e:
@@ -31,15 +33,17 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv sync --frozen --dev
+      - run: uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
+      - name: Install browser runtime
+        run: .venv/bin/python -m playwright install chromium
       - name: Fail closed unless bubblewrap is present
         run: command -v bwrap
       - name: Exercise isolated verifier before model spend
-        run: uv run pytest tests/test_rwkv_e2e_suite.py -q
+        run: .venv/bin/python -m pytest tests/test_rwkv_e2e_suite.py -q
       - name: Check RWKV endpoint
-        run: uv run rwkv-lh-runtime-smoke
+        run: .venv/bin/rwkv-lh-runtime-smoke
       - name: Run long-horizon suite
-        run: uv run rwkv-lh-e2e --suite lh12 --output outputs/ci-lh12
+        run: .venv/bin/rwkv-lh-e2e --suite lh12 --output outputs/ci-lh12
       - uses: actions/upload-artifact@v4
         if: always()
         with:

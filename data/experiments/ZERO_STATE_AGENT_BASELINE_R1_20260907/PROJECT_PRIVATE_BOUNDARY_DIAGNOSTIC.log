@@ -1,0 +1,79 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.11, pytest-9.1.1, pluggy-1.6.0 -- /home/chase/GitHub/RWKV-LH/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/chase/GitHub/RWKV-LH
+configfile: pyproject.toml
+collecting ... collected 6 items / 5 deselected / 1 selected
+
+tests/test_project_behavior_verifier.py::test_candidate_process_cannot_read_private_grader FAILED [100%]
+
+=================================== FAILURES ===================================
+______________ test_candidate_process_cannot_read_private_grader _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_candidate_process_cannot_0')
+
+    def test_candidate_process_cannot_read_private_grader(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        (workspace / "probe.py").write_text("""from pathlib import Path
+    print('visible' if list(Path('/opt/verifier').rglob('*.py')) else 'hidden')
+    """)
+        program = """import subprocess, sys
+    from pathlib import Path
+    actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / 'probe.py')], text=True)
+    assert actual.strip() == 'hidden', 'candidate can read the private grader'
+    """
+        result = run_isolated_verifier(acceptance(program), workspace, [], {}, private_root=tmp_path / "private")
+>       assert result.passed, result.checks
+E       AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b', 'actual_exit_code': 1, 'output': 'Fatal Python error: _Py_HashRandomization_Init: failed to get random numbers to initialize Python
+E         Python runtime state: preinitialized
+E         
+E         Traceback (most recent call last):
+E           File "/opt/verifier/project_driver.py", line 4, in <module>
+E             runpy.run_path(sys.argv[0], run_name=\'__main__\')
+E             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "<frozen runpy>", line 287, in run_path
+E           File "<frozen runpy>", line 98, in _run_module_code
+E           File "<frozen runpy>", line 88, in _run_code
+E           File "/opt/verifier/programs/df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b.py", line 3, in <module>
+E             actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / \'probe.py\')], text=True)
+E           File "/opt/verifier-python/lib/python3.13/subprocess.py", line 472, in check_output
+E             return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+E                    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                        **kwargs).stdout
+E                        ^^^^^^^^^
+E           File "/opt/verifier-python/lib/python3.13/subprocess.py", line 577, in run
+E             raise CalledProcessError(retcode, process.args,
+E                                      output=stdout, stderr=stderr)
+E         subprocess.CalledProcessError: Command \'[\'/opt/candidate-python/python\', \'/workspace/probe.py\']\' returned non-zero exit status 1.
+E         ', 'browser': False}, error=''),)
+E       assert False
+E        +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b', 'actual_exit_code': 1, 'output': 'Fatal Python error: _Py_HashRandomization_Init: failed to get random numbers to initialize Python\nPython runtime state: preinitialized\n\nTraceback (most recent call last):\n  File "/opt/verifier/project_driver.py", line 4, in <module>\n    runpy.run_path(sys.argv[0], run_name=\'__main__\')\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<frozen runpy>", line 287, in run_path\n  File "<frozen runpy>", line 98, in _run_module_code\n  File "<frozen runpy>", line 88, in _run_code\n  File "/opt/verifier/programs/df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b.py", line 3, in <module>\n    actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / \'probe.py\')], text=True)\n  File "/opt/verifier-python/lib/python3.13/subprocess.py", line 472, in check_output\n    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n               **kwargs).stdout\n               ^^^^^^^^^\n  File "/opt/verifier-python/lib/python3.13/subprocess.py", line 577, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command \'[\'/opt/candidate-python/python\', \'/workspace/probe.py\']\' returned non-zero exit status 1.\n', 'browser': False}, error=''),), metadata={'backend': 'bubblewrap', 'acceptance_transport': 'stdin', 'workspace_mount': 'read_only_snapshot', 'network': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+
+tests/test_project_behavior_verifier.py:116: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_project_behavior_verifier.py::test_candidate_process_cannot_read_private_grader - AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b', 'actual_exit_code': 1, 'output': 'Fatal Python error: _Py_HashRandomization_Init: failed to get random numbers to initialize Python
+  Python runtime state: preinitialized
+  
+  Traceback (most recent call last):
+    File "/opt/verifier/project_driver.py", line 4, in <module>
+      runpy.run_path(sys.argv[0], run_name=\'__main__\')
+      ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "<frozen runpy>", line 287, in run_path
+    File "<frozen runpy>", line 98, in _run_module_code
+    File "<frozen runpy>", line 88, in _run_code
+    File "/opt/verifier/programs/df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b.py", line 3, in <module>
+      actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / \'probe.py\')], text=True)
+    File "/opt/verifier-python/lib/python3.13/subprocess.py", line 472, in check_output
+      return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+             ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                 **kwargs).stdout
+                 ^^^^^^^^^
+    File "/opt/verifier-python/lib/python3.13/subprocess.py", line 577, in run
+      raise CalledProcessError(retcode, process.args,
+                               output=stdout, stderr=stderr)
+  subprocess.CalledProcessError: Command \'[\'/opt/candidate-python/python\', \'/workspace/probe.py\']\' returned non-zero exit status 1.
+  ', 'browser': False}, error=''),)
+assert False
+ +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b', 'actual_exit_code': 1, 'output': 'Fatal Python error: _Py_HashRandomization_Init: failed to get random numbers to initialize Python\nPython runtime state: preinitialized\n\nTraceback (most recent call last):\n  File "/opt/verifier/project_driver.py", line 4, in <module>\n    runpy.run_path(sys.argv[0], run_name=\'__main__\')\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<frozen runpy>", line 287, in run_path\n  File "<frozen runpy>", line 98, in _run_module_code\n  File "<frozen runpy>", line 88, in _run_code\n  File "/opt/verifier/programs/df1ff576acb2435526960e700015ae2e7cb2cb06dd0bb7e743b7f441d2e7237b.py", line 3, in <module>\n    actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / \'probe.py\')], text=True)\n  File "/opt/verifier-python/lib/python3.13/subprocess.py", line 472, in check_output\n    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,\n           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n               **kwargs).stdout\n               ^^^^^^^^^\n  File "/opt/verifier-python/lib/python3.13/subprocess.py", line 577, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command \'[\'/opt/candidate-python/python\', \'/workspace/probe.py\']\' returned non-zero exit status 1.\n', 'browser': False}, error=''),), metadata={'backend': 'bubblewrap', 'acceptance_transport': 'stdin', 'workspace_mount': 'read_only_snapshot', 'network': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+======================= 1 failed, 5 deselected in 0.09s ========================

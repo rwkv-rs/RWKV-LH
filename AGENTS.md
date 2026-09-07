@@ -6,12 +6,12 @@
 ## 1. 执行环境
 
 - 项目命令、测试、分析与验证只在 WSL `UbuntuRecovered` 中执行，不在 Windows 端执行项目逻辑。
-- 用 `uv sync --frozen --extra selector-runtime --group dev` 准备完整环境；测试用 `.venv/bin/python -m pytest -q tests/`，提交前必须全绿且不得跳过 Torch / State 注入测试。默认测试工件写入 `data/test_runs/pytest/`。
+- 用 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev` 准备完整环境，再运行 `.venv/bin/python -m playwright install chromium` 安装浏览器；测试用 `.venv/bin/python -m pytest -q tests/`，提交前必须全绿且不得跳过 Torch / State 注入或必需的浏览器验证。默认测试工件写入 `data/test_runs/pytest/`。
 - 临时分析、调试和验证脚本统一放在项目根目录 `temp/`，用绝对路径执行，文件名清晰、唯一并说明用途。`temp/` 不是生产代码，`rwkv_lh/`、`scripts/`、`tests/` 不得依赖它。
 
 ## 2. 协议唯一性
 
-- 每个模型角色只有**一个**协议模块和**一个**输入构造函数（规范 §1.1 表）。生产链路、StateTune 数据生成、验收评测必须调用同一函数构造输入。
+- 每个模型角色只有**一个**协议模块和**一个**输入构造函数（规范 §1 表）。生产链路、StateTune 数据生成、验收评测必须调用同一函数构造输入。
 - `scripts/`、`temp/`、`tests/` 中不得手写协议字典字面量（`current_progress`、`execution_state`、`gap_catalog` 等）。
 - 新增协议版本时必须删除旧协议模块、渲染器、兼容入口与旧字节码，不留 identity stub 或本地归档；入口只接受当前模块常量指定的版本，所有旧版和未知版本一律拒绝。
 - 运行时 attestation 标签（`goal_state_protocol`、`input_protocol`、decoder manifest）必须引用协议模块常量，不得硬编码字符串。
@@ -19,9 +19,10 @@
 ## 3. 数据与实验
 
 - 实验、测试与验证数据统一放在 `data/`，按来源、版本、用途分层；每个数据集的 manifest 必须记录来源 run、生成脚本 SHA、协议模块 SHA、切分算法、相似度参数、覆盖度审计结果。
-- 角色数据只能从生产 trace 抽取（规范 §3.2）；禁止合成生成器自行发明场景；禁止重放已退役 schema 的数据集；禁止为通过某道题写路径/后缀特判。
+- 角色数据只能从生产 trace 抽取（规范 §2.1）；禁止合成生成器自行发明场景；禁止重放已退役 schema 的数据集；禁止为通过某道题写路径/后缀特判。
 - 每角色一份不变的回归集；每一轮候选都在同一回归集上与 zero 比较，不得每轮重新生成 dev/confirmation。
 - 未经 owner 书面确认，不得启动训练、不得新建 `data/datasets/` 版本目录。
+- owner 已于 2026-09-07 授权 `data/datasets/rwkv_lh_real_project_dev_v1/` 的 12 题开发评测：CLI、数据、HTTP API、维护、Web、全栈各 2 题，运行器标识 `realprojectdevv1`。来源是按需求编写的开发基准，不是采集的真实用户 trace；此授权不新增角色训练额度，也不允许把参考实现直接当作 StateTune 角色数据。私有黑盒验收和作者 reference/mutant 不进入 Agent workspace；Web/全栈须实际运行 Playwright，验证器在隔离环境中读取只读 workspace snapshot。
 - 角色轮次按实际训练累计；换数据版本、回退初始化或 replacement 命名不重置计数，任何角色禁止第 4 轮。Selector 已满 3 轮；Executor / Step Auditor 的“剩 1 轮”与已有 Round3 登记冲突，在 owner 对账确认前没有可自动使用的训练额度；Final Auditor 最多 3 轮。
 - 旧角色数据、生成/评测链与旧实验从工作树直接删除，不保留 retired/archive 副本；历史只从 Git / GitHub 记录查询。未跟踪文件不会自动进入远端历史。本轮清理仅保留路径、SHA 和验证记录。
 

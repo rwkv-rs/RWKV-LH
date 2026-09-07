@@ -10,9 +10,12 @@ from __future__ import annotations
 import argparse
 import ctypes
 import hashlib
+import importlib.util
 import json
 import os
+import shlex
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -70,6 +73,7 @@ SUPPORTED_CHECK_KINDS = frozenset(
         "path_absent",
         "post_effect_crash_resumed",
         "priority_summary",
+        "project_behavior",
         "resilient_shards",
         "resume_no_repeated_completed_attempts",
         "service_migration",
@@ -178,6 +182,49 @@ def check_spec(
     try:
         actual: Any
         target: Any
+        if kind == "project_behavior":
+            program, digest = _project_program(spec)
+            program_path = Path(__file__).resolve().parent / "programs" / f"{digest}.py"
+            if not program_path.is_file() or program_path.read_bytes().decode("utf-8") != program:
+                raise ValueError("private project verifier was not staged by the isolated runner")
+            environment = {
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG": os.environ.get("LANG", "C.UTF-8"),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "HOME": "/tmp/verifier-home",
+                "TMPDIR": "/tmp",
+            }
+            if spec.get("browser") is True:
+                environment.update({
+                    "PYTHONPATH": "/opt/verifier-site",
+                    "PLAYWRIGHT_BROWSERS_PATH": "/opt/verifier-browsers",
+                })
+            process = subprocess.Popen(
+                [sys.executable, str(program_path.parent.parent / "project_driver.py"), str(program_path), str(workspace)],
+                cwd=workspace,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                env=environment,
+            )
+            try:
+                stdout, stderr = process.communicate(timeout=float(spec.get("timeout", 120)))
+            except BaseException:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.communicate()
+                raise
+            return CheckResult(kind, process.returncode == 0, {
+                "program_sha256": digest,
+                "actual_exit_code": process.returncode,
+                "output": (stdout + stderr)[:10_000],
+                "browser": spec.get("browser") is True,
+            })
         if kind == "file_content":
             actual = _workspace_path(
                 workspace, str(spec["path"]), must_exist=True
@@ -774,10 +821,45 @@ def _secure_snapshot(source: Path, destination: Path) -> None:
             shutil.copy2(child, target_directory / name, follow_symlinks=False)
 
 
+def _project_program(spec: Mapping[str, Any]) -> tuple[str, str]:
+    program = spec.get("program")
+    digest = str(spec.get("program_sha256") or "")
+    if not isinstance(program, str) or not program.strip():
+        raise ValueError("project behavior check requires a private Python program")
+    if hashlib.sha256(program.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("private project program SHA-256 mismatch")
+    return program, digest
+
+
+def _browser_runtime_mounts() -> list[tuple[Path, str]]:
+    """Expose only browser dependencies; never mount the repository or home."""
+    mounts = []
+    for name in ("playwright", "greenlet", "pyee", "typing_extensions"):
+        spec = importlib.util.find_spec(name)
+        if spec is None or spec.origin is None:
+            raise RuntimeError("browser verification requires the benchmark-web extra")
+        source = Path(spec.origin).resolve(strict=True)
+        if spec.submodule_search_locations is not None:
+            source = source.parent
+            target = f"/opt/verifier-site/{name}"
+        else:
+            target = f"/opt/verifier-site/{source.name}"
+        mounts.append((source, target))
+    configured = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")
+    browser_root = Path(configured) if configured else Path.home() / ".cache/ms-playwright"
+    if not browser_root.is_dir():
+        raise RuntimeError("browser verification requires installed Playwright Chromium")
+    mounts.append((browser_root.resolve(), "/opt/verifier-browsers"))
+    return mounts
+
+
 def _bubblewrap_worker_command(
     bubblewrap: str,
     workspace: Path,
     worker: Path,
+    *,
+    browser_mounts: Sequence[tuple[Path, str]] = (),
+    candidate_python: Path | None = None,
 ) -> list[str]:
     executable = Path(sys.executable).resolve(strict=True)
     runtime_root: Path | None = None
@@ -822,8 +904,6 @@ def _bubblewrap_worker_command(
         "/dev",
         "--dir",
         "/tmp",
-        "--remount-ro",
-        "/",
         "--proc",
         "/proc",
         "--dev",
@@ -841,8 +921,16 @@ def _bubblewrap_worker_command(
         command.extend(
             ["--ro-bind", str(runtime_root), "/opt/verifier-python"]
         )
+    if browser_mounts:
+        command.extend(["--dir", "/opt/verifier-site"])
+        for source, target in browser_mounts:
+            command.extend(["--ro-bind", str(source), target])
+    if candidate_python is not None:
+        command.extend(["--ro-bind", str(candidate_python), "/opt/candidate-python"])
     command.extend(
         [
+            "--remount-ro",
+            "/",
             "--setenv",
             "PYTHONDONTWRITEBYTECODE",
             "1",
@@ -885,6 +973,45 @@ def run_isolated_verifier(
         worker_directory.mkdir()
         worker = worker_directory / "worker.py"
         shutil.copy2(Path(__file__).resolve(strict=True), worker)
+        browser_required = False
+        for check in acceptance.get("checks") or ():
+            if check.get("kind") != "project_behavior":
+                continue
+            try:
+                program, digest = _project_program(check)
+            except ValueError:
+                # The worker reports a failed check with the binding error.
+                continue
+            program_directory = worker_directory / "programs"
+            program_directory.mkdir(exist_ok=True)
+            (program_directory / f"{digest}.py").write_text(program, encoding="utf-8")
+            browser_required = browser_required or check.get("browser") is True
+        browser_mounts = _browser_runtime_mounts() if browser_required else ()
+        candidate_python = None
+        if (worker_directory / "programs").is_dir():
+            # Only the trusted grader uses this wrapper as sys.executable.
+            # Candidate processes get a fresh PID/mount namespace which hides
+            # every private program, while sharing the outer isolated loopback
+            # and temporary test inputs with the grader.
+            candidate_python = root / "candidate-python"
+            candidate_python.mkdir()
+            executable = Path(sys.executable).resolve(strict=True)
+            sandbox_python = (executable if executable.is_relative_to(Path("/usr"))
+                              else Path("/opt/verifier-python/bin") / executable.name)
+            command = ["/usr/bin/bwrap", "--die-with-parent", "--unshare-user", "--unshare-pid",
+                       "--unshare-ipc", "--unshare-uts", "--new-session", "--bind", "/", "/",
+                       "--bind", "/tmp", "/tmp", "--tmpfs", "/opt/verifier", "--proc", "/proc", "--dev", "/dev",
+                       "--cap-drop", "ALL", str(sandbox_python)]
+            wrapper = candidate_python / "python"
+            wrapper.write_text("#!/bin/sh\nexec " + shlex.join(command) + ' "$@"\n', encoding="utf-8")
+            wrapper.chmod(0o755)
+            (worker_directory / "project_driver.py").write_text(
+                "import runpy, sys\n"
+                "sys.executable = '/opt/candidate-python/python'\n"
+                "sys.argv = sys.argv[1:]\n"
+                "runpy.run_path(sys.argv[0], run_name='__main__')\n",
+                encoding="utf-8",
+            )
         payload = json.dumps(
             {
                 "acceptance": dict(acceptance),
@@ -894,7 +1021,8 @@ def run_isolated_verifier(
             ensure_ascii=False,
         )
         completed = subprocess.run(
-            _bubblewrap_worker_command(bubblewrap, snapshot, worker),
+            _bubblewrap_worker_command(bubblewrap, snapshot, worker, browser_mounts=browser_mounts,
+                                      candidate_python=candidate_python),
             input=payload,
             text=True,
             encoding="utf-8",

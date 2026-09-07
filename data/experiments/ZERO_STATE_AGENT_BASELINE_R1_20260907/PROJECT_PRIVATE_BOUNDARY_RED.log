@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______________ test_candidate_process_cannot_read_private_grader _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_candidate_process_cannot_0')
+
+    def test_candidate_process_cannot_read_private_grader(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        (workspace / "probe.py").write_text("""from pathlib import Path
+    print('visible' if list(Path('/opt/verifier').rglob('*.py')) else 'hidden')
+    """)
+        program = """import subprocess, sys
+    from pathlib import Path
+    actual = subprocess.check_output([sys.executable, str(Path(sys.argv[1]) / 'probe.py')], text=True)
+    assert actual.strip() == 'hidden', 'candidate can read the private grader'
+    """
+        result = run_isolated_verifier(acceptance(program), workspace, [], {}, private_root=tmp_path / "private")
+>       assert result.passed, result.checks
+E       AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1ff576acb2435526960e700015ae2e7c...   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError: candidate can read the private grader
+E         ', 'browser': False}, error=''),)
+E       assert False
+E        +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={'program_sha256': 'df1f...etwork': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+
+tests/test_project_behavior_verifier.py:116: AssertionError
+______________ test_project_behavior_preserves_crlf_program_bytes ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_behavior_preserve0')
+
+    def test_project_behavior_preserves_crlf_program_bytes(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        result = run_isolated_verifier(acceptance("assert True\r\n"), workspace, [], {}, private_root=tmp_path / "private")
+>       assert result.passed, result.checks
+E       AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: private project verifier was not staged by the isolated runner'),)
+E       assert False
+E        +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: p...etwork': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+
+tests/test_project_behavior_verifier.py:123: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_project_behavior_verifier.py::test_candidate_process_cannot_read_private_grader
+FAILED tests/test_project_behavior_verifier.py::test_project_behavior_preserves_crlf_program_bytes
+2 failed, 4 deselected in 0.22s

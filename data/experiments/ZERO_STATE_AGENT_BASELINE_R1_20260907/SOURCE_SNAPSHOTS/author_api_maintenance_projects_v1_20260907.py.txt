@@ -1,0 +1,1207 @@
+"""Author owner-approved development projects, references and black-box verifiers.
+
+No production traces or existing benchmark/acceptance datasets are consumed.
+Only the assigned api_maintenance group is written.
+"""
+from __future__ import annotations
+import hashlib
+import json
+from pathlib import Path
+import textwrap
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+GROUP = ROOT / 'data/datasets/rwkv_lh_real_project_dev_v1/api_maintenance'
+
+def clean(source: str) -> str:
+    return textwrap.dedent(source).lstrip('\n')
+
+def write(task_id: str, request: str, capabilities: list[str], visible: dict[str, str],
+          reference: dict[str, str], verifier: str, mutation: dict) -> None:
+    target = GROUP / task_id
+    target.mkdir(parents=True, exist_ok=True)
+    payload = {'task_id': task_id, 'level': 'project', 'user_request': request,
+               'capabilities': capabilities,
+               'workspace_files': [{'path': name, 'content': clean(content)}
+                                   for name, content in visible.items()],
+               'workspace_generators': []}
+    (target / 'task.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    for name, content in reference.items():
+        output = target / 'reference' / name
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(clean(content), encoding='utf-8')
+    verifier = verifier.replace("TASK_ID = Path(__file__).resolve().parent.name", f"TASK_ID = {task_id!r}")
+    (target / 'private_verify.py').write_text(clean(verifier), encoding='utf-8')
+    (target / 'AUTHORING.json').write_text(json.dumps({
+        'task_id': task_id,
+        'source': 'owner-authorized authored development benchmark',
+        'production_user_request': False,
+        'role_statetune_dataset': False,
+        'reference_visibility': 'author validation only; NEVER copy reference or private_verify.py into Agent workspace',
+        'seed_policy': 'fixed authored seed in private verifier; no existing acceptance data consumed',
+        'negative_mutation': mutation,
+        'public_contract': 'README.md and user_request in task.json',
+        'verifier_interface': 'python private_verify.py WORKSPACE',
+    }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+HTTP_REFERENCE_COMMON = r'''
+from __future__ import annotations
+import argparse
+import json
+import sqlite3
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, unquote, urlsplit
+
+def integer(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+class APIError(Exception):
+    def __init__(self, status, message):
+        self.status, self.message = status, message
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def read_json(self):
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if length <= 0 or length > 1_000_000:
+                raise ValueError('body size')
+            value = json.loads(self.rfile.read(length).decode('utf-8'))
+            if not isinstance(value, dict):
+                raise ValueError('object required')
+            return value
+        except (ValueError, UnicodeError):
+            raise APIError(400, 'invalid_json')
+
+    def respond(self, status, value):
+        body = json.dumps(value, ensure_ascii=False, allow_nan=False).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def dispatch(self):
+        try:
+            with sqlite3.connect(self.server.database, timeout=20) as connection:
+                connection.row_factory = sqlite3.Row
+                status, value = route(self, connection)
+            self.respond(status, value)
+        except APIError as error:
+            self.respond(error.status, {'error': error.message})
+        except Exception:
+            self.respond(500, {'error': 'internal_error'})
+
+    do_GET = dispatch
+    do_POST = dispatch
+    do_PUT = dispatch
+    do_DELETE = dispatch
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--db', required=True)
+    parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--port', required=True, type=int)
+    arguments = parser.parse_args()
+    with sqlite3.connect(arguments.db) as connection:
+        initialize(connection)
+    server = ThreadingHTTPServer((arguments.host, arguments.port), Handler)
+    server.database = arguments.db
+    server.serve_forever()
+'''
+
+BOOKING_REFERENCE = HTTP_REFERENCE_COMMON + r'''
+
+def initialize(connection):
+    connection.execute('CREATE TABLE IF NOT EXISTS bookings (id TEXT PRIMARY KEY, resource TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, customer TEXT NOT NULL, status TEXT NOT NULL)')
+
+def booking(row):
+    return {key: row[key] for key in ('id', 'resource', 'start', 'end', 'customer', 'status')}
+
+def route(handler, connection):
+    parsed = urlsplit(handler.path)
+    path = parsed.path
+    if handler.command == 'GET' and path == '/health':
+        return 200, {'ok': True}
+    if handler.command == 'POST' and path == '/bookings':
+        body = handler.read_json()
+        resource, customer = body.get('resource'), body.get('customer')
+        start, end = body.get('start'), body.get('end')
+        if not isinstance(resource, str) or not resource.strip() or not isinstance(customer, str) or not customer.strip():
+            raise APIError(400, 'invalid_fields')
+        if not integer(start) or not integer(end) or start < 0 or start >= end:
+            raise APIError(400, 'invalid_interval')
+        connection.execute('BEGIN IMMEDIATE')
+        conflict = connection.execute("SELECT 1 FROM bookings WHERE resource=? AND status='confirmed' AND start < ? AND end > ?", (resource, end, start)).fetchone()
+        if conflict:
+            raise APIError(409, 'overlap')
+        identifier = uuid.uuid4().hex
+        connection.execute('INSERT INTO bookings VALUES (?,?,?,?,?,?)', (identifier, resource, start, end, customer, 'confirmed'))
+        return 201, booking(connection.execute('SELECT * FROM bookings WHERE id=?', (identifier,)).fetchone())
+    if handler.command == 'GET' and path == '/bookings':
+        resource = parse_qs(parsed.query, keep_blank_values=True).get('resource')
+        if resource is None:
+            rows = connection.execute('SELECT * FROM bookings ORDER BY start,id').fetchall()
+        else:
+            rows = connection.execute('SELECT * FROM bookings WHERE resource=? ORDER BY start,id', (resource[0],)).fetchall()
+        return 200, {'bookings': [booking(row) for row in rows]}
+    if path.startswith('/bookings/') and handler.command in ('GET', 'DELETE'):
+        identifier = unquote(path[len('/bookings/'):])
+        if handler.command == 'DELETE':
+            connection.execute('BEGIN IMMEDIATE')
+        row = connection.execute('SELECT * FROM bookings WHERE id=?', (identifier,)).fetchone()
+        if row is None:
+            raise APIError(404, 'not_found')
+        if handler.command == 'GET':
+            return 200, booking(row)
+        connection.execute("UPDATE bookings SET status='cancelled' WHERE id=?", (identifier,))
+        return 200, {'id': identifier, 'status': 'cancelled'}
+    raise APIError(404, 'not_found')
+
+if __name__ == '__main__':
+    main()
+'''
+
+INVENTORY_REFERENCE = HTTP_REFERENCE_COMMON + r'''
+
+def initialize(connection):
+    connection.execute('CREATE TABLE IF NOT EXISTS inventory (sku TEXT PRIMARY KEY, stock INTEGER NOT NULL CHECK(stock >= 0))')
+    connection.execute('CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, idem_key TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL, payload TEXT NOT NULL)')
+
+def normalize(body):
+    customer, items = body.get('customer'), body.get('items')
+    if not isinstance(customer, str) or not customer.strip() or not isinstance(items, list) or not items:
+        raise APIError(400, 'invalid_order')
+    quantities = {}
+    for item in items:
+        if not isinstance(item, dict):
+            raise APIError(400, 'invalid_item')
+        sku, quantity = item.get('sku'), item.get('quantity')
+        if not isinstance(sku, str) or not sku.strip() or not integer(quantity) or quantity <= 0:
+            raise APIError(400, 'invalid_item')
+        quantities[sku] = quantities.get(sku, 0) + quantity
+    return {'customer': customer, 'items': [{'sku': sku, 'quantity': quantities[sku]} for sku in sorted(quantities)]}
+
+def route(handler, connection):
+    path = urlsplit(handler.path).path
+    if handler.command == 'GET' and path == '/health':
+        return 200, {'ok': True}
+    if path.startswith('/inventory/') and handler.command in ('GET', 'PUT'):
+        sku = unquote(path[len('/inventory/'):])
+        if not sku.strip():
+            raise APIError(400, 'invalid_sku')
+        if handler.command == 'PUT':
+            stock = handler.read_json().get('stock')
+            if not integer(stock) or stock < 0:
+                raise APIError(400, 'invalid_stock')
+            connection.execute('INSERT INTO inventory VALUES (?,?) ON CONFLICT(sku) DO UPDATE SET stock=excluded.stock', (sku, stock))
+            return 200, {'sku': sku, 'stock': stock}
+        row = connection.execute('SELECT stock FROM inventory WHERE sku=?', (sku,)).fetchone()
+        if row is None:
+            raise APIError(404, 'not_found')
+        return 200, {'sku': sku, 'stock': row['stock']}
+    if handler.command == 'POST' and path == '/orders':
+        key = handler.headers.get('Idempotency-Key', '')
+        if not key.strip() or len(key) > 128:
+            raise APIError(400, 'invalid_idempotency_key')
+        order = normalize(handler.read_json())
+        fingerprint = json.dumps(order, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+        connection.execute('BEGIN IMMEDIATE')
+        previous = connection.execute('SELECT fingerprint,payload FROM orders WHERE idem_key=?', (key,)).fetchone()
+        if previous is not None:
+            if previous['fingerprint'] != fingerprint:
+                raise APIError(409, 'idempotency_conflict')
+            return 200, json.loads(previous['payload'])
+        for item in order['items']:
+            row = connection.execute('SELECT stock FROM inventory WHERE sku=?', (item['sku'],)).fetchone()
+            if row is None:
+                raise APIError(404, 'sku_not_found')
+            if row['stock'] < item['quantity']:
+                raise APIError(409, 'insufficient_stock')
+        for item in order['items']:
+            connection.execute('UPDATE inventory SET stock=stock-? WHERE sku=?', (item['quantity'], item['sku']))
+        result = {'id': uuid.uuid4().hex, **order, 'status': 'confirmed'}
+        connection.execute('INSERT INTO orders VALUES (?,?,?,?)', (result['id'], key, fingerprint, json.dumps(result, ensure_ascii=False)))
+        return 201, result
+    if handler.command == 'GET' and path == '/orders':
+        return 200, {'orders': [json.loads(row['payload']) for row in connection.execute('SELECT payload FROM orders ORDER BY id')]}
+    if handler.command == 'GET' and path.startswith('/orders/'):
+        row = connection.execute('SELECT payload FROM orders WHERE id=?', (unquote(path[len('/orders/'):]),)).fetchone()
+        if row is None:
+            raise APIError(404, 'not_found')
+        return 200, json.loads(row['payload'])
+    raise APIError(404, 'not_found')
+
+if __name__ == '__main__':
+    main()
+'''
+
+VERIFY_COMMON = r'''
+from __future__ import annotations
+import concurrent.futures
+import hashlib
+import http.client
+import json
+import os
+from pathlib import Path
+import random
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+from urllib.parse import quote
+import uuid
+
+WORKSPACE = Path(sys.argv[1]).resolve()
+TASK_ID = Path(__file__).resolve().parent.name
+ARTIFACT_ROOT = os.environ.get('RWKV_LH_VERIFY_ARTIFACT_ROOT')
+if ARTIFACT_ROOT:
+    Path(ARTIFACT_ROOT).mkdir(parents=True, exist_ok=True)
+RUN_CONTEXT = tempfile.TemporaryDirectory(prefix=TASK_ID + '-', dir=ARTIFACT_ROOT)
+RUN = Path(RUN_CONTEXT.name)
+CHECKS = []
+
+def check(condition, name):
+    if not condition:
+        raise AssertionError(name)
+    CHECKS.append(name)
+
+def cli(script, *arguments, expect=0):
+    result = subprocess.run([sys.executable, str(WORKSPACE / script), *map(str, arguments)], cwd=WORKSPACE, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=20)
+    with (RUN / 'cli.jsonl').open('a', encoding='utf-8') as stream:
+        stream.write(json.dumps({'script': script, 'arguments': list(map(str, arguments)), 'exit_code': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}, ensure_ascii=False) + '\n')
+    check(result.returncode == 0 if expect == 0 else result.returncode != 0, f'{script} exit expected={expect}: {result.stderr[-300:]}')
+    if expect != 0:
+        return result
+    value = json.loads(result.stdout.strip().splitlines()[-1])
+    check(isinstance(value, dict), f'{script} JSON object output')
+    return value
+
+class RunningServer:
+    def __init__(self, database):
+        self.database = Path(database)
+        self.process = None
+        self.log = None
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            self.port = probe.getsockname()[1]
+
+    def start(self):
+        self.log = (RUN / 'server.log').open('ab')
+        self.process = subprocess.Popen([sys.executable, str(WORKSPACE / 'server.py'), '--db', str(self.database), '--host', '127.0.0.1', '--port', str(self.port)], cwd=WORKSPACE, stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True)
+        deadline = time.monotonic() + 12
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                raise AssertionError('server exited during startup')
+            try:
+                status, value = self.request('GET', '/health')
+                if status == 200 and value.get('ok') is True:
+                    return self
+            except (OSError, ValueError):
+                pass
+            time.sleep(0.05)
+        raise AssertionError('server /health did not become ready')
+
+    def stop(self):
+        if self.process is not None:
+            if self.process.poll() is None:
+                os.killpg(self.process.pid, signal.SIGTERM)
+                try:
+                    self.process.wait(timeout=4)
+                except subprocess.TimeoutExpired:
+                    os.killpg(self.process.pid, signal.SIGKILL)
+                    self.process.wait(timeout=4)
+            self.process = None
+        if self.log is not None:
+            self.log.close()
+            self.log = None
+
+    def request(self, method, path, body=None, headers=None):
+        selected = dict(headers or {})
+        if body is not None:
+            body = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode('utf-8')
+            selected['Content-Type'] = 'application/json'
+        connection = http.client.HTTPConnection('127.0.0.1', self.port, timeout=8)
+        try:
+            connection.request(method, path, body=body, headers=selected)
+            response = connection.getresponse()
+            value = json.loads(response.read().decode('utf-8'))
+            return response.status, value
+        finally:
+            connection.close()
+
+def integrity(database):
+    with sqlite3.connect(database) as connection:
+        check(connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok', 'SQLite integrity after operations')
+
+def run(main):
+    try:
+        main()
+    except Exception as error:
+        payload = {'task_id': TASK_ID, 'status': 'failed', 'checks_passed': len(CHECKS), 'checks': CHECKS, 'error': type(error).__name__ + ': ' + str(error), 'artifacts': str(RUN)}
+        (RUN / 'result.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps(payload, ensure_ascii=False))
+        return 1
+    payload = {'task_id': TASK_ID, 'status': 'passed', 'checks_passed': len(CHECKS), 'checks': CHECKS, 'artifacts': str(RUN)}
+    (RUN / 'result.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+'''
+
+BOOKING_VERIFY = VERIFY_COMMON + r'''
+
+def main():
+    randomizer = random.Random(73191)
+    database = RUN / 'bookings.sqlite3'
+    server = RunningServer(database)
+    known = []
+    def booking_rows(payload):
+        return [{key: row[key] for key in ('id', 'resource', 'start', 'end', 'customer', 'status')} for row in payload['bookings']]
+    def collection():
+        status, payload = server.request('GET', '/bookings')
+        check(status == 200, 'booking collection accessible')
+        return booking_rows(payload)
+    try:
+        server.start()
+        status, value = server.request('GET', '/bookings')
+        check(status == 200 and value.get('bookings') == [], 'empty persisted collection')
+        for index in range(32):
+            resource = randomizer.choice(['会议室 雪', "lab'quote", 'studio'])
+            start = randomizer.randint(0, 20) * 10
+            end = start + randomizer.choice([10, 20, 30])
+            customer = f'用户-{index}-é'
+            conflict = any(row['resource'] == resource and row['status'] == 'confirmed' and row['start'] < end and row['end'] > start for row in known)
+            status, value = server.request('POST', '/bookings', {'resource': resource, 'start': start, 'end': end, 'customer': customer})
+            check(status == (409 if conflict else 201), f'interval oracle case {index}')
+            if not conflict:
+                check(all(value.get(key) == expected for key, expected in {'resource': resource, 'start': start, 'end': end, 'customer': customer, 'status': 'confirmed'}.items()), f'booking fields case {index}')
+                check(isinstance(value.get('id'), str) and value['id'] and all(row['id'] != value['id'] for row in known), f'new durable identity case {index}')
+                known.append({key: value[key] for key in ('id', 'resource', 'start', 'end', 'customer', 'status')})
+        for start, end in [(1000, 1010), (1010, 1020)]:
+            status, value = server.request('POST', '/bookings', {'resource': 'adjacent', 'start': start, 'end': end, 'customer': '边界'})
+            check(status == 201, 'half-open adjacent interval accepted')
+            known.append({key: value[key] for key in ('id', 'resource', 'start', 'end', 'customer', 'status')})
+        cancelled = known[0]
+        for repeat in range(2):
+            status, value = server.request('DELETE', '/bookings/' + quote(cancelled['id']))
+            check(status == 200 and value.get('status') == 'cancelled', f'cancel idempotent repeat {repeat}')
+        cancelled['status'] = 'cancelled'
+        status, replacement = server.request('POST', '/bookings', {key: cancelled[key] for key in ('resource', 'start', 'end', 'customer')})
+        check(status == 201, 'cancelled slot can be booked again')
+        known.append({key: replacement[key] for key in ('id', 'resource', 'start', 'end', 'customer', 'status')})
+        for resource in ('会议室 雪', "lab'quote", 'not-present'):
+            status, value = server.request('GET', '/bookings?resource=' + quote(resource))
+            expected = sorted((row for row in known if row['resource'] == resource), key=lambda row: (row['start'], row['id']))
+            check(status == 200 and booking_rows(value) == expected, 'exact resource filtering including Unicode/quotes')
+        snapshot = collection()
+        invalid = [
+            {'resource': '', 'start': 0, 'end': 1, 'customer': 'x'},
+            {'resource': 'x', 'start': -1, 'end': 1, 'customer': 'x'},
+            {'resource': 'x', 'start': 1, 'end': 1, 'customer': 'x'},
+            {'resource': 'x', 'start': True, 'end': 10, 'customer': 'x'},
+            {'resource': 'x', 'start': 1.5, 'end': 10, 'customer': 'x'},
+            {'resource': 'x', 'start': 1, 'end': 10, 'customer': ''},
+            b'{bad json',
+        ]
+        for body in invalid:
+            check(server.request('POST', '/bookings', body)[0] == 400, 'invalid request rejected')
+        check(collection() == snapshot, 'invalid requests leave all rows unchanged')
+        check(server.request('GET', '/bookings/missing')[0] == 404, 'unknown booking read')
+        check(server.request('DELETE', '/bookings/missing')[0] == 404, 'unknown booking cancel')
+        def contend(index):
+            return server.request('POST', '/bookings', {'resource': 'race-only', 'start': 5000, 'end': 5010, 'customer': str(index)})
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            responses = list(pool.map(contend, range(8)))
+        check(sum(status == 201 for status, value in responses) == 1 and sum(status == 409 for status, value in responses) == 7, 'concurrent overlaps have one winner')
+        before_restart = collection()
+        server.stop()
+        integrity(database)
+        server.start()
+        check(collection() == before_restart, 'all bookings and cancellation survive restart')
+        check(server.request('POST', '/bookings', {'resource': 'race-only', 'start': 5001, 'end': 5009, 'customer': 'late'})[0] == 409, 'conflict enforcement survives restart')
+        status, value = server.request('GET', '/bookings/' + quote(cancelled['id']))
+        check(status == 200 and value.get('status') == 'cancelled', 'cancelled state survives restart')
+    finally:
+        server.stop()
+
+if __name__ == '__main__':
+    raise SystemExit(run(main))
+'''
+
+INVENTORY_VERIFY = VERIFY_COMMON + r'''
+
+def main():
+    database = RUN / 'inventory.sqlite3'
+    server = RunningServer(database)
+    try:
+        server.start()
+        def stock(sku):
+            status, value = server.request('GET', '/inventory/' + quote(sku, safe=''))
+            check(status == 200 and value.get('sku') == sku, 'inventory lookup identity')
+            return value['stock']
+        def set_stock(sku, amount):
+            status, value = server.request('PUT', '/inventory/' + quote(sku, safe=''), {'stock': amount})
+            check(status == 200 and value.get('stock') == amount, 'inventory setup persisted')
+        def order(key, items, customer='顾客é'):
+            status, value = server.request('POST', '/orders', {'customer': customer, 'items': items}, {'Idempotency-Key': key})
+            return status, core_order(value) if status in (200, 201) else value
+        def core_order(value):
+            return {'id': value['id'], 'customer': value['customer'], 'status': value['status'],
+                    'items': [{'sku': item['sku'], 'quantity': item['quantity']} for item in value['items']]}
+        def all_orders():
+            status, value = server.request('GET', '/orders')
+            check(status == 200, 'order collection accessible')
+            return [core_order(item) for item in value['orders']]
+        set_stock('A', 12); set_stock('B', 4)
+        items = [{'sku': 'A', 'quantity': 3}, {'sku': 'B', 'quantity': 2}]
+        status, original = order('stable-order', items)
+        check(status == 201 and original.get('status') == 'confirmed' and isinstance(original.get('id'), str), 'initial order created')
+        check(original.get('items') == items and original.get('customer') == '顾客é', 'normalized order body')
+        replay_items = [{'sku': 'B', 'quantity': 2}, {'sku': 'A', 'quantity': 1}, {'sku': 'A', 'quantity': 2}]
+        status, replay = order('stable-order', replay_items)
+        check(status == 200 and replay == original, 'semantic replay merges duplicate sku and reorders')
+        check(stock('A') == 9 and stock('B') == 2, 'replay does not decrement stock')
+        check(order('stable-order', [{'sku': 'A', 'quantity': 1}])[0] == 409, 'changed order conflicts with same key')
+        check(stock('A') == 9 and stock('B') == 2, 'idempotency conflict is atomic')
+        check(order('retry-after-failure', [{'sku': 'A', 'quantity': 2}, {'sku': 'B', 'quantity': 99}])[0] == 409, 'later insufficient item rejects whole order')
+        check(stock('A') == 9 and stock('B') == 2, 'insufficient order does not decrement any line')
+        check(order('retry-after-failure', [{'sku': 'A', 'quantity': 2}, {'sku': 'B', 'quantity': 1}])[0] == 201, 'failed key remains reusable')
+        check(stock('A') == 7 and stock('B') == 1, 'successful retry deducts exactly once')
+        check(order('missing-item', [{'sku': 'A', 'quantity': 1}, {'sku': 'missing', 'quantity': 1}])[0] == 404, 'unknown sku fails order')
+        check(stock('A') == 7, 'unknown sku failure is atomic')
+        before_invalid = all_orders()
+        for quantity in (0, -1, True, 1.5):
+            check(order('invalid-' + str(quantity), [{'sku': 'A', 'quantity': quantity}])[0] == 400, 'invalid quantity rejected')
+        check(order('empty-list', [])[0] == 400, 'empty order rejected')
+        check(order('', items)[0] == 400, 'missing idempotency key rejected')
+        check(order('bad-customer', items, customer='')[0] == 400, 'empty customer rejected')
+        check(server.request('POST', '/orders', b'{broken', {'Idempotency-Key': 'malformed'})[0] == 400, 'malformed JSON rejected')
+        for amount in (-1, True, 2.5):
+            check(server.request('PUT', '/inventory/A', {'stock': amount})[0] == 400, 'invalid inventory rejected')
+        check(stock('A') == 7 and all_orders() == before_invalid, 'invalid requests do not mutate')
+        special = "部品'雪"
+        set_stock(special, 100)
+        randomizer = random.Random(19073)
+        expected = 100
+        for index in range(12):
+            quantity = randomizer.randint(1, 5)
+            body = [{'sku': special, 'quantity': quantity}]
+            status, value = order(f'random-{index}', body)
+            check(status == 201, f'random order {index}')
+            expected -= quantity
+            check(order(f'random-{index}', body) == (200, value) and stock(special) == expected, f'random replay accounting {index}')
+        set_stock('once', 10)
+        def same_key(index):
+            return order('concurrent-same', [{'sku': 'once', 'quantity': 1}])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            replies = list(pool.map(same_key, range(8)))
+        check(sorted(status for status, value in replies) == [200] * 7 + [201], 'concurrent identical keys have one creation')
+        check(len({value.get('id') for status, value in replies}) == 1 and stock('once') == 9, 'concurrent replay has one durable order')
+        set_stock('scarce', 3)
+        def scarce(index):
+            return order(f'scarce-{index}', [{'sku': 'scarce', 'quantity': 2}])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            replies = list(pool.map(scarce, range(8)))
+        check(sum(status == 201 for status, value in replies) == 1 and sum(status == 409 for status, value in replies) == 7 and stock('scarce') == 1, 'concurrent independent orders cannot oversell')
+        before_restart = all_orders()
+        server.stop(); integrity(database); server.start()
+        check(all_orders() == before_restart, 'order collection survives restart')
+        check(order('stable-order', items) == (200, original) and stock('A') == 7 and stock('B') == 1, 'idempotency key and stock survive restart')
+        status, value = server.request('GET', '/orders/' + quote(original['id']))
+        check(status == 200 and core_order(value) == original, 'individual order survives restart')
+        check(server.request('GET', '/orders/not-present')[0] == 404, 'unknown order is 404')
+    finally:
+        server.stop()
+
+if __name__ == '__main__':
+    raise SystemExit(run(main))
+'''
+
+BOOKING_README = '''
+# 会议资源预约服务
+
+为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。
+
+公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。
+
+- `GET /health` → 200 `{"ok":true}`。
+- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:"confirmed"}`，id 为非空唯一字符串；冲突 409。
+- `GET /bookings` → 200 `{"bookings":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。
+- `GET /bookings/{id}` → 200 完整预约或 404。
+- `DELETE /bookings/{id}` → 200 `{id,status:"cancelled"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。
+- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。
+
+多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。
+'''
+
+INVENTORY_README = '''
+# 库存与订单服务
+
+给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。
+
+启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。
+
+- `GET /health` → 200 `{"ok":true}`。
+- `PUT /inventory/{url-encoded-sku}`，`{"stock":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{"sku":...,"stock":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。
+- `GET /inventory/{sku}` → 200 对应库存或 404。
+- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。
+- 首次成功返回 201 `{id,customer,items:[规范化明细],status:"confirmed"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。
+- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。
+- `GET /orders` → 200 `{"orders":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。
+- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。
+
+库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。
+'''
+
+API_STARTER = r'''
+"""Initial HTTP entry point; complete the contract documented in README.md."""
+import argparse
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})
+        body = json.dumps(value).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--db', required=True)
+    parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--port', type=int, required=True)
+    args = parser.parse_args()
+    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+'''
+
+API_PUBLIC_SMOKE = r'''
+"""Optional health-only smoke: python verify_public.py HOST PORT.
+
+This intentionally does not certify booking/order behavior.
+"""
+import http.client
+import json
+import sys
+connection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)
+connection.request('GET', '/health')
+response = connection.getresponse()
+assert response.status == 200 and json.loads(response.read())['ok'] is True
+connection.close()
+print('health smoke passed; transactional behavior still requires tests')
+'''
+
+write('RP-API-01', '完成这个会议室/设备预约 HTTP 服务。按 README 的公开接口实现 SQLite 持久化、无重叠预约、取消与并发保护；必须实际启动服务验证，并在重启后验证数据。说明验证结果和仍存在的限制。',
+      ['http_service', 'sqlite_transactions', 'interval_conflicts', 'concurrent_requests', 'restart_recovery'],
+      {'README.md': BOOKING_README, 'server.py': API_STARTER, 'verify_public.py': API_PUBLIC_SMOKE},
+      {'server.py': BOOKING_REFERENCE}, BOOKING_VERIFY,
+      {'file': 'server.py', 'replace': 'if conflict:', 'with': 'if False and conflict:', 'expected_rejection': 'interval oracle conflict case'})
+write('RP-API-02', '完成这个库存订单 HTTP 服务。按 README 实现幂等键、跨多个 SKU 的原子扣减、并发防超卖和 SQLite 重启恢复；用真实 HTTP 请求验证成功、失败和重试路径，更新运行文档。',
+      ['http_service', 'idempotency', 'sqlite_transactions', 'concurrent_requests', 'restart_recovery'],
+      {'README.md': INVENTORY_README, 'server.py': API_STARTER, 'verify_public.py': API_PUBLIC_SMOKE},
+      {'server.py': INVENTORY_REFERENCE}, INVENTORY_VERIFY,
+      {'file': 'server.py', 'replace': "return 200, json.loads(previous['payload'])", 'with': "raise APIError(409, 'replay_wrongly_rejected')", 'expected_rejection': 'semantic replay'})
+
+MIGRATION_CLI = r'''
+from __future__ import annotations
+import argparse
+import json
+import sys
+from pathlib import Path
+from config_store.migrations import migrate, restore
+from config_store.values import read_values
+
+def main():
+    parser = argparse.ArgumentParser(description='Versioned SQLite configuration maintenance')
+    commands = parser.add_subparsers(dest='command', required=True)
+    for name in ('migrate', 'restore'):
+        sub = commands.add_parser(name)
+        sub.add_argument('--db', required=True)
+        sub.add_argument('--backup', required=True)
+    for name in ('get', 'list'):
+        sub = commands.add_parser(name)
+        sub.add_argument('--db', required=True)
+        if name == 'get':
+            sub.add_argument('--key', required=True)
+    arguments = parser.parse_args()
+    try:
+        if arguments.command == 'migrate':
+            result = migrate(Path(arguments.db), Path(arguments.backup))
+        elif arguments.command == 'restore':
+            result = restore(Path(arguments.db), Path(arguments.backup))
+        else:
+            result = read_values(Path(arguments.db))
+            if arguments.command == 'get':
+                result = next((item for item in result['settings'] if item['key'] == arguments.key), None)
+                if result is None:
+                    raise ValueError('unknown key')
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        return 0
+    except Exception as error:
+        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)
+        return 2
+
+if __name__ == '__main__':
+    raise SystemExit(main())
+'''
+
+MIGRATION_VALUES = r'''
+from __future__ import annotations
+import json
+import sqlite3
+
+def decode(text):
+    def invalid_constant(value):
+        raise ValueError('non-finite JSON number')
+    return json.loads(text, parse_constant=invalid_constant)
+
+def value_type(value):
+    if value is None:
+        return 'null'
+    if isinstance(value, bool):
+        return 'boolean'
+    if isinstance(value, (int, float)):
+        return 'number'
+    if isinstance(value, str):
+        return 'string'
+    if isinstance(value, list):
+        return 'array'
+    if isinstance(value, dict):
+        return 'object'
+    raise ValueError('unsupported JSON value')
+
+def read_values(database):
+    with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        if version not in (1, 2):
+            raise ValueError('unsupported schema version')
+        rows = connection.execute('SELECT * FROM settings ORDER BY key').fetchall()
+        settings = []
+        for row in rows:
+            value = decode(row['value'])
+            settings.append({'key': row['key'], 'value': value,
+                             'value_type': row['value_type'] if version == 2 else value_type(value)})
+        return {'schema_version': version, 'settings': settings}
+'''
+
+MIGRATION_IO = r'''
+from __future__ import annotations
+import os
+import sqlite3
+import tempfile
+from pathlib import Path
+
+def validate(connection):
+    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+        raise ValueError('invalid SQLite database')
+    version = connection.execute('PRAGMA user_version').fetchone()[0]
+    if version not in (1, 2):
+        raise ValueError('unsupported schema version')
+    connection.execute('SELECT key,value FROM settings LIMIT 0')
+    if version == 2:
+        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')
+    return version
+
+def temporary_path(parent):
+    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)
+    os.close(descriptor)
+    return Path(name)
+
+def copy_database(source, destination):
+    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:
+        validate(original)
+        with sqlite3.connect(destination) as copied:
+            original.backup(copied)
+    with destination.open('rb') as stream:
+        os.fsync(stream.fileno())
+
+def write_backup_exclusive(source, backup):
+    staged = temporary_path(backup.parent)
+    try:
+        copy_database(source, staged)
+        os.link(staged, backup)
+    finally:
+        staged.unlink(missing_ok=True)
+'''
+
+MIGRATION_REFERENCE = r'''
+from __future__ import annotations
+import json
+import os
+import sqlite3
+from .sqlite_io import copy_database, temporary_path, validate, write_backup_exclusive
+from .values import decode, value_type
+
+def migrate(database, backup):
+    if database.resolve() == backup.resolve():
+        raise ValueError('backup must differ from database')
+    with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as original:
+        version = validate(original)
+        count = original.execute('SELECT COUNT(*) FROM settings').fetchone()[0]
+    if version == 2:
+        return {'from_version': 2, 'to_version': 2, 'migrated_rows': 0, 'changed': False}
+    if backup.exists():
+        raise ValueError('backup already exists')
+    staged = temporary_path(database.parent)
+    try:
+        copy_database(database, staged)
+        with sqlite3.connect(staged) as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            rows = connection.execute('SELECT key,value FROM settings ORDER BY key').fetchall()
+            transformed = [(json.dumps(decode(text), ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False), value_type(decode(text)), key) for key, text in rows]
+            connection.execute("ALTER TABLE settings ADD COLUMN value_type TEXT NOT NULL DEFAULT 'unknown'")
+            connection.execute('ALTER TABLE settings ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')
+            connection.executemany('UPDATE settings SET value=?,value_type=?,updated_at=0 WHERE key=?', transformed)
+            connection.execute('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, description TEXT NOT NULL)')
+            connection.execute("INSERT INTO schema_migrations(version,description) VALUES (2,'typed configuration values')")
+            connection.execute('PRAGMA user_version=2')
+        write_backup_exclusive(database, backup)
+        os.replace(staged, database)
+        return {'from_version': 1, 'to_version': 2, 'migrated_rows': count, 'changed': True, 'backup': str(backup)}
+    finally:
+        staged.unlink(missing_ok=True)
+
+def restore(database, backup):
+    if database.resolve() == backup.resolve():
+        raise ValueError('backup must differ from database')
+    staged = temporary_path(database.parent)
+    try:
+        copy_database(backup, staged)
+        with sqlite3.connect(staged) as connection:
+            version = validate(connection)
+        os.replace(staged, database)
+        return {'restored': True, 'schema_version': version}
+    finally:
+        staged.unlink(missing_ok=True)
+'''
+
+MIGRATION_BROKEN = r'''
+from __future__ import annotations
+import json
+import sqlite3
+from .values import decode, value_type
+
+def migrate(database, backup):
+    backup.write_bytes(database.read_bytes())
+    with sqlite3.connect(database) as connection:
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        if version == 2:
+            return {'from_version': 2, 'to_version': 2, 'migrated_rows': 0, 'changed': False}
+        connection.execute("ALTER TABLE settings ADD COLUMN value_type TEXT NOT NULL DEFAULT 'string'")
+        connection.execute('ALTER TABLE settings ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')
+        connection.execute('PRAGMA user_version=2')
+        connection.commit()
+        rows = connection.execute('SELECT key,value FROM settings ORDER BY key').fetchall()
+        for key, text in rows:
+            value = decode(text)
+            connection.execute('UPDATE settings SET value=?,value_type=? WHERE key=?', (json.dumps(value), value_type(value), key))
+            connection.commit()
+        return {'from_version': version, 'to_version': 2, 'migrated_rows': len(rows), 'changed': True}
+
+def restore(database, backup):
+    database.write_bytes(backup.read_bytes())
+    with sqlite3.connect(database) as connection:
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+    return {'restored': True, 'schema_version': version}
+'''
+
+MIGRATION_README = '''
+# 旧版 SQLite 配置升级工具
+
+这是已有的多模块 CLI 项目。用户反馈升级失败后 DB 被部分修改，重跑覆盖了可恢复备份。修复通用迁移、类型保真、备份和恢复逻辑，并补充验证与操作文档。升级/恢复在服务停机后运行，不要求与外部写进程并发。
+
+环境为 Python 3.11+ 标准库；入口固定 `config_cli.py`。所有命令成功返回 0，并在 stdout 最后一行输出 JSON 对象；失败返回非 0，不得静默成功。
+
+公开 v1 schema：`PRAGMA user_version=1; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`。value 是任意合法 JSON 值的 UTF-8 字符串。保留 key 和语义值，拒绝 NaN/Infinity/坏 JSON。还可能有无关用户表，必须保留。
+
+v2 schema：保留 settings.key/value，新增 `value_type TEXT NOT NULL`、`updated_at INTEGER NOT NULL`；value 用 JSON `ensure_ascii=False, sort_keys=True, separators=(',', ':')` 规范化，类型为 `null/boolean/number/string/array/object`，迁移旧数据 updated_at=0。`PRAGMA user_version=2`，并有 `schema_migrations(version INTEGER PRIMARY KEY, description TEXT NOT NULL)` 的 version=2 记录。
+
+- `python config_cli.py migrate --db DB --backup BACKUP`：只允许 v1→v2。首次必须先保留有效的完整 v1 SQLite 备份，再原子发布升级；BACKUP 不得等于 DB，已有备份不得覆盖。成功输出 `{from_version:1,to_version:2,migrated_rows:N,changed:true,...}`。已为 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0，且不改 DB 或备份，即使 BACKUP 已存在。
+- 任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败，原 DB 字节保持不变；不能丢失原行、表或版本。无关用户表保留；已有不兼容 schema_migrations 不得强制删除或覆盖。
+- `python config_cli.py list --db DB`：返回 `{schema_version,settings:[{key,value,value_type},...]}` 按 key 排序，value 为解码后的 JSON 值。
+- `python config_cli.py get --db DB --key KEY`：返回对应 `{key,value,value_type}`；未知 key 非 0。get/list 支持合法 v1、v2；不得修改 DB。
+- `python config_cli.py restore --db DB --backup BACKUP`：验证备份确为完整合法 v1/v2 配置 DB 后原子恢复，返回 `{restored:true,schema_version:版本}`；损坏文件、非配置 SQLite、缺失文件应失败并保留原 DB；不得修改 BACKUP。
+
+DB/backup 父目录已存在。允许调整内部模块，所有运行数据路径由 CLI 指定。`sample_v1.sql` 是小样例，不代表全面输入。请实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode。
+'''
+
+MIGRATION_VERIFY = VERIFY_COMMON + r'''
+
+def make_v1(path, entries, version=1, incompatible=False):
+    with sqlite3.connect(path) as connection:
+        connection.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        connection.executemany('INSERT INTO settings VALUES (?,?)', entries)
+        connection.execute('CREATE TABLE user_notes (note TEXT NOT NULL)')
+        connection.execute('INSERT INTO user_notes VALUES (?)', ('保留用户历史 é',))
+        connection.execute(f'PRAGMA user_version={version}')
+        if incompatible:
+            connection.execute('CREATE TABLE schema_migrations (unrelated TEXT NOT NULL)')
+            connection.execute("INSERT INTO schema_migrations VALUES ('preserve-me')")
+
+def raw_state(path):
+    with sqlite3.connect(path) as connection:
+        return {'version': connection.execute('PRAGMA user_version').fetchone()[0],
+                'settings': connection.execute('SELECT key,value FROM settings ORDER BY key').fetchall(),
+                'notes': connection.execute('SELECT * FROM user_notes').fetchall()}
+
+def main():
+    randomizer = random.Random(73071)
+    semantic = {'enabled': True, 'attempts': randomizer.randint(11, 99), 'nothing': None,
+                'caption': '配置 é 雪', 'ratio': 1.25, 'list': [3, 'é', False],
+                'nested': {'z': 4, 'a': {'enabled': False}}, 'disabled': False}
+    entries = [(key, json.dumps(value, ensure_ascii=False, indent=2)) for key, value in semantic.items()]
+    database, backup = RUN / 'config.sqlite3', RUN / 'config-before.sqlite3'
+    make_v1(database, entries)
+    original_state = raw_state(database)
+    result = cli('config_cli.py', 'migrate', '--db', database, '--backup', backup)
+    check(result.get('from_version') == 1 and result.get('to_version') == 2 and result.get('changed') is True and result.get('migrated_rows') == len(entries), 'migration summary')
+    check(backup.is_file() and raw_state(backup) == original_state, 'backup is complete pre-migration SQLite')
+    listed = cli('config_cli.py', 'list', '--db', database)
+    expected_types = {'enabled': 'boolean', 'attempts': 'number', 'nothing': 'null', 'caption': 'string', 'ratio': 'number', 'list': 'array', 'nested': 'object', 'disabled': 'boolean'}
+    expected = [{'key': key, 'value': semantic[key], 'value_type': expected_types[key]} for key in sorted(semantic)]
+    typed_rows = [{key: row[key] for key in ('key', 'value', 'value_type')} for row in listed.get('settings', [])]
+    check(listed.get('schema_version') == 2 and typed_rows == expected, 'all JSON types and Unicode preserved')
+    for key in ('enabled', 'nested', 'caption'):
+        value = cli('config_cli.py', 'get', '--db', database, '--key', key)
+        check({name: value[name] for name in ('key', 'value', 'value_type')} == next(row for row in expected if row['key'] == key), 'get typed value')
+    cli('config_cli.py', 'get', '--db', database, '--key', 'not-present', expect=1)
+    with sqlite3.connect(database) as connection:
+        check(connection.execute('PRAGMA user_version').fetchone()[0] == 2, 'schema version committed')
+        columns = {row[1]: row for row in connection.execute('PRAGMA table_info(settings)')}
+        check({'key', 'value', 'value_type', 'updated_at'} <= set(columns) and columns['value_type'][3] == 1 and columns['updated_at'][3] == 1, 'public v2 columns are non-null')
+        rows = connection.execute('SELECT key,value,value_type,updated_at FROM settings ORDER BY key').fetchall()
+        check(all(text == json.dumps(semantic[key], ensure_ascii=False, sort_keys=True, separators=(',', ':')) and kind == expected_types[key] and stamp == 0 for key, text, kind, stamp in rows), 'canonical durable values and migration timestamp')
+        check(connection.execute('SELECT version FROM schema_migrations WHERE version=2').fetchone() == (2,), 'migration history registered')
+        check(connection.execute('SELECT * FROM user_notes').fetchall() == original_state['notes'], 'unrelated table preserved')
+    before_bytes, backup_bytes = database.read_bytes(), backup.read_bytes()
+    result = cli('config_cli.py', 'migrate', '--db', database, '--backup', backup)
+    check(result.get('changed') is False and result.get('from_version') == 2 and result.get('to_version') == 2 and result.get('migrated_rows') == 0, 'second migration is a no-op')
+    check(database.read_bytes() == before_bytes and backup.read_bytes() == backup_bytes, 'no-op preserves database and backup bytes')
+    for kind in ('bad-json', 'non-finite', 'unsupported', 'schema-conflict', 'existing-backup'):
+        source, destination = RUN / (kind + '.sqlite3'), RUN / (kind + '-backup.sqlite3')
+        values = [('a-valid', '{"a":1}'), ('z-last', '{broken' if kind == 'bad-json' else 'NaN' if kind == 'non-finite' else 'false')]
+        make_v1(source, values, version=9 if kind == 'unsupported' else 1, incompatible=kind == 'schema-conflict')
+        if kind == 'existing-backup':
+            destination.write_bytes(b'owner backup must not be overwritten')
+        source_bytes = source.read_bytes()
+        destination_bytes = destination.read_bytes() if destination.exists() else None
+        cli('config_cli.py', 'migrate', '--db', source, '--backup', destination, expect=1)
+        check(source.read_bytes() == source_bytes, f'{kind} leaves entire source byte-identical')
+        if destination_bytes is not None:
+            check(destination.read_bytes() == destination_bytes, 'existing backup unchanged')
+    result = cli('config_cli.py', 'restore', '--db', database, '--backup', backup)
+    check(result.get('restored') is True and result.get('schema_version') == 1 and raw_state(database) == original_state, 'restore reverts schema, rows and user table')
+    check(backup.read_bytes() == backup_bytes, 'restore preserves source backup')
+    before_restore = database.read_bytes()
+    damaged = RUN / 'damaged.sqlite3'; damaged.write_bytes(b'not a database')
+    unrelated = RUN / 'unrelated.sqlite3'
+    with sqlite3.connect(unrelated) as connection:
+        connection.execute('CREATE TABLE unrelated (value TEXT)')
+    for path in (damaged, unrelated, RUN / 'missing.sqlite3'):
+        cli('config_cli.py', 'restore', '--db', database, '--backup', path, expect=1)
+        check(database.read_bytes() == before_restore, 'invalid restore preserves original bytes')
+    integrity(database); integrity(backup)
+
+if __name__ == '__main__':
+    raise SystemExit(run(main))
+'''
+
+MIGRATION_FILES = {'config_cli.py': MIGRATION_CLI, 'config_store/__init__.py': '',
+                   'config_store/values.py': MIGRATION_VALUES,
+                   'config_store/sqlite_io.py': MIGRATION_IO,
+                   'config_store/migrations.py': MIGRATION_REFERENCE}
+MIGRATION_STARTER = {**MIGRATION_FILES, 'config_store/migrations.py': MIGRATION_BROKEN}
+write('RP-MAINT-01', '维护现有 SQLite 配置迁移项目：用户遇到了失败升级后原库被部分修改、再次升级覆盖备份的问题。按 README 明确的 v1/v2 和 CLI 契约修复通用迁移及恢复链，保持各 JSON 类型与 Unicode 值，保留无关表，并实际验证失败不损原数据、幂等重跑和备份恢复。',
+      ['existing_project_maintenance', 'sqlite_schema_migration', 'atomic_publication', 'backup_restore', 'failure_recovery', 'unicode'],
+      {'README.md': MIGRATION_README, **MIGRATION_STARTER,
+       'sample_v1.sql': 'PRAGMA user_version=1;\nCREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);\nINSERT INTO settings VALUES (\'theme\', \'"深色"\');\nINSERT INTO settings VALUES (\'enabled\', \'true\');\n'},
+      MIGRATION_FILES, MIGRATION_VERIFY,
+      {'file': 'config_store/values.py', 'replace': "return 'boolean'", 'with': "return 'string'", 'expected_rejection': 'all JSON types and Unicode preserved'})
+
+INDEX_CLI = r'''
+from __future__ import annotations
+import argparse
+import json
+import sys
+from pathlib import Path
+from document_index.documents import collect
+from document_index.store import synchronize, status
+from document_index.query import query
+
+def main():
+    parser = argparse.ArgumentParser(description='Incremental Unicode document index')
+    commands = parser.add_subparsers(dest='command', required=True)
+    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)
+    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)
+    info = commands.add_parser('status'); info.add_argument('--db', required=True)
+    arguments = parser.parse_args()
+    try:
+        database = Path(arguments.db)
+        if arguments.command == 'sync':
+            root = Path(arguments.root).resolve()
+            result = synchronize(database, root, collect(root))
+        elif arguments.command == 'query':
+            result = query(database, arguments.text)
+        else:
+            result = status(database)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except Exception as error:
+        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)
+        return 2
+
+if __name__ == '__main__':
+    raise SystemExit(main())
+'''
+
+INDEX_DOCUMENTS = r'''
+from __future__ import annotations
+import hashlib
+import os
+import unicodedata
+
+def normalize(value):
+    return unicodedata.normalize('NFC', value).casefold()
+
+def collect(root):
+    if not root.is_dir():
+        raise ValueError('document root is not a directory')
+    rows = []
+    for directory, names, files in os.walk(root, followlinks=False):
+        from pathlib import Path
+        base = Path(directory)
+        names[:] = sorted(name for name in names if not (base / name).is_symlink())
+        for name in sorted(files):
+            path = base / name
+            if path.is_symlink() or path.suffix.lower() not in ('.txt', '.md'):
+                continue
+            content = path.read_bytes()
+            text = content.decode('utf-8')
+            rows.append({'path': path.relative_to(root).as_posix(), 'content': text,
+                         'digest': hashlib.sha256(content).hexdigest(),
+                         'search': normalize(text), 'mtime': path.stat().st_mtime_ns})
+    return sorted(rows, key=lambda row: row['path'])
+'''
+
+INDEX_STORE = r'''
+from __future__ import annotations
+import sqlite3
+
+def existing(database):
+    return sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)
+
+def synchronize(database, root, documents):
+    with sqlite3.connect(database) as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')
+        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        metadata = dict(connection.execute('SELECT key,value FROM metadata'))
+        if metadata.get('root', str(root)) != str(root):
+            raise ValueError('index belongs to another document root')
+        old = dict(connection.execute('SELECT path,digest FROM documents'))
+        current = {row['path']: row for row in documents}
+        added = set(current) - set(old)
+        deleted = set(old) - set(current)
+        updated = {name for name in set(current) & set(old) if current[name]['digest'] != old[name]}
+        unchanged = len(current) - len(added) - len(updated)
+        for name in sorted(added | updated):
+            row = current[name]
+            connection.execute('INSERT INTO documents(path,content,digest,search,mtime) VALUES (?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET content=excluded.content,digest=excluded.digest,search=excluded.search,mtime=excluded.mtime', (name, row['content'], row['digest'], row['search'], row['mtime']))
+        connection.executemany('DELETE FROM documents WHERE path=?', [(name,) for name in sorted(deleted)])
+        generation = int(metadata.get('generation', '0')) + int(bool(added or updated or deleted))
+        connection.execute("INSERT INTO metadata VALUES ('root',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(root),))
+        connection.execute("INSERT INTO metadata VALUES ('generation',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(generation),))
+        return {'added': len(added), 'updated': len(updated), 'deleted': len(deleted), 'unchanged': unchanged, 'generation': generation}
+
+def status(database):
+    with existing(database) as connection:
+        metadata = dict(connection.execute('SELECT key,value FROM metadata'))
+        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]
+        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}
+'''
+
+INDEX_QUERY = r'''
+from __future__ import annotations
+from .documents import normalize
+from .store import existing
+
+def query(database, text):
+    if not text.strip():
+        raise ValueError('query must be nonempty')
+    with existing(database) as connection:
+        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()
+    matches = [{'path': row[0]} for row in rows]
+    return {'count': len(matches), 'matches': matches}
+'''
+
+INDEX_BROKEN_DOCUMENTS = r'''
+from __future__ import annotations
+import hashlib
+
+def normalize(value):
+    return value.lower()
+
+def collect(root):
+    rows = []
+    for path in sorted(root.glob('*.md')):
+        content = path.read_bytes()
+        text = content.decode('utf-8', errors='replace')
+        rows.append({'path': path.name, 'content': text,
+                     'digest': hashlib.sha256(content).hexdigest(),
+                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})
+    return rows
+'''
+
+INDEX_BROKEN_STORE = r'''
+from __future__ import annotations
+import sqlite3
+
+def existing(database):
+    return sqlite3.connect(database)
+
+def synchronize(database, root, documents):
+    with sqlite3.connect(database) as connection:
+        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')
+        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        metadata = dict(connection.execute('SELECT key,value FROM metadata'))
+        old = dict(connection.execute('SELECT path,mtime FROM documents'))
+        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}
+        for row in documents:
+            if old.get(row['path']) == row['mtime']:
+                counts['unchanged'] += 1
+                continue
+            counts['updated' if row['path'] in old else 'added'] += 1
+            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))
+            connection.commit()
+        generation = int(metadata.get('generation', '0')) + 1
+        connection.execute("INSERT OR REPLACE INTO metadata VALUES ('root',?)", (str(root),))
+        connection.execute("INSERT OR REPLACE INTO metadata VALUES ('generation',?)", (str(generation),))
+        return {**counts, 'generation': generation}
+
+def status(database):
+    with existing(database) as connection:
+        metadata = dict(connection.execute('SELECT key,value FROM metadata'))
+        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]
+        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}
+'''
+
+INDEX_README = '''
+# 增量文档索引维护
+
+这是已有的多文件 Python SQLite 索引工具。用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略，以及 Unicode 查询不一致。修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口，说明验证方法。可调整内部模块；不需要外部包或在线服务。
+
+Python 3.11+ 标准库，入口 `index_cli.py`。成功退出 0，stdout 最后一行 JSON 对象；非法输入或损坏数据非 0。所有运行 DB 路径由参数指定。
+
+- `python index_cli.py sync --root DOCS --db DB`：递归索引 DOCS 下扩展名为 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写）。相对路径用 POSIX `/`；跳过符号链接文件和目录，不读取链接指向的外部数据。文件名、内容保持 Unicode。忽略其他扩展名。
+- 同步按内容变化识别更新，mtime/size 相同也可能变化；文件删除应从索引删除。返回 `{added,updated,deleted,unchanged,generation}`，按文件计数。generation 从 0 开始，只有新增/内容修改/删除时加 1；纯重复同步不增加。
+- 一次扫描中任一目标文件不能严格 UTF-8 解码或发生读取错误，整次同步失败，已有文档/查询结果/代数不能部分更新。不存在的 root 失败。一个 DB 绑定首次 root 的绝对路径，不允许换 root 后静默混用。
+- `python index_cli.py query --db DB --text TEXT`：非空查询，对内容进行 Unicode NFC 规范化后 casefold 的字面子串匹配；TEXT 同样处理。`Straße` 应匹配 `STRASSE`，组合/分解的 é 等价。返回 `{count,matches:[{path:相对路径},...]}`，每文档一次，按路径升序；没有匹配返回空数组。禁止把 SQL 通配符或正则表达式当作查询语法。
+- `python index_cli.py status --db DB` → `{document_count,generation,root}`；query/status 不修改索引，不存在 DB 应失败。
+
+进程重新执行后仍应保留原索引，不要求源文件在查询时仍存在。样例 docs 只用于手工演示；请实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启。更新 README 操作说明。
+'''
+
+INDEX_VERIFY = VERIFY_COMMON + r'''
+
+def main():
+    documents = RUN / 'docs'; (documents / '团队').mkdir(parents=True)
+    database = RUN / 'index.sqlite3'
+    files = {'guide.md': 'Alpha marker\nStraße und CAFÉ\n', '团队/规划.txt': '团队 计划\nCafe\u0301 meeting\n', '团队/literal.MD': "A literal 100%_quote' token\n"}
+    for name, content in files.items():
+        (documents / name).write_text(content, encoding='utf-8')
+    (documents / 'ignore.json').write_text('{"secret":"ignored-target"}', encoding='utf-8')
+    outside = RUN / 'outside'; outside.mkdir()
+    (outside / 'secret.md').write_text('outside forbidden marker', encoding='utf-8')
+    (documents / 'external.md').symlink_to(outside / 'secret.md')
+    (documents / 'external-dir').symlink_to(outside, target_is_directory=True)
+    def sync(expect=0):
+        result = cli('index_cli.py', 'sync', '--root', documents, '--db', database, expect=expect)
+        return result if expect else {key: result[key] for key in ('added', 'updated', 'deleted', 'unchanged', 'generation')}
+    def info():
+        result = cli('index_cli.py', 'status', '--db', database)
+        return {key: result[key] for key in ('document_count', 'generation', 'root')}
+    def query(text):
+        return cli('index_cli.py', 'query', '--db', database, '--text', text)
+    def expect_paths(text, expected):
+        value = query(text)
+        check(value.get('count') == len(expected) and [{'path': row['path']} for row in value['matches']] == [{'path': path} for path in sorted(expected)], 'literal Unicode query ' + repr(text))
+    check(sync() == {'added': 3, 'updated': 0, 'deleted': 0, 'unchanged': 0, 'generation': 1}, 'initial recursive indexing excludes symlinks/non-doc files')
+    check(info() == {'document_count': 3, 'generation': 1, 'root': str(documents.resolve())}, 'persistent status metadata')
+    expect_paths('STRASSE', ['guide.md'])
+    expect_paths('café', ['guide.md', '团队/规划.txt'])
+    expect_paths('CAFE\u0301', ['guide.md', '团队/规划.txt'])
+    expect_paths('计划', ['团队/规划.txt'])
+    expect_paths("100%_quote'", ['团队/literal.MD'])
+    expect_paths('outside forbidden', [])
+    expect_paths('ignored-target', [])
+    check(sync() == {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 3, 'generation': 1}, 'unchanged sync preserves generation')
+    target = documents / 'guide.md'
+    original_stat = target.stat()
+    new_text = files['guide.md'].replace('Alpha', 'Omega')
+    check(len(new_text.encode('utf-8')) == original_stat.st_size, 'fixture same-size update')
+    target.write_text(new_text, encoding='utf-8')
+    os.utime(target, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    (documents / '团队/规划.txt').unlink()
+    (documents / 'new.txt').write_text('Brand-new content É', encoding='utf-8')
+    check(sync() == {'added': 1, 'updated': 1, 'deleted': 1, 'unchanged': 1, 'generation': 2}, 'incremental add/update/delete including unchanged mtime')
+    expect_paths('Alpha marker', [])
+    expect_paths('Omega marker', ['guide.md'])
+    expect_paths('计划', [])
+    expect_paths('brand-NEW', ['new.txt'])
+    before_status = info()
+    (documents / 'guide.md').write_text('Pending replacement', encoding='utf-8')
+    (documents / 'new.txt').unlink()
+    (documents / 'bad.md').write_bytes(b'bad UTF8 \xff\xfe')
+    sync(expect=1)
+    check(info() == before_status, 'invalid UTF-8 leaves metadata and generation unchanged')
+    expect_paths('Omega marker', ['guide.md'])
+    expect_paths('brand-new', ['new.txt'])
+    expect_paths('Pending replacement', [])
+    (documents / 'bad.md').unlink()
+    check(sync() == {'added': 0, 'updated': 1, 'deleted': 1, 'unchanged': 1, 'generation': 3}, 'recovery applies all pending changes together')
+    expect_paths('Pending replacement', ['guide.md'])
+    expect_paths('brand-new', [])
+    check(info()['document_count'] == 2, 'deleted document removed durably')
+    for path in documents.rglob('*'):
+        if path.is_file() and not path.is_symlink():
+            path.unlink()
+    expect_paths('Pending replacement', ['guide.md'])
+    check(info()['generation'] == 3, 'new CLI processes query persisted snapshot without source files')
+    wrong_root = RUN / 'other-docs'; wrong_root.mkdir()
+    cli('index_cli.py', 'sync', '--root', wrong_root, '--db', database, expect=1)
+    check(info()['generation'] == 3, 'different root does not replace index')
+    cli('index_cli.py', 'query', '--db', database, '--text', '   ', expect=1)
+    missing = RUN / 'missing.sqlite3'
+    cli('index_cli.py', 'status', '--db', missing, expect=1)
+    check(not missing.exists(), 'missing index status does not create a database')
+    integrity(database)
+
+if __name__ == '__main__':
+    raise SystemExit(run(main))
+'''
+
+INDEX_FILES = {'index_cli.py': INDEX_CLI, 'document_index/__init__.py': '',
+               'document_index/documents.py': INDEX_DOCUMENTS,
+               'document_index/store.py': INDEX_STORE,
+               'document_index/query.py': INDEX_QUERY}
+INDEX_STARTER = {**INDEX_FILES, 'document_index/documents.py': INDEX_BROKEN_DOCUMENTS,
+                 'document_index/store.py': INDEX_BROKEN_STORE}
+write('RP-MAINT-02', '维护现有多模块文档索引项目。修复递归扫描、增量修改/删除、Unicode 查询及异常后部分更新问题，遵循 README 的公开 CLI 契约。验证同大小同 mtime 内容变更、重启后的查询、坏 UTF-8 整体失败和符号链接隔离，并更新使用与验证说明。',
+      ['existing_project_maintenance', 'incremental_indexing', 'sqlite_persistence', 'unicode_search', 'failure_atomicity', 'filesystem_boundaries'],
+      {'README.md': INDEX_README, **INDEX_STARTER,
+       'docs/welcome.md': '# 项目说明\n欢迎使用文档索引。\n',
+       'docs/团队/notes.txt': 'Café 与 Straße 是 Unicode 查询样例。\n'},
+      INDEX_FILES, INDEX_VERIFY,
+      {'file': 'document_index/documents.py', 'replace': ".casefold()", 'with': ".lower()", 'expected_rejection': 'literal Unicode query STRASSE'})
+
+print(json.dumps({'group': str(GROUP), 'tasks': ['RP-API-01', 'RP-API-02', 'RP-MAINT-01', 'RP-MAINT-02'], 'status': 'authored'}, ensure_ascii=False))

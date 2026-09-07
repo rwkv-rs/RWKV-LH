@@ -1,0 +1,48 @@
+{
+  "task_id": "RP-MAINT-02",
+  "level": "project",
+  "user_request": "维护现有多模块文档索引项目。修复递归扫描、增量修改/删除、Unicode 查询及异常后部分更新问题，遵循 README 的公开 CLI 契约。验证同大小同 mtime 内容变更、重启后的查询、坏 UTF-8 整体失败和符号链接隔离，并更新使用与验证说明。",
+  "capabilities": [
+    "existing_project_maintenance",
+    "incremental_indexing",
+    "sqlite_persistence",
+    "unicode_search",
+    "failure_atomicity",
+    "filesystem_boundaries"
+  ],
+  "workspace_files": [
+    {
+      "path": "README.md",
+      "content": "# 增量文档索引维护\n\n这是已有的多文件 Python SQLite 索引工具。用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略，以及 Unicode 查询不一致。修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口，说明验证方法。可调整内部模块；不需要外部包或在线服务。\n\nPython 3.11+ 标准库，入口 `index_cli.py`。成功退出 0，stdout 最后一行 JSON 对象；非法输入或损坏数据非 0。所有运行 DB 路径由参数指定。\n\n- `python index_cli.py sync --root DOCS --db DB`：递归索引 DOCS 下扩展名为 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写）。相对路径用 POSIX `/`；跳过符号链接文件和目录，不读取链接指向的外部数据。文件名、内容保持 Unicode。忽略其他扩展名。\n- 同步按内容变化识别更新，mtime/size 相同也可能变化；文件删除应从索引删除。返回 `{added,updated,deleted,unchanged,generation}`，按文件计数。generation 从 0 开始，只有新增/内容修改/删除时加 1；纯重复同步不增加。\n- 一次扫描中任一目标文件不能严格 UTF-8 解码或发生读取错误，整次同步失败，已有文档/查询结果/代数不能部分更新。不存在的 root 失败。一个 DB 绑定首次 root 的绝对路径，不允许换 root 后静默混用。\n- `python index_cli.py query --db DB --text TEXT`：非空查询，对内容进行 Unicode NFC 规范化后 casefold 的字面子串匹配；TEXT 同样处理。`Straße` 应匹配 `STRASSE`，组合/分解的 é 等价。返回 `{count,matches:[{path:相对路径},...]}`，每文档一次，按路径升序；没有匹配返回空数组。禁止把 SQL 通配符或正则表达式当作查询语法。\n- `python index_cli.py status --db DB` → `{document_count,generation,root}`；query/status 不修改索引，不存在 DB 应失败。\n\n进程重新执行后仍应保留原索引，不要求源文件在查询时仍存在。样例 docs 只用于手工演示；请实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启。更新 README 操作说明。\n"
+    },
+    {
+      "path": "index_cli.py",
+      "content": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n"
+    },
+    {
+      "path": "document_index/__init__.py",
+      "content": ""
+    },
+    {
+      "path": "document_index/documents.py",
+      "content": "from __future__ import annotations\nimport hashlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n"
+    },
+    {
+      "path": "document_index/store.py",
+      "content": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n"
+    },
+    {
+      "path": "document_index/query.py",
+      "content": "from __future__ import annotations\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text):\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n"
+    },
+    {
+      "path": "docs/welcome.md",
+      "content": "# 项目说明\n欢迎使用文档索引。\n"
+    },
+    {
+      "path": "docs/团队/notes.txt",
+      "content": "Café 与 Straße 是 Unicode 查询样例。\n"
+    }
+  ],
+  "workspace_generators": []
+}

@@ -1,0 +1,114 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_______ test_project_behavior_browser_exercises_persistence_in_isolation _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_behavior_browser_0')
+
+    def test_project_behavior_browser_exercises_persistence_in_isolation(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        (workspace / "index.html").write_text("""<!doctype html><input aria-label="Note"><button>Save</button><output></output>
+    <script>const input=document.querySelector('input'), output=document.querySelector('output');
+    output.textContent=localStorage.getItem('note')||'';
+    document.querySelector('button').onclick=()=>{localStorage.setItem('note',input.value);output.textContent=input.value;};</script>""")
+        program = """import functools, sys, threading
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+    from playwright.sync_api import sync_playwright, expect
+    handler = functools.partial(SimpleHTTPRequestHandler, directory=sys.argv[1])
+    with ThreadingHTTPServer(('127.0.0.1', 0), handler) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+                page = browser.new_page()
+                page.goto('http://127.0.0.1:' + str(server.server_port))
+                page.get_by_label('Note').fill('saved across reload')
+                page.get_by_role('button', name='Save').click()
+                page.reload()
+                expect(page.locator('output')).to_have_text('saved across reload')
+                browser.close()
+        finally:
+            server.shutdown()
+            thread.join(5)
+    """
+>       result = run_isolated_verifier(acceptance(program, browser=True), workspace, [], {}, private_root=tmp_path / "private")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_project_behavior_verifier.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+acceptance = {'checks': [{'kind': 'project_behavior', 'program': "import functools, sys, threading\nfrom http.server import SimpleH...in(5)\n", 'program_sha256': 'a1067dadc930856959e36432efb3d0d45f09d69e95b86670711b92867c84d838', 'browser': True, ...}]}
+workspace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_behavior_browser_0/candidate')
+events = [], observations = {}
+private_root = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_behavior_browser_0/private')
+timeout_seconds = 180.0
+
+    def run_isolated_verifier(
+        acceptance: Mapping[str, Any],
+        workspace: Path,
+        events: Sequence[Mapping[str, Any]],
+        observations: Mapping[str, Any],
+        *,
+        private_root: Path,
+        timeout_seconds: float = 180.0,
+    ) -> IsolatedVerifierResult:
+        """Run hidden checks in a fail-closed namespace after the Agent phase ends."""
+    
+        bubblewrap = shutil.which("bwrap")
+        if not bubblewrap:
+            raise RuntimeError("isolated E2E verification requires bubblewrap")
+        private_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="verifier-", dir=private_root) as directory:
+            root = Path(directory)
+            snapshot = root / "workspace"
+            _secure_snapshot(workspace, snapshot)
+            worker_directory = root / "worker"
+            worker_directory.mkdir()
+            worker = worker_directory / "worker.py"
+            shutil.copy2(Path(__file__).resolve(strict=True), worker)
+            browser_required = False
+            for check in acceptance.get("checks") or ():
+                if check.get("kind") != "project_behavior":
+                    continue
+                try:
+                    program, digest = _project_program(check)
+                except ValueError:
+                    # The worker reports a failed check with the binding error.
+                    continue
+                program_directory = worker_directory / "programs"
+                program_directory.mkdir(exist_ok=True)
+                (program_directory / f"{digest}.py").write_text(program, encoding="utf-8")
+                browser_required = browser_required or check.get("browser") is True
+            browser_mounts = _browser_runtime_mounts() if browser_required else ()
+            payload = json.dumps(
+                {
+                    "acceptance": dict(acceptance),
+                    "events": [dict(item) for item in events],
+                    "observations": dict(observations),
+                },
+                ensure_ascii=False,
+            )
+            completed = subprocess.run(
+                _bubblewrap_worker_command(bubblewrap, snapshot, worker, browser_mounts=browser_mounts),
+                input=payload,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                timeout=max(1.0, float(timeout_seconds)),
+                check=False,
+                start_new_session=True,
+                env={"LANG": os.environ.get("LANG", "C.UTF-8")},
+            )
+            if completed.returncode != 0:
+>               raise RuntimeError(
+                    "isolated verifier failed: "
+                    + ((completed.stderr or completed.stdout or "unknown error")[:4000])
+                )
+E               RuntimeError: isolated verifier failed: bwrap: Can't mkdir /opt/verifier-site: Read-only file system
+
+rwkv_lh/benchmark_verifier.py:1007: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/test_project_behavior_verifier.py::test_project_behavior_browser_exercises_persistence_in_isolation
+1 failed, 3 passed in 0.39s

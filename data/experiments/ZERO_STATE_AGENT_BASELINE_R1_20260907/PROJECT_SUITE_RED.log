@@ -1,0 +1,40 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_real_project_development_suite_has_twelve_private_behavior_contracts ___
+
+suite = 'realprojectdevv1'
+
+    def load_suite(
+        suite: str = "core30",
+    ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        try:
+>           definition = SUITES[suite]
+                         ^^^^^^^^^^^^^
+E           KeyError: 'realprojectdevv1'
+
+scripts/run_rwkv_e2e_benchmark.py:653: KeyError
+
+The above exception was the direct cause of the following exception:
+
+    def test_real_project_development_suite_has_twelve_private_behavior_contracts() -> None:
+>       tasks, cases = load_suite("realprojectdevv1")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_real_project_dev_suite.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+suite = 'realprojectdevv1'
+
+    def load_suite(
+        suite: str = "core30",
+    ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        try:
+            definition = SUITES[suite]
+        except KeyError as exc:
+>           raise ValueError(f"unknown RWKV E2E suite: {suite}") from exc
+E           ValueError: unknown RWKV E2E suite: realprojectdevv1
+
+scripts/run_rwkv_e2e_benchmark.py:655: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_real_project_dev_suite.py::test_real_project_development_suite_has_twelve_private_behavior_contracts
+1 failed in 0.06s

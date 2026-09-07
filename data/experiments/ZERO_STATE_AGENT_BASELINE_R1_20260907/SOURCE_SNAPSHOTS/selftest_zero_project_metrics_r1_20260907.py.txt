@@ -1,0 +1,132 @@
+"""Synthetic metric records only: never role protocol input or StateTune examples."""
+from __future__ import annotations
+import hashlib
+import json
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+BASE=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/METRIC_COLLECTOR_SELFTEST'
+DRIVER=ROOT/'temp/collect_zero_project_metrics_r1_20260907.py'
+def write(path,value):path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value,indent=2)+'\n')
+def event(ident,kind,payload):return {'event_id':ident,'event_type':kind,'payload':payload}
+def database(case,main,wal=None,shm=None):
+    path=case/'state/long_horizon.db';path.parent.mkdir(parents=True,exist_ok=True)
+    for suffix,size in (('',main),('-wal',wal),('-shm',shm)):
+        target=Path(str(path)+suffix)
+        if size is not None:
+            with target.open('wb') as handle:handle.truncate(size)
+def fingerprint(root):
+    return {str(p.relative_to(root)):(p.stat().st_size,p.stat().st_mtime_ns) for p in root.rglob('*') if p.is_file()}
+def main():
+    fixture=BASE/'fixture_run';fixture.mkdir(parents=True,exist_ok=True)
+    task_ids=['RP-CLI-01','RP-CLI-02','RP-DATA-01','RP-API-01']
+    write(fixture/'RUN_PROTOCOL.json',{'selected_case_ids':task_ids,'suite':'synthetic metric collector fixture'})
+    write(fixture/'results.json',{'results':[
+        {'task_id':task_ids[0],'passed':True,'agent_completed':True,'status':'completed','action_count':3,'protocol_rejection_count':2},
+        {'task_id':task_ids[1],'passed':False,'agent_completed':False,'status':'failed'},
+        {'task_id':task_ids[2],'agent_completed':'missing-not-false','status':'interrupted'},
+    ]})
+    actions={
+        'change':{'status':'succeeded','action_type':'run_command','workspace_digest_before':'a'*64,'workspace_digest_after':'b'*64},
+        'noop':{'status':'succeeded','action_type':'read_file','workspace_digest_before':'c'*64,'workspace_digest_after':'c'*64},
+        'failed':{'status':'failed','action_type':'run_command','workspace_digest_before':'a'*64,'workspace_digest_after':'b'*64},
+    }
+    selection=event('event-selector','exact_tool_selection_staged',{
+        'selection_id':'ensemble-1','selection':{'raw_selection':{'lane_selections':{
+            name:{'trace_id':'lane-'+name} for name in ('first','second','third')
+        }}}})
+    guard=event('event-guard','protocol_rejection_recorded',{'error':'[operation_target_contract] target mismatch','request_id':'rejected-request','decision_id':'rejected-decision','selection_id':'rejected-selection'})
+    quoted=event('event-quoted','protocol_rejection_recorded',{'error':'a quoted marker [operation_target_contract] is data'})
+    completed=event('event-completed','run_completed',{})
+    intermediate=event('event-intermediate','run_interrupted',{'reason':'controller_slice_exhausted','resumable':True})
+    events=[selection,guard,guard,quoted,intermediate,completed]
+    model=[{'type':'model_session_generation_started','request_id':'request-1','model_role':'executor_args'}]*2
+    state={'actions':actions}
+    audit={'task_id':task_ids[0],'run_state':state,'action_ledger':actions,
+           'events':[{'event_id':n,'type':e['event_type'],'data':e['payload'],'causal_event':e} for n,e in enumerate(events)],
+           'runner_observations':{'goal_transition_budget_consumed':7,'goal_transition_budget_exhausted':False},
+           'model_trace':model,'supervisor_trace':[
+               {'type':'supervisor_request_started','call_id':'strong-1','phase':'goal_plan'},
+               {'type':'supervisor_request_started','call_id':'strong-2','phase':'goal_stage_review'},
+           ]}
+    write(fixture/'cases'/task_ids[0]/'audit.json',audit);database(fixture/'cases'/task_ids[0],99_999_998,1,1)
+    bad_actions={
+        'incomplete':{'status':'succeeded','action_type':'run_command','workspace_digest_before':'','workspace_digest_after':'e'*64},
+        'uppercase':{'status':'succeeded','action_type':'run_command','workspace_digest_before':'A'*64,'workspace_digest_after':'B'*64},
+    }
+    stopped=event('event-stopped','run_interrupted',{'reason':'controller_slice_exhausted'})
+    write(fixture/'cases'/task_ids[2]/'audit.json',{
+        'task_id':task_ids[2],'run_state':{'actions':bad_actions,'causal_order':['event-stopped'],'causal_records':{'event-stopped':stopped}},
+        'action_ledger':bad_actions,'model_trace':[{'type':'model_session_generation_started','request_id':'role-missing'}],
+        'supervisor_trace':[],'runner_observations':{'goal_transition_budget_consumed':80,'goal_transition_budget_exhausted':True},
+    });database(fixture/'cases'/task_ids[2],100_000_001)
+    database(fixture/'cases'/task_ids[3],8)
+    before=fingerprint(fixture);out=BASE/'COLLECTED_METRICS.json'
+    if out.exists():out.unlink()
+    result=subprocess.run([sys.executable,str(DRIVER),'--run-dir',str(fixture),'--output',str(out)],text=True,capture_output=True)
+    (BASE/'collector.log').write_text(result.stdout+result.stderr);assert result.returncode==0,result.stdout+result.stderr
+    got=json.loads(out.read_text());cases={c['task_id']:c for c in got['cases']};first=cases[task_ids[0]];partial=cases[task_ids[2]]
+    checks={
+        'changed_success_only':first['mutations']['value']==1 and first['mutations']['successful_action_count']==2,
+        'unique_guard_prefix_not_quoted':first['operation_target_invalid']['value']==1,
+        'completed_event_reason':first['termination']['value']=='completed',
+        'exact_100mb_pass':first['database']['value']==100_000_000 and first['database']['within_limit'] is True,
+        'over_100mb_reject':partial['database']['within_limit'] is False,
+        'missing_audit_unknown':cases[task_ids[1]]['mutations']['value'] is None and cases[task_ids[1]]['operation_target_invalid']['value'] is None,
+        'missing_database_unknown':cases[task_ids[1]]['database']['value'] is None,
+        'missing_result_unknown':cases[task_ids[3]]['strict_passed']['value'] is None,
+        'malformed_boolean_unknown':partial['agent_completed']['value'] is None,
+        'missing_digest_unknown':partial['mutations']['value'] is None and partial['mutations']['unknown_count']==2,
+        'uppercase_digest_rejected':partial['mutations']['unknown_action_ids']==['incomplete','uppercase'],
+        'failed_changed_reported_separately':first['mutations']['failed_action_with_workspace_change_count']['value']==1,
+        'finished_missing_digest_companion':partial['mutations']['finished_actions_missing_workspace_digest_count']['value']==2,
+        'successful_run_command_only':first['successful_run_command_count']['value']==1,
+        'results_integer_metrics':first['action_count']['value']==3 and first['protocol_rejection_count']['value']==2,
+        'guard_identity_preserved':first['operation_target_invalid']['event_identities'][0]['request_id']=='rejected-request',
+        'intermediate_slice_retained_after_completion':first['termination']['value']=='completed' and first['slice_exhaustion_count']['value']==1,
+        'unique_role_request_count':first['role_calls']['executor_args']['value']==1,
+        'missing_role_unknown':partial['role_calls']['executor_args']['value'] is None,
+        'selector_recorded_not_actual':first['role_calls']['selector_recorded_completed_lanes']['value']==3 and first['role_calls']['selector_actual_requests']['value'] is None,
+        'selector_lower_bound_preserved':got['role_call_totals']['selector_actual_requests']['known_count']==3,
+        'aggregate_unknown_preserved':got['agent_metrics']['strict_passed']['value'] is None and got['agent_metrics']['strict_passed']['known_count']==1,
+        'known_gate_failure_not_hidden_by_unknown':got['gates']['operation_target_invalid_zero'] is False and got['gates']['each_final_database_within_100000000_bytes'] is False,
+        'controller_slice_reject':got['gates']['no_controller_slice_exhausted'] is False,
+        'inputs_unchanged':before==fingerprint(fixture),
+        'no_sqlite_open':got['sqlite_opened'] is False,
+    }
+    sealed=BASE/'holdout_do_not_read';rejected=subprocess.run([sys.executable,str(DRIVER),'--run-dir',str(sealed),'--output',str(BASE/'REFUSED.json')],text=True,capture_output=True)
+    checks['sealed_path_refused_before_read']=rejected.returncode==2 and not (BASE/'REFUSED.json').exists()
+    collector=runpy.run_path(str(DRIVER))
+    _,missing_reason=collector['event_metrics']([event('blocked','run_blocked',{})],'synthetic',[])
+    checks['noncompleted_missing_reason_unknown']=missing_reason['value'] is None and missing_reason['unknown_count']==1
+    _,malformed_reason=collector['event_metrics']([event('blocked','run_blocked',{'reason':7})],'synthetic',[])
+    checks['malformed_reason_unknown']=malformed_reason['value'] is None and malformed_reason['unknown_count']==1
+    good_fixture=BASE/'complete_fixture_run';good_id='RP-CLI-01'
+    write(good_fixture/'RUN_PROTOCOL.json',{'selected_case_ids':[good_id],'suite':'synthetic complete metric collector fixture'})
+    write(good_fixture/'results.json',{'results':[{'task_id':good_id,'passed':True,'agent_completed':True,'action_count':3,'protocol_rejection_count':1}]})
+    good_audit=dict(audit);good_audit['events']=[row for row in audit['events'] if row['causal_event']['event_id'] not in {'event-guard','event-intermediate'}]
+    write(good_fixture/'cases'/good_id/'audit.json',good_audit);database(good_fixture/'cases'/good_id,16)
+    good_before=fingerprint(good_fixture);good=collector['collect'](good_fixture,collector['Reader']())
+    checks['all_complete_agent_gates_pass']=good['all_listed_gates_pass'] is True
+    checks['complete_inputs_unchanged']=good_before==fingerprint(good_fixture)
+    good_audit['runner_observations']={'goal_transition_budget_consumed':80,'goal_transition_budget_exhausted':True}
+    write(good_fixture/'cases'/good_id/'audit.json',good_audit)
+    exhausted=collector['collect'](good_fixture,collector['Reader']())
+    checks['runner_budget_exhaustion_rejects_without_terminal_marker']=exhausted['cases'][0]['slice_exhaustion_count']['value']==0 and exhausted['gates']['no_controller_slice_exhausted'] is False
+    good_audit['runner_observations']={}
+    write(good_fixture/'cases'/good_id/'audit.json',good_audit)
+    unknown_budget=collector['collect'](good_fixture,collector['Reader']())
+    checks['missing_budget_observation_unknown']=unknown_budget['gates']['no_controller_slice_exhausted'] is None
+    write(BASE/'COMPLETE_FIXTURE_DERIVATIONS.json',{'initial_complete':good,'explicit_budget_exhausted':exhausted,'missing_budget_observation':unknown_budget})
+    manifest={'source':'artificial minimal metric collection fixture; not protocol input, not StateTune data, not Agent results',
+              'collector_sha256':hashlib.sha256(DRIVER.read_bytes()).hexdigest(),
+              'collected_metrics_sha256':hashlib.sha256(out.read_bytes()).hexdigest(),
+              'checks':checks,'passed':all(checks.values()),'check_count':len(checks),
+              'fixture_note':'Database-shaped files are sparse stat fixtures, never opened as SQLite; sizes test exact decimal MB boundary.'}
+    write(BASE/'SELFTEST_RESULT.json',manifest)
+    assert all(checks.values()),checks
+    print(json.dumps({'passed':True,'checks':len(checks),'collector_sha256':manifest['collector_sha256'],'evidence':str(BASE/'SELFTEST_RESULT.json')}))
+if __name__=='__main__':main()

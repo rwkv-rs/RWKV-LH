@@ -1,0 +1,9 @@
+# Author reference
+
+为团队从零实现意见投票板，包含 HTTP API、SQLite 与网页。成员创建提案（非空标题、描述），输入自己的名字投票；同一成员每提案最多一票，可取消再投。重复的相同投票请求必须幂等。支持按票数排序和关闭投票；关闭后不允许新增或撤销票，服务必须拒绝，不能只禁用界面。成员名字只是本地团队标识，本题不要求认证系统。
+API：POST /api/proposals 接收 {title,description} 返回含 id 的对象。GET /api/proposals?voter=名字&sort=newest|votes 返回 {"proposals":[{"id":唯一值,"title":文本,"description":文本,"closed":布尔,"votes":非负整数,"voted":当前成员是否投票}]}；votes 按票数降序、平票按 id 升序；newest 按创建新到旧。PUT /api/proposals/ID/vote 接收 {"voter":"非空名字","active":true或false}，添加/移除该成员唯一票；重复操作不改变其他票，返回含id和votes对象；关闭后 HTTP409。PATCH /api/proposals/ID 接收 {"closed":true} 永久关闭。
+公开 UI：Your name 字段；Proposal title、Proposal description 字段与 Create proposal 按钮；Sort proposals(newest/votes)。每个 article 名称 `Proposal 标题`，展示描述、`Votes: 数量` 和 Voting open/Voting closed；当前成员未投票用 Vote，已投用 Remove vote；开放提案提供 Close voting，关闭后投票按钮禁用。改变成员名字并离开输入框后更新投票状态。
+运行方式：`python server.py --host 127.0.0.1 --port PORT --db PATH`，仅用 Python 标准库与原生浏览器功能；数据库 PATH 由运行者给定。源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码。GET / 提供页面，SQLite 持久化，停止服务再用同一个 PATH 启动后数据不丢失。所有 API 接受/返回 JSON，成功创建 HTTP 201、查询/更新 200；无效输入 400、缺失资源 404；返回错误对象含 error。id 为稳定唯一值，多个独立浏览器看到相同服务数据。
+
+交付时保持工作区为自包含项目，README 说明启动与人工验证方法。不得依赖远程 CDN、外网或需要下载的包。页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。
+

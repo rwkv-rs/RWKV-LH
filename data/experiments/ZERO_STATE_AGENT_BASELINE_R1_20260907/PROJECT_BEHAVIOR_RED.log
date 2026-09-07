@@ -1,0 +1,82 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+______ test_project_behavior_runs_candidate_cli_and_rejects_wrong_result _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/project_behavior_red/test_project_behavior_runs_can0')
+
+    def test_project_behavior_runs_candidate_cli_and_rejects_wrong_result(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        script = workspace / "app.py"
+        script.write_text("import sys\nprint(int(sys.argv[1]) * 3)\n")
+        program = """import subprocess, sys
+    from pathlib import Path
+    candidate = Path(sys.argv[1])
+    for number in (2, 7, -3):
+        actual = subprocess.check_output([sys.executable, str(candidate / 'app.py'), str(number)], text=True)
+        assert int(actual) == number * 3
+    """
+        result = run_isolated_verifier(acceptance(program), workspace, [], {}, private_root=tmp_path / "private")
+>       assert result.passed, result.checks
+E       AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: unsupported external checker kind: project_behavior'),)
+E       assert False
+E        +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: u...etwork': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+
+tests/test_project_behavior_verifier.py:26: AssertionError
+___ test_project_behavior_supports_loopback_and_preserves_readonly_workspace ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/project_behavior_red/test_project_behavior_supports0')
+
+    def test_project_behavior_supports_loopback_and_preserves_readonly_workspace(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        program = """import socket, sys, tempfile, threading
+    from pathlib import Path
+    root = Path(sys.argv[1])
+    try:
+        (root / 'forbidden.txt').write_text('no')
+    except OSError:
+        pass
+    else:
+        raise AssertionError('candidate snapshot is writable')
+    with tempfile.TemporaryDirectory() as folder:
+        Path(folder, 'data.txt').write_text('allowed')
+    with socket.socket() as server:
+        server.bind(('127.0.0.1', 0)); server.listen(1)
+        def respond():
+            connection, _ = server.accept()
+            with connection:
+                connection.sendall(b'isolated-loopback')
+        thread = threading.Thread(target=respond); thread.start()
+        with socket.create_connection(server.getsockname(), timeout=2) as client:
+            assert client.recv(100) == b'isolated-loopback'
+        thread.join(2)
+    """
+        result = run_isolated_verifier(acceptance(program), workspace, [], {}, private_root=tmp_path / "private")
+>       assert result.passed, result.checks
+E       AssertionError: (CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: unsupported external checker kind: project_behavior'),)
+E       assert False
+E        +  where False = IsolatedVerifierResult(checks=(CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: u...etwork': 'unshared', 'pid_namespace': 'private', 'repository_mounted': False, 'verifier_logs_exposed_to_agent': False}).passed
+
+tests/test_project_behavior_verifier.py:58: AssertionError
+____________ test_project_behavior_rejects_unbound_private_program _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/project_behavior_red/test_project_behavior_rejects_0')
+
+    def test_project_behavior_rejects_unbound_private_program(tmp_path: Path) -> None:
+        workspace = tmp_path / "candidate"
+        workspace.mkdir()
+        spec = acceptance("raise RuntimeError('must not execute')\n")
+        spec["checks"][0]["program_sha256"] = "0" * 64
+        result = run_isolated_verifier(spec, workspace, [], {}, private_root=tmp_path / "private")
+        assert not result.passed
+>       assert "SHA-256" in result.checks[0].error
+E       AssertionError: assert 'SHA-256' in 'ValueError: unsupported external checker kind: project_behavior'
+E        +  where 'ValueError: unsupported external checker kind: project_behavior' = CheckResult(kind='project_behavior', passed=False, observation={}, error='ValueError: unsupported external checker kind: project_behavior').error
+
+tests/test_project_behavior_verifier.py:69: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_project_behavior_verifier.py::test_project_behavior_runs_candidate_cli_and_rejects_wrong_result
+FAILED tests/test_project_behavior_verifier.py::test_project_behavior_supports_loopback_and_preserves_readonly_workspace
+FAILED tests/test_project_behavior_verifier.py::test_project_behavior_rejects_unbound_private_program
+3 failed in 0.19s

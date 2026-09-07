@@ -142,6 +142,15 @@ SUITES = {
             "tier5_networked_project": 2,
         },
     ),
+    "realprojectdevv1": SuiteDefinition(
+        key="realprojectdevv1",
+        title="RWKV-LH-REAL-PROJECT-DEV-V1",
+        package="benchmarks.rwkv_e2e.rwkv_real_project_dev_v1",
+        tasks_schema="rwkv-real-project-dev-v1.tasks.v1",
+        acceptance_schema="rwkv-real-project-dev-v1.acceptance.v1",
+        expected_count=12,
+        level_counts={"project": 12},
+    ),
     "realagentholdoutv2": SuiteDefinition(
         key="realagentholdoutv2",
         title="RWKV-LH-REAL-AGENT-HOLDOUT-V2",
@@ -1468,14 +1477,11 @@ def _write_run_metadata(
         "sampling": {
             "sampling_policy": {
                 "scope": "all_semantic_lanes",
-                "temperature": 0.05,
+                "temperature": LongHorizonModel._SAMPLING.temperature,
                 "semantic_resample_count": 0,
             },
-            "top_p": settings.default_top_p,
-            "top_k": settings.default_top_k,
-            "presence_penalty": settings.default_presence_penalty,
-            "frequency_penalty": settings.default_frequency_penalty,
-            "penalty_decay": settings.default_penalty_decay,
+            **{key: value for key, value in LongHorizonModel._SAMPLING.to_dict().items()
+               if key != "temperature"},
         },
         "source_resources": source_resources,
         "codex_reference_answers": reference_metadata,
@@ -2743,7 +2749,7 @@ def parse_args() -> argparse.Namespace:
         default="core30",
         help=(
             "core30, lh12, extension48, agentv1, agentladderv1, "
-            "realagentholdoutv2, "
+            "realprojectdevv1, realagentholdoutv2, "
             "or all (fixed 90-case suite)"
         ),
     )

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh.goal_state_protocols import executor_args_v4
+from rwkv_lh.model_session import SessionSampling
 from rwkv_lh.runtime.settings import RuntimeSettings
 from scripts import run_rwkv_e2e_benchmark as benchmark
 
@@ -118,6 +119,8 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
         ),
     )
     monkeypatch.setattr(executor_args_v4, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+    sampling = SessionSampling(temperature=0.37, top_p=0.88)
+    monkeypatch.setattr(benchmark.LongHorizonModel, "_SAMPLING", sampling)
     arguments = argparse.Namespace(
         suite=suite_key,
         retry_failures_from=None,
@@ -148,6 +151,8 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
     ]
     assert {resource["suite"] for resource in protocol["source_resources"]} == set(expected_keys)
     assert protocol["architecture"] == executor_args_v4.INPUT_SCHEMA_VERSION
+    assert protocol["sampling"]["sampling_policy"]["temperature"] == sampling.temperature
+    assert protocol["sampling"]["top_p"] == sampling.top_p
     assert bool(reference_reads) == bool(set(expected_keys).intersection(benchmark.FORMAL90_SUITE_KEYS))
     diff_calls = [call for call in git_calls if call[0] == "diff"]
     assert len(diff_calls) == 1

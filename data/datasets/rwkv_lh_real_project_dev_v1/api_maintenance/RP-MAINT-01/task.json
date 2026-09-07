@@ -1,0 +1,44 @@
+{
+  "task_id": "RP-MAINT-01",
+  "level": "project",
+  "user_request": "维护现有 SQLite 配置迁移项目：用户遇到了失败升级后原库被部分修改、再次升级覆盖备份的问题。按 README 明确的 v1/v2 和 CLI 契约修复通用迁移及恢复链，保持各 JSON 类型与 Unicode 值，保留无关表，并实际验证失败不损原数据、幂等重跑和备份恢复。",
+  "capabilities": [
+    "existing_project_maintenance",
+    "sqlite_schema_migration",
+    "atomic_publication",
+    "backup_restore",
+    "failure_recovery",
+    "unicode"
+  ],
+  "workspace_files": [
+    {
+      "path": "README.md",
+      "content": "# 旧版 SQLite 配置升级工具\n\n这是已有的多模块 CLI 项目。用户反馈升级失败后 DB 被部分修改，重跑覆盖了可恢复备份。修复通用迁移、类型保真、备份和恢复逻辑，并补充验证与操作文档。升级/恢复在服务停机后运行，不要求与外部写进程并发。\n\n环境为 Python 3.11+ 标准库；入口固定 `config_cli.py`。所有命令成功返回 0，并在 stdout 最后一行输出 JSON 对象；失败返回非 0，不得静默成功。\n\n公开 v1 schema：`PRAGMA user_version=1; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`。value 是任意合法 JSON 值的 UTF-8 字符串。保留 key 和语义值，拒绝 NaN/Infinity/坏 JSON。还可能有无关用户表，必须保留。\n\nv2 schema：保留 settings.key/value，新增 `value_type TEXT NOT NULL`、`updated_at INTEGER NOT NULL`；value 用 JSON `ensure_ascii=False, sort_keys=True, separators=(',', ':')` 规范化，类型为 `null/boolean/number/string/array/object`，迁移旧数据 updated_at=0。`PRAGMA user_version=2`，并有 `schema_migrations(version INTEGER PRIMARY KEY, description TEXT NOT NULL)` 的 version=2 记录。\n\n- `python config_cli.py migrate --db DB --backup BACKUP`：只允许 v1→v2。首次必须先保留有效的完整 v1 SQLite 备份，再原子发布升级；BACKUP 不得等于 DB，已有备份不得覆盖。成功输出 `{from_version:1,to_version:2,migrated_rows:N,changed:true,...}`。已为 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0，且不改 DB 或备份，即使 BACKUP 已存在。\n- 任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败，原 DB 字节保持不变；不能丢失原行、表或版本。无关用户表保留；已有不兼容 schema_migrations 不得强制删除或覆盖。\n- `python config_cli.py list --db DB`：返回 `{schema_version,settings:[{key,value,value_type},...]}` 按 key 排序，value 为解码后的 JSON 值。\n- `python config_cli.py get --db DB --key KEY`：返回对应 `{key,value,value_type}`；未知 key 非 0。get/list 支持合法 v1、v2；不得修改 DB。\n- `python config_cli.py restore --db DB --backup BACKUP`：验证备份确为完整合法 v1/v2 配置 DB 后原子恢复，返回 `{restored:true,schema_version:版本}`；损坏文件、非配置 SQLite、缺失文件应失败并保留原 DB；不得修改 BACKUP。\n\nDB/backup 父目录已存在。允许调整内部模块，所有运行数据路径由 CLI 指定。`sample_v1.sql` 是小样例，不代表全面输入。请实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode。\n"
+    },
+    {
+      "path": "config_cli.py",
+      "content": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom config_store.migrations import migrate, restore\nfrom config_store.values import read_values\n\ndef main():\n    parser = argparse.ArgumentParser(description='Versioned SQLite configuration maintenance')\n    commands = parser.add_subparsers(dest='command', required=True)\n    for name in ('migrate', 'restore'):\n        sub = commands.add_parser(name)\n        sub.add_argument('--db', required=True)\n        sub.add_argument('--backup', required=True)\n    for name in ('get', 'list'):\n        sub = commands.add_parser(name)\n        sub.add_argument('--db', required=True)\n        if name == 'get':\n            sub.add_argument('--key', required=True)\n    arguments = parser.parse_args()\n    try:\n        if arguments.command == 'migrate':\n            result = migrate(Path(arguments.db), Path(arguments.backup))\n        elif arguments.command == 'restore':\n            result = restore(Path(arguments.db), Path(arguments.backup))\n        else:\n            result = read_values(Path(arguments.db))\n            if arguments.command == 'get':\n                result = next((item for item in result['settings'] if item['key'] == arguments.key), None)\n                if result is None:\n                    raise ValueError('unknown key')\n        print(json.dumps(result, ensure_ascii=False, allow_nan=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n"
+    },
+    {
+      "path": "config_store/__init__.py",
+      "content": ""
+    },
+    {
+      "path": "config_store/values.py",
+      "content": "from __future__ import annotations\nimport json\nimport sqlite3\n\ndef decode(text):\n    def invalid_constant(value):\n        raise ValueError('non-finite JSON number')\n    return json.loads(text, parse_constant=invalid_constant)\n\ndef value_type(value):\n    if value is None:\n        return 'null'\n    if isinstance(value, bool):\n        return 'boolean'\n    if isinstance(value, (int, float)):\n        return 'number'\n    if isinstance(value, str):\n        return 'string'\n    if isinstance(value, list):\n        return 'array'\n    if isinstance(value, dict):\n        return 'object'\n    raise ValueError('unsupported JSON value')\n\ndef read_values(database):\n    with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as connection:\n        connection.row_factory = sqlite3.Row\n        version = connection.execute('PRAGMA user_version').fetchone()[0]\n        if version not in (1, 2):\n            raise ValueError('unsupported schema version')\n        rows = connection.execute('SELECT * FROM settings ORDER BY key').fetchall()\n        settings = []\n        for row in rows:\n            value = decode(row['value'])\n            settings.append({'key': row['key'], 'value': value,\n                             'value_type': row['value_type'] if version == 2 else value_type(value)})\n        return {'schema_version': version, 'settings': settings}\n"
+    },
+    {
+      "path": "config_store/sqlite_io.py",
+      "content": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n"
+    },
+    {
+      "path": "config_store/migrations.py",
+      "content": "from __future__ import annotations\nimport json\nimport sqlite3\nfrom .values import decode, value_type\n\ndef migrate(database, backup):\n    backup.write_bytes(database.read_bytes())\n    with sqlite3.connect(database) as connection:\n        version = connection.execute('PRAGMA user_version').fetchone()[0]\n        if version == 2:\n            return {'from_version': 2, 'to_version': 2, 'migrated_rows': 0, 'changed': False}\n        connection.execute(\"ALTER TABLE settings ADD COLUMN value_type TEXT NOT NULL DEFAULT 'string'\")\n        connection.execute('ALTER TABLE settings ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')\n        connection.execute('PRAGMA user_version=2')\n        connection.commit()\n        rows = connection.execute('SELECT key,value FROM settings ORDER BY key').fetchall()\n        for key, text in rows:\n            value = decode(text)\n            connection.execute('UPDATE settings SET value=?,value_type=? WHERE key=?', (json.dumps(value), value_type(value), key))\n            connection.commit()\n        return {'from_version': version, 'to_version': 2, 'migrated_rows': len(rows), 'changed': True}\n\ndef restore(database, backup):\n    database.write_bytes(backup.read_bytes())\n    with sqlite3.connect(database) as connection:\n        version = connection.execute('PRAGMA user_version').fetchone()[0]\n    return {'restored': True, 'schema_version': version}\n"
+    },
+    {
+      "path": "sample_v1.sql",
+      "content": "PRAGMA user_version=1;\nCREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);\nINSERT INTO settings VALUES ('theme', '\"深色\"');\nINSERT INTO settings VALUES ('enabled', 'true');\n"
+    }
+  ],
+  "workspace_generators": []
+}

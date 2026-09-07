@@ -1,0 +1,117 @@
+"""Freeze and execute the owner-authorized development double-zero baseline."""
+from __future__ import annotations
+import argparse
+import contextlib
+from datetime import datetime, timezone
+import hashlib
+import importlib.metadata
+import io
+import json
+import os
+from pathlib import Path
+import platform
+import subprocess
+import sys
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+ROUND=ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+sys.path.insert(0,str(ROOT))
+import run_frozen_zero_baseline_r1_20260907 as config_driver
+from scripts import run_rwkv_e2e_benchmark as benchmark
+
+FREEZE=ROUND/'FROZEN_EXECUTION_MANIFEST.json'
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def write(path,value):path.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+def now():return datetime.now(timezone.utc).isoformat()
+def source_paths():
+    names=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','--',
+        'rwkv_lh','scripts','tests','pyproject.toml','uv.lock'],cwd=ROOT,text=True).splitlines()
+    return sorted({str(Path(name)) for name in names if (ROOT/name).is_file()})
+def dependencies():
+    return {'python':sys.version,'platform':platform.platform(),'wsl':os.environ.get('WSL_DISTRO_NAME'),
+            'packages':sorted([d.metadata['Name'],d.version] for d in importlib.metadata.distributions())}
+def remote_snapshot(label):
+    value=json.loads(subprocess.check_output(['ssh','-o','BatchMode=yes','rwkv-8222','python3',
+        str(ROOT/'temp/attest_current_zero_remote_r1_20260907.py')],text=True,timeout=90))
+    write(ROUND/f'REMOTE_{label}.json',value)
+    return value
+def current_config(label):
+    output=ROUND/f'PUBLIC_CONFIG_{label}.json'
+    saved=sys.argv
+    try:
+        sys.argv=[str(Path(config_driver.__file__)), '--mode','preflight','--output',str(output)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert config_driver.main()==0
+    finally:sys.argv=saved
+    value=json.loads(output.read_text())
+    health=value['health']
+    assert health['rwkv_models']['available'] and health['rwkv_models']['configured_model_present']
+    assert health['rwkv_capabilities']['native_state_supported']
+    assert health['selector']['available'] and health['selector']['identity_matches']
+    assert health['strong_planner_stage_checker']['available'] and health['strong_planner_stage_checker']['model_present']
+    assert all(r['state_profile_id']=='zero' and r['state_profile_sha256']=='0'*64
+               for r in value['PUBLIC_CONFIG']['roles'].values())
+    return value
+def immutable_files():
+    extra=[
+        'data/datasets/rwkv_lh_real_project_dev_v1/MANIFEST.json',
+        'benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/__init__.py',
+        'benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/tasks.json',
+        'benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/acceptance.json',
+        'temp/run_frozen_zero_baseline_r1_20260907.py',
+        'temp/execute_frozen_real_project_baseline_r1_20260907.py',
+        'temp/attest_current_zero_remote_r1_20260907.py',
+        'temp/collect_zero_project_metrics_r1_20260907.py',
+        str((ROUND/'PREREGISTRATION.zh-CN.md').relative_to(ROOT)),
+        str((ROUND/'METRIC_DEFINITIONS.json').relative_to(ROOT)),
+    ]
+    return {name:sha(ROOT/name) for name in source_paths()+extra}
+def verify_frozen(frozen):
+    assert frozen['status']=='FROZEN', 'execution manifest not frozen'
+    assert immutable_files()==frozen['immutable_files'], 'source, grading, data or metrics changed after freeze'
+    assert dependencies()==frozen['dependencies'], 'dependency environment changed after freeze'
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--freeze',action='store_true')
+    parser.add_argument('--arm',choices=['A','B'])
+    args=parser.parse_args()
+    if args.freeze:
+        assert not args.arm and not FREEZE.exists(), 'freeze is immutable; do not replace an existing registration'
+        config=current_config('FREEZE_ATTESTED')
+        remote=remote_snapshot('FREEZE_ATTESTED')
+        tasks,_=benchmark.load_suite('realprojectdevv1')
+        definition=json.loads((ROUND/'METRIC_DEFINITIONS.json').read_text())
+        value={'status':'FROZEN','frozen_at':now(),'round':ROUND.name,
+               'code_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+               'suite':'realprojectdevv1','case_order':[t['task_id'] for t in tasks],
+               'argv':config['PUBLIC_CONFIG']['independent_run_argv'],
+               'public_config_sha256':config['PUBLIC_CONFIG_sha256'],
+               'immutable_files':immutable_files(),'dependencies':dependencies(),
+               'remote_deployment':remote,
+               'limits':['Provider model aliases/default sampling are external, not fully deterministic.',
+                         'Remote weight files were fully SHA verified in cleanup report; this gate binds their inode/size/mtime and manifests.',
+                         'This is a development benchmark; no Holdout or role training data is read.']}
+        write(FREEZE,value)
+        print(json.dumps({'status':'FROZEN','manifest_sha256':sha(FREEZE),'cases':len(tasks)}))
+        return 0
+    assert args.arm, '--arm required'
+    frozen=json.loads(FREEZE.read_text())
+    verify_frozen(frozen)
+    config=current_config(f'BEFORE_{args.arm}')
+    assert config['PUBLIC_CONFIG_sha256']==frozen['public_config_sha256'], 'runtime configuration changed'
+    assert remote_snapshot(f'BEFORE_{args.arm}')==frozen['remote_deployment'], 'remote deployment changed'
+    command=frozen['argv'][args.arm]
+    output=Path(command[command.index('--output')+1])
+    assert not output.exists(), 'each arm requires a fresh output directory'
+    print(json.dumps({'status':'STARTING','arm':args.arm,'at':now(),'freeze_sha256':sha(FREEZE)},ensure_ascii=False),flush=True)
+    sys.argv=command[1:]
+    exit_code=benchmark.main()
+    verify_frozen(frozen)
+    assert remote_snapshot(f'AFTER_{args.arm}')==frozen['remote_deployment'], 'remote deployment changed during arm'
+    write(ROUND/f'ARM_{args.arm}_COMPLETION.json',{'arm':args.arm,'runner_exit_code':exit_code,
+        'completed_at':now(),'immutable_sources_unchanged':True,'remote_deployment_unchanged':True,
+        'freeze_sha256':sha(FREEZE)})
+    return exit_code
+
+if __name__=='__main__':raise SystemExit(main())
