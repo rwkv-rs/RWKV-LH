@@ -1,0 +1,143 @@
+"""Read-only local R3 readiness audit; no credentials, services, or model calls."""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907"
+OLD = ROOT / "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907"
+sys.path.insert(0, str(ROOT))
+
+from rwkv_lh.goal_loop_protocol import GOAL_PLAN_PATCH_SCHEMA_VERSION
+from rwkv_lh.goal_state_protocols import (
+    selector_intent_v4, executor_args_v4, auditor_step_v3, finalizer_answer, auditor_final,
+)
+from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+from rwkv_lh.stateful_goal_loop import STATEFUL_GOAL_LOOP_ARCHITECTURE
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    if os.environ.get("WSL_DISTRO_NAME") != "UbuntuRecovered":
+        raise RuntimeError("this audit requires WSL UbuntuRecovered")
+    frozen_path = OLD / "FROZEN_EXECUTION_MANIFEST_R2.json"
+    frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+    preserved = [
+        "scripts/run_rwkv_e2e_benchmark.py",
+        "rwkv_lh/benchmark_verifier.py",
+        "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/__init__.py",
+        "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/tasks.json",
+        "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/acceptance.json",
+        "data/datasets/rwkv_lh_real_project_dev_v1/MANIFEST.json",
+        "temp/collect_zero_project_metrics_r1_20260907.py",
+    ]
+    sources = [
+        "AGENTS.md", "docs/HANDOFF.zh-CN.md",
+        "docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md",
+        "temp/run_frozen_zero_baseline_r1_20260907.py",
+        "temp/execute_frozen_real_project_baseline_r1_20260907.py",
+        "temp/attest_current_zero_remote_r1_20260907.py",
+        "temp/compare_zero_project_arms_r2_20260907.py",
+        "rwkv_lh/supervisor_openai.py", "rwkv_lh/runtime/supervisor_vllm_rwkv.py",
+        "rwkv_lh/goal_loop_protocol.py", "rwkv_lh/stateful_goal_loop.py",
+        "rwkv_lh/model.py", "rwkv_lh/model_session.py",
+        "rwkv_lh/controller.py", "rwkv_lh/store.py", "rwkv_lh/schema.py",
+    ]
+    comparison = {
+        name: {"current_sha256": sha(ROOT / name),
+               "r2_frozen_sha256": frozen["immutable_files"][name],
+               "unchanged": sha(ROOT / name) == frozen["immutable_files"][name]}
+        for name in preserved
+    }
+    task_file = ROOT / "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/tasks.json"
+    case_ids = [item["task_id"] for item in json.loads(task_file.read_text())["tasks"]]
+    modules = (selector_intent_v4, executor_args_v4, auditor_step_v3, finalizer_answer, auditor_final)
+    protocols = {
+        module.__name__: {"input_protocol": module.INPUT_SCHEMA_VERSION,
+                          "module_sha256": sha(Path(module.__file__))}
+        for module in modules
+    }
+    supervisor_source = (ROOT / "rwkv_lh/supervisor_openai.py").read_text()
+    assert "_RESPONSES_API_PHASES: frozenset[str] = frozenset()" in supervisor_source
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    proposed = ROOT / "data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907"
+    value = {
+        "status": "READINESS_AUDIT_ONLY_NOT_FROZEN",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source_commit_observed_only": head,
+        "previous_r2_code_commit": frozen["code_commit"],
+        "previous_r2_freeze_path": str(frozen_path),
+        "previous_r2_freeze_sha256": sha(frozen_path),
+        "suite": "realprojectdevv1", "case_order": case_ids,
+        "case_order_matches_r2": case_ids == frozen["case_order"],
+        "case_count_is_twelve_unique": len(case_ids) == 12 and len(set(case_ids)) == 12,
+        "scoring_data_collector_sha_comparison": comparison,
+        "all_checked_scoring_data_collector_files_unchanged": all(item["unchanged"] for item in comparison.values()),
+        "architecture": STATEFUL_GOAL_LOOP_ARCHITECTURE,
+        "goal_plan_protocol": GOAL_PLAN_PATCH_SCHEMA_VERSION,
+        "native_state_protocol": NATIVE_STATE_PROTOCOL_VERSION,
+        "role_protocols": protocols,
+        "upstream_transport_current_code": {
+            "backend_profile": "openai-compatible",
+            "goal_plan": "chat_completions",
+            "goal_stage_review": "chat_completions",
+            "responses_api_phases": [],
+            "temperature": "not explicitly sent; provider default, must be registered",
+            "planner_max_output_tokens_default": 8192,
+            "shared_read_timeout_seconds_default": 240,
+            "stage_checker_output_tokens_unchanged": 2400,
+            "final_endpoint_model_credentials": "PENDING owner configuration and root stability confirmation",
+        },
+        "proposed_r3_directory_not_created": str(proposed),
+        "r3_directory_exists_at_audit": proposed.exists(),
+        "blockers_before_freeze": [
+            "owner-provided authorized upstream credential configuration pending; no credential discovery elsewhere",
+            "production Chat Planner and Stage Checker stability / contracts pending root probes",
+            "final models, endpoint, backend profile, retry/backoff and cache/fallback settings pending",
+            "new R3 config / execution / comparison wrappers and R3 registration bindings required",
+            "current RWKV zero services and uploaded manifests must be re-attested before final freeze",
+        ],
+        "old_driver_findings": [
+            "config driver pins R1 experiment root and _r2 output paths; output guard cannot target an R3 directory",
+            "config driver does not pin Strong provider; it reads deployment config but its provider-default sampling label is inaccurate for native backend",
+            "execution wrapper pins registration R2 and existing R2 freeze; freeze refuses overwrite and run rejects changed immutable files",
+            "execution wrapper records local HEAD at freeze but does not independently require that HEAD during verify_frozen",
+            "execution wrapper checks public config before each arm, not after; R3 should bind both boundaries",
+            "metric collector already accepts --definitions and can be reused byte-for-byte with new R3 registration",
+            "comparison wrapper strictly requires R2; new R3 wrapper must change registration/schema binding without metric or threshold changes",
+            "remote attestation script uses systemctl, uploaded complete manifests and hashes; no remote Git invocation",
+            "runner exit 2 can mean a complete run with failed Strict cases; exit 3 aborts for non-retryable supervisor failure and may leave fewer than 12 results",
+            "runner retry-failures-from recovery is not permitted for the frozen double-zero comparison; missing cases remain unknown under fixed denominator 12",
+        ],
+        "source_sha256": {name: sha(ROOT / name) for name in sources},
+        "metric_definitions_r2_sha256": sha(OLD / "METRIC_DEFINITIONS_R2.json"),
+        "script_sha256": sha(Path(__file__).resolve()),
+        "model_calls": 0, "network_calls": 0, "ssh_calls": 0,
+        "credentials_read": False, "sqlite_opened": False,
+        "holdout_or_sealed_content_read": False,
+        "scoring_changed": False, "r1_r2_artifacts_modified": False,
+        "execution_directory_created": False,
+    }
+    OUT.mkdir(parents=True, exist_ok=True)
+    target = OUT / "R3_READINESS_AUDIT.json"
+    with target.open("x", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    print(json.dumps({"output": str(target), "sha256": sha(target),
+                      "scoring_unchanged": value["all_checked_scoring_data_collector_files_unchanged"],
+                      "case_order_matches": value["case_order_matches_r2"],
+                      "status": value["status"]}, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

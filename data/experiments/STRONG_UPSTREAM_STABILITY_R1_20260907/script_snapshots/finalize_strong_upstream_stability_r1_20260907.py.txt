@@ -1,0 +1,72 @@
+"""Freeze and upload this read-only diagnosis, excluding the local upstream credential."""
+from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import json
+import subprocess
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907'
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def save(path, value):
+    with path.open('x', encoding='utf-8') as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write('\n')
+
+
+subprocess.run(['git', 'diff', '--exit-code', 'HEAD', '--', 'rwkv_lh', 'tests', 'scripts'], cwd=ROOT, check=True)
+prior = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+prior_source = json.loads((prior/'FINAL_UPLOAD_MANIFEST.json').read_text())
+checks = [{**item, 'matches_current': sha(ROOT/item['path']) == item['sha256']}
+          for item in prior_source['files'] if item['path'].startswith(('rwkv_lh/', 'tests/'))]
+assert all(item['matches_current'] for item in checks)
+save(ROUND/'UNCHANGED_CODE_AND_TEST_EVIDENCE.json', {
+    'local_commit': subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+    'production_tests_scripts_diff_empty': True, 'prior_frozen_source_checks': checks,
+    'prior_full_test_log': str((prior/'FULL_TESTS.log').relative_to(ROOT)),
+    'prior_full_test_log_sha256': sha(prior/'FULL_TESTS.log'),
+    'prior_result': '764 passed in 62.43s; no skips', 'new_test_execution_claimed': False,
+})
+snapshots = ROUND/'script_snapshots'
+snapshots.mkdir(exist_ok=False)
+for name in ('probe_strong_upstream_stability_r1_20260907.py',
+             'audit_zero_baseline_r3_readiness_20260907.py',
+             'audit_strong_upstream_runtime_readiness_20260907.py',
+             Path(__file__).name):
+    (snapshots/(name+'.txt')).write_bytes((ROOT/'temp'/name).read_bytes())
+docs = ['README.md', 'docs/HANDOFF.zh-CN.md']
+save(ROUND/'DOCUMENT_UPLOAD_MANIFEST.json', {
+    'at_utc': datetime.now(timezone.utc).isoformat(),
+    'files': [{'path': name, 'sha256': sha(ROOT/name)} for name in docs],
+    'server_git_used': False, 'credential_uploaded': False,
+})
+secret = next(line.partition('=')[2] for line in (ROOT/'.env.strong.local').read_text().splitlines()
+              if line.startswith('RWKV_LH_PLANNER_API_KEY='))
+files = sorted(path for path in ROUND.rglob('*') if path.is_file())
+assert secret and all(secret.encode() not in path.read_bytes() for path in files)
+manifest = ROUND/'SHA256SUMS'
+with manifest.open('x') as out:
+    out.write(''.join(sha(path)+'  '+str(path.relative_to(ROUND))+'\n' for path in files))
+subprocess.run(['sha256sum','--check','--quiet',str(manifest)],cwd=ROUND,check=True)
+for name in docs:
+    subprocess.run(['rsync','-a','--checksum',str(ROOT/name),'rwkv-8222:'+str(ROOT/name)],check=True)
+subprocess.run(['rsync','-a','--checksum',str(ROUND)+'/', 'rwkv-8222:'+str(ROUND)+'/'],check=True)
+remote = '''from pathlib import Path
+import hashlib,json,subprocess
+root=Path('/home/chase/GitHub/RWKV-LH')
+folder=root/'data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907'
+data=json.loads((folder/'DOCUMENT_UPLOAD_MANIFEST.json').read_text())
+assert all(hashlib.sha256((root/item['path']).read_bytes()).hexdigest()==item['sha256'] for item in data['files'])
+subprocess.run(['sha256sum','--check','--quiet','SHA256SUMS'],cwd=folder,check=True)
+print(json.dumps({'document_hashes_match':True,'evidence_hashes_match':True,'server_git_used':False,'credential_uploaded':False}))
+'''
+result = subprocess.run(['ssh','rwkv-8222','python3 -'],input=remote,capture_output=True,text=True,check=True)
+receipt = {**json.loads(result.stdout), 'manifest_sha256':sha(manifest), 'report_sha256':sha(ROUND/'REPORT.zh-CN.md')}
+save(ROUND/'UPLOAD_RECEIPT.json', receipt)
+subprocess.run(['rsync','-a','--checksum',str(ROUND/'UPLOAD_RECEIPT.json'),'rwkv-8222:'+str(ROUND/'UPLOAD_RECEIPT.json')],check=True)
+print(json.dumps(receipt,ensure_ascii=False))

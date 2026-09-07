@@ -1,0 +1,245 @@
+"""Freeze and execute a bounded upstream stability check using production Goal requests."""
+from copy import deepcopy
+from dataclasses import fields, replace
+from datetime import datetime, timezone
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(ROOT))
+from rwkv_lh.goal_loop_protocol import GoalAuditDecision, GoalPlanRequest, GoalStageReviewRequest, rolling_goal_plan
+from rwkv_lh.harness import ActionHarness
+from rwkv_lh.schema import RunState
+from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
+from rwkv_lh.supervisor_openai import SupervisorAPISettings, OpenAICompatibleSupervisorClient
+
+ROUND = ROOT / 'data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907'
+OLD = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907'
+NATIVE = ROOT / 'data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907'
+REGISTRATION = ROUND / 'STABILITY_PREREGISTRATION.json'
+CONFIG = ROOT / '.env.strong.local'
+SOURCES = ('rwkv_lh/supervisor_openai.py', 'rwkv_lh/goal_loop_protocol.py',
+           'rwkv_lh/stateful_goal_loop.py', 'rwkv_lh/harness.py')
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def save(path, value):
+    with path.open('x', encoding='utf-8') as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write('\n')
+
+
+def settings():
+    # A candidate credential/profile file is separate from active local-RWKV settings.
+    for key in tuple(os.environ):
+        if key.startswith(('RWKV_LH_PLANNER_', 'RWKV_LH_STAGE_CHECKER_', 'SUPERVISOR_')):
+            os.environ.pop(key)
+    selected = replace(SupervisorAPISettings.from_env(CONFIG), retry_attempts=1,
+                       semantic_repair_attempts=0, fallback_models=(), plan_cache_enabled=False)
+    selected.validate()
+    assert selected.base_url == 'https://next-token.cc/v1'
+    assert selected.model == selected.stage_checker_model == 'gpt-5.6-sol'
+    assert selected.backend_profile == 'openai-compatible'
+    assert selected.max_plan_tokens == 8192 and selected.max_contract_review_tokens == 2400
+    assert selected.read_timeout_seconds == 240
+    return selected
+
+
+def material(kind, source):
+    obj = json.loads(source.read_text())
+    canonical = json.loads(obj['messages'][1]['content']) if kind == 'plan' else obj
+    cls = GoalPlanRequest if kind == 'plan' else GoalStageReviewRequest
+    values = {field.name: canonical[field.name] for field in fields(cls) if field.name in canonical}
+    values['immutable_request'] = canonical['current_requirement']
+    values['recent_action_facts'] = tuple(values.get('recent_action_facts', ()))
+    if kind == 'stage':
+        values['stage_steps'] = tuple(values['stage_steps'])
+    request = cls(**values)
+    assert request.to_dict() == canonical
+    return request
+
+
+def cases():
+    diagnostic = OLD / 'PLANNER_WIRE_DIAGNOSTIC_R2'
+    return [
+        ('initial_api01', 'plan', diagnostic / 'SUP-8069342ba94e4fc69692.reconstructed_body.json'),
+        ('initial_api02', 'plan', diagnostic / 'SUP-9bb02f7be600485aaedc.reconstructed_body.json'),
+        ('stage_small', 'stage', NATIVE / 'SMALL_STAGE_CHECKER_CONNECTION_FIXTURE_REQUEST.json'),
+        ('stage_19', 'stage', NATIVE / 'STAGE_CHECKER_CONNECTION_FIXTURE_REQUEST.json'),
+        ('continuation_api01', 'plan', diagnostic / 'SUP-9d719be01df5484fb546.reconstructed_body.json'),
+    ]
+
+
+def prior_plan(name, request):
+    task = 'RP-API-02' if name == 'initial_api02' else 'RP-API-01'
+    source = OLD / 'real_project_zero_a_r2/cases' / task / 'audit.json'
+    audit = json.loads(source.read_text())
+    state = RunState.from_dict(audit['run_state'])
+    if request.plan_revision == 0:
+        state.causal_order = state.causal_order[:2]
+        state.actions = {}
+    else:
+        boundary = next(event['event_id'] for event in audit['events'] if event['type'] == 'strong_planner_call_failed')
+        state.causal_order = state.causal_order[:boundary - 1]
+    state.causal_records = {key: state.causal_records[key] for key in state.causal_order}
+    plan = rolling_goal_plan(state)
+    assert plan.to_model_dict() == request.active_plan
+    assert len(plan.patch_ids) == request.plan_revision
+    return state, plan, source
+
+
+class Intercept(Exception):
+    pass
+
+
+def prepare():
+    ROUND.mkdir(parents=True, exist_ok=True)
+    assert not REGISTRATION.exists()
+    selected = settings()
+    frozen = []
+    for name, kind, source in cases():
+        request = material(kind, source)
+        wire = {}
+        client = OpenAICompatibleSupervisorClient(selected)
+        def capture(endpoint, body):
+            wire.update(endpoint=endpoint, request_body=body)
+            raise Intercept()
+        client._post_completion = capture
+        try:
+            (client.plan_goal_patch if kind == 'plan' else client.review_goal_stage)(request)
+        except Intercept:
+            pass
+        finally:
+            client.close()
+        assert wire['endpoint'].endswith('/chat/completions')
+        assert wire['request_body']['response_format']['type'] == 'json_object'
+        assert wire['request_body']['max_tokens'] == (8192 if kind == 'plan' else 2400)
+        row = {'name': name, 'kind': kind, 'source': str(source.relative_to(ROOT)),
+               'source_sha256': sha(source), 'canonical_request': request.to_dict(), **wire,
+               'source_kind': 'preserved_visible_production_trace' if kind == 'plan' else 'existing_controller_fixture_with_explicit_mock_audits'}
+        if kind == 'plan':
+            _, _, plan_source = prior_plan(name, request)
+            row.update(prior_plan_source=str(plan_source.relative_to(ROOT)), prior_plan_source_sha256=sha(plan_source))
+        frozen.append(row)
+    save(REGISTRATION, {
+        'created_at_utc': datetime.now(timezone.utc).isoformat(),
+        'purpose': 'Owner-authorized finite upstream stability gate, excluded from Agent score and StateTune',
+        'local_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+        'script_sha256': sha(Path(__file__)), 'source_sha256': {name: sha(ROOT/name) for name in SOURCES},
+        'settings': selected.public_dict(), 'cases': frozen,
+        'schedule': [{'round': repeat, 'case': row['name']} for repeat in (1, 2) for row in frozen],
+        'gate': {'required_first_attempt_passes': 10, 'logical_requests_maximum': 10,
+                 'on_first_failure': 'stop_remaining_requests_and_do_not_start_baseline',
+                 'checks': ['HTTP 200', 'complete non-truncated response', 'strict production JSON decoder',
+                            'Goal role contract', 'Planner rolling plan and current Controller semantic validators'],
+                 'legal_stage_repair_is_protocol_pass': True,
+                 'retries': 0, 'semantic_repairs': 0, 'fallbacks': 0,
+                 'long_term_sla_claim': False, 'code_or_scoring_changes_allowed_during_check': False},
+    })
+    print(json.dumps({'registration': str(REGISTRATION), 'sha256': sha(REGISTRATION), 'planned_requests': 10}))
+
+
+def run():
+    registration = json.loads(REGISTRATION.read_text())
+    assert registration['script_sha256'] == sha(Path(__file__))
+    assert all(sha(ROOT/name) == digest for name, digest in registration['source_sha256'].items())
+    selected = settings()
+    assert selected.public_dict() == registration['settings']
+    result_path = ROUND / 'STABILITY_RESULT.json'
+    assert not result_path.exists()
+    outcomes = []
+    client = OpenAICompatibleSupervisorClient(selected)
+    try:
+        health = client.health()
+    finally:
+        client.close()
+    save(ROUND / 'UPSTREAM_HEALTH.json', health)
+    stopped = not health.get('available') or not health.get('planner_model_present') or not health.get('stage_checker_model_present')
+    for index, item in enumerate(registration['schedule'], start=1):
+        if stopped:
+            outcomes.append({**item, 'status': 'not_run'})
+            continue
+        row = next(row for row in registration['cases'] if row['name'] == item['case'])
+        source = ROOT / row['source']
+        assert sha(source) == row['source_sha256']
+        request = material(row['kind'], source)
+        record = {**item, 'index': index, 'started_at_utc': datetime.now(timezone.utc).isoformat(),
+                  'registration_sha256': sha(REGISTRATION), 'events': [], 'http_attempts': []}
+        def safe(value):
+            if isinstance(value, str): return value.replace(selected.api_key, '[REDACTED]')
+            if isinstance(value, list): return [safe(x) for x in value]
+            if isinstance(value, dict): return {k: safe(v) for k, v in value.items()}
+            return value
+        class Recording(OpenAICompatibleSupervisorClient):
+            def _post_completion(self, endpoint, body):
+                assert endpoint == row['endpoint'] and body == row['request_body']
+                attempt = {'endpoint': endpoint, 'request_body_sha256': hashlib.sha256(json.dumps(body,ensure_ascii=False,sort_keys=True).encode()).hexdigest()}
+                record['http_attempts'].append(attempt)
+                response = super()._post_completion(endpoint, body)
+                attempt.update(http_status=response.status_code, response_text=safe(response.text),
+                               response_sha256=hashlib.sha256(response.content).hexdigest(),
+                               request_ids={key: value for key, value in response.headers.items() if key.lower() in {'x-request-id','cf-ray','x-oneapi-request-id','retry-after'}})
+                if response.status_code == 200:
+                    data = response.json()
+                    attempt['usage'] = data.get('usage')
+                    choice = (data.get('choices') or [{}])[0]
+                    attempt['finish_reason'] = choice.get('finish_reason')
+                    if choice.get('finish_reason') != 'stop':
+                        raise RuntimeError('Stability gate rejects non-stop completion before production parsing')
+                return response
+        client = Recording(selected, audit_hook=lambda event: record['events'].append(safe(dict(event))))
+        start = time.monotonic()
+        try:
+            returned = (client.plan_goal_patch if row['kind'] == 'plan' else client.review_goal_stage)(request)
+            record['role_contract_passed'] = True
+            record['returned'] = returned.to_dict()
+            if row['kind'] == 'plan':
+                state, plan, plan_source = prior_plan(row['name'], request)
+                assert sha(plan_source) == row['prior_plan_source_sha256']
+                candidate = deepcopy(plan)
+                candidate.apply_goal_patch(returned)
+                controller = object.__new__(StatefulGoalLoopController)
+                controller.harness = ActionHarness()
+                controller._validate_plan_patch_target_contract(state, candidate, returned)
+                controller._validate_stage_repair_patch(plan, candidate, returned, None)
+                controller._validate_action_or_controller_repair_patch(plan, candidate, returned,
+                    audit=GoalAuditDecision.from_dict(request.latest_audit) if request.latest_audit else None,
+                    controller_repair=request.latest_controller_repair)
+                record['controller_semantics_passed'] = True
+            record['status'] = 'pass'
+        except Exception as exc:
+            record.update(status='fail', error_type=type(exc).__name__, error=safe(str(exc)))
+            stopped = True
+        finally:
+            client.close()
+            record['elapsed_seconds'] = round(time.monotonic() - start, 3)
+            file = ROUND / f"PROBE_{index:02d}_{row['name']}.json"
+            save(file, safe(record))
+        outcome = {**item, 'status': record['status'], 'elapsed_seconds': record['elapsed_seconds'],
+                   'artifact': file.name, 'sha256': sha(file)}
+        outcomes.append(outcome)
+        print(json.dumps(outcome, ensure_ascii=False), flush=True)
+    result = {'registration_sha256': sha(REGISTRATION), 'completed_at_utc': datetime.now(timezone.utc).isoformat(),
+              'gate_passed': len(outcomes) == 10 and all(item['status']=='pass' for item in outcomes),
+              'outcomes': outcomes, 'active_production_configuration_changed': False,
+              'agent_baseline_started': False, 'no_training_or_holdout_access': True}
+    save(result_path, result)
+    print(json.dumps({'gate_passed': result['gate_passed'], 'passed': sum(item['status']=='pass' for item in outcomes),
+                      'failed': sum(item['status']=='fail' for item in outcomes), 'not_run': sum(item['status']=='not_run' for item in outcomes)}), flush=True)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', choices=('prepare', 'run'))
+    args = parser.parse_args()
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    (prepare if args.mode == 'prepare' else run)()

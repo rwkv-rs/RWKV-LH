@@ -23,6 +23,8 @@ Strong Planner
 
 本轮原生适配没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。按 owner 授权，Planner 与 Stage Checker 已配置为同一现有 13.3B 服务，使用 `vllm-rwkv-native` 的 `/completions` 和独立显式 zero State；Planner 输出预算为 8,192 tokens，共用读取超时为 240 秒，Stage Checker 仍为 2,400 tokens，其余角色预算与职责不变。生产 Planner 单次连接探针已得到 HTTP 200 和自然结束的合法 JSON，但 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝；完整原文的独立检查还发现 `success_evidence` 类型等合同问题。因此尚不能启动全面基线或宣称接入问题全部解决，详见 [本轮原生适配报告](data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
 
+最新强模型复测仍未达到开跑门槛：next-token.cc 的认证模型目录正常，但当前完整 `gpt-5.6-sol` Planner 请求在 32.8 秒后返回 HTTP 500 / `do_request_failed`。固定矩阵首错停止，0 通过、1 失败、9 未运行；没有切换配置或启动新的双零基线。RWKV 服务器与文件身份核验均通过，见 [稳定性复测记录](data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。
+
 Planner 的步骤和阶段数量由任务决定，不设固定上限；提示词、schema、计划补丁、未完成计划及阶段检查入口完整保留计划。当前模型仍有 16,384-token 上下文上限，不能静默截断步骤或证据来适配窗口。依赖、职责、根路径与证据约束继续校验，任务结束仍由 RWKV 结合目标覆盖和执行证据判断，见 [数量限制整改](data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/REPORT.zh-CN.md)。旧输出与冻结报告不重评分，后续双零两臂均须重新冻结并完整运行。
 
 owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。

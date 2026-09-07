@@ -1,0 +1,206 @@
+"""Read-only runtime identities. No generation, training, secrets, or server Git."""
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import socket
+import subprocess
+import sys
+import urllib.request
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907'
+R2 = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/REMOTE_FREEZE_ATTESTED_R2.json'
+MODE = sys.argv[1]
+sys.dont_write_bytecode = True
+
+def sha(path):
+    value = hashlib.sha256()
+    with Path(path).open('rb') as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b''):
+            value.update(chunk)
+    return value.hexdigest()
+
+def raw_sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+original_popen = subprocess.Popen
+def guarded_popen(args, *rest, **kwargs):
+    words = shlex.split(args) if isinstance(args, str) else list(args)
+    if any(Path(str(word)).name == 'git' for word in words):
+        raise RuntimeError('Git is forbidden in runtime readiness audit')
+    return original_popen(args, *rest, **kwargs)
+subprocess.Popen = guarded_popen
+
+def run(*args):
+    assert args[0] in ('systemctl', 'ss', 'nvidia-smi', 'df', 'ps')
+    return subprocess.check_output(args, text=True).strip()
+
+def write(name, value):
+    path = ROUND / name
+    with path.open('x') as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'path': str(path), 'sha256': sha(path)}))
+
+def base():
+    return {'at': datetime.now(timezone.utc).isoformat(), 'script_sha256': sha(__file__),
+            'generation_requests': 0, 'model_tensor_loads': 0, 'state_content_reads': 0,
+            'git_executed': False, 'settings_changed': False, 'services_restarted': False}
+
+def get_json(url):
+    allowed = {'http://127.0.0.1:29613/v1/models', 'http://127.0.0.1:29613/v1/capabilities',
+               'http://127.0.0.1:29621/healthz', 'http://127.0.0.1:18234/v1/models',
+               'http://127.0.0.1:18234/v1/capabilities', 'http://127.0.0.1:18239/healthz'}
+    assert url in allowed
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(urllib.request.Request(url, method='GET'), timeout=20) as response:
+        raw = response.read()
+        return {'url': url, 'http_status': response.status, 'response_sha256': raw_sha(raw), 'body': json.loads(raw)}
+
+if MODE == 'prepare':
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    ROUND.mkdir(parents=True, exist_ok=True)
+    frozen = json.loads(R2.read_bytes())
+    artifacts = dict(frozen['artifacts'])
+    logging = ROOT / 'data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/EXECUTOR_LAUNCHER_WITH_LOGGING.txt'
+    artifacts['data/runtime/launchers/executor_current_zero.sh'] = sha(logging)
+    write('RUNTIME_AUDIT_EXPECTATIONS.json', {**base(), 'prior_freeze_path': str(R2), 'prior_freeze_sha256': sha(R2),
+        'executor_logging_launcher_source': str(logging), 'artifacts': artifacts,
+        'engines': {name: {'manifest_sha256': value['manifest_sha256'], 'declared_revision': value['declared_revision'],
+                           'files': len(value['files']), 'bytes': sum(row['bytes'] for row in value['files'])}
+                    for name, value in frozen['engines'].items()},
+        'models': frozen['models'],
+        'project_sources': {str(path.relative_to(ROOT)): sha(path) for path in sorted((ROOT / 'rwkv_lh').rglob('*.py'))},
+    })
+elif MODE == 'remote':
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    sys.path.insert(0, str(ROOT))
+    from rwkv_lh.state_router.local_backend import _validate_engine_source_manifest
+    from rwkv_lh.exact_tool_selector.native_network_service import load_native_selector_decoder_manifest
+    from rwkv_lh.goal_state_protocols import selector_intent_v4
+    from rwkv_lh.exact_tool_selector.native_network_protocol import NATIVE_SELECTOR_DECODER_ID, NATIVE_SELECTOR_DECODER_PROTOCOL
+    expected = json.load(sys.stdin)
+    def units():
+        values = {}
+        for role in ('executor', 'selector'):
+            unit = f'rwkv-lh-current-zero-{role}-20260907.service'
+            text = run('systemctl', '--user', 'show', unit,
+                       '--property=Id,ActiveState,SubState,MainPID,ExecMainStartTimestamp,ExecMainStatus')
+            values[role] = dict(line.split('=', 1) for line in text.splitlines())
+        return values
+    initial_units = units()
+    report = {**base(), 'expectations_script_sha256': expected['script_sha256'], 'units_before': initial_units,
+              'artifacts': {}, 'engines': {}, 'models': {}, 'own_service_process_configuration': {}}
+    for relative, frozen_sha in expected['artifacts'].items():
+        current_sha = sha(ROOT / relative)
+        report['artifacts'][relative] = {'sha256': current_sha, 'expected_sha256': frozen_sha, 'matches': current_sha == frozen_sha}
+    for name, frozen in expected['engines'].items():
+        folder = ROOT / 'data/runtime/engines' / name
+        manifest = ROOT / 'data/runtime/manifests' / (name + '.source.json')
+        value = json.loads(manifest.read_bytes())
+        identity = _validate_engine_source_manifest(manifest, frozen['manifest_sha256'],
+                    engine_root=folder.resolve(), engine_revision=frozen['declared_revision'])
+        report['engines'][name] = {'manifest_sha256': sha(manifest), 'validation': identity,
+            'file_count': len(value['files']), 'file_bytes': sum(row['bytes'] for row in value['files']),
+            'full_actual_file_set_and_contents_match': True,
+            'exclusions': ['.git', '.venv', '__pycache__'], 'git_clean_status': None,
+            'git_clean_status_reason': 'Not queried; identity is uploaded manifest, not Git attestation'}
+    for size, frozen in expected['models'].items():
+        folder = ROOT / f'data/models/rwkv7-g1j-{size}-vllm-v1'
+        manifest = json.loads((folder / 'manifest.json').read_bytes())
+        weights = folder / 'model.safetensors'
+        before = weights.stat(); actual_weights_sha = sha(weights); after = weights.stat()
+        declared = manifest['output'].get('weights_sha256') or manifest['output']['files']['model.safetensors']['sha256']
+        report['models'][size] = {'manifest_sha256': sha(folder / 'manifest.json'), 'config_sha256': sha(folder / 'config.json'),
+            'manifest_matches_frozen': sha(folder / 'manifest.json') == frozen['manifest_sha256'],
+            'config_matches_frozen': sha(folder / 'config.json') == frozen['config_sha256'],
+            'runtime_weights_sha256': actual_weights_sha, 'declared_runtime_weights_sha256': declared,
+            'runtime_weights_match': actual_weights_sha == declared, 'runtime_weights_bytes': after.st_size,
+            'file_stat_unchanged_during_hash': (before.st_ino, before.st_size, before.st_mtime_ns) == (after.st_ino, after.st_size, after.st_mtime_ns),
+            'declared_source_weight_sha256': manifest['source']['sha256'],
+            'client_identity_field': 'source.sha256' if size == '13.3b' else 'output.weights_sha256',
+            'source_weight_file_existence_verified': False}
+    decoder_path = ROOT / 'data/runtime/selector/current_decoder_manifest.json'
+    decoder_sha = expected['artifacts'][str(decoder_path.relative_to(ROOT))]
+    load_native_selector_decoder_manifest(decoder_path, decoder_sha)
+    report['decoder'] = {'sha256': sha(decoder_path), 'production_loader_passed': True, 'manifest': json.loads(decoder_path.read_bytes())}
+    environment_keys = ('CUDA_VISIBLE_DEVICES', 'VLLM_USE_V2_MODEL_RUNNER', 'VLLM_PLUGINS',
+        'VLLM_RWKV7_NATIVE_STATE_ENABLED', 'VLLM_RWKV7_NATIVE_STATE_DIR', 'VLLM_RWKV7_NATIVE_STATE_CACHE_CAPACITY',
+        'VLLM_RWKV7_NATIVE_STATE_STORE_CAPACITY', 'VLLM_RWKV7_WKV_MODE',
+        'VLLM_RWKV7_STATE_PROFILE_MANIFEST', 'VLLM_RWKV7_STATE_PROFILE_MANIFEST_SHA256')
+    option_keys = ('--port', '--served-model-name', '--max-model-len', '--engine-root', '--engine-revision',
+        '--engine-source-manifest', '--engine-source-manifest-sha256', '--model-artifact', '--model-name', '--model-sha256',
+        '--decoder-manifest', '--decoder-sha256', '--input-protocol', '--profile-id', '--profile-sha256', '--profile-manifest-sha256')
+    for role, info in initial_units.items():
+        pid = int(info['MainPID'])
+        raw_argv = (Path('/proc') / str(pid) / 'cmdline').read_bytes()
+        argv = [value.decode() for value in raw_argv.split(b'\0') if value]
+        # Read only this project's two known service environments; emit strictly
+        # the public runtime whitelist and presence booleans, never a dump.
+        env = dict(item.split(b'=', 1) for item in (Path('/proc') / str(pid) / 'environ').read_bytes().split(b'\0') if b'=' in item)
+        report['own_service_process_configuration'][role] = {
+            'pid': pid, 'argv_sha256': raw_sha(raw_argv),
+            'argv_options': {key: argv[argv.index(key) + 1] for key in option_keys if key in argv},
+            'public_environment_whitelist': {key: env[key.encode()].decode() if key.encode() in env else None for key in environment_keys},
+            'trained_state_profile_manifest_unset': all(key.encode() not in env for key in environment_keys[-2:]),
+        }
+    report['gets'] = {name: get_json(url) for name, url in (
+        ('models', 'http://127.0.0.1:18234/v1/models'), ('capabilities', 'http://127.0.0.1:18234/v1/capabilities'),
+        ('selector', 'http://127.0.0.1:18239/healthz'))}
+    selector_expected = {'input_protocol': selector_intent_v4.INPUT_SCHEMA_VERSION,
+        'model': 'rwkv7-g1j-2.9b-vllm-v1', 'model_sha256': report['models']['2.9b']['runtime_weights_sha256'],
+        'decoder_id': NATIVE_SELECTOR_DECODER_ID, 'decoder_sha256': decoder_sha, 'decoder_protocol': NATIVE_SELECTOR_DECODER_PROTOCOL,
+        'profile_id': 'zero', 'profile_sha256': '0' * 64, 'profile_manifest_sha256': '0' * 64}
+    report['selector_health_identity_matches'] = report['gets']['selector']['body']['runtime_identity'] == selector_expected
+    report['resources'] = {
+        'gpu_csv': run('nvidia-smi', '--query-gpu=index,uuid,name,memory.used,memory.total,utilization.gpu', '--format=csv,noheader,nounits'),
+        'gpu_process_csv': run('nvidia-smi', '--query-compute-apps=pid,process_name,used_gpu_memory,gpu_uuid', '--format=csv,noheader,nounits'),
+        'service_listeners': run('ss', '-ltnp', '( sport = :18234 or sport = :18239 )'),
+        'project_disk': run('df', '-B1', str(ROOT)),
+    }
+    project_sources = {str(path.relative_to(ROOT)): sha(path) for path in sorted((ROOT / 'rwkv_lh').rglob('*.py'))}
+    report['project_sources'] = project_sources
+    report['project_source_matches_by_file'] = {key: project_sources.get(key) == value for key, value in expected['project_sources'].items()}
+    report['project_source_extra_files'] = sorted(set(project_sources) - set(expected['project_sources']))
+    report['units_after'] = units()
+    report['services_unchanged_during_audit'] = report['units_after'] == initial_units
+    report['runtime_identity_checks_passed'] = all((
+        all(v['ActiveState'] == 'active' and v['SubState'] == 'running' for v in initial_units.values()),
+        all(v['matches'] for v in report['artifacts'].values()),
+        all(v['runtime_weights_match'] and v['manifest_matches_frozen'] and v['config_matches_frozen'] and v['file_stat_unchanged_during_hash'] for v in report['models'].values()),
+        report['selector_health_identity_matches'], all(report['project_source_matches_by_file'].values()),
+        not report['project_source_extra_files'], report['services_unchanged_during_audit'],
+        all(v['trained_state_profile_manifest_unset'] for v in report['own_service_process_configuration'].values()),
+    ))
+    report['completed_at'] = datetime.now(timezone.utc).isoformat()
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+elif MODE == 'local':
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    remote = json.loads((ROUND / 'RUNTIME_REMOTE_READINESS.json').read_bytes())
+    listening = run('ss', '-ltnp', '( sport = :29613 or sport = :29621 )')
+    pids = sorted(set(re.findall(r'"ssh",pid=(\d+)', listening)))
+    tunnels = []
+    for pid in pids:
+        raw = (Path('/proc') / pid / 'cmdline').read_bytes()
+        argv = [value.decode() for value in raw.split(b'\0') if value]
+        tunnels.append({'pid': int(pid), 'comm': (Path('/proc') / pid / 'comm').read_text().strip(),
+                        'argv_sha256': raw_sha(raw), 'forward_specs': [argv[index+1] for index, value in enumerate(argv) if value == '-L'],
+                        'destination': argv[-1]})
+    gets = {name: get_json(url) for name, url in (
+        ('models', 'http://127.0.0.1:29613/v1/models'), ('capabilities', 'http://127.0.0.1:29613/v1/capabilities'),
+        ('selector', 'http://127.0.0.1:29621/healthz'))}
+    forwarded = {entry for tunnel in tunnels for entry in tunnel['forward_specs']}
+    checks = {'expected_forward_specs': {'127.0.0.1:29613:127.0.0.1:18234', '127.0.0.1:29621:127.0.0.1:18239'} <= forwarded,
+              'selector_identity_matches_remote': gets['selector']['body'] == remote['gets']['selector']['body'],
+              'native_capabilities_match_remote': gets['capabilities']['body'] == remote['gets']['capabilities']['body'],
+              '13b_alias_present': 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384' in {v['id'] for v in gets['models']['body']['data']},
+              'remote_runtime_identity_passed': remote['runtime_identity_checks_passed']}
+    write('RUNTIME_LOCAL_TUNNEL_READINESS.json', {**base(), 'service_listeners': listening, 'tunnels': tunnels,
+        'gets': gets, 'checks': checks, 'runtime_ready': all(checks.values()),
+        'remote_evidence_sha256': sha(ROUND / 'RUNTIME_REMOTE_READINESS.json'),
+        'limits': 'GET and file identities are runtime readiness only; upstream stability, Agent behavior and model generation are not tested here.'})
+else:
+    raise ValueError('unsupported audit mode')

@@ -1,5 +1,7 @@
 # RWKV-LH 当前交接
 
+最新上游复测（2026-09-07，`STRONG_UPSTREAM_STABILITY_R1_20260907`）：owner 提供 next-token.cc 凭据并授权“稳定则运行”。认证后的模型目录正常，`gpt-5.6-sol` 存在；使用当前无步数上限提示词、8,192 输出预算、240 秒超时的完整 Planner 请求，首发在 32.8 秒后返回 HTTP 500 / `do_request_failed`。按运行前冻结的 10 请求矩阵及首错停止规则，结果为 0 通过、1 失败、9 未运行，未达到开跑门槛。没有切换生产配置或启动 R3 双零。凭据保存在忽略追踪、0600 的 `.env.strong.local`，供后续授权复测使用，不写入实验记录。两项 RWKV 服务、转发、完整 engine / 模型 SHA、decoder 和 zero State 配置核验通过；阻塞仍是本次强模型生成接口。完整证据见 [上游稳定性报告](../data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。
+
 更新时间：2026-09-07。当前连接适配轮次：`VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907`。基线准备与执行记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；R2 已冻结并执行完整 A 臂，B 臂尚未启动。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
 
 当前阶段：本轮已按 owner 授权将 Planner 与 Stage Checker 配置为现有本地 13.3B 的原生 `/completions`，取消固定计划步数并扩大 Planner 输出预算。单次真实 Planner 请求已成功返回完整 JSON，但 `GoalPlanPatch` 字段合同未通过，尚不能启动全面基线。R2 A 的 12 题均以 `strong_planner_unavailable` 停止，B 臂未启动；当前没有有效双零能力基线。本轮无新 Agent 指标，作者参考自验、连接 fixture、整体 bubblewrap 验证和完整 pytest 均与模型评测分开报告。

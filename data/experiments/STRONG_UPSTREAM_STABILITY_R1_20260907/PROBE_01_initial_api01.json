@@ -1,0 +1,77 @@
+{
+  "round": 1,
+  "case": "initial_api01",
+  "index": 1,
+  "started_at_utc": "2026-09-07T06:25:31.283872+00:00",
+  "registration_sha256": "aff1d396beed52e8c97458a6cf56af32f01621e304267438c094a4176a510e54",
+  "events": [
+    {
+      "type": "supervisor_request_started",
+      "call_id": "SUP-06c4fb40d784466ea718",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "input_envelope": "chat_messages_v1",
+      "input_sha256": "71e4b7fd3a175377b2cebc5c4fba722bc71eaf9fd6cb1c782f83e473335d9bdb",
+      "input_chars": 1360,
+      "max_tokens": 8192,
+      "response_format": "json_object"
+    },
+    {
+      "type": "supervisor_http_attempt_started",
+      "call_id": "SUP-06c4fb40d784466ea718",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "attempt": 1
+    },
+    {
+      "type": "supervisor_request_failed",
+      "call_id": "SUP-06c4fb40d784466ea718",
+      "phase": "goal_plan",
+      "run_id": "RP-API-01",
+      "request_digest": "612923d41d6496452163c242cc32f3504dd1b7b586f5aed3edb236e0e931a62d",
+      "provider": "openai_compatible",
+      "model": "gpt-5.6-sol",
+      "transport": "chat_completions",
+      "http_status": 500,
+      "http_attempts": 1,
+      "retryable": true,
+      "error_category": "upstream",
+      "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan",
+      "provider_error": {
+        "body_chars": 172,
+        "body_sha256": "64f4987f44fc137b989a38ac21365c9cfa7d9e06fd94cc840839087580126b00",
+        "headers": {
+          "content-type": "application/json; charset=utf-8"
+        },
+        "body_shape": "dict",
+        "error": {
+          "type": "new_api_error",
+          "code": "do_request_failed",
+          "message": "upstream error: do request failed (request id: 202609070625338139019158268d9d667ty3WNA)",
+          "param": ""
+        }
+      }
+    }
+  ],
+  "http_attempts": [
+    {
+      "endpoint": "https://next-token.cc/v1/chat/completions",
+      "request_body_sha256": "de1dc4b9990b52ff949a494840ae08f13132d780bfa8309ca398690a340b0b77",
+      "http_status": 500,
+      "response_text": "{\"error\":{\"message\":\"upstream error: do request failed (request id: 202609070625338139019158268d9d667ty3WNA)\",\"type\":\"new_api_error\",\"param\":\"\",\"code\":\"do_request_failed\"}}",
+      "response_sha256": "64f4987f44fc137b989a38ac21365c9cfa7d9e06fd94cc840839087580126b00",
+      "request_ids": {
+        "X-Oneapi-Request-Id": "202609070625338139019158268d9d667ty3WNA"
+      }
+    }
+  ],
+  "status": "fail",
+  "error_type": "SupervisorTransportError",
+  "error": "supervisor HTTP 500 during goal_plan",
+  "elapsed_seconds": 32.8
+}

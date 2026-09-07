@@ -1,0 +1,121 @@
+{
+  "at": "2026-09-07T06:23:58.072255+00:00",
+  "script_sha256": "c86e53040db99a44ccad14417f16f419323d286d5701e150ebb9918a417ae895",
+  "generation_requests": 0,
+  "model_tensor_loads": 0,
+  "state_content_reads": 0,
+  "git_executed": false,
+  "settings_changed": false,
+  "services_restarted": false,
+  "service_listeners": "State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                          \nLISTEN 0      128        127.0.0.1:29621      0.0.0.0:*    users:((\"ssh\",pid=1269095,fd=5))\nLISTEN 0      128        127.0.0.1:29613      0.0.0.0:*    users:((\"ssh\",pid=1269095,fd=4))",
+  "tunnels": [
+    {
+      "pid": 1269095,
+      "comm": "ssh",
+      "argv_sha256": "2ce9d4364e9e23a57049acd625405d0791c31ec5f1ff72972645c910041d52b3",
+      "forward_specs": [
+        "127.0.0.1:29613:127.0.0.1:18234",
+        "127.0.0.1:29621:127.0.0.1:18239"
+      ],
+      "destination": "rwkv-8222"
+    }
+  ],
+  "gets": {
+    "models": {
+      "url": "http://127.0.0.1:29613/v1/models",
+      "http_status": 200,
+      "response_sha256": "2c7a009d2b26f50cd521725bd09c6aaef304f15b155011c3fe147733ad5b4b43",
+      "body": {
+        "object": "list",
+        "data": [
+          {
+            "id": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+            "object": "model",
+            "created": 1788762237,
+            "owned_by": "vllm",
+            "root": "/home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-13.3b-vllm-v1",
+            "parent": null,
+            "max_model_len": 16384,
+            "permission": [
+              {
+                "id": "modelperm-bc7fdeef6fbe5faa",
+                "object": "model_permission",
+                "created": 1788762237,
+                "allow_create_engine": false,
+                "allow_sampling": true,
+                "allow_logprobs": true,
+                "allow_search_indices": false,
+                "allow_view": true,
+                "allow_fine_tuning": false,
+                "organization": "*",
+                "group": null,
+                "is_blocking": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "capabilities": {
+      "url": "http://127.0.0.1:29613/v1/capabilities",
+      "http_status": 200,
+      "response_sha256": "886860abb99bbf9cab288e5e70bc66a48c78ca267d39d7049451eafe91fa2fd4",
+      "body": {
+        "schema_version": "rwkv-lh.native-state.v1",
+        "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "prompt_replay": false,
+        "tools": {
+          "native_tool_calls": false
+        },
+        "recurrent_state": {
+          "protocol": "rwkv-lh.native-state.v1",
+          "create": true,
+          "resume": true,
+          "fork": true,
+          "commit": true,
+          "rollback": true,
+          "export": true,
+          "import": true,
+          "authoritative": false,
+          "cache_role": "disposable_acceleration",
+          "state_format_version": "rwkv7-native-state-cache.v1",
+          "pending_token_policy": "state_before_exactly_one_pending_token",
+          "cache_capacity_per_worker": 16
+        },
+        "max_model_len": 16384,
+        "server_build": "0.23.1rc1.dev1942+g67f0c5996",
+        "tokenizer_build": "55280e9a0b65431fbcf66cebb0560d66b6c61c9f98d56e68d9ead06764b30d96",
+        "error": ""
+      }
+    },
+    "selector": {
+      "url": "http://127.0.0.1:29621/healthz",
+      "http_status": 200,
+      "response_sha256": "10b2f8e23aab635aa0c94cb2fda58a32f9b1224860d0c7ba8180e6eab0dfea78",
+      "body": {
+        "status": "ok",
+        "runtime_identity": {
+          "input_protocol": "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v4",
+          "model": "rwkv7-g1j-2.9b-vllm-v1",
+          "model_sha256": "c1a316e75abd50f5edc3358fbb2c7d1cb18c611d9b2aa5b888091c8d45cc866c",
+          "decoder_id": "rwkv_lh_g1j_selector_native_trie_v1",
+          "decoder_sha256": "9049329c79e89f057e2631bdba7cae771074e025c1df8b23bd4494e4f36f776b",
+          "decoder_protocol": "rwkv-lh.native-eligible-suffix-trie.v1",
+          "profile_id": "zero",
+          "profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "profile_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      }
+    }
+  },
+  "checks": {
+    "expected_forward_specs": true,
+    "selector_identity_matches_remote": true,
+    "native_capabilities_match_remote": true,
+    "13b_alias_present": true,
+    "remote_runtime_identity_passed": true
+  },
+  "runtime_ready": true,
+  "remote_evidence_sha256": "d3e6b9a1eeef1584a092a886dc00f332c18d41692828e8a77159b54d9b52f3b0",
+  "limits": "GET and file identities are runtime readiness only; upstream stability, Agent behavior and model generation are not tested here."
+}
