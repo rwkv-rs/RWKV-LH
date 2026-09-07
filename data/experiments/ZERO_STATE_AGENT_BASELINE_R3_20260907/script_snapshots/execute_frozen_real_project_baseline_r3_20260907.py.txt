@@ -1,0 +1,239 @@
+"""Prepare, freeze, and execute the owner-authorized local-13.3B R3 double zero."""
+from __future__ import annotations
+import argparse
+import contextlib
+from datetime import datetime, timezone
+import hashlib
+import importlib.metadata
+import io
+import json
+import os
+from pathlib import Path
+import platform
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907'
+sys.path.insert(0, str(ROOT))
+import run_frozen_zero_baseline_r3_20260907 as config_driver
+from scripts import run_rwkv_e2e_benchmark as benchmark
+
+REVISION = 'R3'
+FREEZE = ROUND / 'FROZEN_EXECUTION_MANIFEST_R3.json'
+EXPECTED_PARENT = 'eb861256c8edf2e3f0361027a68ed0fc35cddcf5'
+DEFINITIONS = ROUND / 'METRIC_DEFINITIONS_R3.json'
+COLLECTOR = ROOT / 'temp/collect_zero_project_metrics_r3_20260907.py'
+COMPARATOR = ROOT / 'temp/compare_zero_project_arms_r3_20260907.py'
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def write(path, value):
+    with path.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+def current_head():
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+
+def source_paths():
+    # Local Git inventories only the named source/development suite trees.
+    names = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '--',
+        'rwkv_lh', 'scripts', 'tests', 'pyproject.toml', 'uv.lock',
+        'benchmarks/rwkv_e2e/rwkv_real_project_dev_v1',
+        'data/datasets/rwkv_lh_real_project_dev_v1'], cwd=ROOT, text=True).splitlines()
+    return sorted({name for name in names if (ROOT / name).is_file()})
+
+def dependencies():
+    return {'python': sys.version, 'platform': platform.platform(), 'wsl': os.environ.get('WSL_DISTRO_NAME'),
+            'packages': sorted([d.metadata['Name'], d.version] for d in importlib.metadata.distributions())}
+
+def immutable_files():
+    extra = [Path(config_driver.__file__), Path(__file__), COLLECTOR, COMPARATOR,
+        ROOT / 'temp/run_zero_baseline_r3_sequence_20260907.py',
+        ROOT / 'temp/attest_current_zero_remote_r1_20260907.py',
+        ROOT / 'data/runtime/manifests/vllm-rwkv-67f0c5996c50.source.json',
+        ROOT / 'data/runtime/manifests/vllm-rwkv-67f0c5996c50-selector-clean.source.json',
+        ROUND / 'PREREGISTRATION_R3.zh-CN.md', DEFINITIONS,
+        ROUND / 'CURRENT_NATIVE_CONFIGURATION.json']
+    return {name: sha(ROOT / name) for name in sorted(set(source_paths() + [str(p.relative_to(ROOT)) for p in extra]))}
+
+def remote_snapshot(label):
+    script = ROOT / 'temp/attest_current_zero_remote_r1_20260907.py'
+    value = json.loads(subprocess.check_output(['ssh', '-o', 'BatchMode=yes', 'rwkv-8222',
+        'python3', str(script)], text=True, timeout=90))
+    assert value['git_executed'] is False
+    assert value['attestation_script_sha256'] == sha(script)
+    write(ROUND / f'REMOTE_{label}_{REVISION}.json', value)
+    return value
+
+def current_config(label, *, preflight=True):
+    output = ROUND / f'PUBLIC_CONFIG_{label}_{REVISION}.json'
+    saved = sys.argv
+    try:
+        sys.argv = [str(Path(config_driver.__file__)), '--mode', 'preflight' if preflight else 'config', '--output', str(output)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert config_driver.main() == 0
+    finally:
+        sys.argv = saved
+    value = json.loads(output.read_text())
+    config = value['PUBLIC_CONFIG']
+    planner = config['strong_planner_stage_checker']
+    assert planner['model'] == planner['stage_checker_model'] == config_driver.MODEL_13
+    assert planner['backend_profile'] == config_driver.supervisor_vllm_rwkv.BACKEND_PROFILE
+    assert planner['max_plan_tokens'] == 8192 and planner['max_contract_review_tokens'] == 2400
+    assert planner['read_timeout_seconds'] == 240 and not planner['plan_cache_enabled']
+    assert planner['fallback_models'] == []
+    assert all(r['state_profile_id'] == 'zero' and r['state_profile_sha256'] == '0' * 64
+               for r in config['roles'].values())
+    assert config['selector']['profile_id'] == 'zero'
+    assert config['selector']['profile_sha256'] == '0' * 64
+    if preflight:
+        health = value['health']
+        assert health['rwkv_models']['available'] and health['rwkv_models']['configured_model_present']
+        assert health['rwkv_capabilities']['native_state_supported']
+        assert health['selector']['available'] and health['selector']['identity_matches']
+        assert health['strong_planner_stage_checker']['available'] and health['strong_planner_stage_checker']['model_present']
+    return value
+
+def verify_frozen(frozen):
+    assert frozen['status'] == 'FROZEN' and frozen['registration_revision'] == REVISION
+    assert current_head() == frozen['code_commit'], 'local HEAD changed after freeze'
+    assert immutable_files() == frozen['immutable_files'], 'source, grading, dataset or registration changed'
+    assert dependencies() == frozen['dependencies'], 'dependency environment changed after freeze'
+
+def commands(config):
+    metrics = {arm: [str(ROOT / '.venv/bin/python'), str(COLLECTOR), '--definitions', str(DEFINITIONS),
+        '--run-dir', str(ROUND / f'real_project_zero_{arm.lower()}_r3'),
+        '--output', str(ROUND / f'ZERO_{arm}_R3_DERIVED_METRICS.json')] for arm in ('A', 'B')}
+    comparison = [str(ROOT / '.venv/bin/python'), str(COMPARATOR)]
+    for arm in ('A', 'B'):
+        comparison += [f'--metrics-{arm.lower()}', str(ROUND / f'ZERO_{arm}_R3_DERIVED_METRICS.json'),
+                       f'--completion-{arm.lower()}', str(ROUND / f'ARM_{arm}_COMPLETION_R3.json')]
+    comparison += ['--freeze', str(FREEZE), '--output', str(ROUND / 'ZERO_AB_COMPARISON_R3.json')]
+    return config['PUBLIC_CONFIG']['independent_run_argv'], metrics, comparison
+
+def result_coverage(output, expected):
+    result_path = output / 'results.json'
+    report = {'expected_case_count': len(expected), 'expected_case_order': expected,
+              'observed_case_count': None, 'complete': False, 'missing_case_ids': expected,
+              'result_error': None, 'results_sha256': None}
+    if not result_path.is_file():
+        report['result_error'] = 'results_missing'
+        return report
+    try:
+        report['results_sha256'] = sha(result_path)
+        results = json.loads(result_path.read_text())['results']
+        ids = [row['task_id'] for row in results]
+        report.update(observed_case_count=len(ids), observed_case_order=ids,
+            missing_case_ids=[case for case in expected if case not in ids],
+            duplicate_case_ids=sorted({case for case in ids if ids.count(case) > 1}),
+            unexpected_case_ids=sorted(set(ids) - set(expected)), complete=ids == expected)
+    except Exception as exc:
+        report['result_error'] = config_driver.safe_error(exc)
+    return report
+
+def attempt_status(exit_code, exception, coverage, identity_checks):
+    if any(value is not True for value in identity_checks.values()):
+        return 'INVALID_IDENTITY'
+    if exception is not None or exit_code not in (0, 2) or not coverage['complete']:
+        return 'INCOMPLETE_OR_FATAL'
+    return 'COMPLETE_OBSERVATION'
+
+def execute_arm(arm, frozen):
+    completion = ROUND / f'ARM_{arm}_COMPLETION_R3.json'
+    assert not completion.exists(), 'an arm cannot be rerun or overwritten'
+    verify_frozen(frozen)
+    config = current_config(f'BEFORE_{arm}')
+    assert config['PUBLIC_CONFIG_sha256'] == frozen['public_config_sha256'], 'configuration changed before arm'
+    assert remote_snapshot(f'BEFORE_{arm}') == frozen['remote_deployment'], 'remote deployment changed before arm'
+    command = frozen['argv'][arm]
+    output = Path(command[command.index('--output') + 1])
+    assert not output.exists(), 'each arm requires a fresh output directory'
+    if arm == 'B':
+        assert (ROUND / 'ARM_A_COMPLETION_R3.json').is_file(), 'arm A must finish before B'
+    freeze_sha = sha(FREEZE)
+    write(ROUND / f'ARM_{arm}_START_R3.json', {'arm': arm, 'started_at': now(),
+        'freeze_sha256': freeze_sha, 'expected_case_count': len(frozen['case_order']), 'argv': command})
+    print(json.dumps({'status': 'STARTING', 'arm': arm, 'at': now(), 'freeze_sha256': freeze_sha}), flush=True)
+    saved = sys.argv
+    exception = None
+    exit_code = None
+    try:
+        sys.argv = command[1:]
+        exit_code = benchmark.main()
+    except BaseException as exc:
+        exception = config_driver.safe_error(exc)
+    finally:
+        sys.argv = saved
+    checks = {}
+    check_errors = {}
+    for name, check in (
+        ('immutable_sources_unchanged', lambda: verify_frozen(frozen)),
+        ('configuration_unchanged', lambda: current_config(f'AFTER_{arm}')['PUBLIC_CONFIG_sha256'] == frozen['public_config_sha256']),
+        ('remote_deployment_unchanged', lambda: remote_snapshot(f'AFTER_{arm}') == frozen['remote_deployment']),
+        ('freeze_unchanged', lambda: sha(FREEZE) == freeze_sha),
+    ):
+        try:
+            checks[name] = check() is not False
+        except BaseException as exc:
+            checks[name] = False
+            check_errors[name] = config_driver.safe_error(exc)
+    coverage = result_coverage(output, frozen['case_order'])
+    status = attempt_status(exit_code, exception, coverage, checks)
+    write(completion, {'arm': arm, 'runner_exit_code': exit_code, 'completed_at': now(),
+        **checks, 'identity_check_errors': check_errors, 'freeze_sha256': freeze_sha,
+        'attempt_status': status, 'coverage': coverage, 'runner_exception': exception,
+        'score_policy': 'Complete exit 2 is retained regardless score; missing cases remain unknown out of 12; no selective retries.'})
+    print(json.dumps({'status': status, 'arm': arm, 'runner_exit_code': exit_code,
+                      'coverage_complete': coverage['complete'], 'completion_sha256': sha(completion)}), flush=True)
+    return exit_code if status == 'COMPLETE_OBSERVATION' else 4
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument('--prepare', action='store_true')
+    modes.add_argument('--freeze', action='store_true')
+    modes.add_argument('--arm', choices=['A', 'B'])
+    args = parser.parse_args()
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    if args.arm:
+        return execute_arm(args.arm, json.loads(FREEZE.read_text()))
+    assert not FREEZE.exists(), 'registration is immutable after freeze'
+    head = current_head()
+    assert head.startswith(EXPECTED_PARENT), 'unexpected local parent commit'
+    config = current_config('PREPARE' if args.prepare else 'FREEZE_ATTESTED', preflight=args.freeze)
+    tasks, _ = benchmark.load_suite('realprojectdevv1')
+    case_order = [task['task_id'] for task in tasks]
+    definitions = json.loads(DEFINITIONS.read_text())
+    assert len(case_order) == 12 and case_order == definitions['expected_case_order']
+    assert definitions['collector']['sha256'] == sha(COLLECTOR)
+    argv, metric_argv, comparison_argv = commands(config)
+    value = {'status': 'PREPARED' if args.prepare else 'FROZEN',
+        'frozen_at' if args.freeze else 'prepared_at': now(), 'round': ROUND.name,
+        'registration_revision': REVISION, 'code_commit': head,
+        'owner_authorization': 'Switch back to local G1J-13.3B and run both all-zero arms now; upstream recovery deferred.',
+        'deployment_policy': 'No server Git; locally uploaded files and complete SHA manifests only.',
+        'suite': 'realprojectdevv1', 'case_order': case_order, 'argv': argv, 'metric_argv': metric_argv,
+        'comparison_argv': comparison_argv, 'public_config_sha256': config['PUBLIC_CONFIG_sha256'],
+        'immutable_files': immutable_files(), 'dependencies': dependencies(),
+        'remote_deployment': remote_snapshot('FREEZE_ATTESTED') if args.freeze else None,
+        'limits': ['Known Planner contract, Stage length and physical context failures are observations, not prelaunch score gates.',
+            'Complete 12-case exit 2 remains a baseline observation; fatal or missing cases cannot be spliced with retries.',
+            'Model files bind previously verified full SHA manifests plus inode/size/mtime; service nondeterminism remains.',
+            'README/HANDOFF/general iteration narrative may be updated; frozen preregistration and definitions may not.',
+            'Local HEAD must remain unchanged through both arms. No Holdout or role training data is read.']}
+    if args.freeze:
+        # Catch file or dependency changes during GET health and remote attestation.
+        verify_frozen(value)
+        assert current_config('FREEZE_FINAL', preflight=False)['PUBLIC_CONFIG_sha256'] == value['public_config_sha256']
+    output = FREEZE if args.freeze else ROUND / 'PREPARE_R3.json'
+    write(output, value)
+    print(json.dumps({'status': value['status'], 'manifest': str(output), 'sha256': sha(output), 'cases': len(tasks)}))
+    return 0
+
+if __name__ == '__main__':
+    raise SystemExit(main())

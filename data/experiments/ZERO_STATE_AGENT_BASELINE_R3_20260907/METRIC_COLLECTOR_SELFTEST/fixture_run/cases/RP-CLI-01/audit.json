@@ -1,0 +1,199 @@
+{
+  "task_id": "RP-CLI-01",
+  "run_state": {
+    "actions": {
+      "change": {
+        "status": "succeeded",
+        "action_type": "run_command",
+        "workspace_digest_before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_digest_after": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "noop": {
+        "status": "succeeded",
+        "action_type": "read_file",
+        "workspace_digest_before": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "workspace_digest_after": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "failed": {
+        "status": "failed",
+        "action_type": "run_command",
+        "workspace_digest_before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "workspace_digest_after": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  },
+  "action_ledger": {
+    "change": {
+      "status": "succeeded",
+      "action_type": "run_command",
+      "workspace_digest_before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_digest_after": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "noop": {
+      "status": "succeeded",
+      "action_type": "read_file",
+      "workspace_digest_before": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "workspace_digest_after": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "failed": {
+      "status": "failed",
+      "action_type": "run_command",
+      "workspace_digest_before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_digest_after": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "events": [
+    {
+      "event_id": 0,
+      "type": "exact_tool_selection_staged",
+      "data": {
+        "selection_id": "ensemble-1",
+        "selection": {
+          "raw_selection": {
+            "lane_selections": {
+              "first": {
+                "trace_id": "lane-first"
+              },
+              "second": {
+                "trace_id": "lane-second"
+              },
+              "third": {
+                "trace_id": "lane-third"
+              }
+            }
+          }
+        }
+      },
+      "causal_event": {
+        "event_id": "event-selector",
+        "event_type": "exact_tool_selection_staged",
+        "payload": {
+          "selection_id": "ensemble-1",
+          "selection": {
+            "raw_selection": {
+              "lane_selections": {
+                "first": {
+                  "trace_id": "lane-first"
+                },
+                "second": {
+                  "trace_id": "lane-second"
+                },
+                "third": {
+                  "trace_id": "lane-third"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_id": 1,
+      "type": "protocol_rejection_recorded",
+      "data": {
+        "error": "[operation_target_contract] target mismatch",
+        "request_id": "rejected-request",
+        "decision_id": "rejected-decision",
+        "selection_id": "rejected-selection"
+      },
+      "causal_event": {
+        "event_id": "event-guard",
+        "event_type": "protocol_rejection_recorded",
+        "payload": {
+          "error": "[operation_target_contract] target mismatch",
+          "request_id": "rejected-request",
+          "decision_id": "rejected-decision",
+          "selection_id": "rejected-selection"
+        }
+      }
+    },
+    {
+      "event_id": 2,
+      "type": "protocol_rejection_recorded",
+      "data": {
+        "error": "[operation_target_contract] target mismatch",
+        "request_id": "rejected-request",
+        "decision_id": "rejected-decision",
+        "selection_id": "rejected-selection"
+      },
+      "causal_event": {
+        "event_id": "event-guard",
+        "event_type": "protocol_rejection_recorded",
+        "payload": {
+          "error": "[operation_target_contract] target mismatch",
+          "request_id": "rejected-request",
+          "decision_id": "rejected-decision",
+          "selection_id": "rejected-selection"
+        }
+      }
+    },
+    {
+      "event_id": 3,
+      "type": "protocol_rejection_recorded",
+      "data": {
+        "error": "a quoted marker [operation_target_contract] is data"
+      },
+      "causal_event": {
+        "event_id": "event-quoted",
+        "event_type": "protocol_rejection_recorded",
+        "payload": {
+          "error": "a quoted marker [operation_target_contract] is data"
+        }
+      }
+    },
+    {
+      "event_id": 4,
+      "type": "run_interrupted",
+      "data": {
+        "reason": "controller_slice_exhausted",
+        "resumable": true
+      },
+      "causal_event": {
+        "event_id": "event-intermediate",
+        "event_type": "run_interrupted",
+        "payload": {
+          "reason": "controller_slice_exhausted",
+          "resumable": true
+        }
+      }
+    },
+    {
+      "event_id": 5,
+      "type": "run_completed",
+      "data": {},
+      "causal_event": {
+        "event_id": "event-completed",
+        "event_type": "run_completed",
+        "payload": {}
+      }
+    }
+  ],
+  "runner_observations": {
+    "goal_transition_budget_consumed": 7,
+    "goal_transition_budget_exhausted": false
+  },
+  "model_trace": [
+    {
+      "type": "model_session_generation_started",
+      "request_id": "request-1",
+      "model_role": "executor_args"
+    },
+    {
+      "type": "model_session_generation_started",
+      "request_id": "request-1",
+      "model_role": "executor_args"
+    }
+  ],
+  "supervisor_trace": [
+    {
+      "type": "supervisor_request_started",
+      "call_id": "strong-1",
+      "phase": "goal_plan"
+    },
+    {
+      "type": "supervisor_request_started",
+      "call_id": "strong-2",
+      "phase": "goal_stage_review"
+    }
+  ]
+}

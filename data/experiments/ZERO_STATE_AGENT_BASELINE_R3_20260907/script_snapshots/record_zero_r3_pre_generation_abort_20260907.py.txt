@@ -1,0 +1,39 @@
+"""Preserve the blocked R3 startup without undoing another task's source edits."""
+from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(ROOT/'temp'))
+import execute_frozen_real_project_baseline_r3_20260907 as wrapper
+
+ROUND = ROOT/'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907'
+frozen = json.loads(wrapper.FREEZE.read_text())
+before = frozen['immutable_files']
+current = wrapper.immutable_files()
+output = ROUND/'PRE_GENERATION_ABORT.json'
+assert not output.exists()
+record = {
+    'at_utc':datetime.now(timezone.utc).isoformat(),
+    'status':'INVALID_PRE_GENERATION_STARTUP',
+    'reason':'Concurrent work in the shared checkout changed the frozen source set before Arm A could start.',
+    'changed':[{'path':name,'frozen_sha256':before[name],'observed_sha256':current[name]}
+               for name in sorted(set(before)&set(current)) if before[name]!=current[name]],
+    'added':[{'path':name,'observed_sha256':current[name]} for name in sorted(set(current)-set(before))],
+    'removed':sorted(set(before)-set(current)),
+    'freeze_sha256':hashlib.sha256(wrapper.FREEZE.read_bytes()).hexdigest(),
+    'arm_a_start_record_exists':(ROUND/'ARM_A_START_R3.json').exists(),
+    'arm_a_output_directory_exists':(ROUND/'real_project_zero_a_r3').exists(),
+    'arm_b_output_directory_exists':(ROUND/'real_project_zero_b_r3').exists(),
+    'model_generation_calls':0, 'agent_case_runs':0,
+    'evidence_basis':'ARM_A_RUN.log fails in verify_frozen before current_config, ARM_A_START record and benchmark.main.',
+    'no_other_task_files_reverted':True,
+    'next_action':'Execute both full arms from a separate local worktree at the already verified eb861256 commit; new R4 registration, same tasks/metrics/budgets.',
+    'logs':{name:hashlib.sha256((ROUND/name).read_bytes()).hexdigest() for name in ('ARM_A_RUN.log','SEQUENCE_RUN.log','SEQUENCE_STATUS.json')},
+    'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+}
+assert not record['arm_a_start_record_exists'] and not record['arm_a_output_directory_exists'] and not record['arm_b_output_directory_exists']
+output.write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'status':record['status'],'model_generation_calls':0,'file':str(output)}))

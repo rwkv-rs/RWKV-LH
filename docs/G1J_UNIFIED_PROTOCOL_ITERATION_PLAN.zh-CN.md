@@ -96,9 +96,9 @@ Bot✿<think
 
 旧合成角色数据链已删除，不保留本地归档或 stub，也不得恢复旧生成器以继续训练。旧实验只查 Git / GitHub；当前工作树只保存当前有效数据、隔离验收材料和本轮及后续证据。
 
-### 2.1 唯一未来流水线
+### 2.1 唯一生产 trace 流水线
 
-固定模块名 `rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py`，当前尚未实现。它必须遵循：
+固定模块名 `rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py`，已在 `ROLE_TRACE_DATASET_R1_20260907` 实现。当前入口只生成候选审计工件，正式回归冻结与训练仍遵守 §2.2。命令、证据边界及经验见 [使用说明](ROLE_TRACE_DATASET.zh-CN.md)。它遵循：
 
 1. 使用生产 Harness + all-zero 在已冻结的开发范围运行并落盘 LongHorizonStore；可包含 Ladder-10、owner 授权的 `realprojectdevv1` 及已确认生产适配的机制回归。E2E-90 的 LH09 `mock_api` 冲突必须显式处理，不得静默删题；不得读取 Holdout。
 2. 遍历 causal_order，以各 assignment / audit boundary 当时之前的 durable facts 重建输入。Selector 调用 build_current_progress；Executor 使用持久化 execution state 及同一 builder；Auditor 从边界证据重建 catalog。保存完整 SQLite、model_states/checkpoint chain、state timeline 和原始 token IDs；native causal_ledger 的 input.prompt 只含最后 delta，不能当完整训练输入。按实际 transport、bootstrap、State 初始化、rollover/fork 与 stop suffix 处理重建完整上下文，再证明唯一 builder 生成的协议正文与该上下文绑定；缺失请求/响应明确排除，不补造事实。
@@ -126,8 +126,8 @@ Bot✿<think
 ## 3. 迭代顺序与比较纪律
 
 1. 唯一协议、旧链清理、新开发题整体隔离验收及完整单元回归；使用 `uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev` 和 `.venv/bin/python -m playwright install chromium` 准备环境；Torch / State 注入及必需浏览器验证不得跳过。
-2. 按 owner 2026-09-07 最新授权，先解决当前 Planner 输出合同缺陷并完成两个 Goal 角色的接入验证，再核验 §1.3 的上传文件身份。保留 R1 无效尝试与 R2 A 原始冻结记录，重新登记当前代码/服务/题集/参数，用全新 workspace/State 完整运行 `realprojectdevv1` 同 12 题的两遍 all-zero，不先跑 Ladder、不跑 E2E-90，也不接续旧 R2 B。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted，其他硬门按新的执行预注册执行。两遍有效 Strict 差为该集合噪声带；不达标修根因，禁止进入训练。
-3. 实现生产 trace 抽取并在 owner 确认后冻结回归集。
+2. 按 owner 2026-09-07 最后授权“换回 g1j-13.3，然后开始测，之后强模型恢复了再说”，在已知 Planner / Stage Checker 输出缺陷下观察本地原生 13.3B 基线，不再等待上游恢复或先修模型输出。R3 因共享工作树中的并行源码改动被启动身份检查拦截，0 调用、0 题；后续隔离工作树中的 R4 也因首题收尾时运行器的通用题集导入依赖失败而停止并标 INVALID，A 仅有 2 条 `runner_error`、指标未知，B 未开始。当前在隔离目录修复通用依赖并准备 R5，重新冻结后两臂从头运行。核验 §1.3 上传文件身份，保留 R1 无效尝试、R2 A、R3 启动前中止与 R4 运行器失败的原始记录，以重新冻结的代码/服务/题集/参数和全新 workspace/State 完整运行 `realprojectdevv1` 同 12 题的两遍 all-zero，不先跑 Ladder、不跑 E2E-90，也不接续旧 R2 B。合同失败、length、上下文不足和未执行题均按原口径记录，不改模型输出或评分放行。质量门仍为 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted，其他硬门按 R5 运行前执行预注册执行；运行授权不意味着这些门已通过。两遍有效 Strict 差为该集合噪声带；不达标修根因，禁止进入训练。
+3. 使用已实现的生产 trace 抽取器审计合法来源；覆盖、切分及证据门通过后，在 owner 确认后冻结回归集。候选审计通过不代表模型能力、完整服务端输入 token/BOS 记录或训练授权。
 4. 当前 State 同代码做 2⁴ 消融，或至少 all-zero/全开/四个单开；增益必须超过噪声带。
 5. 只有有可归因残差、尚有合法轮次且 owner 书面确认时才训练。
 6. 本轮先完成 §3 第 2 项授权的项目开发集双零；后续候选比较、Ladder-10 和 E2E-90 机制回归在各自冻结范围开展，保留其既有门槛，再扩大边界/异常/恢复/安全覆盖。每个集合独立报告分母、噪声带与逐题翻转；新项目分数不替代既有 E2E-90 结果。
@@ -155,9 +155,9 @@ Agent 门：Ladder-10 Strict 严格高于 all-zero 且超过噪声带，zero 已
 
 ## 6. 当前执行状态
 
-Agent 级：本轮原生适配没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。下述 R2 数字仍是历史原始记录，不重评分；新双零两臂需要重新冻结并完整运行。
+Agent 级：R3 为 `INVALID_PRE_GENERATION_STARTUP`，0 题、0 模型生成调用，Strict / completed / mutation 未测量；不是 Strict 0/12 的能力结果。启动身份检查发现三处已有文件变化和一个新增源码文件，A 在进入 `benchmark.main` 前退出，顺序执行器停止，B 未启动，旧 freeze 和日志保持原样，详见 [R3 中止报告](../data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/REPORT.zh-CN.md)。R4 在隔离工作树 `/home/chase/GitHub/RWKV-LH-zero-baseline-r4`、分支 `chase/zero-baseline-r4`、固定提交 `eb861256c8edf2e3f0361027a68ed0fc35cddcf5` 重新冻结并启动 A 臂；启动时间为 2026-09-07 06:55:08 UTC，首题 `RP-API-01`；但随后收尾时运行器导入全部登记题集，因缺少封存题集模块失败，R4 已停止并标 INVALID。A 仅有 2 条 `runner_error`，Strict / completed / mutation 未知，不能使用占位 0，B 未开始。R4 freeze SHA-256 为 `c2317b13cbc8483a42f1cb1a9b40ef2134cb290f2b93b9c28ff70b0e70d3307b`，记录位于该工作树的 `data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907/`。当前在隔离目录修复通用运行器依赖并准备 R5，重新冻结后两臂从头运行；没有完整双零成绩。下述 R2 数字和原生适配诊断仍是历史原始记录，不重评分，强模型恢复后再议。
 
-当前 Planner 与 Stage Checker 已按 §1.5 配置为本地同一 13.3B alias，本地与远端各三种生产 loader 核验均通过。真实生产 Planner 单次探针返回 HTTP 200，自然 `stop`，1,918 输入 + 4,651 输出 = 6,569 tokens，耗时 62.601 秒；恢复实际 prefill 后 JSON 语法通过，生产 GoalPlanPatch 首先因额外顶层 `goal_digest` 拒绝。完整原文的独立审计另发现 7/7 `success_evidence` 为字符串、S1 义务绑定为空、其余非 observe 步骤仍有 read roots，不能将这些写成生产 parser 已逐项报错。因此不能把传输成功当作全面问题解决或基线启动资格。完整回归已通过 764 项，无跳过，耗时 62.43 秒；其代码验证结论不代表模型能力通过。报告与原始证据位于 `data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/`。
+当前 Planner 与 Stage Checker 已按 §1.5 配置为本地同一 13.3B alias，本地与远端各三种生产 loader 核验均通过。真实生产 Planner 单次探针返回 HTTP 200，自然 `stop`，1,918 输入 + 4,651 输出 = 6,569 tokens，耗时 62.601 秒；恢复实际 prefill 后 JSON 语法通过，生产 GoalPlanPatch 首先因额外顶层 `goal_digest` 拒绝。完整原文的独立审计另发现 7/7 `success_evidence` 为字符串、S1 义务绑定为空、其余非 observe 步骤仍有 read roots，不能将这些写成生产 parser 已逐项报错。该诊断轮未启动全面基线，接入缺陷仍未解决；后续 owner 已授权在已知缺陷下观察运行，传输成功不代表模型合同或能力通过。适配轮完整回归已通过 764 项，无跳过，耗时 62.43 秒；其代码验证结论不代表模型能力通过。报告与原始证据位于 `data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/`。
 
 Stage Checker 的 19 步 Controller 连接 fixture 有 19 次真实 Harness 读取和明确的 mock accepted audits；完整阶段引用保留，recent facts 独立限于 8 条。该输入预检为 15,067 tokens，加原定 2,400 输出预算得到 17,467，超过服务 16,384 窗口，因而没有发起生成，没有删步骤、截事实或降低预算。此为连接 fixture 的物理上下文限制，不是 Stage Checker 模型成绩；后续较小既有 fixture 的连接结果单独登记。
 
@@ -167,4 +167,4 @@ Stage Checker 的 19 步 Controller 连接 fixture 有 19 次真实 Harness 读�
 
 上一轮已统一五角色 builder 并删除旧协议与数据链。owner 确认服务器 `rwkv-8222` 后执行旧资源清理与当前源码部署，并授权编写 12 题项目开发基准。服务器禁止使用 Git，部署和身份核验只使用本地上传的完整 engine 源码清单与 manifest SHA；每次新运行均绑定相应核验记录。R2 的中转 `gpt-5.6-sol` 配置只属于历史冻结状态，不代表当前本地原生配置。
 
-首次 `real_project_zero_a` 已按上述约束中止并记录于 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json`，不用于成绩、噪声或训练来源。后续上传身份核验与 R2 冻结已完成；R2 A 完整运行 12 题，Strict 0/12、completed 0/12、mutation 0，全部终止于 `strong_planner_unavailable`，operation-target invalid 2，11 题没有 RWKV 生成。B 臂暂未启动，上游诊断独立于 Agent 评分，尚无合格的双零能力基线；必须先解决当前 Planner 输出合同和硬门问题，不能进入训练。没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，本轮结果见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。
+首次 `real_project_zero_a` 已按上述约束中止并记录于 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json`，不用于成绩、噪声或训练来源。后续上传身份核验与 R2 冻结已完成；R2 A 完整运行 12 题，Strict 0/12、completed 0/12、mutation 0，全部终止于 `strong_planner_unavailable`，operation-target invalid 2，11 题没有 RWKV 生成。B 臂暂未启动，上游诊断独立于 Agent 评分，尚无合格的双零能力基线。当前按后续 owner 授权准备 R5 观察运行；已知 Planner 输出合同和硬门问题未因此解决，不能进入训练。没有启动角色训练或读取 Holdout。服务器清理记录见 `data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/`，本轮结果见 `data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md`；新增开发任务与作者自验不能被称为真实用户 trace 或 Agent 能力提升。

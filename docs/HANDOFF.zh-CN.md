@@ -1,12 +1,16 @@
 # RWKV-LH 当前交接
 
+当前 owner 执行授权（2026-09-07）：上游复测失败后，owner 明确“换回 g1j-13.3，然后开始测，之后强模型恢复了再说”。因此本轮不再等待中转恢复或以已知 13.3B 输出缺陷阻止开跑；使用现有 native 13.3B Planner / Stage Checker、Selector 2.9B 与其余 13.3B zero 角色，按当前预算和完整 12 题开展两遍独立 all-zero。R3 被共享工作树的并行源码改动触发启动身份检查，在生成前中止，0 调用、0 题；其冻结和日志保持原样。R4 改在隔离工作树 `/home/chase/GitHub/RWKV-LH-zero-baseline-r4`、分支 `chase/zero-baseline-r4`、固定提交 `eb861256c8edf2e3f0361027a68ed0fc35cddcf5` 运行；A 臂于 2026-09-07 06:55:08 UTC 启动后，首题收尾触发运行器的全部题集导入，因缺少封存题集模块失败，现已停止并标 INVALID，B 未开始。当前在隔离目录修复通用运行器依赖并准备 R5，重新冻结后两臂从头运行。生产/评分/参数在两臂间保持不变，合同失败、截断、上下文不足均作为实际观察保留；运行授权不把这些失败变成验收通过，也不授权训练。
+
 最新上游复测（2026-09-07，`STRONG_UPSTREAM_STABILITY_R1_20260907`）：owner 提供 next-token.cc 凭据并授权“稳定则运行”。认证后的模型目录正常，`gpt-5.6-sol` 存在；使用当前无步数上限提示词、8,192 输出预算、240 秒超时的完整 Planner 请求，首发在 32.8 秒后返回 HTTP 500 / `do_request_failed`。按运行前冻结的 10 请求矩阵及首错停止规则，结果为 0 通过、1 失败、9 未运行，未达到开跑门槛。没有切换生产配置或启动 R3 双零。凭据保存在忽略追踪、0600 的 `.env.strong.local`，供后续授权复测使用，不写入实验记录。两项 RWKV 服务、转发、完整 engine / 模型 SHA、decoder 和 zero State 配置核验通过；阻塞仍是本次强模型生成接口。完整证据见 [上游稳定性报告](../data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。
 
-更新时间：2026-09-07。当前连接适配轮次：`VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907`。基线准备与执行记录：`ZERO_STATE_AGENT_BASELINE_R1_20260907`；R2 已冻结并执行完整 A 臂，B 臂尚未启动。服务器清理轮次：`SERVER_RUNTIME_CLEANUP_R1_20260907`。上一轮协议整改为 `PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
+更新时间：2026-09-07。当前基线准备轮次为隔离目录中的 R5；上一尝试 `ZERO_STATE_AGENT_BASELINE_R4_20260907` 已因运行器依赖失败停止并标 INVALID，其原冻结 SHA-256 为 `c2317b13cbc8483a42f1cb1a9b40ef2134cb290f2b93b9c28ff70b0e70d3307b`。原目录 `ZERO_STATE_AGENT_BASELINE_R3_20260907` 只保留启动前中止证据，见 [R3 报告](../data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/REPORT.zh-CN.md)。R2 A 历史结果位于 `ZERO_STATE_AGENT_BASELINE_R1_20260907`，R2 B 未启动；连接适配、服务器清理和协议整改分别为 `VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907`、`SERVER_RUNTIME_CLEANUP_R1_20260907`、`PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907`。
 
-当前阶段：本轮已按 owner 授权将 Planner 与 Stage Checker 配置为现有本地 13.3B 的原生 `/completions`，取消固定计划步数并扩大 Planner 输出预算。单次真实 Planner 请求已成功返回完整 JSON，但 `GoalPlanPatch` 字段合同未通过，尚不能启动全面基线。R2 A 的 12 题均以 `strong_planner_unavailable` 停止，B 臂未启动；当前没有有效双零能力基线。本轮无新 Agent 指标，作者参考自验、连接 fixture、整体 bubblewrap 验证和完整 pytest 均与模型评测分开报告。
+当前阶段：R4 A 臂因通用运行器依赖失败停止，只有 2 条 `runner_error` 记录，Strict / completed / mutation 未知，不能使用占位 0，B 未开始。隔离目录中的 R5 正在准备，尚无完整双零能力基线。Planner 使用 `/completions`、无固定计划步数上限、8,192 输出预算；Stage Checker 保持 2,400，服务上下文保持 16,384。此前连接探针得到完整 JSON，但 `GoalPlanPatch` 字段合同未通过，这些已知缺陷按后续 owner 授权在实际运行中保留。R3 没有进入任何题目，不能将其写成 Strict 0/12；作者参考自验、连接 fixture、整体 bubblewrap 验证和完整 pytest 均与模型评测分开报告。
 
 ## 1. Agent 级状态
+
+R3 状态为 `INVALID_PRE_GENERATION_STARTUP`：Agent 题目运行数 0，Strict / completed / mutation 未测量，模型生成调用数 0。A 臂包装器在 `verify_frozen` 拒绝三处内容变化和一个新增源码文件，顺序执行器因缺少 A 完成证据停止，B 未启动。未撤销其他任务的改动，也未修改旧 freeze。R4 使用隔离固定源码重开两臂，A 曾记录 `[1/12] RP-API-01 starting`，随后因运行器收尾导入缺失模块而停止并标 INVALID。A 仅有 2 条 `runner_error`，分数与 mutation 未知，B 未开始，不能据占位 0 计算分数或噪声带；下一轮 R5 在修复通用依赖并重新冻结后重跑两臂。
 
 R2 A 已执行完整 12 题：Strict **0/12**、completed **0/12**、mutation **0**；12 题终止原因均为 `strong_planner_unavailable`，operation-target invalid **2**。状态库最终大小与预算门通过，mutation 和目标拒绝门未通过。11 题没有发生 RWKV 生成，不能把这次受上游故障影响的结果当作纯 RWKV 能力基线、噪声估计或训练来源；详见 [R2_A_RUN_REPORT.zh-CN.md](../data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。R2 B 尚未启动，没有双零差值。
 
@@ -18,7 +22,7 @@ R2 中转链曾使用 `chat/completions` + JSON mode，完整请求在多种诊�
 
 上一轮 13.3B 普通 chat 诊断返回 `>思考文本</think>{JSON}`，完整请求在独立的 8,192-token 上限下生成 4,876 tokens；当时尚未修改生产预算。服务 traceback 将 JSON mode 的即时 500 定位为生成前缺少 `lmformatenforcer`，`fake_think` 自定义参数也在渲染链被过滤，详见 [原始输出检查](../data/experiments/LOCAL_13B_SUPERVISOR_CONNECTION_R1_20260907/REPORT.zh-CN.md)。该原始诊断保留，不按新适配器重评分。
 
-本轮改用原生文本接口并正式将 Planner 输出预算设为 8,192 tokens、读取超时设为 240 秒。真实生产 Planner 单次连接探针返回 HTTP 200，输入 1,918 tokens、输出 4,651 tokens、合计 6,569 tokens，耗时 62.601 秒，`finish_reason=stop`。按已发送 prefill 恢复边界后 JSON 语法通过，生产 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝。对完整原文另行检查发现：7 个阶段共 7 步，7/7 `success_evidence` 是字符串，S1 的 `obligation_ids` 为空，其余非 observe 步骤的 `read_roots` 非空；这些是独立原文审计发现，不是生产 parser 已逐项报告的错误，详见 [PLANNER_NATIVE_RESPONSE_INSPECTION.json](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/PLANNER_NATIVE_RESPONSE_INSPECTION.json)。步骤数量本身不构成缺陷。传输成功与字段合同失败分别记录；不能宣称全面解决、能力提升或具备全面基线启动条件。完整代码回归 764 项通过、无跳过，耗时 62.43 秒。原始证据、定向与完整测试日志见 [本轮报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
+本轮改用原生文本接口并正式将 Planner 输出预算设为 8,192 tokens、读取超时设为 240 秒。真实生产 Planner 单次连接探针返回 HTTP 200，输入 1,918 tokens、输出 4,651 tokens、合计 6,569 tokens，耗时 62.601 秒，`finish_reason=stop`。按已发送 prefill 恢复边界后 JSON 语法通过，生产 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝。对完整原文另行检查发现：7 个阶段共 7 步，7/7 `success_evidence` 是字符串，S1 的 `obligation_ids` 为空，其余非 observe 步骤的 `read_roots` 非空；这些是独立原文审计发现，不是生产 parser 已逐项报告的错误，详见 [PLANNER_NATIVE_RESPONSE_INSPECTION.json](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/PLANNER_NATIVE_RESPONSE_INSPECTION.json)。步骤数量本身不构成缺陷。传输成功与字段合同失败分别记录；该诊断轮未启动全面基线，也不能宣称问题全面解决或能力提升。后续 owner 已授权在已知缺陷下开展观察运行，见本页 R5 准备状态。完整代码回归 764 项通过、无跳过，耗时 62.43 秒。原始证据、定向与完整测试日志见 [本轮报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
 
 Stage Checker 连接快照由现有 Controller 测试捕获：19 次真实 Harness 读取，19 次明确的 mock accepted audits，完整 19 组步骤证据引用与固定 8 条 recent facts。它仅是连接 fixture，不是生产 trace、Agent 成绩或 StateTune 来源。该快照预检得到 15,067 输入 tokens，加原定 2,400 输出预算为 17,467，超过服务 16,384 窗口，因此没有发起生成，也没有截断步骤/事实或降低预算。较小既有 fixture 的真实连接结果另行登记；取消计划步数上限不等于取消物理上下文上限。本轮没有启动训练或新建角色 datasets。
 
@@ -71,7 +75,7 @@ durable causal ledger 是全局事实权威。各角色 session 独立；Executo
 
 ## 4. State 与轮次边界
 
-StateTune 数据生成管线的 GitHub 历史源码入口、本地核查、现有组件、待实现流程与经验见 [数据管线源码、现状与经验](STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。旧生成链已从工作树删除，新生产 trace 抽取器尚未实现；历史五角色 v1 源码已核实在 GitHub 保存，另有 10 个较新旧入口尚未找到可达源码历史。该文档整理不新增 Agent 成绩、角色数据集或训练额度。
+StateTune 生产 trace 数据管线已在 `ROLE_TRACE_DATASET_R1_20260907` 实现：五角色使用当前 builder 重建输入，校验 SQLite/因果边界、原始生成、标签证据，输出固定切分及覆盖/相似度候选审计，见 [使用说明与经验](ROLE_TRACE_DATASET.zh-CN.md)。本轮没有新增 Agent 成绩、正式角色数据集或训练额度；服务端完整输入 token IDs/BOS 未记录，候选工件明确保留该限制。新增 durable 输入边界与 SQLite 保序修复只用于后续冻结源码；不迁移旧轨迹、不重评分已有结果。旧生成链仍从工作树删除；历史五角色 v1 源码及 10 个未找到可达源码的较新旧入口见 [历史源码核查](STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。
 
 - Selector 已用完三轮，现有 State 的旧输入适配尚未在当前链路验证，不得再训。
 - Executor / Step Auditor 曾被登记为“剩一轮”，但存在 Round3 / final-round / replacement-Round3 记录。累计次数必须由 owner 对账，不能把版本更换或回退初始化视为新的额度。
@@ -99,9 +103,9 @@ Real Agent Holdout V2 的题集/隐藏验收仍隔离于原 benchmark 和 datase
 
 可见审计确认：Ladder-10 包含 5 新建、4 修复/扩展、1 数据，Agentv1 账本与 L4 Ledger 同族；公开 Web 检查原先没有浏览器。E2E-90 为 2 迷你补全、13 修复扩展、34 工作流、41 孤立任务，0 从零产品；LH09 `mock_api` 与当前生产菜单冲突。原题集与评分保持原状，新项目套件另行冻结身份和比较参数。
 
-1. 先解决当前真实 Planner 输出的字段与语义合同缺陷，完成两个 Goal 角色的接入验证及完整代码回归；连接成功、作者自验或 fixture 通过均不足以启动全面基线。从本地上传冻结源码与完整 engine manifest，并核验当前服务的模型/State/协议/decoder 和文件身份，全程不在服务器使用 Git。
-2. 保留 R1 无效尝试和 R2 A 的原始冻结记录，重新登记当前适配器、配置、源码和比较门槛后，用全新 workspace 与 State 完整运行同 12 题的两遍 all-zero。不先跑 Ladder、不跑 E2E-90，不接续旧 A，也不只补旧 R2 B。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted；其他硬门以新执行注册为准。独立记录两遍 Strict 差和逐题翻转，不复用无效尝试或其他题集噪声带。
-3. 达标后实现 `role_trace_dataset_v1.py`，只从生产 durable trace 重建完整 checkpoint/State 输入链；native causal_ledger 的 input.prompt 仅是最后 delta，不能直接训练。唯一 builder 重算正文还需绑定 bootstrap、实际初态、rollover/fork 和原始 token IDs。冻结角色回归集和新建角色数据版本仍需 owner 书面确认。
+1. 按最新 owner 授权观察运行现有 native 13.3B，强模型恢复后再议；连接成功、作者自验或 fixture 通过不代表模型合同与能力通过。继续绑定已上传源码与完整 engine manifest，以及当前服务的模型/State/协议/decoder 和文件身份，全程不在服务器使用 Git。
+2. 保留 R1 无效尝试、R2 A 和 R3 启动前中止的原始记录；R4 运行器依赖失败的无效记录也保持原样。在上述隔离工作树修复通用依赖后重新登记 R5，用全新 workspace 与 State 从头完整运行同 12 题的两遍 all-zero。当前尚在准备，B 须在 A 完整结束并通过执行身份检查后顺序运行；不先跑 Ladder、不跑 E2E-90，不接续旧 A，也不只补旧 R2 B。要求 mutation > 0、operation-target invalid = 0、每题状态库 ≤100,000,000 bytes、无 controller_slice_exhausted；其他硬门以 R5 运行前执行注册为准。独立记录两遍 Strict 差和逐题翻转，不复用无效尝试或其他题集噪声带。
+3. 达标后使用已实现的 `role_trace_dataset_v1.py` 审计生产 durable trace，重建完整 checkpoint/State 输入链；native causal_ledger 的 input.prompt 仅是最后 delta，不能直接训练。唯一 builder 正文已绑定 bootstrap、实际初态、rollover/fork 和原始生成 token IDs；服务端输入 token/BOS 缺口在工件中明确登记。冻结角色回归集和新建角色数据版本仍需 owner 书面确认。
 4. 对现有 State 做同代码消融；扩大边界/异常/恢复/安全覆盖。E2E-90 保持机制回归定位，其生产适配冲突须显式处理，不能删题或改评分放行。
 5. 训练需 owner 确认且先完成轮次对账；Holdout 仅在最后运行一次，结果不用于返工。
 

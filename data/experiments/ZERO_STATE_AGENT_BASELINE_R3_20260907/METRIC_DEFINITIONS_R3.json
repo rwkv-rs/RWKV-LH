@@ -1,0 +1,283 @@
+{
+  "schema": "rwkv-lh.real-project-agent-metric-definitions.v1",
+  "status": "READY_FOR_IMMUTABLE_EXECUTION_FREEZE",
+  "round_id": "ZERO_STATE_AGENT_BASELINE_R3_20260907",
+  "suite": "realprojectdevv1",
+  "expected_case_count_per_arm": 12,
+  "expected_case_order": [
+    "RP-API-01",
+    "RP-API-02",
+    "RP-MAINT-01",
+    "RP-MAINT-02",
+    "RP-CLI-01",
+    "RP-CLI-02",
+    "RP-DATA-01",
+    "RP-DATA-02",
+    "RP-FULL-01",
+    "RP-FULL-02",
+    "RP-WEB-01",
+    "RP-WEB-02"
+  ],
+  "arm_count": 2,
+  "arms": [
+    "zero_a",
+    "zero_b"
+  ],
+  "owner_scope": "Owner explicitly selected local G1J-13.3B Planner and Stage Checker and authorized both existing 12-case all-zero arms now; upstream recovery deferred. No training or new dataset.",
+  "aggregation": {
+    "denominator": 12,
+    "missing_case_policy": "retain in denominator, mark incomplete; never silently drop or substitute",
+    "score_unit": "passed_case_count_and_fraction",
+    "per_arm_no_selective_retries": true
+  },
+  "metrics": {
+    "strict": {
+      "runner_field": "results[].passed / audit.passed",
+      "implemented_in_runner": true,
+      "per_case_formula": "agent_completed AND external_passed AND final_output_nonempty AND final_output_matches_raw_rwkv AND NOT acceptance_reference_leaked AND isolation_passed",
+      "isolation_passed_formula": "verifier_metadata.backend == 'bubblewrap' AND runner_observations.agent_process_tree_closed",
+      "aggregate": "count of true passed over all 12 registered cases",
+      "target_in_zero_baseline": "observe; no invented minimum Strict threshold for the new 12-case suite"
+    },
+    "completed": {
+      "runner_field": "results[].agent_completed / audit.agent_completed",
+      "implemented_in_runner": true,
+      "per_case_formula": "run_state is present AND run_state.status == 'completed'",
+      "aggregate": "count over 12; separate from external verifier success and harness execution completion"
+    },
+    "action_count": {
+      "runner_field": "results[].action_count",
+      "implemented_in_runner": true,
+      "per_case_formula": "len(run_state.actions) for stateful_goal; includes failed/interrupted/running records"
+    },
+    "mutation_count": {
+      "implemented_in_runner": false,
+      "source": "audit.action_ledger (unique action_id)",
+      "per_case_formula": "count action.status == 'succeeded' AND workspace_digest_before/after each match lowercase SHA-256 [0-9a-f]{64} AND workspace_digest_before != workspace_digest_after",
+      "exclude": [
+        "workspace initialization",
+        "private verifier writes",
+        "tool cache directories already excluded by frozen workspace_observation_snapshot",
+        "successful no-op calls"
+      ],
+      "companion_fields": [
+        "mutation_action_ids",
+        "failed_action_with_workspace_change_count",
+        "finished_actions_missing_workspace_digest_count"
+      ],
+      "missing_snapshot_policy": "unknown; never impute zero mutation from missing digests; cannot claim complete mutation measurement",
+      "gate": "total > 0 in each arm; report all 12 per-case values and manually audit project cases without mutation/check evidence"
+    },
+    "successful_run_command_count": {
+      "implemented_in_runner": false,
+      "source": "audit.action_ledger",
+      "per_case_formula": "count unique action_id with action_type == 'run_command' and status == 'succeeded'",
+      "limitation": "successful command is not automatically a meaningful check; preserve command and output evidence for trace analysis"
+    },
+    "operation_target_invalid_count": {
+      "implemented_in_runner": false,
+      "source": "audit.run_state.causal_order + causal_records",
+      "per_case_formula": "count unique causal record id where event_type == 'protocol_rejection_recorded' and payload.error startswith '[operation_target_contract]'",
+      "scope": "Controller rejection for operation/target kind or root scope resolution; marker is emitted by _validate_decision_target_contract",
+      "do_not_count": [
+        "duplicate copies of the same event in event_log/model_trace",
+        "unrelated parser/schema rejections"
+      ],
+      "missing_state_policy": "unknown, not zero",
+      "gate": "0 in each arm; retain event/request/decision/selection ids for every counted invalid",
+      "limitation": "only this explicit code boundary; this number alone is not proof that all tool errors or safety failures are absent"
+    },
+    "protocol_rejection_count": {
+      "implemented_in_runner": true,
+      "runner_field": "results[].protocol_rejection_count",
+      "per_case_formula": "run_state.protocol_rejections in stateful_goal",
+      "scope": "all recorded role protocol rejections; report separately from operation_target_invalid_count"
+    },
+    "termination": {
+      "implemented_in_runner": "status direct; reason derived",
+      "runner_status_field": "results[].status",
+      "reason_source": "latest causal record in causal_order among run_completed/run_blocked/run_yielded/run_interrupted/run_failed",
+      "reason_formula": "Use a nonempty string payload.reason on the latest terminal causal event; run_completed with missing or falsy reason maps to completed; a non-completed terminal event with missing, empty, or non-string reason is unknown; a truthy non-string reason is unknown; no run_state, incomplete events, or no terminal event is unknown. Do not substitute event_type, runner failure, or not_created for an unknown reason; retain event_type and runner failure separately.",
+      "companion_fields": [
+        "event_type",
+        "event_id",
+        "resumable",
+        "termination_permitted",
+        "runner.failure",
+        "runner.verifier_failure",
+        "runner_observations.goal_transition_budget_consumed",
+        "runner_observations.goal_transition_budget_exhausted"
+      ],
+      "slice_exhaustion_count": "count unique causal records with payload.reason == 'controller_slice_exhausted' (include intermediate boundaries)",
+      "gate": "controller_slice_exhaustion_count == 0 and goal_transition_budget_exhausted is not true",
+      "limitation": "budget-based blocked, protocol-blocked and infrastructure yield remain failures; do not call them voluntary successful completion"
+    },
+    "state_database_bytes": {
+      "implemented_in_runner": false,
+      "per_case_files": [
+        "<case_root>/state/long_horizon.db",
+        "<case_root>/state/long_horizon.db-wal",
+        "<case_root>/state/long_horizon.db-shm"
+      ],
+      "measurement": "sum stat.st_size of main DB and existing regular sidecar files at case finalization; record each component",
+      "timing": "after controller/runtime shutdown and durable trace export, before cleanup/VACUUM/compaction or rerun",
+      "unit": "bytes",
+      "limit_bytes": 100000000,
+      "limit_label": "100 MB decimal",
+      "scope": "local LongHorizonStore SQLite database and sidecars; not source workspace, exported JSON/gzip trace, model weights, remote native WKV cache, or process memory",
+      "missing_database_policy": "unknown; a case without a created DB is not a zero-byte pass",
+      "peak_measurement": "not implemented; final-size gate must not be reported as a peak disk/RAM/VRAM measurement",
+      "gate": "every registered case has known state_database_bytes <= 100000000"
+    },
+    "noise_band": {
+      "formula": "abs(strict_zero_a_count - strict_zero_b_count)",
+      "unit": "passed cases",
+      "also_report": [
+        "per-case paired pass/fail flips",
+        "mutation differences",
+        "termination distribution"
+      ],
+      "limitation": "two runs estimate observed variability; zero score difference does not prove deterministic or no noise"
+    },
+    "role_calls": {
+      "implemented_in_runner": "model_trace and causal payloads exist; summary derived",
+      "generative_roles": "count model_trace events type == 'model_session_generation_started' grouped by model_role for executor_args/auditor_step/finalizer_answer/auditor_final; preserve missing model_role as unknown, never infer all as Executor",
+      "selector_recorded_handoffs": "count unique exact_tool_selection_staged causal events",
+      "selector_recorded_completed_lanes": "sum unique lane selections in exact_tool_selection_staged.payload.selection.raw_selection.lane_selections; preserve raw lane trace IDs",
+      "selector_actual_total": "unknown when any Selector request failed before durable handoff; recorded lane count is a lower bound, not all invocation count",
+      "reporting_order": "Agent metrics first, then roles; author-verifier pass counts are not Agent/role scores"
+    },
+    "FN": {
+      "implemented_in_runner": false,
+      "status": "not_defined_for_realprojectdevv1; do not import an unsupported E2E-90 field"
+    }
+  },
+  "fixed_runtime": {
+    "max_transitions": 200,
+    "case_concurrency": 1,
+    "supervisor_pending_resume_attempts": 0,
+    "selective_failure_reruns": 0,
+    "cross_case_state_reuse": false,
+    "tool_disclosure_mode": "progressive",
+    "stateful_goal": true,
+    "independent_selector": true,
+    "supervisor": "openai",
+    "supervisor_strategy": "goal_stages",
+    "role_initial_state": "zero for Selector/Executor/Step Auditor/Finalizer/Final Auditor",
+    "generative_role_sampling": {
+      "temperature": 0.1,
+      "top_p": 1.0,
+      "top_k": 0,
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "penalty_decay": 0.996
+    },
+    "role_max_output_tokens_observed_defaults": {
+      "executor_args": 1800,
+      "auditor_step": 400,
+      "finalizer_answer": 1400,
+      "auditor_final": 400
+    },
+    "selector_sampling": "native eligible-suffix trie vocabulary argmax; frozen three-menu vote; not generative sampling",
+    "runtime_max_model_len_target": 16384,
+    "context_safety_margin_target": 32,
+    "bos_token_count_target": 1,
+    "random_seed": "not exposed by SessionSampling; do not invent seed support; record service capability at freeze",
+    "planner_stage_checker_parameters": {
+      "backend_profile": "vllm-rwkv-native",
+      "base_url": "http://127.0.0.1:29613/v1",
+      "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+      "stage_checker_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+      "api_key_configured": true,
+      "connect_timeout_seconds": 10.0,
+      "read_timeout_seconds": 240.0,
+      "retry_attempts": 2,
+      "retry_backoff_seconds": 0.5,
+      "verify_tls": true,
+      "max_plan_tokens": 8192,
+      "max_review_tokens": 1400,
+      "max_directive_tokens": 1200,
+      "max_contract_plan_tokens": 4000,
+      "max_contract_review_tokens": 2400,
+      "semantic_repair_attempts": 1,
+      "serialize_requests": true,
+      "request_lock_path": "/tmp/rwkv-lh-supervisor.lock",
+      "fallback_models": [],
+      "circuit_breaker_failures": 2,
+      "circuit_breaker_cooldown_seconds": 30.0,
+      "plan_cache_enabled": false,
+      "plan_cache_dir": "/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans",
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996
+      },
+      "native_wire": {
+        "transport": "vllm_rwkv_completions",
+        "input_envelope": "rwkv_native_bot_open_think",
+        "generation_prefill": "<think",
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ],
+        "add_special_tokens": true,
+        "return_token_ids": true,
+        "vllm_xargs": {
+          "rwkv_state_profile": "zero",
+          "rwkv_state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "policy": {
+        "max_review_repairs": 1,
+        "mode": "static",
+        "max_online_directives": 64,
+        "online_actions_per_directive": 6,
+        "online_protocol_rejections_per_directive": 2,
+        "max_parallel_stages": 16,
+        "max_parallel_atoms": 4,
+        "atom_max_transitions": 40,
+        "max_graph_patches": 12,
+        "max_reviewer_rounds": 12,
+        "max_graph_atoms": 64,
+        "max_graph_stagnant_rounds": 2
+      }
+    },
+    "transport_retries": "Unchanged production runtime retry/backoff settings are bound in PUBLIC_CONFIG and FROZEN_EXECUTION_MANIFEST_R3.json; pending resume remains 0.",
+    "goal_continuation": "normal stateful loop continuation may occur only within the same total 200-transition budget; not an extra run or manual resume"
+  },
+  "pending_before_launch": [],
+  "source_snapshot_observed_only_not_final_freeze": {
+    "scripts/run_rwkv_e2e_benchmark.py": "8906ecd16c708901403a93c7ec1014c7cdf6f2c54afcccc1bc6fd4f20a056d41",
+    "rwkv_lh/stateful_goal_loop.py": "7f82c30311b3a9fa4167ad8da4a957f6246388186286c378b5414d6bd88df8b3",
+    "rwkv_lh/model.py": "69949cf1e8b683fa1618820659120c4605ce41c4e96d4287a23e6e6fa5208777",
+    "rwkv_lh/model_session.py": "a84acb2d6b35c94fc7abd719a46f7c0deec6aaa8eb5ad1595a4e6cbf9825350a",
+    "rwkv_lh/controller.py": "5913ed83d1696058a3105708e0a94b58d8935a20418177701e1a433ff7f0acf0",
+    "rwkv_lh/harness.py": "d570a624d121821d248ceaf988ef39294621d9d208f3fecf74b84d09282dc0d9",
+    "rwkv_lh/schema.py": "f6312af12945dc13eaacce25c2733141cf3582f34d299d0bfbae05f2f17e756b",
+    "rwkv_lh/store.py": "c503e9424f9124d59f42b1647227bb5629933a7e5830fd2a67290d506a73f6b7",
+    "rwkv_lh/runtime/settings.py": "0a4987a92bb13b9f09e84f062c007897904fa64faf890745a13491bd83a4d459",
+    "rwkv_lh/supervisor_openai.py": "281193aa5a098634a7c687111aa0fa7cce96093f17da8de634a9b70f16c764b9"
+  },
+  "collector": {
+    "path": "temp/collect_zero_project_metrics_r3_20260907.py",
+    "sha256": "70615b3dcfaec19e6069932dfa0655959822562687eaa4e4c9d4e2807e401d9b",
+    "selftest": "METRIC_COLLECTOR_SELFTEST/SELFTEST_RESULT.json",
+    "selftest_checks": 33,
+    "definitions_argument": "--definitions /home/chase/GitHub/RWKV-LH/data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/METRIC_DEFINITIONS_R3.json"
+  },
+  "final_identity_binding": "FROZEN_EXECUTION_MANIFEST_R3.json binds this R3 definition and all final source/configuration/runtime identities",
+  "revision": {
+    "id": "R3",
+    "purpose": "New local-native supervisor observation, preserving R2 metric algorithms, case order and gates.",
+    "source_document": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/METRIC_DEFINITIONS_R2.json",
+    "source_document_sha256": "6a3fec9bc7d31831bd08a919b14148fb1d17b94888c6443a8f01e44953a4e046",
+    "case_order_source": "benchmarks/rwkv_e2e/rwkv_real_project_dev_v1/tasks.json",
+    "case_order_source_sha256": "460f079a24d66d19e0d45ce40135c27953ef8faa84010e74c08c0a5084b446c5",
+    "execution_status": "Not launched by preparation; root must create the immutable R3 freeze before either arm."
+  }
+}

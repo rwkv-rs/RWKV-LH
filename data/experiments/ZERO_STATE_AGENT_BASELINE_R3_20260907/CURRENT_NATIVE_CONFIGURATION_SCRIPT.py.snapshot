@@ -1,0 +1,171 @@
+"""Fresh-process native configuration audit; candidate credentials never opened."""
+from datetime import datetime, timezone
+from dataclasses import fields
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907'
+SELF = Path(__file__).resolve()
+sys.dont_write_bytecode = True
+
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+def module(path):
+    spec = importlib.util.spec_from_file_location('native_r3_review_driver', path)
+    value = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = value
+    spec.loader.exec_module(value)
+    return value
+
+def inspect_mode(mode, driver_path):
+    # Start from an empty environment to exclude stale relay or shell overrides.
+    os.environ.clear()
+    os.environ['WSL_DISTRO_NAME'] = 'UbuntuRecovered'
+    reads = []; candidate_attempts = []
+    def audit(event, args):
+        if event != 'open' or not args or not isinstance(args[0], (str, bytes, os.PathLike)):
+            return
+        path = Path(os.fsdecode(args[0]))
+        if path.name == 'candidate.env.strong.local':
+            candidate_attempts.append(str(path))
+            raise RuntimeError('Candidate strong configuration must never be opened')
+        if path in (ROOT / '.env', ROOT / '.env.local'):
+            reads.append(str(path))
+    sys.addaudithook(audit)
+    def no_network(*args, **kwargs):
+        raise RuntimeError('Configuration audit forbids network and generation')
+    socket.create_connection = no_network
+    socket.socket.connect = no_network
+    sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / 'temp'))
+    from rwkv_lh.runtime.settings import RuntimeSettings, load_local_env, DEFAULT_ENV_FILE
+    from rwkv_lh.supervisor_openai import SupervisorAPISettings, DEFAULT_SUPERVISOR_ENV_FILE
+    from rwkv_lh.runtime import supervisor_vllm_rwkv
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+    from rwkv_lh.exact_tool_selector.native_network_client import NativeNetworkSelectorSettings
+    from rwkv_lh.runtime.executor_profiles import PROFILE_ROUTING_ENV, EXECUTOR_PROFILE_ROUTING_DISABLED
+    from rwkv_lh.model import LongHorizonModel
+    from rwkv_lh.goal_state_protocols import executor_args_v4, auditor_step_v3, finalizer_answer, auditor_final
+    applied_keys = []
+    if mode == 'default_env':
+        planner = SupervisorAPISettings.from_env()
+    elif mode == 'env_local_direct':
+        planner = SupervisorAPISettings.from_env(ROOT / '.env.local')
+    else:
+        assert mode == 'runner'
+        driver = module(driver_path)
+        applied_keys = sorted(driver.apply_current_zero_overrides())
+        planner = SupervisorAPISettings.from_env()
+    checks = {'planner_native_backend': planner.backend_profile == 'vllm-rwkv-native',
+              'planner_local_endpoint': planner.base_url == 'http://127.0.0.1:29613/v1',
+              'planner_model_13b': planner.model == 'rwkv7-g1j-13.3b-zero-state-capability-ctx16384',
+              'stage_checker_same_model': planner.stage_checker_model == planner.model,
+              'planner_budget_8192': planner.max_plan_tokens == 8192,
+              'stage_checker_budget_unchanged_2400': planner.max_contract_review_tokens == 2400,
+              'shared_read_timeout_240': planner.read_timeout_seconds == 240,
+              'no_fallbacks': planner.fallback_models == (), 'plan_cache_disabled': planner.plan_cache_enabled is False,
+              'candidate_file_not_read': not candidate_attempts}
+    public = planner.public_dict()
+    # Do not inspect the configured credential value; the production loader
+    # validates presence and the public view only exposes its boolean status.
+    result = {'mode': mode, 'inherited_environment_cleared': True,
+              'active_env_paths_read': sorted(set(reads)), 'candidate_config_open_attempts': len(candidate_attempts),
+              'production_default_paths': {'runtime': str(DEFAULT_ENV_FILE), 'supervisor': str(DEFAULT_SUPERVISOR_ENV_FILE)},
+              'planner_stage_checker_public_settings': public, 'checks': checks,
+              'network_requests': 0, 'generation_requests': 0}
+    if mode == 'runner':
+        executor = RuntimeSettings.from_env()
+        protocols = {'executor': executor_args_v4, 'auditor_step': auditor_step_v3,
+                     'finalizer': finalizer_answer, 'auditor_final': auditor_final}
+        roles = {'executor': executor, **{name: RuntimeSettings.for_role(name, fallback=executor)
+                                         for name in protocols if name != 'executor'}}
+        private_fields = {'api_key', 'cf_access_client_id', 'cf_access_client_secret', 'proxy_url'}
+        result['roles'] = {name: {**{field.name: getattr(settings, field.name) for field in fields(settings)
+                                   if field.name not in private_fields}, 'input_protocol': protocols[name].INPUT_SCHEMA_VERSION}
+                           for name, settings in roles.items()}
+        for name, settings in roles.items():
+            checks[name + '_16k_native_zero'] = all((settings.max_model_len == 16384,
+                settings.model == planner.model, settings.base_url == planner.base_url,
+                settings.backend_profile == 'vllm-rwkv-native', settings.state_transport == 'native_required',
+                settings.state_profile_id == 'zero', settings.state_profile_sha256 == '0' * 64,
+                settings.state_profile_delivery == 'request', settings.return_token_ids is True))
+        selector = NativeNetworkSelectorSettings.from_env()
+        assert selector is not None
+        result['selector'] = {**selector.runtime_identity(), 'base_url': selector.base_url,
+                              'connect_timeout_seconds': selector.connect_timeout_seconds,
+                              'read_timeout_seconds': selector.read_timeout_seconds}
+        checks['selector_zero'] = (selector.state_profile_id == 'zero' if hasattr(selector, 'state_profile_id')
+                                  else selector.runtime_identity()['profile_id'] == 'zero')
+        checks['selector_zero_identity'] = all(selector.runtime_identity()[key] == '0' * 64
+                                               for key in ('profile_sha256', 'profile_manifest_sha256'))
+        checks['selector_local_endpoint'] = selector.base_url == 'http://127.0.0.1:29621'
+        checks['executor_profile_routing_disabled'] = os.environ.get(PROFILE_ROUTING_ENV) == EXECUTOR_PROFILE_ROUTING_DISABLED
+        checks['native_supervisor_explicit_zero'] = (supervisor_vllm_rwkv.STATE_PROFILE_ID == 'zero'
+                                                     and supervisor_vllm_rwkv.STATE_PROFILE_SHA256 == '0' * 64)
+        result['executor_profile_routing'] = os.environ.get(PROFILE_ROUTING_ENV)
+        result['native_state_protocol'] = NATIVE_STATE_PROTOCOL_VERSION
+        result['semantic_sampling'] = {**LongHorizonModel._SAMPLING.to_dict(), 'semantic_resample_count': 0}
+        result['supervisor_transport'] = {'backend_profile': supervisor_vllm_rwkv.BACKEND_PROFILE,
+            'transport': supervisor_vllm_rwkv.TRANSPORT, 'input_envelope': supervisor_vllm_rwkv.INPUT_ENVELOPE,
+            'generation_prefill': supervisor_vllm_rwkv.GENERATION_PREFILL,
+            'state_profile_id': supervisor_vllm_rwkv.STATE_PROFILE_ID,
+            'state_profile_sha256': supervisor_vllm_rwkv.STATE_PROFILE_SHA256,
+            'source_sha256': sha(supervisor_vllm_rwkv.__file__)}
+        result['override_keys_only_no_values'] = applied_keys
+        result['driver'] = {'path': str(driver_path), 'sha256': sha(driver_path)}
+        result['active_env_paths_read'] = sorted(set(reads))
+    assert all(checks.values()), 'One or more public native configuration checks failed'
+    return result
+
+def main():
+    if sys.argv[1] == '--child':
+        print(json.dumps(inspect_mode(sys.argv[2], Path(sys.argv[3])), ensure_ascii=False)); return
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    driver = Path(sys.argv[1]).resolve()
+    target = ROUND / 'CURRENT_NATIVE_CONFIGURATION.json'
+    assert not target.exists(), 'Evidence is immutable'
+    before = {name: {'sha256': sha(ROOT / name), 'mode': oct((ROOT / name).stat().st_mode & 0o777)}
+              for name in ('.env', '.env.local')}
+    values = []
+    for mode in ('default_env', 'env_local_direct', 'runner'):
+        child = subprocess.run([sys.executable, str(SELF), '--child', mode, str(driver)], capture_output=True)
+        if child.returncode:
+            raise RuntimeError('Fresh configuration subprocess failed; output withheld to protect settings')
+        values.append(json.loads(child.stdout))
+    after = {name: {'sha256': sha(ROOT / name), 'mode': oct((ROOT / name).stat().st_mode & 0o777)}
+             for name in before}
+    assert before == after
+    sources = ['rwkv_lh/runtime/settings.py', 'rwkv_lh/runtime/role_config.py',
+               'rwkv_lh/supervisor_openai.py', 'rwkv_lh/runtime/supervisor_vllm_rwkv.py',
+               'temp/run_frozen_zero_baseline_r1_20260907.py']
+    record = {'schema_version': 'rwkv-lh.r3-current-native-configuration.v1',
+              'at': datetime.now(timezone.utc).isoformat(), 'status': 'PASSED_CONFIGURATION_ONLY_NOT_MODEL_CAPABILITY',
+              'active_env_files': before, 'active_env_unchanged_during_audit': True,
+              'fresh_process_checks': values, 'all_checks_passed': all(all(row['checks'].values()) for row in values),
+              'candidate_config_content_read': False, 'candidate_config_default_loader_open_attempts': 0,
+              'script_sha256': sha(SELF), 'source_sha256': {p: sha(ROOT / p) for p in sources},
+              'driver_source_sha256': sha(driver), 'generation_requests': 0, 'network_requests': 0,
+              'environment_files_changed': False, 'services_restarted': False, 'server_git_executed': False,
+              'budget_policy': 'Planner 8192; Stage Checker 2400; owner-directed observation run, no budget changes in audit',
+              'limits': ['Fresh-process public settings verify effective configuration only.',
+                         'R3 execution must bind its final driver and run these same overrides in the benchmark process.',
+                         'Previously attested 16k service identity is reused; no new GET or generation is performed here.']}
+    ROUND.mkdir(parents=True, exist_ok=True)
+    with target.open('x') as handle:
+        json.dump(record, handle, ensure_ascii=False, indent=2); handle.write('\n')
+    print(json.dumps({'path': str(target), 'sha256': sha(target), 'all_checks_passed': record['all_checks_passed']}))
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print(json.dumps({'error_type': type(exc).__name__, 'details_withheld': True}))
+        raise SystemExit(1)

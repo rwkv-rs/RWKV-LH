@@ -1,0 +1,316 @@
+"""Read-only derived metrics for frozen non-Holdout Agent benchmark runs."""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+EXPERIMENTS = ROOT / 'data/experiments'
+DEFINITIONS = EXPERIMENTS / 'ZERO_STATE_AGENT_BASELINE_R3_20260907/METRIC_DEFINITIONS_R3.json'
+DB_LIMIT_BYTES = 100_000_000
+HEX64 = re.compile(r'^[0-9a-f]{64}$')
+SAFE_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]*$')
+ROLES = ('executor_args', 'auditor_step', 'finalizer_answer', 'auditor_final')
+TERMINAL = {'run_completed','run_blocked','run_interrupted','run_failed','run_yielded'}
+SEALED_MARKERS = ('holdout', 'confirmation', 'acceptance')
+
+
+def guarded(path: Path) -> Path:
+    if any(any(marker in p.lower() for marker in SEALED_MARKERS) for p in path.parts):
+        raise ValueError('sealed path refused before reading')
+    resolved = path.expanduser().resolve()
+    if not resolved.is_relative_to(EXPERIMENTS):
+        raise ValueError('all inputs and outputs must be under project data/experiments')
+    if any(any(marker in p.lower() for marker in SEALED_MARKERS) for p in resolved.parts):
+        raise ValueError('resolved sealed path refused before reading')
+    return resolved
+
+
+def measure(value=None, *, known_count=0, unknown_count=0, source='', reason=''):
+    return {'value':value,'status':'known' if value is not None else 'unknown',
+            'known_count':known_count,'unknown_count':unknown_count,'source':source,'reason':reason}
+
+
+class Reader:
+    def __init__(self):self.sources={};self.issues=[]
+    def json(self,path: Path):
+        path=guarded(path)
+        try:
+            before=path.stat();raw=path.read_bytes();after=path.stat()
+            if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
+                raise ValueError('source changed while reading')
+            result=json.loads(raw)
+            self.sources[str(path)]={'sha256':hashlib.sha256(raw).hexdigest(),'logical_bytes':len(raw)}
+            return result
+        except (OSError,ValueError,UnicodeError) as exc:
+            self.issues.append({'path':str(path),'error_type':type(exc).__name__})
+            return None
+
+
+def unique_events(audit):
+    if not isinstance(audit,dict):return None,'missing_audit',[]
+    state=audit.get('run_state')
+    if isinstance(state,dict) and isinstance(state.get('causal_order'),list) and isinstance(state.get('causal_records'),dict):
+        records=state['causal_records'];raw=[]
+        if not all(isinstance(i,str) for i in state['causal_order']) or set(state['causal_order'])!=set(records):
+            return None,'audit.run_state.causal_order', ['causal_order_does_not_cover_records']
+        for ident in state['causal_order']:
+            if not isinstance(ident,str) or not isinstance(records.get(ident),dict):
+                return None,'audit.run_state.causal_order', ['incomplete_causal_records']
+            raw.append(records[ident])
+        source='audit.run_state.causal_order/causal_records'
+    elif isinstance(audit.get('events'),list) and isinstance(state,dict):
+        raw=[]
+        for row in audit['events']:
+            if not isinstance(row,dict) or not isinstance(row.get('causal_event'),dict):
+                return None,'audit.events', ['missing_causal_event_identity']
+            raw.append(row['causal_event'])
+        source='audit.events.causal_event'
+    else:return None,'audit', ['missing_complete_event_source']
+    unique={};issues=[]
+    for row in raw:
+        ident=row.get('event_id');kind=row.get('event_type');payload=row.get('payload')
+        if not isinstance(ident,str) or not ident or not isinstance(kind,str) or not isinstance(payload,dict):
+            issues.append('invalid_event_shape');continue
+        if ident in unique and row!=unique[ident]:issues.append('conflicting_duplicate_event_id');continue
+        unique.setdefault(ident,row)
+    return list(unique.values()),source,issues
+
+
+def action_metrics(audit):
+    state=audit.get('run_state') if isinstance(audit,dict) else None
+    if not isinstance(state,dict):return measure(unknown_count=1,reason='missing_complete_run_state')
+    actions=audit.get('action_ledger')
+    source='audit.action_ledger'
+    if not isinstance(actions,dict):actions=state.get('actions');source='audit.run_state.actions'
+    if not isinstance(actions,dict):return measure(unknown_count=1,reason='missing_complete_action_ledger')
+    if isinstance(state.get('actions'),dict) and actions!=state['actions']:
+        return measure(unknown_count=1,reason='audit_action_ledger_conflicts_with_run_state')
+    changed=[];unknown=[];successful=0;failed_changed=[];missing_finished=[];run_commands=[];unknown_commands=[];invalid_status=[]
+    for ident,row in actions.items():
+        if not isinstance(row,dict) or row.get('status') not in {'running','succeeded','failed','interrupted'}:
+            unknown.append(str(ident));unknown_commands.append(str(ident));invalid_status.append(str(ident));continue
+        status=row['status'];before=row.get('workspace_digest_before');after=row.get('workspace_digest_after')
+        complete=bool(isinstance(before,str) and isinstance(after,str) and HEX64.fullmatch(before) and HEX64.fullmatch(after))
+        if status!='running' and not complete:missing_finished.append(str(ident))
+        if status=='failed' and complete and before!=after:failed_changed.append(str(ident))
+        if status!='succeeded':continue
+        successful+=1
+        if not isinstance(row.get('action_type'),str):unknown_commands.append(str(ident))
+        elif row['action_type']=='run_command':run_commands.append(str(ident))
+        if not complete:unknown.append(str(ident));continue
+        if before!=after:changed.append(str(ident))
+    result=measure(len(changed) if not unknown else None,known_count=len(changed),unknown_count=len(unknown),source=source,
+                   reason='successful action with complete different workspace digests')
+    result.update({'successful_action_count':successful,'mutation_action_ids':changed,'unknown_action_ids':unknown,
+        'failed_action_with_workspace_change_count':measure(len(failed_changed) if not invalid_status and not any(actions[i].get('status')=='failed' for i in missing_finished) else None,known_count=len(failed_changed),unknown_count=len(invalid_status)+sum(actions[i].get('status')=='failed' for i in missing_finished),source=source),
+        'failed_changed_action_ids':failed_changed,
+        'finished_actions_missing_workspace_digest_count':measure(len(missing_finished) if not invalid_status else None,known_count=len(missing_finished),unknown_count=len(invalid_status),source=source),
+        'finished_actions_missing_workspace_digest_ids':missing_finished,
+        'successful_run_command_count':measure(len(run_commands) if not unknown_commands else None,known_count=len(run_commands),unknown_count=len(unknown_commands),source=source),
+        'successful_run_command_action_ids':run_commands})
+    return result
+
+
+def event_metrics(events,source,issues):
+    if events is None or issues:
+        return measure(unknown_count=1,source=source,reason='incomplete_or_conflicting_events'),measure(unknown_count=1,source=source,reason='incomplete_or_conflicting_events')
+    matched=[];unknown=[];identities=[]
+    for row in events:
+        if row['event_type']!='protocol_rejection_recorded':continue
+        error=row['payload'].get('error')
+        if not isinstance(error,str):unknown.append(row['event_id'])
+        elif error.startswith('[operation_target_contract]'):
+            matched.append(row['event_id']);identities.append({key:row['payload'].get(key) for key in ('request_id','decision_id','selection_id')} | {'event_id':row['event_id']})
+    invalid=measure(len(matched) if not unknown else None,known_count=len(matched),unknown_count=len(unknown),source=source,
+                    reason='unique protocol_rejection_recorded payload.error startswith exact guard prefix')
+    invalid['event_ids']=matched;invalid['event_identities']=identities
+    terminal=next((row for row in reversed(events) if row['event_type'] in TERMINAL),None)
+    if terminal is None:return invalid,measure(unknown_count=1,source=source,reason='no_terminal_event')
+    reason=terminal['payload'].get('reason')
+    if terminal['event_type']=='run_completed' and not reason:reason='completed'
+    reason_valid=isinstance(reason,str) and bool(reason)
+    result=measure(reason if reason_valid else None,unknown_count=int(not reason_valid),source=source)
+    result.update({'event_id':terminal['event_id'],'event_type':terminal['event_type'],
+        'resumable':terminal['payload'].get('resumable'),'termination_permitted':terminal['payload'].get('termination_permitted')})
+    return invalid,result
+
+
+def slice_exhaustion(events,source,issues,audit):
+    observations=audit.get('runner_observations') if isinstance(audit,dict) else None
+    budget=observations.get('goal_transition_budget_exhausted') if isinstance(observations,dict) else None
+    consumed=observations.get('goal_transition_budget_consumed') if isinstance(observations,dict) else None
+    ids=[e['event_id'] for e in events if e['payload'].get('reason')=='controller_slice_exhausted'] if events is not None else []
+    complete=events is not None and not issues
+    result=measure(len(ids) if complete else None,known_count=len(ids),unknown_count=int(not complete),source=source)
+    result.update({'event_ids':ids,'goal_transition_budget_exhausted':budget if isinstance(budget,bool) else None,
+        'goal_transition_budget_consumed':consumed if isinstance(consumed,int) and not isinstance(consumed,bool) and consumed>=0 else None})
+    return result
+
+
+def database_size(case: Path):
+    base=guarded(case/'state/long_horizon.db');components={};total=0;failed=False
+    for suffix,label in (('','main'),('-wal','wal'),('-shm','shm')):
+        path=guarded(Path(str(base)+suffix))
+        try:
+            st=path.stat()
+            if not path.is_file():raise ValueError('database component is not a file')
+            components[label]={'path':str(path),'exists':True,'logical_bytes':st.st_size,'mtime_ns':st.st_mtime_ns};total+=st.st_size
+        except FileNotFoundError:
+            components[label]={'path':str(path),'exists':False,'logical_bytes':None if label=='main' else 0}
+            failed=failed or label=='main'
+        except (OSError,ValueError):components[label]={'path':str(path),'exists':'unknown','logical_bytes':None};failed=True
+    result=measure(None if failed else total,unknown_count=int(failed),source='filesystem stat only; SQLite is never opened')
+    result.update({'components':components,'limit_bytes':DB_LIMIT_BYTES,'within_limit':None if failed else total<=DB_LIMIT_BYTES,
+                   'measurement_phase':'collection_time_after_case_export','runtime_peak_bytes':None,
+                   'runtime_peak_status':'unknown; final size does not prove a runtime peak bound'})
+    return result
+
+
+def grouped_calls(trace, *, event_type, identity_field, group_field, groups):
+    if not isinstance(trace,list):return {g:measure(unknown_count=1,reason='missing_trace') for g in groups}
+    seen={};unknown=0;counts=Counter()
+    for row in trace:
+        if not isinstance(row,dict):unknown+=1;continue
+        if row.get('type')!=event_type:continue
+        ident=row.get(identity_field);group=row.get(group_field)
+        if not isinstance(ident,str) or not ident or group not in groups:unknown+=1;continue
+        if ident in seen:
+            if seen[ident]!=group:unknown+=1
+            continue
+        seen[ident]=group;counts[group]+=1
+    return {g:measure(counts[g] if not unknown else None,known_count=counts[g],unknown_count=unknown,
+                      source=f'{event_type} distinct {identity_field}; grouped by {group_field}',
+                      reason='recorded logical requests; not physical HTTP retry attempts') for g in groups}
+
+
+def role_calls(audit,events,event_issues):
+    valid=isinstance(audit,dict) and isinstance(audit.get('run_state'),dict)
+    trace=audit.get('model_trace') if valid else None
+    result=grouped_calls(trace,event_type='model_session_generation_started',identity_field='request_id',group_field='model_role',groups=ROLES)
+    strong=grouped_calls(audit.get('supervisor_trace') if valid else None,event_type='supervisor_request_started',identity_field='call_id',group_field='phase',groups=('goal_plan','goal_stage_review'))
+    result['strong_planner']=strong['goal_plan'];result['strong_stage_checker']=strong['goal_stage_review']
+    selected=set();lanes=set();unknown=0
+    if events is None or event_issues:unknown=1
+    else:
+        for event in events:
+            if event['event_type']!='exact_tool_selection_staged':continue
+            selection=event['payload'].get('selection')
+            selected.add(event['event_id'])
+            raw=selection.get('raw_selection') if isinstance(selection,dict) else None
+            lane_values=raw.get('lane_selections') if isinstance(raw,dict) else None
+            if not isinstance(lane_values,dict) or not lane_values:unknown+=1;continue
+            for lane in lane_values.values():
+                lane_id=lane.get('trace_id') if isinstance(lane,dict) else None
+                if isinstance(lane_id,str) and lane_id:lanes.add(lane_id)
+                else:unknown+=1
+    event_complete=events is not None and not event_issues
+    result['selector_recorded_handoffs']=measure(len(selected) if event_complete else None,known_count=len(selected),unknown_count=int(not event_complete),source='unique exact_tool_selection_staged causal event_id')
+    result['selector_recorded_completed_lanes']=measure(len(lanes) if not unknown else None,known_count=len(lanes),unknown_count=unknown,source='handoff raw_selection.lane_selections distinct trace_id')
+    result['selector_actual_requests']=measure(known_count=len(lanes),unknown_count=1,
+        reason='failed/unpersisted Selector requests have no complete durable request-start record; completed lanes are a lower bound')
+    return result
+
+
+def bool_metric(row,key):
+    value=row.get(key) if isinstance(row,dict) else None
+    return measure(value if isinstance(value,bool) else None,known_count=int(value is True),unknown_count=int(not isinstance(value,bool)),source='results.json.results[].'+key)
+
+
+def integer_metric(row,key):
+    value=row.get(key) if isinstance(row,dict) else None
+    valid=isinstance(value,int) and not isinstance(value,bool) and value>=0
+    return measure(value if valid else None,known_count=value if valid else 0,unknown_count=int(not valid),source='results.json.results[].'+key)
+
+
+def aggregate(metrics):
+    known=[row['value'] for row in metrics if row['value'] is not None]
+    unknown=len(metrics)-len(known)
+    return measure(sum(known) if not unknown else None,known_count=sum(row['known_count'] for row in metrics),unknown_count=unknown)
+
+
+def collect(run: Path,reader: Reader):
+    result_doc=reader.json(run/'results.json');protocol=reader.json(run/'RUN_PROTOCOL.json')
+    rows=result_doc.get('results') if isinstance(result_doc,dict) else None
+    if not isinstance(rows,list):rows=[]
+    indexed={};duplicates=[]
+    for row in rows:
+        if not isinstance(row,dict) or not isinstance(row.get('task_id'),str) or not SAFE_ID.fullmatch(row['task_id']):continue
+        ident=row['task_id']
+        if ident in indexed:duplicates.append(ident)
+        indexed[ident]=row
+    expected=protocol.get('selected_case_ids') if isinstance(protocol,dict) else None
+    expected_valid=isinstance(expected,list) and bool(expected) and all(isinstance(i,str) and SAFE_ID.fullmatch(i) for i in expected) and len(set(expected))==len(expected)
+    ids=expected if expected_valid else list(indexed)
+    cases=[]
+    for ident in ids:
+        if any(marker in ident.lower() for marker in SEALED_MARKERS):raise ValueError('sealed case ID refused')
+        row=indexed.get(ident) if ident not in duplicates else None;case=guarded(run/'cases'/ident)
+        audit=reader.json(case/'audit.json')
+        if isinstance(audit,dict) and audit.get('task_id') not in (None,ident):audit=None
+        events,event_source,event_issues=unique_events(audit)
+        invalid,termination=event_metrics(events,event_source,event_issues)
+        actions=action_metrics(audit)
+        item={'task_id':ident,'strict_passed':bool_metric(row,'passed'),'agent_completed':bool_metric(row,'agent_completed'),
+              'mutations':actions,'operation_target_invalid':invalid,'termination':termination,
+              'action_count':integer_metric(row,'action_count'),'protocol_rejection_count':integer_metric(row,'protocol_rejection_count'),
+              'successful_run_command_count':actions.get('successful_run_command_count',measure(unknown_count=1,reason='missing_complete_action_ledger')),
+              'slice_exhaustion_count':slice_exhaustion(events,event_source,event_issues,audit),
+              'runner_failure':audit.get('failure') if isinstance(audit,dict) else None,
+              'runner_verifier_failure':audit.get('verifier_failure') if isinstance(audit,dict) else None,
+              'database':database_size(case),'role_calls':role_calls(audit,events,event_issues),
+              'result_present':row is not None,'result_status':row.get('status') if isinstance(row,dict) else None,
+              'event_source':event_source,'event_issues':event_issues}
+        cases.append(item)
+    gates={
+        'mutation_positive':None if any(c['mutations']['value'] is None for c in cases) or not expected_valid else sum(c['mutations']['value'] for c in cases)>0,
+        'operation_target_invalid_zero':False if any(c['operation_target_invalid']['known_count']>0 for c in cases) else None if any(c['operation_target_invalid']['value'] is None for c in cases) or not expected_valid else True,
+        'each_final_database_within_100000000_bytes':False if any(c['database']['within_limit'] is False for c in cases) else None if any(c['database']['within_limit'] is None for c in cases) or not expected_valid else True,
+        'no_controller_slice_exhausted':False if any(c['slice_exhaustion_count']['known_count']>0 or c['slice_exhaustion_count']['goal_transition_budget_exhausted'] is True for c in cases) else None if any(c['slice_exhaustion_count']['value'] is None or c['slice_exhaustion_count']['goal_transition_budget_exhausted'] is None for c in cases) or not expected_valid else True,
+        'frozen_result_set_complete':bool(expected_valid and not duplicates and set(indexed)==set(expected)),
+    }
+    totals={name:aggregate([c[name] for c in cases]) for name in ('strict_passed','agent_completed','mutations','operation_target_invalid','action_count','successful_run_command_count','protocol_rejection_count','slice_exhaustion_count')}
+    role_totals={role:aggregate([c['role_calls'][role] for c in cases]) for role in (*ROLES,'strong_planner','strong_stage_checker','selector_recorded_handoffs','selector_recorded_completed_lanes','selector_actual_requests')}
+    if not expected_valid or duplicates:
+        for value in (*totals.values(),*role_totals.values()):value.update(value=None,status='unknown',reason='missing frozen denominator or duplicate result task IDs')
+    counts=Counter(c['termination']['value'] if c['termination']['value'] is not None else 'unknown' for c in cases)
+    return {'run_directory':str(run),'expected_case_count':len(expected) if expected_valid else None,
+            'observed_result_count':len(indexed),'missing_result_task_ids':[i for i in ids if i not in indexed],
+            'unexpected_result_task_ids':[i for i in indexed if expected_valid and i not in expected],
+            'duplicate_result_task_ids':duplicates,'agent_metrics':totals,'termination_reason_counts':dict(counts),
+            'gates':gates,'all_listed_gates_pass':all(v is True for v in gates.values()),
+            'runtime_database_peak_gate':'unknown; this collector only measures final/current component sizes',
+            'role_call_totals':role_totals,
+            'cases':cases}
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--run-dir',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--definitions',type=Path,default=DEFINITIONS,help='Metric definition document to bind by source SHA; defaults to the R3 document')
+    args=parser.parse_args()
+    if os.environ.get('WSL_DISTRO_NAME')!='UbuntuRecovered':raise ValueError('collector must run in WSL UbuntuRecovered')
+    run=guarded(args.run_dir);output=guarded(args.output);definitions=guarded(args.definitions)
+    if output.suffix!='.json':raise ValueError('output must be a new JSON evidence file')
+    reader=Reader();payload=collect(run,reader)
+    if definitions.exists():reader.json(definitions)
+    report={'schema':'rwkv-lh.zero-project-derived-metrics.v1','generated_at_utc':datetime.now(timezone.utc).isoformat(),
+            'collector_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'metric_definitions_path':str(definitions),
+            'read_only_inputs':True,'sqlite_opened':False,'scoring_or_parser_modified':False,'model_calls':0,
+            'missing_data_policy':'unknown is never coerced to zero; known_count is a lower bound only',
+            **payload,'source_files':reader.sources,'source_read_issues':reader.issues}
+    output.parent.mkdir(parents=True,exist_ok=True)
+    with output.open('x',encoding='utf-8') as handle:json.dump(report,handle,ensure_ascii=False,indent=2);handle.write('\n')
+    print(json.dumps({'output':str(output),'agent_metrics':report['agent_metrics'],'gates':report['gates'],'collector_sha256':report['collector_sha256']},ensure_ascii=False))
+    return 0
+if __name__=='__main__':
+    try:raise SystemExit(main())
+    except (OSError,ValueError,TypeError) as exc:
+        print(json.dumps({'status':'collection_error','error_type':type(exc).__name__,'error':str(exc)}));raise SystemExit(2)

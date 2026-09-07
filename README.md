@@ -21,15 +21,15 @@ Strong Planner
 
 服务器 `rwkv-8222` 已按本地上传方式部署。R2 A 已运行 12 题：Strict **0/12**、completed **0/12**、mutation **0**，12 题均因 `strong_planner_unavailable` 停止，11 题没有 RWKV 生成；B 臂未启动，不能计算双零噪声或进入训练，详见 [A 臂报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。此前中断的 R1 尝试仍按 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留。
 
-本轮原生适配没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。按 owner 授权，Planner 与 Stage Checker 已配置为同一现有 13.3B 服务，使用 `vllm-rwkv-native` 的 `/completions` 和独立显式 zero State；Planner 输出预算为 8,192 tokens，共用读取超时为 240 秒，Stage Checker 仍为 2,400 tokens，其余角色预算与职责不变。生产 Planner 单次连接探针已得到 HTTP 200 和自然结束的合法 JSON，但 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝；完整原文的独立检查还发现 `success_evidence` 类型等合同问题。因此尚不能启动全面基线或宣称接入问题全部解决，详见 [本轮原生适配报告](data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
+原生适配轮没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。按 owner 授权，Planner 与 Stage Checker 已配置为同一现有 13.3B 服务，使用 `vllm-rwkv-native` 的 `/completions` 和独立显式 zero State；Planner 输出预算为 8,192 tokens，共用读取超时为 240 秒，Stage Checker 仍为 2,400 tokens，其余角色预算与职责不变。生产 Planner 单次连接探针已得到 HTTP 200 和自然结束的合法 JSON，但 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝；完整原文的独立检查还发现 `success_evidence` 类型等合同问题。该轮未启动全面基线，接入缺陷仍未解决；当前按后续 owner 授权观察运行，不能宣称接入问题全部解决，详见 [原生适配报告](data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
 
-最新强模型复测仍未达到开跑门槛：next-token.cc 的认证模型目录正常，但当前完整 `gpt-5.6-sol` Planner 请求在 32.8 秒后返回 HTTP 500 / `do_request_failed`。固定矩阵首错停止，0 通过、1 失败、9 未运行；没有切换配置或启动新的双零基线。RWKV 服务器与文件身份核验均通过，见 [稳定性复测记录](data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。
+最新强模型复测仍未达到开跑门槛：next-token.cc 的认证模型目录正常，但当前完整 `gpt-5.6-sol` Planner 请求在 32.8 秒后返回 HTTP 500 / `do_request_failed`。固定矩阵首错停止，0 通过、1 失败、9 未运行；该诊断未切换配置或启动基线，见 [稳定性复测记录](data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。随后 owner 明确授权直接使用 g1j-13.3B 开始测试，强模型恢复后再议。R3 因共享工作树中的并行源码改动触发启动身份检查，在模型生成前中止：0 调用、0 题，没有新增 Agent 成绩，原始冻结记录保留，见 [R3 中止报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/REPORT.zh-CN.md)。R4 已改用隔离工作树 `/home/chase/GitHub/RWKV-LH-zero-baseline-r4`，固定提交 `eb861256c8edf2e3f0361027a68ed0fc35cddcf5`；2026-09-07 06:55:08 UTC 启动 A 臂后，首题收尾因运行器导入全部登记题集、缺少封存题集模块而失败，现已停止并标 INVALID。A 仅有 2 条 `runner_error` 记录，Strict / completed / mutation 未知，不能使用占位 0；B 未开始。当前在隔离目录修复通用运行器依赖并准备 R5，重新冻结后两臂从头运行，强模型延期；失败不会被修补或从分母删除，训练仍未授权。
 
 Planner 的步骤和阶段数量由任务决定，不设固定上限；提示词、schema、计划补丁、未完成计划及阶段检查入口完整保留计划。当前模型仍有 16,384-token 上下文上限，不能静默截断步骤或证据来适配窗口。依赖、职责、根路径与证据约束继续校验，任务结束仍由 RWKV 结合目标覆盖和执行证据判断，见 [数量限制整改](data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/REPORT.zh-CN.md)。旧输出与冻结报告不重评分，后续双零两臂均须重新冻结并完整运行。
 
 owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。
 
-现有 Ladder-10 可用于有限的小项目/接口闭环；E2E-90 主要是文件、工具与恢复机制回归，含 2 个已有脚手架的迷你项目，不能称为 90 个真实项目。E2E-LH09 的 `mock_api` 与当前生产菜单仍存在适配冲突；不改旧题或分母来掩盖该问题。新的生产 trace 抽取器尚未实现。
+现有 Ladder-10 可用于有限的小项目/接口闭环；E2E-90 主要是文件、工具与恢复机制回归，含 2 个已有脚手架的迷你项目，不能称为 90 个真实项目。E2E-LH09 的 `mock_api` 与当前生产菜单仍存在适配冲突；不改旧题或分母来掩盖该问题。生产 trace 抽取器已实现五角色输入重建、原始生成与标签证据校验、固定切分和覆盖/相似度审计，只输出候选工件；操作与经验见 [数据管线使用说明](docs/ROLE_TRACE_DATASET.zh-CN.md)。尚未冻结正式角色数据集或启动训练。
 
 ## 文档与记录
 
@@ -37,6 +37,7 @@ owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、�
 - [唯一协议、数据来源与验收规则](docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)
 - [当前交接](docs/HANDOFF.zh-CN.md)
 - [StateTune 数据生成管线源码、现状与经验](docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)
+- [生产 trace 数据管线使用说明](docs/ROLE_TRACE_DATASET.zh-CN.md)
 - [本轮清理与验证记录](data/experiments/PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907/ROUND_ANALYSIS.zh-CN.md)
 - [基线准备与可见题集审查](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/READINESS_ANALYSIS.zh-CN.md)
 - [服务器资源清理与当前部署记录](data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/)

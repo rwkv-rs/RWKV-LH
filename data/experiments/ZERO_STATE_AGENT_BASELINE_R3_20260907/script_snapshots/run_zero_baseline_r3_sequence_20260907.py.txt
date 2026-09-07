@@ -1,0 +1,92 @@
+"""Execute both frozen native-zero arms in order, then collect and compare without reruns."""
+from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import json
+import os
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907'
+PYTHON = ROOT / '.venv/bin/python'
+EXECUTOR = ROOT / 'temp/execute_frozen_real_project_baseline_r3_20260907.py'
+FREEZE = ROUND / 'FROZEN_EXECUTION_MANIFEST_R3.json'
+STATUS = ROUND / 'SEQUENCE_STATUS.json'
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def status(value):
+    temporary = STATUS.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2)+'\n')
+    temporary.replace(STATUS)
+
+
+def main():
+    assert os.environ.get('WSL_DISTRO_NAME') == 'UbuntuRecovered'
+    assert not STATUS.exists(), 'A sequence is never resumed or retried in place'
+    frozen = json.loads(FREEZE.read_text())
+    assert frozen['status'] == 'FROZEN'
+    sequence = {'started_at_utc': now(), 'pid': os.getpid(), 'freeze_sha256': sha(FREEZE),
+                'script_sha256': sha(Path(__file__)), 'phase': 'starting', 'arms': [],
+                'production_code_changes_allowed': False, 'selective_reruns_allowed': False,
+                'training_started': False}
+    status(sequence)
+    try:
+        for arm in ('A', 'B'):
+            sequence.update(phase=f'running_{arm}', updated_at_utc=now())
+            status(sequence)
+            log_path = ROUND/f'ARM_{arm}_RUN.log'
+            with log_path.open('x', encoding='utf-8') as log:
+                result = subprocess.run([str(PYTHON), str(EXECUTOR), '--arm', arm],
+                                        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+            arm_record = {'arm': arm, 'exit_code': result.returncode,
+                          'finished_at_utc': now(), 'log': log_path.name}
+            sequence['arms'].append(arm_record)
+            run_dir = ROUND/f'real_project_zero_{arm.lower()}_r3'
+            metric_output = ROUND/f'ZERO_{arm}_R3_DERIVED_METRICS.json'
+            if run_dir.exists():
+                with (ROUND/f'METRICS_{arm}.log').open('x', encoding='utf-8') as log:
+                    collected = subprocess.run(frozen['metric_argv'][arm], cwd=ROOT,
+                                               stdout=log, stderr=subprocess.STDOUT)
+                arm_record['metric_exit_code'] = collected.returncode
+            completion_path = ROUND/f'ARM_{arm}_COMPLETION_R3.json'
+            assert completion_path.exists(), f'Arm {arm} lacks verified completion evidence; stop sequence'
+            completion = json.loads(completion_path.read_text())
+            assert completion['immutable_sources_unchanged'] and completion['remote_deployment_unchanged']
+            results_file = run_dir/'results.json'
+            assert results_file.exists(), f'Arm {arm} lacks results'
+            observed = json.loads(results_file.read_text()).get('results', [])
+            actual_ids = [item['task_id'] for item in observed]
+            arm_record['recorded_cases'] = len(observed)
+            assert actual_ids == frozen['case_order'], f'Arm {arm} did not record the complete frozen case order'
+            assert result.returncode in (0, 2), f'Arm {arm} has a fatal runner error'
+            assert arm_record.get('metric_exit_code') == 0 and metric_output.exists()
+            status(sequence)
+        sequence.update(phase='comparing', updated_at_utc=now())
+        status(sequence)
+        command = frozen['comparison_argv']
+        with (ROUND/'COMPARISON.log').open('x', encoding='utf-8') as log:
+            compared = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        sequence['comparison_exit_code'] = compared.returncode
+        assert compared.returncode == 0, 'Comparison could not be completed'
+        sequence.update(phase='finished', finished_at_utc=now(),
+                        note='Both complete raw arms and their frozen comparison are available; quality gates and model failures remain as measured.')
+        status(sequence)
+        return 0
+    except Exception as exc:
+        sequence.update(phase='stopped', stopped_at_utc=now(), error_type=type(exc).__name__, error=str(exc),
+                        note='Preserve existing evidence; no replacement arm, selective retry, or automatic code change.')
+        status(sequence)
+        raise
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

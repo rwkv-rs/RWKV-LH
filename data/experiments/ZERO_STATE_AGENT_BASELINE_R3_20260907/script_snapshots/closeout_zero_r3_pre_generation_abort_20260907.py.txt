@@ -1,0 +1,104 @@
+"""Archive the R3 pre-generation abort; never import or execute benchmark code."""
+from datetime import datetime, timezone
+from pathlib import Path
+import argparse
+import hashlib
+import json
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+ROUND = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907'
+R4 = Path('/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/experiments/ZERO_STATE_AGENT_BASELINE_R4_20260907')
+DOCS = ('README.md', 'docs/HANDOFF.zh-CN.md', 'docs/G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md')
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_new(path, value):
+    with path.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', choices=('capture', 'finalize'))
+    mode = parser.parse_args().mode
+    capture_path = ROUND / 'CLOSEOUT_INPUT_ATTESTATION.json'
+    if mode == 'capture':
+        existing = {str(p.relative_to(ROOT)): sha(p) for p in sorted(ROUND.iterdir()) if p.is_file()}
+        write_new(capture_path, {
+            'captured_at_utc': datetime.now(timezone.utc).isoformat(),
+            'scope': 'Existing immediate R3 files only; no fixture directories, databases, datasets or hidden acceptance read.',
+            'existing_r3_files': existing,
+            'documents_before_sha256': {name: sha(ROOT / name) for name in DOCS},
+            'closeout_script_sha256': sha(Path(__file__)),
+        })
+        print(json.dumps({'captured_files': len(existing), 'capture_sha256': sha(capture_path)}))
+        return
+
+    captured = json.loads(capture_path.read_text())
+    assert sha(Path(__file__)) == captured['closeout_script_sha256']
+    for name, expected in captured['existing_r3_files'].items():
+        assert sha(ROOT / name) == expected, f'Historical R3 artifact changed: {name}'
+    aborted = json.loads((ROUND / 'PRE_GENERATION_ABORT.json').read_text())
+    freeze_path = ROUND / 'FROZEN_EXECUTION_MANIFEST_R3.json'
+    frozen = json.loads(freeze_path.read_text())
+    assert sha(freeze_path) == aborted['freeze_sha256']
+    assert aborted['model_generation_calls'] == aborted['agent_case_runs'] == 0
+    for name in ('ARM_A_START_R3.json', 'ARM_B_START_R3.json', 'ARM_A_COMPLETION_R3.json', 'ARM_B_COMPLETION_R3.json', 'real_project_zero_a_r3', 'real_project_zero_b_r3'):
+        assert not (ROUND / name).exists(), name
+    for name, expected in aborted['logs'].items():
+        assert sha(ROUND / name) == expected
+    sequence = json.loads((ROUND / 'SEQUENCE_STATUS.json').read_text())
+    assert sequence['phase'] == 'stopped' and sequence['arms'][0]['exit_code'] == 1
+    assert len(sequence['arms']) == 1 and not sequence['training_started']
+
+    snapshots = ROUND / 'script_snapshots'
+    snapshots.mkdir(exist_ok=False)
+    snapshot_records = []
+    source_names = sorted(name for name in frozen['immutable_files'] if name.startswith('temp/') and name.endswith('.py'))
+    for name in source_names + ['temp/record_zero_r3_pre_generation_abort_20260907.py', str(Path(__file__).relative_to(ROOT))]:
+        source = ROOT / name
+        source_sha = sha(source)
+        if name in frozen['immutable_files']:
+            assert source_sha == frozen['immutable_files'][name], name
+        elif source.name == 'record_zero_r3_pre_generation_abort_20260907.py':
+            assert source_sha == aborted['script_sha256']
+        target = snapshots / (source.name + '.txt')
+        with target.open('xb') as stream:
+            stream.write(source.read_bytes())
+        snapshot_records.append({'source': name, 'snapshot': str(target.relative_to(ROOT)), 'sha256': source_sha})
+
+    start_path = R4 / 'ARM_A_START_R4.json'
+    r4_start = json.loads(start_path.read_text())
+    r4_freeze_sha = sha(R4 / 'FROZEN_EXECUTION_MANIFEST_R4.json')
+    assert r4_start['freeze_sha256'] == r4_freeze_sha == 'c2317b13cbc8483a42f1cb1a9b40ef2134cb290f2b93b9c28ff70b0e70d3307b'
+    assert r4_start['expected_case_count'] == 12
+    assert '[1/12] RP-API-01 starting' in (R4 / 'ARM_A_RUN.log').read_text()
+    record = {
+        'closed_at_utc': datetime.now(timezone.utc).isoformat(),
+        'status': 'INVALID_PRE_GENERATION_STARTUP',
+        'agent_case_runs': 0, 'model_generation_calls': 0,
+        'agent_scores': None, 'agent_scores_reason': 'No benchmark case entered; not a 0/12 capability result.',
+        'historical_r3_artifacts_preserved': True,
+        'preserved_file_count': len(captured['existing_r3_files']),
+        'r3_freeze_sha256': aborted['freeze_sha256'],
+        'report_sha256': sha(ROUND / 'REPORT.zh-CN.md'),
+        'scripts': snapshot_records,
+        'documents': {name: {'before_sha256': captured['documents_before_sha256'][name], 'after_sha256': sha(ROOT / name)} for name in DOCS},
+        'r4_start_observation': {'root': str(R4.parent.parent.parent), 'started_at': r4_start['started_at'], 'start_record_sha256': sha(start_path), 'freeze_sha256': r4_freeze_sha, 'first_case_start_observed': True, 'arm_b': 'sequentially pending at parent-reported startup; no completed scores inferred'},
+        'scope': {'production_edits': False, 'new_worktree_writes': False, 'model_calls': False, 'tests_rerun': False, 'server_git': False, 'hidden_acceptance_reads': False, 'training_started': False},
+    }
+    write_new(ROUND / 'CLOSEOUT_VERIFICATION.json', record)
+    paths = [p for p in sorted(ROUND.iterdir()) if p.is_file() and p.name != 'SHA256SUMS']
+    paths += sorted(snapshots.iterdir())
+    paths += [ROOT / name for name in DOCS]
+    with (ROUND / 'SHA256SUMS').open('x', encoding='utf-8') as stream:
+        for path in paths:
+            stream.write(f'{sha(path)}  {path.relative_to(ROOT)}\n')
+    print(json.dumps({'report_sha256': record['report_sha256'], 'sha256sums_sha256': sha(ROUND / 'SHA256SUMS'), 'preserved_files': record['preserved_file_count'], 'snapshot_files': len(snapshot_records)}, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()

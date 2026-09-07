@@ -1,0 +1,139 @@
+"""Synthetic derived-metric fixtures only; no model protocols or baseline results."""
+from collections import Counter
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+
+ROOT = Path('/home/chase/GitHub/RWKV-LH')
+BASE = ROOT / 'data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/COMPARE_SELFTEST_R3'
+SCRIPT = ROOT / 'temp/compare_zero_project_arms_r3_20260907.py'
+COLLECTOR = ROOT / 'temp/collect_zero_project_metrics_r3_20260907.py'
+ORDER = ['RP-' + group + '-' + number for group in ('API', 'MAINT', 'CLI', 'DATA', 'FULL', 'WEB') for number in ('01', '02')]
+
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + '\n')
+def metric(value): return {'status': 'known' if value is not None else 'unknown', 'value': value, 'known_count': int(value) if value is not None else 0, 'unknown_count': int(value is None)}
+
+def fixture():
+    BASE.mkdir(parents=True, exist_ok=True)
+    definitions = BASE / 'DEFINITIONS.json'
+    write(definitions, {'source': 'synthetic comparison fixture', 'expected_case_order': ORDER, 'collector': {'sha256': sha(COLLECTOR)}})
+    paths = {'freeze': BASE / 'FREEZE.json'}
+    freeze = {'status': 'FROZEN', 'registration_revision': 'R3', 'frozen_at': '2026-09-07T01:00:00+00:00', 'case_order': ORDER,
+              'argv': {}, 'metric_argv': {}, 'immutable_files': {str(COLLECTOR.relative_to(ROOT)): sha(COLLECTOR), str(definitions.relative_to(ROOT)): sha(definitions)}}
+    originals = {}
+    for arm, passed_count in (('A', 6), ('B', 8)):
+        run = BASE / ('run_' + arm)
+        paths['metrics_' + arm] = BASE / ('METRICS_' + arm + '.json')
+        paths['completion_' + arm] = BASE / ('COMPLETION_' + arm + '.json')
+        freeze['argv'][arm] = ['python', 'runner.py', '--suite', 'realprojectdevv1', '--output', str(run)]
+        freeze['metric_argv'][arm] = [sys.executable, str(COLLECTOR), '--definitions', str(definitions), '--run-dir', str(run), '--output', str(paths['metrics_' + arm])]
+        sources = {str(definitions): {'sha256': sha(definitions)}}
+        for name in ('results.json', 'RUN_PROTOCOL.json', *('cases/' + ident + '/audit.json' for ident in ORDER)):
+            source = run / name
+            write(source, {'source': 'artificial derived-metric binding placeholder; not role protocol or training data'})
+            sources[str(source)] = {'sha256': sha(source)}
+        cases = []
+        for i, ident in enumerate(ORDER):
+            cases.append({'task_id': ident, 'result_present': True, 'strict_passed': metric(i < passed_count),
+                          'agent_completed': metric(i < passed_count + 1), 'mutations': metric(i + 1),
+                          'termination': {'value': 'completed' if i < passed_count + 1 else 'blocked'}})
+        value = {'collector_sha256': sha(COLLECTOR), 'metric_definitions_path': str(definitions), 'run_directory': str(run),
+                 'source_files': sources, 'source_read_issues': [], 'read_only_inputs': True, 'sqlite_opened': False,
+                 'scoring_or_parser_modified': False, 'model_calls': 0, 'generated_at_utc': '2026-09-07T03:00:00+00:00',
+                 'expected_case_count': 12, 'observed_result_count': 12, 'missing_result_task_ids': [],
+                 'unexpected_result_task_ids': [], 'duplicate_result_task_ids': [], 'cases': cases,
+                 'agent_metrics': {key: metric(sum(c[key]['value'] for c in cases)) for key in ('strict_passed', 'agent_completed', 'mutations')},
+                 'termination_reason_counts': dict(Counter(c['termination']['value'] for c in cases)),
+                 'gates': {name: True for name in runpy.run_path(str(SCRIPT))['GATES']}, 'all_listed_gates_pass': True,
+                 'role_call_totals': {'executor_args': metric(14), 'selector_actual_requests': metric(None)}}
+        write(paths['metrics_' + arm], value); originals['metrics_' + arm] = value
+    write(paths['freeze'], freeze)
+    for arm in ('A', 'B'):
+        value = {'arm': arm, 'runner_exit_code': 2, 'completed_at': '2026-09-07T02:00:00+00:00',
+                 'immutable_sources_unchanged': True, 'remote_deployment_unchanged': True, 'freeze_sha256': sha(paths['freeze'])}
+        write(paths['completion_' + arm], value); originals['completion_' + arm] = value
+    return paths, originals
+
+def main():
+    paths, originals = fixture(); compare = runpy.run_path(str(SCRIPT))['compare']; results = {}; checks = {}
+    def trial(name, key=None, mutate=None):
+        if key:
+            value = deepcopy(originals[key]); mutate(value); write(paths[key], value)
+        result = compare(paths); results[name] = result
+        if key: write(paths[key], originals[key])
+        return result
+    good = trial('complete')
+    checks['complete_evidence_valid'] = good['evidence_status'] == 'VALID'
+    checks['observed_noise_two'] = good['observed_noise_band']['N'] == 2
+    checks['twelve_pairs_retained'] = len(good['paired_cases']) == 12 and sum(good['strict_transition_counts'].values()) == 12
+    checks['selector_unknown_does_not_mask_strict'] = good['role_comparison']['A']['role_unknowns'] == ['selector_actual_requests'] and good['observed_noise_band']['N'] == 2
+    checks['roles_after_agent_results'] = list(good).index('role_comparison') > list(good).index('agent_comparison')
+    checks['never_gain_claim'] = good['gain_conclusion'].startswith('Not evaluated:')
+    def zero_noise_with_flips(value):
+        for i, case in enumerate(value['cases']):
+            case['strict_passed'] = metric(i >= 6)
+            case['agent_completed'] = metric(True)
+            case['termination'] = {'value': 'completed'}
+        value['agent_metrics']['strict_passed'] = metric(6)
+        value['agent_metrics']['agent_completed'] = metric(12)
+        value['termination_reason_counts'] = {'completed': 12}
+    zero = trial('zero_noise_with_twelve_flips', 'metrics_B', zero_noise_with_flips)
+    checks['zero_noise_does_not_hide_case_flips'] = zero['evidence_status'] == 'VALID' and zero['observed_noise_band']['N'] == 0 and zero['strict_transition_counts'] == {'pass_to_fail': 6, 'fail_to_pass': 6}
+    checks['noise_uses_strict_not_completed'] = zero['observed_noise_band']['N'] == 0 and zero['agent_comparison']['A']['agent_metrics']['agent_completed']['count'] != zero['agent_comparison']['B']['agent_metrics']['agent_completed']['count']
+    checks['zero_noise_no_determinism_claim'] = 'does not prove determinism' in zero['observed_noise_band']['interpretation']
+    bad = trial('wrong_collector', 'metrics_A', lambda v: v.update(collector_sha256='0' * 64))
+    checks['wrong_collector_invalid'] = bad['evidence_status'] == 'INVALID' and bad['observed_noise_band']['N'] is None
+    bad = trial('wrong_definition_sha', 'metrics_A', lambda v: v['source_files'][v['metric_definitions_path']].update(sha256='0' * 64))
+    checks['wrong_definition_hash_invalid'] = bad['evidence_status'] == 'INVALID'
+    bad = trial('wrong_freeze_hash', 'completion_A', lambda v: v.update(freeze_sha256='0' * 64))
+    checks['wrong_freeze_invalid'] = bad['evidence_status'] == 'INVALID'
+    bad = trial('sources_changed', 'completion_A', lambda v: v.update(immutable_sources_unchanged=False))
+    checks['source_attestation_failure_invalid'] = bad['evidence_status'] == 'INVALID'
+    bad = trial('duplicate_case', 'metrics_A', lambda v: v['cases'].__setitem__(1, deepcopy(v['cases'][0])))
+    checks['duplicate_case_invalid'] = bad['evidence_status'] == 'INVALID'
+    bad = trial('wrong_total', 'metrics_A', lambda v: v['agent_metrics'].__setitem__('strict_passed', metric(7)))
+    checks['aggregate_tamper_invalid'] = bad['evidence_status'] == 'INVALID'
+    def unknown_strict(value):
+        value['cases'][0]['strict_passed'] = metric(None); value['agent_metrics']['strict_passed'] = metric(None)
+    bad = trial('unknown_strict', 'metrics_A', unknown_strict)
+    checks['unknown_strict_not_zero'] = bad['evidence_status'] == 'UNKNOWN' and bad['observed_noise_band']['N'] is None
+    missing = dict(paths); missing['completion_B'] = BASE / 'MISSING_COMPLETION.json'
+    bad = compare(missing); results['missing_completion'] = bad
+    checks['missing_completion_unknown'] = bad['evidence_status'] == 'UNKNOWN' and bad['observed_noise_band']['N'] is None
+    def unknown_gate(value): value['gates']['mutation_positive'] = None; value['all_listed_gates_pass'] = False
+    bad = trial('unknown_gate', 'metrics_A', unknown_gate)
+    checks['unknown_gate_not_pass'] = bad['agent_comparison']['A']['agent_gate_status'] == 'UNKNOWN' and bad['evidence_status'] == 'UNKNOWN'
+    def failed_gate(value): value['gates']['mutation_positive'] = False; value['all_listed_gates_pass'] = False
+    bad = trial('failed_gate', 'metrics_A', failed_gate)
+    checks['known_gate_failure_preserved'] = bad['agent_comparison']['A']['agent_gate_status'] == 'FAIL' and bad['evidence_status'] == 'VALID'
+    source = BASE / 'run_A/cases/RP-API-01/audit.json'; raw = source.read_bytes(); source.write_bytes(raw + b' ')
+    bad = compare(paths); results['changed_source_json'] = bad; source.write_bytes(raw)
+    checks['bound_json_changed_invalid'] = bad['evidence_status'] == 'INVALID'
+    bad = trial('metrics_before_completion', 'metrics_A', lambda v: v.update(generated_at_utc='2026-09-07T01:30:00+00:00'))
+    checks['metrics_must_be_final'] = bad['evidence_status'] == 'INVALID'
+    before = {str(p): sha(p) for p in paths.values()}
+    output = BASE / 'CLI_COMPARISON.json'
+    argv = [sys.executable, str(SCRIPT), '--metrics-a', str(paths['metrics_A']), '--metrics-b', str(paths['metrics_B']), '--completion-a', str(paths['completion_A']), '--completion-b', str(paths['completion_B']), '--freeze', str(paths['freeze']), '--output', str(output)]
+    if output.exists(): output.unlink()
+    completed = subprocess.run(argv, capture_output=True, text=True)
+    (BASE / 'cli.log').write_text(completed.stdout + completed.stderr)
+    checks['cli_success'] = completed.returncode == 0 and json.loads(output.read_text())['evidence_status'] == 'VALID'
+    checks['cli_inputs_unchanged'] = before == {str(p): sha(p) for p in paths.values()}
+    rejected = subprocess.run([*argv[:-2], '--output', str(BASE / 'holdout_refused.json')], capture_output=True, text=True)
+    checks['sealed_path_refused'] = rejected.returncode == 2 and not (BASE / 'holdout_refused.json').exists()
+    results_path = BASE / 'CASE_REPORTS.json'; write(results_path, results)
+    report = {'source': 'artificial derived metric fixtures only; not baseline, not role protocol or StateTune data',
+              'checks': checks, 'passed': all(checks.values()), 'check_count': len(checks),
+              'script_sha256': sha(SCRIPT), 'selftest_sha256': sha(Path(__file__)), 'case_reports_sha256': sha(results_path), 'cli_argv': argv}
+    write(BASE / 'SELFTEST_RESULT.json', report)
+    assert report['passed'], checks
+    print(json.dumps({'passed': True, 'checks': len(checks), 'script_sha256': sha(SCRIPT), 'evidence': str(BASE / 'SELFTEST_RESULT.json')}))
+
+if __name__ == '__main__': main()
