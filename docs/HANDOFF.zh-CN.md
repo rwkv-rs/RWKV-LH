@@ -1,8 +1,14 @@
 # 当前交接
 
-更新日期：2026-09-09；当前工程轮 `AUDITOR_EVIDENCE_CONTRACT_R1_20260909`。最新 Agent 实测仍为固定 UltraData 三题 **Strict 0/3、completed 0/3、mutation 0、动作 9**，均在第一步重复观察后 `identical_success_budget_exhausted`，见 [R2 报告](../data/experiments/ULTRADATA_COLLECTION_R2_20260909/REPORT.zh-CN.md)。共享审计条件和机械矛盾校验已修复，完整回归 **1162 passed、0 skipped**；实际效果另用 R3 验证，不重评分 R2。详见 [审计合同修复](../data/experiments/AUDITOR_EVIDENCE_CONTRACT_R1_20260909/REPORT.zh-CN.md)、[统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md) 和 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
+更新日期：2026-09-09；最新实际采集 `ULTRADATA_COLLECTION_R3_20260909`：固定三题 **Strict 0/3、completed 0/3、mutation 0、动作 2**。一题阶段检查 HTTP 500、一题 Planner HTTP 500，另一题在创建阶段重复选择 move_file 后协议拒绝阻塞，见 [R3 报告](../data/experiments/ULTRADATA_COLLECTION_R3_20260909/REPORT.zh-CN.md)。共享审计修复通过 **1162 passed、0 skipped**，新运行两次观察审计均自然 continue，第三题阶段检查 advance；完整 Agent 闭环仍未完成。详见 [审计合同修复](../data/experiments/AUDITOR_EVIDENCE_CONTRACT_R1_20260909/REPORT.zh-CN.md)、[统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md) 和 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
 
 ## Agent 实测与 trace 到达位置
+
+最新 R3：Planner 三次请求（两次接纳、一次 500），Stage Checker 两次（一次 advance、一次 500）；Selector 八次交接 / 24 次菜单求值、Executor 十四次、Step Auditor 两次，后续角色未到达。16 次 RWKV 生成均自然 stop，没有输出 token 截断。两个 HTTP 失败保持 pending；第三题的预算是 12 次连续协议拒绝，不能混称 Planner 输出预算耗尽。
+
+R3 两个审计输入已重建并匹配原始 SHA，空目录观察不再被判作 read-root 未证明。第三题进入 mutate 后，现有资格筛选只检查 move/copy 的 destination，而执行前同时校验 source；重选又未收到 action 协议拒绝，六次 Selector 输入摘要完全相同。这两项是待修连接缺陷，不能通过放大重试次数或把错误转给 Planner 解决。原始边界与输出见 R3 `CONTRACT_COMPARISON.json`。
+
+R3 自动 Selector 候选六条、两个不同观察边界，均为 train；创建阶段十八条错误菜单行进入独立复核，未作为正例。原 30 行 / 十边界、四项覆盖、非空固定切分条件未满足；固定三题家族本身没有 confirmation，不能靠反复重跑补齐。候选全集 invalid，optimizer steps 0；不要求后序角色完成或 Agent 先高分。
 
 Owner 提交已完成的 UltraData 试点后明确要求开始，本轮沿用已有逐角色授权执行固定三题采集。R1 三题在 Executor Native 初始化处失败、动作均为 0；当前客户端补齐恢复身份并修复不可重试错误被反复重试的问题后，重新冻结 R2，未重评分 R1。角色级：R2 Selector 九次交接、27 次菜单求值；Executor 九次、Step Auditor 六次；Stage Checker、Finalizer、Final Auditor 未调用。所有角色独立 zero，optimizer steps 为 0。
 
@@ -47,7 +53,7 @@ R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e
 
 ## 下一步与仍未证明的能力
 
-1. 审计条件/事实表达和生产/数据校验不一致的工程修复已通过 1162 项完整回归；启动独立 R3 测量是否进入后续实现、检查与完成。各角色对 Executor Native checkpoint 的前置依赖仍需独立整改。保留模型语义职责，不强制所有成功动作完成步骤；后续源码修改须新冻结运行，不重评分 R1/R2，不修改原门槛。
+1. 审计条件/事实表达和生产/数据校验不一致的工程修复已通过 1162 项完整回归，R3 两次实际审计均通过，第三题已进入实现步骤。下一工程问题是多参数工具的资格/执行合同不一致，以及参数拒绝后的重选缺少失败事实。各角色对 Executor Native checkpoint 的前置依赖仍需独立整改；源码修改须新冻结运行，不重评分旧轮或修改原门槛。
 2. 2.9B 已上线 `rwkv-lh-selector-current.service`（GPU 2，本地端口 29621），原始权重与转换后权重均核验，32 层 / 40×64 State 已通过至 16384 tokens 的 Native 前向与反向验证。本地旧 Selector 协议/模型 SHA 配置已更新；原 13.3B 服务保持运行。服务器仅使用上传的完整 SHA manifest，没有 Git。
 3. 登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前数值训练后端已经验证；正式角色数据消费、优化器运行登记与候选验收仍需接通，不能将数值反向测试算作训练。
-4. Planner 已有六次生产计划接纳，Stage Checker、后续编码与最终完成仍须新生产运行测量；E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。
+4. UltraData 三轮累计八次计划接纳，R3 首次阶段检查 advance；仍未实际写代码或完成任务。gpt-5.6-sol 网关本轮两次请求因 HTTP 500 中断，不能假称本地 parser 拒绝。E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。

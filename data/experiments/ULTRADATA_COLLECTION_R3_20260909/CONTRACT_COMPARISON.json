@@ -1,0 +1,1383 @@
+{
+  "purpose": "source comparison only; no corrected labels or rescore",
+  "comparisons": [
+    {
+      "run_id": "ULTRA-Code_00001",
+      "input_event_id": "CE-000015",
+      "output_event_id": "CE-000016",
+      "accepted_event_id": "CE-000018",
+      "prompt_sha256": "f505254f01fbfd736d0f3735a9bea0e0fb2bad39afc85042427315e3c51edb96",
+      "reconstructed_prompt_matches": true,
+      "active_step": {
+        "step_id": "S1",
+        "objective": "Inspect the available workspace and establish the existing file layout and any local specifications or verifier artifacts relevant to implementing main.py.",
+        "phase": "observe",
+        "stage": 1,
+        "depends_on": [],
+        "success_evidence": [
+          "Successful workspace inspection records the available project contents and confirms whether existing implementation or verifier files impose local conventions or constraints."
+        ],
+        "obligation_ids": [
+          "O1",
+          "O2",
+          "O4"
+        ],
+        "read_roots": [
+          "."
+        ],
+        "write_roots": [],
+        "allowed_operations": [],
+        "constraints": [
+          "Use only project-relative paths beneath the fixed project root.",
+          "Treat the current requirement as the authoritative problem specification if no local files are present."
+        ]
+      },
+      "mechanically_missing_read_roots": [],
+      "possible_gap_catalog_as_sent": [
+        {
+          "code": "phase_evidence_unproved:observe",
+          "criterion": "The declared observe phase must meet this step's success criteria using the available evidence."
+        },
+        {
+          "code": "success_criterion_unproved:7fec819a42a6",
+          "criterion": "Successful workspace inspection records the available project contents and confirms whether existing implementation or verifier files impose local conventions or constraints."
+        }
+      ],
+      "available_evidence_refs": [
+        "A00001"
+      ],
+      "visible_actions": [
+        {
+          "action_id": "A00001",
+          "operation": "list_directory",
+          "status": "succeeded",
+          "outcome_type": "success",
+          "arguments": {
+            "path": ".",
+            "recursive": true,
+            "max_entries": 1024,
+            "start_after": "",
+            "max_tokens": 4096
+          },
+          "result": {
+            "success": true,
+            "outcome_type": "success",
+            "action_type": "list_directory",
+            "metadata": {
+              "complete": true,
+              "truncated": false,
+              "next_cursor": ""
+            },
+            "observation": {
+              "schema_version": "rwkv-lh.observation-packet.v1",
+              "projection_version": "typed-lineage-observation-funnel.v1",
+              "operation": "list_directory",
+              "adapter_registered": true,
+              "raw_result_sha256": "854377786e995ae3e551ad9e916f33cbdd9421931ebf7dc3764949485fcf2656",
+              "raw_output_sha256": "18a80f4fd9e5e0686298c07658744f03ce98f18640240941d1065db50ca68c25",
+              "raw_output_chars": 104,
+              "raw_output_bytes": 104,
+              "raw_result_persisted": true,
+              "summary_fact_authority": false,
+              "adapter": "structured_page",
+              "payload_kind": "complete_json_items",
+              "fact_authority": "literal_structured_fields",
+              "projection_complete": true,
+              "source_item_count": 0,
+              "projected_item_count": 0,
+              "diagnostic_arrays_projected": true,
+              "resume_arguments": {}
+            },
+            "structured_output": {
+              "entry_count": 0,
+              "next_cursor": "",
+              "path": ".",
+              "recursive": true,
+              "truncated": false,
+              "entries": []
+            }
+          },
+          "artifact_refs": []
+        }
+      ],
+      "actual_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"continue\",\n    \"step_id\": \"S1\",\n    \"step_complete\": true,\n    \"evidence_refs\": [\n      \"A00001\"\n    ],\n    \"gaps\": [],\n    \"reason\": \"evidence_complete\"\n  }\n}",
+      "finish_reason": "stop",
+      "actual_feedback": null
+    },
+    {
+      "run_id": "ULTRA-Code_00003",
+      "input_event_id": "CE-000015",
+      "output_event_id": "CE-000016",
+      "accepted_event_id": "CE-000018",
+      "prompt_sha256": "7eb8a42ea5e5a4b2c3f2e6f2477f92e42453007f9875293647fce9f08817f7b8",
+      "reconstructed_prompt_matches": true,
+      "active_step": {
+        "step_id": "S1",
+        "objective": "Inspect the project workspace and establish the available files and implementation location before creating the solution.",
+        "phase": "observe",
+        "stage": 1,
+        "depends_on": [],
+        "success_evidence": [
+          "The workspace inspection records the project-relative contents and confirms the target location for `main.py`."
+        ],
+        "obligation_ids": [
+          "O2"
+        ],
+        "read_roots": [
+          "."
+        ],
+        "write_roots": [],
+        "allowed_operations": [],
+        "constraints": [
+          "Do not modify any files.",
+          "Use only project-relative paths beneath the fixed project root."
+        ]
+      },
+      "mechanically_missing_read_roots": [],
+      "possible_gap_catalog_as_sent": [
+        {
+          "code": "phase_evidence_unproved:observe",
+          "criterion": "The declared observe phase must meet this step's success criteria using the available evidence."
+        },
+        {
+          "code": "success_criterion_unproved:1e2d437d3d2b",
+          "criterion": "The workspace inspection records the project-relative contents and confirms the target location for `main.py`."
+        }
+      ],
+      "available_evidence_refs": [
+        "A00001"
+      ],
+      "visible_actions": [
+        {
+          "action_id": "A00001",
+          "operation": "list_directory",
+          "status": "succeeded",
+          "outcome_type": "success",
+          "arguments": {
+            "path": ".",
+            "recursive": false,
+            "max_entries": 1024,
+            "start_after": "",
+            "max_tokens": 4096
+          },
+          "result": {
+            "success": true,
+            "outcome_type": "success",
+            "action_type": "list_directory",
+            "metadata": {
+              "complete": true,
+              "truncated": false,
+              "next_cursor": ""
+            },
+            "observation": {
+              "schema_version": "rwkv-lh.observation-packet.v1",
+              "projection_version": "typed-lineage-observation-funnel.v1",
+              "operation": "list_directory",
+              "adapter_registered": true,
+              "raw_result_sha256": "6951240ac47f8278c326b64f1329f814b16da142abfae104005447ecc9c7261e",
+              "raw_output_sha256": "3acab387e7d6a3c6d89e181be6fa7540598d4503d5411b45ab5b3683728ddd61",
+              "raw_output_chars": 105,
+              "raw_output_bytes": 105,
+              "raw_result_persisted": true,
+              "summary_fact_authority": false,
+              "adapter": "structured_page",
+              "payload_kind": "complete_json_items",
+              "fact_authority": "literal_structured_fields",
+              "projection_complete": true,
+              "source_item_count": 0,
+              "projected_item_count": 0,
+              "diagnostic_arrays_projected": true,
+              "resume_arguments": {}
+            },
+            "structured_output": {
+              "entry_count": 0,
+              "next_cursor": "",
+              "path": ".",
+              "recursive": false,
+              "truncated": false,
+              "entries": []
+            }
+          },
+          "artifact_refs": []
+        }
+      ],
+      "actual_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"continue\",\n    \"step_id\": \"S1\",\n    \"step_complete\": true,\n    \"evidence_refs\": [\n      \"A00001\"\n    ],\n    \"gaps\": [],\n    \"reason\": \"evidence_complete\"\n  }\n}",
+      "finish_reason": "stop",
+      "actual_feedback": null
+    }
+  ],
+  "cases": [
+    {
+      "run_id": "ULTRA-Code_00001",
+      "selection_handoffs": [
+        {
+          "event_id": "CE-000007",
+          "selection_id": "NSEL-ENS-fb4d1291ff7940b4",
+          "selected_operation": "list_directory",
+          "input_projection_digest": "fff6487e4fe5222c770475623c1477dc82f4e9c2304ec0bd886816d1f8e16015",
+          "executor_parent_digest": "1060a006bd3566ea2bb93136aa9b77f0b4b94f10fc10b88c176217029f95eeab",
+          "eligible_labels": [
+            "list_directory",
+            "search_text"
+          ]
+        }
+      ],
+      "input_boundaries": [
+        {
+          "event_id": "CE-000004",
+          "active_step_id": "S1",
+          "eligible_operations": [
+            "list_directory",
+            "search_text"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "observe",
+            "roots": [
+              "."
+            ],
+            "target_descriptors": [
+              {
+                "path": ".",
+                "type": "directory",
+                "target_kind": "directory",
+                "exists": true
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "list_directory": [
+                "."
+              ],
+              "search_text": [
+                "."
+              ],
+              "read_file": [],
+              "read_json": [],
+              "file_digest": []
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        }
+      ],
+      "protocol_rejections": [],
+      "raw_output_patterns": [
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\n  \"name\": \"list_directory\",\n  \"arguments\": {\n    \"path\": \".\",\n    \"recursive\": true,\n    \"max_entries\": 1024,\n    \"start_after\": \"\",\n    \"max_tokens\": 4096\n  }\n}",
+          "finish_reason": "stop",
+          "count": 1
+        },
+        {
+          "model_role": "auditor_step",
+          "raw_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"continue\",\n    \"step_id\": \"S1\",\n    \"step_complete\": true,\n    \"evidence_refs\": [\n      \"A00001\"\n    ],\n    \"gaps\": [],\n    \"reason\": \"evidence_complete\"\n  }\n}",
+          "finish_reason": "stop",
+          "count": 1
+        }
+      ],
+      "supervisor_failures": [
+        {
+          "phase": "goal_stage_review",
+          "model": "gpt-5.6-sol",
+          "http_status": 500,
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_stage_review"
+        }
+      ]
+    },
+    {
+      "run_id": "ULTRA-Code_00002",
+      "selection_handoffs": [],
+      "input_boundaries": [],
+      "protocol_rejections": [],
+      "raw_output_patterns": [],
+      "supervisor_failures": [
+        {
+          "phase": "goal_plan",
+          "model": "gpt-5.6-sol",
+          "http_status": 500,
+          "error": "SupervisorTransportError: supervisor HTTP 500 during goal_plan"
+        }
+      ]
+    },
+    {
+      "run_id": "ULTRA-Code_00003",
+      "selection_handoffs": [
+        {
+          "event_id": "CE-000007",
+          "selection_id": "NSEL-ENS-00d88c956e0a47c3",
+          "selected_operation": "list_directory",
+          "input_projection_digest": "dc18e95222696a4503d11189c5f1bb05d579acca58a0472d85dc0984d417c6a7",
+          "executor_parent_digest": "bf74eab18fe1786f1c62b3b5a01bd245ab52fbbaf43884125e8e9605be6cec3a",
+          "eligible_labels": [
+            "list_directory",
+            "search_text"
+          ]
+        },
+        {
+          "event_id": "CE-000025",
+          "selection_id": "NSEL-ENS-d91ffcca706d4cc4",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        },
+        {
+          "event_id": "CE-000037",
+          "selection_id": "NSEL-ENS-ab4292010ed84e49",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        },
+        {
+          "event_id": "CE-000049",
+          "selection_id": "NSEL-ENS-7d76b33d7d664a11",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        },
+        {
+          "event_id": "CE-000061",
+          "selection_id": "NSEL-ENS-9f1ec2e1d7f542ea",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        },
+        {
+          "event_id": "CE-000073",
+          "selection_id": "NSEL-ENS-484a14911bdb4c4d",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        },
+        {
+          "event_id": "CE-000085",
+          "selection_id": "NSEL-ENS-fce6d965c0954243",
+          "selected_operation": "move_file",
+          "input_projection_digest": "2b78153900f11dbf7c9ff3f86928492f9f6999c5139660c0e0b04d17b7761d82",
+          "executor_parent_digest": "dc57f379f96b0a5878d6076ed7401b825e86acafd5de2bbb23b4d9321d53ab0f",
+          "eligible_labels": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ]
+        }
+      ],
+      "input_boundaries": [
+        {
+          "event_id": "CE-000004",
+          "active_step_id": "S1",
+          "eligible_operations": [
+            "list_directory",
+            "search_text"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "observe",
+            "roots": [
+              "."
+            ],
+            "target_descriptors": [
+              {
+                "path": ".",
+                "type": "directory",
+                "target_kind": "directory",
+                "exists": true
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "list_directory": [
+                "."
+              ],
+              "search_text": [
+                "."
+              ],
+              "read_file": [],
+              "read_json": [],
+              "file_digest": []
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000022",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000029",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000034",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000041",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000046",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000053",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000058",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000065",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000070",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000077",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000082",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        },
+        {
+          "event_id": "CE-000089",
+          "active_step_id": "S2",
+          "eligible_operations": [
+            "write_file",
+            "write_json",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file"
+          ],
+          "target_contract": {
+            "schema_version": "rwkv-lh.goal-step-target-contract.v2",
+            "phase": "mutate",
+            "roots": [
+              "main.py"
+            ],
+            "target_descriptors": [
+              {
+                "path": "main.py",
+                "type": "missing",
+                "target_kind": "missing",
+                "exists": false
+              }
+            ],
+            "compatible_targets_by_operation": {
+              "write_file": [
+                "main.py"
+              ],
+              "write_json": [
+                "main.py"
+              ],
+              "patch_json": [],
+              "replace_text": [],
+              "remove_line": [],
+              "append_file": [
+                "main.py"
+              ],
+              "make_directory": [
+                "main.py"
+              ],
+              "copy_file": [
+                "main.py"
+              ],
+              "move_file": [
+                "main.py"
+              ],
+              "delete_file": [
+                "main.py"
+              ]
+            },
+            "discovery_complete": true
+          },
+          "executor_feedback": null
+        }
+      ],
+      "protocol_rejections": [
+        {
+          "event_id": "CE-000028",
+          "request_id": "MR-1160d37a4f944ee9",
+          "selection_id": "NSEL-ENS-d91ffcca706d4cc4",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 1,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000033",
+          "request_id": "MR-595625020f254ec9",
+          "selection_id": "NSEL-ENS-d91ffcca706d4cc4",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 2,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000040",
+          "request_id": "MR-6840e3b66854479a",
+          "selection_id": "NSEL-ENS-ab4292010ed84e49",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 3,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000045",
+          "request_id": "MR-e00d5ebf585244b1",
+          "selection_id": "NSEL-ENS-ab4292010ed84e49",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 4,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000052",
+          "request_id": "MR-7395ee94721c4841",
+          "selection_id": "NSEL-ENS-7d76b33d7d664a11",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "action_id": "A00001",
+            "operation": "move_file",
+            "parameters": {
+              "source": "main.py",
+              "destination": "main.py"
+            },
+            "observation_binding": {
+              "schema_version": "rwkv-lh.executor-observation-binding.v1",
+              "projection_version": "typed-lineage-observation-funnel.v1",
+              "fact_action_ids": [
+                "A00001"
+              ],
+              "exact_source_rule": "mutation_literals_must_be_copied_from_exact_spans_or_literal_structured_fields",
+              "summary_fact_authority": false,
+              "stale_snapshot_policy": "read_modify_write_requires_matching_base_sha256"
+            },
+            "committed_fact_refs": [
+              "A00001"
+            ],
+            "executor_history": [
+              {
+                "event_id": "EV-GOAL-FRONTIER-a51c290156b24f10",
+                "event_type": "goal_frontier_assignment",
+                "content_refs": []
+              }
+            ],
+            "current_question": "Return one canonical direct call for the selected operation. Derive each factual parameter from the bound Harness observations. Copy code, text, paths, cursors, identifiers, and structured values exactly; a navigation summary is not factual evidence. For patch_json, replace_text, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user."
+          },
+          "error": "operation 'rwkv-lh.executor-action-commit' is not displayed in this turn",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 5,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000057",
+          "request_id": "MR-1c92c2e05e444bdf",
+          "selection_id": "NSEL-ENS-7d76b33d7d664a11",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 6,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000064",
+          "request_id": "MR-5e64b03ea8bc428e",
+          "selection_id": "NSEL-ENS-9f1ec2e1d7f542ea",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 7,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000069",
+          "request_id": "MR-8d4f3589f38041e3",
+          "selection_id": "NSEL-ENS-9f1ec2e1d7f542ea",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 8,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000076",
+          "request_id": "MR-a0950f25deb143eb",
+          "selection_id": "NSEL-ENS-484a14911bdb4c4d",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 9,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000081",
+          "request_id": "MR-d4e0f50b06224468",
+          "selection_id": "NSEL-ENS-484a14911bdb4c4d",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 10,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000088",
+          "request_id": "MR-9d5f8687c3be4c3c",
+          "selection_id": "NSEL-ENS-fce6d965c0954243",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 11,
+          "action_executed": false
+        },
+        {
+          "event_id": "CE-000093",
+          "request_id": "MR-61095e5d4283485c",
+          "selection_id": "NSEL-ENS-fce6d965c0954243",
+          "selected_operation": "move_file",
+          "rejected_arguments": {
+            "source": "main.py",
+            "destination": "main.py"
+          },
+          "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: source='main.py' has target_kind='missing'; compatible_targets=['main.py']",
+          "protocol_scope": "action",
+          "feedback": null,
+          "active_step_id": "S2",
+          "rejection_count": 12,
+          "action_executed": false
+        }
+      ],
+      "raw_output_patterns": [
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\n  \"name\": \"list_directory\",\n  \"arguments\": {\n    \"path\": \".\",\n    \"recursive\": false,\n    \"max_entries\": 1024,\n    \"start_after\": \"\",\n    \"max_tokens\": 4096\n  }\n}",
+          "finish_reason": "stop",
+          "count": 1
+        },
+        {
+          "model_role": "auditor_step",
+          "raw_output": "{\n  \"name\": \"audit_decision\",\n  \"arguments\": {\n    \"verdict\": \"continue\",\n    \"step_id\": \"S1\",\n    \"step_complete\": true,\n    \"evidence_refs\": [\n      \"A00001\"\n    ],\n    \"gaps\": [],\n    \"reason\": \"evidence_complete\"\n  }\n}",
+          "finish_reason": "stop",
+          "count": 1
+        },
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\n  \"name\": \"move_file\",\n  \"arguments\": {\n    \"source\": \"main.py\",\n    \"destination\": \"main.py\"\n  }\n}",
+          "finish_reason": "stop",
+          "count": 5
+        },
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\n  \"name\": \"move_file\",\n  \"arguments\": {\n    \"source\": \"main.py\",\n    \"destination\": \"main.py\"\n  }\n}\n",
+          "finish_reason": "stop",
+          "count": 5
+        },
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\n  \"name\": \"rwkv-lh.executor-action-commit\",\n  \"arguments\": {\n    \"action_id\": \"A00001\",\n    \"operation\": \"move_file\",\n    \"parameters\": {\n      \"source\": \"main.py\",\n      \"destination\": \"main.py\"\n    },\n    \"observation_binding\": {\n      \"schema_version\": \"rwkv-lh.executor-observation-binding.v1\",\n      \"projection_version\": \"typed-lineage-observation-funnel.v1\",\n      \"fact_action_ids\": [\n        \"A00001\"\n      ],\n      \"exact_source_rule\": \"mutation_literals_must_be_copied_from_exact_spans_or_literal_structured_fields\",\n      \"summary_fact_authority\": false,\n      \"stale_snapshot_policy\": \"read_modify_write_requires_matching_base_sha256\"\n    },\n    \"committed_fact_refs\": [\n      \"A00001\"\n    ],\n    \"executor_history\": [\n      {\n        \"event_id\": \"EV-GOAL-FRONTIER-a51c290156b24f10\",\n        \"event_type\": \"goal_frontier_assignment\",\n        \"content_refs\": []\n      }\n    ],\n    \"current_question\": \"Return one canonical direct call for the selected operation. Derive each factual parameter from the bound Harness observations. Copy code, text, paths, cursors, identifiers, and structured values exactly; a navigation summary is not factual evidence. For patch_json, replace_text, or remove_line, include the exact current file base_sha256. Do not select another operation or answer the user.\"\n  }\n}",
+          "finish_reason": "stop",
+          "count": 1
+        },
+        {
+          "model_role": "executor_args",
+          "raw_output": "{\"function\": \"move_file\", \"arguments\": {\"source\": \"main.py\", \"destination\": \"main.py\"}}",
+          "finish_reason": "stop",
+          "count": 1
+        }
+      ],
+      "supervisor_failures": []
+    }
+  ]
+}
