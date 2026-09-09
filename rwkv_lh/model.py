@@ -34,7 +34,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
 from rwkv_lh.goal_state_protocols import executor_args_v5 as executor_args_protocol
 from rwkv_lh.goal_state_protocols import auditor_final as auditor_final_protocol
-from rwkv_lh.goal_state_protocols import auditor_step_v4 as auditor_step_protocol
+from rwkv_lh.goal_state_protocols import auditor_step_v5 as auditor_step_protocol
 from rwkv_lh.goal_state_protocols import finalizer_answer as finalizer_protocol
 from rwkv_lh.goal_state_protocols.feedback import semantic_feedback
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback

@@ -1,9 +1,7 @@
-"""Production/data-shared G1J Final-Auditor v2 renderer and parser.
+"""Shared Final-Auditor v4: candidate conditions are not established findings.
 
-V2 keeps the semantic verdict in RWKV while making every low-entropy protocol
-field and every repair-gap spelling deterministic.  This prevents a Final
-Auditor from mistaking already completed plan steps for an active step or from
-inventing ungrounded gap prose.
+RWKV decides whether the actual answer and execution evidence satisfy the goal.
+The catalog provides stable condition references and explicit repair ownership.
 """
 
 from __future__ import annotations
@@ -28,9 +26,9 @@ from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v3"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v4"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorFinalPromptV3: "
+PROMPT_PREFIX = "AuditorFinalPromptV4: "
 REASON_READY = "final_evidence_complete"
 REASON_REPAIR = "final_evidence_incomplete"
 
@@ -67,10 +65,10 @@ def build_gap_catalog(
             immutable_goal
         ),
         "candidate_omits_required_result": (
-            "The final candidate omits a result required by the immutable goal."
+            "The final candidate must include the results required by the immutable goal."
         ),
         "candidate_unsupported_claim": (
-            "The final candidate contains a claim not supported by committed evidence."
+            "The final candidate's claims must be supported by committed evidence."
         ),
     }
     for step in completed_steps:
@@ -222,11 +220,15 @@ def render_prompt(source: Any) -> str:
         "available_evidence_refs": list(prompt["available_evidence_refs"]),
         "evidence_records": [dict(item) for item in prompt["evidence_records"]],
         "final_candidate": dict(prompt["final_candidate"]),
+        "catalog_semantics": "possible_unmet_conditions",
         "gap_catalog": [dict(item) for item in prompt["gap_catalog"]],
         "feedback": prompt["feedback"],
         "current_question": (
             "Return audit_decision with exactly these six fields: verdict, step_id, "
-            "step_complete, evidence_refs, gaps, reason. At this final boundary "
+            "step_complete, evidence_refs, gaps, reason. gap_catalog lists possible "
+            "unmet conditions, not established findings. Decide whether each condition "
+            "is unmet from the actual final_candidate and evidence_records; catalog "
+            "membership does not prove a gap. At this final boundary "
             "step_id is always the empty string and step_complete is always false; "
             "all listed completed_steps are already complete. Always include both "
             "evidence_refs and gaps arrays. Use ready_for_final only when the candidate "
@@ -246,14 +248,14 @@ def render_target(source: Any) -> str:
 def parse_target(target: str) -> ModelCommand:
     command = _audit_target(target, allowed_verdicts=("ready_for_final", "repair"))
     if command.arguments["step_id"] != "" or command.arguments["step_complete"]:
-        raise ValueError("Final Auditor v2 target cannot complete a plan step")
+        raise ValueError("Final Auditor target cannot complete a plan step")
     expected_reason = (
         REASON_READY
         if command.arguments["verdict"] == "ready_for_final"
         else REASON_REPAIR
     )
     if command.arguments["reason"] != expected_reason:
-        raise ValueError("Final Auditor v2 target reason is not canonical for its verdict")
+        raise ValueError("Final Auditor target reason is not canonical for its verdict")
     return command
 
 

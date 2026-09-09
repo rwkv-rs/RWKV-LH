@@ -16,7 +16,7 @@ from pathlib import Path
 
 from rwkv_lh.goal_state_protocols import (
     auditor_final,
-    auditor_step_v4,
+    auditor_step_v5,
     executor_args_v5,
     finalizer_answer,
     selector_intent_v5,
@@ -92,7 +92,7 @@ def freeze(dataset: Path, package: Path, *, source_run: str) -> dict:
         "source_run": source_run,
         "generator": {"path": "scripts/freeze_project_benchmark.py", "sha256": digest(Path(__file__))},
         "role_protocol_modules": [{"module": module.__name__, "sha256": digest(Path(module.__file__))}
-                                  for module in (executor_args_v5, selector_intent_v5, auditor_step_v4,
+                                  for module in (executor_args_v5, selector_intent_v5, auditor_step_v5,
                                                  finalizer_answer, auditor_final)],
         "split_algorithm": "all twelve distinct task families fixed as development evaluation; no training, confirmation or holdout split created",
         "similarity": {"algorithm": "UTF-8 byte 5-gram cosine of public request + Markdown contract",

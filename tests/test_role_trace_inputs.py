@@ -136,8 +136,8 @@ def controller_role_snapshots(tmp_path: Path, monkeypatch, request):
     ]
     exercise_feedback = getattr(request, "param", None) == "feedback"
     if exercise_feedback:
-        from rwkv_lh.goal_state_protocols import auditor_step_v4
-        gap = next(item["code"] for item in auditor_step_v4.build_gap_catalog(
+        from rwkv_lh.goal_state_protocols import auditor_step_v5
+        gap = next(item["code"] for item in auditor_step_v5.build_gap_catalog(
             _strong_patch(state).add_steps[0].to_dict(), ()
         ) if item["code"].startswith("phase_evidence_unproved:"))
         outputs = [

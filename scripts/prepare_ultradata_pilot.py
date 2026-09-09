@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from rwkv_lh.benchmark_verifier import run_isolated_verifier
-from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v4, executor_args_v5, finalizer_answer, selector_intent_v5
+from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v5, executor_args_v5, finalizer_answer, selector_intent_v5
 from rwkv_lh.role_trace_artifacts import byte_5gram_cosine
 from rwkv_lh.ultradata import audit_trajectory, compile_code_task, read_frozen_range
 
@@ -110,7 +110,7 @@ def prepare(fetch_manifest: Path, *, root: Path, output: Path, code_count: int =
         "generator": {"path": str(Path(__file__).relative_to(root)), "sha256": digest(Path(__file__))},
         "adapter": {"path": str(Path(ultradata.__file__).relative_to(root)), "sha256": digest(Path(ultradata.__file__))},
         "role_protocol_modules": [{"module": module.__name__, "sha256": digest(Path(module.__file__))}
-            for module in (selector_intent_v5, executor_args_v5, auditor_step_v4, finalizer_answer, auditor_final)],
+            for module in (selector_intent_v5, executor_args_v5, auditor_step_v5, finalizer_answer, auditor_final)],
         "compiled_files": [{"path": str(path.relative_to(output)), "sha256": digest(path)}
                            for path in (output / "public/tasks.json", output / "private/acceptance.json", output / "AUDIT.jsonl")],
         "agent_metrics": None, "role_training_samples": 0, "optimizer_steps": 0,

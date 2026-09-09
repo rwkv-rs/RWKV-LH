@@ -3222,6 +3222,41 @@ def test_invalid_pre_final_audit_retries_same_candidate(
     )
 
 
+def test_contradictory_step_audit_retries_same_boundary_without_repeating_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "AUDIT-FACT-CONTRADICTION")
+    queue = _QueueClient([
+        ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+        json.dumps(_audit_call("repair", step_id="S1", step_complete=False,
+            evidence_refs=["A00001"], gaps=["write_root_unproved:result.txt"], reason="missing")),
+        json.dumps(_audit_call("continue", step_id="S1", step_complete=True,
+            evidence_refs=["A00001"], gaps=[], reason="written")),
+        ModelCommand("final_answer", {"text": "Created result.txt."}).canonical,
+        json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False,
+            evidence_refs=["A00001"], gaps=[], reason="complete")),
+    ])
+    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["write_file"]))
+    planner = _StrongPlanner(_strong_patch(state))
+    monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20)
+    result = controller.run(state.run_id)
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 1
+    assert len(result.state.tool_selections) == 1
+    assert len(planner.requests) == 1
+    starts = [e for e in result.state.causal_records.values()
+              if e.event_type == "goal_auditor_session_started" and e.payload["auditor_role"] == "auditor_step"]
+    assert len(starts) == 2
+    assert starts[0].payload["audit_boundary_id"] == starts[1].payload["audit_boundary_id"]
+    assert starts[0].payload["prompt_sha256"] != starts[1].payload["prompt_sha256"]
+    assert result.state.protocol_rejections == 1
+
+
 def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
     tmp_path: Path,
 ) -> None:
@@ -3354,7 +3389,7 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         "\n\n**Tool Call:**", 1
     )[0]
     audit_payload = json.loads(
-        audit_prompt.removeprefix("AuditorStepPromptV4: ")
+        audit_prompt.removeprefix("AuditorStepPromptV5: ")
     )
     assert audit_payload["active_step"]["phase"] == "mutate"
     assert list(audit_payload)[-1] == "current_question"
@@ -3450,7 +3485,7 @@ def test_rwkv_step_auditor_rejects_gap_outside_visible_v3_catalog(
     audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
         "\n\n**Tool Call:**", 1
     )[0]
-    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV4: "))
+    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV5: "))
     visible_codes = {item["code"] for item in audit_payload["gap_catalog"]}
     assert "invented_gap:not_in_prompt" not in visible_codes
 

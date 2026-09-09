@@ -64,10 +64,10 @@ def mock_controller_case(tmp_path, monkeypatch, request):
         if failed_audit:
             command = decode_json(response.content)
             if command["function"] == "audit_decision" and command["params"]["step_id"] == "S1":
-                from rwkv_lh.goal_state_protocols import auditor_step_v4
+                from rwkv_lh.goal_state_protocols import auditor_step_v5
                 command["params"].update(verdict="repair", step_complete=False,
                     gaps=sorted(["write_root_unproved:result.txt", "phase_evidence_unproved:mutate"]),
-                    reason=auditor_step_v4.REASON_INCOMPLETE)
+                    reason=auditor_step_v5.REASON_INCOMPLETE)
                 response.content = json.dumps(command, ensure_ascii=False)
         response.metadata = {"token_ids": tokenizer().encode(response.content)}
         response.model = self.model_name

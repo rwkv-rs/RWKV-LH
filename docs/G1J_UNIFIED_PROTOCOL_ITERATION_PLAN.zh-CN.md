@@ -2,7 +2,7 @@
 
 更新日期：2026-09-09。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前观测轮为 `ULTRADATA_COLLECTION_R2_20260909`，验证与未修复缺口见 [真实案例及链路对照](../data/experiments/ULTRADATA_COLLECTION_R2_20260909/REPORT.zh-CN.md)。
 
-Agent 级最新实测为固定 UltraData 三题：Strict 0/3、completed 0/3、mutation 0、动作 9，全部在第一步三次相同目录观察后 `identical_success_budget_exhausted`。当前没有步骤 REPAIR 自动改计划，Planner 每题只调用一次；Step Auditor 输入却把候选缺口写成与已有完整观察冲突的否定句。该问题已复核、尚未修复，不能用合法输出充当正确标签。最近完整双臂对比仍是历史 R7，原始结果和各轮 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
+Agent 级最新实测为固定 UltraData 三题：Strict 0/3、completed 0/3、mutation 0、动作 9，全部在第一步三次相同目录观察后 `identical_success_budget_exhausted`。该轮没有步骤 REPAIR 自动改计划，Planner 每题只调用一次；旧 Step Auditor 输入把候选缺口写成与完整观察冲突的否定句。当前已统一待判断条件和生产/数据机械矛盾校验，完整回归 1162 passed、0 skipped；真实效果须由新 R3 证明，合法输出不能充当正确标签。各轮原始结果及 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
 
 已修复 REPAIR 的无条件改计划分支、根证据固定八条截断及数据标签等工程问题。当前工作流程是先 Selector，满足当前角色的来源、标签、预注册覆盖与验证条件后训练，再固定前序 State 推进下一角色。Agent 能力低分不再作为训练前禁令。owner 已取消固定三轮上限；历史训练事实用于追溯，后续按指标、预算和实际 run 管理。
 
@@ -14,11 +14,13 @@ Agent 级最新实测为固定 UltraData 三题：Strict 0/3、completed 0/3、m
 |---|---|---|---|
 | Selector 2.9B | `selector_intent_v5.py` | selector-intent.v5 | `build_current_progress()` → `build_prompt_source()` → `render_prompt()` |
 | Executor 13.3B | `executor_args_v5.py` | executor-args.v5 | `build_target_contract()` / `build_execution_state()` → `build_prompt_source()` → `render_generation_prompt()` |
-| Step Auditor 13.3B | `auditor_step_v4.py` | auditor-step.v4 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
+| Step Auditor 13.3B | `auditor_step_v5.py` | auditor-step.v5 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
 | Finalizer 13.3B | `finalizer_answer.py` | finalizer-answer.v2 | `build_prompt_source()` → `render_prompt()` |
-| Final Auditor 13.3B | `auditor_final.py` | auditor-final.v3 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
+| Final Auditor 13.3B | `auditor_final.py` | auditor-final.v4 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
 
 模块均位于 `rwkv_lh/goal_state_protocols/`。schema 完整前缀为 `rwkv-lh.g1j-per-stage-state-tuning.`，运行时引用模块的 `INPUT_SCHEMA_VERSION`，不得在调用方拼出身份标签。Executor `render_prompt()` 是相同输入的前缀正文，`render_generation_prompt()` 仅追加同一调用边界，不是另一套输入协议。
+
+两个 Auditor 的 catalog 明确为 `possible_unmet_conditions`，目录项本身不构成未满足的事实。Step 协议从同一份可见证据排除与完整观察/实际变更矛盾的 root gap，并在生产与标签校验中拒绝同类断言；失败、截断、未知完整性与不完整投影不能证明完整观察。业务成功条件仍由 RWKV 判断，不根据工具成功自动完成步骤。最终回答/执行缺口继续按既定 repair_scope 交给负责角色。
 
 角色协议目录不保留旧模块或 identity stub。旧版、未知 schema 和旧独立 Executor 披露/重试格式一律拒绝；历史只能查 Git / GitHub。升级前删除旧模块及其可执行字节码，不允许 vN/vN+1 并存。
 

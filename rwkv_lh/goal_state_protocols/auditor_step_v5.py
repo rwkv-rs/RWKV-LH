@@ -1,8 +1,7 @@
-"""Production/data-shared G1J Step-Auditor v4 renderer and parser.
+"""Shared Step-Auditor v5 conditions, visible facts and verdict validation.
 
-V4 carries protocol repair feedback and makes the allowed gap vocabulary explicit.  The Auditor still decides
-whether evidence completes the active step, but it never invents an exact gap
-sentence that was absent from its input.
+Mechanical evidence rules apply equally to production and role data.  Possible
+semantic gaps remain questions for RWKV, never pre-established failure facts.
 """
 
 from __future__ import annotations
@@ -22,11 +21,13 @@ from rwkv_lh.goal_state_protocols import (
 )
 from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand
+from rwkv_lh.goal_loop_protocol import action_mutates_root, action_observes_root
+from rwkv_lh.schema import ActionRecord, ActionStatus
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v4"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v5"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorStepPromptV4: "
+PROMPT_PREFIX = "AuditorStepPromptV5: "
 REASON_COMPLETE = "evidence_complete"
 REASON_INCOMPLETE = "evidence_incomplete"
 
@@ -65,26 +66,64 @@ def _gap_code(prefix: str, value: str) -> str:
     return f"{prefix}:{value}"
 
 
+def _contradicted_root_gaps(
+    active_step: Mapping[str, Any], evidence_records: Sequence[Mapping[str, Any]],
+) -> frozenset[str]:
+    """Prove only scope facts present in this exact visible evidence projection.
+
+    Command success is not proof that an arbitrary file was read.  Incomplete or
+    truncated projections likewise cannot disprove a missing complete observation.
+    The natural-language success criteria always remain the Auditor's decision.
+    """
+    proved: set[str] = set()
+    for record in _objects(evidence_records, "evidence_records"):
+        raw = record.get("action")
+        if not isinstance(raw, Mapping):
+            continue
+        action = ActionRecord.from_dict({**raw, "action_type": raw.get("operation")})
+        result = action.result or {}
+        if action.status is not ActionStatus.SUCCEEDED or result.get("success") is not True:
+            continue
+        metadata = result.get("metadata")
+        metadata = metadata if isinstance(metadata, Mapping) else {}
+        observation = result.get("observation")
+        observation = observation if isinstance(observation, Mapping) else {}
+        complete_read = (
+            action.action_type != "check_command"
+            and metadata.get("complete") is True
+            and metadata.get("truncated") is not True
+            and observation.get("projection_complete") is not False
+        )
+        for root in active_step["read_roots"]:
+            if complete_read and action_observes_root(action, root):
+                proved.add(_gap_code("read_root_unproved", root))
+        for root in active_step["write_roots"]:
+            if action_mutates_root(action, root):
+                proved.add(_gap_code("write_root_unproved", root))
+    return frozenset(proved)
+
+
 def build_gap_catalog(
     active_step: Mapping[str, Any],
     evidence_records: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, str]]:
-    """Build possible, not pre-judged, exact gap labels from visible criteria."""
+    """Offer unmet-condition labels consistent with the visible scope facts."""
 
     step = _exact_fields(active_step, _STEP_FIELDS, "active_step")
     phase = str(step["phase"])
     entries: dict[str, str] = {
         _gap_code("phase_evidence_unproved", phase): (
-            f"No accepted evidence yet proves the declared {phase} phase complete."
+            f"The declared {phase} phase must meet this step's success criteria "
+            "using the available evidence."
         )
     }
     for root in _strings(step["read_roots"], "active_step.read_roots"):
         entries[_gap_code("read_root_unproved", root)] = (
-            f"The active read root {root!r} lacks a successful complete observation."
+            f"The active read root {root!r} must have a successful complete observation."
         )
     for root in _strings(step["write_roots"], "active_step.write_roots"):
         entries[_gap_code("write_root_unproved", root)] = (
-            f"The active write root {root!r} lacks a successful mutation."
+            f"The active write root {root!r} must have a successful mutation."
         )
     for criterion in _strings(
         step["success_evidence"], "active_step.success_evidence"
@@ -112,9 +151,11 @@ def build_gap_catalog(
             entries[_gap_code("action_incomplete", action_id)] = (
                 f"Action {action_id} returned incomplete or truncated evidence."
             )
+    contradicted = _contradicted_root_gaps(step, evidence_records)
     return [
         {"code": code, "criterion": entries[code]}
         for code in sorted(entries)
+        if code not in contradicted
     ]
 
 
@@ -199,6 +240,13 @@ def validate_source(source: Any) -> None:
     else:
         if decision["reason"] != REASON_INCOMPLETE:
             raise ValueError(f"repair reason must be {REASON_INCOMPLETE!r}")
+        contradicted = set(decision["gaps"]) & _contradicted_root_gaps(
+            selected["active_step"], selected["evidence_records"],
+        )
+        if contradicted:
+            raise ValueError(
+                "gap contradicts visible successful evidence: " + ", ".join(sorted(contradicted))
+            )
         catalog_codes = {str(item["code"]) for item in selected["gap_catalog"]}
         if not set(decision["gaps"]) <= catalog_codes:
             raise ValueError("repair gaps must be selected verbatim from gap_catalog codes")
@@ -217,13 +265,18 @@ def render_prompt(source: Any) -> str:
         "role": "auditor_step",
         "boundary": prompt["boundary"],
         "active_step": dict(prompt["active_step"]),
+        "catalog_semantics": "possible_unmet_conditions",
         "gap_catalog": [dict(item) for item in prompt["gap_catalog"]],
         "available_evidence_refs": list(prompt["available_evidence_refs"]),
         "evidence_records": [dict(item) for item in prompt["evidence_records"]],
         "feedback": prompt["feedback"],
         "current_question": (
             "Return audit_decision with exactly these six fields: verdict, step_id, "
-            "step_complete, evidence_refs, gaps, reason. Always include both "
+            "step_complete, evidence_refs, gaps, reason. gap_catalog lists possible "
+            "unmet conditions, not established findings. Decide whether each condition "
+            "is unmet from the evidence_records; catalog membership does not prove a gap. "
+            "A successful complete observation can establish that a resource is empty "
+            "or that no matching item exists. Always include both "
             "evidence_refs and gaps arrays, even when an array is empty. Use continue "
             "only when this active step is evidence-complete for its declared phase; "
             "do not require mutation from observe or derive_evidence phases. Otherwise "

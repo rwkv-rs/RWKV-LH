@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v4, finalizer_answer
+from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v5, finalizer_answer
 from rwkv_lh.goal_state_protocols import executor_args_v5
 from rwkv_lh.model import LongHorizonModel, ModelProtocolError
 from rwkv_lh.harness import ActionHarness
@@ -18,7 +18,7 @@ _BASELINE = (
     / 'data/test_fixtures/controller_role_closure_v1/role_prompt_wire_baseline.json'
 )
 _PROTOCOLS = {
-    'auditor_step_v4': auditor_step_v4,
+    'auditor_step_v5': auditor_step_v5,
     'auditor_final': auditor_final,
     'finalizer_answer': finalizer_answer,
 }
@@ -34,7 +34,7 @@ def test_role_builder_preserves_registered_prompt_bytes(protocol_name: str) -> N
     assert protocol.render_prompt(source).startswith(protocol.PROMPT_PREFIX)
 
 
-@pytest.mark.parametrize('protocol_name', ('auditor_step_v4', 'auditor_final'))
+@pytest.mark.parametrize('protocol_name', ('auditor_step_v5', 'auditor_final'))
 def test_auditor_builder_owns_catalog_construction(
     protocol_name: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

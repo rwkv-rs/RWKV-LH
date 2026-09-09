@@ -27,7 +27,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
 from rwkv_lh.goal_loop_protocol import goal_step_action_bindings, rolling_goal_plan
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v4, executor_args_v5, finalizer_answer, selector_intent_v5,
+    auditor_final, auditor_step_v5, executor_args_v5, finalizer_answer, selector_intent_v5,
 )
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
@@ -44,7 +44,7 @@ class RoleInputReconstructionError(ValueError):
 _MODULES = {
     "selector_intent": selector_intent_v5,
     "executor_args": executor_args_v5,
-    "auditor_step": auditor_step_v4,
+    "auditor_step": auditor_step_v5,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }

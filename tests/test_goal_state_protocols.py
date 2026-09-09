@@ -7,7 +7,7 @@ import pytest
 
 from rwkv_lh.model_io import ModelCommand, TOOL_CALL_JSON_CONTINUATION_ANCHOR
 from rwkv_lh.goal_state_protocols import auditor_final
-from rwkv_lh.goal_state_protocols import auditor_step_v4
+from rwkv_lh.goal_state_protocols import auditor_step_v5
 from rwkv_lh.goal_state_protocols import executor_args_v5
 from rwkv_lh.goal_state_protocols import finalizer_answer
 from rwkv_lh.goal_state_protocols import selector_intent_v5
@@ -163,9 +163,9 @@ def test_protocol_schema_identities_are_frozen_without_historical_versions() -> 
     expected = {
         selector_intent_v5: ("selector-intent", "v5"),
         executor_args_v5: ("executor-args", "v5"),
-        auditor_step_v4: ("auditor-step", "v4"),
+        auditor_step_v5: ("auditor-step", "v5"),
         finalizer_answer: ("finalizer-answer", "v2"),
-        auditor_final: ("auditor-final", "v3"),
+        auditor_final: ("auditor-final", "v4"),
     }
     assert set(modules) == set(expected)
     for module, (stage, version) in expected.items():
@@ -378,27 +378,27 @@ def test_executor_framing_rejects_an_actual_noncurrent_trailing_frame(version: s
         )
 
 
-def test_step_auditor_v3_round_trip_and_catalog_binding() -> None:
+def test_step_auditor_round_trip_and_catalog_binding() -> None:
     step = _step()
     evidence = _evidence()
-    catalog = auditor_step_v4.build_gap_catalog(step, evidence)
-    source = auditor_step_v4.build_prompt_source(
+    catalog = auditor_step_v5.build_gap_catalog(step, evidence)
+    source = auditor_step_v5.build_prompt_source(
         boundary="observation_complete", active_step=step,
         available_evidence_refs=["A1"], evidence_records=evidence,
     )
     source.update(
         decision={
             "verdict": "continue", "step_id": "S1", "step_complete": True,
-            "evidence_refs": ["A1"], "gaps": [], "reason": auditor_step_v4.REASON_COMPLETE,
+            "evidence_refs": ["A1"], "gaps": [], "reason": auditor_step_v5.REASON_COMPLETE,
         },
         completion_verifier_id="completion-verifier-v1",
     )
-    prompt = auditor_step_v4.render_prompt(source)
-    target = auditor_step_v4.render_target(source)
+    prompt = auditor_step_v5.render_prompt(source)
+    target = auditor_step_v5.render_target(source)
 
-    assert prompt.startswith("AuditorStepPromptV4: ")
-    assert auditor_step_v4.parse_target(target).arguments["verdict"] == "continue"
-    payload = json.loads(prompt.removeprefix("AuditorStepPromptV4: "))
+    assert prompt.startswith("AuditorStepPromptV5: ")
+    assert auditor_step_v5.parse_target(target).arguments["verdict"] == "continue"
+    payload = json.loads(prompt.removeprefix("AuditorStepPromptV5: "))
     assert payload["gap_catalog"] == catalog
 
     repair = {
@@ -409,19 +409,19 @@ def test_step_auditor_v3_round_trip_and_catalog_binding() -> None:
             "step_complete": False,
             "evidence_refs": ["A1"],
             "gaps": [catalog[0]["code"]],
-            "reason": auditor_step_v4.REASON_INCOMPLETE,
+            "reason": auditor_step_v5.REASON_INCOMPLETE,
         },
     }
-    auditor_step_v4.validate_source(repair)
+    auditor_step_v5.validate_source(repair)
     with pytest.raises(ValueError, match="gap_catalog"):
-        auditor_step_v4.validate_source(
+        auditor_step_v5.validate_source(
             {
                 **repair,
                 "decision": {**repair["decision"], "gaps": ["invented-gap"]},
             }
         )
     with pytest.raises(ValueError, match="canonical"):
-        auditor_step_v4.parse_target(
+        auditor_step_v5.parse_target(
             ModelCommand(
                 "audit_decision",
                 {**repair["decision"], "reason": "invented reason"},

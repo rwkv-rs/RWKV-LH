@@ -18,7 +18,7 @@ import sqlite3
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v4, executor_args_v5, finalizer_answer, selector_intent_v5,
+    auditor_final, auditor_step_v5, executor_args_v5, finalizer_answer, selector_intent_v5,
 )
 from rwkv_lh.goal_loop_protocol import action_mutates_root, action_observes_root
 from rwkv_lh.model_io import JSON_CALL_STOP_SUFFIXES, parse_model_command_with_trace
@@ -34,7 +34,7 @@ ZERO_SHA = "0" * 64
 ROLE_MODULES = {
     "selector_intent": selector_intent_v5,
     "executor_args": executor_args_v5,
-    "auditor_step": auditor_step_v4,
+    "auditor_step": auditor_step_v5,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }

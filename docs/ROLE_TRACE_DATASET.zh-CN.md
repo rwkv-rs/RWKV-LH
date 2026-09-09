@@ -24,7 +24,7 @@
 |---|---|---|
 | `selector_intent` | [`selector_intent_v5.py`](../rwkv_lh/goal_state_protocols/selector_intent_v5.py) | `build_current_progress()` → `build_prompt_source()`；逐一校验 `canonical`、`rotate_8`、`rotate_17` 三个菜单及原始投票 |
 | `executor_args` | [`executor_args_v5.py`](../rwkv_lh/goal_state_protocols/executor_args_v5.py) | 重建 target contract 和 execution state，再用 `build_prompt_source()` / `render_generation_prompt()` |
-| `auditor_step` | [`auditor_step_v4.py`](../rwkv_lh/goal_state_protocols/auditor_step_v4.py) | 从审计边界的 active step 与可见证据调用 `build_prompt_source()`，由协议构造 gap catalog |
+| `auditor_step` | [`auditor_step_v5.py`](../rwkv_lh/goal_state_protocols/auditor_step_v5.py) | 从审计边界的 active step 与可见证据调用 `build_prompt_source()`，由协议构造 gap catalog |
 | `finalizer_answer` | [`finalizer_answer.py`](../rwkv_lh/goal_state_protocols/finalizer_answer.py) | 从已完成计划和提交事实调用 `build_prompt_source()` |
 | `auditor_final` | [`auditor_final.py`](../rwkv_lh/goal_state_protocols/auditor_final.py) | 从 final boundary、Finalizer 原始候选及证据调用 `build_prompt_source()` |
 
