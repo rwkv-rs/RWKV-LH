@@ -1,0 +1,87 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_artifact_config_follows_tensor_dimensions_not_model_names[8-2-2-16-ranks0-128] _
+
+width = 8, heads = 2, layers = 2, vocab = 16, ranks = (2, 3, 1, 4)
+context = 128
+
+    @pytest.mark.parametrize("width,heads,layers,vocab,ranks,context", [
+        (8, 2, 2, 16, (2, 3, 1, 4), 128),
+        (12, 3, 3, 24, (3, 2, 4, 5), 256),
+    ])
+    def test_artifact_config_follows_tensor_dimensions_not_model_names(width, heads, layers, vocab, ranks, context):
+        weights = _shape_weights(width, heads, layers, vocab, ranks)
+>       config = converter.expected_config(weights, source_sha256="a" * 64, context_length=context)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: expected_config() got multiple values for argument 'source_sha256'
+
+tests/test_rwkv_artifact.py:30: TypeError
+_ test_artifact_config_follows_tensor_dimensions_not_model_names[12-3-3-24-ranks1-256] _
+
+width = 12, heads = 3, layers = 3, vocab = 24, ranks = (3, 2, 4, 5)
+context = 256
+
+    @pytest.mark.parametrize("width,heads,layers,vocab,ranks,context", [
+        (8, 2, 2, 16, (2, 3, 1, 4), 128),
+        (12, 3, 3, 24, (3, 2, 4, 5), 256),
+    ])
+    def test_artifact_config_follows_tensor_dimensions_not_model_names(width, heads, layers, vocab, ranks, context):
+        weights = _shape_weights(width, heads, layers, vocab, ranks)
+>       config = converter.expected_config(weights, source_sha256="a" * 64, context_length=context)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: expected_config() got multiple values for argument 'source_sha256'
+
+tests/test_rwkv_artifact.py:30: TypeError
+__________ test_converter_requires_complete_uploaded_engine_identity ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/artifact_compat/test_converter_requires_comple0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a1968c31fd0>
+
+    def test_converter_requires_complete_uploaded_engine_identity(tmp_path: Path, monkeypatch):
+        engine = tmp_path / "engine"
+        engine.mkdir()
+        source = engine / "engine.py"
+        source.write_text("# frozen engine\n")
+        manifest = tmp_path / "engine_manifest.json"
+        revision = "a" * 40
+        manifest.write_text(json.dumps({
+            "schema_version": ENGINE_SOURCE_MANIFEST_SCHEMA, "engine_root": str(engine),
+            "engine_revision": revision, "source_root": ".",
+            "files": [{"path": source.name, "sha256": converter.file_sha256(source), "bytes": source.stat().st_size}],
+        }))
+        digest = converter.file_sha256(manifest)
+        import subprocess
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("Converter identity must not run Git or other processes"))
+>       identity = converter.engine_identity(engine, manifest=manifest, manifest_sha256=digest, revision=revision)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: engine_identity() got an unexpected keyword argument 'manifest'
+
+tests/test_rwkv_artifact.py:52: TypeError
+_____________ test_weight_hashes_alone_cannot_validate_an_artifact _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/artifact_compat/test_weight_hashes_alone_canno0')
+
+    def test_weight_hashes_alone_cannot_validate_an_artifact(tmp_path: Path):
+        paths = {
+            "weights_sha256": "model.safetensors", "tensor_audit_sha256": "tensor_identity_audit.json",
+            "unused_native_weights_sha256": "native_unused_layer0_value_mix.safetensors",
+        }
+        for name in paths.values():
+            (tmp_path / name).write_bytes(b"fixture bytes; not a model")
+        (tmp_path / "manifest.json").write_text(json.dumps({
+            "schema_version": converter.SCHEMA_VERSION, "source": {"sha256": "a" * 64},
+            "output": {key: converter.file_sha256(tmp_path / name) for key, name in paths.items()},
+            "generation": {"values_changed": False},
+        }))
+>       assert converter.validate_existing(tmp_path, "a" * 64) is False
+E       AssertionError: assert True is False
+E        +  where True = <function validate_existing at 0x7a1968a3a340>(PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/artifact_compat/test_weight_hashes_alone_canno0'), ('a' * 64))
+E        +    where <function validate_existing at 0x7a1968a3a340> = converter.validate_existing
+
+tests/test_rwkv_artifact.py:71: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rwkv_artifact.py::test_artifact_config_follows_tensor_dimensions_not_model_names[8-2-2-16-ranks0-128]
+FAILED tests/test_rwkv_artifact.py::test_artifact_config_follows_tensor_dimensions_not_model_names[12-3-3-24-ranks1-256]
+FAILED tests/test_rwkv_artifact.py::test_converter_requires_complete_uploaded_engine_identity
+FAILED tests/test_rwkv_artifact.py::test_weight_hashes_alone_cannot_validate_an_artifact
+4 failed in 1.10s

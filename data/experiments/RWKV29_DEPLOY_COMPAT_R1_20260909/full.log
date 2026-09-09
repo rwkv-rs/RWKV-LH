@@ -1,0 +1,185 @@
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 26%]
+........................................................................ [ 33%]
+........................................................................ [ 40%]
+........................................................................ [ 46%]
+........................................................................ [ 53%]
+........................................................................ [ 60%]
+........................................................................ [ 67%]
+.............F.......................................................... [ 73%]
+........................................................................ [ 80%]
+........................................................................ [ 87%]
+........................................................................ [ 93%]
+........................................F........................        [100%]
+=================================== FAILURES ===================================
+__________ test_stack_attests_configured_independent_selector_health ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_stack_attests_configured_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77248f4887c0>
+
+    def test_stack_attests_configured_independent_selector_health(
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        selector_env = {
+            "RWKV_SELECTOR_BASE_URL": "http://127.0.0.1:29621",
+            "RWKV_SELECTOR_MODEL": "rwkv7-g1j-2.9b-test",
+            "RWKV_SELECTOR_MODEL_SHA256": "1" * 64,
+            "RWKV_SELECTOR_DECODER_ID": NATIVE_SELECTOR_DECODER_ID,
+            "RWKV_SELECTOR_DECODER_SHA256": "2" * 64,
+            "RWKV_SELECTOR_DECODER_PROTOCOL": NATIVE_SELECTOR_DECODER_PROTOCOL,
+            "RWKV_SELECTOR_INPUT_PROTOCOL": (
+                "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v5"
+            ),
+            "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
+            "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,
+            "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256": "4" * 64,
+        }
+        for name, value in selector_env.items():
+            monkeypatch.setenv(name, value)
+            monkeypatch.setenv(
+                name.replace("RWKV_SELECTOR_", "RWKV_LH_SELECTOR_"),
+                value,
+            )
+        expected = {
+            "input_protocol": selector_env["RWKV_SELECTOR_INPUT_PROTOCOL"],
+            "model": selector_env["RWKV_SELECTOR_MODEL"],
+            "model_sha256": selector_env["RWKV_SELECTOR_MODEL_SHA256"],
+            "decoder_id": selector_env["RWKV_SELECTOR_DECODER_ID"],
+            "decoder_sha256": selector_env["RWKV_SELECTOR_DECODER_SHA256"],
+            "decoder_protocol": selector_env["RWKV_SELECTOR_DECODER_PROTOCOL"],
+            "profile_id": selector_env["RWKV_SELECTOR_STATE_PROFILE_ID"],
+            "profile_sha256": selector_env["RWKV_SELECTOR_STATE_PROFILE_SHA256"],
+            "profile_manifest_sha256": selector_env[
+                "RWKV_SELECTOR_STATE_PROFILE_MANIFEST_SHA256"
+            ],
+        }
+        monkeypatch.setattr(
+            "rwkv_lh.runtime.stack.urllib.request.urlopen",
+            lambda *_args, **_kwargs: _HealthResponse(
+                {"status": "ok", "runtime_identity": expected}
+            ),
+        )
+    
+>       health = RuntimeStackManager(settings(tmp_path))._selector_health()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_runtime_stack.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.stack.RuntimeStackManager object at 0x77248f37afd0>
+
+    def _selector_health(self) -> dict[str, Any]:
+        settings = NativeNetworkSelectorSettings.from_env()
+        if settings is None:
+            return {
+                "available": False,
+                "enabled": False,
+                "error": "independent Selector identity is not configured",
+            }
+        try:
+            with urllib.request.urlopen(
+                settings.base_url.rstrip("/") + "/healthz",
+                timeout=2,
+            ) as response:
+                value = json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            return {
+                "available": False,
+                "enabled": True,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        if not isinstance(value, Mapping):
+            raise RuntimeError("network Selector health response is not an object")
+        if value.get("status") != "ok":
+            raise RuntimeError("network Selector health status is not ok")
+        identity = value.get("runtime_identity")
+        expected = settings.runtime_identity()
+        if identity != expected:
+>           raise RuntimeError(
+                "network Selector health identity mismatch: "
+                f"expected={expected}, actual={identity}"
+            )
+E           RuntimeError: network Selector health identity mismatch: expected={'input_protocol': 'rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v5', 'model': 'rwkv7-g1j-2.9b-test', 'model_sha256': '1111111111111111111111111111111111111111111111111111111111111111', 'decoder_id': 'rwkv_lh_g1j_selector_native_trie_v1', 'decoder_sha256': '2222222222222222222222222222222222222222222222222222222222222222', 'decoder_protocol': 'rwkv-lh.native-eligible-suffix-trie.v1', 'profile_id': 'zero', 'profile_sha256': '0000000000000000000000000000000000000000000000000000000000000000', 'profile_manifest_sha256': '4444444444444444444444444444444444444444444444444444444444444444', 'wkv_mode': 'fp32io16', 'state_dtype': 'float32', 'context_tokens': 16384}, actual={'input_protocol': 'rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v5', 'model': 'rwkv7-g1j-2.9b-test', 'model_sha256': '1111111111111111111111111111111111111111111111111111111111111111', 'decoder_id': 'rwkv_lh_g1j_selector_native_trie_v1', 'decoder_sha256': '2222222222222222222222222222222222222222222222222222222222222222', 'decoder_protocol': 'rwkv-lh.native-eligible-suffix-trie.v1', 'profile_id': 'zero', 'profile_sha256': '0000000000000000000000000000000000000000000000000000000000000000', 'profile_manifest_sha256': '4444444444444444444444444444444444444444444444444444444444444444'}
+
+rwkv_lh/runtime/stack.py:379: RuntimeError
+__________ test_native_selector_cli_forwards_uploaded_source_identity __________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_selector_cli_forwa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77248f279fd0>
+
+    def test_native_selector_cli_forwards_uploaded_source_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rwkv_lh.exact_tool_selector import native_network_service as service
+    
+        captured = []
+        manifest = tmp_path / "source.json"
+    
+        class Extractor:
+            def __init__(self, settings):
+                captured.append(settings)
+    
+            def load(self):
+                pass
+    
+        class Server:
+            def __init__(self, *_args):
+                pass
+    
+            def serve_forever(self):
+                pass
+    
+        monkeypatch.setattr(service, "load_native_selector_decoder_manifest", lambda *_: {})
+        monkeypatch.setattr(service, "NativeNetworkSelectorService", lambda *_: object())
+        monkeypatch.setattr(service, "_handler", lambda *_: object())
+        monkeypatch.setattr(service, "PersistentVLLMRWKVExtractor", Extractor)
+        monkeypatch.setattr(service, "ThreadingHTTPServer", Server)
+        monkeypatch.setattr(sys, "argv", [
+            "selector-service", "--engine-root", str(tmp_path / "engine"),
+            "--engine-revision", "a" * 40, "--engine-python", sys.executable,
+            "--engine-source-manifest", str(manifest),
+            "--engine-source-manifest-sha256", "c" * 64,
+            "--model-artifact", str(tmp_path / "model"), "--model-name", "fixture",
+            "--model-sha256", "b" * 64, "--decoder-manifest", str(tmp_path / "decoder.json"),
+            "--decoder-sha256", "d" * 64, "--runtime-temp", str(tmp_path / "runtime"),
+        ])
+>       assert service.main() == 0
+               ^^^^^^^^^^^^^^
+
+tests/test_uploaded_engine_source_identity.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/exact_tool_selector/native_network_service.py:509: in main
+    context_tokens=model_context_tokens(args.model_artifact, args.context_tokens),
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/exact_tool_selector/native_network_service.py:459: in model_context_tokens
+    config = json.loads((model_artifact / "config.json").read_text(encoding="utf-8"))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/pathlib/_local.py:546: in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/pathlib/_abc.py:632: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_selector_cli_forwa0/model/config.json')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_selector_cli_forwa0/model/config.json'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/pathlib/_local.py:537: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_runtime_stack.py::test_stack_attests_configured_independent_selector_health
+FAILED tests/test_uploaded_engine_source_identity.py::test_native_selector_cli_forwards_uploaded_source_identity
+2 failed, 1071 passed in 196.64s (0:03:16)

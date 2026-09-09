@@ -200,6 +200,8 @@ def test_native_selector_cli_forwards_uploaded_source_identity(tmp_path: Path, m
 
     captured = []
     manifest = tmp_path / "source.json"
+    (tmp_path / "model").mkdir()
+    (tmp_path / "model/config.json").write_text(json.dumps({"context_length": 16384, "max_position_embeddings": 16384}))
 
     class Extractor:
         def __init__(self, settings):
@@ -232,3 +234,5 @@ def test_native_selector_cli_forwards_uploaded_source_identity(tmp_path: Path, m
     assert service.main() == 0
     assert captured[0].engine_source_manifest == manifest
     assert captured[0].engine_source_manifest_sha256 == "c" * 64
+    assert captured[0].max_tokens == 16384
+    assert captured[0].wkv_mode == "fp32io16"

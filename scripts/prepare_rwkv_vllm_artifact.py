@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serialize the frozen native 2.9B G1i checkpoint for pinned vllm-rwkv.
+"""Serialize a verified native RWKV7 checkpoint for a frozen vllm-rwkv engine.
 
 The native checkpoint uses the engine's internal names.  The standard artifact
 contract adds the ``model.`` prefix and transposes only legacy low-rank matrix
@@ -14,19 +14,12 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENGINE_ROOT = ROOT / "data/runtime/engines/vllm-rwkv-67f0c5996c50"
-DEFAULT_SOURCE = Path(
-    "/home/chase/GitHub/ReproBench/tmp/rwkv7-g1i-2.9b-20260805-ctx16384.pth"
-)
-DEFAULT_OUTPUT = ROOT / "data/models/rwkv7-g1i-2.9b-vllm-v1"
-SOURCE_MODEL = "rwkv7-g1i-2.9b-20260805-ctx16384"
-SOURCE_SHA256 = "ac1ae23d0e65c1d35ba523eacd81a2a4dacb7b886479909bbff34f312e766320"
-ENGINE_REVISION = "67f0c5996c50dca0ad779da545cb491527de988f"
+from rwkv_lh.rwkv7_layout import RWKV7Layout
+from rwkv_lh.state_router.local_backend import _validate_engine_source_manifest
+
 SCHEMA_VERSION = "rwkv-lh.vllm-rwkv-artifact.v1"
 AUDIT_SCHEMA_VERSION = "rwkv-lh.tensor-container-identity-audit.v1"
 LOW_RANK_NAMES = frozenset(("w1", "w2", "a1", "a2", "v1", "v2", "g1", "g2"))
@@ -68,30 +61,13 @@ def tensor_record(tensor: Any) -> dict[str, Any]:
     }
 
 
-def expected_config(source_sha256: str) -> dict[str, Any]:
-    return {
-        "a_low_rank_dim": 96,
-        "architectures": ["Rwkv7ForCausalLM"],
-        "bos_token_id": 0,
-        "context_length": 16384,
-        "decay_low_rank_dim": 96,
-        "embedding_layer_norm_fused": False,
-        "eos_token_id": 0,
-        "gate_low_rank_dim": 320,
-        "head_size": 64,
-        "hidden_size": 2560,
-        "intermediate_size": 10240,
-        "max_position_embeddings": 16384,
-        "model_type": "rwkv7",
-        "num_attention_heads": 40,
-        "num_hidden_layers": 32,
-        "pad_token_id": 0,
-        "rwkv_source_sha256": source_sha256,
-        "tie_word_embeddings": False,
-        "torch_dtype": "bfloat16",
-        "v_low_rank_dim": 64,
-        "vocab_size": 65536,
-    }
+def expected_config(weights: dict[str, Any], *, source_sha256: str,
+                    context_length: int, bos_token_id: int = 0,
+                    eos_token_id: int = 0) -> dict[str, Any]:
+    return RWKV7Layout.from_native_weights(weights).artifact_config(
+        context_length=context_length, source_sha256=source_sha256,
+        bos_token_id=bos_token_id, eos_token_id=eos_token_id,
+    )
 
 
 def map_native_weight(name: str, tensor: Any) -> tuple[str, Any, str]:
@@ -111,59 +87,55 @@ def map_native_weight(name: str, tensor: Any) -> tuple[str, Any, str]:
     return f"model.{name}", tensor, "identity"
 
 
-def engine_identity(engine_root: Path) -> tuple[str, bool]:
-    revision = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=engine_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    dirty = bool(
-        subprocess.run(
-            ["git", "status", "--short"],
-            cwd=engine_root,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-    )
-    return revision, dirty
+def engine_identity(engine_root: Path, *, manifest: Path,
+                    manifest_sha256: str, revision: str) -> dict[str, Any]:
+    return _validate_engine_source_manifest(manifest, manifest_sha256,
+        engine_root=engine_root, engine_revision=revision)
 
 
-def validate_existing(output: Path, source_sha256: str = SOURCE_SHA256) -> bool:
+def validate_existing(output: Path, source_sha256: str, *,
+                      config: dict[str, Any] | None = None,
+                      engine_manifest_sha256: str | None = None) -> bool:
+    paths = {
+        "weights_sha256": "model.safetensors", "config_sha256": "config.json",
+        "vocab_sha256": "rwkv_vocab_v20230424.txt",
+        "tensor_audit_sha256": "tensor_identity_audit.json",
+        "unused_native_weights_sha256": "native_unused_layer0_value_mix.safetensors",
+    }
     manifest_path = output / "manifest.json"
-    weights_path = output / "model.safetensors"
-    audit_path = output / "tensor_identity_audit.json"
-    unused_path = output / "native_unused_layer0_value_mix.safetensors"
-    if (
-        not manifest_path.is_file()
-        or not weights_path.is_file()
-        or not audit_path.is_file()
-        or not unused_path.is_file()
-    ):
+    if not manifest_path.is_file() or any(not (output / name).is_file() for name in paths.values()):
         return False
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return bool(
-        manifest.get("schema_version") == SCHEMA_VERSION
-        and manifest.get("source", {}).get("sha256") == source_sha256
-        and manifest.get("output", {}).get("weights_sha256")
-        == file_sha256(weights_path)
-        and manifest.get("output", {}).get("tensor_audit_sha256")
-        == file_sha256(audit_path)
-        and manifest.get("output", {}).get("unused_native_weights_sha256")
-        == file_sha256(unused_path)
-        and manifest.get("generation", {}).get("values_changed") is False
-    )
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        identity = (
+            manifest.get("schema_version") == SCHEMA_VERSION
+            and manifest.get("source", {}).get("sha256") == source_sha256
+            and manifest.get("generation", {}).get("values_changed") is False
+            and all(manifest.get("output", {}).get(key) == file_sha256(output / name)
+                    for key, name in paths.items())
+        )
+        if config is not None:
+            identity = identity and json.loads((output / "config.json").read_text()) == config
+        if engine_manifest_sha256 is not None:
+            identity = identity and manifest.get("engine", {}).get("engine_source_manifest_sha256") == engine_manifest_sha256
+        return bool(identity)
+    except (ValueError, TypeError, AttributeError, OSError):
+        return False
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--engine-root", type=Path, default=DEFAULT_ENGINE_ROOT)
-    parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--source-model", default=SOURCE_MODEL)
-    parser.add_argument("--source-sha256", default=SOURCE_SHA256)
+    parser.add_argument("--engine-root", type=Path, required=True)
+    parser.add_argument("--engine-source-manifest", type=Path, required=True)
+    parser.add_argument("--engine-source-manifest-sha256", required=True)
+    parser.add_argument("--engine-revision", required=True)
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-model", required=True)
+    parser.add_argument("--source-sha256", required=True)
+    parser.add_argument("--context-length", type=int, required=True)
+    parser.add_argument("--bos-token-id", type=int, default=0)
+    parser.add_argument("--eos-token-id", type=int, default=0)
     args = parser.parse_args()
 
     engine_root = args.engine_root.resolve()
@@ -175,11 +147,10 @@ def main() -> None:
         raise ValueError("source model identity is incomplete")
     if not (engine_root / "vllm/model_executor/models/rwkv7.py").is_file():
         raise ValueError(f"not the project-pinned vllm-rwkv tree: {engine_root}")
-    revision, dirty = engine_identity(engine_root)
-    if revision != ENGINE_REVISION or dirty:
-        raise RuntimeError(
-            f"pinned engine identity mismatch: revision={revision} dirty={dirty}"
-        )
+    engine_evidence = engine_identity(engine_root,
+        manifest=args.engine_source_manifest,
+        manifest_sha256=args.engine_source_manifest_sha256,
+        revision=args.engine_revision)
     if not source.is_file():
         raise FileNotFoundError(source)
     source_sha256 = file_sha256(source)
@@ -188,12 +159,6 @@ def main() -> None:
             "source SHA-256 mismatch: "
             f"{source_sha256} != {expected_source_sha256}"
         )
-    if validate_existing(output, expected_source_sha256):
-        print(output)
-        return
-    if output.exists():
-        raise FileExistsError(f"refusing to overwrite unverified artifact: {output}")
-
     import torch
     from safetensors import safe_open
     from safetensors.torch import save_file
@@ -211,7 +176,15 @@ def main() -> None:
     source_tensors = {
         name: tensor.detach().cpu().contiguous() for name, tensor in value.items()
     }
-    config_values = expected_config(source_sha256)
+    config_values = expected_config(source_tensors, source_sha256=source_sha256,
+        context_length=args.context_length, bos_token_id=args.bos_token_id,
+        eos_token_id=args.eos_token_id)
+    if validate_existing(output, expected_source_sha256, config=config_values,
+                         engine_manifest_sha256=args.engine_source_manifest_sha256):
+        print(output)
+        return
+    if output.exists():
+        raise FileExistsError(f"refusing to overwrite unverified artifact: {output}")
     config = RWKV7Config(**config_values)
     validate_rwkv7_hf_artifact_config(config)
     expected_shapes = rwkv7_checkpoint_weight_shapes(config)
@@ -243,7 +216,7 @@ def main() -> None:
     }
     if set(actual_shapes) != set(expected_shapes):
         raise ValueError(
-            "native 2.9B keys differ from pinned vllm-rwkv contract: "
+            "native RWKV7 keys differ from pinned vllm-rwkv contract: "
             f"missing={sorted(set(expected_shapes) - set(actual_shapes))} "
             f"unexpected={sorted(set(actual_shapes) - set(expected_shapes))}"
         )
@@ -253,9 +226,9 @@ def main() -> None:
         if actual_shapes[name] != expected_shapes[name]
     }
     if wrong_shapes:
-        raise ValueError(f"native 2.9B shapes differ from vllm-rwkv: {wrong_shapes}")
-    if {str(tensor.dtype) for tensor in source_tensors.values()} != {"torch.bfloat16"}:
-        raise ValueError("native 2.9B tensors must all remain bfloat16")
+        raise ValueError(f"native RWKV7 shapes differ from vllm-rwkv: {wrong_shapes}")
+    if any(tensor.dtype not in {torch.float32, torch.float16, torch.bfloat16} for tensor in source_tensors.values()):
+        raise ValueError("native RWKV7 parameters must use supported floating dtypes")
 
     pending = output.with_name(f"{output.name}.pending.{os.getpid()}")
     pending.mkdir(parents=True, exist_ok=False)
@@ -375,12 +348,15 @@ def main() -> None:
         },
         "engine": {
             "path": str(engine_root),
-            "revision": revision,
-            "dirty": dirty,
+            "revision": args.engine_revision,
+            "dirty": None,
+            **engine_evidence,
         },
-        "purpose": "RWKV-LH independent 2.9B exact-tool Selector hidden extraction",
+        "purpose": "RWKV-LH value-preserving inference and StateTune artifact",
         "generation": {
             "script": str(Path(__file__).resolve()),
+            "script_sha256": file_sha256(Path(__file__)),
+            "layout_source_sha256": file_sha256(Path(__file__).resolve().parents[1] / "rwkv_lh/rwkv7_layout.py"),
             "mapping": "identity-names-dtypes-shapes-values",
             "source_weight_count": len(source_tensors),
             "weight_count": len(runtime_tensors),
@@ -400,7 +376,7 @@ def main() -> None:
     write_json(pending / "manifest.json", manifest)
     (pending / "README.md").write_text(
         f"# {source_model} local vllm-rwkv artifact\n\n"
-        "Value-preserving container serialization of the frozen native 2.9B "
+        "Value-preserving container serialization of the frozen native RWKV7 "
         "checkpoint for the project-pinned local vllm-rwkv engine. Every tensor "
         "is independently audited in `tensor_identity_audit.json`.\n",
         encoding="utf-8",

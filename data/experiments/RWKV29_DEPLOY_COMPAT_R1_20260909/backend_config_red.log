@@ -1,0 +1,90 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+______ test_native_model_uses_checkpoint_geometry_including_ranks_and_ffn ______
+
+    def test_native_model_uses_checkpoint_geometry_including_ranks_and_ffn():
+        layout = RWKV7Layout(2, 128, 2, 64, 384, 256, 8, 16, 24, 32, "bfloat16")
+        with torch.device("meta"):
+>           model = NativeStateModel(layout)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_statetune_core.py:16: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = NativeStateModel()
+shape = RWKV7Layout(layers=2, width=128, heads=2, head_size=64, intermediate=384, vocab=256, decay_rank=8, a_rank=16, v_rank=24, gate_rank=32, dtype='bfloat16')
+ranks = (192, 192, 128, 384)
+
+    def __init__(self, shape, ranks=(192, 192, 128, 384)):
+        super().__init__()
+>       width = shape['heads'] * shape['head_size']
+                ^^^^^^^^^^^^^^
+E       TypeError: 'RWKV7Layout' object is not subscriptable
+
+rwkv_lh/statetune_native_model.py:56: TypeError
+_______ test_sealed_core_identity_rejects_mutation_and_validates_device ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_sealed_core_identity_reje0')
+
+    def test_sealed_core_identity_rejects_mutation_and_validates_device(tmp_path):
+        path = tmp_path / "sealed.json"
+        path.write_text('{"value":1}')
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+>       assert core.read_sealed_json(path, digest) == {"value": 1}
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_statetune_core.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/statetune_core.py:42: in read_sealed_json
+    path = verify_file(path, expected_sha256)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_sealed_core_identity_reje0/sealed.json')
+expected_sha256 = '48208f9428d64634bd8e28ff345bf0eab60d53c18fa2fbdb0b9bc1e84df2b5f6'
+
+    def verify_file(path: str | Path, expected_sha256: str) -> Path:
+        path = Path(path)
+>       require(bool(_SHA.fullmatch(str(expected_sha256))), "explicit SHA-256 is required")
+                     ^^^^
+E       NameError: name '_SHA' is not defined
+
+rwkv_lh/statetune_core.py:35: NameError
+__________ test_native_selector_rejects_serving_state_precision_drift __________
+
+    def test_native_selector_rejects_serving_state_precision_drift():
+        settings = _settings(zero=True)
+        extractor = _Extractor(settings)
+        service = NativeNetworkSelectorService(settings, extractor, _manifest())
+        _, identity = extractor.select_suffix_choices("mechanism", candidate_suffixes={"read_json": "read_json"})
+        identity.update(wkv_mode="fp16", wkv_state_dtype="torch.float16")
+>       with pytest.raises(NativeNetworkSelectorServiceError, match="identity mismatch"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE NativeNetworkSelectorServiceError
+
+tests/test_native_network_selector_service.py:168: Failed
+_____________ test_native_selector_attests_context_and_arithmetic ______________
+
+    def test_native_selector_attests_context_and_arithmetic():
+        identity = _settings(zero=True).runtime_identity()
+>       assert identity["wkv_mode"] == "fp32io16"
+               ^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'wkv_mode'
+
+tests/test_native_network_selector_service.py:174: KeyError
+____ test_native_selector_context_comes_from_artifact_and_rejects_overflow _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_selector_context_c0')
+
+    def test_native_selector_context_comes_from_artifact_and_rejects_overflow(tmp_path):
+>       from rwkv_lh.exact_tool_selector.native_network_service import model_context_tokens
+E       ImportError: cannot import name 'model_context_tokens' from 'rwkv_lh.exact_tool_selector.native_network_service' (/home/chase/GitHub/RWKV-LH/rwkv_lh/exact_tool_selector/native_network_service.py)
+
+tests/test_native_network_selector_service.py:180: ImportError
+=========================== short test summary info ============================
+FAILED tests/test_statetune_core.py::test_native_model_uses_checkpoint_geometry_including_ranks_and_ffn
+FAILED tests/test_statetune_core.py::test_sealed_core_identity_rejects_mutation_and_validates_device
+FAILED tests/test_native_network_selector_service.py::test_native_selector_rejects_serving_state_precision_drift
+FAILED tests/test_native_network_selector_service.py::test_native_selector_attests_context_and_arithmetic
+FAILED tests/test_native_network_selector_service.py::test_native_selector_context_comes_from_artifact_and_rejects_overflow
+5 failed, 12 deselected in 2.95s

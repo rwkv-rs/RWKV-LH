@@ -1,6 +1,6 @@
 # 当前交接
 
-更新日期：2026-09-09；当前轮 `CONTROLLER_ROLE_CLOSURE_R1_20260909`。执行规范见 [统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)，最新分析、修复边界与 SHA 见 [链路报告](../data/experiments/CONTROLLER_ROLE_CLOSURE_R1_20260909/REPORT.zh-CN.md)，统一设计见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。前轮整改记录保留在 `STATETUNE_ENTRY_REPAIR_R1_20260909`。
+更新日期：2026-09-09；当前轮 `RWKV29_DEPLOY_COMPAT_R1_20260909`。执行规范见 [统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)，闭环已提交 `b2f74b679259d9ea5512c8e7849d45f0534a1b9d`，分析见 [链路报告](../data/experiments/CONTROLLER_ROLE_CLOSURE_R1_20260909/REPORT.zh-CN.md)；2.9B 已部署并通过 Native 兼容验证，见 [部署报告](../data/experiments/RWKV29_DEPLOY_COMPAT_R1_20260909/REPORT.zh-CN.md)。统一设计见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
 
 ## Agent 实测与 trace 到达位置
 
@@ -19,7 +19,7 @@ R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e
 - 实际 prompt IDs、scope 与 BOS 元数据透传并核验；缺失 finish_reason 不再伪造 `stop`。没有服务器完整 token 证据的行保持 `token_ids_complete=false`。
 - 修复命令沙箱静默回退、沙箱共享宿主网络、包裹私有片段的来源判定、Web 重启重复 worker，以及两个公共基准的包数据遗漏。
 
-本轮完整回归 **1061 passed，0 skipped，194.99 秒**；验证输入差异、同边界重试、恢复、执行补证、阶段事实与五角色逐字节重建。测试包含 mock 模型与真实 Harness I/O，不构成生产角色数据或新增 Agent 成绩。
+闭环轮完整回归 **1061 passed，0 skipped，194.99 秒**；验证输入差异、同边界重试、恢复、执行补证、阶段事实与五角色逐字节重建。2.9B 部署轮完整回归 **1073 passed，0 skipped，196.81 秒**；服务真实两次选择、八项全词表 zero/非零 State 对齐和三种长度的完整反向验证通过。测试不构成生产角色数据或新增 Agent 成绩，optimizer steps 仍为 0。
 
 ## 唯一架构与角色次序
 
@@ -36,6 +36,6 @@ R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e
 ## 下一步与仍未证明的能力
 
 1. 统一角色链路已完成本轮工程整改与完整回归，证据见闭环报告；下一步重新冻结生产运行测量实际模型表现。
-2. 后续继续已授权的 2.9B 重新部署与训练后端兼容验证：只读核验发现旧转换目录已清理，原始 G1j 2.9B 权重仍在 NAS，SHA 与官方发布相符；当前在线服务为 13.3B。尚未部署新 Selector、未启动训练，不能复用未经验证的 13.3B 训练形状或旧模型身份。服务器只接收本地源码与完整 SHA manifest，不运行 Git。
-3. 链路稳定后登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前工作树尚无验证完成的优化器训练入口。
+2. 2.9B 已上线 `rwkv-lh-selector-current.service`（GPU 2，本地端口 29621），原始权重与转换后权重均核验，32 层 / 40×64 State 已通过至 16384 tokens 的 Native 前向与反向验证。本地旧 Selector 协议/模型 SHA 配置已更新；原 13.3B 服务保持运行。服务器仅使用上传的完整 SHA manifest，没有 Git。
+3. 登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前数值训练后端已经验证；正式角色数据消费、优化器运行登记与候选验收仍需接通，不能将数值反向测试算作训练。
 4. Planner 合同生成、Stage Checker 上下文/自然结束、后续编码与最终完成能力仍须新生产运行测量；E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。

@@ -196,6 +196,9 @@ def test_stack_attests_configured_independent_selector_health(
         )
     expected = {
         "input_protocol": selector_env["RWKV_SELECTOR_INPUT_PROTOCOL"],
+        "wkv_mode": "fp32io16",
+        "state_dtype": "float32",
+        "context_tokens": 16384,
         "model": selector_env["RWKV_SELECTOR_MODEL"],
         "model_sha256": selector_env["RWKV_SELECTOR_MODEL_SHA256"],
         "decoder_id": selector_env["RWKV_SELECTOR_DECODER_ID"],

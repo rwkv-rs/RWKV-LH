@@ -179,4 +179,4 @@ Agent 门：Ladder-10 Strict 严格高于 all-zero 且超过噪声带，zero 已
 
 当前状态统一维护于 [HANDOFF](HANDOFF.zh-CN.md)，训练管线能力与缺口见 [StateTune 状态](STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。当前文档不再复制 R2–R6 的“正在运行”“不得训练”等过期指令；历史 run、失败与原始评分仅按其冻结报告追溯。
 
-本轮没有部署新服务、取得修复后的真实 Agent 指标、冻结正式角色数据或启动优化器训练。代码回归与真实模型验证分别报告，不把 fixture 通过写成模型能力提升。
+闭环轮没有新增模型成绩。后续 `RWKV29_DEPLOY_COMPAT_R1_20260909` 已部署当前 2.9B Selector，并通过 Native 数值兼容验证；尚未取得修复后的真实 Agent 指标、冻结正式角色数据或启动优化器训练。代码回归、真实模型数值验证、角色训练与 Agent 成绩分别报告，不把 fixture 通过写成模型能力提升。

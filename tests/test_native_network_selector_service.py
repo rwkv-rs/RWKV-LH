@@ -118,6 +118,9 @@ class _Extractor:
         selected = "read_json"
         identity: dict[str, Any] = {
             "model_weights_sha256": self.settings.model_sha256,
+            "wkv_mode": "fp32io16",
+            "max_tokens": self.settings.context_tokens,
+            "runtime": {"wkv_mode": "fp32io16", "wkv_state_dtype": "torch.float32", "runtime_compute_dtype": "torch.float16"},
             "feature_protocol": "rwkv-lh.native-role-suffix-selection.v1",
             "fresh_initial_state": True,
             "one_prompt_forward": True,
@@ -157,6 +160,32 @@ class _Extractor:
             },
             identity,
         )
+
+
+def test_native_selector_rejects_serving_state_precision_drift():
+    settings = _settings(zero=True)
+    extractor = _Extractor(settings)
+    service = NativeNetworkSelectorService(settings, extractor, _manifest())
+    _, identity = extractor.select_suffix_choices("mechanism", candidate_suffixes={"read_json": "read_json"})
+    identity.update(wkv_mode="fp16", wkv_state_dtype="torch.float16")
+    with pytest.raises(NativeNetworkSelectorServiceError, match="identity mismatch"):
+        service._validate_extractor_identity(identity)
+
+
+def test_native_selector_attests_context_and_arithmetic():
+    identity = _settings(zero=True).runtime_identity()
+    assert identity["wkv_mode"] == "fp32io16"
+    assert identity["state_dtype"] == "float32"
+    assert identity["context_tokens"] == 16384
+
+
+def test_native_selector_context_comes_from_artifact_and_rejects_overflow(tmp_path):
+    from rwkv_lh.exact_tool_selector.native_network_service import model_context_tokens
+    (tmp_path / "config.json").write_text(json.dumps({"context_length": 8192, "max_position_embeddings": 8192}))
+    assert model_context_tokens(tmp_path, None) == 8192
+    assert model_context_tokens(tmp_path, 4096) == 4096
+    with pytest.raises(ValueError, match="context"):
+        model_context_tokens(tmp_path, 16384)
 
 
 class _Response:

@@ -1,6 +1,6 @@
 # StateTune 管线现状
 
-更新日期：2026-09-09，整改轮 `STATETUNE_ENTRY_REPAIR_R1_20260909`。Agent 最近完整实测仍为历史 R7 双臂各 Strict 0/12、completed 0/12、mutation 0；本轮未新增模型成绩或训练 run。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)，代码证据见 [整改报告](../data/experiments/STATETUNE_ENTRY_REPAIR_R1_20260909/REPORT.zh-CN.md)。
+更新日期：2026-09-09，当前轮 `RWKV29_DEPLOY_COMPAT_R1_20260909`。Agent 最近完整实测仍为历史 R7 双臂各 Strict 0/12、completed 0/12、mutation 0；本轮未新增 Agent 成绩或训练 run。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)，2.9B 服务及训练数值后端验证见 [部署报告](../data/experiments/RWKV29_DEPLOY_COMPAT_R1_20260909/REPORT.zh-CN.md)。
 
 ## 当前具备的能力
 
@@ -13,7 +13,8 @@
 | 数据审计 | 固定 family 切分、byte 5-gram cosine、当前角色预注册覆盖；上游 State 与回归身份固定 |
 | 完整输入 token | 可保存并证明服务器返回的 full input/BOS；未返回或仅有 delta 的来源仍标未证明 |
 | 正式角色数据 | 本轮未创建 `data/datasets/` 版本，没有合格生产样本量或冻结回归的新增结论 |
-| 优化器训练入口 | 本地 `rwkv_lh/`、`scripts/` 尚无已验证的当前训练驱动；需接通并登记匹配实际 backend 的训练器，抽取器本身不训练 |
+| Native 数值训练后端 | 当前唯一 `statetune_native_model` / `statetune_native_recurrence`；共享 `RWKV7Layout`，2.9B zero/非零 State 全词表对齐、16384 token 反向及冻结底模核验通过 |
+| 优化器训练入口 | 正式角色数据消费、优化器 run 登记与候选验收仍须接通；当前数值验证没有 optimizer steps，抽取器本身不训练 |
 | 当前角色 State 改善 | 未训练、未得到新 State，也没有修复后 Agent 提升证据 |
 
 当前数据接口与文件字段详见 [生产 trace 使用说明](ROLE_TRACE_DATASET.zh-CN.md)。测试 mock、作者参考实现和私有验收不能填充正式角色数据数量。
@@ -38,4 +39,4 @@ Agent Strict、完成率、mutation 和终止原因持续观察；最终组合�
 
 当前拆分把操作选择、参数执行和语义判断分开，适合定位并分阶段训练。已经发现的根因主要是 Controller 错误中断、自动标签权威过强和证据记录不足；尚不能从未调用的后序角色断言角色划分失败。多次菜单求值及每动作审计的成本可以在固定条件下消融评估，不因一次低分新增 Head、替代模型或平行状态机。
 
-通用性来自稳定的角色合同与 State/模型适配边界。新 RWKV 首先核验模型、tokenizer、State 形状/精度、上下文、生成/停止与服务能力，复用当前 builder 和数据消费接口；需要调整的训练器适配也须有 SHA 与验证记录。只有语义合同确实改变才替换协议，旧实现从工作树删除、历史留 Git。数据管线已经共享这些边界，但没有当前 backend 的真实训练/回归记录之前，不能宣称跨版本训练兼容性已验证。
+通用性来自稳定的角色合同与 State/模型适配边界。新 RWKV 首先核验模型、tokenizer、State 形状/精度、上下文、生成/停止与服务能力，复用当前 builder 和数据消费接口；需要调整的训练器适配也须有 SHA 与验证记录。只有语义合同确实改变才替换协议，旧实现从工作树删除、历史留 Git。本轮从权重读取低秩/FFN/State 几何，去掉原 13.3B 尺寸假定；2.9B 在当前 head64、BF16 权重、FP32 State / FP16 token Native 后端已通过数值兼容验证。未验证的几何/后端仍明确拒绝，不能自动复用旧 State，也不能将兼容验证写成角色训练改善。

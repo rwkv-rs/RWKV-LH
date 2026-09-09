@@ -30,12 +30,13 @@ from rwkv_lh.schema import ModelCheckpoint, ModelCheckpointStatus, ModelLaneKind
 
 
 NATIVE_SELECTOR_SERVICE_REQUEST_SCHEMA = (
-    "rwkv-lh.native-exact-tool-selector-service-request.v1"
+    "rwkv-lh.native-exact-tool-selector-service-request.v2"
 )
 NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
-    "rwkv-lh.native-exact-tool-selector-service-response.v1"
+    "rwkv-lh.native-exact-tool-selector-service-response.v2"
 )
 NATIVE_SELECTOR_LANE_ID = "LANE:SELECTOR"
+NATIVE_SELECTOR_WKV_MODE = "fp32io16"
 NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v5"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
@@ -75,6 +76,7 @@ class NativeNetworkSelectorSettings:
     input_protocol: str = CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
     connect_timeout_seconds: float = 10.0
     read_timeout_seconds: float = 120.0
+    context_tokens: int = 16384
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.base_url)
@@ -101,6 +103,8 @@ class NativeNetworkSelectorSettings:
             raise ValueError("native Selector State profile ID is invalid")
         if self.connect_timeout_seconds <= 0 or self.read_timeout_seconds <= 0:
             raise ValueError("native Selector timeouts must be positive")
+        if type(self.context_tokens) is not int or self.context_tokens < 8:
+            raise ValueError("native Selector context must be an integer of at least 8 tokens")
 
     @classmethod
     def from_env(cls) -> "NativeNetworkSelectorSettings | None":
@@ -140,6 +144,7 @@ class NativeNetworkSelectorSettings:
             )
         return cls(
             **values,
+            context_tokens=int(role_env("selector", "context_tokens", default="16384")),
             input_protocol=role_env(
                 "selector",
                 "input_protocol",
@@ -154,7 +159,7 @@ class NativeNetworkSelectorSettings:
             ),
         )
 
-    def runtime_identity(self) -> dict[str, str]:
+    def runtime_identity(self) -> dict[str, Any]:
         return {
             "input_protocol": self.input_protocol,
             "model": self.model,
@@ -165,6 +170,9 @@ class NativeNetworkSelectorSettings:
             "profile_id": self.state_profile_id,
             "profile_sha256": self.state_profile_sha256,
             "profile_manifest_sha256": self.state_profile_manifest_sha256,
+            "wkv_mode": NATIVE_SELECTOR_WKV_MODE,
+            "state_dtype": "float32",
+            "context_tokens": self.context_tokens,
         }
 
 

@@ -18,6 +18,7 @@ from rwkv_lh.exact_tool_selector.input_protocol import (
 from rwkv_lh.exact_tool_selector.native_network_client import (
     NATIVE_SELECTOR_SERVICE_REQUEST_SCHEMA,
     NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA,
+    NATIVE_SELECTOR_WKV_MODE,
     NativeNetworkSelectorSettings,
 )
 from rwkv_lh.exact_tool_selector.native_network_protocol import (
@@ -247,6 +248,8 @@ class NativeNetworkSelectorService:
     def _validate_extractor_identity(self, identity: Mapping[str, Any]) -> None:
         expected = {
             "model_weights_sha256": self.settings.model_sha256,
+            "wkv_mode": NATIVE_SELECTOR_WKV_MODE,
+            "max_tokens": self.settings.context_tokens,
             "feature_protocol": "rwkv-lh.native-role-suffix-selection.v1",
             "fresh_initial_state": True,
             "one_prompt_forward": True,
@@ -263,6 +266,13 @@ class NativeNetworkSelectorService:
             raise NativeNetworkSelectorServiceError(
                 "native Selector extractor identity mismatch"
             )
+        runtime = identity.get("runtime")
+        if not isinstance(runtime, Mapping) or any(runtime.get(key) != value for key, value in {
+            "wkv_mode": NATIVE_SELECTOR_WKV_MODE,
+            "wkv_state_dtype": "torch.float32",
+            "runtime_compute_dtype": "torch.float16",
+        }.items()):
+            raise NativeNetworkSelectorServiceError("native Selector arithmetic identity mismatch")
         state_profile = identity.get("state_profile")
         if self.settings.state_profile_id == "zero":
             if state_profile is not None:
@@ -445,6 +455,17 @@ def _extractor_state_profile_settings(
     }
 
 
+def model_context_tokens(model_artifact: Path, requested: int | None) -> int:
+    config = json.loads((model_artifact / "config.json").read_text(encoding="utf-8"))
+    capacity = config.get("context_length")
+    if type(capacity) is not int or capacity < 8 or config.get("max_position_embeddings") != capacity:
+        raise ValueError("native Selector model context identity is invalid")
+    value = capacity if requested is None else requested
+    if type(value) is not int or not 8 <= value <= capacity:
+        raise ValueError("native Selector context exceeds model capacity")
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
@@ -457,6 +478,7 @@ def main() -> int:
     parser.add_argument("--model-artifact", type=Path, required=True)
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--model-sha256", required=True)
+    parser.add_argument("--context-tokens", type=int)
     parser.add_argument("--decoder-manifest", type=Path, required=True)
     parser.add_argument("--decoder-sha256", required=True)
     parser.add_argument(
@@ -484,6 +506,7 @@ def main() -> int:
         state_profile_sha256=args.profile_sha256,
         state_profile_manifest_sha256=args.profile_manifest_sha256,
         input_protocol=args.input_protocol,
+        context_tokens=model_context_tokens(args.model_artifact, args.context_tokens),
     )
     extractor_profile_settings = _extractor_state_profile_settings(
         profile_manifest=args.profile_manifest,
@@ -500,8 +523,8 @@ def main() -> int:
             engine_source_manifest_sha256=args.engine_source_manifest_sha256,
             model=args.model_artifact,
             batch_size=1,
-            max_tokens=4096,
-            wkv_mode="fp16",
+            max_tokens=settings.context_tokens,
+            wkv_mode=NATIVE_SELECTOR_WKV_MODE,
             runtime_temp=args.runtime_temp,
             compatibility_sha256="0" * 64,
             **extractor_profile_settings,
