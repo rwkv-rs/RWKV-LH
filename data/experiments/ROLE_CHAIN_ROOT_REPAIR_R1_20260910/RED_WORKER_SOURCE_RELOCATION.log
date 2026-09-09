@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_project_worker_verifies_loaded_engine_and_own_project_source _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_worker_verifies_l0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7101b4756190>
+
+    def test_project_worker_verifies_loaded_engine_and_own_project_source(tmp_path, monkeypatch):
+        worker, namespace = worker_module(tmp_path, 0)
+        engine_file = str(tmp_path / "uploaded_engine/vllm/__init__.py")
+        monkeypatch.setitem(sys.modules, "vllm", SimpleNamespace(__file__=engine_file))
+        calls = []
+        def verify(**kwargs):
+            calls.append(kwargs)
+            return {"identity_sha256": "c" * 64}
+        monkeypatch.setattr("rwkv_lh.inference.native_source_identity.verify_native_source_identity", verify)
+        worker._initialize_native_source_identity()
+>       assert calls == [{"engine_file": engine_file, "project_file": namespace["__file__"]}]
+E       AssertionError: assert [{'engine_fil...e_worker.py'}] == [{'engine_fil...e_worker.py'}]
+E         
+E         At index 0 diff: {'engine_file': '/home/chase/GitHub/RWKV-LH/rwkv_lh/inference/vllm_rwkv_native_worker.py'} != {'engine_file': '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_project_worker_verifies_l0/uploaded_engine/vllm/__init__.py', 'project_file': '/home/chase/GitHub/RWKV-LH/rwkv_lh/inference/vllm_rwkv_native_worker.py'}
+E         Use -v to get more diff
+
+tests/test_native_source_identity.py:144: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_native_source_identity.py::test_project_worker_verifies_loaded_engine_and_own_project_source
+1 failed, 17 deselected in 1.12s

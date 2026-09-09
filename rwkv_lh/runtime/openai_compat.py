@@ -741,6 +741,7 @@ class OpenAICompatibleRWKVClient:
                     "max_tokens": max(1, int(max_tokens)),
                     "stop": [str(item) for item in stop],
                     "sampling": dict(sampling),
+                    "return_token_ids": self.settings.return_token_ids,
                 }
             ),
         )

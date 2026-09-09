@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v5, finalizer_answer
-from rwkv_lh.goal_state_protocols import executor_args_v5
+from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v6, finalizer_answer
+from rwkv_lh.goal_state_protocols import executor_args_v6
 from rwkv_lh.model import LongHorizonModel, ModelProtocolError
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.token_budget import get_token_count
@@ -18,7 +18,7 @@ _BASELINE = (
     / 'data/test_fixtures/controller_role_closure_v1/role_prompt_wire_baseline.json'
 )
 _PROTOCOLS = {
-    'auditor_step_v5': auditor_step_v5,
+    'auditor_step_v6': auditor_step_v6,
     'auditor_final': auditor_final,
     'finalizer_answer': finalizer_answer,
 }
@@ -34,7 +34,7 @@ def test_role_builder_preserves_registered_prompt_bytes(protocol_name: str) -> N
     assert protocol.render_prompt(source).startswith(protocol.PROMPT_PREFIX)
 
 
-@pytest.mark.parametrize('protocol_name', ('auditor_step_v5', 'auditor_final'))
+@pytest.mark.parametrize('protocol_name', ('auditor_step_v6', 'auditor_final'))
 def test_auditor_builder_owns_catalog_construction(
     protocol_name: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -80,18 +80,18 @@ def test_executor_budget_uses_current_source_and_renderer(
     )
     model._action_definitions = [definition]
     model._definitions_by_name = {'read_file': definition}
-    state = SimpleNamespace(model_events={}, actions={})
+    state = SimpleNamespace(model_events={}, actions={}, goal=SimpleNamespace(request='Read README.md'))
     checkpoint = SimpleNamespace(event_ids=())
     monkeypatch.setattr(LongHorizonModel, '_bound_executor_fact_records', lambda *args, **kwargs: ())
-    target = executor_args_v5.build_target_contract(
+    target = executor_args_v6.build_target_contract(
         phase='observe',
         roots=['README.md'],
         target_descriptors=[
             {'path': 'README.md', 'type': 'file', 'target_kind': 'text_file', 'exists': True}
         ],
-        compatible_targets_by_operation={'read_file': ['README.md']},
+        operations=("read_file",),
     )
-    execution = executor_args_v5.build_execution_state(
+    execution = executor_args_v6.build_execution_state(
         active_step_id='S1',
         active_step_revision=1,
         declared_phase='observe',
@@ -101,14 +101,14 @@ def test_executor_budget_uses_current_source_and_renderer(
         target_contract=target,
     )
     rendered = []
-    original = executor_args_v5.render_generation_prompt
+    original = executor_args_v6.render_generation_prompt
 
     def capture(source):
         value = original(source)
         rendered.append((source, value))
         return value
 
-    monkeypatch.setattr(executor_args_v5, 'render_generation_prompt', capture)
+    monkeypatch.setattr(executor_args_v6, 'render_generation_prompt', capture)
     budget = model._max_disclosure_tokens_for_state(
         state, checkpoint,
         current_requirement='Read the exact current README contents.',

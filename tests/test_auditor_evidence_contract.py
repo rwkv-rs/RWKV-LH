@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from rwkv_lh.goal_loop_protocol import GoalPlanStep
-from rwkv_lh.goal_state_protocols import auditor_step_v5 as step_protocol, auditor_final
+from rwkv_lh.goal_state_protocols import auditor_step_v6 as step_protocol, auditor_final
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelCommand
 from rwkv_lh.schema import ActionRecord
@@ -36,7 +36,7 @@ def _source(*, root='.', operation='list_directory', observed_root=None,
     records = LongHorizonModel._audit_evidence_records(state, ['A1'])
     if not projection_complete:
         records[0]['action']['result']['observation']['projection_complete'] = False
-    return step_protocol.build_prompt_source(boundary='mutation_transaction_complete' if mutate else 'observation_complete',
+    return step_protocol.build_prompt_source(immutable_goal='Complete the requested observation or mutation', boundary='mutation_transaction_complete' if mutate else 'observation_complete',
         active_step=step, available_evidence_refs=['A1'], evidence_records=records)
 
 

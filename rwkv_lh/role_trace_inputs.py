@@ -27,7 +27,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
 from rwkv_lh.goal_loop_protocol import goal_step_action_bindings, rolling_goal_plan
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v5, executor_args_v5, finalizer_answer, selector_intent_v5,
+    auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer, selector_intent_v6,
 )
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
@@ -42,9 +42,9 @@ class RoleInputReconstructionError(ValueError):
 
 
 _MODULES = {
-    "selector_intent": selector_intent_v5,
-    "executor_args": executor_args_v5,
-    "auditor_step": auditor_step_v5,
+    "selector_intent": selector_intent_v6,
+    "executor_args": executor_args_v6,
+    "auditor_step": auditor_step_v6,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }
@@ -152,10 +152,12 @@ def _frontier_facts(state: RunState):
     roots = StatefulGoalLoopController._goal_step_target_roots(step, phase, mechanical)
     if tuple(raw_contract.get("roots") or ()) != roots:
         raise RoleInputReconstructionError("durable target roots differ from the active plan remainder")
-    contract = executor_args_v5.build_target_contract(
+    contract = executor_args_v6.build_target_contract(
         phase=phase, roots=roots,
         target_descriptors=raw_contract.get("target_descriptors") or (),
-        compatible_targets_by_operation=raw_contract.get("compatible_targets_by_operation") or {},
+        operations=tuple(raw_contract["argument_targets_by_operation"]),
+        scope_roots=step.write_roots if phase == "mutate" else roots,
+        discovery_complete=raw_contract["discovery_complete"],
     )
     if contract != raw_contract:
         raise RoleInputReconstructionError("durable Harness target contract cannot be rebuilt")
@@ -168,6 +170,9 @@ def _frontier_facts(state: RunState):
     )
     if not set(eligible) <= set(authorized):
         raise RoleInputReconstructionError("durable operation eligibility violates the plan")
+    from rwkv_lh.operation_contracts import eligible_target_operations
+    if tuple(eligible) != eligible_target_operations(contract["argument_targets_by_operation"]):
+        raise RoleInputReconstructionError("durable operation eligibility differs from parameter preconditions")
     execution = StatefulGoalLoopController._executor_execution_state(
         state, step_id, revision, mechanical, effective_phase=phase, target_contract=contract,
     )
@@ -311,6 +316,7 @@ def _rebuild(role, state, request):
                 if active is None:
                     raise RoleInputReconstructionError("Step Auditor has no active committed step")
                 source = module.build_prompt_source(
+                    immutable_goal=state.goal.request,
                     boundary=str(payload.get("boundary") or ""), active_step=active,
                     available_evidence_refs=refs, evidence_records=records,
                     feedback=protocol_feedback(state, role, audit_id),

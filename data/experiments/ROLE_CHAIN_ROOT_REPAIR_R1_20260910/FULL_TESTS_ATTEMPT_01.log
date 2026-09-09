@@ -1,0 +1,187 @@
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 16%]
+........................................................................ [ 21%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 38%]
+........................................................................ [ 43%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 60%]
+..........E............................................................. [ 65%]
+........................................................................ [ 70%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+........................................................................ [ 98%]
+.......................                                                  [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens[native_rwkv] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_mock_controller_ex0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7faed3a279a0>
+request = <SubRequest 'mock_controller_case' for <Function test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens[native_rwkv]>>
+
+    @pytest.fixture
+    def mock_controller_case(tmp_path, monkeypatch, request):
+        import test_stateful_goal_loop as fixtures
+    
+        native = getattr(request, "param", "prompt_replay") == "native_rwkv"
+        failed_audit = getattr(request, "param", "") == "failed_step"
+        role_stage = getattr(request, "param", "") == "role_stage"
+        trace = []
+        original_init = ModelSession.__init__
+        original_queue = fixtures._QueueClient
+        original_completion = fixtures._QueueClient.text_completion
+        original_selector = fixtures._selector
+        original_post = fixtures._SelectorHTTP.post
+    
+        def session_init(self, client=None, *, settings=None, audit_hook=None):
+            assert settings is not None  # This test never creates a real runtime.
+            configured = replace(settings, state_profile_id="zero", state_profile_sha256="0" * 64)
+            original_init(self, client, settings=configured, audit_hook=trace.append)
+    
+        def completion(self, *args, **kwargs):
+            response = original_completion(self, *args, **kwargs)
+            if failed_audit:
+                command = decode_json(response.content)
+                if command["function"] == "audit_decision" and command["params"]["step_id"] == "S1":
+                    from rwkv_lh.goal_state_protocols import auditor_step_v6
+                    command["params"].update(verdict="repair", step_complete=False,
+                        gaps=sorted(["write_root_unproved:result.txt", "phase_evidence_unproved:mutate"]),
+                        reason=auditor_step_v6.REASON_INCOMPLETE)
+                    response.content = json.dumps(command, ensure_ascii=False)
+            response.metadata = {"token_ids": tokenizer().encode(response.content)}
+            response.model = self.model_name
+            return response
+    
+        def selector(operations):
+            selected = original_selector(operations)
+            selected.settings = replace(
+                selected.settings, state_profile_id="verified-selector" if role_stage else "zero",
+                state_profile_sha256=("a" if role_stage else "0") * 64,
+                state_profile_manifest_sha256="0" * 64,
+            )
+            selected._session.settings = selected.settings
+            return selected
+    
+        def post(self, url, *, json, timeout):
+            response = original_post(self, url, json=json, timeout=timeout)
+            wire = decode_json(response.content)
+            selected = NativeNetworkToolSelection.from_dict(wire["selection"])
+            # Use the current production prefix constant and actual local vocabulary.
+            # The logits are explicitly deterministic mock decisions.
+            suffixes = {
+                label: tokenizer().encode(selector_intent_v6.TARGET_PREFIX + label)
+                for label in selected.eligible_labels
+            }
+            selected_ids = suffixes[selected.selected_operation]
+            decisions = []
+            for position, chosen in enumerate(selected_ids):
+                prefix = selected_ids[:position]
+                allowed = sorted({ids[position] for ids in suffixes.values()
+                                  if len(ids) > position and ids[:position] == prefix})
+                decisions.append({
+                    "position": position, "allowed_token_ids": allowed,
+                    "allowed_token_logits": {str(token): 10.0 if token == chosen else 0.0 for token in allowed},
+                    "chosen_token_id": chosen, "chosen_token_logit": 10.0,
+                    "chosen_vs_runner_up_margin": None if len(allowed) == 1 else 10.0,
+                })
+            token_count = len(tokenizer().encode(json["bootstrap"] + "\n" + json["step"]))
+            selected = replace(selected, input_token_count=token_count, decoder_trace={
+                **selected.decoder_trace, "prompt_token_count": token_count,
+                "token_ids": selected_ids, "decisions": decisions,
+            })
+            wire["selection"] = selected.raw_record()
+            return fixtures._SelectorResponse(wire)
+    
+        monkeypatch.setattr(ModelSession, "__init__", session_init)
+        monkeypatch.setattr(fixtures._QueueClient, "text_completion", completion)
+        monkeypatch.setattr(fixtures, "_selector", selector)
+        monkeypatch.setattr(fixtures._SelectorHTTP, "post", post)
+        if native:
+            import rwkv_lh.model as model_module
+            import rwkv_lh.model_session as session_module
+            from rwkv_lh.model_session import NativeRWKVModelSession
+            from test_role_trace_context import STOP, TokenNativeClient
+    
+            clients = []
+    
+            def native_queue(outputs, **kwargs):
+                queued = original_queue(outputs, **kwargs)
+                # Reuse the mock completion's production command normalization.
+                canonical_outputs = [original_completion(queued, "").content for _ in outputs]
+                client = TokenNativeClient([output + STOP for output in canonical_outputs])
+                client.model_name = queued.model_name
+                clients.append(client)
+                return client
+    
+            def native_session(client=None, *, settings=None, audit_hook=None):
+                assert settings is not None and (client is not None or clients)
+                return NativeRWKVModelSession(
+                    client if client is not None else clients[0],
+                    settings=replace(settings, state_transport="native_rwkv"),
+                    audit_hook=trace.append,
+                )
+    
+            monkeypatch.setattr(fixtures, "_QueueClient", native_queue)
+            # The imported Controller fixture chooses its actual session here;
+            # isolated role sessions share only the fake backend, not a State lane.
+            monkeypatch.setattr(session_module, "ModelSession", native_session)
+            monkeypatch.setattr(model_module, "create_model_session", native_session)
+>       snapshots, final = request.getfixturevalue("controller_role_snapshots")
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_trace_dataset_integration.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+.venv/lib/python3.13/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/_pytest/setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1005: in call_fixture_func
+    fixture_result = fixturefunc(**kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^
+tests/test_role_trace_inputs.py:172: in controller_role_snapshots
+    final = controller.run(state.run_id).state
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/stateful_goal_loop.py:2160: in run
+    decision = self.model.next_command(
+rwkv_lh/model.py:389: in next_command
+    checkpoint = previous if fresh_executor else self._checkpoint(state, persist)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1503: in _checkpoint
+    checkpoint = (self.session.prepare_bootstrap if self.tool_selector is not None else self.session.bootstrap)(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.model_session.NativeRWKVModelSession object at 0x7faed3a27c40>
+args = (<ModelLaneKind.ACTION: 'action'>, '{"protocol": "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v6", "constraints":...modifies anything.'}, {'name': 'write_file', 'description': 'Atomically write UTF-8 text inside the workspace.'}, ...])
+kwargs = {'lane_id': 'LANE:ACTION', 'progressive_tool_disclosure': True, 'independent_tool_selector': True}
+
+    def prepare_bootstrap(self, *args: Any, **kwargs: Any) -> ModelCheckpoint:
+        # Use the same renderer/identity as bootstrap; allocate only when the
+        # selected Executor call is about to disclose its parameter contract.
+>       checkpoint = ModelSession.bootstrap(self, *args, **kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'function' object has no attribute 'bootstrap'
+
+rwkv_lh/model_session.py:975: AttributeError
+=========================== short test summary info ============================
+ERROR tests/test_role_trace_dataset_integration.py::test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens[native_rwkv]
+1318 passed, 1 error in 225.25s (0:03:45)

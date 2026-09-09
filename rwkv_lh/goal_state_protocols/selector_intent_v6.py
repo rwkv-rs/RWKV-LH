@@ -1,6 +1,6 @@
 """Failure-aware native G1J Selector renderer and exact suffix contract.
 
-V5 carries step-bound audit feedback as well as the bounded facts the root-cause audit found
+V6 carries step-bound audit feedback as well as the bounded facts the root-cause audit found
 missing from the Selector's next input: the previous action's arguments, its
 Harness error type/message, its result metadata, and the typed workspace
 targets the Controller already resolved for the active step.  Production,
@@ -23,18 +23,19 @@ from rwkv_lh.goal_state_protocols import (
     _strings,
 )
 from rwkv_lh.goal_state_protocols.feedback import validate_feedback
-from rwkv_lh.operation_contracts import GOAL_STEP_PHASES, WORKSPACE_TARGET_KINDS
+from rwkv_lh.goal_state_protocols.execution_failures import build_rejections, validate_rejections
+from rwkv_lh.operation_contracts import GOAL_STEP_PHASES, WORKSPACE_TARGET_KINDS, summarize_operation_targets
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v5"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v6"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "SelectorIntentPromptV5: "
-TARGET_PREFIX = "\nSelectorIntentV5: "
-MENU_PREFIX = "SelectorIntentMenuV5: "
-ROLE_PREFIX = "SelectorIntentRoleV5: "
+PROMPT_PREFIX = "SelectorIntentPromptV6: "
+TARGET_PREFIX = "\nSelectorIntentV6: "
+MENU_PREFIX = "SelectorIntentMenuV6: "
+ROLE_PREFIX = "SelectorIntentRoleV6: "
 ROLE_MARKER = "\n" + ROLE_PREFIX
-MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v5"
-ENDPOINT = "/selector-intent-v5/select"
+MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v6"
+ENDPOINT = "/selector-intent-v6/select"
 
 SUBTASK_FIELDS = (
     "objective",
@@ -55,6 +56,8 @@ PROGRESS_FIELDS = (
     "completion_preconditions_satisfied",
     "feedback",
     "target_discovery_complete",
+    "recent_rejections",
+    "operation_targets",
 )
 LAST_ACTION_FIELDS = (
     "operation",
@@ -227,6 +230,8 @@ def build_current_progress(
     action_observes_root: Any,
     action_mutates_root: Any,
     feedback: Mapping[str, Any] | None = None,
+    recent_rejections: Sequence[Mapping[str, Any]] = (),
+    operation_targets: Mapping[str, Any] | None = None,
     discovery_complete: bool = True,
 ) -> dict[str, Any]:
     """Build the one production ``current_progress`` from durable Harness actions.
@@ -304,6 +309,8 @@ def build_current_progress(
     progress["target_discovery_complete"] = discovery_complete and (
         len(progress["workspace_targets"]) == len({item["path"] for item in target_descriptors})
     )
+    progress["recent_rejections"] = build_rejections(recent_rejections)
+    progress["operation_targets"] = summarize_operation_targets(operation_targets or {})
     validate_progress(progress, read_roots=read_roots, write_roots=write_roots)
     return progress
 
@@ -393,6 +400,9 @@ def validate_progress(
 ) -> Mapping[str, Any]:
     selected = _exact_fields(progress, PROGRESS_FIELDS, "current_progress")
     validate_feedback(selected["feedback"], recipient="selector_intent")
+    validate_rejections(selected["recent_rejections"])
+    if not isinstance(selected["operation_targets"], Mapping):
+        raise ValueError("operation_targets must be an object")
     if not isinstance(selected["target_discovery_complete"], bool):
         raise ValueError("target discovery completeness must be explicit")
     for name in (

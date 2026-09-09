@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import executor_args_v5
+from rwkv_lh.goal_state_protocols import executor_args_v6
 from rwkv_lh.executor_provenance import (
     ExecutorProvenanceError,
     validate_executor_argument_provenance,
@@ -493,13 +493,13 @@ def test_controller_target_contract_authorizes_direct_root_after_other_discovery
         focus="verify merged output",
     )
     descriptor = harness.workspace_target_descriptor(goal, "left.txt")
-    execution_state = executor_args_v5.build_execution_state(
+    execution_state = executor_args_v6.build_execution_state(
         active_step_id="S1", active_step_revision=1,
         declared_phase="observe", effective_phase="observe", assigned_actions=(),
         mechanical_evidence={"missing_read_roots": ["left.txt"]},
-        target_contract=executor_args_v5.build_target_contract(
+        target_contract=executor_args_v6.build_target_contract(
             phase="observe", roots=["left.txt"], target_descriptors=[descriptor],
-            compatible_targets_by_operation={"file_digest": ["left.txt"]},
+            operations=("file_digest",),
         ),
     )
 

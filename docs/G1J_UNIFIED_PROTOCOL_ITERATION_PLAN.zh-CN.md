@@ -12,9 +12,9 @@ Agent 级最新实测为固定 UltraData 三题：Strict 0/3、completed 0/3、m
 
 | 角色 | 唯一模块 | schema 后缀 | 构造与渲染 |
 |---|---|---|---|
-| Selector 2.9B | `selector_intent_v5.py` | selector-intent.v5 | `build_current_progress()` → `build_prompt_source()` → `render_prompt()` |
-| Executor 13.3B | `executor_args_v5.py` | executor-args.v5 | `build_target_contract()` / `build_execution_state()` → `build_prompt_source()` → `render_generation_prompt()` |
-| Step Auditor 13.3B | `auditor_step_v5.py` | auditor-step.v5 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
+| Selector 2.9B | `selector_intent_v6.py` | selector-intent.v6 | `build_current_progress()` → `build_prompt_source()` → `render_prompt()` |
+| Executor 13.3B | `executor_args_v6.py` | executor-args.v6 | `build_target_contract()` / `build_execution_state()` → `build_prompt_source()` → `render_generation_prompt()` |
+| Step Auditor 13.3B | `auditor_step_v6.py` | auditor-step.v6 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
 | Finalizer 13.3B | `finalizer_answer.py` | finalizer-answer.v2 | `build_prompt_source()` → `render_prompt()` |
 | Final Auditor 13.3B | `auditor_final.py` | auditor-final.v4 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
 
@@ -45,7 +45,7 @@ result_metadata, observed_roots, mutated_roots
 - 失败时 error_type/error_message 必填，message 最多 240 字符；成功时为 null。失败不覆盖 observed/mutated root。
 - metadata 白名单按顺序为 outcome_type、exit_code、target_kind、entry_count、match_count、byte_count、size_bytes、truncated、changed_path_count。
 - workspace_targets 最多 32 条；目录发现或提示投影不完整时 target_discovery_complete=false，此列表不是允许列表；类型取 `operation_contracts.WORKSPACE_TARGET_KINDS`。
-- 网络封装 NetworkSelectorInput 使用 v5，只接受角色 v5。endpoint、menu/role/prompt/target prefix 全部引用角色模块常量。decoder manifest 与运行 attestation 必须匹配当前源码。
+- 网络封装 NetworkSelectorInput 使用 v5，只接受角色 v6。endpoint、menu/role/prompt/target prefix 全部引用角色模块常量。decoder manifest 与运行 attestation 必须匹配当前源码。
 
 ### 1.2 强制一致性检查
 

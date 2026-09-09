@@ -1,0 +1,28 @@
+............F.....                                                       [100%]
+=================================== FAILURES ===================================
+____ test_native_enabled_worker_fails_when_source_configuration_is_missing _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_native_enabled_worker_fai0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x721bf4ecaa50>
+
+    def test_native_enabled_worker_fails_when_source_configuration_is_missing(tmp_path, monkeypatch):
+        worker, _ = worker_module(tmp_path, 0)
+        monkeypatch.delenv("RWKV_NATIVE_ENGINE_SOURCE_MANIFEST", raising=False)
+        with pytest.raises(RuntimeError, match="Native source configuration"):
+>           worker._initialize_native_source_identity()
+
+tests/test_native_source_identity.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_native_persistent_store.RWKV7ModelState object at 0x721bf50cf0e0>
+
+    def _initialize_native_source_identity(self) -> None:
+        self._native_source_identity: dict[str, Any] = {}
+        if self.native_state_cache is not None:
+>           import vllm
+E           ModuleNotFoundError: No module named 'vllm'
+
+rwkv_lh/inference/vllm_rwkv_native_worker.py:675: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_native_source_identity.py::test_native_enabled_worker_fails_when_source_configuration_is_missing
+1 failed, 17 passed in 1.66s

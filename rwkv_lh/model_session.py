@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol, Sequence
 from uuid import uuid4
 
-from rwkv_lh.goal_state_protocols import executor_args_v5
+from rwkv_lh.goal_state_protocols import executor_args_v6
 from rwkv_lh.model_io import (
     JSON_CALL_STOP_SUFFIXES,
     ModelCommand,
@@ -118,7 +118,7 @@ class CandidateGeneration:
     state_profile_sha256: str = ""
     prompt_token_ids: tuple[int, ...] | None = None
     prompt_token_ids_scope: str = "unspecified"
-    input_bos_token_count: int = 0
+    input_bos_token_count: int | None = None
 
     @property
     def raw_output_sha256(self) -> str:
@@ -270,7 +270,7 @@ class ModelSession:
         if executor_source.get("selected_tool_contract") != definition:
             raise ModelIOError("Executor source must match the selected tool contract")
         try:
-            return "\n\n" + executor_args_v5.render_generation_prompt(executor_source)
+            return "\n\n" + executor_args_v6.render_generation_prompt(executor_source)
         except ValueError as exc:
             raise ModelIOError(f"invalid current Executor protocol source: {exc}") from exc
 
@@ -369,7 +369,7 @@ class ModelSession:
                 "token_count": disclosed.token_count,
                 "system_tool_definition": False,
                 "goal_state_protocol": (
-                    executor_args_v5.INPUT_SCHEMA_VERSION
+                    executor_args_v6.INPUT_SCHEMA_VERSION
                     if executor_source is not None
                     else ""
                 ),
@@ -377,6 +377,15 @@ class ModelSession:
             }
         )
         return disclosed
+
+    def prepare_bootstrap(self, *args: Any, **kwargs: Any) -> ModelCheckpoint:
+        """Prepare a committed input without requiring a recurrent cache."""
+        return self.bootstrap(*args, **kwargs)
+
+    def materialize_input(self, checkpoint: ModelCheckpoint,
+                          checkpoints: Mapping[str, ModelCheckpoint]) -> ModelCheckpoint:
+        self._require_committed(checkpoint)
+        return checkpoint
 
     def append(
         self,
@@ -952,7 +961,76 @@ class NativeRWKVModelSession(ModelSession):
 
     def _require_checkpoint_identity(self, checkpoint: ModelCheckpoint) -> None:
         super()._require_checkpoint_identity(checkpoint)
-        self._binding_from_checkpoint(checkpoint)
+        if (checkpoint.native_state_metadata or {}).get("native_input_pending") is True:
+            if checkpoint.native_state_ref or checkpoint.native_state_digest or checkpoint.native_state_export:
+                raise ModelSessionError("prepared input cannot claim a materialized native State")
+            if _digest_text(checkpoint.transcript) != checkpoint.transcript_digest:
+                raise ModelSessionError("prepared native input digest mismatch")
+        else:
+            self._binding_from_checkpoint(checkpoint)
+
+    def prepare_bootstrap(self, *args: Any, **kwargs: Any) -> ModelCheckpoint:
+        # Use the same renderer/identity as bootstrap; allocate only when the
+        # selected Executor call is about to disclose its parameter contract.
+        checkpoint = super().bootstrap(*args, **kwargs)
+        checkpoint.native_state_metadata["native_input_pending"] = True
+        if checkpoint.token_count > self.settings.max_prompt_tokens(1):
+            raise InputBudgetError("prepared native input exceeds the context boundary")
+        return checkpoint
+
+    def materialize_input(self, checkpoint: ModelCheckpoint,
+                          checkpoints: Mapping[str, ModelCheckpoint]) -> ModelCheckpoint:
+        """Materialize exact persisted deltas, preserving every handoff identity.
+
+        Checkpoints are updated in place before the Controller persists the
+        disclosure. A failed allocation leaves the staged selection intact.
+        Neither this method nor recovery generates model output.
+        """
+        self._require_committed(checkpoint)
+        if (checkpoint.native_state_metadata or {}).get("native_input_pending") is not True:
+            return checkpoint
+        pending = []
+        cursor = checkpoint
+        seen = set()
+        while (cursor.native_state_metadata or {}).get("native_input_pending") is True:
+            if cursor.checkpoint_id in seen:
+                raise ModelSessionError("prepared native input has a parent cycle")
+            seen.add(cursor.checkpoint_id)
+            self._require_committed(cursor)
+            pending.append(cursor)
+            if cursor.parent_checkpoint_id is None:
+                cursor = None
+                break
+            parent = checkpoints.get(cursor.parent_checkpoint_id)
+            if parent is None:
+                raise ModelSessionError("prepared native input parent is missing")
+            cursor = parent
+        parent = cursor
+        if parent is not None:
+            parent = self.import_checkpoint(parent.to_dict())
+        for item in reversed(pending):
+            if parent is not None and (parent.model, parent.state_profile_id, parent.state_profile_sha256,
+                    (parent.native_state_metadata or {}).get("model_sha256")) != (
+                    item.model, item.state_profile_id, item.state_profile_sha256,
+                    (item.native_state_metadata or {}).get("model_sha256")):
+                raise ModelSessionError("prepared input parent identity changed")
+            binding = self._cache_binding(item,
+                state_chain_digest=_next_state_chain_digest(
+                    self._binding_from_checkpoint(parent).state_chain_digest if parent else "", item.transcript),
+                delta=item.transcript, parent_state_digest=str(parent.native_state_digest or "") if parent else "")
+            snapshot = (self.native_client.state_append(parent_state_ref=self._state_ref(parent),
+                lane_id=item.lane_id, text=item.transcript, cache_binding=binding) if parent else
+                self.native_client.state_create(lane_id=item.lane_id, text=item.transcript, cache_binding=binding))
+            self._bind_snapshot(item, snapshot, binding)
+            item.native_state_metadata.pop("native_input_pending", None)
+            stored = checkpoints.get(item.checkpoint_id)
+            if stored is not None and stored is not item:
+                stored.__dict__.update(item.__dict__)
+            self._emit({"type": "model_session_cache_materialized", "checkpoint_id": item.checkpoint_id,
+                "state_digest": snapshot.state_digest, "cache_binding_digest": binding.digest,
+                "state_transport": self.transport, "generated": False})
+            parent = item
+        return checkpoint
 
     @staticmethod
     def _state_ref(checkpoint: ModelCheckpoint) -> str:
@@ -1041,7 +1119,6 @@ class NativeRWKVModelSession(ModelSession):
         self._require_committed(checkpoint)
         if get_token_count(suffix) > self.settings.max_prompt_tokens(1):
             raise InputBudgetError("native RWKV continuation delta exceeds 16K")
-        parent_binding = self._binding_from_checkpoint(checkpoint)
         appended = self._checkpoint(
             lane_id=checkpoint.lane_id,
             lane_kind=checkpoint.lane_kind,
@@ -1051,6 +1128,10 @@ class NativeRWKVModelSession(ModelSession):
             event_ids=event_ids,
             status=ModelCheckpointStatus.COMMITTED,
         )
+        if (checkpoint.native_state_metadata or {}).get("native_input_pending") is True:
+            appended.native_state_metadata["native_input_pending"] = True
+            return appended
+        parent_binding = self._binding_from_checkpoint(checkpoint)
         binding = self._cache_binding(
             appended,
             state_chain_digest=_next_state_chain_digest(
@@ -1092,7 +1173,7 @@ class NativeRWKVModelSession(ModelSession):
                 "checkpoint_id": disclosed.checkpoint_id,
                 "new_tokens": get_token_count(disclosure),
                 "goal_state_protocol": (
-                    executor_args_v5.INPUT_SCHEMA_VERSION
+                    executor_args_v6.INPUT_SCHEMA_VERSION
                     if executor_source is not None
                     else ""
                 ),
@@ -1397,7 +1478,7 @@ class NativeRWKVModelSession(ModelSession):
             state_profile_sha256=self.settings.state_profile_sha256,
             prompt_token_ids=_prompt_token_ids(returned.metadata),
             prompt_token_ids_scope=str(returned.metadata.get("prompt_token_ids_scope") or "unspecified"),
-            input_bos_token_count=self.settings.bos_token_count,
+            input_bos_token_count=returned.metadata.get("input_bos_token_count"),
         )
         self._emit(
             {
@@ -1483,6 +1564,8 @@ class NativeRWKVModelSession(ModelSession):
     def import_checkpoint(self, value: Mapping[str, Any]) -> ModelCheckpoint:
         checkpoint = ModelCheckpoint.from_dict(value)
         self._require_committed(checkpoint)
+        if (checkpoint.native_state_metadata or {}).get("native_input_pending") is True:
+            return checkpoint
         if checkpoint.transport != self.transport or not checkpoint.native_state_export:
             raise ModelSessionError("checkpoint is not an exported native RWKV state")
         if _digest_text(checkpoint.transcript) != checkpoint.transcript_digest:

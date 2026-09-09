@@ -37,7 +37,7 @@ NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
 )
 NATIVE_SELECTOR_LANE_ID = "LANE:SELECTOR"
 NATIVE_SELECTOR_WKV_MODE = "fp32io16"
-NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v5"
+NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v6"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 

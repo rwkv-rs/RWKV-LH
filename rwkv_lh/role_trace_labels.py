@@ -14,14 +14,14 @@ from typing import Any
 
 from rwkv_lh.executor_provenance import validate_executor_argument_provenance
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v5, executor_args_v5, finalizer_answer,
+    auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer,
 )
 from rwkv_lh.harness import ActionHarness, HarnessError, TaskAction
 
 
 _MODULES = {
-    "executor_args": executor_args_v5,
-    "auditor_step": auditor_step_v5,
+    "executor_args": executor_args_v6,
+    "auditor_step": auditor_step_v6,
     "auditor_final": auditor_final,
     "finalizer_answer": finalizer_answer,
 }
@@ -78,6 +78,7 @@ def validate_role_target(
             )
             validate_executor_argument_provenance(
                 normalized.action_type, normalized.arguments,
+                immutable_goal=source["immutable_goal"],
                 current_requirement=source["current_requirement"],
                 fact_records=rebuilt["bound_fact_records"],
                 execution_state=source["execution_state"],

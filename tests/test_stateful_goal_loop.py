@@ -70,7 +70,7 @@ from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import SupervisorPolicy
 from rwkv_lh.trace_projection import unresolved_supervisor_pending
-from rwkv_lh.goal_state_protocols import selector_intent_v5, executor_args_v5, finalizer_answer, auditor_final
+from rwkv_lh.goal_state_protocols import selector_intent_v6, executor_args_v6, finalizer_answer, auditor_final
 
 
 def _role_prompt_payload(prompt: str, prefix: str) -> dict:
@@ -373,7 +373,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/selector-intent-v5/select")
+        assert url.endswith("/selector-intent-v6/select")
         self.payloads.append(dict(json))
         menu_order_id = str(json.get("menu_order_id") or "")
         if menu_order_id == "canonical":
@@ -1179,9 +1179,9 @@ def test_scalar_format_hint_and_directory_write_scope_keep_structural_mutations(
     assert "write_json" in operations
     assert "make_directory" in operations
     assert "patch_json" in operations
-    assert contract["compatible_targets_by_operation"]["write_file"] == ["src/app.py"]
+    assert contract["argument_targets_by_operation"]["write_file"]["path"]["compatible_paths"] == ["src/app.py"]
     # Existing file paths are hints for all structural file writers.
-    assert contract["compatible_targets_by_operation"]["write_json"] == ["src/app.py"]
+    assert contract["argument_targets_by_operation"]["write_json"]["path"]["compatible_paths"] == ["src/app.py"]
     assert {"path": "src/app.py", "target_kind": "text_file"} in [
         {"path": item["path"], "target_kind": item["target_kind"]}
         for item in contract["target_descriptors"]
@@ -1246,12 +1246,13 @@ def test_target_contract_excludes_mechanically_completed_roots(
 
     assert contract["phase"] == expected_phase
     assert contract["roots"] == ["verify_project.py"]
-    assert {item["path"] for item in contract["target_descriptors"]} == {
-        "verify_project.py"
-    }
+    assert "verify_project.py" in {item["path"] for item in contract["target_descriptors"]}
     non_empty_candidates = [
         candidates
-        for candidates in contract["compatible_targets_by_operation"].values()
+        for args in contract["argument_targets_by_operation"].values()
+        for name, param in args.items()
+        if name != "source"
+        for candidates in (param["compatible_paths"],)
         if candidates
     ]
     assert non_empty_candidates
@@ -2389,7 +2390,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert len(selector._session.payloads) == 6
     second_selector_step = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV5: "
+            "SelectorIntentPromptV6: "
         )
     )
     assert second_selector_step["current_subtask"]["phase"] == "observe"
@@ -2403,7 +2404,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert progress["last_action"] is None
     assert progress["missing_read_roots"] == ["result.txt"]
     assert progress["missing_write_roots"] == []
-    assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+    assert {"path": "result.txt", "target_kind": "text_file"} in progress["workspace_targets"]
     assert progress["completion_preconditions_satisfied"] is False
     executor_starts = [
         result.state.causal_records[event_id]
@@ -2920,11 +2921,11 @@ def test_successful_directory_observation_repair_can_read_next_without_replannin
     assert len(committed) == 1
     assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
 
-    selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v5.PROMPT_PREFIX)
+    selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v6.PROMPT_PREFIX)
     feedback = selector_input["current_progress"]["feedback"]
     assert feedback["issues"][0]["code"] == "phase_evidence_unproved:observe"
     assert feedback["issues"][0]["criterion"]
-    executor_input = _role_prompt_payload(queue.prompts[2], executor_args_v5.PROMPT_PREFIX)
+    executor_input = _role_prompt_payload(queue.prompts[2], executor_args_v6.PROMPT_PREFIX)
     assert executor_input["execution_state"]["feedback"] == feedback
 
 
@@ -3389,11 +3390,11 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         "\n\n**Tool Call:**", 1
     )[0]
     audit_payload = json.loads(
-        audit_prompt.removeprefix("AuditorStepPromptV5: ")
+        audit_prompt.removeprefix("AuditorStepPromptV6: ")
     )
     assert audit_payload["active_step"]["phase"] == "mutate"
     assert list(audit_payload)[-1] == "current_question"
-    assert state.goal.request not in audit_checkpoint.transcript
+    assert audit_payload["immutable_goal"] == state.goal.request
     assert audit_payload["active_step"]["step_id"] == "S1"
     assert "kernel_bound_fields" not in audit_checkpoint.transcript
     assert "audit_boundary_id" not in audit_payload
@@ -3485,7 +3486,7 @@ def test_rwkv_step_auditor_rejects_gap_outside_visible_v3_catalog(
     audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
         "\n\n**Tool Call:**", 1
     )[0]
-    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV5: "))
+    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV6: "))
     visible_codes = {item["code"] for item in audit_payload["gap_catalog"]}
     assert "invented_gap:not_in_prompt" not in visible_codes
 
@@ -3832,9 +3833,11 @@ def test_stateful_executor_protocol_retry_reuses_consumed_selection(
     assert len(queue.prompts) == 5
 
 
+@pytest.mark.parametrize("restart", [False, True])
 def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    restart: bool,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "STATEFUL-BOUNDED-TOOL-RETRY")
@@ -3905,25 +3908,47 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         staticmethod(lambda *args, **kwargs: None),
     )
 
-    result = StatefulGoalLoopController(
+    class ProcessLoss(BaseException):
+        pass
+    original_save = store.save
+    interrupted = False
+    def save_with_loss(*args, **kwargs):
+        nonlocal interrupted
+        saved = original_save(*args, **kwargs)
+        if restart and not interrupted and saved.protocol_rejections == 2:
+            interrupted = True
+            raise ProcessLoss()
+        return saved
+    monkeypatch.setattr(store, "save", save_with_loss)
+    controller = StatefulGoalLoopController(
         store,
         model=model,
         harness=model.harness,
         supervisor=_StrongPlanner(_strong_patch(state)),
         supervisor_policy=SupervisorPolicy(mode="static"),
         max_transitions=16,
-    ).run(state.run_id)
+    )
+    if restart:
+        with pytest.raises(ProcessLoss):
+            controller.run(state.run_id)
+        assert store.load(state.run_id).protocol_rejections == 2
+    result = controller.run(state.run_id)
 
     assert result.state.status.value == "completed"
     assert result.state.protocol_rejections == 2
     assert len(selector._session.payloads) == 6
     second_selection = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV5: "
+            "SelectorIntentPromptV6: "
         )
     )
     assert second_selection["current_progress"]["assigned_action_count"] == 0
     assert second_selection["current_progress"]["last_action"] is None
+    rejected = second_selection["current_progress"].get("recent_rejections", [])
+    assert len(rejected) == 2
+    assert all(item["selected_operation"] == "write_file" for item in rejected)
+    assert all(item["step_id"] == "S1" and item["step_revision"] == 1 for item in rejected)
+    assert all(item["selection_id"] and item["error"] for item in rejected)
     assert second_selection["current_subtask"]["objective"] == (
         "Create result.txt with verified content"
     )
@@ -3933,7 +3958,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         if event.event_type == "protocol_rejection"
     ]
     assert len(retry_events) == 1
-    assert queue.prompts[2].count("ExecutorArgsPromptV5: ") == 1
+    assert queue.prompts[2].count("ExecutorArgsPromptV6: ") == 1
     assert "protocol_rejection" not in queue.prompts[2]
     executor_starts = [
         result.state.causal_records[event_id]
@@ -4879,10 +4904,10 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     selector_payloads = model.tool_selector._session.payloads
     assert all("parent" not in payload for payload in selector_payloads)
     second_step = json.loads(
-        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV5: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV6: ")
     )
     first_step = json.loads(
-        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV5: ")
+        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV6: ")
     )
     assert second_step["current_subtask"] == first_step["current_subtask"]
     assert first_step["current_progress"]["assigned_action_count"] == 0
@@ -4904,14 +4929,14 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     assert last_action["mutated_roots"] == []
     assert progress["missing_read_roots"] == []
     assert progress["missing_write_roots"] == ["result.txt"]
-    assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+    assert {"path": "result.txt", "target_kind": "text_file"} in progress["workspace_targets"]
     assert progress["completion_preconditions_satisfied"] is False
     second_executor_prompt = session.client.prompts[1]
-    assert "ExecutorArgsPromptV5: " in second_executor_prompt
+    assert "ExecutorArgsPromptV6: " in second_executor_prompt
     assert '"error_type":"InjectedWriteFailure"' in second_executor_prompt
     assert '"error_message":"injected first write failure"' in second_executor_prompt
     assert '"target_kind":"text_file"' in second_executor_prompt
-    assert '"write_file":["result.txt"]' in second_executor_prompt
+    assert '"compatible_paths":["result.txt"]' in second_executor_prompt
     assert '"missing_write_roots":["result.txt"]' in second_executor_prompt
     assert '"completion_preconditions_satisfied":false' in second_executor_prompt
     assert '"completion_authority":false' in second_executor_prompt

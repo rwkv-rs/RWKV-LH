@@ -15,7 +15,7 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.model_io import canonical_digest
-from rwkv_lh.goal_state_protocols import executor_args_v5
+from rwkv_lh.goal_state_protocols import executor_args_v6
 from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
 
 
@@ -756,10 +756,10 @@ def _path_discovery_binding(
     target_contract = execution_state.get("target_contract")
     if isinstance(target_contract, Mapping) and target_contract.get(
         "schema_version"
-    ) == executor_args_v5.TARGET_CONTRACT_SCHEMA_VERSION:
-        compatible = target_contract.get("compatible_targets_by_operation")
+    ) == executor_args_v6.TARGET_CONTRACT_SCHEMA_VERSION:
+        compatible = target_contract.get("argument_targets_by_operation")
         operation_paths = (
-            compatible.get(operation)
+            ((compatible.get(operation) or {}).get("path") or {}).get("compatible_paths")
             if isinstance(compatible, Mapping)
             else None
         )
@@ -898,6 +898,7 @@ def validate_executor_argument_provenance(
     arguments: Mapping[str, Any],
     *,
     current_requirement: str,
+    immutable_goal: str = "",
     fact_records: Sequence[Mapping[str, Any]],
     execution_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -905,7 +906,8 @@ def validate_executor_argument_provenance(
 
     selected_operation = str(operation or "").strip()
     selected_arguments = dict(arguments)
-    selected_requirement = str(current_requirement or "").strip()
+    selected_requirement = "\n".join(item for item in (str(immutable_goal or "").strip(),
+        str(current_requirement or "").strip()) if item)
     selected_execution_state = dict(execution_state or {})
     facts = tuple(dict(item) for item in fact_records)
     action_ids = tuple(str(item.get("action_id") or "") for item in facts)

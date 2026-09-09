@@ -1,4 +1,4 @@
-"""Shared Step-Auditor v5 conditions, visible facts and verdict validation.
+"""Shared Step-Auditor v6 conditions, visible facts and verdict validation.
 
 Mechanical evidence rules apply equally to production and role data.  Possible
 semantic gaps remain questions for RWKV, never pre-established failure facts.
@@ -25,13 +25,14 @@ from rwkv_lh.goal_loop_protocol import action_mutates_root, action_observes_root
 from rwkv_lh.schema import ActionRecord, ActionStatus
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v5"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v6"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorStepPromptV5: "
+PROMPT_PREFIX = "AuditorStepPromptV6: "
 REASON_COMPLETE = "evidence_complete"
 REASON_INCOMPLETE = "evidence_incomplete"
 
 _PROMPT_FIELDS = (
+    "immutable_goal",
     "boundary",
     "active_step",
     "gap_catalog",
@@ -173,6 +174,7 @@ def _validate_gap_catalog(value: Any) -> tuple[Mapping[str, Any], ...]:
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "step auditor prompt source")
+    _nonempty(selected["immutable_goal"], "immutable_goal")
     validate_feedback(selected["feedback"], recipient="auditor_step")
     if selected["boundary"] not in _BOUNDARIES:
         raise ValueError("step auditor boundary is invalid")
@@ -198,6 +200,7 @@ def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
 
 def build_prompt_source(
     *,
+    immutable_goal: str,
     boundary: str,
     active_step: Mapping[str, Any],
     available_evidence_refs: Sequence[str],
@@ -207,6 +210,7 @@ def build_prompt_source(
     """Construct the sole Step Auditor input from the visible evidence boundary."""
 
     source = {
+        "immutable_goal": immutable_goal,
         "boundary": boundary,
         "active_step": dict(active_step),
         "gap_catalog": build_gap_catalog(active_step, evidence_records),
@@ -265,6 +269,7 @@ def render_prompt(source: Any) -> str:
         "role": "auditor_step",
         "boundary": prompt["boundary"],
         "active_step": dict(prompt["active_step"]),
+        "immutable_goal": prompt["immutable_goal"],
         "catalog_semantics": "possible_unmet_conditions",
         "gap_catalog": [dict(item) for item in prompt["gap_catalog"]],
         "available_evidence_refs": list(prompt["available_evidence_refs"]),
@@ -278,7 +283,8 @@ def render_prompt(source: Any) -> str:
             "A successful complete observation can establish that a resource is empty "
             "or that no matching item exists. Always include both "
             "evidence_refs and gaps arrays, even when an array is empty. Use continue "
-            "only when this active step is evidence-complete for its declared phase; "
+            "only when this active step satisfies its success criteria and the relevant "
+            "requirements in immutable_goal, with evidence for its declared phase; "
             "do not require mutation from observe or derive_evidence phases. Otherwise "
             "use repair and copy only exact gap codes from gap_catalog. Use reason "
             f"exactly {REASON_COMPLETE!r} for continue or {REASON_INCOMPLETE!r} for repair."

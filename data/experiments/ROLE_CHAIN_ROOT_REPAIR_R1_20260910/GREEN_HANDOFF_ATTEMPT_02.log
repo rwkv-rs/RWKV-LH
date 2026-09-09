@@ -1,0 +1,275 @@
+......F................................................................. [ 32%]
+........................................................................ [ 64%]
+.................................F.....F................................ [ 96%]
+.......                                                                  [100%]
+=================================== FAILURES ===================================
+______ test_selector_handoff_is_durable_before_native_executor_allocation ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_selector_handoff_is_durab0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7eefd3cea650>
+
+    def test_selector_handoff_is_durable_before_native_executor_allocation(tmp_path, monkeypatch):
+        from test_model_session import FakeNativeStateClient, settings
+        from test_stateful_goal_loop import _strong_patch
+        from rwkv_lh.model_session import NativeRWKVModelSession
+        from rwkv_lh.runtime.protocol import RWKVHTTPError
+        from dataclasses import replace
+        client = FakeNativeStateClient([])
+        native = NativeRWKVModelSession(client, settings=replace(settings(state_transport="native_rwkv",
+            state_profile_id="zero", state_profile_sha256="0" * 64, model_sha256="a" * 64), tool_disclosure_mode="progressive"))
+        selector = _selector(["write_file"])
+        model = LongHorizonModel(native, tool_selector=selector,
+            step_auditor_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            finalizer_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            final_auditor_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)))
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(GoalState.create(request="Create result.txt with verified content",
+            constraints=(), workspace_root=workspace), "NATIVE-HANDOFF-ORDER")
+        monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+    
+        def unavailable(**kwargs):
+            raise RWKVHTTPError("allocation unavailable", status_code=503, retryable=False)
+    
+        monkeypatch.setattr(client, "state_create", unavailable)
+>       result = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)), supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=10).run(state.run_id)
+
+tests/test_role_chain_contracts.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:87: in __init__
+    self.model.validate_goal_role_sessions()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.model.LongHorizonModel object at 0x7eefd3e0c4d0>
+
+    def validate_goal_role_sessions(self) -> None:
+        """Fail closed unless every generative Goal role owns one session."""
+    
+        roles = {
+            "executor_args": self.session,
+            "auditor_step": self.step_auditor_session,
+            "finalizer_answer": self.finalizer_session,
+            "auditor_final": self.final_auditor_session,
+        }
+        if len({id(item) for item in roles.values()}) != len(roles):
+            raise ValueError(
+                "stateful_goal requires distinct Executor, Step Auditor, "
+                "Finalizer, and Final Auditor sessions"
+            )
+        loaded_profiles: dict[tuple[str, str], str] = {}
+        for role, selected_session in roles.items():
+            settings = selected_session.settings
+            profile_id = str(settings.state_profile_id or "")
+            profile_sha = str(settings.state_profile_sha256 or "")
+            expected_id = ROLE_STATE_IDS[role]
+            if profile_id in set(ROLE_STATE_IDS.values()) - {expected_id}:
+                raise ValueError(
+                    f"{role} received another role's State profile: {profile_id}"
+                )
+            if profile_sha and profile_sha != ZERO_STATE_SHA256:
+                identity = (profile_id, profile_sha)
+                prior_role = loaded_profiles.get(identity)
+                if prior_role is not None:
+>                   raise ValueError(
+                        f"{role} and {prior_role} share one loaded State profile"
+                    )
+E                   ValueError: finalizer_answer and auditor_step share one loaded State profile
+
+rwkv_lh/model.py:183: ValueError
+________ test_rwkv_repair_audit_continues_same_step_without_replanning _________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_rwkv_repair_audit_continu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7eefd00ec670>
+
+    def test_rwkv_repair_audit_continues_same_step_without_replanning(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "STATEFUL-STRONG-REPLAN")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "preexisting\n",
+            encoding="utf-8",
+        )
+        session = ModelSession(
+            _QueueClient(
+                [
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "continue",
+                            step_id="S1",
+                            step_complete=True,
+                            evidence_refs=["A00002"],
+                            gaps=[],
+                            reason="the requested artifact now exists",
+                        )
+                    ),
+                    json.dumps(
+                        {
+                            "function": "final_answer",
+                            "params": {"text": "Recovered and created result.txt."},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "ready_for_final",
+                            step_id="",
+                            step_complete=False,
+                            evidence_refs=["A00002"],
+                            gaps=[],
+                            reason="the completed plan has accepted mutation evidence",
+                        )
+                    ),
+                ]
+            ),
+            settings=_settings(progressive=True),
+        )
+        model = LongHorizonModel(
+            session,
+            tool_selector=_selector(["write_file", "write_file"]),
+        )
+        real_execute = model.harness.execute
+        execute_count = 0
+    
+        def fail_first_execution(action, goal):
+            nonlocal execute_count
+            execute_count += 1
+            if execute_count == 1:
+                return ActionResult(
+                    "write_file",
+                    False,
+                    error={
+                        "type": "InjectedWriteFailure",
+                        "message": "injected first write failure",
+                    },
+                )
+            return real_execute(action, goal)
+    
+        monkeypatch.setattr(model.harness, "execute", fail_first_execution)
+        planner = _StrongPlanner(_strong_patch(state))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=12,
+        )
+    
+        result = controller.run(state.run_id)
+    
+        assert result.state.status.value == "completed"
+        assert result.final_output == "Recovered and created result.txt."
+        assert [request.plan_revision for request in planner.requests] == [0]
+        event_types = [
+            result.state.causal_records[event_id].event_type
+            for event_id in result.state.causal_order
+        ]
+        assert event_types.count("goal_plan_patch_committed") == 1
+        assert event_types.count("goal_audit_accepted") == 2
+        assert event_types.count("goal_step_evidence_gap_recorded") == 1
+        assert event_types.count("goal_stage_review_committed") == 1
+        assert event_types.count("rwkv_contract_review_projected") == 0
+        assert event_types.count("contract_graph_review_committed") == 0
+        assert len(result.state.actions) == 2
+        assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
+        assert rolling_goal_plan(result.state).complete is True
+        eligible_labels = [
+            payload["eligible_labels"] for payload in model.tool_selector._session.payloads
+        ]
+        assert len(eligible_labels) == 6
+        assert all("final_answer" not in labels for labels in eligible_labels)
+        selector_payloads = model.tool_selector._session.payloads
+        assert all("parent" not in payload for payload in selector_payloads)
+        second_step = json.loads(
+            selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV6: ")
+        )
+        first_step = json.loads(
+            selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV6: ")
+        )
+        assert second_step["current_subtask"] == first_step["current_subtask"]
+        assert first_step["current_progress"]["assigned_action_count"] == 0
+        progress = second_step["current_progress"]
+        assert progress["assigned_action_count"] == 1
+        assert progress["successful_action_count"] == 0
+        assert progress["failed_action_count"] == 1
+        last_action = progress["last_action"]
+        assert last_action["operation"] == "write_file"
+        assert last_action["status"] == "failed"
+        assert last_action["arguments"] == {
+            "content": "verified", "path": "result.txt",
+            "overwrite": "true", "create_parents": "true",
+        }
+        assert last_action["error_type"] == "InjectedWriteFailure"
+        assert last_action["error_message"] == "injected first write failure"
+        assert last_action["result_metadata"] == {"outcome_type": "failed"}
+        assert last_action["observed_roots"] == []
+        assert last_action["mutated_roots"] == []
+        assert progress["missing_read_roots"] == []
+        assert progress["missing_write_roots"] == ["result.txt"]
+>       assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+E       AssertionError: assert [{'path': '.'... 'text_file'}] == [{'path': 're... 'text_file'}]
+E         
+E         At index 0 diff: {'path': '.', 'target_kind': 'directory'} != {'path': 'result.txt', 'target_kind': 'text_file'}
+E         Left contains one more item: {'path': 'result.txt', 'target_kind': 'text_file'}
+E         Use -v to get more diff
+
+tests/test_stateful_goal_loop.py:4913: AssertionError
+____ test_protocol_schema_identities_are_frozen_without_historical_versions ____
+
+    def test_protocol_schema_identities_are_frozen_without_historical_versions() -> None:
+        import importlib
+        from pathlib import Path
+    
+        modules = {}
+        directory = Path(executor_args_v6.__file__).parent
+        for path in directory.glob("*.py"):
+            if path.name == "__init__.py":
+                continue
+            module = importlib.import_module(f"rwkv_lh.goal_state_protocols.{path.stem}")
+            if hasattr(module, "INPUT_SCHEMA_VERSION"):
+                modules[module] = path.stem
+        expected = {
+            selector_intent_v6: ("selector-intent", "v6"),
+            executor_args_v6: ("executor-args", "v6"),
+            auditor_step_v6: ("auditor-step", "v6"),
+            finalizer_answer: ("finalizer-answer", "v2"),
+            auditor_final: ("auditor-final", "v4"),
+        }
+        assert set(modules) == set(expected)
+        for module, (stage, version) in expected.items():
+            identity = f"rwkv-lh.g1j-per-stage-state-tuning.{stage}.{version}"
+            assert module.INPUT_SCHEMA_VERSION == identity
+            assert module.OUTPUT_SCHEMA_VERSION == identity
+            assert callable(module.build_prompt_source)
+            assert callable(module.render_prompt)
+>           assert all(marker not in identity for marker in (".v6", ".v7", ".v8"))
+E           assert False
+E            +  where False = all(<generator object test_protocol_schema_identities_are_frozen_without_historical_versions.<locals>.<genexpr> at 0x7eefcbe65e50>)
+
+tests/test_goal_state_protocols.py:178: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_chain_contracts.py::test_selector_handoff_is_durable_before_native_executor_allocation
+FAILED tests/test_stateful_goal_loop.py::test_rwkv_repair_audit_continues_same_step_without_replanning
+FAILED tests/test_goal_state_protocols.py::test_protocol_schema_identities_are_frozen_without_historical_versions
+3 failed, 220 passed in 65.42s (0:01:05)

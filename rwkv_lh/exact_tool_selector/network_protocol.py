@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from rwkv_lh.goal_state_protocols import selector_intent_v5
+from rwkv_lh.goal_state_protocols import selector_intent_v6
 from rwkv_lh.model_io import canonical_digest, canonical_json
 
 NETWORK_SELECTOR_INPUT_SCHEMA_VERSION = "rwkv-lh.exact-tool-selector-input.v5"
@@ -164,7 +164,7 @@ class NetworkSelectorInput:
             # StateTune data generation, and acceptance evaluation share this
             # failure-aware v4 validator; older progress shapes are rejected.
             progress = dict(
-                selector_intent_v5.validate_progress(
+                selector_intent_v6.validate_progress(
                     progress,
                     read_roots=subtask["read_roots"],
                     write_roots=subtask["write_roots"],

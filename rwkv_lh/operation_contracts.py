@@ -2,22 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 
-PATH_MUTATION_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "write_file": ("path",),
-    "write_json": ("path",),
-    "patch_json": ("path",),
-    "replace_text": ("path",),
-    "remove_line": ("path",),
-    "append_file": ("path",),
-    "delete_file": ("path",),
-    "make_directory": ("path",),
-    "copy_file": ("destination",),
-    "move_file": ("source", "destination"),
-}
-PATH_MUTATION_OPERATIONS = frozenset(PATH_MUTATION_ARGUMENTS)
 JSON_PATH_OPERATIONS = frozenset({"read_json", "write_json", "patch_json"})
 TEXT_PATH_OPERATIONS = frozenset(
     {"read_file", "write_file", "replace_text", "remove_line", "append_file"}
@@ -34,29 +22,11 @@ WORKSPACE_TARGET_KINDS = frozenset(
         "other",
     }
 )
-OPERATION_TARGET_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "list_directory": ("path",),
-    "search_text": ("path",),
-    "read_file": ("path",),
-    "read_json": ("path",),
-    "file_digest": ("path",),
-    "write_file": ("path",),
-    "write_json": ("path",),
-    "patch_json": ("path",),
-    "replace_text": ("path",),
-    "remove_line": ("path",),
-    "append_file": ("path",),
-    "make_directory": ("path",),
-    "copy_file": ("source", "destination"),
-    "move_file": ("source", "destination"),
-    "delete_file": ("path",),
-    "bind_evidence": ("path",),
-}
 # Content classifications are hints. Eligibility uses filesystem structure;
 # parsing, encoding and mutation-specific conditions remain Harness outcomes.
 _FILE_TARGET_KINDS = frozenset({"json_file", "text_file", "binary_file", "large_file"})
 _CREATABLE_FILE_KINDS = frozenset({"missing", *_FILE_TARGET_KINDS})
-_OPERATION_TARGET_KINDS: dict[str, dict[str, frozenset[str]]] = {
+_PATH_KINDS = {
     "list_directory": {"path": frozenset({"directory"})},
     "search_text": {"path": frozenset({"directory", *_FILE_TARGET_KINDS})},
     **{operation: {"path": _FILE_TARGET_KINDS} for operation in (
@@ -73,6 +43,94 @@ _OPERATION_TARGET_KINDS: dict[str, dict[str, frozenset[str]]] = {
 }
 
 
+@dataclass(frozen=True)
+class PathArgumentContract:
+    accepted_kinds: frozenset[str]
+    access: str
+
+
+# One declaration owns structural preconditions AND filesystem effects.
+# All downstream projections, including Harness mutation accounting, derive here.
+PATH_ARGUMENT_CONTRACTS = {
+    operation: {
+        name: PathArgumentContract(kinds,
+            "read_write" if operation == "move_file" and name == "source"
+            else "read" if operation in {"list_directory", "search_text", "read_file",
+                "read_json", "file_digest", "bind_evidence"} or name == "source"
+            else "write")
+        for name, kinds in arguments.items()
+    } for operation, arguments in _PATH_KINDS.items()
+}
+OPERATION_TARGET_ARGUMENTS = {op: tuple(args) for op, args in PATH_ARGUMENT_CONTRACTS.items()}
+PATH_MUTATION_ARGUMENTS = {
+    op: tuple(name for name, contract in args.items() if contract.access != "read")
+    for op, args in PATH_ARGUMENT_CONTRACTS.items()
+    if any(contract.access != "read" for contract in args.values())
+}
+PATH_MUTATION_OPERATIONS = frozenset(PATH_MUTATION_ARGUMENTS)
+DISTINCT_PATH_ARGUMENTS = {operation: ("source", "destination") for operation in ("copy_file", "move_file")}
+
+
+def path_within_roots(path: str, roots: Sequence[str]) -> bool:
+    parts = tuple(p for p in str(path).replace("\\", "/").split("/") if p not in {"", "."})
+    if ".." in parts or str(path).startswith("/"):
+        return False
+    for root in roots:
+        parent = tuple(p for p in str(root).replace("\\", "/").split("/") if p not in {"", "."})
+        if ".." not in parent and (not parent or parts[:len(parent)] == parent):
+            return True
+    return False
+
+
+def project_argument_targets(*, operations: Sequence[str], roots: Sequence[str],
+                             scope_roots: Sequence[str], descriptors: Sequence[Mapping],
+                             discovery_complete: bool) -> dict:
+    """Express each parameter independently; unknown discovery never proves absence."""
+    result = {}
+    for operation in operations:
+        arguments = {}
+        for name, spec in PATH_ARGUMENT_CONTRACTS.get(operation, {}).items():
+            scope = (tuple(scope_roots) if spec.access == "read_write" else (".",)
+                     if name == "source" else tuple(roots) or (".",))
+            visible = [item for item in descriptors if path_within_roots(item["path"], scope)]
+            candidates = list(compatible_target_paths(operation, visible, argument_name=name))
+            directories = [item["path"] for item in visible if item["target_kind"] == "directory"]
+            creatable = directories if "missing" in spec.accepted_kinds else []
+            # Unexpanded/omitted directories may contain a usable path. A known
+            # missing file, in contrast, is fully observed even if another scope is not.
+            complete = discovery_complete or (not directories and bool(visible))
+            arguments[name] = {"access": spec.access, "scope_roots": list(scope),
+                "compatible_paths": candidates, "creatable_roots": creatable,
+                "discovery_complete": complete,
+                "availability": "available" if candidates or creatable else "unavailable" if complete else "unknown"}
+        result[operation] = arguments
+    return result
+
+
+def eligible_target_operations(argument_targets: Mapping) -> tuple[str, ...]:
+    selected = []
+    for operation, arguments in argument_targets.items():
+        if any(item["availability"] == "unavailable" for item in arguments.values()):
+            continue
+        pair = DISTINCT_PATH_ARGUMENTS.get(operation)
+        if pair:
+            left, right = (arguments[name] for name in pair)
+            if (not left["creatable_roots"] and not right["creatable_roots"]
+                and left["discovery_complete"] and right["discovery_complete"]
+                and len(set(left["compatible_paths"]) | set(right["compatible_paths"])) < 2):
+                continue
+        selected.append(operation)
+    return tuple(selected)
+
+
+def summarize_operation_targets(argument_targets: Mapping) -> dict:
+    """Selector needs preconditions and effects, not every possible argument."""
+    return {op: {name: {"access": item["access"], "scope_roots": list(item["scope_roots"]),
+        "availability": item["availability"], "compatible_path_count": len(item["compatible_paths"]),
+        "creatable_root_count": len(item["creatable_roots"]), "discovery_complete": item["discovery_complete"]}
+        for name, item in args.items()} for op, args in argument_targets.items()}
+
+
 def operation_accepts_target_kind(
     operation: str,
     target_kind: str,
@@ -85,11 +143,11 @@ def operation_accepts_target_kind(
     selected_kind = str(target_kind or "").strip()
     if selected_kind not in WORKSPACE_TARGET_KINDS:
         raise ValueError(f"unsupported workspace target kind: {selected_kind!r}")
-    argument_contract = _OPERATION_TARGET_KINDS.get(selected_operation)
+    argument_contract = PATH_ARGUMENT_CONTRACTS.get(selected_operation)
     if argument_contract is None:
         return True
     allowed = argument_contract.get(str(argument_name or "").strip())
-    return allowed is not None and selected_kind in allowed
+    return allowed is not None and selected_kind in allowed.accepted_kinds
 
 
 def compatible_target_paths(

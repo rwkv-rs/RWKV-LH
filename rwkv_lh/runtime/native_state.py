@@ -11,6 +11,7 @@ from rwkv_lh.runtime.protocol import RuntimeCapabilities
 
 
 NATIVE_STATE_PROTOCOL_VERSION = "rwkv-lh.native-state.v1"
+NATIVE_STATE_LIFECYCLE_VERSION = "rwkv-lh.native-state-lifecycle.v1"
 
 
 def _canonical_digest(value: Mapping[str, Any]) -> str:

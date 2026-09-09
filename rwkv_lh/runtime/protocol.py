@@ -239,6 +239,7 @@ class RuntimeCapabilities:
     recurrent_state_export: bool = False
     recurrent_state_import: bool = False
     recurrent_state_protocol: str = ""
+    recurrent_state_chunked_prefill: bool = False
     recurrent_state_request_recovery: bool = False
     recurrent_state_request_recovery_protocol: str = ""
     error: str = ""
@@ -283,6 +284,7 @@ class RuntimeCapabilities:
             recurrent_state_import=bool(raw_state.get("import", False)),
             recurrent_state_protocol=str(raw_state.get("protocol") or ""),
             recurrent_state_request_recovery=raw_state.get("request_recovery") is True,
+            recurrent_state_chunked_prefill=raw_state.get("chunked_prefill") is True,
             recurrent_state_request_recovery_protocol=str(raw_state.get("request_recovery_protocol") or ""),
         )
 
@@ -301,6 +303,7 @@ class RuntimeCapabilities:
                 "import": self.recurrent_state_import,
                 "protocol": self.recurrent_state_protocol,
                 "request_recovery": self.recurrent_state_request_recovery,
+                "chunked_prefill": self.recurrent_state_chunked_prefill,
                 "request_recovery_protocol": self.recurrent_state_request_recovery_protocol,
                 "durable": self.durable_recurrent_state,
             },

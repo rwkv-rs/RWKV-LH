@@ -109,6 +109,16 @@ def invoke(runtime, operation):
     raise AssertionError(operation)
 
 
+def test_native_generation_requests_actual_full_input_token_evidence(monkeypatch):
+    server = JournalServer()
+    runtime = client(monkeypatch, server)
+    from dataclasses import replace
+    runtime.settings = replace(runtime.settings, return_token_ids=True)
+    assert runtime.settings.return_token_ids is True
+    invoke(runtime, 'generate')
+    assert server.calls[0][2].get('return_token_ids') is True
+
+
 @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
 @pytest.mark.parametrize('lose_response', [False, True])
 def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):

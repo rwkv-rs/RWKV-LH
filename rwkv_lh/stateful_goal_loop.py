@@ -13,7 +13,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     goal_frontier_selector_context,
 )
-from rwkv_lh.goal_state_protocols import selector_intent_v5
+from rwkv_lh.goal_state_protocols import selector_intent_v6
 from rwkv_lh.goal_loop_protocol import (
     GOAL_PLAN_PATCH_SCHEMA_VERSION,
     GoalAuditDecision,
@@ -33,6 +33,7 @@ from rwkv_lh.goal_loop_protocol import (
 )
 from rwkv_lh.goal_state_protocols.feedback import build_feedback
 from rwkv_lh.role_feedback import (
+    step_rejections,
     audit_protocol_rejections, feedback_for_audit, pending_final_execution_repair,
     step_feedback,
 )
@@ -360,7 +361,7 @@ class StatefulGoalLoopController(LongHorizonController):
         *,
         target_contract: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Project bounded current-step facts for fresh Selector Intent v5.
+        """Project bounded current-step facts for fresh Selector Intent v6.
 
         Delegates to the single shared ``build_current_progress`` so production,
         StateTune data generation, and acceptance evaluation agree byte for byte.
@@ -381,7 +382,7 @@ class StatefulGoalLoopController(LongHorizonController):
         )
         if any(action.status is ActionStatus.RUNNING for action in assigned):
             raise ValueError("Selector progress cannot include a running action")
-        progress = selector_intent_v5.build_current_progress(
+        progress = selector_intent_v6.build_current_progress(
             assigned_actions=assigned,
             read_roots=tuple(step.read_roots),
             write_roots=tuple(step.write_roots),
@@ -393,6 +394,8 @@ class StatefulGoalLoopController(LongHorizonController):
             action_mutates_root=action_mutates_root,
             feedback=step_feedback(state, step_id, step_revision),
             discovery_complete=bool((target_contract or {}).get("discovery_complete", False)),
+            recent_rejections=step_rejections(state, step_id, step_revision),
+            operation_targets=(target_contract or {}).get("argument_targets_by_operation"),
         )
         # Reuse the production request validator before any model call.
         SelectorStageContext(
@@ -472,9 +475,9 @@ class StatefulGoalLoopController(LongHorizonController):
             ),
             key=lambda item: item.sequence,
         )
-        from rwkv_lh.goal_state_protocols import executor_args_v5
+        from rwkv_lh.goal_state_protocols import executor_args_v6
 
-        return executor_args_v5.build_execution_state(
+        return executor_args_v6.build_execution_state(
             active_step_id=step_id,
             active_step_revision=step_revision,
             declared_phase=step.phase,
@@ -483,6 +486,7 @@ class StatefulGoalLoopController(LongHorizonController):
             mechanical_evidence=mechanical_evidence,
             target_contract=target_contract,
             feedback=step_feedback(state, step_id, step_revision),
+            recent_rejections=step_rejections(state, step_id, step_revision),
         )
 
     @staticmethod
@@ -610,63 +614,30 @@ class StatefulGoalLoopController(LongHorizonController):
                 "Planner target roots cannot be resolved by the Harness: "
                 f"roots={list(roots)!r}; {type(exc).__name__}: {exc}"
             ) from exc
-        projected_descriptors = tuple(
-            {
-                key: item[key]
-                for key in ("path", "type", "target_kind", "exists", "size_bytes")
-                if key in item
-            }
-            for item in descriptors
-        )
-        compatible: dict[str, list[str]] = {}
-        filtered: list[str] = []
-        directory_roots = tuple(
-            str(item["path"])
-            for item in projected_descriptors
-            if item.get("target_kind") == "directory"
-            and str(item.get("path") or "") in {str(root) for root in roots}
-        )
-        for operation in operations:
-            target_arguments = OPERATION_TARGET_ARGUMENTS.get(operation, ())
-            if not roots or not target_arguments:
-                filtered.append(operation)
-                continue
-            target_argument = (
-                "destination"
-                if operation in {"copy_file", "move_file"}
-                else "path"
+        # Copy sources are reads anywhere in the authorized workspace. Move
+        # sources are writes too, so their complete step scope must be observed.
+        if any("source" in OPERATION_TARGET_ARGUMENTS.get(op, ()) for op in operations):
+            source_descriptors, source_complete = self.harness.workspace_target_descriptors(
+                state.goal, (".",), expand_directories=True, max_entries=256,
             )
-            candidates = compatible_target_paths(
-                operation,
-                projected_descriptors,
-                argument_name=target_argument,
-            )
-            if not candidates and directory_roots:
-                # A directory write root authorises creating a new child path;
-                # any mutation that accepts a missing target stays eligible and
-                # the directory itself is the compatible scope hint.
-                if not discovery_complete or operation_accepts_target_kind(
-                    operation, "missing", argument_name=target_argument
-                ):
-                    candidates = directory_roots
-            compatible[operation] = list(candidates)
-            if candidates:
-                filtered.append(operation)
+            descriptors = tuple({str(item["path"]): item for item in (*descriptors, *source_descriptors)}.values())
+            discovery_complete = discovery_complete and source_complete
+        from rwkv_lh.goal_state_protocols import executor_args_v6
+        from rwkv_lh.operation_contracts import eligible_target_operations
+
+        contract = executor_args_v6.build_target_contract(
+            phase=phase, roots=roots, scope_roots=step.write_roots if phase == "mutate" else roots,
+            target_descriptors=descriptors, operations=operations,
+            discovery_complete=discovery_complete,
+        )
+        filtered = eligible_target_operations(contract["argument_targets_by_operation"])
         if not filtered:
             raise GoalTargetContractError(
                 "Planner phase/target contract has no compatible authorized "
                 f"operation for step {step.step_id!r}; roots={list(roots)!r}, "
-                f"target_kinds={[item['target_kind'] for item in projected_descriptors]!r}"
+                f"target_kinds={[item['target_kind'] for item in descriptors]!r}"
             )
-        from rwkv_lh.goal_state_protocols import executor_args_v5
-
-        return tuple(filtered), executor_args_v5.build_target_contract(
-            phase=phase,
-            roots=roots,
-            target_descriptors=projected_descriptors,
-            compatible_targets_by_operation=compatible,
-            discovery_complete=discovery_complete,
-        )
+        return filtered, contract
 
     @staticmethod
     def _goal_step_target_roots(
@@ -701,24 +672,8 @@ class StatefulGoalLoopController(LongHorizonController):
 
     @staticmethod
     def _target_within_roots(path: str, roots: tuple[str, ...]) -> bool:
-        normalized = str(path or "").strip().replace("\\", "/")
-        if not normalized:
-            return False
-        target_parts = tuple(
-            part for part in normalized.split("/") if part not in {"", "."}
-        )
-        for root in roots:
-            normalized_root = str(root or "").strip().replace("\\", "/")
-            if normalized_root == ".":
-                return True
-            root_parts = tuple(
-                part
-                for part in normalized_root.split("/")
-                if part not in {"", "."}
-            )
-            if target_parts and root_parts and target_parts[: len(root_parts)] == root_parts:
-                return True
-        return False
+        from rwkv_lh.operation_contracts import path_within_roots
+        return path_within_roots(path, roots)
 
     @classmethod
     def _run_command_write_scope_gaps(
@@ -784,13 +739,9 @@ class StatefulGoalLoopController(LongHorizonController):
         if not argument_names:
             return
         roots = tuple(str(item) for item in target_contract.get("roots") or ())
-        relevant_scope_arguments = (
-            ("destination",)
-            if operation in {"copy_file", "move_file"}
-            else ("path",)
-            if "path" in argument_names
-            else argument_names
-        )
+        from rwkv_lh.operation_contracts import PATH_ARGUMENT_CONTRACTS
+        specs = PATH_ARGUMENT_CONTRACTS.get(operation, {})
+        write_scope = tuple(str(item) for item in target_contract["scope_roots"])
         failures: list[str] = []
         for argument_name in argument_names:
             raw_path = decision.command.arguments.get(argument_name)
@@ -820,20 +771,16 @@ class StatefulGoalLoopController(LongHorizonController):
                 continue
             if (
                 roots
-                and argument_name in relevant_scope_arguments
-                and not self._target_within_roots(str(descriptor["path"]), roots)
+                and (specs[argument_name].access != "read" or argument_name != "source")
+                and not self._target_within_roots(str(descriptor["path"]),
+                    write_scope if specs[argument_name].access != "read" else roots)
             ):
                 failures.append(
                     f"{argument_name}={descriptor['path']!r} is outside roots={list(roots)!r}"
                 )
         if not failures:
             return
-        alternatives = list(
-            (target_contract.get("compatible_targets_by_operation") or {}).get(
-                operation,
-                (),
-            )
-        )[:32]
+        alternatives = target_contract["argument_targets_by_operation"].get(operation, {})
         raise ModelProtocolError(
             "[operation_target_contract] selected operation arguments are not "
             f"Harness-compatible: {'; '.join(failures)}; "

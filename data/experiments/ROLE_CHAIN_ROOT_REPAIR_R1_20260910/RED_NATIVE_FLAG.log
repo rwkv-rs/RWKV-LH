@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_native_generation_requests_actual_full_input_token_evidence _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x754bbdf3fa80>
+
+    def test_native_generation_requests_actual_full_input_token_evidence(monkeypatch):
+        server = JournalServer()
+        runtime = client(monkeypatch, server)
+        from dataclasses import replace
+        runtime.settings = replace(runtime.settings, return_token_ids=True)
+        assert runtime.settings.return_token_ids is True
+        invoke(runtime, 'generate')
+>       assert server.calls[0][2].get('return_token_ids') is True
+E       AssertionError: assert None is True
+E        +  where None = <built-in method get of dict object at 0x754bbe7b95c0>('return_token_ids')
+E        +    where <built-in method get of dict object at 0x754bbe7b95c0> = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}.get
+
+tests/test_native_request_protocol.py:119: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_native_request_protocol.py::test_native_generation_requests_actual_full_input_token_evidence
+1 failed in 0.03s

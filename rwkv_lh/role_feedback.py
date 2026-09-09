@@ -8,6 +8,36 @@ from typing import Any
 
 from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.goal_loop_protocol import GoalAuditDecision, rolling_goal_plan
+from rwkv_lh.goal_state_protocols.execution_failures import build_rejections
+
+
+def step_rejections(state: Any, step_id: str, step_revision: int) -> list[dict]:
+    """Restore pre-execution failures since the last action on this exact step.
+
+    Keep the semantic audit feedback separately: an invalid parameter call does
+    not supersede the Auditor's still-unresolved task criterion.
+    """
+    plan = rolling_goal_plan(state)
+    if step_id not in plan.steps or plan.step_revisions.get(step_id, 1) != step_revision:
+        raise ValueError("rejections require the current committed step revision")
+    records = []
+    for event in _events(state):
+        payload = event.payload
+        if event.event_type == "action_started":
+            break
+        if event.event_type != "protocol_rejection_recorded" or payload.get("protocol_scope") != "action":
+            continue
+        if (payload.get("active_step_id"), payload.get("active_step_revision")) != (step_id, step_revision):
+            continue
+        if not payload.get("selection_id") or not payload.get("selected_operation"):
+            continue
+        records.append({"event_id": event.event_id, "selection_id": payload["selection_id"],
+            "step_id": step_id, "step_revision": step_revision,
+            "selected_operation": payload["selected_operation"],
+            "rejected_arguments": payload.get("rejected_arguments") or {},
+            "error_kind": str(payload.get("error_kind") or ""), "error": payload["error"],
+            "action_executed": False})
+    return build_rejections(list(reversed(records)))
 
 
 def _events(state):

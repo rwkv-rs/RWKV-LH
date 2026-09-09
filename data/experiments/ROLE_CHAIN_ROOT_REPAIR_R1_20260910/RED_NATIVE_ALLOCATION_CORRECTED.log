@@ -1,0 +1,82 @@
+Baseline: audited d0f2d180 _checkpoint; corrected current test fixture; local Git only.
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_selector_handoff_is_durable_before_native_executor_allocation ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_selector_handoff_is_durab0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x708dd7eafce0>
+
+    def test_selector_handoff_is_durable_before_native_executor_allocation(tmp_path, monkeypatch):
+        from test_model_session import FakeNativeStateClient, settings
+        from test_stateful_goal_loop import _strong_patch
+        from rwkv_lh.model_session import NativeRWKVModelSession
+        from rwkv_lh.runtime.protocol import RWKVHTTPError
+        from dataclasses import replace
+        client = FakeNativeStateClient([])
+        native = NativeRWKVModelSession(client, settings=replace(settings(state_transport="native_rwkv",
+            state_profile_id="zero", state_profile_sha256="0" * 64, model_sha256="a" * 64), tool_disclosure_mode="progressive"))
+        selector = _selector(["write_file"])
+        model = LongHorizonModel(native, tool_selector=selector,
+            step_auditor_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            finalizer_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            final_auditor_session=ModelSession(_QueueClient([]), settings=_settings(progressive=True)))
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(GoalState.create(request="Create result.txt with verified content",
+            constraints=(), workspace_root=workspace), "NATIVE-HANDOFF-ORDER")
+        monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+    
+        def unavailable(**kwargs):
+            raise RWKVHTTPError("allocation unavailable", status_code=503, retryable=False)
+    
+        monkeypatch.setattr(client, "state_create", unavailable)
+>       result = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)), supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=10).run(state.run_id)
+
+tests/test_role_chain_contracts.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:87: in __init__
+    self.model.validate_goal_role_sessions()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.model.LongHorizonModel object at 0x708dd6429160>
+
+    def validate_goal_role_sessions(self) -> None:
+        """Fail closed unless every generative Goal role owns one session."""
+    
+        roles = {
+            "executor_args": self.session,
+            "auditor_step": self.step_auditor_session,
+            "finalizer_answer": self.finalizer_session,
+            "auditor_final": self.final_auditor_session,
+        }
+        if len({id(item) for item in roles.values()}) != len(roles):
+            raise ValueError(
+                "stateful_goal requires distinct Executor, Step Auditor, "
+                "Finalizer, and Final Auditor sessions"
+            )
+        loaded_profiles: dict[tuple[str, str], str] = {}
+        for role, selected_session in roles.items():
+            settings = selected_session.settings
+            profile_id = str(settings.state_profile_id or "")
+            profile_sha = str(settings.state_profile_sha256 or "")
+            expected_id = ROLE_STATE_IDS[role]
+            if profile_id in set(ROLE_STATE_IDS.values()) - {expected_id}:
+                raise ValueError(
+                    f"{role} received another role's State profile: {profile_id}"
+                )
+            if profile_sha and profile_sha != ZERO_STATE_SHA256:
+                identity = (profile_id, profile_sha)
+                prior_role = loaded_profiles.get(identity)
+                if prior_role is not None:
+>                   raise ValueError(
+                        f"{role} and {prior_role} share one loaded State profile"
+                    )
+E                   ValueError: finalizer_answer and auditor_step share one loaded State profile
+
+rwkv_lh/model.py:183: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_role_chain_contracts.py::test_selector_handoff_is_durable_before_native_executor_allocation
+1 failed in 1.24s

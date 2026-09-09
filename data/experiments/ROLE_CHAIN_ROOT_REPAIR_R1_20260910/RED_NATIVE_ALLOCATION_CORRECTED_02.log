@@ -1,0 +1,46 @@
+Baseline: audited d0f2d180 _checkpoint; corrected current test fixture; local Git only.
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_selector_handoff_is_durable_before_native_executor_allocation ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_selector_handoff_is_durab0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e280baabce0>
+
+    def test_selector_handoff_is_durable_before_native_executor_allocation(tmp_path, monkeypatch):
+        from test_model_session import FakeNativeStateClient, settings
+        from test_stateful_goal_loop import _strong_patch
+        from rwkv_lh.model_session import NativeRWKVModelSession
+        from rwkv_lh.runtime.protocol import RWKVHTTPError
+        from dataclasses import replace
+        client = FakeNativeStateClient([])
+        native = NativeRWKVModelSession(client, settings=replace(settings(state_transport="native_rwkv",
+            state_profile_id="zero", state_profile_sha256="0" * 64, model_sha256="a" * 64), tool_disclosure_mode="progressive"))
+        selector = _selector(["write_file"])
+        model = LongHorizonModel(native, tool_selector=selector,
+            step_auditor_session=ModelSession(_QueueClient([]), settings=replace(_settings(progressive=True), state_profile_id="zero", state_profile_sha256="0" * 64)),
+            finalizer_session=ModelSession(_QueueClient([]), settings=replace(_settings(progressive=True), state_profile_id="zero", state_profile_sha256="0" * 64)),
+            final_auditor_session=ModelSession(_QueueClient([]), settings=replace(_settings(progressive=True), state_profile_id="zero", state_profile_sha256="0" * 64)))
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(GoalState.create(request="Create result.txt with verified content",
+            constraints=(), workspace_root=workspace), "NATIVE-HANDOFF-ORDER")
+        monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+    
+        def unavailable(**kwargs):
+            raise RWKVHTTPError(503, "allocation unavailable", retryable=False)
+    
+        monkeypatch.setattr(client, "state_create", unavailable)
+        result = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)), supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=10).run(state.run_id)
+>       assert len(selector._session.payloads) == 3
+E       assert 0 == 3
+E        +  where 0 = len([])
+E        +    where [] = <test_stateful_goal_loop._SelectorHTTP object at 0x7e280b8e0c20>.payloads
+E        +      where <test_stateful_goal_loop._SelectorHTTP object at 0x7e280b8e0c20> = <rwkv_lh.exact_tool_selector.native_network_client.NativeNetworkSelectorClient object at 0x7e280b8e0d70>._session
+
+tests/test_role_chain_contracts.py:121: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_chain_contracts.py::test_selector_handoff_is_durable_before_native_executor_allocation
+1 failed in 1.06s

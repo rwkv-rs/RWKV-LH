@@ -1,6 +1,6 @@
 """Observation-conditioned production/data protocol for the G1J Executor.
 
-V5 owns the typed progress contract and makes the factual authority of
+V6 owns the typed progress contract and makes the factual authority of
 the preceding Harness observations explicit.  A navigation summary may help the
 model find material, but it is never authority for a path, source literal, cursor,
 or read-modify-write base revision.
@@ -9,27 +9,32 @@ or read-modify-write base revision.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 from rwkv_lh.goal_state_protocols import (
     _exact_fields, _nonempty, _objects, _render, _strict_command, _strings,
 )
 from rwkv_lh.goal_state_protocols.feedback import validate_feedback
+from rwkv_lh.goal_state_protocols.execution_failures import build_rejections, validate_rejections
 from rwkv_lh.model_io import ModelCommand, TOOL_CALL_JSON_CONTINUATION_ANCHOR
 from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
+from rwkv_lh.operation_contracts import project_argument_targets
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v5"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v6"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "ExecutorArgsPromptV5: "
+PROMPT_PREFIX = "ExecutorArgsPromptV6: "
 OBSERVATION_BINDING_SCHEMA_VERSION = "rwkv-lh.executor-observation-binding.v1"
-TARGET_CONTRACT_SCHEMA_VERSION = "rwkv-lh.goal-step-target-contract.v2"
+TARGET_CONTRACT_SCHEMA_VERSION = "rwkv-lh.goal-step-target-contract.v3"
 EXACT_SOURCE_RULE = (
-    "mutation_literals_must_be_copied_from_exact_spans_or_literal_structured_fields"
+    "observed_literals_require_exact_sources_authored_content_follows_immutable_goal"
 )
 STALE_SNAPSHOT_POLICY = "read_modify_write_requires_matching_base_sha256"
+MAX_DISCOVERED_PATH_HINTS_PER_ARGUMENT = 32
 
 _PROMPT_FIELDS = (
+    "immutable_goal",
     "current_requirement",
     "execution_state",
     "observation_binding",
@@ -62,6 +67,7 @@ _EXECUTION_STATE_FIELDS = (
     "last_action",
     "feedback",
     "target_contract",
+    "recent_rejections",
 )
 _LAST_ACTION_FIELDS = (
     "action_id",
@@ -85,7 +91,8 @@ _TARGET_CONTRACT_FIELDS = (
     "phase",
     "roots",
     "target_descriptors",
-    "compatible_targets_by_operation",
+    "scope_roots",
+    "argument_targets_by_operation",
     "discovery_complete",
 )
 _PHASES = {"observe", "mutate", "execute", "derive_evidence"}
@@ -136,14 +143,15 @@ def _validate_target_contract(value: Any) -> Mapping[str, Any]:
             _nonnegative_int(descriptor["size_bytes"], "target descriptor size_bytes")
     if not isinstance(contract["discovery_complete"], bool):
         raise ValueError("target discovery completeness must be explicit")
-    compatible = contract["compatible_targets_by_operation"]
-    if not isinstance(compatible, Mapping):
-        raise ValueError("compatible_targets_by_operation must be an object")
-    for operation, paths in compatible.items():
-        _nonempty(operation, "compatible target operation")
-        _strings(paths, f"compatible targets for {operation}")
-        if not set(paths) <= descriptor_paths:
-            raise ValueError("compatible target path lacks a typed descriptor")
+    _strings(contract["scope_roots"], "target_contract.scope_roots")
+    arguments = contract["argument_targets_by_operation"]
+    if not isinstance(arguments, Mapping):
+        raise ValueError("argument_targets_by_operation must be an object")
+    expected = project_argument_targets(operations=tuple(arguments), roots=contract["roots"],
+        scope_roots=contract["scope_roots"], descriptors=descriptors,
+        discovery_complete=contract["discovery_complete"])
+    if arguments != expected:
+        raise ValueError("argument target contract differs from typed descriptors and effects")
     return contract
 
 
@@ -152,7 +160,8 @@ def build_target_contract(
     phase: str,
     roots: Sequence[str],
     target_descriptors: Sequence[Mapping[str, Any]],
-    compatible_targets_by_operation: Mapping[str, Sequence[str]],
+    operations: Sequence[str],
+    scope_roots: Sequence[str] | None = None,
     discovery_complete: bool = True,
 ) -> dict[str, Any]:
     """Project Harness descriptors into the exact Executor target contract."""
@@ -165,9 +174,10 @@ def build_target_contract(
              if key in item}
             for item in target_descriptors
         ],
-        "compatible_targets_by_operation": {
-            operation: list(paths) for operation, paths in compatible_targets_by_operation.items()
-        },
+        "scope_roots": list(roots if scope_roots is None else scope_roots),
+        "argument_targets_by_operation": project_argument_targets(
+            operations=operations, roots=roots, scope_roots=roots if scope_roots is None else scope_roots,
+            descriptors=target_descriptors, discovery_complete=discovery_complete),
     }
     contract["discovery_complete"] = discovery_complete
     _validate_target_contract(contract)
@@ -200,6 +210,10 @@ def _validate_execution_state(value: Any) -> Mapping[str, Any]:
     _strings(state["remaining_write_roots"], "execution_state.remaining_write_roots")
     validate_feedback(state["feedback"], recipient="executor_args")
     _validate_target_contract(state["target_contract"])
+    validate_rejections(state["recent_rejections"])
+    if any((item["step_id"], item["step_revision"]) != (state["active_step_id"], state["active_step_revision"])
+           for item in state["recent_rejections"]):
+        raise ValueError("rejection belongs to another step revision")
 
     last_action = state["last_action"]
     if assigned == 0:
@@ -249,6 +263,7 @@ def build_execution_state(
     mechanical_evidence: Mapping[str, Any],
     target_contract: Mapping[str, Any],
     feedback: Mapping[str, Any] | None = None,
+    recent_rejections: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Project step-bound durable Harness actions through the one current constructor.
 
@@ -315,13 +330,43 @@ def build_execution_state(
         "last_action": last_action,
         "feedback": dict(feedback) if feedback is not None else None,
         "target_contract": dict(target_contract),
+        "recent_rejections": build_rejections(recent_rejections),
     }
     _validate_execution_state(state)
     return state
 
 
+def project_execution_state(execution_state: Mapping[str, Any], operation: str) -> dict[str, Any]:
+    """Keep the selected tool's contract and explicit scopes in its role input.
+
+    The complete mechanical registry remains in the durable Controller boundary.
+    Only optional discovery hints are bounded; declared roots and task text are
+    never truncated. Omitted descriptors explicitly mean incomplete discovery.
+    """
+    _validate_execution_state(execution_state)
+    state = deepcopy(dict(execution_state))
+    contract = state["target_contract"]
+    arguments = contract["argument_targets_by_operation"].get(operation)
+    if arguments is None:
+        raise ValueError("selected operation lacks its parameter contract")
+    required = {*contract["roots"], *contract["scope_roots"],
+        *(root for item in arguments.values() for root in item["scope_roots"])}
+    keep = {str(path).removeprefix("./") or "." for path in required}
+    for item in arguments.values():
+        keep.update(item["compatible_paths"][:MAX_DISCOVERED_PATH_HINTS_PER_ARGUMENT])
+        keep.update(item["creatable_roots"][:MAX_DISCOVERED_PATH_HINTS_PER_ARGUMENT])
+    descriptors = [item for item in contract["target_descriptors"] if item["path"] in keep]
+    state["target_contract"] = build_target_contract(
+        phase=contract["phase"], roots=contract["roots"], scope_roots=contract["scope_roots"],
+        target_descriptors=descriptors, operations=(operation,),
+        discovery_complete=contract["discovery_complete"] and len(descriptors) == len(contract["target_descriptors"]),
+    )
+    return state
+
+
 def build_prompt_source(
     *,
+    immutable_goal: str,
     current_requirement: str,
     execution_state: Mapping[str, Any],
     selected_operation: str,
@@ -332,8 +377,9 @@ def build_prompt_source(
     """Build and validate the same ordered input for runtime, data and evaluation."""
     facts = sorted(set(committed_fact_refs))
     source = {
+        "immutable_goal": immutable_goal,
         "current_requirement": current_requirement,
-        "execution_state": dict(execution_state),
+        "execution_state": project_execution_state(execution_state, selected_operation),
         "observation_binding": observation_binding(facts),
         "selected_operation": selected_operation,
         "selected_tool_contract": dict(selected_tool_contract),
@@ -346,6 +392,7 @@ def build_prompt_source(
 
 def build_source(
     *,
+    immutable_goal: str,
     current_requirement: str,
     execution_state: Mapping[str, Any],
     selected_operation: str,
@@ -358,6 +405,7 @@ def build_source(
 ) -> dict[str, Any]:
     """Attach a trace-backed target to the shared prompt input."""
     source = build_prompt_source(
+        immutable_goal=immutable_goal,
         current_requirement=current_requirement, execution_state=execution_state,
         selected_operation=selected_operation, selected_tool_contract=selected_tool_contract,
         committed_fact_refs=committed_fact_refs, executor_history=executor_history,
@@ -418,6 +466,7 @@ def _validate_observation_binding(
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "executor prompt source")
+    _nonempty(selected["immutable_goal"], "immutable_goal")
     _nonempty(selected["current_requirement"], "current_requirement")
     _validate_execution_state(selected["execution_state"])
     operation = _nonempty(selected["selected_operation"], "selected_operation")
@@ -459,6 +508,7 @@ def render_prompt(source: Any) -> str:
     payload = {
         "schema_version": INPUT_SCHEMA_VERSION,
         "role": "executor_args",
+        "immutable_goal": prompt["immutable_goal"],
         "current_requirement": prompt["current_requirement"],
         "execution_state": dict(prompt["execution_state"]),
         "observation_binding": dict(prompt["observation_binding"]),
@@ -467,9 +517,11 @@ def render_prompt(source: Any) -> str:
         "committed_fact_refs": list(prompt["committed_fact_refs"]),
         "executor_history": [dict(item) for item in prompt["executor_history"]],
         "current_question": (
-            "Return one canonical direct call for the selected operation. Derive each "
-            "factual parameter from the bound Harness observations. Copy code, text, "
-            "paths, cursors, identifiers, and structured values exactly; a navigation "
+            "Return one canonical direct call for the selected operation. "
+            "Create new content from immutable_goal and the current step requirements. "
+            "Authored code and text need not already exist in observations. When referring "
+            "to existing source content, paths, cursors, identifiers or observed values, "
+            "use exact bound evidence or explicit requirement literals; a navigation "
             "summary is not factual evidence. For patch_json, replace_text, or "
             "remove_line, include the exact current file base_sha256. Do not select "
             "another operation or answer the user."

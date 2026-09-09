@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import executor_args_v5
+from rwkv_lh.goal_state_protocols import executor_args_v6
 from rwkv_lh.benchmark_verifier import CheckResult, IsolatedVerifierResult
 from rwkv_lh.controller import ControllerResult
 from rwkv_lh.model_session import SessionSampling
@@ -126,7 +126,7 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
             FixtureResource(definition.key, "acceptance.json"),
         ),
     )
-    monkeypatch.setattr(executor_args_v5, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
+    monkeypatch.setattr(executor_args_v6, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
     sampling = SessionSampling(temperature=0.37, top_p=0.88)
     monkeypatch.setattr(benchmark.LongHorizonModel, "_SAMPLING", sampling)
     arguments = argparse.Namespace(
@@ -159,7 +159,7 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
         for filename in ("tasks.json", "acceptance.json")
     ]
     assert {resource["suite"] for resource in protocol["source_resources"]} == set(expected_keys)
-    assert protocol["architecture"] == executor_args_v5.INPUT_SCHEMA_VERSION
+    assert protocol["architecture"] == executor_args_v6.INPUT_SCHEMA_VERSION
     assert protocol["sampling"]["sampling_policy"]["temperature"] == sampling.temperature
     assert protocol["sampling"]["top_p"] == sampling.top_p
     assert protocol["supervisor_batch_failure_policy"] == "continue_model_failures"

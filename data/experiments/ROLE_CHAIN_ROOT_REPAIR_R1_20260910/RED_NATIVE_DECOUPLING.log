@@ -1,0 +1,272 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_selector_handoff_is_durable_before_native_executor_allocation ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_selector_handoff_is_durab0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75e2a93bb820>
+
+    def test_selector_handoff_is_durable_before_native_executor_allocation(tmp_path, monkeypatch):
+        from test_model_session import FakeNativeStateClient, settings
+        from test_stateful_goal_loop import _strong_patch
+        from rwkv_lh.model_session import NativeRWKVModelSession
+        from rwkv_lh.runtime.protocol import RWKVHTTPError
+        client = FakeNativeStateClient([])
+        native = NativeRWKVModelSession(client, settings=settings(state_transport="native_rwkv",
+            state_profile_id="zero", state_profile_sha256="0" * 64, model_sha256="a" * 64))
+        selector = _selector(["write_file"])
+>       model = LongHorizonModel(native, tool_selector=selector)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_chain_contracts.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.model.LongHorizonModel object at 0x75e2a8c68ec0>
+session = <rwkv_lh.model_session.NativeRWKVModelSession object at 0x75e2a8c68830>
+harness = None
+tool_selector = <rwkv_lh.exact_tool_selector.native_network_client.NativeNetworkSelectorClient object at 0x75e2a8c68d70>
+auditor_session = None, step_auditor_session = None, finalizer_session = None
+final_auditor_session = None
+
+    def __init__(
+        self,
+        session: ModelSession | None = None,
+        *,
+        harness: ActionHarness | None = None,
+        tool_selector: NativeNetworkSelectorClient | None = None,
+        auditor_session: ModelSession | None = None,
+        step_auditor_session: ModelSession | None = None,
+        finalizer_session: ModelSession | None = None,
+        final_auditor_session: ModelSession | None = None,
+    ) -> None:
+        self.harness = harness or ActionHarness()
+        self.session = session or create_model_session()
+    
+        def isolated_copy(source: ModelSession) -> ModelSession:
+            role_settings = replace(
+                source.settings,
+                state_profile_id="",
+                state_profile_sha256="",
+            )
+            if type(source) is ModelSession:
+                return ModelSession(
+                    source.client,
+                    settings=role_settings,
+                    audit_hook=source.audit_hook,
+                )
+            return create_model_session(
+                settings=role_settings,
+                audit_hook=source.audit_hook,
+            )
+    
+        self.step_auditor_session = (
+            step_auditor_session
+            or auditor_session
+            or isolated_copy(self.session)
+        )
+        self.finalizer_session = finalizer_session or isolated_copy(self.session)
+        self.final_auditor_session = final_auditor_session or isolated_copy(
+            self.step_auditor_session
+        )
+        # Compatibility for read-only callers. Goal mode uses the explicit
+        # boundary roles and rejects shared instances during construction.
+        self.auditor_session = self.step_auditor_session
+        self.tool_selector = tool_selector
+        operation_definitions = {
+            str(item["name"]): dict(item)
+            for item in self.harness.g1i_tool_definitions()
+        }
+        preferred_order = (
+            "list_directory",
+            "search_text",
+            "read_file",
+            "read_json",
+            "file_digest",
+            "write_file",
+            "write_json",
+            "patch_json",
+            "replace_text",
+            "remove_line",
+            "append_file",
+            "make_directory",
+            "copy_file",
+            "move_file",
+            "delete_file",
+            "bind_evidence",
+            "check_command",
+            "run_command",
+        )
+        if getattr(self.harness, "operation_order_authority", ""):
+            ordered = list(operation_definitions.values())
+        else:
+            ordered = [
+                operation_definitions.pop(name)
+                for name in preferred_order
+                if name in operation_definitions
+            ]
+            ordered.extend(operation_definitions.values())
+        self._action_definitions = ordered
+        self._definition_names = {str(item["name"]) for item in ordered}
+        self._all_definitions = [*ordered, deepcopy(FINAL_ANSWER_DEFINITION)]
+        self._definitions_by_name = {
+            str(item["name"]): deepcopy(item) for item in self._all_definitions
+        }
+        self._menu_definitions = [
+            {
+                "name": str(item["name"]),
+                "description": str(item["description"]),
+            }
+            for item in self._all_definitions
+        ]
+        self._progressive_tool_disclosure = (
+            self.session.settings.tool_disclosure_mode == "progressive"
+        )
+        if self.tool_selector is not None:
+            if not self._progressive_tool_disclosure:
+>               raise ValueError(
+                    "independent tool Selector requires progressive disclosure"
+                )
+E               ValueError: independent tool Selector requires progressive disclosure
+
+rwkv_lh/model.py:283: ValueError
+___ test_independent_role_does_not_materialize_executor_cache[auditor_step] ____
+
+controller_role_snapshots = ([RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and repor...at='2026-09-09T17:42:58.281+00:00', updated_at='2026-09-09T17:42:59.708+00:00', schema_version='long-horizon.run.v18'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75e2a96236f0>
+role = 'auditor_step'
+
+    @pytest.mark.parametrize("role", ["auditor_step", "finalizer_answer", "auditor_final"])
+    def test_independent_role_does_not_materialize_executor_cache(controller_role_snapshots, monkeypatch, role):
+        import json
+        from test_stateful_goal_loop import _audit_call
+        snapshots, _ = controller_role_snapshots
+        target_type = "goal_finalizer_session_started" if role == "finalizer_answer" else "goal_auditor_session_started"
+        state = next(state for state in snapshots if state.causal_records[state.causal_order[-1]].event_type == target_type
+            and (role == "finalizer_answer" or state.causal_records[state.causal_order[-1]].payload["auditor_role"] == role))
+        output = ModelCommand("final_answer", {"text": "Created result.txt."}).canonical if role == "finalizer_answer" else json.dumps(_audit_call(
+            "continue" if role == "auditor_step" else "ready_for_final",
+            step_id="S1" if role == "auditor_step" else "", step_complete=role == "auditor_step",
+            evidence_refs=["A00001"], gaps=[], reason="Evidence complete"))
+        model = LongHorizonModel(ModelSession(_QueueClient([output]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        def forbidden(*args, **kwargs):
+            pytest.fail("independent role accessed Executor cache")
+        monkeypatch.setattr(model, "_checkpoint", forbidden)
+        monkeypatch.setattr(model, "_append_event", forbidden)
+        persist = lambda *args, **kwargs: None
+        if role == "finalizer_answer":
+            model.finalize_goal_answer(state, persist)
+        else:
+>           model.audit_goal_boundary(state, persist, boundary="mutation_transaction_complete" if role == "auditor_step" else "pre_final",
+                active_step_id="S1" if role == "auditor_step" else "", final_candidate=role == "auditor_final",
+                final_candidate_command=ModelCommand("final_answer", {"text": "Created result.txt."}) if role == "auditor_final" else None,
+                relevant_evidence_refs=["A00001"])
+
+tests/test_role_chain_contracts.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model.py:979: in audit_goal_boundary
+    checkpoint = self._checkpoint(state, persist)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and report...on.run.v18'), <function test_independent_role_does_not_materialize_executor_cache.<locals>.<lambda> at 0x75e2a9423560>)
+kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail("independent role accessed Executor cache")
+E       Failed: independent role accessed Executor cache
+
+tests/test_role_chain_contracts.py:137: Failed
+_ test_independent_role_does_not_materialize_executor_cache[finalizer_answer] __
+
+controller_role_snapshots = ([RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and repor...at='2026-09-09T17:42:59.860+00:00', updated_at='2026-09-09T17:43:00.563+00:00', schema_version='long-horizon.run.v18'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75e2a950dfd0>
+role = 'finalizer_answer'
+
+    @pytest.mark.parametrize("role", ["auditor_step", "finalizer_answer", "auditor_final"])
+    def test_independent_role_does_not_materialize_executor_cache(controller_role_snapshots, monkeypatch, role):
+        import json
+        from test_stateful_goal_loop import _audit_call
+        snapshots, _ = controller_role_snapshots
+        target_type = "goal_finalizer_session_started" if role == "finalizer_answer" else "goal_auditor_session_started"
+        state = next(state for state in snapshots if state.causal_records[state.causal_order[-1]].event_type == target_type
+            and (role == "finalizer_answer" or state.causal_records[state.causal_order[-1]].payload["auditor_role"] == role))
+        output = ModelCommand("final_answer", {"text": "Created result.txt."}).canonical if role == "finalizer_answer" else json.dumps(_audit_call(
+            "continue" if role == "auditor_step" else "ready_for_final",
+            step_id="S1" if role == "auditor_step" else "", step_complete=role == "auditor_step",
+            evidence_refs=["A00001"], gaps=[], reason="Evidence complete"))
+        model = LongHorizonModel(ModelSession(_QueueClient([output]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        def forbidden(*args, **kwargs):
+            pytest.fail("independent role accessed Executor cache")
+        monkeypatch.setattr(model, "_checkpoint", forbidden)
+        monkeypatch.setattr(model, "_append_event", forbidden)
+        persist = lambda *args, **kwargs: None
+        if role == "finalizer_answer":
+>           model.finalize_goal_answer(state, persist)
+
+tests/test_role_chain_contracts.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model.py:783: in finalize_goal_answer
+    checkpoint = self._checkpoint(state, persist)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and report...on.run.v18'), <function test_independent_role_does_not_materialize_executor_cache.<locals>.<lambda> at 0x75e2a9423ba0>)
+kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail("independent role accessed Executor cache")
+E       Failed: independent role accessed Executor cache
+
+tests/test_role_chain_contracts.py:137: Failed
+___ test_independent_role_does_not_materialize_executor_cache[auditor_final] ___
+
+controller_role_snapshots = ([RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and repor...at='2026-09-09T17:43:00.922+00:00', updated_at='2026-09-09T17:43:01.564+00:00', schema_version='long-horizon.run.v18'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75e2a9434160>
+role = 'auditor_final'
+
+    @pytest.mark.parametrize("role", ["auditor_step", "finalizer_answer", "auditor_final"])
+    def test_independent_role_does_not_materialize_executor_cache(controller_role_snapshots, monkeypatch, role):
+        import json
+        from test_stateful_goal_loop import _audit_call
+        snapshots, _ = controller_role_snapshots
+        target_type = "goal_finalizer_session_started" if role == "finalizer_answer" else "goal_auditor_session_started"
+        state = next(state for state in snapshots if state.causal_records[state.causal_order[-1]].event_type == target_type
+            and (role == "finalizer_answer" or state.causal_records[state.causal_order[-1]].payload["auditor_role"] == role))
+        output = ModelCommand("final_answer", {"text": "Created result.txt."}).canonical if role == "finalizer_answer" else json.dumps(_audit_call(
+            "continue" if role == "auditor_step" else "ready_for_final",
+            step_id="S1" if role == "auditor_step" else "", step_complete=role == "auditor_step",
+            evidence_refs=["A00001"], gaps=[], reason="Evidence complete"))
+        model = LongHorizonModel(ModelSession(_QueueClient([output]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        def forbidden(*args, **kwargs):
+            pytest.fail("independent role accessed Executor cache")
+        monkeypatch.setattr(model, "_checkpoint", forbidden)
+        monkeypatch.setattr(model, "_append_event", forbidden)
+        persist = lambda *args, **kwargs: None
+        if role == "finalizer_answer":
+            model.finalize_goal_answer(state, persist)
+        else:
+>           model.audit_goal_boundary(state, persist, boundary="mutation_transaction_complete" if role == "auditor_step" else "pre_final",
+                active_step_id="S1" if role == "auditor_step" else "", final_candidate=role == "auditor_final",
+                final_candidate_command=ModelCommand("final_answer", {"text": "Created result.txt."}) if role == "auditor_final" else None,
+                relevant_evidence_refs=["A00001"])
+
+tests/test_role_chain_contracts.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model.py:979: in audit_goal_boundary
+    checkpoint = self._checkpoint(state, persist)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and report...on.run.v18'), <function test_independent_role_does_not_materialize_executor_cache.<locals>.<lambda> at 0x75e2a8e24ae0>)
+kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail("independent role accessed Executor cache")
+E       Failed: independent role accessed Executor cache
+
+tests/test_role_chain_contracts.py:137: Failed
+=========================== short test summary info ============================
+FAILED tests/test_role_chain_contracts.py::test_selector_handoff_is_durable_before_native_executor_allocation
+FAILED tests/test_role_chain_contracts.py::test_independent_role_does_not_materialize_executor_cache[auditor_step]
+FAILED tests/test_role_chain_contracts.py::test_independent_role_does_not_materialize_executor_cache[finalizer_answer]
+FAILED tests/test_role_chain_contracts.py::test_independent_role_does_not_materialize_executor_cache[auditor_final]
+4 failed, 6 deselected in 4.57s

@@ -1,6 +1,6 @@
 # Controller 与角色的链路契约
 
-状态：2026-09-09 当前实现契约。`CONTROLLER_ROLE_CLOSURE_R1_20260909` 已接通下列交接，验证及限制见同轮报告；生产模型的能力表现必须另用新冻结运行测量。前轮 `CONTROLLER_FAILURE_ROUTING_R1_20260909` 的断点探针作为整改来源。
+状态：2026-09-10，`ROLE_CHAIN_ROOT_REPAIR_R1_20260910` 正在对交接和 Native 状态管理进行架构整改。此前闭环并未保证原始需求、参数拒绝和 Native 输入证据实际到达；八项根因见 `ERROR_PROPAGATION_AUDIT_R1_20260909`。生产模型能力必须用新冻结运行测量，工程通过不等于 Agent 通过。
 
 Owner 本轮明确：保留当前五角色，先分析链路连接；兼容各种任务依靠统一设计，不依靠题型、路径或后缀穷举。此前的逐角色 StateTune、取消固定三轮上限、重新部署 2.9B 并验证训练后端的授权继续有效；当前先完成本链路工作。
 
@@ -9,6 +9,14 @@ Owner 本轮明确：保留当前五角色，先分析链路连接；兼容各�
 Selector 选择操作；Executor 填写该操作的参数；Harness 执行；Step Auditor 判断当前步骤是否有充分证据；Finalizer 根据事实作答；Final Auditor 审查最终回答与目标。Planner 和 Stage Checker 保持既有计划与阶段职责。Controller 负责授权、事务、证据引用、预算与执行顺序。
 
 不增减五个训练角色，不引入外置 Head、第二套 Controller、替代模型或按题目编写的恢复流程。下面的投影与校验是现有因果日志上的纯函数，不是另一套拥有完成权限的状态机。RWKV 仍负责工具选择、参数、语义完成与回答判断。
+
+任务状态与模型缓存分开：需求、计划版本、动作、拒绝和审计结果以同一份持久因果日志为准。Selector 的选择绑定已保存的逻辑输入及模型/State 身份，先提交交接，再由 Executor 按原始输入段加载数值缓存。缓存故障不撤销已提交的选择；新的工具选择、独立审计及最终回答不导入上一角色的缓存。已发生动作的结果先记录，再由下一次角色输入投影读取。
+
+Executor v6 同时接收 immutable_goal 与当前步骤；Step Auditor v6 接收原始需求和具体成功条件。新内容可以依据需求创作，现有事实、游标、路径及 RMW 基础版本仍要求准确来源。Selector v6 / Executor v6 的 recent_rejections 从同一步骤 revision 的未消费拒绝记录重建，和审计语义 feedback 分别保留。
+
+工具路径合同由 operation_contracts.py 的参数声明统一导出结构前提和读写副作用。copy 的 source 为工作区内读取；move 的 source 是修改，必须在完整 write_roots 内。Selector 接收各参数的可用性和副作用摘要；Executor 只接收已选工具的参数合同。原始需求、显式范围完整保留，附加发现提示有界且省略时标记不完整；完整描述留在原始交接边界中，生产与 trace 使用同一投影函数。
+
+Native 指直接管理 RWKV 循环 State 的推理传输。服务、worker 和请求身份代码以当前仓库为唯一来源；部署引擎直接导入，删除引擎内重复实现。服务持久记录实际消费的 token，跨 append/import/restart 保留；只有与本地逐段输入重建匹配的 full_context 及真实 BOS 记录才构成训练输入证据。
 
 ```mermaid
 flowchart LR

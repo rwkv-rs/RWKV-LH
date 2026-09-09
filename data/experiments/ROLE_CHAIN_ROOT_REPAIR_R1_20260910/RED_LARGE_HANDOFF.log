@@ -1,0 +1,33 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_large_discovery_does_not_flood_role_handoffs _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_large_discovery_does_not_0')
+
+    def test_large_discovery_does_not_flood_role_handoffs(tmp_path):
+        import json
+        from rwkv_lh.goal_state_protocols import executor_args_v6, selector_intent_v6
+        from rwkv_lh.token_budget import get_token_count
+        controller, state, step = setup_scope(tmp_path, roots=(".",))
+        for index in range(300):
+            (Path(state.goal.workspace_root) / f"item-{index:04d}").write_text("input fact")
+        _, contract = controller._goal_step_operation_contract(state, step)
+        execution = executor_args_v6.build_execution_state(active_step_id="S1", active_step_revision=1,
+            declared_phase="mutate", effective_phase="mutate", assigned_actions=[], mechanical_evidence={}, target_contract=contract)
+        source = executor_args_v6.build_prompt_source(immutable_goal=state.goal.request, current_requirement=step.objective,
+            execution_state=execution, selected_operation="write_file", selected_tool_contract=controller.model._definitions_by_name["write_file"],
+            committed_fact_refs=[], executor_history=[])
+        progress = selector_intent_v6.build_current_progress(assigned_actions=[], read_roots=[], write_roots=step.write_roots,
+            mechanical_evidence={}, target_descriptors=contract["target_descriptors"], action_observes_root=lambda *_: False,
+            action_mutates_root=lambda *_: False, discovery_complete=contract["discovery_complete"],
+            operation_targets=contract["argument_targets_by_operation"])
+>       assert get_token_count(executor_args_v6.render_generation_prompt(source)) < 8192
+E       assert 22783 < 8192
+E        +  where 22783 = <function get_token_count at 0x7f81b21b45e0>('ExecutorArgsPromptV6: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v6","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n')
+E        +    where 'ExecutorArgsPromptV6: {"schema_version":"rwkv-lh.g1j-per-stage-state-tuning.executor-args.v6","role":"executor_args",...e exact current file base_sha256. Do not select another operation or answer the user."}\n\n**Tool Call:**\n\n```json\n' = <function render_generation_prompt at 0x7f81b2220cc0>({'immutable_goal': 'Produce an output', 'current_requirement': 'Produce the output', 'execution_state': {'active_step_... [], 'exact_source_rule': 'observed_literals_require_exact_sources_authored_content_follows_immutable_goal', ...}, ...})
+E        +      where <function render_generation_prompt at 0x7f81b2220cc0> = <module 'rwkv_lh.goal_state_protocols.executor_args_v6' from '/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_state_protocols/executor_args_v6.py'>.render_generation_prompt
+
+tests/test_role_chain_contracts.py:83: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_chain_contracts.py::test_large_discovery_does_not_flood_role_handoffs
+1 failed in 1.03s

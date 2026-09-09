@@ -32,14 +32,14 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     build_network_selector_input,
 )
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
-from rwkv_lh.goal_state_protocols import executor_args_v5 as executor_args_protocol
+from rwkv_lh.goal_state_protocols import executor_args_v6 as executor_args_protocol
 from rwkv_lh.goal_state_protocols import auditor_final as auditor_final_protocol
-from rwkv_lh.goal_state_protocols import auditor_step_v5 as auditor_step_protocol
+from rwkv_lh.goal_state_protocols import auditor_step_v6 as auditor_step_protocol
 from rwkv_lh.goal_state_protocols import finalizer_answer as finalizer_protocol
 from rwkv_lh.goal_state_protocols.feedback import semantic_feedback
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    selector_intent_v5 as selector_intent_v5_protocol,
+    selector_intent_v6 as selector_intent_v6_protocol,
 )
 from rwkv_lh.harness import ActionHarness, HarnessError
 from rwkv_lh.goal_loop_protocol import (
@@ -380,7 +380,13 @@ class LongHorizonModel:
     ) -> ActionDecision:
         if event is not None and events:
             raise ValueError("pass either event or events, not both")
-        checkpoint = self._checkpoint(state, persist)
+        pending_events = tuple(events) if events else ((event,) if event is not None else ())
+        previous = state.model_states.get(state.lane_head("executor"))
+        fresh_executor = (self.tool_selector is not None and previous is not None
+            and not state.pending_selection_id
+            and not self._progressive_retry_operation(pending_events, previous)
+            and (bool(state.tool_selections) or bool(state.actions)))
+        checkpoint = previous if fresh_executor else self._checkpoint(state, persist)
         selected_requirement = str(
             state.goal.request
             if current_requirement is None
@@ -780,7 +786,7 @@ class LongHorizonModel:
     ) -> ActionDecision:
         """Create a non-terminal final candidate in a clean Finalizer State."""
 
-        checkpoint = self._checkpoint(state, persist)
+        executor_checkpoint_id = state.lane_head("executor")
         plan = rolling_goal_plan(state)
         if not plan.complete or not plan.completed_step_ids:
             raise ModelProtocolError(
@@ -836,7 +842,7 @@ class LongHorizonModel:
                 "prompt_sha256": hashlib.sha256(
                     assignment.encode("utf-8")
                 ).hexdigest(),
-                "executor_checkpoint_id": checkpoint.checkpoint_id,
+                "executor_checkpoint_id": executor_checkpoint_id,
                 "executor_state_inherited": False,
                 "selector_state_inherited": False,
                 "wkv_merged": False,
@@ -976,15 +982,10 @@ class LongHorizonModel:
             or max_attempts != 1
         ):
             raise ValueError("Goal Audit permits exactly one visible model attempt")
-        checkpoint = self._checkpoint(state, persist)
+        executor_checkpoint_id = state.lane_head("executor")
         selected_boundary_id = str(audit_boundary_id or "").strip()
         if event is not None:
-            checkpoint = self._append_event(
-                state,
-                checkpoint,
-                event,
-                persist,
-            )
+            self._record_role_fact(state, event, persist)
         plan = rolling_goal_plan(state)
         selected_step_id = str(active_step_id or "").strip()
         if selected_step_id and selected_step_id not in plan.steps:
@@ -1069,6 +1070,7 @@ class LongHorizonModel:
                 lane_kind = ModelLaneKind.STEP_AUDIT
                 lane_role = "auditor_step"
                 prompt_source = auditor_step_protocol.build_prompt_source(
+                    immutable_goal=state.goal.request,
                     boundary=str(boundary),
                     active_step=active_step,
                     available_evidence_refs=bounded_evidence_refs,
@@ -1103,7 +1105,7 @@ class LongHorizonModel:
                     "prompt_sha256": hashlib.sha256(
                         assignment.encode("utf-8")
                     ).hexdigest(),
-                    "executor_checkpoint_id": checkpoint.checkpoint_id,
+                    "executor_checkpoint_id": executor_checkpoint_id,
                     "executor_state_inherited": False,
                     "wkv_merged": False,
                 },
@@ -1250,12 +1252,7 @@ class LongHorizonModel:
                         },
                         content_refs=audit.evidence_refs,
                     )
-                    checkpoint = self._append_event(
-                        state,
-                        checkpoint,
-                        accepted_event,
-                        persist,
-                    )
+                    self._record_role_fact(state, accepted_event, persist)
                     persist(
                         state,
                         "goal_audit_accepted",
@@ -1268,7 +1265,7 @@ class LongHorizonModel:
                             "audit_boundary_id": selected_boundary_id,
                             "attempt": attempt,
                             "request_id": candidate.request_id,
-                            "main_checkpoint_id": checkpoint.checkpoint_id,
+                            "main_checkpoint_id": executor_checkpoint_id,
                             "kernel_validated": True,
                             "authorizes_execution": False,
                             "executor_state_inherited": False,
@@ -1319,6 +1316,9 @@ class LongHorizonModel:
             raise ModelProtocolError(
                 "Harness action_result must target the Executor action lane"
             )
+        if self.tool_selector is not None:
+            self._record_role_fact(state, event, persist)
+            return state.model_states[state.lane_head("executor")]
         checkpoint = self._checkpoint(state, persist)
         return self._append_event(state, checkpoint, event, persist)
 
@@ -1486,30 +1486,9 @@ class LongHorizonModel:
                 if self.session.transport != "native_rwkv":
                     raise
                 if state.pending_selection_id:
-                    selection = state.tool_selections.get(state.pending_selection_id)
-                    if (
-                        selection is None
-                        or selection.status is not ToolSelectionStatus.STAGED
-                    ):
-                        raise ModelProtocolError(
-                            "pending Selector handoff cannot be discarded safely"
-                        ) from exc
-                    discarded = replace(
-                        selection,
-                        status=ToolSelectionStatus.DISCARDED,
-                        discarded_at=utc_now(),
-                        discard_reason="executor_wkv_cache_unavailable",
-                    )
-                    persist(
-                        state,
-                        "exact_tool_selection_discarded",
-                        {
-                            "selection_id": discarded.selection_id,
-                            "selection": discarded.to_dict(),
-                            "reason": discarded.discard_reason,
-                            "authorizes_execution": False,
-                        },
-                    )
+                    # A committed selection is a durable decision, not a WKV
+                    # cache property. Keep it pending if its cache cannot load.
+                    raise
                 return self._rebuild_native_executor_cache(
                     state,
                     checkpoint,
@@ -1521,7 +1500,7 @@ class LongHorizonModel:
             recent_limit=0,
             executor_only=self.tool_selector is not None,
         )
-        checkpoint = self.session.bootstrap(
+        checkpoint = (self.session.prepare_bootstrap if self.tool_selector is not None else self.session.bootstrap)(
             ModelLaneKind.ACTION,
             assignment,
             (
@@ -1582,7 +1561,7 @@ class LongHorizonModel:
                 action_ids=fact_action_ids,
             )
             try:
-                checkpoint = self.session.bootstrap(
+                checkpoint = self.session.prepare_bootstrap(
                     ModelLaneKind.ACTION,
                     self._assignment(
                         state,
@@ -1852,6 +1831,18 @@ class LongHorizonModel:
             "authoritative state projection exceeds the native RWKV bootstrap "
             "boundary after causal-fact limits 12, 8, 4, 2, and 0"
         ) from last_budget_error
+
+    def _record_role_fact(self, state: RunState, event: ModelEvent, persist: PersistCallback) -> None:
+        """Commit cross-role facts independently of any numerical State cache."""
+        existing = state.model_events.get(event.event_id)
+        if existing is not None:
+            if existing.to_dict() != event.to_dict():
+                raise ModelProtocolError("model event id collision")
+            return
+        state.model_events[event.event_id] = event
+        persist(state, "action_observation_appended", {"model_event": event.to_dict(),
+            "event_id": event.event_id, "event_type": event.event_type,
+            "executor_cache_required": False})
 
     def _append_event(
         self,
@@ -2243,8 +2234,8 @@ class LongHorizonModel:
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "input_protocol": self.tool_selector.settings.input_protocol,
-                "protocol_schema_version": selector_intent_v5_protocol.INPUT_SCHEMA_VERSION,
-                "protocol_sha256": self._protocol_sha256(selector_intent_v5_protocol),
+                "protocol_schema_version": selector_intent_v6_protocol.INPUT_SCHEMA_VERSION,
+                "protocol_sha256": self._protocol_sha256(selector_intent_v6_protocol),
                 "selector_input_scope": "current_subtask_mechanical_progress_and_last_action_outcome",
                 "selector_state_policy": "fresh_initial_state_per_evaluation",
             }
@@ -2293,10 +2284,10 @@ class LongHorizonModel:
                 "selector_attestation": {
                     **self.tool_selector.settings.runtime_identity(),
                     "protocol_schema_version": (
-                        selector_intent_v5_protocol.INPUT_SCHEMA_VERSION
+                        selector_intent_v6_protocol.INPUT_SCHEMA_VERSION
                     ),
                     "protocol_sha256": self._protocol_sha256(
-                        selector_intent_v5_protocol
+                        selector_intent_v6_protocol
                     ),
                 },
             },
@@ -2553,6 +2544,7 @@ class LongHorizonModel:
         # Name only the facts actually retained by this checkpoint after any
         # input-budget fallback, never the pre-fallback requested scope.
         source = executor_args_protocol.build_prompt_source(
+            immutable_goal=state.goal.request,
             current_requirement=current_requirement,
             execution_state=execution_state,
             selected_operation=str(definition["name"]),
@@ -2604,6 +2596,8 @@ class LongHorizonModel:
             if protocol_source is not None
             else None
         )
+        checkpoint = self.session.materialize_input(checkpoint, state.model_states)
+        state.model_states[checkpoint.checkpoint_id] = checkpoint
         disclosed = self.session.disclose_tool(
             checkpoint,
             definition,
@@ -2854,9 +2848,11 @@ class LongHorizonModel:
                         validate_executor_argument_provenance(
                             command.name,
                             command.arguments,
+                            immutable_goal=state.goal.request,
                             current_requirement=selected_requirement,
                             fact_records=bound_fact_records,
-                            execution_state=executor_execution_state,
+                            execution_state=executor_args_protocol.project_execution_state(
+                                executor_execution_state, command.name),
                         )
                     )
             committed = self.session.commit(candidate, wire_command)

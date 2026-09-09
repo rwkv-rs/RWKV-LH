@@ -95,6 +95,30 @@ def event(identifier="EV-RESULT"):
     return ModelEvent("action_result", identifier, "CONTEXT:ROOT", {"observed": "ok"})
 
 
+def test_prepared_native_handoff_rebuilds_exact_input_after_process_restart():
+    from rwkv_lh.schema import ModelCheckpoint
+    original_client = TokenNativeClient([])
+    events = []
+    config = settings(state_profile_id="zero", state_profile_sha256="0" * 64, model_sha256="a" * 64)
+    session = NativeRWKVModelSession(original_client, settings=config, audit_hook=events.append)
+    initial = session.prepare_bootstrap(ModelLaneKind.ACTION, "Exact immutable requirements.",
+        [], lane_id="CONTEXT:ROOT", independent_tool_selector=True)
+    head = session.append(initial, event(), include_generation_anchor=False)
+    assert original_client.calls == []
+    restored = {item.checkpoint_id: ModelCheckpoint.from_dict(item.to_dict()) for item in (initial, head)}
+    client = TokenNativeClient([])
+    restarted = NativeRWKVModelSession(client, settings=config, audit_hook=events.append)
+    imported = restarted.import_checkpoint(restored[head.checkpoint_id].to_dict())
+    assert client.calls == []
+    rebuilt = restarted.materialize_input(imported, restored)
+    assert rebuilt.checkpoint_id == head.checkpoint_id
+    assert [method for method, _ in client.calls] == ["create", "append"]
+    context = reconstruct_context(rebuilt.checkpoint_id, restored, events)
+    assert context["prompt_text"] == initial.transcript + head.transcript
+    assert context["prompt_text"] == client.states[rebuilt.native_state_ref]
+    assert context["reconstructed_token_ids"] == tokenizer().encode(initial.transcript) + tokenizer().encode(head.transcript)
+
+
 def test_native_rebuilds_full_stream_across_stop_append_fork_and_empty_ack():
     session, client, events, checkpoints, root, head = session_fixture()
     appended = session.append(head, event())

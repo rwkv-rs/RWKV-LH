@@ -1,0 +1,249 @@
+..........F.......................F..................................... [ 58%]
+.............................................FFFFFF.                     [100%]
+=================================== FAILURES ===================================
+________ test_rwkv_repair_audit_continues_same_step_without_replanning _________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_rwkv_repair_audit_continu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73545a8f1010>
+
+    def test_rwkv_repair_audit_continues_same_step_without_replanning(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "STATEFUL-STRONG-REPLAN")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "preexisting\n",
+            encoding="utf-8",
+        )
+        session = ModelSession(
+            _QueueClient(
+                [
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "continue",
+                            step_id="S1",
+                            step_complete=True,
+                            evidence_refs=["A00002"],
+                            gaps=[],
+                            reason="the requested artifact now exists",
+                        )
+                    ),
+                    json.dumps(
+                        {
+                            "function": "final_answer",
+                            "params": {"text": "Recovered and created result.txt."},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "ready_for_final",
+                            step_id="",
+                            step_complete=False,
+                            evidence_refs=["A00002"],
+                            gaps=[],
+                            reason="the completed plan has accepted mutation evidence",
+                        )
+                    ),
+                ]
+            ),
+            settings=_settings(progressive=True),
+        )
+        model = LongHorizonModel(
+            session,
+            tool_selector=_selector(["write_file", "write_file"]),
+        )
+        real_execute = model.harness.execute
+        execute_count = 0
+    
+        def fail_first_execution(action, goal):
+            nonlocal execute_count
+            execute_count += 1
+            if execute_count == 1:
+                return ActionResult(
+                    "write_file",
+                    False,
+                    error={
+                        "type": "InjectedWriteFailure",
+                        "message": "injected first write failure",
+                    },
+                )
+            return real_execute(action, goal)
+    
+        monkeypatch.setattr(model.harness, "execute", fail_first_execution)
+        planner = _StrongPlanner(_strong_patch(state))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=12,
+        )
+    
+        result = controller.run(state.run_id)
+    
+        assert result.state.status.value == "completed"
+        assert result.final_output == "Recovered and created result.txt."
+        assert [request.plan_revision for request in planner.requests] == [0]
+        event_types = [
+            result.state.causal_records[event_id].event_type
+            for event_id in result.state.causal_order
+        ]
+        assert event_types.count("goal_plan_patch_committed") == 1
+        assert event_types.count("goal_audit_accepted") == 2
+        assert event_types.count("goal_step_evidence_gap_recorded") == 1
+        assert event_types.count("goal_stage_review_committed") == 1
+        assert event_types.count("rwkv_contract_review_projected") == 0
+        assert event_types.count("contract_graph_review_committed") == 0
+        assert len(result.state.actions) == 2
+        assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
+        assert rolling_goal_plan(result.state).complete is True
+        eligible_labels = [
+            payload["eligible_labels"] for payload in model.tool_selector._session.payloads
+        ]
+        assert len(eligible_labels) == 6
+        assert all("final_answer" not in labels for labels in eligible_labels)
+        selector_payloads = model.tool_selector._session.payloads
+        assert all("parent" not in payload for payload in selector_payloads)
+        second_step = json.loads(
+            selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV6: ")
+        )
+        first_step = json.loads(
+            selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV6: ")
+        )
+        assert second_step["current_subtask"] == first_step["current_subtask"]
+        assert first_step["current_progress"]["assigned_action_count"] == 0
+        progress = second_step["current_progress"]
+        assert progress["assigned_action_count"] == 1
+        assert progress["successful_action_count"] == 0
+        assert progress["failed_action_count"] == 1
+        last_action = progress["last_action"]
+        assert last_action["operation"] == "write_file"
+        assert last_action["status"] == "failed"
+        assert last_action["arguments"] == {
+            "content": "verified", "path": "result.txt",
+            "overwrite": "true", "create_parents": "true",
+        }
+        assert last_action["error_type"] == "InjectedWriteFailure"
+        assert last_action["error_message"] == "injected first write failure"
+        assert last_action["result_metadata"] == {"outcome_type": "failed"}
+        assert last_action["observed_roots"] == []
+        assert last_action["mutated_roots"] == []
+        assert progress["missing_read_roots"] == []
+        assert progress["missing_write_roots"] == ["result.txt"]
+>       assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
+E       AssertionError: assert [{'path': '.'... 'text_file'}] == [{'path': 're... 'text_file'}]
+E         
+E         At index 0 diff: {'path': '.', 'target_kind': 'directory'} != {'path': 'result.txt', 'target_kind': 'text_file'}
+E         Left contains one more item: {'path': 'result.txt', 'target_kind': 'text_file'}
+E         Use -v to get more diff
+
+tests/test_stateful_goal_loop.py:4913: AssertionError
+__ test_native_capabilities_require_explicit_safe_chunk_and_recovery_support ___
+
+    def test_native_capabilities_require_explicit_safe_chunk_and_recovery_support():
+        capabilities = RuntimeCapabilities.from_mapping({"recurrent_state": {
+            "chunked_prefill": True,
+            "request_recovery": True, "request_recovery_protocol": "fixture-protocol",
+        }}, source="fixture")
+>       assert capabilities.recurrent_state_chunked_prefill is True
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'RuntimeCapabilities' object has no attribute 'recurrent_state_chunked_prefill'
+
+tests/test_native_request_recovery.py:36: AttributeError
+________ test_worker_deletion_is_durable_retryable_and_rank_local[none] ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_is_durabl0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7354569adcc0>
+failure = 'none'
+
+    @pytest.mark.parametrize("failure", ["none", "after_unlink"])
+    def test_worker_deletion_is_durable_retryable_and_rank_local(tmp_path, monkeypatch, failure):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:401: ModuleNotFoundError
+____ test_worker_deletion_is_durable_retryable_and_rank_local[after_unlink] ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_is_durabl1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7354592e1c50>
+failure = 'after_unlink'
+
+    @pytest.mark.parametrize("failure", ["none", "after_unlink"])
+    def test_worker_deletion_is_durable_retryable_and_rank_local(tmp_path, monkeypatch, failure):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:401: ModuleNotFoundError
+_____________ test_worker_deletion_rejects_non_blob_paths[symlink] _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_rejects_n0')
+kind = 'symlink'
+
+    @pytest.mark.parametrize("kind", ["symlink", "directory", "path_escape", "rank_bool"])
+    def test_worker_deletion_rejects_non_blob_paths(tmp_path, kind):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:430: ModuleNotFoundError
+____________ test_worker_deletion_rejects_non_blob_paths[directory] ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_rejects_n1')
+kind = 'directory'
+
+    @pytest.mark.parametrize("kind", ["symlink", "directory", "path_escape", "rank_bool"])
+    def test_worker_deletion_rejects_non_blob_paths(tmp_path, kind):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:430: ModuleNotFoundError
+___________ test_worker_deletion_rejects_non_blob_paths[path_escape] ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_rejects_n2')
+kind = 'path_escape'
+
+    @pytest.mark.parametrize("kind", ["symlink", "directory", "path_escape", "rank_bool"])
+    def test_worker_deletion_rejects_non_blob_paths(tmp_path, kind):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:430: ModuleNotFoundError
+____________ test_worker_deletion_rejects_non_blob_paths[rank_bool] ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_worker_deletion_rejects_n3')
+kind = 'rank_bool'
+
+    @pytest.mark.parametrize("kind", ["symlink", "directory", "path_escape", "rank_bool"])
+    def test_worker_deletion_rejects_non_blob_paths(tmp_path, kind):
+>       from test_native_persistent_store import worker_module
+E       ModuleNotFoundError: No module named 'test_native_persistent_store'
+
+tests/test_native_state_lifecycle.py:430: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_rwkv_repair_audit_continues_same_step_without_replanning
+FAILED tests/test_native_request_recovery.py::test_native_capabilities_require_explicit_safe_chunk_and_recovery_support
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_is_durable_retryable_and_rank_local[none]
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_is_durable_retryable_and_rank_local[after_unlink]
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_rejects_non_blob_paths[symlink]
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_rejects_non_blob_paths[directory]
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_rejects_non_blob_paths[path_escape]
+FAILED tests/test_native_state_lifecycle.py::test_worker_deletion_rejects_non_blob_paths[rank_bool]
+8 failed, 116 passed in 44.31s
