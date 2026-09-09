@@ -2450,7 +2450,7 @@ def test_stateful_input_budget_exhaustion_records_root_cause_and_blocks(
     assert terminal.payload["reason"] == "model_input_budget_unresolvable"
 
 
-def test_repeated_goal_io_failures_route_controller_feedback_before_budget(
+def test_repeated_goal_io_failures_keep_step_until_actual_failure_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2494,20 +2494,83 @@ def test_repeated_goal_io_failures_route_controller_feedback_before_budget(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "interrupted"
-    assert len(result.state.actions) == 2
-    assert len(selector._session.payloads) == 6
-    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
-    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
-    assert len(controller.supervisor.requests) == 2
-    feedback = controller.supervisor.requests[1].latest_controller_repair
-    assert feedback is not None
-    assert feedback["kind"] == "repeated_mechanical_failure"
-    assert feedback["active_step_id"] == "S1"
-    assert any(
-        event.event_type == "strong_planner_call_failed" for event in events
-    )
+    assert result.state.status.value == "blocked"
+    assert len(result.state.actions) == controller._MAX_IDENTICAL_FAILURES
+    assert len(selector._session.payloads) == 15
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 4
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 4
+    assert len(controller.supervisor.requests) == 1
+    assert events[-1].event_type == "run_blocked"
+    assert events[-1].payload["reason"] == "identical_failure_budget_exhausted"
+    assert not any(event.event_type == "strong_planner_call_failed" for event in events)
     assert controller._pending_audit_boundary(result.state) is None
+
+
+@pytest.mark.parametrize("resume_at_boundary", [False, True])
+def test_transient_tool_failures_recover_on_same_step(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    resume_at_boundary: bool,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "TRANSIENT-FAILURE-RECOVERY")
+    (Path(state.goal.workspace_root) / "result.txt").write_text("verified\n")
+    command = json.dumps({"function": "read_file", "params": {"path": "result.txt"}})
+    queue = _QueueClient([command] * 3 + [
+        json.dumps(_audit_call(
+            "continue", step_id="S1", step_complete=True,
+            evidence_refs=["A00003"], gaps=[], reason="the source was finally observed",
+        )),
+        json.dumps({"function": "final_answer", "params": {"text": "Recovered."}}),
+        json.dumps(_audit_call(
+            "ready_for_final", step_id="", step_complete=False,
+            evidence_refs=["A00003"], gaps=[], reason="the successful read supports the answer",
+        )),
+    ])
+    model = LongHorizonModel(
+        ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["read_file"] * 3),
+    )
+    original_handler = model.harness._handlers["read_file"]
+    calls = 0
+
+    def read_after_two_failures(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls <= 2:
+            raise OSError("injected transient read failure")
+        return original_handler(*args, **kwargs)
+
+    model.harness._handlers["read_file"] = read_after_two_failures
+    monkeypatch.setattr(
+        StatefulGoalLoopController,
+        "_validate_contract_patch_semantics",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+    planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
+    controller = StatefulGoalLoopController(
+        store, model=model, harness=model.harness, supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=5 if resume_at_boundary else 20,
+    )
+    result = controller.run(state.run_id)
+    if resume_at_boundary:
+        assert result.state.status.value == "interrupted"
+        assert len(result.state.actions) == 2
+        controller = StatefulGoalLoopController(
+            store, model=model, harness=model.harness, supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20,
+        )
+        result = controller.run(state.run_id)
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 3
+    assert len(planner.requests) == 1
+    plan = rolling_goal_plan(result.state)
+    assert len(plan.patch_ids) == 1
+    assert plan.step_revisions["S1"] == 1
+    assert controller._step_mechanical_evidence_coverage(
+        result.state, "S1", 1,
+    )["successful_action_ids"] == ["A00003"]
 
 
 def test_read_only_step_repair_keeps_same_step_and_bounds_identical_repeats(
@@ -2759,9 +2822,11 @@ def test_successful_directory_observation_repair_can_read_next_without_replannin
     assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
 
 
-def test_protocol_invalid_step_audit_routes_controller_feedback_and_recovers(
+@pytest.mark.parametrize("resume_at_boundary", [False, True])
+def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    resume_at_boundary: bool,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
@@ -2806,43 +2871,49 @@ def test_protocol_invalid_step_audit_routes_controller_feedback_and_recovers(
         ModelSession(queue, settings=_settings(progressive=True)),
         tool_selector=_selector(["read_file", "read_file"]),
     )
-    planner = _StrongPlanner(
-        (
-            _strong_observe_patch(state, "result.txt"),
-            _strong_readback_correction_patch(state),
-        )
-    )
+    planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
     monkeypatch.setattr(
         StatefulGoalLoopController,
         "_validate_contract_patch_semantics",
         staticmethod(lambda *args, **kwargs: None),
     )
 
-    result = StatefulGoalLoopController(
+    controller = StatefulGoalLoopController(
         store,
         model=model,
         harness=model.harness,
         supervisor=planner,
         supervisor_policy=SupervisorPolicy(mode="static"),
-        max_transitions=20,
-    ).run(state.run_id)
+        max_transitions=3 if resume_at_boundary else 20,
+    )
+    result = controller.run(state.run_id)
+    if resume_at_boundary:
+        assert result.state.status.value == "interrupted"
+        assert result.state.protocol_rejections == 1
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=20,
+        )
+        result = controller.run(state.run_id)
 
     assert result.state.status.value == "completed"
-    feedback = planner.requests[1].latest_controller_repair
-    assert feedback is not None
-    assert feedback["kind"] == "step_audit_protocol_invalid"
+    assert len(planner.requests) == 1
     committed = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
         if result.state.causal_records[event_id].event_type
         == "goal_plan_patch_committed"
     ]
-    assert committed[1].payload["source_controller_repair_id"] == feedback[
-        "feedback_id"
-    ]
+    assert len(committed) == 1
+    assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
+    assert result.state.protocol_rejections == 1
 
 
-def test_repeated_executor_provenance_rejection_routes_to_planner(
+def test_repeated_executor_provenance_rejection_recovers_without_replanning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2907,11 +2978,31 @@ def test_repeated_executor_provenance_rejection_routes_to_planner(
             ),
             invalid_replace,
             invalid_replace,
+            json.dumps(
+                {
+                    "function": "replace_text",
+                    "params": {
+                        "path": "result.txt",
+                        "old": "VALUE = 'old'",
+                        "new": "VALUE = 'new'",
+                        "base_sha256": base_sha256,
+                    },
+                }
+            ),
+            json.dumps(_audit_call(
+                "continue", step_id="S2", step_complete=True,
+                evidence_refs=["A00002"], gaps=[], reason="the requested bytes changed",
+            )),
+            json.dumps({"function": "final_answer", "params": {"text": "Updated."}}),
+            json.dumps(_audit_call(
+                "ready_for_final", step_id="", step_complete=False,
+                evidence_refs=["A00001", "A00002"], gaps=[], reason="verified update",
+            )),
         ]
     )
     model = LongHorizonModel(
         ModelSession(queue, settings=_settings(progressive=True)),
-        tool_selector=_selector(["read_file", "replace_text"]),
+        tool_selector=_selector(["read_file", "replace_text", "replace_text"]),
     )
     planner = _StrongPlanner(initial)
     monkeypatch.setattr(
@@ -2930,15 +3021,12 @@ def test_repeated_executor_provenance_rejection_routes_to_planner(
 
     result = controller.run(state.run_id)
 
-    assert result.state.status.value == "interrupted"
-    assert len(result.state.actions) == 1
+    assert result.state.status.value == "completed"
+    assert len(result.state.actions) == 2
     assert result.state.protocol_rejections == 2
-    assert len(planner.requests) == 2
-    feedback = planner.requests[1].latest_controller_repair
-    assert feedback is not None
-    assert feedback["kind"] == "action_protocol_rejection"
-    assert feedback["active_step_id"] == "S2"
-    assert len(feedback["evidence_event_ids"]) == 2
+    assert len(planner.requests) == 1
+    assert len(rolling_goal_plan(result.state).patch_ids) == 1
+    assert (Path(state.goal.workspace_root) / "result.txt").read_text() == "VALUE = 'new'\n"
 
 
 def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_final(

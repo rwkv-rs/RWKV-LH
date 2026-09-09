@@ -2320,10 +2320,6 @@ class OpenAICompatibleSupervisorClient:
             latest_stage_review = payload.get("latest_stage_review")
             if isinstance(latest_stage_review, dict):
                 latest_stage_review.pop("review_id", None)
-            latest_controller_repair = payload.get("latest_controller_repair")
-            if isinstance(latest_controller_repair, dict):
-                latest_controller_repair.pop("feedback_id", None)
-                latest_controller_repair.pop("evidence_event_ids", None)
             local_repair = payload.get("local_validation_repair")
             if isinstance(local_repair, dict):
                 rejected_patch = local_repair.get("rejected_patch")
@@ -3018,11 +3014,10 @@ class OpenAICompatibleSupervisorClient:
                 if initial
                 else "This is a correction or continuation patch: goal_obligations is "
                 "always []; make only the smallest change needed "
-                "for latest_audit, latest_stage_review, or "
-                "latest_controller_repair, replacing or discarding "
+                "for latest_audit or latest_stage_review, replacing or discarding "
                 "obsolete open work or adding later repair stages. When "
-                "latest_audit.verdict is repair, latest_stage_review.verdict is "
-                "repair, or latest_controller_repair is non-null, and active_plan "
+                "latest_audit.verdict is repair or latest_stage_review.verdict is "
+                "repair, and active_plan "
                 "still has a frontier, the patch must replace or discard at least "
                 "one current frontier step so the gap is addressed before unrelated "
                 "downstream work; merely appending a later stage is invalid."

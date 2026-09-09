@@ -1,0 +1,232 @@
+{
+  "cases": [
+    {
+      "test": "test_successful_directory_observation_repair_can_read_next_without_replanning",
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "list_directory",
+              "status": "succeeded"
+            },
+            {
+              "id": "A00002",
+              "operation": "read_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": []
+        }
+      ],
+      "final_gap_family_override": null,
+      "feedback_lost_before_selector": true,
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00002"
+          ],
+          "actual_fact_action_ids": [
+            "A00002"
+          ]
+        }
+      ],
+      "finalizer_repeat_inputs_identical": false
+    },
+    {
+      "test": "test_final_auditor_repair_returns_to_goal_loop_before_completion",
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "write_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": [
+            {
+              "audit_id": "AUD-4ba717f671e54b9c",
+              "audit_boundary_id": "GAB-5f3e781ba0ec484e",
+              "decision_id": "D-faa5af5454e245eb",
+              "verdict": "repair",
+              "gaps": [
+                "candidate_omits_required_result"
+              ],
+              "candidate_output_sha256": "2fbcf69e6ff8a799c0853b278ec51e19ea76a08d85609899affbdf62703b933d",
+              "controller_rewritten": false,
+              "at": "2026-09-09T08:13:24.813+00:00"
+            }
+          ]
+        }
+      ],
+      "final_gap_family_override": null,
+      "feedback_lost_before_selector": false,
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00001"
+          ],
+          "actual_fact_action_ids": [
+            "A00001"
+          ]
+        }
+      ],
+      "finalizer_repeat_inputs_identical": true
+    },
+    {
+      "test": "test_final_auditor_repair_returns_to_goal_loop_before_completion",
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "write_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": [
+            {
+              "audit_id": "AUD-7ef474c0afbf4e0c",
+              "audit_boundary_id": "GAB-88d42772b4494ba5",
+              "decision_id": "D-a294f89264184b2c",
+              "verdict": "repair",
+              "gaps": [
+                "goal_requirement_unproved:149fdcfa3178"
+              ],
+              "candidate_output_sha256": "2fbcf69e6ff8a799c0853b278ec51e19ea76a08d85609899affbdf62703b933d",
+              "controller_rewritten": false,
+              "at": "2026-09-09T08:13:25.565+00:00"
+            }
+          ]
+        }
+      ],
+      "final_gap_family_override": "goal_requirement_unproved:",
+      "feedback_lost_before_selector": false,
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00001"
+          ],
+          "actual_fact_action_ids": [
+            "A00001"
+          ]
+        }
+      ],
+      "finalizer_repeat_inputs_identical": true
+    },
+    {
+      "test": "test_protocol_invalid_step_audit_keeps_plan_and_recovers",
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "read_file",
+              "status": "succeeded"
+            },
+            {
+              "id": "A00002",
+              "operation": "read_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 1,
+          "plan_patch_count": 1,
+          "final_rejections": []
+        }
+      ],
+      "final_gap_family_override": null,
+      "feedback_lost_before_selector": false,
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00002"
+          ],
+          "actual_fact_action_ids": [
+            "A00002"
+          ]
+        }
+      ],
+      "finalizer_repeat_inputs_identical": false
+    },
+    {
+      "test": "test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts",
+      "runs": [],
+      "final_gap_family_override": null,
+      "feedback_lost_before_selector": false,
+      "stage_review_inputs": [
+        {
+          "step_count": 19,
+          "accepted_evidence_refs": [
+            "A00001",
+            "A00002",
+            "A00003",
+            "A00004",
+            "A00005",
+            "A00006",
+            "A00007",
+            "A00008",
+            "A00009",
+            "A00010",
+            "A00011",
+            "A00012",
+            "A00013",
+            "A00014",
+            "A00015",
+            "A00016",
+            "A00017",
+            "A00018",
+            "A00019"
+          ],
+          "actual_fact_action_ids": [
+            "A00012",
+            "A00013",
+            "A00014",
+            "A00015",
+            "A00016",
+            "A00017",
+            "A00018",
+            "A00019"
+          ]
+        }
+      ],
+      "finalizer_repeat_inputs_identical": false
+    }
+  ],
+  "rename_invariance_probe": [
+    {
+      "path": "payload.json",
+      "content_sha256": "4b6825653394ddd4626331ea17c040e1d8ce6f85cd756f4f4f18ca64c6b7d100",
+      "target_kind": "json_candidate_file",
+      "read_json_eligible": true
+    },
+    {
+      "path": "payload.data",
+      "content_sha256": "4b6825653394ddd4626331ea17c040e1d8ce6f85cd756f4f4f18ca64c6b7d100",
+      "target_kind": "text_file",
+      "read_json_eligible": false
+    }
+  ],
+  "bounded_discovery_probe": {
+    "text_path": "z_text",
+    "text_target_kind": "text_file",
+    "projected_target_count": 256,
+    "actual_text_file_exists": true,
+    "read_file_eligible_in_directory_scope": false
+  }
+}

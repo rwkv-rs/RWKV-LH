@@ -102,7 +102,9 @@ Bot✿{generation_prefill}
 
 产品统一由 `product_runtime.build_product_controller()` 创建当前 `StatefulGoalLoopController`；生产 CLI 与 Web 不提供旧 Controller / learned State router 分支。公共基类和部署适配器不是第二套产品入口，不按文件名盲删。
 
-五个角色协议的职责保持稳定：Selector 选操作，Executor 填参数，Harness 执行，Step Auditor 判断步骤是否满足，Finalizer 作答，Final Auditor 判断最终证据与回答。Planner / Stage Checker 负责计划和阶段边界。REPAIR 将差距交回同一步的 Selector/Executor；只有结构性失败或既有阶段审查要求重规划时走相应规划路径，重复成功动作仍受无进展预算约束。
+五个角色协议的职责保持稳定：Selector 选操作，Executor 填参数，Harness 执行，Step Auditor 判断步骤是否满足，Finalizer 作答，Final Auditor 判断最终证据与回答。Planner / Stage Checker 负责计划和阶段边界。步骤 REPAIR 应将差距交回同一步；工具失败、参数错误或 Auditor 输出无效不能直接作为重规划依据。后续计划调用应有阶段审查或现有工作结束后仍存在目标缺口的依据；重复成功动作仍受无进展预算约束。
+
+2026-09-09 链路复核发现语义反馈尚未完整传到 Selector / Finalizer，审计失败重试归属、最终证据修复、阶段事实裁剪和目标可达性仍有缺口。Owner 要求保持五角色并按通用契约设计；目标与实现边界见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。该文档是待实施设计，不能作为链路已经修复的证据。
 
 RWKV 更新应优先改变部署配置与必要的底层适配：模型/词表 SHA、State 形状与 dtype、上下文和输出预算、生成前缀/停止符、服务能力。角色输入仍调用同一 builder；只有真实语义合同变化才升级并替换协议。每次升级验证 State 注入、token 对齐、自然 stop、五角色输入和真实流程，重新冻结源码与服务身份。旧 State 的形状兼容不等于行为或训练分布兼容，不能自动沿用旧结果。
 

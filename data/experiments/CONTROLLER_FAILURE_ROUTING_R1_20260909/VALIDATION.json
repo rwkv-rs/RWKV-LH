@@ -1,0 +1,110 @@
+{
+  "round_id": "CONTROLLER_FAILURE_ROUTING_R1_20260909",
+  "recorded_at": "2026-09-09T08:18:01.302541+00:00",
+  "scope": "post-run engineering analysis and regression record; not a training preregistration",
+  "base_commit": "ba087cd8f0c1122351ae80e69303d7836463f595",
+  "environment": "WSL UbuntuRecovered",
+  "reviewed_controller_link_categories": 7,
+  "fixed_category_ids": [
+    "LINK-01"
+  ],
+  "fixed_planner_misrouting_branches": 3,
+  "open_category_ids": [
+    "LINK-02",
+    "LINK-03",
+    "LINK-04",
+    "LINK-05",
+    "LINK-06",
+    "LINK-07"
+  ],
+  "additional_cleanup_gap": "legacy GoalPlanPatch replay versions remain",
+  "full_controller_chain_fixed": false,
+  "role_architecture_changed": false,
+  "new_rwkv_agent_evaluation": false,
+  "training_samples_created": 0,
+  "optimizer_steps": 0,
+  "new_selector_deployed": false,
+  "remote_git_executed": false,
+  "full_regression": {
+    "command": ".venv/bin/python -m pytest -q tests/",
+    "passed": 1046,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 185.31
+  },
+  "post_test_nonfunctional_edit": {
+    "path": "rwkv_lh/stateful_goal_loop.py",
+    "before_sha256": "e4f0757ca980e4ad003df5358d35833f428f915e8d5aa5dd5c9fcac1499fc8fa",
+    "after_sha256": "7379aca196415da2a1cc2ec3d3b4efa7dfd57800df7c330f826e6bfe558cd200",
+    "ast_sha256": "3c6618b2feac0f49ead3a28beffdf7cabbe8aaa21a5e4d1ffdeabe01f674da3c",
+    "ast_unchanged": true,
+    "reason": "Do not claim that all role inputs already receive semantic gaps; probes found missing connections.",
+    "script_sha256": "4f8fbd135d90da0ec6859c648fe31de26392bd88aeee6e7c99356351ce4f8cac"
+  },
+  "tests": [
+    {
+      "path": "red.log",
+      "sha256": "d9d129296a5988e7c451ffd3c942a6cb3eeb983beb8fc0577163130b6e59fd1f",
+      "result": "4 failed, 61 deselected"
+    },
+    {
+      "path": "green.log",
+      "sha256": "69a08c69c2e24bdbd1a54af1ce265bf999e3a7ea7aec342c10e8a0801755b464",
+      "result": "4 passed, 61 deselected"
+    },
+    {
+      "path": "related.log",
+      "sha256": "0fbdb8ed119ad79b883f9cfc1de0ad55d324b2f36450f49f08b3d05e92a37a92",
+      "result": "136 passed"
+    },
+    {
+      "path": "full.log",
+      "sha256": "a525f352dd3ae7d18d82bb15e202b7a3634a9e1166bb628000b3d3ea7f215bdf",
+      "result": "1046 passed in 185.31s"
+    }
+  ],
+  "source_files": [
+    {
+      "path": "rwkv_lh/stateful_goal_loop.py",
+      "sha256": "7379aca196415da2a1cc2ec3d3b4efa7dfd57800df7c330f826e6bfe558cd200"
+    },
+    {
+      "path": "rwkv_lh/goal_loop_protocol.py",
+      "sha256": "776bd29e3c20e8f9c1a2475d1793b03a1a5b7b4e738b914e9ab04455b20100d0"
+    },
+    {
+      "path": "rwkv_lh/supervisor_openai.py",
+      "sha256": "735c1b95d838c8909f96af928078201a5f931171e4676a33990b8e41d436065f"
+    },
+    {
+      "path": "tests/test_stateful_goal_loop.py",
+      "sha256": "731e340312f5e1c1f839f9a4846645c9eadb6b7724ff7fd23a5c58f7c9881796"
+    }
+  ],
+  "design": {
+    "path": "docs/CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md",
+    "sha256": "b978d712135bd461d4633d132ba8178849e773b9f7043565d61b7619af698fce"
+  },
+  "probe": {
+    "path": "WIRING_PROBE.json",
+    "sha256": "ace028866ae49a7373d56363d810996f1a58f711918b46bb4ebdba3cb659264c"
+  },
+  "temporary_scripts": [
+    {
+      "path": "temp/repair_controller_failure_routing_20260909.py",
+      "sha256": "7f517448e073d1a1dcbcb7683fe8fd3b52e0073150e6e9bf9e5e1d25a3cc55a3"
+    },
+    {
+      "path": "temp/audit_controller_link_contracts_20260909.py",
+      "sha256": "4e92342e510155b98e95513b765016a1ff1c8b8b52221666e09e3b76290b6e5f"
+    },
+    {
+      "path": "temp/correct_controller_review_comment_20260909.py",
+      "sha256": "4f8fbd135d90da0ec6859c648fe31de26392bd88aeee6e7c99356351ce4f8cac"
+    },
+    {
+      "path": "temp/record_controller_link_review_20260909.py",
+      "sha256": "8094113f4e77bd4f339aab7a58271ac90519f23692d945df399960cfc9fc6108"
+    }
+  ]
+}

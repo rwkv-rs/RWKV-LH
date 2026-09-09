@@ -1,0 +1,2072 @@
+{
+  "scope": "production Controller and builders with scripted model fixtures",
+  "actual_rwkv_agent_evaluation": false,
+  "training_samples_created": 0,
+  "source_script_sha256": "4e92342e510155b98e95513b765016a1ff1c8b8b52221666e09e3b76290b6e5f",
+  "cases": [
+    {
+      "test": "test_successful_directory_observation_repair_can_read_next_without_replanning",
+      "final_gap_family_override": null,
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "list_directory",
+              "status": "succeeded"
+            },
+            {
+              "id": "A00002",
+              "operation": "read_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": []
+        }
+      ],
+      "selector_progress": [
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "."
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": ".",
+                "target_kind": "directory"
+              },
+              {
+                "path": "result.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [
+            "phase_evidence_unproved:observe"
+          ],
+          "actual_progress": {
+            "assigned_action_count": 1,
+            "successful_action_count": 1,
+            "failed_action_count": 0,
+            "last_action": {
+              "operation": "list_directory",
+              "status": "succeeded",
+              "arguments": {
+                "path": ".",
+                "recursive": "false",
+                "max_entries": "1024",
+                "start_after": "",
+                "max_tokens": "4096"
+              },
+              "error_type": null,
+              "error_message": null,
+              "result_metadata": {
+                "outcome_type": "success",
+                "entry_count": 1,
+                "truncated": false
+              },
+              "observed_roots": [
+                "."
+              ],
+              "mutated_roots": []
+            },
+            "missing_read_roots": [],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": ".",
+                "target_kind": "directory"
+              },
+              {
+                "path": "result.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": true
+          },
+          "all_gap_codes_transmitted": false
+        }
+      ],
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00002"
+          ],
+          "actual_fact_action_ids": [
+            "A00002"
+          ]
+        }
+      ],
+      "finalizer_inputs": [
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Observe .",
+                "phase": "observe",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  ". has successful observation evidence"
+                ],
+                "obligation_ids": [],
+                "read_roots": [
+                  "."
+                ],
+                "write_roots": [],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00002"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00002",
+                "value": {
+                  "action_id": "A00002",
+                  "operation": "read_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "path": "result.txt",
+                    "start_byte": 0,
+                    "max_tokens": 4096
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "read_file",
+                    "metadata": {
+                      "complete": true,
+                      "truncated": false,
+                      "eof": true,
+                      "start_byte": 0,
+                      "end_byte": 16,
+                      "next_start_byte": null,
+                      "source_size_bytes": 16,
+                      "observed_tokens": 3,
+                      "chunk": {
+                        "chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                        "source_ref": "result.txt",
+                        "source_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 16,
+                        "core_start": 0,
+                        "core_end": 16,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_start_line": 1,
+                      "source_end_line": 1
+                    },
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "read_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "3db5c90b8f3dd56bf05fe605e41ea7cebe72e5cc93ead88c31452e3b3c111c24",
+                      "raw_output_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                      "raw_output_chars": 16,
+                      "raw_output_bytes": 16,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "source_chunk": {
+                        "chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                        "source_ref": "result.txt",
+                        "source_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 16,
+                        "core_start": 0,
+                        "core_end": 16,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_chunk_integrity_valid": true,
+                      "adapter": "local_exact_text",
+                      "payload_kind": "exact_utf8_spans",
+                      "fact_authority": "exact_spans_only",
+                      "exact_spans": [
+                        {
+                          "span_id": "OBS-SPAN-aa8d3e2cee0872e9a909",
+                          "source_ref": "result.txt",
+                          "snapshot_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                          "start_byte": 0,
+                          "end_byte": 16,
+                          "start_line": 1,
+                          "end_line": 1,
+                          "content_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                          "content": "verified content",
+                          "selection_basis": "complete",
+                          "parent_chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                          "parent_chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779"
+                        }
+                      ],
+                      "projection_complete": true,
+                      "unprojected_content_exists": false,
+                      "unprojected_byte_ranges": [],
+                      "continuation": {
+                        "complete": true,
+                        "next_start_byte": null
+                      },
+                      "source_artifact": {
+                        "path": "result.txt",
+                        "sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "size_bytes": 16,
+                        "media_type": "text/plain",
+                        "fact_authority": "harness_file_artifact_identity"
+                      }
+                    }
+                  },
+                  "artifact_refs": [
+                    "ART-3986c3d8f992645270a8"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00002"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00002",
+                "action": {
+                  "action_id": "A00002",
+                  "operation": "read_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "path": "result.txt",
+                    "start_byte": 0,
+                    "max_tokens": 4096
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "read_file",
+                    "metadata": {
+                      "complete": true,
+                      "truncated": false,
+                      "eof": true,
+                      "start_byte": 0,
+                      "end_byte": 16,
+                      "next_start_byte": null,
+                      "source_size_bytes": 16,
+                      "observed_tokens": 3,
+                      "chunk": {
+                        "chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                        "source_ref": "result.txt",
+                        "source_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 16,
+                        "core_start": 0,
+                        "core_end": 16,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_start_line": 1,
+                      "source_end_line": 1
+                    },
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "read_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "3db5c90b8f3dd56bf05fe605e41ea7cebe72e5cc93ead88c31452e3b3c111c24",
+                      "raw_output_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                      "raw_output_chars": 16,
+                      "raw_output_bytes": 16,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "source_chunk": {
+                        "chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                        "source_ref": "result.txt",
+                        "source_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 16,
+                        "core_start": 0,
+                        "core_end": 16,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_chunk_integrity_valid": true,
+                      "adapter": "local_exact_text",
+                      "payload_kind": "exact_utf8_spans",
+                      "fact_authority": "exact_spans_only",
+                      "exact_spans": [
+                        {
+                          "span_id": "OBS-SPAN-aa8d3e2cee0872e9a909",
+                          "source_ref": "result.txt",
+                          "snapshot_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                          "start_byte": 0,
+                          "end_byte": 16,
+                          "start_line": 1,
+                          "end_line": 1,
+                          "content_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                          "content": "verified content",
+                          "selection_basis": "complete",
+                          "parent_chunk_id": "CH-CURSOR-ea7c808c41e39c5f",
+                          "parent_chunk_sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779"
+                        }
+                      ],
+                      "projection_complete": true,
+                      "unprojected_content_exists": false,
+                      "unprojected_byte_ranges": [],
+                      "continuation": {
+                        "complete": true,
+                        "next_start_byte": null
+                      },
+                      "source_artifact": {
+                        "path": "result.txt",
+                        "sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                        "size_bytes": 16,
+                        "media_type": "text/plain",
+                        "fact_authority": "harness_file_artifact_identity"
+                      }
+                    }
+                  },
+                  "artifact_refs": [
+                    "ART-3986c3d8f992645270a8"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-3986c3d8f992645270a8",
+                    "action_id": "A00002",
+                    "path": "result.txt",
+                    "sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                    "media_type": "text/plain",
+                    "size_bytes": 16,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:23.968+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-2a33909055684b32",
+                    "target": "result.txt",
+                    "artifact_id": "ART-3986c3d8f992645270a8",
+                    "action_id": "A00002",
+                    "sha256": "034311adcf7e54dc9c9d35f583590b4c865b4b7ffa132b2acf9812c5a509f779",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [],
+                    "observed_at": "2026-09-09T08:13:23.968+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "919253a8efed65aeef3be06b27df02cec26429c502cfc4cf5bf853de272478ec"
+        }
+      ],
+      "finalizer_repeat_inputs_identical": false
+    },
+    {
+      "test": "test_final_auditor_repair_returns_to_goal_loop_before_completion",
+      "final_gap_family_override": null,
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "write_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": [
+            {
+              "audit_id": "AUD-4ba717f671e54b9c",
+              "audit_boundary_id": "GAB-5f3e781ba0ec484e",
+              "decision_id": "D-faa5af5454e245eb",
+              "verdict": "repair",
+              "gaps": [
+                "candidate_omits_required_result"
+              ],
+              "candidate_output_sha256": "2fbcf69e6ff8a799c0853b278ec51e19ea76a08d85609899affbdf62703b933d",
+              "controller_rewritten": false,
+              "at": "2026-09-09T08:13:24.813+00:00"
+            }
+          ]
+        }
+      ],
+      "selector_progress": [
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [],
+            "missing_write_roots": [
+              "result.txt"
+            ],
+            "workspace_targets": [
+              {
+                "path": "result.txt",
+                "target_kind": "missing"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        }
+      ],
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00001"
+          ],
+          "actual_fact_action_ids": [
+            "A00001"
+          ]
+        }
+      ],
+      "finalizer_inputs": [
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Create result.txt with verified content",
+                "phase": "mutate",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  "result.txt has a committed artifact revision"
+                ],
+                "obligation_ids": [],
+                "read_roots": [],
+                "write_roots": [
+                  "result.txt"
+                ],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00001",
+                "value": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00001",
+                "action": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "path": "result.txt",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "media_type": "text/plain",
+                    "size_bytes": 8,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:24.433+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-1a5bfd7035874c5e",
+                    "target": "result.txt",
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [],
+                    "observed_at": "2026-09-09T08:13:24.433+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "9fb7f2051e23287d73a84ba321aa31c4525428fafcd836b4d13de49f4efb56b5"
+        },
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Create result.txt with verified content",
+                "phase": "mutate",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  "result.txt has a committed artifact revision"
+                ],
+                "obligation_ids": [],
+                "read_roots": [],
+                "write_roots": [
+                  "result.txt"
+                ],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00001",
+                "value": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00001",
+                "action": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "path": "result.txt",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "media_type": "text/plain",
+                    "size_bytes": 8,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:24.433+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-1a5bfd7035874c5e",
+                    "target": "result.txt",
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [],
+                    "observed_at": "2026-09-09T08:13:24.433+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "9fb7f2051e23287d73a84ba321aa31c4525428fafcd836b4d13de49f4efb56b5"
+        }
+      ],
+      "finalizer_repeat_inputs_identical": true
+    },
+    {
+      "test": "test_final_auditor_repair_returns_to_goal_loop_before_completion",
+      "final_gap_family_override": "goal_requirement_unproved:",
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "write_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 0,
+          "plan_patch_count": 1,
+          "final_rejections": [
+            {
+              "audit_id": "AUD-7ef474c0afbf4e0c",
+              "audit_boundary_id": "GAB-88d42772b4494ba5",
+              "decision_id": "D-a294f89264184b2c",
+              "verdict": "repair",
+              "gaps": [
+                "goal_requirement_unproved:149fdcfa3178"
+              ],
+              "candidate_output_sha256": "2fbcf69e6ff8a799c0853b278ec51e19ea76a08d85609899affbdf62703b933d",
+              "controller_rewritten": false,
+              "at": "2026-09-09T08:13:25.565+00:00"
+            }
+          ]
+        }
+      ],
+      "selector_progress": [
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [],
+            "missing_write_roots": [
+              "result.txt"
+            ],
+            "workspace_targets": [
+              {
+                "path": "result.txt",
+                "target_kind": "missing"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        }
+      ],
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00001"
+          ],
+          "actual_fact_action_ids": [
+            "A00001"
+          ]
+        }
+      ],
+      "finalizer_inputs": [
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Create result.txt with verified content",
+                "phase": "mutate",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  "result.txt has a committed artifact revision"
+                ],
+                "obligation_ids": [],
+                "read_roots": [],
+                "write_roots": [
+                  "result.txt"
+                ],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00001",
+                "value": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00001",
+                "action": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "path": "result.txt",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "media_type": "text/plain",
+                    "size_bytes": 8,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:25.317+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-024a27585bec4e90",
+                    "target": "result.txt",
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [],
+                    "observed_at": "2026-09-09T08:13:25.317+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "9fd3e0237aa0f327d9a504598c757528b2ccd15d65de2a60414feec51b448ff3"
+        },
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Create result.txt with verified content",
+                "phase": "mutate",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  "result.txt has a committed artifact revision"
+                ],
+                "obligation_ids": [],
+                "read_roots": [],
+                "write_roots": [
+                  "result.txt"
+                ],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00001",
+                "value": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00001"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00001",
+                "action": {
+                  "action_id": "A00001",
+                  "operation": "write_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "content": "verified",
+                    "path": "result.txt",
+                    "overwrite": true,
+                    "create_parents": true
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "write_file",
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "write_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "ad755a240bae03c63aaedea9189c0ff4f0a65203ecfb44397e8a780dfdb56b71",
+                      "raw_output_sha256": "4bbd4b8963d258c28f9e9283f77f6ebea6c02abc6b74c0f1e008fd2895338b7c",
+                      "raw_output_chars": 12,
+                      "raw_output_bytes": 12,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "adapter": "literal_output",
+                      "payload_kind": "literal_scalar_or_receipt",
+                      "fact_authority": "literal_output",
+                      "projection_complete": true
+                    },
+                    "output": "file written"
+                  },
+                  "artifact_refs": [
+                    "ART-30b43684507e30d1c4c6"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "path": "result.txt",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "media_type": "text/plain",
+                    "size_bytes": 8,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:25.317+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-024a27585bec4e90",
+                    "target": "result.txt",
+                    "artifact_id": "ART-30b43684507e30d1c4c6",
+                    "action_id": "A00001",
+                    "sha256": "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [],
+                    "observed_at": "2026-09-09T08:13:25.317+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "9fd3e0237aa0f327d9a504598c757528b2ccd15d65de2a60414feec51b448ff3"
+        }
+      ],
+      "finalizer_repeat_inputs_identical": true
+    },
+    {
+      "test": "test_protocol_invalid_step_audit_keeps_plan_and_recovers",
+      "final_gap_family_override": null,
+      "runs": [
+        {
+          "status": "completed",
+          "actions": [
+            {
+              "id": "A00001",
+              "operation": "read_file",
+              "status": "succeeded"
+            },
+            {
+              "id": "A00002",
+              "operation": "read_file",
+              "status": "succeeded"
+            }
+          ],
+          "protocol_rejections": 1,
+          "plan_patch_count": 1,
+          "final_rejections": []
+        }
+      ],
+      "selector_progress": [
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "result.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "result.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S1",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 1,
+            "successful_action_count": 1,
+            "failed_action_count": 0,
+            "last_action": {
+              "operation": "read_file",
+              "status": "succeeded",
+              "arguments": {
+                "path": "result.txt",
+                "start_byte": "0",
+                "max_tokens": "4096"
+              },
+              "error_type": null,
+              "error_message": null,
+              "result_metadata": {
+                "outcome_type": "success",
+                "truncated": false
+              },
+              "observed_roots": [
+                "result.txt"
+              ],
+              "mutated_roots": []
+            },
+            "missing_read_roots": [],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "result.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": true
+          },
+          "all_gap_codes_transmitted": true
+        }
+      ],
+      "stage_review_inputs": [
+        {
+          "step_count": 1,
+          "accepted_evidence_refs": [
+            "A00002"
+          ],
+          "actual_fact_action_ids": [
+            "A00002"
+          ]
+        }
+      ],
+      "finalizer_inputs": [
+        {
+          "role": "finalizer_answer",
+          "payload": {
+            "schema_version": "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1",
+            "role": "finalizer_answer",
+            "immutable_goal": "Inspect the project and report verified completion.",
+            "completed_steps": [
+              {
+                "step_id": "S1",
+                "objective": "Observe result.txt",
+                "phase": "observe",
+                "stage": 1,
+                "depends_on": [],
+                "success_evidence": [
+                  "result.txt has successful observation evidence"
+                ],
+                "obligation_ids": [],
+                "read_roots": [
+                  "result.txt"
+                ],
+                "write_roots": [],
+                "allowed_operations": [],
+                "constraints": [],
+                "evidence_refs": [
+                  "A00002"
+                ]
+              }
+            ],
+            "committed_facts": [
+              {
+                "fact_id": "fact:A00002",
+                "value": {
+                  "action_id": "A00002",
+                  "operation": "read_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "path": "result.txt",
+                    "start_byte": 0,
+                    "max_tokens": 4096
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "read_file",
+                    "metadata": {
+                      "complete": true,
+                      "truncated": false,
+                      "eof": true,
+                      "start_byte": 0,
+                      "end_byte": 9,
+                      "next_start_byte": null,
+                      "source_size_bytes": 9,
+                      "observed_tokens": 3,
+                      "chunk": {
+                        "chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                        "source_ref": "result.txt",
+                        "source_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 9,
+                        "core_start": 0,
+                        "core_end": 9,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_start_line": 1,
+                      "source_end_line": 1
+                    },
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "read_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "35e1eb53684ab5f1216cc271e1c9191d8c6d159b4259309ff6e71bb558e7fb23",
+                      "raw_output_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                      "raw_output_chars": 9,
+                      "raw_output_bytes": 9,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "source_chunk": {
+                        "chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                        "source_ref": "result.txt",
+                        "source_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 9,
+                        "core_start": 0,
+                        "core_end": 9,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_chunk_integrity_valid": true,
+                      "adapter": "local_exact_text",
+                      "payload_kind": "exact_utf8_spans",
+                      "fact_authority": "exact_spans_only",
+                      "exact_spans": [
+                        {
+                          "span_id": "OBS-SPAN-925ec1af7e2182753e8e",
+                          "source_ref": "result.txt",
+                          "snapshot_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                          "start_byte": 0,
+                          "end_byte": 9,
+                          "start_line": 1,
+                          "end_line": 1,
+                          "content_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                          "content": "verified\n",
+                          "selection_basis": "complete",
+                          "parent_chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                          "parent_chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831"
+                        }
+                      ],
+                      "projection_complete": true,
+                      "unprojected_content_exists": false,
+                      "unprojected_byte_ranges": [],
+                      "continuation": {
+                        "complete": true,
+                        "next_start_byte": null
+                      },
+                      "source_artifact": {
+                        "path": "result.txt",
+                        "sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "size_bytes": 9,
+                        "media_type": "text/plain",
+                        "fact_authority": "harness_file_artifact_identity"
+                      }
+                    }
+                  },
+                  "artifact_refs": [
+                    "ART-544fc254342c10604b07"
+                  ]
+                },
+                "evidence_refs": [
+                  "A00002"
+                ]
+              }
+            ],
+            "evidence_records": [
+              {
+                "evidence_ref": "A00002",
+                "action": {
+                  "action_id": "A00002",
+                  "operation": "read_file",
+                  "status": "succeeded",
+                  "outcome_type": "success",
+                  "arguments": {
+                    "path": "result.txt",
+                    "start_byte": 0,
+                    "max_tokens": 4096
+                  },
+                  "result": {
+                    "success": true,
+                    "outcome_type": "success",
+                    "action_type": "read_file",
+                    "metadata": {
+                      "complete": true,
+                      "truncated": false,
+                      "eof": true,
+                      "start_byte": 0,
+                      "end_byte": 9,
+                      "next_start_byte": null,
+                      "source_size_bytes": 9,
+                      "observed_tokens": 3,
+                      "chunk": {
+                        "chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                        "source_ref": "result.txt",
+                        "source_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 9,
+                        "core_start": 0,
+                        "core_end": 9,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_start_line": 1,
+                      "source_end_line": 1
+                    },
+                    "observation": {
+                      "schema_version": "rwkv-lh.observation-packet.v1",
+                      "projection_version": "typed-lineage-observation-funnel.v1",
+                      "operation": "read_file",
+                      "adapter_registered": true,
+                      "raw_result_sha256": "35e1eb53684ab5f1216cc271e1c9191d8c6d159b4259309ff6e71bb558e7fb23",
+                      "raw_output_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                      "raw_output_chars": 9,
+                      "raw_output_bytes": 9,
+                      "raw_result_persisted": true,
+                      "summary_fact_authority": false,
+                      "source_chunk": {
+                        "chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                        "source_ref": "result.txt",
+                        "source_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "media_type": "text/plain",
+                        "byte_start": 0,
+                        "byte_end": 9,
+                        "core_start": 0,
+                        "core_end": 9,
+                        "overlap_before": 0,
+                        "overlap_after": 0,
+                        "chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "split_strategy_version": "rwkv-token-cursor.v1",
+                        "previous_chunk_id": null,
+                        "next_chunk_id": null,
+                        "complete_source": true,
+                        "token_start": 0,
+                        "token_end": 3
+                      },
+                      "source_chunk_integrity_valid": true,
+                      "adapter": "local_exact_text",
+                      "payload_kind": "exact_utf8_spans",
+                      "fact_authority": "exact_spans_only",
+                      "exact_spans": [
+                        {
+                          "span_id": "OBS-SPAN-925ec1af7e2182753e8e",
+                          "source_ref": "result.txt",
+                          "snapshot_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                          "start_byte": 0,
+                          "end_byte": 9,
+                          "start_line": 1,
+                          "end_line": 1,
+                          "content_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                          "content": "verified\n",
+                          "selection_basis": "complete",
+                          "parent_chunk_id": "CH-CURSOR-d7600ece2d3a0f19",
+                          "parent_chunk_sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831"
+                        }
+                      ],
+                      "projection_complete": true,
+                      "unprojected_content_exists": false,
+                      "unprojected_byte_ranges": [],
+                      "continuation": {
+                        "complete": true,
+                        "next_start_byte": null
+                      },
+                      "source_artifact": {
+                        "path": "result.txt",
+                        "sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                        "size_bytes": 9,
+                        "media_type": "text/plain",
+                        "fact_authority": "harness_file_artifact_identity"
+                      }
+                    }
+                  },
+                  "artifact_refs": [
+                    "ART-544fc254342c10604b07"
+                  ]
+                },
+                "related_artifacts": [
+                  {
+                    "artifact_id": "ART-544fc254342c10604b07",
+                    "action_id": "A00002",
+                    "path": "result.txt",
+                    "sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                    "media_type": "text/plain",
+                    "size_bytes": 9,
+                    "summary": "",
+                    "observed_at": "2026-09-09T08:13:26.415+00:00"
+                  }
+                ],
+                "related_revisions": [
+                  {
+                    "revision_id": "REV-b73340eda6f2458d",
+                    "target": "result.txt",
+                    "artifact_id": "ART-544fc254342c10604b07",
+                    "action_id": "A00002",
+                    "sha256": "672eb8316fec83f94119a4193f9fc552513d56a147502f8be4830e017d817831",
+                    "outcome_type": "success",
+                    "supersedes_revision_ids": [
+                      "REV-b906e1b92ea4417c"
+                    ],
+                    "observed_at": "2026-09-09T08:13:26.415+00:00"
+                  }
+                ]
+              }
+            ],
+            "format_contract": {
+              "format_id": "goal-user-response-v1",
+              "language": "match_immutable_goal",
+              "required_sections": []
+            },
+            "current_question": "Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict."
+          },
+          "complete_prompt_sha256": "56cefc295cd4ecb1eab43edcd85c96abf5dd4d27e9b0d3fd6cfd720228184eed"
+        }
+      ],
+      "finalizer_repeat_inputs_identical": false
+    },
+    {
+      "test": "test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts",
+      "final_gap_family_override": null,
+      "runs": [],
+      "selector_progress": [
+        {
+          "step_id": "S01",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-1.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-1.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S02",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-2.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-2.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S03",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-3.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-3.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S04",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-4.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-4.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S05",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-5.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-5.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S06",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-6.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-6.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S07",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-7.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-7.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S08",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-8.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-8.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S09",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-9.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-9.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S10",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-10.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-10.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S11",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-11.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-11.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S12",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-12.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-12.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S13",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-13.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-13.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S14",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-14.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-14.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S15",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-15.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-15.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S16",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-16.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-16.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S17",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-17.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-17.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S18",
+          "revision": 1,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-18.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-18.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        },
+        {
+          "step_id": "S19",
+          "revision": 2,
+          "available_accepted_gaps": [],
+          "actual_progress": {
+            "assigned_action_count": 0,
+            "successful_action_count": 0,
+            "failed_action_count": 0,
+            "last_action": null,
+            "missing_read_roots": [
+              "source-19.txt"
+            ],
+            "missing_write_roots": [],
+            "workspace_targets": [
+              {
+                "path": "source-19.txt",
+                "target_kind": "text_file"
+              }
+            ],
+            "completion_preconditions_satisfied": false
+          },
+          "all_gap_codes_transmitted": true
+        }
+      ],
+      "stage_review_inputs": [
+        {
+          "step_count": 19,
+          "accepted_evidence_refs": [
+            "A00001",
+            "A00002",
+            "A00003",
+            "A00004",
+            "A00005",
+            "A00006",
+            "A00007",
+            "A00008",
+            "A00009",
+            "A00010",
+            "A00011",
+            "A00012",
+            "A00013",
+            "A00014",
+            "A00015",
+            "A00016",
+            "A00017",
+            "A00018",
+            "A00019"
+          ],
+          "actual_fact_action_ids": [
+            "A00012",
+            "A00013",
+            "A00014",
+            "A00015",
+            "A00016",
+            "A00017",
+            "A00018",
+            "A00019"
+          ]
+        }
+      ],
+      "finalizer_inputs": [],
+      "finalizer_repeat_inputs_identical": false
+    }
+  ],
+  "rename_invariance_probe": [
+    {
+      "path": "payload.json",
+      "content_sha256": "4b6825653394ddd4626331ea17c040e1d8ce6f85cd756f4f4f18ca64c6b7d100",
+      "target_kind": "json_candidate_file",
+      "read_json_eligible": true
+    },
+    {
+      "path": "payload.data",
+      "content_sha256": "4b6825653394ddd4626331ea17c040e1d8ce6f85cd756f4f4f18ca64c6b7d100",
+      "target_kind": "text_file",
+      "read_json_eligible": false
+    }
+  ],
+  "bounded_discovery_probe": {
+    "text_path": "z_text",
+    "text_target_kind": "text_file",
+    "projected_target_count": 256,
+    "actual_text_file_exists": true,
+    "read_file_eligible_in_directory_scope": false
+  }
+}

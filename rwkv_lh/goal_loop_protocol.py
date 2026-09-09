@@ -637,7 +637,6 @@ class GoalPlanRequest:
     latest_stage_review: Mapping[str, Any] | None = None
     recent_action_facts: tuple[Mapping[str, Any], ...] = ()
     local_validation_repair: Mapping[str, Any] | None = None
-    latest_controller_repair: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _non_empty(self.run_id, "run_id")
@@ -647,55 +646,6 @@ class GoalPlanRequest:
             raise ValueError("Goal plan revision must be non-negative")
         if len(self.recent_action_facts) > 12:
             raise ValueError("Goal Planner request exposes at most twelve action facts")
-        if self.latest_controller_repair is not None:
-            repair = dict(self.latest_controller_repair)
-            required = {
-                "schema_version",
-                "feedback_id",
-                "kind",
-                "active_step_id",
-                "active_step_revision",
-                "gaps",
-                "evidence_event_ids",
-            }
-            if set(repair) != required:
-                raise ValueError(
-                    "Controller repair feedback has an invalid field set"
-                )
-            if repair["schema_version"] != "rwkv-lh.controller-repair-feedback.v1":
-                raise ValueError("unsupported Controller repair feedback schema")
-            _non_empty(str(repair["feedback_id"] or ""), "feedback_id")
-            if repair["kind"] not in {
-                "repeated_mechanical_failure",
-                "action_protocol_rejection",
-                "step_audit_protocol_invalid",
-            }:
-                raise ValueError("Controller repair feedback kind is invalid")
-            _non_empty(str(repair["active_step_id"] or ""), "active_step_id")
-            revision = repair["active_step_revision"]
-            if (
-                isinstance(revision, bool)
-                or not isinstance(revision, int)
-                or revision < 1
-            ):
-                raise ValueError(
-                    "Controller repair feedback requires a positive step revision"
-                )
-            for name in ("gaps", "evidence_event_ids"):
-                values = repair[name]
-                if (
-                    not isinstance(values, list)
-                    or not values
-                    or any(
-                        not isinstance(item, str) or not item.strip()
-                        for item in values
-                    )
-                    or len(values) != len(set(values))
-                ):
-                    raise ValueError(
-                        f"Controller repair feedback {name} requires unique strings"
-                    )
-            object.__setattr__(self, "latest_controller_repair", repair)
         if self.local_validation_repair is not None:
             repair = dict(self.local_validation_repair)
             attempt = repair.get("attempt")
@@ -725,11 +675,6 @@ class GoalPlanRequest:
             "latest_stage_review": (
                 dict(self.latest_stage_review)
                 if self.latest_stage_review is not None
-                else None
-            ),
-            "latest_controller_repair": (
-                dict(self.latest_controller_repair)
-                if self.latest_controller_repair is not None
                 else None
             ),
             "workspace_manifest": dict(self.workspace_manifest),

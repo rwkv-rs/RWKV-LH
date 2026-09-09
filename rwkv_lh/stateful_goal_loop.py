@@ -60,8 +60,6 @@ class StatefulGoalLoopController(LongHorizonController):
     """Strong planning, durable evidence, and independent RWKV role sessions."""
 
     _MAX_EXECUTOR_RETRIES_PER_SELECTION = 1
-    _MECHANICAL_REPAIR_FAILURE_THRESHOLD = 2
-    _ACTION_PROTOCOL_REPAIR_THRESHOLD = 2
     _MAX_IDENTICAL_FINAL_AUDIT_REJECTIONS = 3
     _MAX_PROTOCOL_INVALID_AUDIT_BOUNDARIES = 3
 
@@ -1373,12 +1371,9 @@ class StatefulGoalLoopController(LongHorizonController):
         plan: RollingGoalPlan,
         audit: GoalAuditDecision | None = None,
         stage_review: GoalStageReview | None = None,
-        controller_repair: Mapping[str, Any] | None = None,
         transitions: int,
     ) -> ControllerResult | None:
-        if sum(
-            item is not None for item in (audit, stage_review, controller_repair)
-        ) > 1:
+        if audit is not None and stage_review is not None:
             raise ValueError("Strong Planner accepts only one repair feedback source")
         method = getattr(self.supervisor, "plan_goal_patch", None)
         if not callable(method):
@@ -1404,9 +1399,6 @@ class StatefulGoalLoopController(LongHorizonController):
             "latest_audit": audit.to_dict() if audit is not None else None,
             "latest_stage_review": (
                 stage_review.to_dict() if stage_review is not None else None
-            ),
-            "latest_controller_repair": (
-                dict(controller_repair) if controller_repair is not None else None
             ),
             "workspace_manifest": self.harness.workspace_manifest(
                 state.goal,
@@ -1485,12 +1477,11 @@ class StatefulGoalLoopController(LongHorizonController):
                         patch,
                         stage_review,
                     )
-                    self._validate_action_or_controller_repair_patch(
+                    self._validate_audit_repair_patch(
                         plan,
                         candidate_plan,
                         patch,
                         audit=audit,
-                        controller_repair=controller_repair,
                     )
                     accept_cache = getattr(
                         self.supervisor,
@@ -1570,11 +1561,6 @@ class StatefulGoalLoopController(LongHorizonController):
                 "source_audit_id": audit.audit_id if audit is not None else "",
                 "source_stage_review_id": (
                     stage_review.review_id if stage_review is not None else ""
-                ),
-                "source_controller_repair_id": (
-                    str(controller_repair.get("feedback_id") or "")
-                    if controller_repair is not None
-                    else ""
                 ),
             },
             subject_id=patch.patch_id,
@@ -1670,20 +1656,16 @@ class StatefulGoalLoopController(LongHorizonController):
             )
 
     @staticmethod
-    def _validate_action_or_controller_repair_patch(
+    def _validate_audit_repair_patch(
         prior_plan: RollingGoalPlan,
         candidate_plan: RollingGoalPlan,
         patch: GoalPlanPatch,
         *,
         audit: GoalAuditDecision | None,
-        controller_repair: Mapping[str, Any] | None,
     ) -> None:
         """Require a rejected action boundary to change its live frontier."""
 
-        needs_repair = (
-            audit is not None and audit.verdict is GoalAuditVerdict.REPAIR
-        ) or controller_repair is not None
-        if not needs_repair:
+        if audit is None or audit.verdict is not GoalAuditVerdict.REPAIR:
             return
         prior_frontier_ids = {step.step_id for step in prior_plan.frontier}
         if not prior_frontier_ids:
@@ -1701,159 +1683,6 @@ class StatefulGoalLoopController(LongHorizonController):
                 "open frontier step; replaying or appending work does not consume "
                 "the rejected action feedback"
             )
-
-    @classmethod
-    def _pending_controller_repair_feedback(
-        cls,
-        state: Any,
-    ) -> dict[str, Any] | None:
-        """Project durable non-semantic failures that require a new plan frontier."""
-
-        plan = rolling_goal_plan(state)
-        current_revisions = {
-            step.step_id: plan.step_revisions.get(step.step_id, 1)
-            for step in plan.frontier
-        }
-        if not current_revisions:
-            return None
-        consumed_feedback_ids = {
-            str(event.payload.get("source_controller_repair_id") or "")
-            for event_id in state.causal_order
-            if (event := state.causal_records[event_id]).event_type
-            == "goal_plan_patch_committed"
-            and str(event.payload.get("source_controller_repair_id") or "")
-        }
-        candidates: list[tuple[int, dict[str, Any]]] = []
-
-        def append_feedback(
-            sequence: int,
-            *,
-            feedback_id: str,
-            kind: str,
-            step_id: str,
-            step_revision: int,
-            gaps: list[str],
-            evidence_event_ids: list[str],
-        ) -> None:
-            if (
-                not feedback_id
-                or feedback_id in consumed_feedback_ids
-                or current_revisions.get(step_id) != step_revision
-            ):
-                return
-            selected_gaps = list(
-                dict.fromkeys(str(item).strip()[:2000] for item in gaps if str(item).strip())
-            )
-            selected_events = list(
-                dict.fromkeys(
-                    str(item).strip()
-                    for item in evidence_event_ids
-                    if str(item).strip()
-                )
-            )
-            if not selected_gaps or not selected_events:
-                return
-            candidates.append(
-                (
-                    sequence,
-                    {
-                        "schema_version": "rwkv-lh.controller-repair-feedback.v1",
-                        "feedback_id": feedback_id,
-                        "kind": kind,
-                        "active_step_id": step_id,
-                        "active_step_revision": step_revision,
-                        "gaps": selected_gaps,
-                        "evidence_event_ids": selected_events,
-                    },
-                )
-            )
-
-        for sequence, event_id in enumerate(state.causal_order):
-            event = state.causal_records[event_id]
-            if event.event_type != "goal_audit_boundary_resolved":
-                continue
-            payload = event.payload
-            step_id = str(payload.get("active_step_id") or "")
-            step_revision = int(payload.get("active_step_revision", 0) or 0)
-            verdict = str(payload.get("verdict") or "")
-            if verdict == "protocol_invalid":
-                append_feedback(
-                    sequence,
-                    feedback_id=event.subject_id,
-                    kind="step_audit_protocol_invalid",
-                    step_id=step_id,
-                    step_revision=step_revision,
-                    gaps=[str(payload.get("protocol_error") or "")],
-                    evidence_event_ids=[event_id],
-                )
-                continue
-            if verdict != "mechanical_repair":
-                continue
-            failed_action_ids = [
-                str(action_id)
-                for action_id in payload.get("assigned_action_ids") or ()
-                if (action := state.actions.get(str(action_id))) is not None
-                and not (
-                    action.status is ActionStatus.SUCCEEDED
-                    and bool((action.result or {}).get("success"))
-                )
-            ]
-            if len(failed_action_ids) < cls._MECHANICAL_REPAIR_FAILURE_THRESHOLD:
-                continue
-            append_feedback(
-                sequence,
-                feedback_id=event.subject_id,
-                kind="repeated_mechanical_failure",
-                step_id=step_id,
-                step_revision=step_revision,
-                gaps=[str(item) for item in payload.get("gaps") or ()],
-                evidence_event_ids=[event_id],
-            )
-
-        consecutive_action_rejections: list[tuple[int, str, Any]] = []
-        for sequence in range(len(state.causal_order) - 1, -1, -1):
-            event_id = state.causal_order[sequence]
-            event = state.causal_records[event_id]
-            if event.event_type in {"action_finished", "goal_plan_patch_committed"}:
-                break
-            if (
-                event.event_type == "protocol_rejection_recorded"
-                and str(event.payload.get("protocol_scope") or "") == "action"
-                and str(event.payload.get("error_kind") or "")
-                == "ExecutorProvenanceError"
-            ):
-                consecutive_action_rejections.append((sequence, event_id, event))
-        if len(consecutive_action_rejections) >= cls._ACTION_PROTOCOL_REPAIR_THRESHOLD:
-            selected = list(reversed(consecutive_action_rejections))
-            latest_sequence, latest_event_id, latest_event = selected[-1]
-            step_id = str(latest_event.payload.get("active_step_id") or "")
-            step_revision = int(
-                latest_event.payload.get("active_step_revision", 0) or 0
-            )
-            same_frontier = [
-                (sequence, event_id, event)
-                for sequence, event_id, event in selected
-                if str(event.payload.get("active_step_id") or "") == step_id
-                and int(event.payload.get("active_step_revision", 0) or 0)
-                == step_revision
-            ]
-            if len(same_frontier) >= cls._ACTION_PROTOCOL_REPAIR_THRESHOLD:
-                append_feedback(
-                    latest_sequence,
-                    feedback_id=latest_event_id,
-                    kind="action_protocol_rejection",
-                    step_id=step_id,
-                    step_revision=step_revision,
-                    gaps=[
-                        str(event.payload.get("error") or "")
-                        for _sequence, _event_id, event in same_frontier
-                    ],
-                    evidence_event_ids=[
-                        event_id for _sequence, event_id, _event in same_frontier
-                    ],
-                )
-
-        return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
     @staticmethod
     def _pending_stage_repair_feedback(
@@ -2311,26 +2140,12 @@ class StatefulGoalLoopController(LongHorizonController):
                         pending_observation = None
                         continue
 
-                    # A semantic REPAIR keeps the step open. Its gaps are fed to
-                    # the existing Selector/Executor builders; root coverage does
-                    # not imply that their next action will repeat the last one.
-                    # Structural failures and stage repairs still request a plan
-                    # patch below; identical action budgets remain independent.
-                    pending_controller_repair = (
-                        self._pending_controller_repair_feedback(state)
-                    )
-                    if pending_controller_repair is not None:
-                        boundary = self._issue_strong_plan_patch(
-                            state,
-                            plan=plan,
-                            controller_repair=pending_controller_repair,
-                            transitions=transitions,
-                        )
-                        if boundary is not None:
-                            return boundary
-                        transitions += 1
-                        continue
-
+                    # Step REPAIR, tool failures and malformed role outputs
+                    # leave the existing frontier open. Existing action and
+                    # protocol budgets bound continued attempts; these failures
+                    # are not evidence that the plan is wrong.
+                    # Only a Stage Checker repair or an exhausted plan with
+                    # uncovered obligations requests a subsequent plan patch.
                     pending_stage_repair = self._pending_stage_repair_feedback(state)
                     if pending_stage_repair is not None:
                         boundary = self._issue_strong_plan_patch(

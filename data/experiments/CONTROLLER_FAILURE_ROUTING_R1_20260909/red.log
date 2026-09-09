@@ -1,0 +1,366 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_____ test_repeated_goal_io_failures_keep_step_until_actual_failure_budget _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_repeated_goal_io_failures0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d40942b2c40>
+
+    def test_repeated_goal_io_failures_keep_step_until_actual_failure_budget(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "STATEFUL-IDENTICAL-FAILURE")
+        (Path(state.goal.workspace_root) / "invalid.json").write_text("{}\n", encoding="utf-8")
+        failed_command = json.dumps(
+            {
+                "function": "read_json",
+                "params": {"path": "invalid.json"},
+            }
+        )
+        session = ModelSession(
+            _QueueClient([failed_command] * 5),
+            settings=_settings(progressive=True),
+        )
+        selector = _selector(["read_json"] * 5)
+        model = LongHorizonModel(session, tool_selector=selector)
+    
+        def injected_read_failure(*_args, **_kwargs):
+            raise OSError("injected persistent read failure")
+    
+        model.harness._handlers["read_json"] = injected_read_failure
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=_StrongPlanner(_strong_observe_patch(state, "invalid.json")),
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=30,
+        )
+    
+        result = controller.run(state.run_id)
+    
+        events = [
+            result.state.causal_records[event_id]
+            for event_id in result.state.causal_order
+        ]
+>       assert result.state.status.value == "blocked"
+E       AssertionError: assert 'interrupted' == 'blocked'
+E         
+E         - blocked
+E         + interrupted
+
+tests/test_stateful_goal_loop.py:2497: AssertionError
+_______ test_protocol_invalid_step_audit_keeps_plan_and_recovers[False] ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_protocol_invalid_step_aud0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d40959a2c40>
+resume_at_boundary = False
+
+    @pytest.mark.parametrize("resume_at_boundary", [False, True])
+    def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        resume_at_boundary: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "verified\n", encoding="utf-8"
+        )
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                "{}",
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the exact bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "Recovered."}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the repaired audit path is complete",
+                    )
+                ),
+            ]
+        )
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file", "read_file"]),
+        )
+        planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+    
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=3 if resume_at_boundary else 20,
+        )
+        result = controller.run(state.run_id)
+        if resume_at_boundary:
+            assert result.state.status.value == "interrupted"
+            assert result.state.protocol_rejections == 1
+            controller = StatefulGoalLoopController(
+                store,
+                model=model,
+                harness=model.harness,
+                supervisor=planner,
+                supervisor_policy=SupervisorPolicy(mode="static"),
+                max_transitions=20,
+            )
+            result = controller.run(state.run_id)
+    
+>       assert result.state.status.value == "completed"
+E       AssertionError: assert 'interrupted' == 'completed'
+E         
+E         - completed
+E         + interrupted
+
+tests/test_stateful_goal_loop.py:2836: AssertionError
+________ test_protocol_invalid_step_audit_keeps_plan_and_recovers[True] ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_protocol_invalid_step_aud1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4095880cb0>
+resume_at_boundary = True
+
+    @pytest.mark.parametrize("resume_at_boundary", [False, True])
+    def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        resume_at_boundary: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "verified\n", encoding="utf-8"
+        )
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                "{}",
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the exact bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "Recovered."}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the repaired audit path is complete",
+                    )
+                ),
+            ]
+        )
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file", "read_file"]),
+        )
+        planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+    
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=3 if resume_at_boundary else 20,
+        )
+        result = controller.run(state.run_id)
+        if resume_at_boundary:
+            assert result.state.status.value == "interrupted"
+            assert result.state.protocol_rejections == 1
+            controller = StatefulGoalLoopController(
+                store,
+                model=model,
+                harness=model.harness,
+                supervisor=planner,
+                supervisor_policy=SupervisorPolicy(mode="static"),
+                max_transitions=20,
+            )
+            result = controller.run(state.run_id)
+    
+>       assert result.state.status.value == "completed"
+E       AssertionError: assert 'interrupted' == 'completed'
+E         
+E         - completed
+E         + interrupted
+
+tests/test_stateful_goal_loop.py:2836: AssertionError
+___ test_repeated_executor_provenance_rejection_recovers_without_replanning ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_repeated_executor_provena0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d40914bc050>
+
+    def test_repeated_executor_provenance_rejection_recovers_without_replanning(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "PROVENANCE-REPAIR-ROUTING")
+        source = "VALUE = 'old'\n"
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            source, encoding="utf-8"
+        )
+        base_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
+        initial = GoalPlanPatch(
+            patch_id="GPP-provenance-initial",
+            base_revision=0,
+            add_steps=(
+                GoalPlanStep(
+                    step_id="S1",
+                    objective="Inspect result.txt",
+                    phase="observe",
+                    stage=1,
+                    success_evidence=("result.txt exact bytes are observed",),
+                    read_roots=("result.txt",),
+                ),
+                GoalPlanStep(
+                    step_id="S2",
+                    objective="Update result.txt from the observed exact bytes",
+                    phase="mutate",
+                    stage=2,
+                    depends_on=("S1",),
+                    success_evidence=("result.txt is updated",),
+                    write_roots=("result.txt",),
+                ),
+            ),
+            replace_steps=(),
+            discard_step_ids=(),
+            reason="Inspect before exact read-modify-write",
+        )
+        invalid_replace = json.dumps(
+            {
+                "function": "replace_text",
+                "params": {
+                    "path": "result.txt",
+                    "old": "VALUE = 'invented'",
+                    "new": "VALUE = 'new'",
+                    "base_sha256": base_sha256,
+                },
+            }
+        )
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the exact source bytes were observed",
+                    )
+                ),
+                invalid_replace,
+                invalid_replace,
+                json.dumps(
+                    {
+                        "function": "replace_text",
+                        "params": {
+                            "path": "result.txt",
+                            "old": "VALUE = 'old'",
+                            "new": "VALUE = 'new'",
+                            "base_sha256": base_sha256,
+                        },
+                    }
+                ),
+                json.dumps(_audit_call(
+                    "continue", step_id="S2", step_complete=True,
+                    evidence_refs=["A00002"], gaps=[], reason="the requested bytes changed",
+                )),
+                json.dumps({"function": "final_answer", "params": {"text": "Updated."}}),
+                json.dumps(_audit_call(
+                    "ready_for_final", step_id="", step_complete=False,
+                    evidence_refs=["A00001", "A00002"], gaps=[], reason="verified update",
+                )),
+            ]
+        )
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file", "replace_text", "replace_text"]),
+        )
+        planner = _StrongPlanner(initial)
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=20,
+        )
+    
+        result = controller.run(state.run_id)
+    
+>       assert result.state.status.value == "completed"
+E       AssertionError: assert 'interrupted' == 'completed'
+E         
+E         - completed
+E         + interrupted
+
+tests/test_stateful_goal_loop.py:2957: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_repeated_goal_io_failures_keep_step_until_actual_failure_budget
+FAILED tests/test_stateful_goal_loop.py::test_protocol_invalid_step_audit_keeps_plan_and_recovers[False]
+FAILED tests/test_stateful_goal_loop.py::test_protocol_invalid_step_audit_keeps_plan_and_recovers[True]
+FAILED tests/test_stateful_goal_loop.py::test_repeated_executor_provenance_rejection_recovers_without_replanning
+4 failed, 61 deselected in 4.76s
