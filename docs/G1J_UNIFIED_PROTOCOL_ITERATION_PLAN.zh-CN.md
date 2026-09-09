@@ -1,8 +1,8 @@
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
-更新日期：2026-09-09。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前整改轮为 `CONTROLLER_ROLE_CLOSURE_R1_20260909`，验证与限制见 [闭环报告](../data/experiments/CONTROLLER_ROLE_CLOSURE_R1_20260909/REPORT.zh-CN.md)。
+更新日期：2026-09-09。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前观测轮为 `ULTRADATA_COLLECTION_R2_20260909`，验证与未修复缺口见 [真实案例及链路对照](../data/experiments/ULTRADATA_COLLECTION_R2_20260909/REPORT.zh-CN.md)。
 
-Agent 级最新模型实测仍是历史 R7：A/B 各 Strict 0/12、completed 0/12、mutation 0，各成功执行 12 次目录观察，终止 `strong_planner_unavailable` / `fixed_plan_exhausted`。本轮代码回归没有产生新的 Agent 分数。R7 的 Controller 在第一次观察后的 REPAIR 强制请求改计划，导致第二个动作尚未发生，不能说已测到第二或第三阶段。原报告及其 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
+Agent 级最新实测为固定 UltraData 三题：Strict 0/3、completed 0/3、mutation 0、动作 9，全部在第一步三次相同目录观察后 `identical_success_budget_exhausted`。当前没有步骤 REPAIR 自动改计划，Planner 每题只调用一次；Step Auditor 输入却把候选缺口写成与已有完整观察冲突的否定句。该问题已复核、尚未修复，不能用合法输出充当正确标签。最近完整双臂对比仍是历史 R7，原始结果和各轮 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
 
 已修复 REPAIR 的无条件改计划分支、根证据固定八条截断及数据标签等工程问题。当前工作流程是先 Selector，满足当前角色的来源、标签、预注册覆盖与验证条件后训练，再固定前序 State 推进下一角色。Agent 能力低分不再作为训练前禁令。owner 已取消固定三轮上限；历史训练事实用于追溯，后续按指标、预算和实际 run 管理。
 

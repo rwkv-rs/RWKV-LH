@@ -1,6 +1,6 @@
 # UltraData 首轮任务准备与使用
 
-本轮 `ULTRADATA_PILOT_R1_20260909` 按 owner“先做 Tool-Use／Code-Agent 与可执行 Code 任务”推进。完整范围、来源与验收在 [实验目录](../data/experiments/ULTRADATA_PILOT_R1_20260909/PLAN.zh-CN.md)。这是外部任务准备，不是正式角色数据集，也不恢复此前暂停的整套 Agent 评测或训练。
+准备轮 `ULTRADATA_PILOT_R1_20260909` 按 owner“先做 Tool-Use／Code-Agent 与可执行 Code 任务”推进。完整范围、来源与验收在 [实验目录](../data/experiments/ULTRADATA_PILOT_R1_20260909/PLAN.zh-CN.md)。Owner 随后交付该试点并要求开始，固定三题已执行真实生产采集；最新 **Strict 0/3、completed 0/3、mutation 0、动作 9**，均在首步重复观察后阻塞。输入与输出、角色交接、候选数据缺口见 [R2 报告](../data/experiments/ULTRADATA_COLLECTION_R2_20260909/REPORT.zh-CN.md)。未恢复历史整套评测，没有正式角色训练。
 
 ## 已有入口
 
@@ -41,7 +41,7 @@
 
 编译文件必须与 manifest SHA 相符，候选在隔离 verifier 内运行；命令返回 0 代表该候选通过所有发布 I/O 测试。测试、参考实现及作者交付不形成角色训练证据。`RESULT.json` 不应提供给 Agent，后续生产工作需定义与验收隔离的公开反馈。
 
-任务对象与现有 `run_case` 接口兼容，本轮没有将试点注册到固定 `SUITES`、没有修改原评测分母、没有执行真实模型采集。正式采集前仍须冻结模型/服务/State/源码/预算与目标角色 scope，核验完整 trace 后走唯一角色抽取器；不能把作者参考代码当作 Executor 正例。
+任务对象与现有 `run_case` 接口兼容，准备轮没有将试点注册到固定 `SUITES`、没有修改原评测分母；后续 R1/R2 使用同一 runner 并分别冻结模型/服务/State/源码/预算与目标角色 scope。完整 trace 走唯一角色抽取器；作者参考代码不能作为 Executor 正例。
 
 ## 选择结论
 
@@ -50,4 +50,4 @@
 3. Code-Agent 用于研究定位→修改→检查→交付的连续行为。初始仓库版本、依赖及独立验收没有在该发布物中提供，不能根据教师改动倒造初始环境并声称真实复现。
 4. MiniCPM5-2B 保持 P0 方法参考：重视数据的专项作用、监督掩码、实际结果和成本；后续在固定回归上验证混合收益，再决定训练配比。外部工具名、轨迹中的自述成功和内容长度都不是本项目角色标签。
 
-当前真实角色样本和 optimizer steps 均没有因本轮准备增加。外部任务之间及与公开开发集的全面近重复/来源审查仍属正式采集前工作；本轮只对试点选择做 byte 5-gram cosine 检查，未读取 Holdout。
+准备轮本身没有增加真实角色样本或 optimizer steps。后续采集前已固定审查三题与七个公开任务目录、共 429 对完整公开需求，最高 byte 5-gram cosine 为 0.17572014315001627；未读取 Holdout。R2 得到九条自动标注 Selector 候选，但角色输入仍集中在观察空目录，缺少预注册覆盖、确认集且跨切分高度相似，因此候选全集 invalid；optimizer steps 仍为 0。
