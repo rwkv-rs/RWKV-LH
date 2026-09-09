@@ -1992,6 +1992,24 @@ def test_supervisor_read_timeout_retries_safe_control_plane_request():
     assert len(fake.posts) == 2
 
 
+def test_supervisor_http_200_protocol_failure_is_not_a_transport_retry():
+    fake = FakeSession([FakeResponse({"choices": []}) for _ in range(3)])
+    audit = []
+    client = OpenAICompatibleSupervisorClient(
+        replace(settings(), retry_attempts=3, retry_backoff_seconds=0),
+        session=fake, audit_hook=audit.append,
+    )
+    with pytest.raises(SupervisorProtocolError):
+        client.create_plan(SupervisorPlanRequest(
+            run_id="RUN-PROTOCOL-OWNERSHIP", request="Inspect the workspace.",
+            request_digest="digest-protocol-ownership", constraints=(), workspace_manifest={},
+        ))
+    assert len(fake.posts) == 1
+    failed = [event for event in audit if event["type"] == "supervisor_request_failed"]
+    assert len(failed) == 1 and failed[0]["http_attempts"] == 1
+    assert failed[0]["retryable"] is False
+
+
 def test_contract_plan_http_500_retry_keeps_minimal_request_envelope():
     immutable_request = "Create result.txt containing exact text ok."
     fake = FakeSession(

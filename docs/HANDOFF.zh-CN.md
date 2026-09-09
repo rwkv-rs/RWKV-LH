@@ -35,7 +35,7 @@ R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e
 
 ## 下一步与仍未证明的能力
 
-1. 统一角色链路已完成本轮工程整改与完整回归，证据见闭环报告；下一步重新冻结生产运行测量实际模型表现。
+1. 统一角色链路已完成本轮工程整改与完整回归。首次当前版本真实观察又发现 Supervisor 将 HTTP-200 协议失败放进传输重试循环，已修复并保留中止数据，见 [重试归属报告](../data/experiments/SUPERVISOR_PROTOCOL_RETRY_R1_20260909/REPORT.zh-CN.md)。首题未经过 Planner，Selector 尚无新数据；后续重新冻结全部 12 题，不拼接中止运行的成绩。
 2. 2.9B 已上线 `rwkv-lh-selector-current.service`（GPU 2，本地端口 29621），原始权重与转换后权重均核验，32 层 / 40×64 State 已通过至 16384 tokens 的 Native 前向与反向验证。本地旧 Selector 协议/模型 SHA 配置已更新；原 13.3B 服务保持运行。服务器仅使用上传的完整 SHA manifest，没有 Git。
 3. 登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前数值训练后端已经验证；正式角色数据消费、优化器运行登记与候选验收仍需接通，不能将数值反向测试算作训练。
 4. Planner 合同生成、Stage Checker 上下文/自然结束、后续编码与最终完成能力仍须新生产运行测量；E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。

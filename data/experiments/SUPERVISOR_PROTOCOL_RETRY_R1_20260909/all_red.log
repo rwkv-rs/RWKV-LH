@@ -1,0 +1,835 @@
+FFFFFFFFFFFFFFFFFFFFF                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_native_rejects_non_stop_even_with_complete_json[length] _________
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d672cf0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+_____ test_native_rejects_non_stop_even_with_complete_json[content_filter] _____
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d67bc50>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+____________ test_native_rejects_non_stop_even_with_complete_json[] ____________
+
+finish_reason = ''
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d460b90>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+__________ test_native_rejects_non_stop_even_with_complete_json[None] __________
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d49e650>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+_______ test_native_rejects_non_stop_even_with_complete_json[unexpected] _______
+
+finish_reason = 'unexpected'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d49f360>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+_________ test_native_rejects_malformed_completion_boundary[bare_json] _________
+
+fault = 'bare_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d6dbd10>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_____ test_native_rejects_malformed_completion_boundary[full_think_prefix] _____
+
+fault = 'full_think_prefix'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d4c3240>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_native_rejects_malformed_completion_boundary[unclosed_think] _______
+
+fault = 'unclosed_think'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d4c3f00>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_______ test_native_rejects_malformed_completion_boundary[leading_space] _______
+
+fault = 'leading_space'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5cc3eb50>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_______ test_native_rejects_malformed_completion_boundary[leading_prose] _______
+
+fault = 'leading_prose'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5cc3de50>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_native_rejects_malformed_completion_boundary[trailing_prose] _______
+
+fault = 'trailing_prose'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5cc62300>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+________ test_native_rejects_malformed_completion_boundary[second_json] ________
+
+fault = 'second_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5cc60f50>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_native_rejects_malformed_completion_boundary[truncated_json] _______
+
+fault = 'truncated_json'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d3fdef0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+________ test_native_rejects_malformed_completion_boundary[non_object] _________
+
+fault = 'non_object'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d3f2970>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_native_rejects_malformed_completion_boundary[missing_choices] ______
+
+fault = 'missing_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d3ccbb0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_______ test_native_rejects_malformed_completion_boundary[empty_choices] _______
+
+fault = 'empty_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d1ed9d0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_____ test_native_rejects_malformed_completion_boundary[multiple_choices] ______
+
+fault = 'multiple_choices'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d1ef650>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+_______ test_native_rejects_malformed_completion_boundary[missing_text] ________
+
+fault = 'missing_text'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d3bd180>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_native_rejects_malformed_completion_boundary[wrong_text_type] ______
+
+fault = 'wrong_text_type'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d3bdb20>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+________ test_native_rejects_malformed_completion_boundary[empty_text] _________
+
+fault = 'empty_text'
+
+    @pytest.mark.parametrize("fault", [
+        "bare_json", "full_think_prefix", "unclosed_think", "leading_space", "leading_prose",
+        "trailing_prose", "second_json", "truncated_json", "non_object", "missing_choices",
+        "empty_choices", "multiple_choices", "missing_text", "wrong_text_type", "empty_text",
+    ])
+    def test_native_rejects_malformed_completion_boundary(fault):
+        request, _, value = _plan_materials()
+        payload = _response(value)
+        choice = payload["choices"][0]
+        valid_json = json.dumps(value)
+        texts = {
+            "bare_json": valid_json,
+            "full_think_prefix": "<think>reasoning</think>" + valid_json,
+            "unclosed_think": ">reasoning" + valid_json,
+            "leading_space": " " + choice["text"],
+            "leading_prose": "prose" + choice["text"],
+            "trailing_prose": choice["text"] + " trailing prose",
+            "second_json": choice["text"] + valid_json,
+            "truncated_json": ">" + valid_json[:-1],
+            "non_object": ">[]",
+            "wrong_text_type": [choice["text"]],
+            "empty_text": "",
+        }
+        if fault in texts:
+            choice["text"] = texts[fault]
+        elif fault == "missing_choices":
+            payload.pop("choices")
+        elif fault == "empty_choices":
+            payload["choices"] = []
+        elif fault == "multiple_choices":
+            payload["choices"].append(deepcopy(choice))
+        elif fault == "missing_text":
+            choice.pop("text")
+        session = _Session(payload)
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x7fbb5d4804b0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:346: AssertionError
+______ test_supervisor_http_200_protocol_failure_is_not_a_transport_retry ______
+
+    def test_supervisor_http_200_protocol_failure_is_not_a_transport_retry():
+        fake = FakeSession([FakeResponse({"choices": []}) for _ in range(3)])
+        audit = []
+        client = OpenAICompatibleSupervisorClient(
+            replace(settings(), retry_attempts=3, retry_backoff_seconds=0),
+            session=fake, audit_hook=audit.append,
+        )
+        with pytest.raises(SupervisorProtocolError):
+            client.create_plan(SupervisorPlanRequest(
+                run_id="RUN-PROTOCOL-OWNERSHIP", request="Inspect the workspace.",
+                request_digest="digest-protocol-ownership", constraints=(), workspace_manifest={},
+            ))
+>       assert len(fake.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'https://supervisor.invalid/v1/chat/completions', 'headers': {'Authorization': 'Bearer test-secret-never-audi...t the workspace."}'}], 'max_tokens': 8192, 'response_format': {'type': 'json_object'}}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'https://supervisor.invalid/v1/chat/completions', 'headers': {'Authorization': 'Bearer test-secret-never-audi...t the workspace."}'}], 'max_tokens': 8192, 'response_format': {'type': 'json_object'}}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_openai.FakeSession object at 0x7fbb5d3482f0>.posts
+
+tests/test_supervisor_openai.py:2007: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[length]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[content_filter]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[None]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[unexpected]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[bare_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[full_think_prefix]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[unclosed_think]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[leading_space]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[leading_prose]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[trailing_prose]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[second_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[truncated_json]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[non_object]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[missing_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[empty_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[multiple_choices]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[missing_text]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[wrong_text_type]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_malformed_completion_boundary[empty_text]
+FAILED tests/test_supervisor_openai.py::test_supervisor_http_200_protocol_failure_is_not_a_transport_retry
+21 failed, 86 deselected in 0.28s

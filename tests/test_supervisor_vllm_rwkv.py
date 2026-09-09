@@ -300,7 +300,7 @@ def test_native_goal_roles_preserve_canonical_contract_and_audit_raw_output(phas
 def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
     request, _, value = _plan_materials()
     session = _Session(_response(value, finish_reason=finish_reason))
-    client = OpenAICompatibleSupervisorClient(_native_settings(), session=session)
+    client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
     with pytest.raises(SupervisorProtocolError):
         client.plan_goal_patch(request)
     assert len(session.posts) == 1
@@ -339,9 +339,11 @@ def test_native_rejects_malformed_completion_boundary(fault):
         payload["choices"].append(deepcopy(choice))
     elif fault == "missing_text":
         choice.pop("text")
-    client = OpenAICompatibleSupervisorClient(_native_settings(), session=_Session(payload))
+    session = _Session(payload)
+    client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
     with pytest.raises(SupervisorProtocolError):
         client.plan_goal_patch(request)
+    assert len(session.posts) == 1
 
 
 @pytest.mark.parametrize("location", ["prompt", "output"])

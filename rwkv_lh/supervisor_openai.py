@@ -1551,11 +1551,9 @@ class OpenAICompatibleSupervisorClient:
                 break
             except SupervisorProtocolError as exc:
                 error = exc
-                if attempt < self.settings.retry_attempts:
-                    delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
-                    if delay:
-                        time.sleep(delay)
-                    continue
+                # HTTP succeeded: an invalid model result belongs to the role
+                # boundary, not network recovery. Repeating the identical body
+                # consumes another generation without causal repair feedback.
                 break
             except Exception as exc:
                 error = exc

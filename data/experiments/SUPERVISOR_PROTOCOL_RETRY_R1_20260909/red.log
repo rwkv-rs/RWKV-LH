@@ -1,0 +1,94 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_native_rejects_non_stop_even_with_complete_json[length] _________
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x748a5beba7b0>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+_____ test_native_rejects_non_stop_even_with_complete_json[content_filter] _____
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x748a5bebf610>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+____________ test_native_rejects_non_stop_even_with_complete_json[] ____________
+
+finish_reason = ''
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x748a5bc88550>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+__________ test_native_rejects_non_stop_even_with_complete_json[None] __________
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x748a5bbe5e00>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+_______ test_native_rejects_non_stop_even_with_complete_json[unexpected] _______
+
+finish_reason = 'unexpected'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", "", None, "unexpected"])
+    def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
+        request, _, value = _plan_materials()
+        session = _Session(_response(value, finish_reason=finish_reason))
+        client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
+        with pytest.raises(SupervisorProtocolError):
+            client.plan_goal_patch(request)
+>       assert len(session.posts) == 1
+E       assert 3 == 1
+E        +  where 3 = len([{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}])
+E        +    where [{'url': 'http://supervisor.invalid/v1/completions', 'headers': {'Authorization': 'Bearer fixture-secret-never-audited...quested sources."}✿\nBot✿<think></think', 'max_tokens': 8192, 'temperature': 0.1, ...}, 'timeout': (10.0, 240.0), ...}] = <test_supervisor_vllm_rwkv._Session object at 0x748a5bbe6b10>.posts
+
+tests/test_supervisor_vllm_rwkv.py:306: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[length]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[content_filter]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[None]
+FAILED tests/test_supervisor_vllm_rwkv.py::test_native_rejects_non_stop_even_with_complete_json[unexpected]
+5 failed, 54 deselected in 0.09s
