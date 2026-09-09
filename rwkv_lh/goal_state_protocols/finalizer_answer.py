@@ -13,12 +13,13 @@ from rwkv_lh.goal_state_protocols import (
     _strict_command,
     _strings,
 )
+from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v2"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "FinalizerAnswerPromptV1: "
+PROMPT_PREFIX = "FinalizerAnswerPromptV2: "
 
 _PROMPT_FIELDS = (
     "immutable_goal",
@@ -26,6 +27,8 @@ _PROMPT_FIELDS = (
     "committed_facts",
     "evidence_records",
     "format_contract",
+    "feedback",
+    "retry_feedback",
 )
 _SOURCE_FIELDS = (*_PROMPT_FIELDS, "final_text", "fact_verifier_id")
 _FACT_FIELDS = ("fact_id", "value", "evidence_refs")
@@ -61,6 +64,12 @@ def _validate_facts(value: Any) -> tuple[Mapping[str, Any], ...]:
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "finalizer prompt source")
+    validate_feedback(selected["feedback"], recipient="finalizer_answer")
+    validate_feedback(selected["retry_feedback"], recipient="finalizer_answer")
+    if selected["feedback"] is not None and selected["feedback"]["kind"] != "semantic":
+        raise ValueError("Finalizer semantic feedback must retain its audit source")
+    if selected["retry_feedback"] is not None and selected["retry_feedback"]["kind"] != "protocol":
+        raise ValueError("Finalizer retry feedback cannot grant semantic authority")
     _nonempty(selected["immutable_goal"], "immutable_goal")
     _validate_completed_steps(selected["completed_steps"])
     _validate_facts(selected["committed_facts"])
@@ -79,6 +88,8 @@ def build_prompt_source(
     committed_facts: Sequence[Mapping[str, Any]],
     evidence_records: Sequence[Mapping[str, Any]],
     format_contract: Mapping[str, Any] | None = None,
+    feedback: Mapping[str, Any] | None = None,
+    retry_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct the one Finalizer input without adding completion authority."""
 
@@ -93,6 +104,8 @@ def build_prompt_source(
             "required_sections": [],
         },
     }
+    source["feedback"] = dict(feedback) if feedback is not None else None
+    source["retry_feedback"] = dict(retry_feedback) if retry_feedback is not None else None
     _validate_prompt_source(source)
     return source
 
@@ -119,6 +132,8 @@ def render_prompt(source: Any) -> str:
         "committed_facts": [dict(item) for item in prompt["committed_facts"]],
         "evidence_records": [dict(item) for item in prompt["evidence_records"]],
         "format_contract": dict(prompt["format_contract"]),
+        "feedback": prompt["feedback"],
+        "retry_feedback": prompt["retry_feedback"],
         "current_question": (
             "Return exactly one final_answer candidate grounded only in committed facts; "
             "do not claim completion authority or emit an audit verdict."

@@ -1,0 +1,171 @@
+........................................................................ [  6%]
+........................................................................ [ 13%]
+...F.................................................................... [ 20%]
+........................................................................ [ 27%]
+............F........................................................... [ 34%]
+........................................................................ [ 40%]
+........................................................................ [ 47%]
+........................................................................ [ 54%]
+........................................................................ [ 61%]
+........................................................................ [ 68%]
+........................................................................ [ 74%]
+........................................................................ [ 81%]
+........................................................................ [ 88%]
+........................................................................ [ 95%]
+..................................................                       [100%]
+=================================== FAILURES ===================================
+_ test_controller_target_contract_authorizes_direct_root_after_other_discovery _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_controller_target_contrac0')
+
+    def test_controller_target_contract_authorizes_direct_root_after_other_discovery(
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "left.txt").write_text("alpha\n", encoding="utf-8")
+        (workspace / "merged.txt").write_text("gamma\n", encoding="utf-8")
+        goal = _goal(workspace)
+        harness = ActionHarness(sandbox_commands=False)
+        search_arguments = {
+            "pattern": "gamma",
+            "path": "merged.txt",
+            "mode": "literal",
+        }
+        search_result = _execute(harness, goal, "search_text", search_arguments)
+        fact = _fact(
+            "A00041",
+            "search_text",
+            search_arguments,
+            search_result,
+            focus="verify merged output",
+        )
+        descriptor = harness.workspace_target_descriptor(goal, "left.txt")
+        execution_state = executor_args_v5.build_execution_state(
+            active_step_id="S1", active_step_revision=1,
+            declared_phase="observe", effective_phase="observe", assigned_actions=(),
+            mechanical_evidence={"missing_read_roots": ["left.txt"]},
+            target_contract=executor_args_v5.build_target_contract(
+                phase="observe", roots=["left.txt"], target_descriptors=[descriptor],
+                compatible_targets_by_operation={"file_digest": ["left.txt"]},
+            ),
+        )
+    
+>       report = validate_executor_argument_provenance(
+            "file_digest",
+            {"path": "left.txt"},
+            current_requirement="Verify the declared source root.",
+            fact_records=[fact],
+            execution_state=execution_state,
+        )
+
+tests/test_executor_provenance.py:506: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/executor_provenance.py:933: in validate_executor_argument_provenance
+    _path_discovery_binding(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+operation = 'file_digest', arguments = {'path': 'left.txt'}
+facts = ({'action_id': 'A00041', 'operation': 'search_text', 'arguments': {'pattern': 'gamma', 'path': 'merged.txt', 'mode': '...earch_text', 'metadata': {'complete': True, 'truncated': False, 'observed_tokens': 334, 'match_count': 1, ...}, ...}},)
+requirement = 'Verify the declared source root.'
+execution_state = {'active_step_id': 'S1', 'active_step_revision': 1, 'declared_phase': 'observe', 'effective_phase': 'observe', ...}
+
+    def _path_discovery_binding(
+        operation: str,
+        arguments: Mapping[str, Any],
+        facts: Sequence[Mapping[str, Any]],
+        requirement: str,
+        execution_state: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        if operation not in {"read_file", "read_json", "file_digest"}:
+            return []
+        path = arguments.get("path")
+        if not isinstance(path, str) or not path:
+            return []
+        target_contract = execution_state.get("target_contract")
+        if isinstance(target_contract, Mapping) and target_contract.get(
+            "schema_version"
+        ) == "rwkv-lh.goal-step-target-contract.v1":
+            compatible = target_contract.get("compatible_targets_by_operation")
+            operation_paths = (
+                compatible.get(operation)
+                if isinstance(compatible, Mapping)
+                else None
+            )
+            if (
+                isinstance(operation_paths, list)
+                and path in operation_paths
+                and all(isinstance(item, str) for item in operation_paths)
+            ):
+                descriptors = target_contract.get("target_descriptors")
+                descriptor = next(
+                    (
+                        dict(item)
+                        for item in descriptors or ()
+                        if isinstance(item, Mapping) and item.get("path") == path
+                    ),
+                    None,
+                )
+                if descriptor is None:
+                    raise ExecutorProvenanceError(
+                        "Controller target contract names a path without its Harness descriptor"
+                    )
+                return [
+                    _binding(
+                        "/path",
+                        path,
+                        "controller_harness_target_contract",
+                        {
+                            "target_contract_sha256": canonical_digest(target_contract),
+                            "phase": str(target_contract.get("phase") or ""),
+                            "descriptor": descriptor,
+                        },
+                    )
+                ]
+        discovery_facts = [
+            fact
+            for fact in facts
+            if str(fact.get("operation") or "") in {"search_text", "list_directory"}
+        ]
+        if not discovery_facts:
+            return []
+        locator = _structured_path_locator(discovery_facts, path)
+        if locator is not None:
+            return [_binding("/path", path, "literal_structured_path", locator)]
+        literal_locator = _find_literal(facts, path)
+        if literal_locator is not None:
+            return [_binding("/path", path, "exact_utf8_fragment", literal_locator)]
+        if _requirement_contains(requirement, path):
+            return [
+                _binding(
+                    "/path",
+                    path,
+                    "literal_current_requirement",
+                    {
+                        "requirement_sha256": _sha256_text(requirement),
+                        "literal_sha256": _sha256_text(path),
+                    },
+                )
+            ]
+>       raise ExecutorProvenanceError(
+            f"/path {path!r} is not an exact item in the bound discovery observation"
+        )
+E       rwkv_lh.executor_provenance.ExecutorProvenanceError: /path 'left.txt' is not an exact item in the bound discovery observation
+
+rwkv_lh/executor_provenance.py:820: ExecutorProvenanceError
+_____________ test_selector_rejects_every_noncurrent_protocol[v5] ______________
+
+version = 'v5'
+
+    @pytest.mark.parametrize("version", ("", "unknown", "v2", "v3", "v5"))
+    def test_selector_rejects_every_noncurrent_protocol(version: str) -> None:
+        schema = selector_intent_v5.INPUT_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version
+>       with pytest.raises(ValueError, match="unsupported network Selector input protocol"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_native_network_selector_service.py:278: Failed
+=========================== short test summary info ============================
+FAILED tests/test_executor_provenance.py::test_controller_target_contract_authorizes_direct_root_after_other_discovery
+FAILED tests/test_native_network_selector_service.py::test_selector_rejects_every_noncurrent_protocol[v5]
+2 failed, 1056 passed in 192.45s (0:03:12)

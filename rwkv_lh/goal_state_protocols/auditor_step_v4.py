@@ -1,6 +1,6 @@
-"""Production/data-shared G1J Step-Auditor v3 renderer and parser.
+"""Production/data-shared G1J Step-Auditor v4 renderer and parser.
 
-V3 makes the allowed gap vocabulary explicit.  The Auditor still decides
+V4 carries protocol repair feedback and makes the allowed gap vocabulary explicit.  The Auditor still decides
 whether evidence completes the active step, but it never invents an exact gap
 sentence that was absent from its input.
 """
@@ -20,12 +20,13 @@ from rwkv_lh.goal_state_protocols import (
     _render,
     _strings,
 )
+from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v3"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v4"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorStepPromptV3: "
+PROMPT_PREFIX = "AuditorStepPromptV4: "
 REASON_COMPLETE = "evidence_complete"
 REASON_INCOMPLETE = "evidence_incomplete"
 
@@ -35,6 +36,7 @@ _PROMPT_FIELDS = (
     "gap_catalog",
     "available_evidence_refs",
     "evidence_records",
+    "feedback",
 )
 _SOURCE_FIELDS = (*_PROMPT_FIELDS, "decision", "completion_verifier_id")
 _BOUNDARIES = {
@@ -130,6 +132,7 @@ def _validate_gap_catalog(value: Any) -> tuple[Mapping[str, Any], ...]:
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "step auditor prompt source")
+    validate_feedback(selected["feedback"], recipient="auditor_step")
     if selected["boundary"] not in _BOUNDARIES:
         raise ValueError("step auditor boundary is invalid")
     step = _exact_fields(selected["active_step"], _STEP_FIELDS, "active_step")
@@ -158,6 +161,7 @@ def build_prompt_source(
     active_step: Mapping[str, Any],
     available_evidence_refs: Sequence[str],
     evidence_records: Sequence[Mapping[str, Any]],
+    feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct the sole Step Auditor input from the visible evidence boundary."""
 
@@ -168,6 +172,7 @@ def build_prompt_source(
         "available_evidence_refs": list(available_evidence_refs),
         "evidence_records": [dict(record) for record in evidence_records],
     }
+    source["feedback"] = dict(feedback) if feedback is not None else None
     _validate_prompt_source(source)
     return source
 
@@ -215,6 +220,7 @@ def render_prompt(source: Any) -> str:
         "gap_catalog": [dict(item) for item in prompt["gap_catalog"]],
         "available_evidence_refs": list(prompt["available_evidence_refs"]),
         "evidence_records": [dict(item) for item in prompt["evidence_records"]],
+        "feedback": prompt["feedback"],
         "current_question": (
             "Return audit_decision with exactly these six fields: verdict, step_id, "
             "step_complete, evidence_refs, gaps, reason. Always include both "
@@ -241,7 +247,7 @@ def parse_target(target: str) -> ModelCommand:
         else REASON_INCOMPLETE
     )
     if command.arguments["reason"] != expected_reason:
-        raise ValueError("Auditor v3 target reason is not canonical for its verdict")
+        raise ValueError("Auditor target reason is not canonical for its verdict")
     return command
 
 

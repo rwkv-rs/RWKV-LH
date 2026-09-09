@@ -1,0 +1,108 @@
+........................................................................ [ 58%]
+................F..................................                      [100%]
+=================================== FAILURES ===================================
+______ test_goal_stage_checker_transport_pending_resolves_after_response _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/closure_integration/test_goal_stage_checker_transp0')
+
+    def test_goal_stage_checker_transport_pending_resolves_after_response(
+        tmp_path: Path,
+    ) -> None:
+        class RecoveringStagePlanner(_StrongPlanner):
+            def review_goal_stage(self, request):
+                if not self.stage_review_requests:
+                    self.stage_review_requests.append(request)
+                    raise RuntimeError("temporary stage checker transport failure")
+                return super().review_goal_stage(request)
+    
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "GOAL-STAGE-TRANSPORT-RESUME")
+        model = LongHorizonModel(
+            ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            tool_selector=_selector([]),
+        )
+        planner = RecoveringStagePlanner()
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=1,
+        )
+        plan = RollingGoalPlan(goal_digest=state.goal.digest)
+        plan.apply_goal_patch(_strong_patch(state))
+        plan.apply_audit(
+            GoalAuditDecision(
+                audit_id="AUD-stage-transport",
+                verdict=GoalAuditVerdict.CONTINUE,
+                step_id="S1",
+                evidence_refs=("A00001",),
+                gaps=(),
+                completed_steps=(AuditedStep("S1", ("A00001",)),),
+                reason="test evidence",
+            )
+        )
+        state.actions["A00001"] = ActionRecord(
+            action_id="A00001", sequence=1, status=ActionStatus.SUCCEEDED,
+            action_type="write_file", arguments={"path": "result.txt"},
+            wire_arguments={"path": "result.txt"}, action_fingerprint="fixture",
+            idempotency_key="fixture", decision_id="D-fixture", request_id="MR-fixture",
+            started_at=utc_now(), ended_at=utc_now(), result={"success": True},
+            outcome_type="success",
+        )
+        stage_key = plan.stage_boundary_key(1)
+    
+        first = controller._issue_strong_stage_review(
+            state,
+            plan=plan,
+            stage=1,
+            stage_boundary_key=stage_key,
+            transitions=0,
+        )
+    
+        assert first.state.status.value == "interrupted"
+        assert len(unresolved_supervisor_pending(first.state)) == 1
+    
+>       recovered = controller._issue_strong_stage_review(
+            first.state,
+            plan=plan,
+            stage=1,
+            stage_boundary_key=stage_key,
+            transitions=0,
+        )
+
+tests/test_stateful_goal_loop.py:4542: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:1673: in _issue_strong_stage_review
+    recent_action_facts=self._recent_action_facts(
+rwkv_lh/stateful_goal_loop.py:110: in _recent_action_facts
+    allowed = evidence_action_ids(state, action_ids) if action_ids is not None else None
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = RunState(run_id='GOAL-STAGE-TRANSPORT-RESUME', goal=GoalState(goal_id='G1', request='Inspect the project and report ve..._at='2026-09-09T08:47:16.002+00:00', updated_at='2026-09-09T08:47:16.032+00:00', schema_version='long-horizon.run.v18')
+refs = ('A00001',)
+
+    def evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]:
+        revisions = {
+            revision.revision_id: revision
+            for values in state.artifact_revisions.values()
+            for revision in values
+        }
+        action_ids: set[str] = set()
+        for ref in refs:
+            if ref in state.actions:
+                action_ids.add(ref)
+            elif (artifact := state.artifacts.get(ref)) is not None:
+                action_ids.add(artifact.action_id)
+            elif (revision := revisions.get(ref)) is not None:
+                action_ids.add(revision.action_id)
+            else:
+>               raise ValueError(f"audit evidence {ref!r} is not a Harness action fact")
+E               ValueError: audit evidence 'A00001' is not a Harness action fact
+
+rwkv_lh/goal_loop_protocol.py:1434: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_goal_stage_checker_transport_pending_resolves_after_response
+1 failed, 122 passed in 60.28s (0:01:00)

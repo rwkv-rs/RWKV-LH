@@ -258,9 +258,9 @@ def validate_independent_executor_generation_input(
         raise ModelIOError("independent Executor requirement must be non-empty")
     # Local import avoids the shared protocol primitives' ModelCommand import
     # cycle. Only the current role module supplies a live input contract.
-    from rwkv_lh.goal_state_protocols import executor_args_v4
+    from rwkv_lh.goal_state_protocols import executor_args_v5
 
-    protocol_marker = executor_args_v4.PROMPT_PREFIX
+    protocol_marker = executor_args_v5.PROMPT_PREFIX
     if not text.endswith(TOOL_CALL_JSON_CONTINUATION_ANCHOR):
         raise ModelIOError(
             "current Executor-Args input protocol is required: "
@@ -300,7 +300,7 @@ def validate_independent_executor_generation_input(
             )
         if not isinstance(payload, Mapping):
             raise ModelIOError("Executor-Args production prompt must be an object")
-        expected_schema = executor_args_v4.INPUT_SCHEMA_VERSION
+        expected_schema = executor_args_v5.INPUT_SCHEMA_VERSION
         if (
             payload.get("schema_version") != expected_schema
             or payload.get("role") != "executor_args"
@@ -314,7 +314,7 @@ def validate_independent_executor_generation_input(
             if key not in {"schema_version", "role", "current_question"}
         }
         try:
-            canonical_input = executor_args_v4.render_generation_prompt(source)
+            canonical_input = executor_args_v5.render_generation_prompt(source)
         except ValueError as exc:
             raise ModelIOError(f"Executor-Args production prompt is invalid: {exc}") from exc
         if text != text[:protocol_start] + canonical_input:

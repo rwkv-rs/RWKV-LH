@@ -24,12 +24,13 @@ from rwkv_lh.goal_state_protocols import (
 from rwkv_lh.goal_state_protocols.finalizer_answer import (
     _validate_completed_steps,
 )
+from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v2"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v3"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorFinalPromptV2: "
+PROMPT_PREFIX = "AuditorFinalPromptV3: "
 REASON_READY = "final_evidence_complete"
 REASON_REPAIR = "final_evidence_incomplete"
 
@@ -40,9 +41,10 @@ _PROMPT_FIELDS = (
     "evidence_records",
     "final_candidate",
     "gap_catalog",
+    "feedback",
 )
 _SOURCE_FIELDS = (*_PROMPT_FIELDS, "decision", "final_verifier_id")
-_GAP_ENTRY_FIELDS = ("code", "criterion")
+_GAP_ENTRY_FIELDS = ("code", "criterion", "repair_scope")
 
 
 def _gap_code(prefix: str, value: str) -> str:
@@ -104,7 +106,8 @@ def build_gap_catalog(
                 f"Evidence {evidence_ref} is failed, incomplete, or truncated."
             )
     return [
-        {"code": code, "criterion": entries[code]}
+        {"code": code, "criterion": entries[code],
+         "repair_scope": "answer" if code in {"candidate_omits_required_result", "candidate_unsupported_claim"} else "execution"}
         for code in sorted(entries)
     ]
 
@@ -123,6 +126,7 @@ def _validate_gap_catalog(value: Any) -> tuple[Mapping[str, Any], ...]:
 
 def _validate_prompt_source(source: Any) -> Mapping[str, Any]:
     selected = _exact_fields(source, _PROMPT_FIELDS, "final auditor prompt source")
+    validate_feedback(selected["feedback"], recipient="auditor_final")
     _nonempty(selected["immutable_goal"], "immutable_goal")
     completed_steps = _validate_completed_steps(selected["completed_steps"])
     _strings(
@@ -158,6 +162,7 @@ def build_prompt_source(
     available_evidence_refs: Sequence[str],
     evidence_records: Sequence[Mapping[str, Any]],
     final_candidate: Mapping[str, Any],
+    feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind the Finalizer candidate to the one visible-evidence audit input."""
 
@@ -169,6 +174,7 @@ def build_prompt_source(
         "final_candidate": dict(final_candidate),
         "gap_catalog": build_gap_catalog(immutable_goal, completed_steps, evidence_records),
     }
+    source["feedback"] = dict(feedback) if feedback is not None else None
     _validate_prompt_source(source)
     return source
 
@@ -217,6 +223,7 @@ def render_prompt(source: Any) -> str:
         "evidence_records": [dict(item) for item in prompt["evidence_records"]],
         "final_candidate": dict(prompt["final_candidate"]),
         "gap_catalog": [dict(item) for item in prompt["gap_catalog"]],
+        "feedback": prompt["feedback"],
         "current_question": (
             "Return audit_decision with exactly these six fields: verdict, step_id, "
             "step_complete, evidence_refs, gaps, reason. At this final boundary "

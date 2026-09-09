@@ -25,8 +25,9 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     build_network_selector_input, goal_frontier_selector_context,
 )
 from rwkv_lh.goal_loop_protocol import goal_step_action_bindings, rolling_goal_plan
+from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v3, executor_args_v4, finalizer_answer, selector_intent_v4,
+    auditor_final, auditor_step_v4, executor_args_v5, finalizer_answer, selector_intent_v5,
 )
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
@@ -41,9 +42,9 @@ class RoleInputReconstructionError(ValueError):
 
 
 _MODULES = {
-    "selector_intent": selector_intent_v4,
-    "executor_args": executor_args_v4,
-    "auditor_step": auditor_step_v3,
+    "selector_intent": selector_intent_v5,
+    "executor_args": executor_args_v5,
+    "auditor_step": auditor_step_v4,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }
@@ -151,7 +152,7 @@ def _frontier_facts(state: RunState):
     roots = StatefulGoalLoopController._goal_step_target_roots(step, phase, mechanical)
     if tuple(raw_contract.get("roots") or ()) != roots:
         raise RoleInputReconstructionError("durable target roots differ from the active plan remainder")
-    contract = executor_args_v4.build_target_contract(
+    contract = executor_args_v5.build_target_contract(
         phase=phase, roots=roots,
         target_descriptors=raw_contract.get("target_descriptors") or (),
         compatible_targets_by_operation=raw_contract.get("compatible_targets_by_operation") or {},
@@ -278,6 +279,8 @@ def _rebuild(role, state, request):
                 immutable_goal=state.goal.request,
                 completed_steps=LongHorizonModel._completed_step_records(plan),
                 committed_facts=LongHorizonModel._committed_fact_records(records), evidence_records=records,
+                feedback=finalizer_feedback(state),
+                retry_feedback=finalizer_retry_feedback(state),
             )
         else:
             if boundary.event_type != "goal_auditor_session_started" or boundary.payload.get("auditor_role") != role:
@@ -310,6 +313,7 @@ def _rebuild(role, state, request):
                 source = module.build_prompt_source(
                     boundary=str(payload.get("boundary") or ""), active_step=active,
                     available_evidence_refs=refs, evidence_records=records,
+                    feedback=protocol_feedback(state, role, audit_id),
                 )
                 mechanical = StatefulGoalLoopController._step_mechanical_evidence_coverage(state, step_id, payload["active_step_revision"])
                 result.update(missing_read_roots=mechanical["missing_read_roots"], missing_write_roots=mechanical["missing_write_roots"])
@@ -325,6 +329,7 @@ def _rebuild(role, state, request):
                     immutable_goal=state.goal.request, completed_steps=LongHorizonModel._completed_step_records(plan),
                     available_evidence_refs=refs, evidence_records=records,
                     final_candidate={"function": candidate.name, "params": dict(candidate.arguments)},
+                    feedback=protocol_feedback(state, role, audit_id),
                 )
         result["evidence_refs"] = list(refs)
         result["coverage"] = _audit_coverage(state, records)

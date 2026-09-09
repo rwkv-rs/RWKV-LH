@@ -9,7 +9,7 @@ import pytest
 
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_SELECTOR_MENU_ORDER_IDS
 from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanStep
-from rwkv_lh.goal_state_protocols import selector_intent_v4
+from rwkv_lh.goal_state_protocols import selector_intent_v5
 from rwkv_lh.model_io import canonical_digest
 from rwkv_lh.role_trace_inputs import RoleInputReconstructionError, rebuild_role_input
 from rwkv_lh.schema import CausalEventDraft, GoalState
@@ -18,7 +18,7 @@ from rwkv_lh.store import LongHorizonStore
 
 
 def _selector_boundary(tmp_path: Path):
-    from rwkv_lh.goal_state_protocols import executor_args_v4
+    from rwkv_lh.goal_state_protocols import executor_args_v5
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -38,7 +38,7 @@ def _selector_boundary(tmp_path: Path):
         "goal_plan_patch_committed", {"patch": patch.to_dict()}, subject_id="P1",
     ))
     mechanical = StatefulGoalLoopController._step_mechanical_evidence_coverage(state, "S1", 1)
-    contract = executor_args_v4.build_target_contract(
+    contract = executor_args_v5.build_target_contract(
         phase="observe", roots=("data.json",),
         target_descriptors=({"path": "data.json", "type": "file", "target_kind": "json_file", "exists": True},),
         compatible_targets_by_operation={"read_json": ["data.json"]},
@@ -67,8 +67,8 @@ def test_selector_rebuilds_three_production_menus_from_durable_boundary(tmp_path
         result = rebuild_role_input("selector_intent", restored, {
             "boundary_event_id": restored.causal_order[-1], "menu_order_id": menu_id,
         })
-        assert result["protocol_version"] == selector_intent_v4.INPUT_SCHEMA_VERSION
-        assert result["protocol_prompt"] == selector_intent_v4.render_prompt(result["prompt_source"])
+        assert result["protocol_version"] == selector_intent_v5.INPUT_SCHEMA_VERSION
+        assert result["protocol_prompt"] == selector_intent_v5.render_prompt(result["prompt_source"])
         assert result["prompt_source"]["current_progress"]["missing_read_roots"] == ["data.json"]
         assert result["coverage"]["json_root"] is True
         prompts.append(result["bootstrap_prompt"])
@@ -128,22 +128,79 @@ def controller_role_snapshots(tmp_path: Path, monkeypatch, request):
         return saved
 
     monkeypatch.setattr(store, "save", capture)
-    queue = _QueueClient([
+    outputs = [
         json.dumps({"function": "write_file", "params": {"path": "result.txt", "content": "verified content"}}),
         json.dumps(_audit_call("continue", step_id="S1", step_complete=True, evidence_refs=["A00001"], gaps=[], reason="Fixture write observed")),
         json.dumps({"function": "final_answer", "params": {"text": "Created result.txt."}}),
         json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False, evidence_refs=["A00001"], gaps=[], reason="Fixture final evidence present")),
-    ])
-    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)), tool_selector=_selector(["write_file"]))
+    ]
+    exercise_feedback = getattr(request, "param", None) == "feedback"
+    if exercise_feedback:
+        from rwkv_lh.goal_state_protocols import auditor_step_v4
+        gap = next(item["code"] for item in auditor_step_v4.build_gap_catalog(
+            _strong_patch(state).add_steps[0].to_dict(), ()
+        ) if item["code"].startswith("phase_evidence_unproved:"))
+        outputs = [
+            outputs[0], "{}",
+            json.dumps(_audit_call("repair", step_id="S1", step_complete=False, evidence_refs=["A00001"], gaps=[gap], reason="Fixture semantic gap")),
+            json.dumps({"function": "write_file", "params": {"path": "result.txt", "content": "verified revised content"}}),
+            json.dumps(_audit_call("continue", step_id="S1", step_complete=True, evidence_refs=["A00002"], gaps=[], reason="Fixture revision observed")),
+            outputs[2], "{}",
+            json.dumps(_audit_call("repair", step_id="", step_complete=False, evidence_refs=["A00002"], gaps=["candidate_omits_required_result"], reason="Fixture answer gap")),
+            "{}",
+            json.dumps({"function": "final_answer", "params": {"text": "Created and revised result.txt."}}),
+            json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False, evidence_refs=["A00002"], gaps=[], reason="Fixture final evidence present")),
+        ]
+    queue = _QueueClient(outputs)
+    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)), tool_selector=_selector(["write_file"] * (2 if exercise_feedback else 1)))
     monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *args, **kwargs: None))
-    transition_budget = getattr(request, "param", 20)
+    transition_budget = 30 if exercise_feedback else getattr(request, "param", 20)
     controller = StatefulGoalLoopController(
         store, model=model, harness=model.harness, supervisor=_StrongPlanner(_strong_patch(state)),
         supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=transition_budget,
     )
     final = controller.run(state.run_id).state
-    assert final.status.value == ("completed" if transition_budget == 20 else "interrupted")
+    assert final.status.value == ("completed" if transition_budget >= 20 else "interrupted")
     return snapshots, final
+
+
+@pytest.mark.parametrize("controller_role_snapshots", ["feedback"], indirect=True)
+def test_all_five_roles_rebuild_feedback_from_their_exact_durable_boundary(controller_role_snapshots):
+    snapshots, final = controller_role_snapshots
+    observed = set()
+    for snapshot in snapshots:
+        event = snapshot.causal_records[snapshot.causal_order[-1]]
+        role = {
+            "goal_role_input_boundary": "selector_intent",
+            "tool_schema_disclosed": "executor_args",
+            "goal_finalizer_session_started": "finalizer_answer",
+            "goal_auditor_session_started": event.payload.get("auditor_role"),
+        }.get(event.event_type)
+        if not role:
+            continue
+        rebuilt = rebuild_role_input(role, snapshot, {
+            "boundary_event_id": event.event_id, "checkpoint_id": event.payload.get("checkpoint_id"),
+        })
+        if role != "selector_intent":
+            assert rebuilt["expected_checkpoint_transcript"] == snapshot.model_states[event.payload["checkpoint_id"]].transcript
+        source = rebuilt["prompt_source"]
+        feedback = (source["current_progress"]["feedback"] if role == "selector_intent"
+                    else source["execution_state"]["feedback"] if role == "executor_args"
+                    else source["feedback"])
+        if feedback is not None:
+            assert role in feedback["recipient_roles"]
+            assert feedback["source_id"] and feedback["boundary_id"]
+            observed.add((role, feedback["kind"]))
+        if role == "finalizer_answer" and source["retry_feedback"] is not None:
+            assert feedback is not None
+            assert feedback["issues"][0]["code"] == "candidate_omits_required_result"
+            observed.add((role, source["retry_feedback"]["kind"]))
+    assert observed == {
+        ("selector_intent", "semantic"), ("executor_args", "semantic"),
+        ("auditor_step", "protocol"), ("auditor_final", "protocol"),
+        ("finalizer_answer", "protocol"), ("finalizer_answer", "semantic"),
+    }
+    assert len(final.actions) == 2
 
 
 @pytest.mark.parametrize("role,event_type", [
@@ -191,11 +248,11 @@ def test_selector_snapshot_matches_production_votes(controller_role_snapshots):
 
 
 def test_rejects_durable_harness_scope_outside_active_plan(tmp_path: Path):
-    from rwkv_lh.goal_state_protocols import executor_args_v4
+    from rwkv_lh.goal_state_protocols import executor_args_v5
 
     store, state = _selector_boundary(tmp_path)
     payload = deepcopy(state.causal_records[state.causal_order[-1]].payload)
-    contract = executor_args_v4.build_target_contract(
+    contract = executor_args_v5.build_target_contract(
         phase="observe", roots=("outside.json",),
         target_descriptors=({"path": "outside.json", "type": "file", "target_kind": "json_file", "exists": True},),
         compatible_targets_by_operation={"read_json": ["outside.json"]},
@@ -255,7 +312,7 @@ def test_audit_coverage_excludes_unreferenced_actions(controller_role_snapshots)
 
 
 def test_audit_coverage_ignores_later_unseen_assignment(controller_role_snapshots):
-    from rwkv_lh.goal_state_protocols import executor_args_v4
+    from rwkv_lh.goal_state_protocols import executor_args_v5
     from rwkv_lh.model import LongHorizonModel
     from rwkv_lh.role_trace_inputs import _audit_coverage
 
@@ -264,7 +321,7 @@ def test_audit_coverage_ignores_later_unseen_assignment(controller_role_snapshot
     expected = _audit_coverage(state, visible)
     original = next(state.causal_records[eid] for eid in state.causal_order if state.causal_records[eid].event_type == "goal_role_input_boundary")
     payload = deepcopy(original.payload)
-    payload["target_contract"] = executor_args_v4.build_target_contract(
+    payload["target_contract"] = executor_args_v5.build_target_contract(
         phase="mutate", roots=("result.txt",),
         target_descriptors=({"path": "result.txt", "type": "directory", "target_kind": "directory", "exists": True},),
         compatible_targets_by_operation={"write_file": ["result.txt"]},

@@ -1,0 +1,68 @@
+FFF.F                                                                    [100%]
+=================================== FAILURES ===================================
+_____________ test_plan_patch_rejects_every_noncurrent_version[v1] _____________
+
+version = 'v1'
+
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3", "v999"])
+    def test_plan_patch_rejects_every_noncurrent_version(version: str) -> None:
+        current = GoalPlanPatch(patch_id="CURRENT", base_revision=0,
+            add_steps=(GoalPlanStep(step_id="S1", objective="Inspect", phase="observe",
+                read_roots=(".",), success_evidence=("workspace observed",)),),
+            replace_steps=(), discard_step_ids=(), reason="current contract").to_dict()
+        current["schema_version"] = GOAL_PLAN_PATCH_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version
+>       with pytest.raises(ValueError, match="unsupported Goal PlanPatch schema"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'unsupported Goal PlanPatch schema'
+E         Actual message: 'Goal PlanPatch must change at least one open step'
+
+tests/test_stateful_goal_loop.py:90: AssertionError
+_____________ test_plan_patch_rejects_every_noncurrent_version[v2] _____________
+
+version = 'v2'
+
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3", "v999"])
+    def test_plan_patch_rejects_every_noncurrent_version(version: str) -> None:
+        current = GoalPlanPatch(patch_id="CURRENT", base_revision=0,
+            add_steps=(GoalPlanStep(step_id="S1", objective="Inspect", phase="observe",
+                read_roots=(".",), success_evidence=("workspace observed",)),),
+            replace_steps=(), discard_step_ids=(), reason="current contract").to_dict()
+        current["schema_version"] = GOAL_PLAN_PATCH_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version
+>       with pytest.raises(ValueError, match="unsupported Goal PlanPatch schema"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'unsupported Goal PlanPatch schema'
+E         Actual message: 'Goal PlanPatch step fields differ from the fixed contract'
+
+tests/test_stateful_goal_loop.py:90: AssertionError
+_____________ test_plan_patch_rejects_every_noncurrent_version[v3] _____________
+
+version = 'v3'
+
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3", "v999"])
+    def test_plan_patch_rejects_every_noncurrent_version(version: str) -> None:
+        current = GoalPlanPatch(patch_id="CURRENT", base_revision=0,
+            add_steps=(GoalPlanStep(step_id="S1", objective="Inspect", phase="observe",
+                read_roots=(".",), success_evidence=("workspace observed",)),),
+            replace_steps=(), discard_step_ids=(), reason="current contract").to_dict()
+        current["schema_version"] = GOAL_PLAN_PATCH_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version
+>       with pytest.raises(ValueError, match="unsupported Goal PlanPatch schema"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_stateful_goal_loop.py:90: Failed
+__________________ test_plan_step_requires_an_explicit_phase ___________________
+
+    def test_plan_step_requires_an_explicit_phase() -> None:
+>       with pytest.raises(ValueError, match="phase"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_stateful_goal_loop.py:95: Failed
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_plan_patch_rejects_every_noncurrent_version[v1]
+FAILED tests/test_stateful_goal_loop.py::test_plan_patch_rejects_every_noncurrent_version[v2]
+FAILED tests/test_stateful_goal_loop.py::test_plan_patch_rejects_every_noncurrent_version[v3]
+FAILED tests/test_stateful_goal_loop.py::test_plan_step_requires_an_explicit_phase
+4 failed, 1 passed, 73 deselected in 0.41s

@@ -1,6 +1,6 @@
 """Observation-conditioned production/data protocol for the G1J Executor.
 
-V4 owns the typed progress contract and makes the factual authority of
+V5 owns the typed progress contract and makes the factual authority of
 the preceding Harness observations explicit.  A navigation summary may help the
 model find material, but it is never authority for a path, source literal, cursor,
 or read-modify-write base revision.
@@ -14,15 +14,16 @@ from typing import Any
 from rwkv_lh.goal_state_protocols import (
     _exact_fields, _nonempty, _objects, _render, _strict_command, _strings,
 )
+from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, TOOL_CALL_JSON_CONTINUATION_ANCHOR
 from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v4"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v5"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "ExecutorArgsPromptV4: "
+PROMPT_PREFIX = "ExecutorArgsPromptV5: "
 OBSERVATION_BINDING_SCHEMA_VERSION = "rwkv-lh.executor-observation-binding.v1"
-TARGET_CONTRACT_SCHEMA_VERSION = "rwkv-lh.goal-step-target-contract.v1"
+TARGET_CONTRACT_SCHEMA_VERSION = "rwkv-lh.goal-step-target-contract.v2"
 EXACT_SOURCE_RULE = (
     "mutation_literals_must_be_copied_from_exact_spans_or_literal_structured_fields"
 )
@@ -59,7 +60,7 @@ _EXECUTION_STATE_FIELDS = (
     "remaining_read_roots",
     "remaining_write_roots",
     "last_action",
-    "repair_gaps",
+    "feedback",
     "target_contract",
 )
 _LAST_ACTION_FIELDS = (
@@ -85,12 +86,12 @@ _TARGET_CONTRACT_FIELDS = (
     "roots",
     "target_descriptors",
     "compatible_targets_by_operation",
+    "discovery_complete",
 )
 _PHASES = {"observe", "mutate", "execute", "derive_evidence"}
 _TARGET_KINDS = {
     "directory",
     "json_file",
-    "json_candidate_file",
     "text_file",
     "binary_file",
     "large_file",
@@ -133,6 +134,8 @@ def _validate_target_contract(value: Any) -> Mapping[str, Any]:
             raise ValueError("target descriptor exists must be boolean")
         if "size_bytes" in descriptor:
             _nonnegative_int(descriptor["size_bytes"], "target descriptor size_bytes")
+    if not isinstance(contract["discovery_complete"], bool):
+        raise ValueError("target discovery completeness must be explicit")
     compatible = contract["compatible_targets_by_operation"]
     if not isinstance(compatible, Mapping):
         raise ValueError("compatible_targets_by_operation must be an object")
@@ -150,6 +153,7 @@ def build_target_contract(
     roots: Sequence[str],
     target_descriptors: Sequence[Mapping[str, Any]],
     compatible_targets_by_operation: Mapping[str, Sequence[str]],
+    discovery_complete: bool = True,
 ) -> dict[str, Any]:
     """Project Harness descriptors into the exact Executor target contract."""
     contract = {
@@ -165,6 +169,7 @@ def build_target_contract(
             operation: list(paths) for operation, paths in compatible_targets_by_operation.items()
         },
     }
+    contract["discovery_complete"] = discovery_complete
     _validate_target_contract(contract)
     return contract
 
@@ -193,7 +198,7 @@ def _validate_execution_state(value: Any) -> Mapping[str, Any]:
         raise ValueError("execution_state action counters are inconsistent")
     _strings(state["remaining_read_roots"], "execution_state.remaining_read_roots")
     _strings(state["remaining_write_roots"], "execution_state.remaining_write_roots")
-    _strings(state["repair_gaps"], "execution_state.repair_gaps")
+    validate_feedback(state["feedback"], recipient="executor_args")
     _validate_target_contract(state["target_contract"])
 
     last_action = state["last_action"]
@@ -243,9 +248,9 @@ def build_execution_state(
     assigned_actions: Sequence[Any],
     mechanical_evidence: Mapping[str, Any],
     target_contract: Mapping[str, Any],
-    repair_gaps: Sequence[str] = (),
+    feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Project step-bound durable Harness actions through the one v4 constructor.
+    """Project step-bound durable Harness actions through the one current constructor.
 
     Callers select the active step revision's actions in causal sequence order.
     Production, trace extraction and evaluation share this exact projection;
@@ -308,7 +313,7 @@ def build_execution_state(
         "remaining_read_roots": list(mechanical_evidence.get("missing_read_roots") or ()),
         "remaining_write_roots": list(mechanical_evidence.get("missing_write_roots") or ()),
         "last_action": last_action,
-        "repair_gaps": list(repair_gaps),
+        "feedback": dict(feedback) if feedback is not None else None,
         "target_contract": dict(target_contract),
     }
     _validate_execution_state(state)
@@ -445,7 +450,7 @@ def validate_source(source: Any) -> None:
 
 
 def render_prompt(source: Any) -> str:
-    selected = _exact_fields(source, tuple(source), "executor v4 render source")
+    selected = _exact_fields(source, tuple(source), "executor render source")
     if tuple(selected) == _SOURCE_FIELDS:
         validate_source(selected)
         prompt = {name: selected[name] for name in _PROMPT_FIELDS}

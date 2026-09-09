@@ -27,7 +27,6 @@ WORKSPACE_TARGET_KINDS = frozenset(
     {
         "directory",
         "json_file",
-        "json_candidate_file",
         "text_file",
         "binary_file",
         "large_file",
@@ -53,57 +52,24 @@ OPERATION_TARGET_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "delete_file": ("path",),
     "bind_evidence": ("path",),
 }
-_FILE_TARGET_KINDS = frozenset(
-    {"json_file", "json_candidate_file", "text_file", "binary_file", "large_file"}
-)
+# Content classifications are hints. Eligibility uses filesystem structure;
+# parsing, encoding and mutation-specific conditions remain Harness outcomes.
+_FILE_TARGET_KINDS = frozenset({"json_file", "text_file", "binary_file", "large_file"})
+_CREATABLE_FILE_KINDS = frozenset({"missing", *_FILE_TARGET_KINDS})
 _OPERATION_TARGET_KINDS: dict[str, dict[str, frozenset[str]]] = {
     "list_directory": {"path": frozenset({"directory"})},
-    "search_text": {
-        "path": frozenset({"directory", "json_file", "text_file", "large_file"})
-    },
-    # Both readers are safe observations. A valid JSON file may need its exact raw
-    # bytes (hashes, formatting, or text replacement), while a filename-declared
-    # JSON candidate may need a failed parse to establish that fallback is required.
-    # Keep mutation compatibility strict, but do not make either observation path
-    # unreachable.
-    "read_file": {
-        "path": frozenset(
-            {"json_file", "json_candidate_file", "text_file", "large_file"}
-        )
-    },
-    "read_json": {"path": frozenset({"json_file", "json_candidate_file"})},
-    "file_digest": {"path": _FILE_TARGET_KINDS},
-    "write_file": {
-        "path": frozenset(
-            {"missing", "json_file", "json_candidate_file", "text_file", "large_file"}
-        )
-    },
-    "write_json": {
-        "path": frozenset({"missing", "json_file", "json_candidate_file"})
-    },
-    "patch_json": {"path": frozenset({"json_file"})},
-    "replace_text": {
-        "path": frozenset(
-            {"json_file", "json_candidate_file", "text_file", "large_file"}
-        )
-    },
-    "remove_line": {"path": frozenset({"text_file", "large_file"})},
-    "append_file": {"path": frozenset({"missing", "text_file", "large_file"})},
+    "search_text": {"path": frozenset({"directory", *_FILE_TARGET_KINDS})},
+    **{operation: {"path": _FILE_TARGET_KINDS} for operation in (
+        "read_file", "read_json", "file_digest", "patch_json", "replace_text",
+        "remove_line", "bind_evidence",
+    )},
+    **{operation: {"path": _CREATABLE_FILE_KINDS} for operation in (
+        "write_file", "write_json", "append_file",
+    )},
     "make_directory": {"path": frozenset({"missing", "directory"})},
-    "copy_file": {
-        "source": _FILE_TARGET_KINDS,
-        "destination": frozenset({"missing", *_FILE_TARGET_KINDS}),
-    },
-    "move_file": {
-        "source": _FILE_TARGET_KINDS,
-        "destination": frozenset({"missing", *_FILE_TARGET_KINDS}),
-    },
-    "delete_file": {
-        "path": frozenset({"missing", "directory", *_FILE_TARGET_KINDS})
-    },
-    "bind_evidence": {
-        "path": frozenset({"json_file", "text_file", "large_file"})
-    },
+    **{operation: {"source": _FILE_TARGET_KINDS, "destination": _CREATABLE_FILE_KINDS}
+       for operation in ("copy_file", "move_file")},
+    "delete_file": {"path": frozenset({"missing", "directory", *_FILE_TARGET_KINDS})},
 }
 
 
@@ -199,20 +165,6 @@ def project_goal_step_operations(
     )
 
 
-def infer_goal_step_phase(
-    *,
-    write_roots: tuple[str, ...],
-    allowed_operations: tuple[str, ...],
-) -> str:
-    """Infer only for durable pre-v3 plans and legacy contract projection."""
-
-    allowed = set(allowed_operations)
-    for phase in ("execute", "derive_evidence", "mutate", "observe"):
-        if allowed & GOAL_STEP_PHASE_OPERATIONS[phase]:
-            return phase
-    return "mutate" if write_roots else "observe"
-
-
 __all__ = [
     "GOAL_STEP_PHASES",
     "GOAL_STEP_PHASE_OPERATIONS",
@@ -225,7 +177,6 @@ __all__ = [
     "TEXT_PATH_OPERATIONS",
     "WORKSPACE_TARGET_KINDS",
     "compatible_target_paths",
-    "infer_goal_step_phase",
     "operation_accepts_target_kind",
     "project_goal_step_operations",
 ]

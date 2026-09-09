@@ -32,12 +32,14 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     build_network_selector_input,
 )
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
-from rwkv_lh.goal_state_protocols import executor_args_v4 as executor_args_protocol
+from rwkv_lh.goal_state_protocols import executor_args_v5 as executor_args_protocol
 from rwkv_lh.goal_state_protocols import auditor_final as auditor_final_protocol
-from rwkv_lh.goal_state_protocols import auditor_step_v3 as auditor_step_protocol
+from rwkv_lh.goal_state_protocols import auditor_step_v4 as auditor_step_protocol
 from rwkv_lh.goal_state_protocols import finalizer_answer as finalizer_protocol
+from rwkv_lh.goal_state_protocols.feedback import semantic_feedback
+from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    selector_intent_v4 as selector_intent_v4_protocol,
+    selector_intent_v5 as selector_intent_v5_protocol,
 )
 from rwkv_lh.harness import ActionHarness, HarnessError
 from rwkv_lh.goal_loop_protocol import (
@@ -809,6 +811,8 @@ class LongHorizonModel:
             completed_steps=self._completed_step_records(plan),
             committed_facts=self._committed_fact_records(evidence_records),
             evidence_records=evidence_records,
+            feedback=finalizer_feedback(state),
+            retry_feedback=finalizer_retry_feedback(state),
         )
         assignment = finalizer_protocol.render_prompt(prompt_source)
         finalizer_checkpoint = self.finalizer_session.bootstrap(
@@ -1055,6 +1059,7 @@ class LongHorizonModel:
                         "function": final_candidate_command.name,
                         "params": dict(final_candidate_command.arguments),
                     },
+                    feedback=protocol_feedback(state, lane_role, selected_boundary_id),
                 )
             else:
                 if active_step is None:
@@ -1068,6 +1073,7 @@ class LongHorizonModel:
                     active_step=active_step,
                     available_evidence_refs=bounded_evidence_refs,
                     evidence_records=evidence_records,
+                    feedback=protocol_feedback(state, lane_role, selected_boundary_id),
                 )
             assignment = protocol_module.render_prompt(prompt_source)
             audit_definition = self._goal_audit_definition(final_candidate)
@@ -1216,6 +1222,18 @@ class LongHorizonModel:
                 except ValueError as exc:
                     last_error = exc
                 else:
+                    feedback = semantic_feedback(
+                        source_role=lane_role,
+                        boundary_id=selected_boundary_id or str(boundary),
+                        source_id=audit.audit_id,
+                        plan_revision=len(plan.patch_ids),
+                        step_id=selected_step_id,
+                        step_revision=plan.step_revisions.get(selected_step_id, 1) if selected_step_id else 0,
+                        gap_codes=audit.gaps,
+                        gap_catalog=prompt_source["gap_catalog"],
+                        evidence_refs=audit.evidence_refs,
+                        rejected_output=final_candidate_command.canonical if final_candidate_command is not None else "",
+                    )
                     accepted_event = ModelEvent(
                         event_type="goal_audit_decision",
                         event_id=f"EV-AUDIT-ACCEPT-{audit.audit_id}",
@@ -1225,6 +1243,7 @@ class LongHorizonModel:
                             "audit_boundary_id": selected_boundary_id,
                             "attempt": attempt,
                             "audit": audit.to_dict(),
+                            "feedback": feedback,
                             "kernel_validated": True,
                             "wkv_merged": False,
                             "auditor_model": audit_checkpoint.model,
@@ -1244,6 +1263,7 @@ class LongHorizonModel:
                             "audit_id": audit.audit_id,
                             "audit_digest": audit.digest,
                             "audit": audit.to_dict(),
+                            "feedback": feedback,
                             "boundary": str(boundary),
                             "audit_boundary_id": selected_boundary_id,
                             "attempt": attempt,
@@ -2223,8 +2243,8 @@ class LongHorizonModel:
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "input_protocol": self.tool_selector.settings.input_protocol,
-                "protocol_schema_version": selector_intent_v4_protocol.INPUT_SCHEMA_VERSION,
-                "protocol_sha256": self._protocol_sha256(selector_intent_v4_protocol),
+                "protocol_schema_version": selector_intent_v5_protocol.INPUT_SCHEMA_VERSION,
+                "protocol_sha256": self._protocol_sha256(selector_intent_v5_protocol),
                 "selector_input_scope": "current_subtask_mechanical_progress_and_last_action_outcome",
                 "selector_state_policy": "fresh_initial_state_per_evaluation",
             }
@@ -2273,10 +2293,10 @@ class LongHorizonModel:
                 "selector_attestation": {
                     **self.tool_selector.settings.runtime_identity(),
                     "protocol_schema_version": (
-                        selector_intent_v4_protocol.INPUT_SCHEMA_VERSION
+                        selector_intent_v5_protocol.INPUT_SCHEMA_VERSION
                     ),
                     "protocol_sha256": self._protocol_sha256(
-                        selector_intent_v4_protocol
+                        selector_intent_v5_protocol
                     ),
                 },
             },

@@ -1,0 +1,195 @@
+.FFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_json_diagnostic_eligibility_is_independent_of_filename[.data] ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_json_diagnostic_eligibili1')
+suffix = '.data'
+
+    @pytest.mark.parametrize("suffix", [".json", ".data", ""])
+    def test_json_diagnostic_eligibility_is_independent_of_filename(tmp_path: Path, suffix: str) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "RENAME-INVARIANT")
+        name = "payload" + suffix
+        (Path(state.goal.workspace_root) / name).write_text("{ broken json")
+        model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(), supervisor_policy=SupervisorPolicy(mode="static"))
+        step = GoalPlanStep(step_id="S1", objective="Diagnose the resource format", phase="observe",
+            read_roots=(name,), success_evidence=("actual parse result",))
+>       assert "read_json" in controller._goal_step_operations(state, step)
+E       AssertionError: assert 'read_json' in ('search_text', 'read_file', 'file_digest')
+E        +  where ('search_text', 'read_file', 'file_digest') = _goal_step_operations(RunState(run_id='RENAME-INVARIANT', goal=GoalState(goal_id='G1', request='Inspect the project and report verified comp..._at='2026-09-09T08:25:45.660+00:00', updated_at='2026-09-09T08:25:45.660+00:00', schema_version='long-horizon.run.v18'), GoalPlanStep(step_id='S1', objective='Diagnose the resource format', phase='observe', stage=1, depends_on=(), success_...arse result',), obligation_ids=(), read_roots=('payload.data',), write_roots=(), allowed_operations=(), constraints=()))
+E        +    where _goal_step_operations = <rwkv_lh.stateful_goal_loop.StatefulGoalLoopController object at 0x74e70276d950>._goal_step_operations
+
+tests/test_stateful_goal_loop.py:94: AssertionError
+________ test_json_diagnostic_eligibility_is_independent_of_filename[] _________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_json_diagnostic_eligibili2')
+suffix = ''
+
+    @pytest.mark.parametrize("suffix", [".json", ".data", ""])
+    def test_json_diagnostic_eligibility_is_independent_of_filename(tmp_path: Path, suffix: str) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "RENAME-INVARIANT")
+        name = "payload" + suffix
+        (Path(state.goal.workspace_root) / name).write_text("{ broken json")
+        model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(), supervisor_policy=SupervisorPolicy(mode="static"))
+        step = GoalPlanStep(step_id="S1", objective="Diagnose the resource format", phase="observe",
+            read_roots=(name,), success_evidence=("actual parse result",))
+>       assert "read_json" in controller._goal_step_operations(state, step)
+E       AssertionError: assert 'read_json' in ('search_text', 'read_file', 'file_digest')
+E        +  where ('search_text', 'read_file', 'file_digest') = _goal_step_operations(RunState(run_id='RENAME-INVARIANT', goal=GoalState(goal_id='G1', request='Inspect the project and report verified comp..._at='2026-09-09T08:25:45.827+00:00', updated_at='2026-09-09T08:25:45.827+00:00', schema_version='long-horizon.run.v18'), GoalPlanStep(step_id='S1', objective='Diagnose the resource format', phase='observe', stage=1, depends_on=(), success_...ual parse result',), obligation_ids=(), read_roots=('payload',), write_roots=(), allowed_operations=(), constraints=()))
+E        +    where _goal_step_operations = <rwkv_lh.stateful_goal_loop.StatefulGoalLoopController object at 0x74e70276efd0>._goal_step_operations
+
+tests/test_stateful_goal_loop.py:94: AssertionError
+____________ test_directory_projection_cannot_hide_compatible_tools ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_directory_projection_cann0')
+
+    def test_directory_projection_cannot_hide_compatible_tools(tmp_path: Path) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "DISCOVERY-INVARIANT")
+        root = Path(state.goal.workspace_root)
+        for index in range(256):
+            (root / f"a{index:04d}").write_bytes(b"\xff\x00")
+        (root / "z_readable").write_text("observed text")
+        model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=_StrongPlanner(), supervisor_policy=SupervisorPolicy(mode="static"))
+        step = GoalPlanStep(step_id="S1", objective="Inspect the workspace", phase="observe",
+            read_roots=(".",), success_evidence=("required source content",))
+        operations, contract = controller._goal_step_operation_contract(state, step)
+>       assert "read_file" in operations
+E       AssertionError: assert 'read_file' in ('list_directory', 'search_text', 'file_digest')
+
+tests/test_stateful_goal_loop.py:110: AssertionError
+_____ test_final_evidence_gap_reopens_execution_with_bound_feedback[False] _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_final_evidence_gap_reopen0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74e702597680>
+resume_after_repair = False
+
+    @pytest.mark.parametrize("resume_after_repair", [False, True])
+    def test_final_evidence_gap_reopens_execution_with_bound_feedback(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume_after_repair: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "FINAL-EVIDENCE-REPAIR")
+        gap = next(item["code"] for item in auditor_final.build_gap_catalog(state.goal.request, (), ())
+            if item["code"].startswith("goal_requirement_unproved:"))
+        queue = _QueueClient([
+            ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+            json.dumps(_audit_call("continue", step_id="S1", step_complete=True, evidence_refs=["A00001"], gaps=[], reason="written")),
+            ModelCommand("final_answer", {"text": "Initial candidate."}).canonical,
+            json.dumps(_audit_call("repair", step_id="", step_complete=False, evidence_refs=["A00001"], gaps=[gap], reason="needs readback")),
+            ModelCommand("read_file", {"path": "result.txt"}).canonical,
+            json.dumps(_audit_call("continue", step_id="S2", step_complete=True, evidence_refs=["A00002"], gaps=[], reason="observed")),
+            ModelCommand("final_answer", {"text": "Written and read back."}).canonical,
+            json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False, evidence_refs=["A00001", "A00002"], gaps=[], reason="all proved")),
+        ])
+        model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)), tool_selector=_selector(["write_file", "read_file"]))
+        repair = GoalPlanPatch(patch_id="GPP-final-evidence", base_revision=1,
+            add_steps=(GoalPlanStep(step_id="S2", objective="Read back the committed result", phase="observe", stage=2,
+                depends_on=("S1",), read_roots=("result.txt",), success_evidence=("result bytes read back",)),),
+            replace_steps=(), discard_step_ids=(), reason="Close the final evidence gap")
+        planner = _StrongPlanner((_strong_patch(state), repair))
+        monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=5 if resume_after_repair else 20)
+>       result = controller.run(state.run_id)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_stateful_goal_loop.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:2219: in run
+    decision = self.model.finalize_goal_answer(
+rwkv_lh/model.py:842: in finalize_goal_answer
+    candidate = self.finalizer_session.generate(
+rwkv_lh/model_session.py:634: in generate
+    response = self.client.text_completion(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_stateful_goal_loop._QueueClient object at 0x74e700b1cd60>
+prompt = 'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... only in committed facts; do not claim completion authority or emit an audit verdict."}\n\n**Tool Call:**\n\n```json\n'
+max_tokens = 1400
+stop = ('\n```', '✿text1✿', '\n`✿text1✿', '\nSystem:', '\nUser:', '\nAssistant:', ...)
+
+    def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+        self.prompts.append(prompt)
+>       content = self.outputs.pop(0)
+                  ^^^^^^^^^^^^^^^^^^^
+E       IndexError: pop from empty list
+
+tests/test_stateful_goal_loop.py:267: IndexError
+_____ test_final_evidence_gap_reopens_execution_with_bound_feedback[True] ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_final_evidence_gap_reopen1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74e700b3c950>
+resume_after_repair = True
+
+    @pytest.mark.parametrize("resume_after_repair", [False, True])
+    def test_final_evidence_gap_reopens_execution_with_bound_feedback(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume_after_repair: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "FINAL-EVIDENCE-REPAIR")
+        gap = next(item["code"] for item in auditor_final.build_gap_catalog(state.goal.request, (), ())
+            if item["code"].startswith("goal_requirement_unproved:"))
+        queue = _QueueClient([
+            ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+            json.dumps(_audit_call("continue", step_id="S1", step_complete=True, evidence_refs=["A00001"], gaps=[], reason="written")),
+            ModelCommand("final_answer", {"text": "Initial candidate."}).canonical,
+            json.dumps(_audit_call("repair", step_id="", step_complete=False, evidence_refs=["A00001"], gaps=[gap], reason="needs readback")),
+            ModelCommand("read_file", {"path": "result.txt"}).canonical,
+            json.dumps(_audit_call("continue", step_id="S2", step_complete=True, evidence_refs=["A00002"], gaps=[], reason="observed")),
+            ModelCommand("final_answer", {"text": "Written and read back."}).canonical,
+            json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False, evidence_refs=["A00001", "A00002"], gaps=[], reason="all proved")),
+        ])
+        model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)), tool_selector=_selector(["write_file", "read_file"]))
+        repair = GoalPlanPatch(patch_id="GPP-final-evidence", base_revision=1,
+            add_steps=(GoalPlanStep(step_id="S2", objective="Read back the committed result", phase="observe", stage=2,
+                depends_on=("S1",), read_roots=("result.txt",), success_evidence=("result bytes read back",)),),
+            replace_steps=(), discard_step_ids=(), reason="Close the final evidence gap")
+        planner = _StrongPlanner((_strong_patch(state), repair))
+        monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=5 if resume_after_repair else 20)
+        result = controller.run(state.run_id)
+        if resume_after_repair:
+            assert result.state.status.value == "interrupted"
+            controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+                supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20)
+>           result = controller.run(state.run_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_stateful_goal_loop.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:2219: in run
+    decision = self.model.finalize_goal_answer(
+rwkv_lh/model.py:842: in finalize_goal_answer
+    candidate = self.finalizer_session.generate(
+rwkv_lh/model_session.py:634: in generate
+    response = self.client.text_completion(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_stateful_goal_loop._QueueClient object at 0x74e703e18050>
+prompt = 'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... only in committed facts; do not claim completion authority or emit an audit verdict."}\n\n**Tool Call:**\n\n```json\n'
+max_tokens = 1400
+stop = ('\n```', '✿text1✿', '\n`✿text1✿', '\nSystem:', '\nUser:', '\nAssistant:', ...)
+
+    def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+        self.prompts.append(prompt)
+>       content = self.outputs.pop(0)
+                  ^^^^^^^^^^^^^^^^^^^
+E       IndexError: pop from empty list
+
+tests/test_stateful_goal_loop.py:267: IndexError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_json_diagnostic_eligibility_is_independent_of_filename[.data]
+FAILED tests/test_stateful_goal_loop.py::test_json_diagnostic_eligibility_is_independent_of_filename[]
+FAILED tests/test_stateful_goal_loop.py::test_directory_projection_cannot_hide_compatible_tools
+FAILED tests/test_stateful_goal_loop.py::test_final_evidence_gap_reopens_execution_with_bound_feedback[False]
+FAILED tests/test_stateful_goal_loop.py::test_final_evidence_gap_reopens_execution_with_bound_feedback[True]
+5 failed, 1 passed, 67 deselected in 4.54s

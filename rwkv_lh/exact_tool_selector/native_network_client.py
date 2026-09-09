@@ -15,7 +15,7 @@ from uuid import uuid4
 import requests
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
-    G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL,
+    CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
     network_selector_input_protocol,
 )
 from rwkv_lh.exact_tool_selector.native_network_protocol import (
@@ -36,7 +36,7 @@ NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
     "rwkv-lh.native-exact-tool-selector-service-response.v1"
 )
 NATIVE_SELECTOR_LANE_ID = "LANE:SELECTOR"
-NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v4"
+NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v5"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
@@ -72,7 +72,7 @@ class NativeNetworkSelectorSettings:
     state_profile_id: str
     state_profile_sha256: str
     state_profile_manifest_sha256: str
-    input_protocol: str = G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL
+    input_protocol: str = CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
     connect_timeout_seconds: float = 10.0
     read_timeout_seconds: float = 120.0
 
@@ -94,8 +94,8 @@ class NativeNetworkSelectorSettings:
             raise ValueError("native Selector decoder ID is unsupported")
         if self.decoder_protocol != NATIVE_SELECTOR_DECODER_PROTOCOL:
             raise ValueError("native Selector decoder protocol is unsupported")
-        if self.input_protocol != G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL:
-            raise ValueError("native Selector requires the failure-aware v4 input")
+        if self.input_protocol != CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL:
+            raise ValueError("native Selector requires the current feedback-aware input")
         network_selector_input_protocol(self.input_protocol)
         if not _PROFILE_ID_PATTERN.fullmatch(self.state_profile_id):
             raise ValueError("native Selector State profile ID is invalid")
@@ -143,9 +143,9 @@ class NativeNetworkSelectorSettings:
             input_protocol=role_env(
                 "selector",
                 "input_protocol",
-                default=G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL,
+                default=CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
             )
-            or G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL,
+            or CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
             connect_timeout_seconds=role_float(
                 "selector", "connect_timeout", default=10.0
             ),

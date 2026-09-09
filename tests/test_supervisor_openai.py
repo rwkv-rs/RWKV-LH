@@ -1083,12 +1083,12 @@ def test_supervisor_http_error_preserves_only_safe_provider_diagnostics():
 
 
 def test_goal_planner_places_controller_semantic_repair_at_input_tail():
-    value = {
+    value = {"goal_obligations": [],
         "add_stages": [
             {
                 "stage": 2,
                 "steps": [
-                    {
+                    {"obligation_ids": [],
                         "step_id": "S2",
                         "objective": "Read the current configuration.",
                         "phase": "observe",

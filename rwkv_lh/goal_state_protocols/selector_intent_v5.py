@@ -1,6 +1,6 @@
 """Failure-aware native G1J Selector renderer and exact suffix contract.
 
-V4 extends Selector Intent v3 with the bounded facts the root-cause audit found
+V5 carries step-bound audit feedback as well as the bounded facts the root-cause audit found
 missing from the Selector's next input: the previous action's arguments, its
 Harness error type/message, its result metadata, and the typed workspace
 targets the Controller already resolved for the active step.  Production,
@@ -22,18 +22,19 @@ from rwkv_lh.goal_state_protocols import (
     _render,
     _strings,
 )
+from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.operation_contracts import GOAL_STEP_PHASES, WORKSPACE_TARGET_KINDS
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v4"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v5"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "SelectorIntentPromptV4: "
-TARGET_PREFIX = "\nSelectorIntentV4: "
-MENU_PREFIX = "SelectorIntentMenuV4: "
-ROLE_PREFIX = "SelectorIntentRoleV4: "
+PROMPT_PREFIX = "SelectorIntentPromptV5: "
+TARGET_PREFIX = "\nSelectorIntentV5: "
+MENU_PREFIX = "SelectorIntentMenuV5: "
+ROLE_PREFIX = "SelectorIntentRoleV5: "
 ROLE_MARKER = "\n" + ROLE_PREFIX
-MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v4"
-ENDPOINT = "/selector-intent-v4/select"
+MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v5"
+ENDPOINT = "/selector-intent-v5/select"
 
 SUBTASK_FIELDS = (
     "objective",
@@ -52,6 +53,8 @@ PROGRESS_FIELDS = (
     "missing_write_roots",
     "workspace_targets",
     "completion_preconditions_satisfied",
+    "feedback",
+    "target_discovery_complete",
 )
 LAST_ACTION_FIELDS = (
     "operation",
@@ -169,7 +172,7 @@ def project_last_action(
     outcome_type: str | None = None,
     exit_code: int | None = None,
 ) -> dict[str, Any]:
-    """Project one durable Harness action into the exact v4 ``last_action``."""
+    """Project one durable Harness action into the exact current ``last_action``."""
 
     error_type: str | None = None
     error_message: str | None = None
@@ -223,6 +226,8 @@ def build_current_progress(
     target_descriptors: Sequence[Mapping[str, Any]],
     action_observes_root: Any,
     action_mutates_root: Any,
+    feedback: Mapping[str, Any] | None = None,
+    discovery_complete: bool = True,
 ) -> dict[str, Any]:
     """Build the one production ``current_progress`` from durable Harness actions.
 
@@ -295,6 +300,10 @@ def build_current_progress(
             mechanical_evidence.get("completion_preconditions_satisfied")
         ),
     }
+    progress["feedback"] = dict(feedback) if feedback is not None else None
+    progress["target_discovery_complete"] = discovery_complete and (
+        len(progress["workspace_targets"]) == len({item["path"] for item in target_descriptors})
+    )
     validate_progress(progress, read_roots=read_roots, write_roots=write_roots)
     return progress
 
@@ -383,6 +392,9 @@ def validate_progress(
     write_roots: Sequence[str],
 ) -> Mapping[str, Any]:
     selected = _exact_fields(progress, PROGRESS_FIELDS, "current_progress")
+    validate_feedback(selected["feedback"], recipient="selector_intent")
+    if not isinstance(selected["target_discovery_complete"], bool):
+        raise ValueError("target discovery completeness must be explicit")
     for name in (
         "assigned_action_count",
         "successful_action_count",

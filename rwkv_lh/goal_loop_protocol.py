@@ -22,7 +22,6 @@ from rwkv_lh.operation_contracts import (
     GOAL_STEP_PHASES,
     PATH_MUTATION_ARGUMENTS,
     PATH_MUTATION_OPERATIONS,
-    infer_goal_step_phase,
 )
 from rwkv_lh.schema import ActionStatus, RunState
 
@@ -30,9 +29,6 @@ from rwkv_lh.schema import ActionStatus, RunState
 GOAL_AUDIT_SCHEMA_VERSION = "rwkv-lh.goal-audit-decision.v1"
 GOAL_AUDIT_INPUT_PROTOCOL = "rwkv-lh.role-pure-goal-audit.v2"
 GOAL_AUDIT_OPERATION = "audit_decision"
-LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v1"
-LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2 = "rwkv-lh.goal-plan-patch.v2"
-LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3 = "rwkv-lh.goal-plan-patch.v3"
 GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v4"
 GOAL_STAGE_REVIEW_SCHEMA_VERSION = "rwkv-lh.goal-stage-review.v1"
 GOAL_AUDIT_DEFINITION: dict[str, Any] = {
@@ -66,13 +62,11 @@ GOAL_AUDIT_DEFINITION: dict[str, Any] = {
                 "type": "array",
                 "items": {"type": "string", "minLength": 1},
                 "uniqueItems": True,
-                "maxItems": 8,
             },
             "gaps": {
                 "type": "array",
                 "items": {"type": "string", "minLength": 1},
                 "uniqueItems": True,
-                "maxItems": 8,
             },
             "reason": {"type": "string", "minLength": 1, "maxLength": 800},
         },
@@ -239,13 +233,6 @@ class GoalPlanStep:
         object.__setattr__(self, "step_id", _non_empty(self.step_id, "step_id"))
         object.__setattr__(self, "objective", _non_empty(self.objective, "objective"))
         phase = str(self.phase or "").strip()
-        if not phase:
-            phase = infer_goal_step_phase(
-                write_roots=tuple(str(item) for item in self.write_roots),
-                allowed_operations=tuple(
-                    str(item) for item in self.allowed_operations
-                ),
-            )
         if phase not in GOAL_STEP_PHASES:
             raise ValueError(f"unsupported Goal plan step phase: {phase!r}")
         if (
@@ -358,10 +345,7 @@ class GoalPlanPatch:
     schema_version: str = GOAL_PLAN_PATCH_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version not in {
-            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
-            GOAL_PLAN_PATCH_SCHEMA_VERSION,
-        }:
+        if self.schema_version != GOAL_PLAN_PATCH_SCHEMA_VERSION:
             raise ValueError("unsupported Goal PlanPatch schema")
         object.__setattr__(self, "patch_id", _non_empty(self.patch_id, "patch_id"))
         object.__setattr__(self, "reason", _non_empty(self.reason, "reason"))
@@ -389,11 +373,6 @@ class GoalPlanPatch:
         obligation_ids = tuple(item.obligation_id for item in obligations)
         if len(set(obligation_ids)) != len(obligation_ids):
             raise ValueError("Goal PlanPatch contains duplicate obligation ids")
-        if (
-            self.schema_version == LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
-            and obligations
-        ):
-            raise ValueError("legacy v3 Goal PlanPatch cannot contain obligations")
         object.__setattr__(self, "discard_step_ids", discarded_ids)
         object.__setattr__(self, "goal_obligations", obligations)
 
@@ -404,13 +383,9 @@ class GoalPlanPatch:
         *,
         patch_id: str,
         base_revision: int,
-        require_phase: bool = True,
         allow_internal_step_fields: bool = False,
     ) -> "GoalPlanPatch":
-        obligation_contract = "goal_obligations" in value
-        expected = {"add_stages", "replace_stages", "discard_step_ids", "reason"}
-        if obligation_contract:
-            expected.add("goal_obligations")
+        expected = {"goal_obligations", "add_stages", "replace_stages", "discard_step_ids", "reason"}
         if set(value) != expected:
             raise ValueError(
                 "Goal PlanPatch requires exactly goal_obligations (v4), "
@@ -465,10 +440,7 @@ class GoalPlanPatch:
                         "write_roots",
                         "constraints",
                     }
-                    if obligation_contract:
-                        expected_step_fields.add("obligation_ids")
-                    if require_phase:
-                        expected_step_fields.add("phase")
+                    expected_step_fields.update({"obligation_ids", "phase"})
                     if allow_internal_step_fields:
                         actual_fields = set(raw_step)
                         allowed_fields = expected_step_fields | {
@@ -481,17 +453,15 @@ class GoalPlanPatch:
                     else:
                         fields_valid = set(raw_step) == expected_step_fields
                     if not fields_valid:
-                        requirement = " including phase" if require_phase else ""
                         raise ValueError(
                             "Goal PlanPatch step fields differ from the fixed "
-                            f"contract{requirement}"
+                            "contract including phase"
                         )
                     parsed_step = GoalPlanStep.from_dict(
                         {**dict(raw_step), "stage": stage}
                     )
                     if (
-                        require_phase
-                        and parsed_step.phase != "observe"
+                        parsed_step.phase != "observe"
                         and parsed_step.read_roots
                     ):
                         raise ValueError(
@@ -525,11 +495,7 @@ class GoalPlanPatch:
             goal_obligations=tuple(
                 GoalObligation.from_dict(item) for item in raw_obligations
             ),
-            schema_version=(
-                GOAL_PLAN_PATCH_SCHEMA_VERSION
-                if obligation_contract
-                else LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
-            ),
+            schema_version=GOAL_PLAN_PATCH_SCHEMA_VERSION,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -569,56 +535,14 @@ class GoalPlanPatch:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "GoalPlanPatch":
-        schema_version = str(value.get("schema_version") or "")
-        if schema_version not in {
-            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
-            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
-            LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
-            GOAL_PLAN_PATCH_SCHEMA_VERSION,
-        }:
+        if value.get("schema_version") != GOAL_PLAN_PATCH_SCHEMA_VERSION:
             raise ValueError("unsupported Goal PlanPatch schema")
-        # Durable v1 events used flat arrays before the model-visible protocol
-        # became nested by stage. Keep replay compatibility without exposing the
-        # old shape to the Planner.
-        if schema_version == LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION:
-            raw_added = value.get("add_steps") or ()
-            raw_replaced = value.get("replace_steps") or ()
-            if any(not isinstance(item, Mapping) for item in (*raw_added, *raw_replaced)):
-                raise ValueError("durable Goal PlanPatch steps must be objects")
-            return cls(
-                patch_id=str(value.get("patch_id") or ""),
-                base_revision=int(value.get("base_revision", -1)),
-                add_steps=tuple(GoalPlanStep.from_dict(item) for item in raw_added),
-                replace_steps=tuple(
-                    GoalPlanStep.from_dict(item) for item in raw_replaced
-                ),
-                discard_step_ids=tuple(
-                    str(item) for item in value.get("discard_step_ids") or ()
-                ),
-                reason=str(value.get("reason") or ""),
-                schema_version=LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
-            )
-        # Durable v2 events use the current nested stage shape but predate the
-        # required phase field. GoalPlanStep infers their phase for replay only.
-        fields = [
-            "add_stages",
-            "replace_stages",
-            "discard_step_ids",
-            "reason",
-        ]
-        if schema_version == GOAL_PLAN_PATCH_SCHEMA_VERSION:
-            fields.append("goal_obligations")
+        fields = {"goal_obligations", "add_stages", "replace_stages", "discard_step_ids", "reason"}
+        if set(value) != fields | {"schema_version", "patch_id", "base_revision"}:
+            raise ValueError("durable Goal PlanPatch fields differ from the current contract")
         return cls.from_model_value(
-            {key: value.get(key) for key in fields},
-            patch_id=str(value.get("patch_id") or ""),
-            base_revision=int(value.get("base_revision", -1)),
-            require_phase=(
-                schema_version
-                in {
-                    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
-                    GOAL_PLAN_PATCH_SCHEMA_VERSION,
-                }
-            ),
+            {key: value[key] for key in fields},
+            patch_id=value["patch_id"], base_revision=value["base_revision"],
             allow_internal_step_fields=True,
         )
 
@@ -637,6 +561,7 @@ class GoalPlanRequest:
     latest_stage_review: Mapping[str, Any] | None = None
     recent_action_facts: tuple[Mapping[str, Any], ...] = ()
     local_validation_repair: Mapping[str, Any] | None = None
+    repair_feedback: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _non_empty(self.run_id, "run_id")
@@ -644,6 +569,13 @@ class GoalPlanRequest:
         _non_empty(self.goal_digest, "goal_digest")
         if isinstance(self.plan_revision, bool) or self.plan_revision < 0:
             raise ValueError("Goal plan revision must be non-negative")
+        from rwkv_lh.goal_state_protocols.feedback import validate_feedback
+        validate_feedback(self.repair_feedback, recipient="planner")
+        if self.repair_feedback is not None:
+            if self.repair_feedback["plan_revision"] != self.plan_revision:
+                raise ValueError("Planner repair feedback has a stale plan revision")
+            if self.latest_audit is None or self.latest_audit.get("audit_id") != self.repair_feedback["source_id"]:
+                raise ValueError("Planner repair feedback requires its accepted source audit")
         if len(self.recent_action_facts) > 12:
             raise ValueError("Goal Planner request exposes at most twelve action facts")
         if self.local_validation_repair is not None:
@@ -679,6 +611,7 @@ class GoalPlanRequest:
             ),
             "workspace_manifest": dict(self.workspace_manifest),
             "recent_action_facts": [dict(item) for item in self.recent_action_facts],
+            "repair_feedback": dict(self.repair_feedback) if self.repair_feedback is not None else None,
             "current_requirement": self.immutable_request,
         }
         if self.local_validation_repair is not None:
@@ -717,8 +650,6 @@ class GoalStageReviewRequest:
             raise ValueError("Goal stage review requires a positive stage")
         if not self.stage_steps:
             raise ValueError("Goal stage review requires completed stage steps")
-        if len(self.recent_action_facts) > 12:
-            raise ValueError("Goal stage review exposes at most twelve action facts")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1016,8 +947,6 @@ class RollingGoalPlan:
     patch_ids: list[str] = field(default_factory=list)
     step_revisions: dict[str, int] = field(default_factory=dict)
     discarded_step_ids: set[str] = field(default_factory=set)
-    obligation_ids: set[str] = field(default_factory=set)
-    contract_node_ids: set[str] = field(default_factory=set)
 
     @property
     def completed_step_ids(self) -> frozenset[str]:
@@ -1097,10 +1026,6 @@ class RollingGoalPlan:
     def uncovered_obligation_phases(self) -> dict[str, tuple[str, ...]]:
         """Return the immutable goal coverage still missing accepted evidence.
 
-        Empty obligations identify replayed pre-v4 plans.  They retain their
-        historical batch-completion behavior, while every newly generated v4
-        plan is required by the production Planner schema to declare at least
-        one obligation in its initial patch.
         """
 
         if not self.obligations:
@@ -1228,50 +1153,6 @@ class RollingGoalPlan:
         self.step_revisions = candidate_revisions
         self.obligations = candidate_obligations
         self.discarded_step_ids.update(discard_ids)
-        self.patch_ids.append(patch.patch_id)
-
-    def apply_contract_patch(self, raw_patch: Mapping[str, Any], state: RunState) -> None:
-        """Project the existing validated Strong Planner patch into one RWKV frontier."""
-
-        from rwkv_lh.contract_graph import ContractGraphPatch
-        from rwkv_lh.supervisor import AtomRole
-
-        patch = ContractGraphPatch.from_dict(
-            raw_patch,
-            immutable_request=state.goal.request,
-            request_digest=state.goal.digest,
-            existing_obligation_ids=tuple(self.obligation_ids),
-            existing_node_ids=tuple(self.contract_node_ids),
-        )
-        if patch.patch_id in self.patch_ids:
-            raise ValueError("Strong Planner patch id was committed more than once")
-        work_nodes = tuple(
-            node for node in patch.new_nodes if node.atom.role is AtomRole.WORK
-        )
-        work_ids = set(self.steps) | {node.node_id for node in work_nodes}
-        for node in work_nodes:
-            if node.node_id in self.steps:
-                raise ValueError("Strong Planner patch cannot redefine a plan step")
-            dependencies = tuple(
-                item for item in node.atom.depends_on if item in work_ids
-            )
-            self.steps[node.node_id] = GoalPlanStep(
-                step_id=node.node_id,
-                objective=node.atom.objective,
-                depends_on=dependencies,
-                success_evidence=node.atom.completion_checks,
-                obligation_ids=node.obligation_ids,
-                read_roots=node.atom.read_roots,
-                write_roots=node.atom.write_roots,
-                allowed_operations=node.atom.allowed_operations,
-                constraints=node.atom.constraints,
-            )
-            self.step_revisions[node.node_id] = 1
-        self._validate_acyclic(set(self.steps))
-        self.obligation_ids.update(
-            item.obligation_id for item in patch.new_obligations
-        )
-        self.contract_node_ids.update(item.node_id for item in patch.new_nodes)
         self.patch_ids.append(patch.patch_id)
 
     def apply_audit(self, audit: GoalAuditDecision) -> None:
@@ -1402,12 +1283,7 @@ def rolling_goal_plan(state: RunState) -> RollingGoalPlan:
                 raise ValueError("committed Goal PlanPatch is incomplete")
             plan.apply_goal_patch(GoalPlanPatch.from_dict(raw_patch))
         elif event.event_type == "contract_graph_patch_committed":
-            # Read-only replay compatibility for runs created before the native
-            # rolling-plan protocol. Product planning never emits this event.
-            raw_patch = event.payload.get("patch")
-            if not isinstance(raw_patch, Mapping):
-                raise ValueError("committed Strong Planner patch is incomplete")
-            plan.apply_contract_patch(raw_patch, state)
+            raise ValueError("retired contract-graph plans cannot enter the current Goal loop")
         elif event.event_type == "goal_audit_accepted":
             raw_audit = event.payload.get("audit")
             if not isinstance(raw_audit, Mapping):
@@ -1538,7 +1414,7 @@ def action_observes_root(action: Any, root: str) -> bool:
     return False
 
 
-def _evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]:
+def evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]:
     revisions = {
         revision.revision_id: revision
         for values in state.artifact_revisions.values()
@@ -1554,6 +1430,8 @@ def _evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]
             action_ids.add(revision.action_id)
         else:
             raise ValueError(f"audit evidence {ref!r} is not a Harness action fact")
+    if missing := action_ids - set(state.actions):
+        raise ValueError(f"evidence has no recorded producing action: {sorted(missing)}")
     return frozenset(action_ids)
 
 
@@ -1573,7 +1451,7 @@ def _validate_completed_step_evidence(
     step = plan.steps[step_id]
     bindings = goal_step_action_bindings(state)
     expected_binding = (step_id, plan.step_revisions.get(step_id, 1))
-    action_ids = _evidence_action_ids(state, evidence_refs)
+    action_ids = evidence_action_ids(state, evidence_refs)
     if not action_ids:
         raise ValueError("completed plan step requires Harness action evidence")
     actions = [state.actions[action_id] for action_id in sorted(action_ids)]
@@ -1702,7 +1580,7 @@ def validate_audit_authority(
             raise ValueError(
                 "ready_for_final may cite only evidence already accepted for completed steps"
             )
-        final_actions = _evidence_action_ids(state, audit.evidence_refs)
+        final_actions = evidence_action_ids(state, audit.evidence_refs)
         if any(
             state.actions[action_id].status is not ActionStatus.SUCCEEDED
             for action_id in final_actions
@@ -1719,9 +1597,6 @@ __all__ = [
     "GOAL_AUDIT_DEFINITION",
     "GOAL_AUDIT_OPERATION",
     "GOAL_PLAN_PATCH_SCHEMA_VERSION",
-    "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION",
-    "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2",
-    "LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3",
     "GOAL_STAGE_REVIEW_SCHEMA_VERSION",
     "GoalAuditDecision",
     "GoalAuditVerdict",

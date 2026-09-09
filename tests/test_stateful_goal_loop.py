@@ -14,9 +14,6 @@ from rwkv_lh.goal_loop_protocol import (
     GOAL_AUDIT_SCHEMA_VERSION,
     GOAL_AUDIT_INPUT_PROTOCOL,
     GOAL_PLAN_PATCH_SCHEMA_VERSION,
-    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
-    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
-    LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3,
     AuditedStep,
     GoalAuditDecision,
     GoalAuditVerdict,
@@ -73,6 +70,157 @@ from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import SupervisorPolicy
 from rwkv_lh.trace_projection import unresolved_supervisor_pending
+from rwkv_lh.goal_state_protocols import selector_intent_v5, executor_args_v5, finalizer_answer, auditor_final
+
+
+def _role_prompt_payload(prompt: str, prefix: str) -> dict:
+    return json.JSONDecoder().raw_decode(prompt.split(prefix, 1)[1])[0]
+
+
+@pytest.mark.parametrize("version", ["v1", "v2", "v3", "v999"])
+def test_plan_patch_rejects_every_noncurrent_version(version: str) -> None:
+    current = GoalPlanPatch(patch_id="CURRENT", base_revision=0,
+        add_steps=(GoalPlanStep(step_id="S1", objective="Inspect", phase="observe",
+            read_roots=(".",), success_evidence=("workspace observed",)),),
+        replace_steps=(), discard_step_ids=(), reason="current contract").to_dict()
+    current["schema_version"] = GOAL_PLAN_PATCH_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version
+    with pytest.raises(ValueError, match="unsupported Goal PlanPatch schema"):
+        GoalPlanPatch.from_dict(current)
+
+
+def test_plan_step_requires_an_explicit_phase() -> None:
+    with pytest.raises(ValueError, match="phase"):
+        GoalPlanStep(step_id="S1", objective="Inspect", read_roots=(".",),
+            success_evidence=("workspace observed",))
+
+
+@pytest.mark.parametrize("accepted_role", ["auditor_step", "auditor_final"])
+def test_accepted_audit_is_committed_without_regeneration_after_process_loss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, accepted_role: str,
+) -> None:
+    class ProcessLoss(BaseException):
+        pass
+
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "AUDIT-COMMIT-RECOVERY")
+    queue = _QueueClient([
+        ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+        json.dumps(_audit_call("continue", step_id="S1", step_complete=True,
+            evidence_refs=["A00001"], gaps=[], reason="written")),
+        ModelCommand("final_answer", {"text": "Created result.txt."}).canonical,
+        json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False,
+            evidence_refs=["A00001"], gaps=[], reason="complete")),
+    ])
+    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["write_file"]))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)),
+        supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20)
+    monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics",
+        staticmethod(lambda *a, **kw: None))
+    original_save = store.save
+    interrupted = False
+
+    def lose_process_after_durable_accept(*args, **kwargs):
+        nonlocal interrupted
+        saved = original_save(*args, **kwargs)
+        event = saved.causal_records[saved.causal_order[-1]]
+        if event.event_type == "goal_audit_accepted":
+            role = "auditor_step" if event.payload["audit"]["step_id"] else "auditor_final"
+            if role == accepted_role and not interrupted:
+                interrupted = True
+                raise ProcessLoss()
+        return saved
+
+    monkeypatch.setattr(store, "save", lose_process_after_durable_accept)
+    with pytest.raises(ProcessLoss):
+        controller.run(state.run_id)
+    recovered = controller.run(state.run_id).state
+    assert recovered.status.value == "completed"
+    events = [recovered.causal_records[key] for key in recovered.causal_order]
+    assert sum(event.event_type == "goal_auditor_session_started" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_accepted" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
+    assert len(recovered.actions) == 1
+
+
+@pytest.mark.parametrize("suffix", [".json", ".data", ""])
+def test_json_diagnostic_eligibility_is_independent_of_filename(tmp_path: Path, suffix: str) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "RENAME-INVARIANT")
+    name = "payload" + suffix
+    (Path(state.goal.workspace_root) / name).write_text("{ broken json")
+    model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=_StrongPlanner(), supervisor_policy=SupervisorPolicy(mode="static"))
+    step = GoalPlanStep(step_id="S1", objective="Diagnose the resource format", phase="observe",
+        read_roots=(name,), success_evidence=("actual parse result",))
+    assert "read_json" in controller._goal_step_operations(state, step)
+
+
+def test_directory_projection_cannot_hide_compatible_tools(tmp_path: Path) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "DISCOVERY-INVARIANT")
+    root = Path(state.goal.workspace_root)
+    for index in range(256):
+        (root / f"a{index:04d}").write_bytes(b"\xff\x00")
+    (root / "z_readable").write_text("observed text")
+    model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)), tool_selector=_selector([]))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=_StrongPlanner(), supervisor_policy=SupervisorPolicy(mode="static"))
+    step = GoalPlanStep(step_id="S1", objective="Inspect the workspace", phase="observe",
+        read_roots=(".",), success_evidence=("required source content",))
+    operations, contract = controller._goal_step_operation_contract(state, step)
+    assert "read_file" in operations
+    assert contract["discovery_complete"] is False
+    descriptors, complete = model.harness.workspace_target_descriptors(
+        state.goal, (".", "z_readable"), expand_directories=True, max_entries=16,
+    )
+    assert complete is False
+    assert {".", "z_readable"} <= {item["path"] for item in descriptors}
+
+
+@pytest.mark.parametrize("resume_after_repair", [False, True])
+def test_final_evidence_gap_reopens_execution_with_bound_feedback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume_after_repair: bool,
+) -> None:
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "FINAL-EVIDENCE-REPAIR")
+    gap = next(item["code"] for item in auditor_final.build_gap_catalog(state.goal.request, (), ())
+        if item["code"].startswith("goal_requirement_unproved:"))
+    queue = _QueueClient([
+        ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+        json.dumps(_audit_call("continue", step_id="S1", step_complete=True, evidence_refs=["A00001"], gaps=[], reason="written")),
+        ModelCommand("final_answer", {"text": "Initial candidate."}).canonical,
+        json.dumps(_audit_call("repair", step_id="", step_complete=False, evidence_refs=["A00001"], gaps=[gap], reason="needs readback")),
+        ModelCommand("read_file", {"path": "result.txt"}).canonical,
+        json.dumps(_audit_call("continue", step_id="S2", step_complete=True, evidence_refs=["A00002"], gaps=[], reason="observed")),
+        ModelCommand("final_answer", {"text": "Written and read back."}).canonical,
+        json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False, evidence_refs=["A00001", "A00002"], gaps=[], reason="all proved")),
+    ])
+    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)), tool_selector=_selector(["write_file", "read_file"]))
+    repair = GoalPlanPatch(patch_id="GPP-final-evidence", base_revision=1,
+        add_steps=(GoalPlanStep(step_id="S2", objective="Read back the committed result", phase="observe", stage=2,
+            depends_on=("S1",), read_roots=("result.txt",), success_evidence=("result bytes read back",)),),
+        replace_steps=(), discard_step_ids=(), reason="Close the final evidence gap")
+    planner = _StrongPlanner((_strong_patch(state), repair))
+    monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics", staticmethod(lambda *a, **kw: None))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=5 if resume_after_repair else 20)
+    result = controller.run(state.run_id)
+    if resume_after_repair:
+        assert result.state.status.value == "interrupted"
+        controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+            supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20)
+        result = controller.run(state.run_id)
+    assert result.state.status.value == "completed"
+    assert [action.action_type for action in result.state.actions.values()] == ["write_file", "read_file"]
+    assert len(planner.requests) == 2
+    feedback = planner.requests[1].repair_feedback
+    assert feedback["recipient_roles"] == ["planner"]
+    assert feedback["issues"][0]["criterion"] == state.goal.request
+    assert feedback["issues"][0]["code"] == gap
+    assert len(rolling_goal_plan(result.state).patch_ids) == 2
 
 
 def test_role_pure_audit_v2_discloses_every_parser_field_invariant() -> None:
@@ -129,6 +277,16 @@ def test_recent_action_funnel_preserves_complete_negative_json_fact(
     assert packet["metadata"]["parse_error"]["source_span"]["content"] == '{"value":'
     assert packet["fact_authority"] == "literal_fields_and_exact_spans_only"
     assert "digest_and_outcome_only" not in fact["result_projection"]
+
+    # Stage evidence may bind an action, an artifact, or its revision. All three
+    # must expose exactly the same producing Harness fact, without duplication.
+    state.artifacts = {"ART1": SimpleNamespace(action_id="A00001")}
+    state.artifact_revisions = {"primary.json": [SimpleNamespace(revision_id="REV1", action_id="A00001")]}
+    for refs in (("A00001",), ("ART1",), ("REV1",), ("A00001", "ART1", "REV1")):
+        assert StatefulGoalLoopController._recent_action_facts(state, action_ids=refs, max_actions=None) == (fact,)
+    state.artifacts["ART1"].action_id = "MISSING"
+    with pytest.raises(ValueError, match="producing action"):
+        StatefulGoalLoopController._recent_action_facts(state, action_ids=("ART1",), max_actions=None)
 
 
 def test_recent_action_facts_bound_multibyte_arguments_instead_of_crashing(
@@ -215,7 +373,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/selector-intent-v4/select")
+        assert url.endswith("/selector-intent-v5/select")
         self.payloads.append(dict(json))
         menu_order_id = str(json.get("menu_order_id") or "")
         if menu_order_id == "canonical":
@@ -404,7 +562,7 @@ def _strong_patch(state) -> GoalPlanPatch:
     return GoalPlanPatch(
         patch_id="GPP-initial",
         base_revision=0,
-        add_steps=(GoalPlanStep(
+        add_steps=(GoalPlanStep(phase="mutate",
             step_id="S1",
             objective="Create result.txt with verified content",
             success_evidence=("result.txt has a committed artifact revision",),
@@ -469,7 +627,7 @@ def _strong_correction_patch(state) -> GoalPlanPatch:
         patch_id="GPP-correction",
         base_revision=1,
         add_steps=(),
-        replace_steps=(GoalPlanStep(
+        replace_steps=(GoalPlanStep(phase="observe",
             step_id="S1",
             objective="Inspect the workspace after the failed mutation",
             success_evidence=("the current workspace is observed",),
@@ -486,7 +644,7 @@ def _strong_readback_correction_patch(state) -> GoalPlanPatch:
         patch_id="GPP-readback-correction",
         base_revision=1,
         add_steps=(),
-        replace_steps=(GoalPlanStep(
+        replace_steps=(GoalPlanStep(phase="observe",
             step_id="S1",
             objective="Read result.txt after the mutation",
             success_evidence=("the current result.txt content is observed",),
@@ -502,7 +660,7 @@ def _strong_stage_readback_patch(state) -> GoalPlanPatch:
     return GoalPlanPatch(
         patch_id="GPP-stage-readback",
         base_revision=1,
-        add_steps=(GoalPlanStep(
+        add_steps=(GoalPlanStep(phase="observe",
             step_id="S2",
             objective="Read result.txt after the completed mutation stage",
             stage=2,
@@ -521,7 +679,7 @@ def _strong_invalid_dependency_correction_patch(state) -> GoalPlanPatch:
     return GoalPlanPatch(
         patch_id="GPP-invalid-dependency-correction",
         base_revision=1,
-        add_steps=(GoalPlanStep(
+        add_steps=(GoalPlanStep(phase="observe",
             step_id="S2",
             objective="Read result.txt after an unknown prerequisite",
             depends_on=("missing-prerequisite",),
@@ -569,7 +727,11 @@ def _audit_call(
             if verdict == "ready_for_final"
             else "final_evidence_incomplete"
         )
-        if verdict == "repair" and gaps:
+        if verdict == "repair" and gaps and not all(
+            code.startswith("goal_requirement_unproved:") or code in {
+                "candidate_omits_required_result", "candidate_unsupported_claim"
+            } for code in gaps
+        ):
             gaps = ["candidate_omits_required_result"]
     return {
         "function": "audit_decision",
@@ -714,12 +876,12 @@ def test_native_goal_patch_can_replace_open_steps_but_not_completed_steps(
 
 def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
     patch = GoalPlanPatch.from_model_value(
-        {
+        {"goal_obligations": [],
             "add_stages": [
                 {
                     "stage": 1,
                     "steps": [
-                        {
+                        {"obligation_ids": [],
                                 "step_id": "S1",
                                 "objective": "Inspect left.json",
                                 "phase": "observe",
@@ -729,7 +891,7 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
                             "write_roots": [],
                             "constraints": [],
                         },
-                        {
+                        {"obligation_ids": [],
                                 "step_id": "S2",
                                 "objective": "Inspect right.json",
                                 "phase": "observe",
@@ -744,7 +906,7 @@ def test_nested_plan_stages_are_peer_batches_with_a_real_barrier() -> None:
                 {
                     "stage": 2,
                     "steps": [
-                        {
+                        {"obligation_ids": [],
                                 "step_id": "S3",
                                 "objective": "Report both observations",
                                 "phase": "mutate",
@@ -939,7 +1101,7 @@ def test_workspace_target_kinds_compile_exact_observe_menus(tmp_path: Path) -> N
     )
 
     assert "read_file" in python_operations
-    assert "read_json" not in python_operations
+    assert "read_json" in python_operations
     assert "list_directory" not in python_operations
     assert "read_json" in json_operations
     assert "read_file" in json_operations
@@ -952,10 +1114,10 @@ def test_workspace_target_kinds_compile_exact_observe_menus(tmp_path: Path) -> N
     assert "read_file" in invalid_json_operations
     assert model.harness.workspace_target_descriptor(
         state.goal, "invalid.json"
-    )["target_kind"] == "json_candidate_file"
+    )["target_kind"] == "text_file"
 
 
-def test_bare_json_scalar_text_file_stays_text_and_directory_write_root_keeps_mutations(
+def test_scalar_format_hint_and_directory_write_scope_keep_structural_mutations(
     tmp_path: Path,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
@@ -977,13 +1139,13 @@ def test_bare_json_scalar_text_file_stays_text_and_directory_write_root_keeps_mu
         max_transitions=1,
     )
 
-    # A plain-text body that happens to parse as a JSON scalar is still text.
+    # Actual JSON scalars have the same format hint regardless of their name.
     assert model.harness.workspace_target_descriptor(state.goal, "VERSION")[
         "target_kind"
-    ] == "text_file"
+    ] == "json_file"
     assert model.harness.workspace_target_descriptor(state.goal, "flag.txt")[
         "target_kind"
-    ] == "text_file"
+    ] == "json_file"
     assert model.harness.workspace_target_descriptor(state.goal, "data.json")[
         "target_kind"
     ] == "json_file"
@@ -1016,11 +1178,10 @@ def test_bare_json_scalar_text_file_stays_text_and_directory_write_root_keeps_mu
     assert "write_file" in operations
     assert "write_json" in operations
     assert "make_directory" in operations
-    assert "patch_json" not in operations
+    assert "patch_json" in operations
     assert contract["compatible_targets_by_operation"]["write_file"] == ["src/app.py"]
-    # write_json has no compatible existing child, so the directory root itself
-    # is the scope hint that keeps new-file creation reachable.
-    assert contract["compatible_targets_by_operation"]["write_json"] == ["src"]
+    # Existing file paths are hints for all structural file writers.
+    assert contract["compatible_targets_by_operation"]["write_json"] == ["src/app.py"]
     assert {"path": "src/app.py", "target_kind": "text_file"} in [
         {"path": item["path"], "target_kind": item["target_kind"]}
         for item in contract["target_descriptors"]
@@ -1103,7 +1264,7 @@ def test_target_contract_excludes_mechanically_completed_roots(
 @pytest.mark.parametrize(
     ("operation", "invalid_path", "valid_path"),
     (
-        ("read_json", "tool.py", "config.json"),
+        ("read_json", ".", "config.json"),
         ("read_file", ".", "tool.py"),
         ("list_directory", "tool.py", "."),
     ),
@@ -1192,12 +1353,12 @@ def test_new_non_observe_step_reports_exact_mixed_read_contract() -> None:
         ),
     ):
         GoalPlanPatch.from_model_value(
-            {
+            {"goal_obligations": [],
                 "add_stages": [
                     {
                         "stage": 1,
                         "steps": [
-                            {
+                            {"obligation_ids": [],
                                 "step_id": "S2",
                                 "objective": "Inspect and update pricing.py",
                                 "phase": "mutate",
@@ -1224,14 +1385,14 @@ def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
         patch_id="GPP-stage-repair-initial",
         base_revision=0,
         add_steps=(
-            GoalPlanStep(
+            GoalPlanStep(phase="observe",
                 step_id="S1",
                 objective="Inspect the verifier",
                 stage=1,
                 success_evidence=("verifier observed",),
                 read_roots=("verify.py",),
             ),
-            GoalPlanStep(
+            GoalPlanStep(phase="mutate",
                 step_id="S2",
                 objective="Implement the feature",
                 stage=2,
@@ -1239,7 +1400,7 @@ def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
                 success_evidence=("feature written",),
                 write_roots=("feature.py",),
             ),
-            GoalPlanStep(
+            GoalPlanStep(phase="observe",
                 step_id="S3",
                 objective="Run verification",
                 stage=3,
@@ -1277,7 +1438,7 @@ def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
     append_only = GoalPlanPatch(
         patch_id="GPP-stage-repair-appended-too-late",
         base_revision=1,
-        add_steps=(GoalPlanStep(
+        add_steps=(GoalPlanStep(phase="observe",
             step_id="S4",
             objective="Repair the verifier mismatch later",
             stage=4,
@@ -1307,7 +1468,7 @@ def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
         patch_id="GPP-stage-repair-frontier",
         base_revision=1,
         add_steps=(),
-        replace_steps=(GoalPlanStep(
+        replace_steps=(GoalPlanStep(phase="mutate",
             step_id="S2",
             objective="Complete the verifier inspection, then implement the feature",
             stage=2,
@@ -1330,81 +1491,19 @@ def test_stage_repair_cannot_append_behind_an_unchanged_open_frontier() -> None:
     )
 
 
-def test_flat_v1_goal_plan_patch_remains_read_only_replay_compatible() -> None:
-    patch = GoalPlanPatch.from_dict(
-        {
-            "schema_version": LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION,
-            "patch_id": "GPP-legacy-flat",
-            "base_revision": 0,
-            "add_steps": [
-                {
-                    "step_id": "S1",
-                    "objective": "Inspect legacy input",
-                    "depends_on": [],
-                    "success_evidence": ["legacy input observed"],
-                    "read_roots": ["legacy.txt"],
-                    "write_roots": [],
-                    "constraints": [],
-                }
-            ],
-            "replace_steps": [],
-            "discard_step_ids": [],
-            "reason": "legacy replay",
-        }
-    )
-
-    assert patch.add_steps[0].stage == 1
-    assert patch.to_dict()["schema_version"].endswith(".v3")
-    assert patch.to_dict()["add_stages"][0]["steps"][0]["step_id"] == "S1"
-
-
-def test_nested_v2_goal_plan_patch_infers_phase_only_for_replay() -> None:
-    patch = GoalPlanPatch.from_dict(
-        {
-            "schema_version": LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V2,
-            "patch_id": "GPP-legacy-v2",
-            "base_revision": 0,
-            "add_stages": [
-                {
-                    "stage": 1,
-                    "steps": [
-                        {
-                            "step_id": "S1",
-                            "objective": "Write legacy.txt",
-                            "depends_on": [],
-                            "success_evidence": ["legacy.txt is written"],
-                            "read_roots": [],
-                            "write_roots": ["legacy.txt"],
-                            "constraints": [],
-                        }
-                    ],
-                }
-            ],
-            "replace_stages": [],
-            "discard_step_ids": [],
-            "reason": "legacy nested replay",
-        }
-    )
-
-    assert patch.add_steps[0].phase == "mutate"
-    assert patch.to_dict()["schema_version"] == (
-        LEGACY_GOAL_PLAN_PATCH_SCHEMA_VERSION_V3
-    )
-
-
 def test_same_stage_conflicting_roots_are_rejected() -> None:
     plan = RollingGoalPlan(goal_digest="goal")
     patch = GoalPlanPatch(
         patch_id="GPP-conflict",
         base_revision=0,
         add_steps=(
-            GoalPlanStep(
+            GoalPlanStep(phase="mutate",
                 step_id="S1",
                 objective="Write a configuration",
                 success_evidence=("configuration written",),
                 write_roots=("config",),
             ),
-            GoalPlanStep(
+            GoalPlanStep(phase="observe",
                 step_id="S2",
                 objective="Read the same configuration tree",
                 success_evidence=("configuration observed",),
@@ -1487,13 +1586,13 @@ def test_read_only_goal_step_menu_excludes_workspace_mutations(
         supervisor_policy=SupervisorPolicy(mode="static"),
         max_transitions=1,
     )
-    read_only = GoalPlanStep(
+    read_only = GoalPlanStep(phase="observe",
         step_id="READ",
         objective="Inspect result.txt without changing the workspace",
         success_evidence=("result.txt is observed",),
         read_roots=("result.txt",),
     )
-    mutation = GoalPlanStep(
+    mutation = GoalPlanStep(phase="mutate",
         step_id="WRITE",
         objective="Update result.txt",
         success_evidence=("result.txt is updated",),
@@ -2040,7 +2139,7 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
         patch_id="GPP-root-evidence",
         base_revision=0,
         add_steps=(
-            GoalPlanStep(
+            GoalPlanStep(phase="observe",
                 step_id="READ",
                 objective="Read pricing.py and verify_project.py",
                 success_evidence=("both files are observed",),
@@ -2290,7 +2389,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert len(selector._session.payloads) == 6
     second_selector_step = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV4: "
+            "SelectorIntentPromptV5: "
         )
     )
     assert second_selector_step["current_subtask"]["phase"] == "observe"
@@ -2821,6 +2920,13 @@ def test_successful_directory_observation_repair_can_read_next_without_replannin
     assert len(committed) == 1
     assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
 
+    selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v5.PROMPT_PREFIX)
+    feedback = selector_input["current_progress"]["feedback"]
+    assert feedback["issues"][0]["code"] == "phase_evidence_unproved:observe"
+    assert feedback["issues"][0]["criterion"]
+    executor_input = _role_prompt_payload(queue.prompts[2], executor_args_v5.PROMPT_PREFIX)
+    assert executor_input["execution_state"]["feedback"] == feedback
+
 
 @pytest.mark.parametrize("resume_at_boundary", [False, True])
 def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
@@ -2840,14 +2946,11 @@ def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
             ),
             "{}",
             json.dumps(
-                {"function": "read_file", "params": {"path": "result.txt"}}
-            ),
-            json.dumps(
                 _audit_call(
                     "continue",
                     step_id="S1",
                     step_complete=True,
-                    evidence_refs=["A00002"],
+                    evidence_refs=["A00001"],
                     gaps=[],
                     reason="the exact bytes were observed",
                 )
@@ -2860,7 +2963,7 @@ def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
                     "ready_for_final",
                     step_id="",
                     step_complete=False,
-                    evidence_refs=["A00002"],
+                    evidence_refs=["A00001"],
                     gaps=[],
                     reason="the repaired audit path is complete",
                 )
@@ -2869,7 +2972,7 @@ def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
     )
     model = LongHorizonModel(
         ModelSession(queue, settings=_settings(progressive=True)),
-        tool_selector=_selector(["read_file", "read_file"]),
+        tool_selector=_selector(["read_file"]),
     )
     planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
     monkeypatch.setattr(
@@ -2911,6 +3014,11 @@ def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
     assert len(committed) == 1
     assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
     assert result.state.protocol_rejections == 1
+    assert len(result.state.actions) == 1
+    audit_starts = [event for event in result.state.causal_records.values() if event.event_type == "goal_auditor_session_started" and event.payload["auditor_role"] == "auditor_step"]
+    assert len(audit_starts) == 2
+    assert audit_starts[0].payload["audit_boundary_id"] == audit_starts[1].payload["audit_boundary_id"]
+    assert audit_starts[0].payload["prompt_sha256"] != audit_starts[1].payload["prompt_sha256"]
 
 
 def test_repeated_executor_provenance_rejection_recovers_without_replanning(
@@ -3029,7 +3137,7 @@ def test_repeated_executor_provenance_rejection_recovers_without_replanning(
     assert (Path(state.goal.workspace_root) / "result.txt").read_text() == "VALUE = 'new'\n"
 
 
-def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_final(
+def test_invalid_pre_final_audit_retries_same_candidate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3060,12 +3168,6 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
                     }
                 ),
                     "{}",
-                json.dumps(
-                    {
-                        "function": "final_answer",
-                        "params": {"text": "Second audited candidate."},
-                    }
-                ),
                 json.dumps(
                     _audit_call(
                         "ready_for_final",
@@ -3105,28 +3207,16 @@ def test_invalid_pre_final_audit_rejects_candidate_and_requires_new_audited_fina
         for event_id in result.state.causal_order
     ]
     assert result.state.status.value == "completed"
-    assert result.final_output == "Second audited candidate."
-    assert event_types.count("goal_final_rejected") == 1
+    assert result.final_output == "First unaudited candidate."
+    assert event_types.count("goal_final_rejected") == 0
+    assert event_types.count("goal_finalizer_session_started") == 1
     assert event_types.count("run_completed") == 1
     assert "run_yielded" not in event_types
-    rejected = next(
-        result.state.causal_records[event_id]
-        for event_id in result.state.causal_order
-        if result.state.causal_records[event_id].event_type == "goal_final_rejected"
-    )
-    assert rejected.payload["verdict"] == "protocol_invalid"
-    assert rejected.payload["step_completed"] is False
-    assert rejected.payload["kernel_validated"] is False
-    failed_resolution = next(
-        result.state.causal_records[event_id]
-        for event_id in result.state.causal_order
-        if result.state.causal_records[event_id].event_type
-        == "goal_audit_boundary_resolved"
-        and result.state.causal_records[event_id].payload["verdict"]
-        == "protocol_invalid"
-    )
-    assert failed_resolution.payload["boundary_kind"] == "pre_final"
-    assert failed_resolution.subject_id == rejected.payload["audit_boundary_id"]
+    assert result.state.protocol_rejections == 1
+    starts = [event for event in result.state.causal_records.values() if event.event_type == "goal_auditor_session_started" and event.payload["auditor_role"] == "auditor_final"]
+    assert len(starts) == 2
+    assert starts[0].payload["audit_boundary_id"] == starts[1].payload["audit_boundary_id"]
+    assert starts[0].payload["prompt_sha256"] != starts[1].payload["prompt_sha256"]
     assert result.state.causal_records[result.state.causal_order[-1]].event_type == (
         "run_completed"
     )
@@ -3264,7 +3354,7 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         "\n\n**Tool Call:**", 1
     )[0]
     audit_payload = json.loads(
-        audit_prompt.removeprefix("AuditorStepPromptV3: ")
+        audit_prompt.removeprefix("AuditorStepPromptV4: ")
     )
     assert audit_payload["active_step"]["phase"] == "mutate"
     assert list(audit_payload)[-1] == "current_question"
@@ -3360,7 +3450,7 @@ def test_rwkv_step_auditor_rejects_gap_outside_visible_v3_catalog(
     audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
         "\n\n**Tool Call:**", 1
     )[0]
-    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV3: "))
+    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV4: "))
     visible_codes = {item["code"] for item in audit_payload["gap_catalog"]}
     assert "invented_gap:not_in_prompt" not in visible_codes
 
@@ -3794,7 +3884,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
     assert len(selector._session.payloads) == 6
     second_selection = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV4: "
+            "SelectorIntentPromptV5: "
         )
     )
     assert second_selection["current_progress"]["assigned_action_count"] == 0
@@ -3808,7 +3898,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         if event.event_type == "protocol_rejection"
     ]
     assert len(retry_events) == 1
-    assert queue.prompts[2].count("ExecutorArgsPromptV4: ") == 1
+    assert queue.prompts[2].count("ExecutorArgsPromptV5: ") == 1
     assert "protocol_rejection" not in queue.prompts[2]
     executor_starts = [
         result.state.causal_records[event_id]
@@ -3884,19 +3974,10 @@ def test_goal_audit_protocol_budget_stops_repeated_pre_final_cycle(
             reason="incorrectly tries to complete a step at pre-final",
         )
     )
-    final_attempts: list[str] = []
-    for index in range(13):
-        final_attempts.extend(
-            [
-                json.dumps(
-                    {
-                        "function": "final_answer",
-                        "params": {"text": f"candidate {index}"},
-                    }
-                ),
-                invalid_final_audit,
-            ]
-        )
+    final_attempts = [
+        ModelCommand("final_answer", {"text": "same durable candidate"}).canonical,
+        invalid_final_audit, invalid_final_audit, invalid_final_audit,
+    ]
     queue = _QueueClient(
         [
             json.dumps(
@@ -3936,14 +4017,16 @@ def test_goal_audit_protocol_budget_stops_repeated_pre_final_cycle(
     ).run(state.run_id)
 
     assert result.state.status.value == "blocked"
-    # Three protocol-invalid audit releases without new evidence exhaust the
-    # goal-audit budget; the action-lane budget of 12 no longer applies here.
+    # Three visible retries exhaust the audit budget on one still-open boundary.
     assert result.state.protocol_rejections == 3
     events = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert sum(event.event_type == "goal_final_rejected" for event in events) == 3
+    assert sum(event.event_type == "goal_final_rejected" for event in events) == 0
+    assert sum(event.event_type == "goal_finalizer_session_started" for event in events) == 1
+    assert len(result.state.actions) == 1
+    assert StatefulGoalLoopController._pending_audit_boundary(result.state) is not None
     goal_rejections = [
         event
         for event in events
@@ -4208,6 +4291,11 @@ def test_final_auditor_repair_returns_to_goal_loop_before_completion(
     assert all(
         item.event_type != "run_completed" for item in events[:rejected_index]
     )
+    first_input = _role_prompt_payload(session.client.prompts[2], finalizer_answer.PROMPT_PREFIX)
+    repaired_input = _role_prompt_payload(session.client.prompts[4], finalizer_answer.PROMPT_PREFIX)
+    assert first_input != repaired_input
+    assert repaired_input["feedback"]["issues"][0]["code"] == "candidate_omits_required_result"
+    assert "Unsupported first candidate." in repaired_input["feedback"]["rejected_output"]
 
 
 def test_planner_semantic_repair_reaches_stage_checker(
@@ -4446,7 +4534,7 @@ def test_goal_planner_transport_pending_is_durable_and_resolved_on_reentry(
 
 
 def test_goal_stage_checker_transport_pending_resolves_after_response(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class RecoveringStagePlanner(_StrongPlanner):
         def review_goal_stage(self, request):
@@ -4457,61 +4545,33 @@ def test_goal_stage_checker_transport_pending_resolves_after_response(
 
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "GOAL-STAGE-TRANSPORT-RESUME")
-    model = LongHorizonModel(
-        ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
-        tool_selector=_selector([]),
-    )
-    planner = RecoveringStagePlanner()
-    controller = StatefulGoalLoopController(
-        store,
-        model=model,
-        harness=model.harness,
-        supervisor=planner,
-        supervisor_policy=SupervisorPolicy(mode="static"),
-        max_transitions=1,
-    )
-    plan = RollingGoalPlan(goal_digest=state.goal.digest)
-    plan.apply_goal_patch(_strong_patch(state))
-    plan.apply_audit(
-        GoalAuditDecision(
-            audit_id="AUD-stage-transport",
-            verdict=GoalAuditVerdict.CONTINUE,
-            step_id="S1",
-            evidence_refs=("A00001",),
-            gaps=(),
-            completed_steps=(AuditedStep("S1", ("A00001",)),),
-            reason="test evidence",
-        )
-    )
-    stage_key = plan.stage_boundary_key(1)
-
-    first = controller._issue_strong_stage_review(
-        state,
-        plan=plan,
-        stage=1,
-        stage_boundary_key=stage_key,
-        transitions=0,
-    )
-
+    queue = _QueueClient([
+        ModelCommand("write_file", {"path": "result.txt", "content": "verified"}).canonical,
+        json.dumps(_audit_call("continue", step_id="S1", step_complete=True,
+            evidence_refs=["A00001"], gaps=[], reason="written")),
+        ModelCommand("final_answer", {"text": "Created result.txt."}).canonical,
+        json.dumps(_audit_call("ready_for_final", step_id="", step_complete=False,
+            evidence_refs=["A00001"], gaps=[], reason="complete")),
+    ])
+    model = LongHorizonModel(ModelSession(queue, settings=_settings(progressive=True)),
+        tool_selector=_selector(["write_file"]))
+    planner = RecoveringStagePlanner(_strong_patch(state))
+    monkeypatch.setattr(StatefulGoalLoopController, "_validate_contract_patch_semantics",
+        staticmethod(lambda *a, **kw: None))
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=planner, supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=20)
+    first = controller.run(state.run_id)
     assert first.state.status.value == "interrupted"
     assert len(unresolved_supervisor_pending(first.state)) == 1
-
-    recovered = controller._issue_strong_stage_review(
-        first.state,
-        plan=plan,
-        stage=1,
-        stage_boundary_key=stage_key,
-        transitions=0,
-    )
-
-    assert isinstance(recovered, GoalStageReview)
-    assert unresolved_supervisor_pending(first.state) == ()
-    event_types = [
-        first.state.causal_records[event_id].event_type
-        for event_id in first.state.causal_order
-    ]
-    assert event_types.count("supervisor_call_pending") == 1
-    assert event_types.count("supervisor_call_resolved") == 1
+    assert len(first.state.actions) == 1
+    recovered = controller.run(state.run_id)
+    assert recovered.state.status.value == "completed"
+    assert len(recovered.state.actions) == 1
+    assert unresolved_supervisor_pending(recovered.state) == ()
+    events = [recovered.state.causal_records[key] for key in recovered.state.causal_order]
+    assert sum(event.event_type == "supervisor_call_pending" for event in events) == 1
+    assert sum(event.event_type == "supervisor_call_resolved" for event in events) == 1
+    assert [item["action_id"] for item in planner.stage_review_requests[-1].recent_action_facts] == ["A00001"]
 
 
 def test_goal_planner_zero_semantic_repairs_never_makes_a_second_call(
@@ -4672,10 +4732,10 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     selector_payloads = model.tool_selector._session.payloads
     assert all("parent" not in payload for payload in selector_payloads)
     second_step = json.loads(
-        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV4: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV5: ")
     )
     first_step = json.loads(
-        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV4: ")
+        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV5: ")
     )
     assert second_step["current_subtask"] == first_step["current_subtask"]
     assert first_step["current_progress"]["assigned_action_count"] == 0
@@ -4700,7 +4760,7 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     assert progress["workspace_targets"] == [{"path": "result.txt", "target_kind": "text_file"}]
     assert progress["completion_preconditions_satisfied"] is False
     second_executor_prompt = session.client.prompts[1]
-    assert "ExecutorArgsPromptV4: " in second_executor_prompt
+    assert "ExecutorArgsPromptV5: " in second_executor_prompt
     assert '"error_type":"InjectedWriteFailure"' in second_executor_prompt
     assert '"error_message":"injected first write failure"' in second_executor_prompt
     assert '"target_kind":"text_file"' in second_executor_prompt
@@ -4769,7 +4829,7 @@ def test_stage_repair_survives_planner_outage_and_resumes_before_final(
         patch_id="GPP-stage-repair",
         base_revision=1,
         add_steps=(
-            GoalPlanStep(
+            GoalPlanStep(phase="observe",
                 step_id="S2",
                 objective="Inspect the repaired workspace",
                 stage=2,
@@ -5068,10 +5128,8 @@ def test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts(
     assert tuple(tuple(item["accepted_evidence_refs"]) for item in request.stage_steps) == tuple(
         (action_id,) for action_id in action_ids
     )
-    # Step identities, revisions and accepted refs are complete. Action facts
-    # are a separate, deliberately bounded budget, not all 19 action results.
-    assert tuple(fact["action_id"] for fact in request.recent_action_facts) == tuple(action_ids[-8:])
-    assert len(request.recent_action_facts) == 8
+    assert tuple(fact["action_id"] for fact in request.recent_action_facts) == tuple(action_ids)
+    assert len(request.recent_action_facts) == len(steps)
     assert review.reviewed_step_ids == expected_ids
     assert review.evidence_refs == tuple(action_ids)
     state = store.load(state.run_id)

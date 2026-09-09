@@ -1333,12 +1333,8 @@ class ActionHarness:
     ) -> dict[str, Any]:
         """Return one Harness-owned path kind without exposing file content.
 
-        Small regular files are classified from their actual bytes. Invalid UTF-8
-        JSON candidates retain a distinct kind when the path explicitly declares
-        the ``.json`` format, so ``read_json`` can return durable negative parse
-        evidence without treating arbitrary source text as JSON. Large files remain
-        an explicit conservative kind so metadata projection cannot allocate an
-        unbounded buffer.
+        Byte-derived format hints never depend on the filename. Classification
+        is bounded; unknown content remains usable through normal tool results.
         """
 
         root = Path(goal.workspace_root).resolve(strict=True)
@@ -1382,22 +1378,12 @@ class ActionHarness:
         except UnicodeDecodeError:
             descriptor["target_kind"] = "binary_file"
             return descriptor
-        declared_json = path.suffix.casefold() == ".json"
         try:
             parsed = json.loads(text)
         except (json.JSONDecodeError, TypeError, ValueError):
-            descriptor["target_kind"] = (
-                "json_candidate_file" if declared_json else "text_file"
-            )
+            descriptor["target_kind"] = "text_file"
         else:
-            # A plain-text file whose whole body is a bare JSON scalar (a
-            # version number, a quoted word, ``true``) is still text; only a
-            # structured value or a declared .json path is a JSON document.
-            descriptor["target_kind"] = (
-                "json_file"
-                if declared_json or isinstance(parsed, (dict, list))
-                else "text_file"
-            )
+            descriptor["target_kind"] = "json_file"
         return descriptor
 
     def workspace_target_descriptors(
@@ -1407,45 +1393,49 @@ class ActionHarness:
         *,
         expand_directories: bool = False,
         max_entries: int = 256,
-    ) -> tuple[dict[str, Any], ...]:
-        """Return bounded typed candidates below the declared Planner roots."""
+    ) -> tuple[tuple[dict[str, Any], ...], bool]:
+        """Return scope hints and explicit discovery completeness.
 
+        Every declared root is retained. The optional child projection has a
+        resource budget; omitted, excluded or unreadable descendants mean unknown
+        applicability, never proof that an operation has no compatible target.
+        """
         root = Path(goal.workspace_root).resolve(strict=True)
-        limit = max(1, int(max_entries))
-        selected: list[dict[str, Any]] = []
-        seen: set[str] = set()
-
-        def append(relative: str) -> bool:
-            descriptor = self.workspace_target_descriptor(goal, relative)
-            path = str(descriptor["path"])
-            if path in seen:
-                return len(selected) >= limit
-            seen.add(path)
-            selected.append(descriptor)
-            return len(selected) >= limit
-
-        excluded = {".git", ".venv", "node_modules", "__pycache__"}
+        selected: dict[str, dict[str, Any]] = {}
         for raw_root in roots:
             descriptor = self.workspace_target_descriptor(goal, raw_root)
-            if append(str(descriptor["path"])):
-                break
-            if not expand_directories or descriptor["target_kind"] != "directory":
-                continue
+            selected[str(descriptor["path"])] = descriptor
+        directories = [item for item in selected.values() if item["target_kind"] == "directory"]
+        complete = True
+        if not expand_directories:
+            return tuple(selected.values()), not directories
+        limit = max(len(selected), max(1, int(max_entries)))
+        excluded = {".git", ".venv", "node_modules", "__pycache__"}
+
+        def on_walk_error(error: OSError) -> None:
+            nonlocal complete
+            complete = False
+
+        for descriptor in directories:
             directory = self.resolve_path(goal, str(descriptor["path"]), must_exist=True)
-            for current, directory_names, file_names in os.walk(directory):
-                directory_names[:] = sorted(
-                    name for name in directory_names if name not in excluded
-                )
+            for current, directory_names, file_names in os.walk(directory, onerror=on_walk_error):
+                if excluded.intersection(directory_names):
+                    complete = False
+                directory_names[:] = sorted(name for name in directory_names if name not in excluded)
                 current_path = Path(current)
                 for name in (*directory_names, *sorted(file_names)):
-                    candidate = current_path / name
-                    try:
-                        candidate_relative = candidate.relative_to(root).as_posix()
-                        if append(candidate_relative):
-                            return tuple(selected)
-                    except (FileNotFoundError, OSError, ValueError):
+                    relative = (current_path / name).relative_to(root).as_posix()
+                    if relative in selected:
                         continue
-        return tuple(selected)
+                    if len(selected) >= limit:
+                        return tuple(selected.values()), False
+                    try:
+                        item = self.workspace_target_descriptor(goal, relative)
+                    except (FileNotFoundError, OSError, ValueError):
+                        complete = False
+                        continue
+                    selected[str(item["path"])] = item
+        return tuple(selected.values()), complete
 
     def workspace_observation_snapshot(
         self,

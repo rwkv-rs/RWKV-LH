@@ -1,6 +1,6 @@
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
-更新日期：2026-09-09。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前整改轮为 `STATETUNE_ENTRY_REPAIR_R1_20260909`，验证与限制见 [整改报告](../data/experiments/STATETUNE_ENTRY_REPAIR_R1_20260909/REPORT.zh-CN.md)。
+更新日期：2026-09-09。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前整改轮为 `CONTROLLER_ROLE_CLOSURE_R1_20260909`，验证与限制见 [闭环报告](../data/experiments/CONTROLLER_ROLE_CLOSURE_R1_20260909/REPORT.zh-CN.md)。
 
 Agent 级最新模型实测仍是历史 R7：A/B 各 Strict 0/12、completed 0/12、mutation 0，各成功执行 12 次目录观察，终止 `strong_planner_unavailable` / `fixed_plan_exhausted`。本轮代码回归没有产生新的 Agent 分数。R7 的 Controller 在第一次观察后的 REPAIR 强制请求改计划，导致第二个动作尚未发生，不能说已测到第二或第三阶段。原报告及其 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
 
@@ -12,11 +12,11 @@ Agent 级最新模型实测仍是历史 R7：A/B 各 Strict 0/12、completed 0/1
 
 | 角色 | 唯一模块 | schema 后缀 | 构造与渲染 |
 |---|---|---|---|
-| Selector 2.9B | `selector_intent_v4.py` | selector-intent.v4 | `build_current_progress()` → `build_prompt_source()` → `render_prompt()` |
-| Executor 13.3B | `executor_args_v4.py` | executor-args.v4 | `build_target_contract()` / `build_execution_state()` → `build_prompt_source()` → `render_generation_prompt()` |
-| Step Auditor 13.3B | `auditor_step_v3.py` | auditor-step.v3 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
-| Finalizer 13.3B | `finalizer_answer.py` | finalizer-answer.v1 | `build_prompt_source()` → `render_prompt()` |
-| Final Auditor 13.3B | `auditor_final.py` | auditor-final.v2 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
+| Selector 2.9B | `selector_intent_v5.py` | selector-intent.v5 | `build_current_progress()` → `build_prompt_source()` → `render_prompt()` |
+| Executor 13.3B | `executor_args_v5.py` | executor-args.v5 | `build_target_contract()` / `build_execution_state()` → `build_prompt_source()` → `render_generation_prompt()` |
+| Step Auditor 13.3B | `auditor_step_v4.py` | auditor-step.v4 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
+| Finalizer 13.3B | `finalizer_answer.py` | finalizer-answer.v2 | `build_prompt_source()` → `render_prompt()` |
+| Final Auditor 13.3B | `auditor_final.py` | auditor-final.v3 | `build_prompt_source()`（内建 gap catalog）→ `render_prompt()` |
 
 模块均位于 `rwkv_lh/goal_state_protocols/`。schema 完整前缀为 `rwkv-lh.g1j-per-stage-state-tuning.`，运行时引用模块的 `INPUT_SCHEMA_VERSION`，不得在调用方拼出身份标签。Executor `render_prompt()` 是相同输入的前缀正文，`render_generation_prompt()` 仅追加同一调用边界，不是另一套输入协议。
 
@@ -29,7 +29,7 @@ current_progress 精确字段与顺序：
 ```text
 assigned_action_count, successful_action_count, failed_action_count,
 last_action, missing_read_roots, missing_write_roots,
-workspace_targets, completion_preconditions_satisfied
+workspace_targets, completion_preconditions_satisfied, feedback, target_discovery_complete
 ```
 
 last_action 精确字段与顺序：
@@ -42,8 +42,8 @@ result_metadata, observed_roots, mutated_roots
 - arguments 最多 8 个键，每值最多 160 字符；结构化值仅保留 object/array 大小描述。
 - 失败时 error_type/error_message 必填，message 最多 240 字符；成功时为 null。失败不覆盖 observed/mutated root。
 - metadata 白名单按顺序为 outcome_type、exit_code、target_kind、entry_count、match_count、byte_count、size_bytes、truncated、changed_path_count。
-- workspace_targets 最多 32 条；类型取 `operation_contracts.WORKSPACE_TARGET_KINDS`。
-- 网络封装 NetworkSelectorInput 使用 v5，只接受角色 v4。endpoint、menu/role/prompt/target prefix 全部引用角色模块常量。decoder manifest 与运行 attestation 必须匹配当前源码。
+- workspace_targets 最多 32 条；目录发现或提示投影不完整时 target_discovery_complete=false，此列表不是允许列表；类型取 `operation_contracts.WORKSPACE_TARGET_KINDS`。
+- 网络封装 NetworkSelectorInput 使用 v5，只接受角色 v5。endpoint、menu/role/prompt/target prefix 全部引用角色模块常量。decoder manifest 与运行 attestation 必须匹配当前源码。
 
 ### 1.2 强制一致性检查
 
@@ -104,7 +104,9 @@ Bot✿{generation_prefill}
 
 五个角色协议的职责保持稳定：Selector 选操作，Executor 填参数，Harness 执行，Step Auditor 判断步骤是否满足，Finalizer 作答，Final Auditor 判断最终证据与回答。Planner / Stage Checker 负责计划和阶段边界。步骤 REPAIR 应将差距交回同一步；工具失败、参数错误或 Auditor 输出无效不能直接作为重规划依据。后续计划调用应有阶段审查或现有工作结束后仍存在目标缺口的依据；重复成功动作仍受无进展预算约束。
 
-2026-09-09 链路复核发现语义反馈尚未完整传到 Selector / Finalizer，审计失败重试归属、最终证据修复、阶段事实裁剪和目标可达性仍有缺口。Owner 要求保持五角色并按通用契约设计；目标与实现边界见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。该文档是待实施设计，不能作为链路已经修复的证据。
+2026-09-09 当前实现统一使用 `role-feedback.v1`：步骤语义缺口同时进入 Selector / Executor；最终回答缺口进入 Finalizer；执行证据缺口带原审计身份进入 Planner 并重新打开可执行工作。协议错误只重试原角色、原审计边界，不重放动作或候选；Finalizer 分别保留 semantic feedback 与 protocol retry_feedback。反馈包含来源、接收角色、边界/计划/步骤版本、原条件、证据及被拒绝输出，运行与 trace 重建共享因果日志投影。完成仍须 Final Auditor 接受，预算耗尽只会阻塞/中断。
+
+Stage Checker 接收该阶段所有引用对应的 Harness 动作，action/artifact/revision 使用同一来源解析。内容投影可显式标记，证据条数不再裁成 8/12；审计工具声明也不再限定证据或 gap 数量。目录发现保留全部显式 root，有限发现标明不完整；工具资格依据文件/目录/缺失目标的结构性条件，不按后缀或采样内容推断能力。唯一 GoalPlanPatch v4 及显式 phase 为当前入口，旧版本、未知版本和旧 contract graph 重放拒绝。完整设计及验证边界见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)和本轮报告；工程回归不等于模型能力验收。
 
 RWKV 更新应优先改变部署配置与必要的底层适配：模型/词表 SHA、State 形状与 dtype、上下文和输出预算、生成前缀/停止符、服务能力。角色输入仍调用同一 builder；只有真实语义合同变化才升级并替换协议。每次升级验证 State 注入、token 对齐、自然 stop、五角色输入和真实流程，重新冻结源码与服务身份。旧 State 的形状兼容不等于行为或训练分布兼容，不能自动沿用旧结果。
 

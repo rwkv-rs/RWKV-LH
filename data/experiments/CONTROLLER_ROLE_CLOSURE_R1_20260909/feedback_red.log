@@ -1,0 +1,652 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_successful_directory_observation_repair_can_read_next_without_replanning _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_successful_directory_obse0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77c16ed6b820>
+
+    def test_successful_directory_observation_repair_can_read_next_without_replanning(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "ACTION-REPAIR-RECOVERY")
+        (Path(state.goal.workspace_root) / "result.txt").write_text("verified content", encoding="utf-8")
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {
+                        "function": "list_directory",
+                        "params": {"path": "."},
+                    }
+                ),
+                json.dumps(
+                    _audit_call(
+                        "repair",
+                        step_id="S1",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=["phase_evidence_unproved:observe"],
+                        reason="readback is required",
+                    )
+                ),
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the current bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "Recovered."}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00002"],
+                        gaps=[],
+                        reason="the repaired plan is complete",
+                    )
+                ),
+            ]
+        )
+        session = ModelSession(queue, settings=_settings(progressive=True))
+        selector = _selector(["list_directory", "read_file"])
+        model = LongHorizonModel(session, tool_selector=selector)
+        planner = _StrongPlanner(_strong_observe_patch(state))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+    
+        result = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=20,
+        ).run(state.run_id)
+    
+        assert result.state.status.value == "completed"
+        assert result.final_output == "Recovered."
+        assert len(planner.requests) == 1
+        assert [action.action_type for action in result.state.actions.values()] == ["list_directory", "read_file"]
+        committed = [
+            result.state.causal_records[event_id]
+            for event_id in result.state.causal_order
+            if result.state.causal_records[event_id].event_type
+            == "goal_plan_patch_committed"
+        ]
+        assert len(committed) == 1
+        assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
+    
+        selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v4.PROMPT_PREFIX)
+>       feedback = selector_input["current_progress"]["feedback"]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'feedback'
+
+tests/test_stateful_goal_loop.py:2830: KeyError
+_______ test_protocol_invalid_step_audit_keeps_plan_and_recovers[False] ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_protocol_invalid_step_aud0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77c17059ec40>
+resume_at_boundary = False
+
+    @pytest.mark.parametrize("resume_at_boundary", [False, True])
+    def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        resume_at_boundary: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "verified\n", encoding="utf-8"
+        )
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                "{}",
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the exact bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "Recovered."}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the repaired audit path is complete",
+                    )
+                ),
+            ]
+        )
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file"]),
+        )
+        planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+    
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=3 if resume_at_boundary else 20,
+        )
+>       result = controller.run(state.run_id)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_stateful_goal_loop.py:2898: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:2313: in run
+    decision = self.model.next_command(
+rwkv_lh/model.py:653: in next_command
+    selected_operation, checkpoint = self._select_tool(
+rwkv_lh/model.py:2373: in _select_tool
+    return self._select_tool_independently(
+rwkv_lh/model.py:2152: in _select_tool_independently
+    self._advance_selector_lane(
+rwkv_lh/model.py:2000: in _advance_selector_lane
+    selection, selector_checkpoint = self.tool_selector.select(
+rwkv_lh/exact_tool_selector/native_network_client.py:221: in select
+    response = self._session.post(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_stateful_goal_loop._SelectorHTTP object at 0x77c16ed11bd0>
+url = 'http://127.0.0.1:29621/selector-intent-v4/select'
+json = {'schema_version': 'rwkv-lh.native-exact-tool-selector-service-request.v1', 'run_id': 'AUDIT-PROTOCOL-REPAIR-RECOVERY'...: 'SELTRACE-f06b54e64dcb4989', 'input_digest': '324a01d2904e1dc110d11802823b756f5cd0ea48495ba41685b20c34ee82e797', ...}
+
+    def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
+        del timeout
+        assert url.endswith("/selector-intent-v4/select")
+        self.payloads.append(dict(json))
+        menu_order_id = str(json.get("menu_order_id") or "")
+        if menu_order_id == "canonical":
+>           self.current_operation = self.operations.pop(0)
+                                     ^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: pop from empty list
+
+tests/test_stateful_goal_loop.py:227: IndexError
+________ test_protocol_invalid_step_audit_keeps_plan_and_recovers[True] ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_protocol_invalid_step_aud1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77c1703d2c30>
+resume_at_boundary = True
+
+    @pytest.mark.parametrize("resume_at_boundary", [False, True])
+    def test_protocol_invalid_step_audit_keeps_plan_and_recovers(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        resume_at_boundary: bool,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "AUDIT-PROTOCOL-REPAIR-RECOVERY")
+        (Path(state.goal.workspace_root) / "result.txt").write_text(
+            "verified\n", encoding="utf-8"
+        )
+        queue = _QueueClient(
+            [
+                json.dumps(
+                    {"function": "read_file", "params": {"path": "result.txt"}}
+                ),
+                "{}",
+                json.dumps(
+                    _audit_call(
+                        "continue",
+                        step_id="S1",
+                        step_complete=True,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the exact bytes were observed",
+                    )
+                ),
+                json.dumps(
+                    {"function": "final_answer", "params": {"text": "Recovered."}}
+                ),
+                json.dumps(
+                    _audit_call(
+                        "ready_for_final",
+                        step_id="",
+                        step_complete=False,
+                        evidence_refs=["A00001"],
+                        gaps=[],
+                        reason="the repaired audit path is complete",
+                    )
+                ),
+            ]
+        )
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file"]),
+        )
+        planner = _StrongPlanner(_strong_observe_patch(state, "result.txt"))
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+    
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=3 if resume_at_boundary else 20,
+        )
+        result = controller.run(state.run_id)
+        if resume_at_boundary:
+            assert result.state.status.value == "interrupted"
+            assert result.state.protocol_rejections == 1
+            controller = StatefulGoalLoopController(
+                store,
+                model=model,
+                harness=model.harness,
+                supervisor=planner,
+                supervisor_policy=SupervisorPolicy(mode="static"),
+                max_transitions=20,
+            )
+>           result = controller.run(state.run_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_stateful_goal_loop.py:2910: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:2313: in run
+    decision = self.model.next_command(
+rwkv_lh/model.py:653: in next_command
+    selected_operation, checkpoint = self._select_tool(
+rwkv_lh/model.py:2373: in _select_tool
+    return self._select_tool_independently(
+rwkv_lh/model.py:2152: in _select_tool_independently
+    self._advance_selector_lane(
+rwkv_lh/model.py:2000: in _advance_selector_lane
+    selection, selector_checkpoint = self.tool_selector.select(
+rwkv_lh/exact_tool_selector/native_network_client.py:221: in select
+    response = self._session.post(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_stateful_goal_loop._SelectorHTTP object at 0x77c16ed12ad0>
+url = 'http://127.0.0.1:29621/selector-intent-v4/select'
+json = {'schema_version': 'rwkv-lh.native-exact-tool-selector-service-request.v1', 'run_id': 'AUDIT-PROTOCOL-REPAIR-RECOVERY'...: 'SELTRACE-252e62fb979e4779', 'input_digest': '324a01d2904e1dc110d11802823b756f5cd0ea48495ba41685b20c34ee82e797', ...}
+
+    def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
+        del timeout
+        assert url.endswith("/selector-intent-v4/select")
+        self.payloads.append(dict(json))
+        menu_order_id = str(json.get("menu_order_id") or "")
+        if menu_order_id == "canonical":
+>           self.current_operation = self.operations.pop(0)
+                                     ^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: pop from empty list
+
+tests/test_stateful_goal_loop.py:227: IndexError
+_____________ test_invalid_pre_final_audit_retries_same_candidate ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_pre_final_audit_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77c16ed5bce0>
+
+    def test_invalid_pre_final_audit_retries_same_candidate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "PRE-FINAL-PROTOCOL-INVALID")
+        queue = _QueueClient(
+            [
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "continue",
+                            step_id="S1",
+                            step_complete=True,
+                            evidence_refs=["A00001"],
+                            gaps=[],
+                            reason="the mutation action succeeded",
+                        )
+                    ),
+                    json.dumps(
+                        {
+                            "function": "final_answer",
+                            "params": {"text": "First unaudited candidate."},
+                        }
+                    ),
+                        "{}",
+                    json.dumps(
+                        _audit_call(
+                            "ready_for_final",
+                            step_id="",
+                            step_complete=False,
+                            evidence_refs=["A00001"],
+                            gaps=[],
+                            reason="all plan steps have accepted evidence",
+                        )
+                    ),
+                ]
+        )
+        session = ModelSession(
+            queue,
+            settings=_settings(progressive=True),
+        )
+        selector = _selector(["write_file"])
+        model = LongHorizonModel(session, tool_selector=selector)
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)),
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=20,
+        )
+    
+>       result = controller.run(state.run_id)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_stateful_goal_loop.py:3109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/stateful_goal_loop.py:2219: in run
+    decision = self.model.finalize_goal_answer(
+rwkv_lh/model.py:842: in finalize_goal_answer
+    candidate = self.finalizer_session.generate(
+rwkv_lh/model_session.py:634: in generate
+    response = self.client.text_completion(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_stateful_goal_loop._QueueClient object at 0x77c16c8b0e90>
+prompt = 'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... only in committed facts; do not claim completion authority or emit an audit verdict."}\n\n**Tool Call:**\n\n```json\n'
+max_tokens = 1400
+stop = ('\n```', '✿text1✿', '\n`✿text1✿', '\nSystem:', '\nUser:', '\nAssistant:', ...)
+
+    def text_completion(self, prompt: str, max_tokens: int = 768, stop=None):
+        self.prompts.append(prompt)
+>       content = self.outputs.pop(0)
+                  ^^^^^^^^^^^^^^^^^^^
+E       IndexError: pop from empty list
+
+tests/test_stateful_goal_loop.py:193: IndexError
+_______ test_final_auditor_repair_returns_to_goal_loop_before_completion _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_final_auditor_repair_retu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77c16ed5b020>
+
+    def test_final_auditor_repair_returns_to_goal_loop_before_completion(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "FINAL-AUDIT-REPAIR")
+        session = ModelSession(
+            _QueueClient(
+                [
+                    json.dumps(
+                        {
+                            "function": "write_file",
+                            "params": {"path": "result.txt", "content": "verified"},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "continue",
+                            step_id="S1",
+                            step_complete=True,
+                            evidence_refs=["A00001"],
+                            gaps=[],
+                            reason="the mutation action succeeded",
+                        )
+                    ),
+                    json.dumps(
+                        {
+                            "function": "final_answer",
+                            "params": {"text": "Unsupported first candidate."},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "repair",
+                            step_id="",
+                            step_complete=False,
+                            evidence_refs=["A00001"],
+                            gaps=["candidate does not report the committed artifact"],
+                            reason="the final candidate is not evidence-complete",
+                        )
+                    ),
+                    json.dumps(
+                        {
+                            "function": "final_answer",
+                            "params": {"text": "Created and verified result.txt."},
+                        }
+                    ),
+                    json.dumps(
+                        _audit_call(
+                            "ready_for_final",
+                            step_id="",
+                            step_complete=False,
+                            evidence_refs=["A00001"],
+                            gaps=[],
+                            reason="the revised candidate covers committed evidence",
+                        )
+                    ),
+                ]
+            ),
+            settings=_settings(progressive=True),
+        )
+        model = LongHorizonModel(
+            session,
+            tool_selector=_selector(["write_file"]),
+        )
+        monkeypatch.setattr(
+            StatefulGoalLoopController,
+            "_validate_contract_patch_semantics",
+            staticmethod(lambda *args, **kwargs: None),
+        )
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)),
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=12,
+        )
+    
+        result = controller.run(state.run_id)
+    
+        assert result.state.status.value == "completed"
+        assert result.final_output == "Created and verified result.txt."
+        events = [
+            result.state.causal_records[event_id]
+            for event_id in result.state.causal_order
+        ]
+        event_types = [item.event_type for item in events]
+        assert event_types.count("goal_finalizer_session_started") == 2
+        assert event_types.count("goal_final_rejected") == 1
+        rejected_index = event_types.index("goal_final_rejected")
+        completed_index = event_types.index("run_completed")
+        assert rejected_index < completed_index
+        rejected = events[rejected_index]
+        assert rejected.payload["verdict"] == "repair"
+        assert rejected.payload["controller_rewritten"] is False
+        assert all(
+            item.event_type != "run_completed" for item in events[:rejected_index]
+        )
+        first_input = _role_prompt_payload(session.client.prompts[2], finalizer_answer.PROMPT_PREFIX)
+        repaired_input = _role_prompt_payload(session.client.prompts[4], finalizer_answer.PROMPT_PREFIX)
+>       assert first_input != repaired_input
+E       AssertionError: assert {'schema_version': 'rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1', 'role': 'finalizer_answer', 'immutable_go...: [{'step_id': 'S1', 'objective': 'Create result.txt with verified content', 'phase': 'mutate', 'stage': 1, ...}], ...} != {'schema_version': 'rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v1', 'role': 'finalizer_answer', 'immutable_go...: [{'step_id': 'S1', 'objective': 'Create result.txt with verified content', 'phase': 'mutate', 'stage': 1, ...}], ...}
+
+tests/test_stateful_goal_loop.py:4209: AssertionError
+___ test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_large_goal_controller_sta0')
+
+    def test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts(
+        tmp_path: Path,
+    ) -> None:
+        from dataclasses import replace
+    
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "LARGE-STAGE-REVIEW-DURABLE")
+        steps = _large_controller_plan_steps(state, two_stages=False)
+        initial = _large_controller_initial_patch(steps)
+        replacement = GoalPlanPatch(
+            patch_id="GPP-large-stage-replace", base_revision=1, add_steps=(),
+            replace_steps=(replace(steps[-1], objective="Inspect the revised final source"),),
+            discard_step_ids=(), reason="Revise one peer before gathering evidence",
+        )
+        planner = _StrongPlanner((initial, replacement))
+        # ModelCommand provides the production wire representation. Every model
+        # response is supplied locally; the Harness still performs real file reads.
+        queue = _QueueClient([
+            ModelCommand("read_file", {"path": step.read_roots[0]}).canonical
+            for step in steps
+        ])
+        model = LongHorizonModel(
+            ModelSession(queue, settings=_settings(progressive=True)),
+            tool_selector=_selector(["read_file"] * len(steps)),
+        )
+        controller = StatefulGoalLoopController(
+            store, model=model, harness=model.harness, supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=1,
+        )
+        for _ in (initial, replacement):
+            assert controller._issue_strong_plan_patch(
+                state, plan=rolling_goal_plan(state), transitions=0,
+            ) is None
+            state = store.load(state.run_id)
+    
+        action_ids = []
+        for index, step in enumerate(steps, start=1):
+            plan = rolling_goal_plan(state)
+            assert not plan.batch_complete
+            active_step = plan.steps[step.step_id]
+            step_revision = plan.step_revisions[step.step_id]
+            mechanical_evidence = controller._step_mechanical_evidence_coverage(
+                state, step.step_id, step_revision,
+            )
+            eligible_operations, target_contract = controller._goal_step_operation_contract(
+                state, active_step, mechanical_evidence=mechanical_evidence,
+            )
+            selector_progress = controller._selector_current_progress(
+                state, step.step_id, step_revision, mechanical_evidence,
+                target_contract=target_contract,
+            )
+            decision = model.next_command(
+                state, controller._persist_callback, eligible_operations=eligible_operations,
+                selector_stage_context=goal_frontier_selector_context(
+                    active_step.to_dict(), current_progress=selector_progress,
+                ),
+                current_requirement=active_step.objective,
+                executor_fact_action_ids=controller._step_executor_fact_action_ids(
+                    state, step.step_id, step_revision,
+                ),
+                executor_execution_state=controller._executor_execution_state(
+                    state, step.step_id, step_revision, mechanical_evidence,
+                    effective_phase=active_step.phase, target_contract=target_contract,
+                ),
+            )
+            action = controller._execute_decision(state, decision)
+            assert action.status is ActionStatus.SUCCEEDED
+            action_ids.append(action.action_id)
+            controller._persist(
+                state, "goal_action_plan_step_assigned",
+                {
+                    "action_id": action.action_id,
+                    "step_id": step.step_id,
+                    "step_revision": plan.step_revisions[step.step_id],
+                    "strong_planner_patch_ids": list(plan.patch_ids),
+                },
+                subject_id=action.action_id,
+            )
+            refs = (action.action_id,)
+            audit = GoalAuditDecision(
+                audit_id=f"AUD-large-{index}", verdict=GoalAuditVerdict.CONTINUE,
+                step_id=step.step_id, evidence_refs=refs, gaps=(),
+                completed_steps=(AuditedStep(step.step_id, refs),),
+                reason="The assigned source has a successful Harness observation",
+            )
+            validate_audit_authority(
+                state, plan, audit, final_candidate=False,
+                active_step_id=step.step_id, allowed_evidence_refs=refs,
+            )
+            controller._persist(
+                state, "goal_audit_accepted",
+                {"audit_id": audit.audit_id, "audit": audit.to_dict(), "kernel_validated": True},
+                subject_id=audit.audit_id,
+            )
+            state = store.load(state.run_id)
+            plan = rolling_goal_plan(state)
+            assert plan.batch_complete == (index == len(steps))
+            assert state.status.value != "completed"
+            assert not state.final_output
+    
+        assert plan.complete
+        assert controller._next_unreviewed_completed_stage(state, plan) == (
+            1, plan.stage_boundary_key(1),
+        )
+        review = controller._issue_strong_stage_review(
+            state, plan=plan, stage=1, stage_boundary_key=plan.stage_boundary_key(1),
+            transitions=0,
+        )
+        assert isinstance(review, GoalStageReview)
+        assert len(planner.stage_review_requests) == 1
+        request = planner.stage_review_requests[0]
+        expected_ids = tuple(step.step_id for step in steps)
+        assert tuple(item["step_id"] for item in request.stage_steps) == expected_ids
+        assert tuple(item["step_revision"] for item in request.stage_steps) == (1,) * 18 + (2,)
+        assert tuple(tuple(item["accepted_evidence_refs"]) for item in request.stage_steps) == tuple(
+            (action_id,) for action_id in action_ids
+        )
+>       assert tuple(fact["action_id"] for fact in request.recent_action_facts) == tuple(action_ids)
+E       AssertionError: assert ('A00012', 'A...'A00017', ...) == ('A00001', 'A...'A00006', ...)
+E         
+E         At index 0 diff: 'A00012' != 'A00001'
+E         Right contains 11 more items, first extra item: 'A00009'
+E         Use -v to get more diff
+
+tests/test_stateful_goal_loop.py:5072: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_successful_directory_observation_repair_can_read_next_without_replanning
+FAILED tests/test_stateful_goal_loop.py::test_protocol_invalid_step_audit_keeps_plan_and_recovers[False]
+FAILED tests/test_stateful_goal_loop.py::test_protocol_invalid_step_audit_keeps_plan_and_recovers[True]
+FAILED tests/test_stateful_goal_loop.py::test_invalid_pre_final_audit_retries_same_candidate
+FAILED tests/test_stateful_goal_loop.py::test_final_auditor_repair_returns_to_goal_loop_before_completion
+FAILED tests/test_stateful_goal_loop.py::test_large_goal_controller_stage_review_keeps_all_refs_and_bounded_facts
+6 failed, 61 deselected in 12.57s

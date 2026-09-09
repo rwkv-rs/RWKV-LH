@@ -1,0 +1,86 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_all_five_roles_rebuild_feedback_from_their_exact_durable_boundary[feedback] _
+
+controller_role_snapshots = ([RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and repor...at='2026-09-09T08:44:52.689+00:00', updated_at='2026-09-09T08:44:55.926+00:00', schema_version='long-horizon.run.v18'))
+
+    @pytest.mark.parametrize("controller_role_snapshots", ["feedback"], indirect=True)
+    def test_all_five_roles_rebuild_feedback_from_their_exact_durable_boundary(controller_role_snapshots):
+        snapshots, final = controller_role_snapshots
+        observed = set()
+        for snapshot in snapshots:
+            event = snapshot.causal_records[snapshot.causal_order[-1]]
+            role = {
+                "goal_role_input_boundary": "selector_intent",
+                "tool_schema_disclosed": "executor_args",
+                "goal_finalizer_session_started": "finalizer_answer",
+                "goal_auditor_session_started": event.payload.get("auditor_role"),
+            }.get(event.event_type)
+            if not role:
+                continue
+>           rebuilt = rebuild_role_input(role, snapshot, {"boundary_event_id": event.event_id})
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_trace_inputs.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/role_trace_inputs.py:197: in rebuild_role_input
+    return _rebuild(role, state, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+role = 'executor_args'
+state = RunState(run_id='ROLE-INPUT-CONTROLLER-FIXTURE', goal=GoalState(goal_id='G1', request='Inspect the project and report ..._at='2026-09-09T08:44:52.689+00:00', updated_at='2026-09-09T08:44:53.929+00:00', schema_version='long-horizon.run.v18')
+request = {'boundary_event_id': 'CE-000008'}
+
+    def _rebuild(role, state, request):
+        module = _MODULES[role]
+        boundary = state.causal_records[state.causal_order[-1]]
+        result = {
+            "protocol_version": module.INPUT_SCHEMA_VERSION,
+            "boundary_refs": [boundary.event_id], "coverage": _coverage(None, {}, {}),
+            "active_step": None, "eligible_operations": [], "missing_read_roots": [],
+            "missing_write_roots": [], "evidence_refs": [],
+        }
+        if role in {"selector_intent", "executor_args"}:
+            assignment, step, mechanical, contract, execution, progress, eligible, phase = _frontier_facts(state)
+            result.update(
+                active_step=step.to_dict(), eligible_operations=eligible,
+                missing_read_roots=mechanical["missing_read_roots"],
+                missing_write_roots=mechanical["missing_write_roots"],
+                coverage=_coverage(step, progress, contract),
+                boundary_refs=list(dict.fromkeys([assignment.event_id, boundary.event_id])),
+            )
+            if role == "selector_intent":
+                if boundary.event_type != "goal_role_input_boundary":
+                    raise RoleInputReconstructionError("Selector requires its durable assignment snapshot")
+                context = goal_frontier_selector_context(
+                    {**step.to_dict(), "effective_phase": phase}, current_progress=progress,
+                )
+                network = build_network_selector_input(
+                    context,
+                    eligible_labels=tuple(label for label in NETWORK_EXACT_TOOL_LABELS if label in eligible),
+                    menu_order_id=request.get("menu_order_id", "canonical"),
+                )
+                source = module.build_prompt_source(
+                    current_subtask=network.current_subtask,
+                    current_progress=network.current_progress,
+                    eligible_labels=network.eligible_labels,
+                )
+                protocol = network_selector_input_protocol(module.INPUT_SCHEMA_VERSION)
+                result.update(
+                    bootstrap_prompt=protocol.render_bootstrap(network), network_input=network.to_dict(),
+                )
+                result["full_input_text"] = result["bootstrap_prompt"] + "\n" + protocol.render_step(network)
+                result["expected_checkpoint_transcript"] = result["full_input_text"]
+            else:
+                if boundary.event_type != "tool_schema_disclosed":
+                    raise RoleInputReconstructionError("Executor requires the durable tool disclosure snapshot")
+                checkpoint_id = request.get("checkpoint_id")
+                if not checkpoint_id or checkpoint_id != boundary.payload.get("checkpoint_id"):
+>                   raise RoleInputReconstructionError("Executor input checkpoint does not match disclosure")
+E                   rwkv_lh.role_trace_inputs.RoleInputReconstructionError: Executor input checkpoint does not match disclosure
+
+rwkv_lh/role_trace_inputs.py:249: RoleInputReconstructionError
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_inputs.py::test_all_five_roles_rebuild_feedback_from_their_exact_durable_boundary[feedback]
+1 failed, 17 deselected in 3.43s

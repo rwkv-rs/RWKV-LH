@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import executor_args_v4
+from rwkv_lh.goal_state_protocols import executor_args_v5
 from rwkv_lh.model_io import (
     FINAL_ANSWER_DEFINITION,
     JSON_CALL_STOP_SUFFIXES,
@@ -457,19 +457,19 @@ def test_executor_legacy_disclosure_and_retry_renderers_are_removed() -> None:
 
 
 def _executor_input_source():
-    contract = executor_args_v4.build_target_contract(
+    contract = executor_args_v5.build_target_contract(
         phase="observe", roots=["README.md"],
         target_descriptors=[{
             "path": "README.md", "type": "file", "target_kind": "text_file", "exists": True,
         }],
         compatible_targets_by_operation={"read_file": ["README.md"]},
     )
-    state = executor_args_v4.build_execution_state(
+    state = executor_args_v5.build_execution_state(
         active_step_id="S1", active_step_revision=1, declared_phase="observe",
         effective_phase="observe", assigned_actions=(),
         mechanical_evidence={"missing_read_roots": ["README.md"]}, target_contract=contract,
     )
-    return executor_args_v4.build_prompt_source(
+    return executor_args_v5.build_prompt_source(
         current_requirement="Read the registered file", execution_state=state,
         selected_operation="read_file",
         selected_tool_contract={"name": "read_file", "parameters": {"type": "object"}},
@@ -572,7 +572,7 @@ def test_independent_executor_disclosure_uses_only_shared_v4_source() -> None:
         checkpoint, source["selected_tool_contract"], executor_source=source,
     )
     assert disclosed.transcript == (
-        checkpoint.transcript + "\n\n" + executor_args_v4.render_generation_prompt(source)
+        checkpoint.transcript + "\n\n" + executor_args_v5.render_generation_prompt(source)
     )
     assert disclosed.native_state_metadata["executor_protocol_required"] is True
 
@@ -733,12 +733,12 @@ def test_g1j_executor_history_uses_checkpoint_causal_order(tmp_path) -> None:
         lambda *_args: None,
         model._definitions_by_name["read_file"],
         current_requirement=goal.request,
-        execution_state=executor_args_v4.build_execution_state(
+        execution_state=executor_args_v5.build_execution_state(
             active_step_id="S1", active_step_revision=1,
             declared_phase="observe", effective_phase="observe",
             assigned_actions=(),
             mechanical_evidence={"missing_read_roots": ["README.md"]},
-            target_contract=executor_args_v4.build_target_contract(
+            target_contract=executor_args_v5.build_target_contract(
                 phase="observe", roots=["README.md"],
                 target_descriptors=[
                     {
@@ -753,7 +753,7 @@ def test_g1j_executor_history_uses_checkpoint_causal_order(tmp_path) -> None:
         ),
     )
 
-    payload_text = disclosed.transcript.rsplit("ExecutorArgsPromptV4: ", 1)[1]
+    payload_text = disclosed.transcript.rsplit("ExecutorArgsPromptV5: ", 1)[1]
     payload = json.loads(payload_text.split("\n\n**Tool Call:**", 1)[0])
     assert [item["event_id"] for item in payload["executor_history"]] == [
         first.event_id,

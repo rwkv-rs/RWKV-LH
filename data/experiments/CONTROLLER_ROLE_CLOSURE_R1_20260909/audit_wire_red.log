@@ -1,0 +1,30 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_auditor_wire_definition_does_not_cap_evidence_or_gaps[False] _______
+
+final_candidate = False
+
+    @pytest.mark.parametrize("final_candidate", [False, True])
+    def test_auditor_wire_definition_does_not_cap_evidence_or_gaps(final_candidate: bool) -> None:
+        from rwkv_lh.model import LongHorizonModel
+        properties = LongHorizonModel._goal_audit_definition(final_candidate)["parameters"]["properties"]
+>       assert "maxItems" not in properties["evidence_refs"]
+E       AssertionError: assert 'maxItems' not in {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'uniqueItems': True, 'maxItems': 8}
+
+tests/test_goal_state_protocols.py:184: AssertionError
+_______ test_auditor_wire_definition_does_not_cap_evidence_or_gaps[True] _______
+
+final_candidate = True
+
+    @pytest.mark.parametrize("final_candidate", [False, True])
+    def test_auditor_wire_definition_does_not_cap_evidence_or_gaps(final_candidate: bool) -> None:
+        from rwkv_lh.model import LongHorizonModel
+        properties = LongHorizonModel._goal_audit_definition(final_candidate)["parameters"]["properties"]
+>       assert "maxItems" not in properties["evidence_refs"]
+E       AssertionError: assert 'maxItems' not in {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'uniqueItems': True, 'maxItems': 8}
+
+tests/test_goal_state_protocols.py:184: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_goal_state_protocols.py::test_auditor_wire_definition_does_not_cap_evidence_or_gaps[False]
+FAILED tests/test_goal_state_protocols.py::test_auditor_wire_definition_does_not_cap_evidence_or_gaps[True]
+2 failed, 22 deselected in 0.05s

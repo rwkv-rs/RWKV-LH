@@ -7,10 +7,10 @@ import pytest
 
 from rwkv_lh.model_io import ModelCommand, TOOL_CALL_JSON_CONTINUATION_ANCHOR
 from rwkv_lh.goal_state_protocols import auditor_final
-from rwkv_lh.goal_state_protocols import auditor_step_v3
-from rwkv_lh.goal_state_protocols import executor_args_v4
+from rwkv_lh.goal_state_protocols import auditor_step_v4
+from rwkv_lh.goal_state_protocols import executor_args_v5
 from rwkv_lh.goal_state_protocols import finalizer_answer
-from rwkv_lh.goal_state_protocols import selector_intent_v4
+from rwkv_lh.goal_state_protocols import selector_intent_v5
 
 
 def _selector_source() -> dict[str, object]:
@@ -23,13 +23,13 @@ def _selector_source() -> dict[str, object]:
                       "message": "Expecting value: line 1 column 1 (char 0)"},
         },
     )
-    progress = selector_intent_v4.build_current_progress(
+    progress = selector_intent_v5.build_current_progress(
         assigned_actions=[action], read_roots=["README.md"], write_roots=[],
         mechanical_evidence={"missing_read_roots": ["README.md"]},
         target_descriptors=[{"path": "README.md", "target_kind": "text_file"}],
         action_observes_root=lambda *_: False, action_mutates_root=lambda *_: False,
     )
-    source = selector_intent_v4.build_prompt_source(
+    source = selector_intent_v5.build_prompt_source(
         current_subtask={
             "objective": "Read one file", "phase": "observe",
             "read_roots": ["README.md"], "write_roots": [],
@@ -59,7 +59,7 @@ def _step() -> dict[str, object]:
 
 
 def _execution_state(*, assigned_actions=()) -> dict[str, object]:
-    return executor_args_v4.build_execution_state(
+    return executor_args_v5.build_execution_state(
         active_step_id="S1", active_step_revision=1,
         declared_phase="observe", effective_phase="observe",
         assigned_actions=assigned_actions,
@@ -69,7 +69,7 @@ def _execution_state(*, assigned_actions=()) -> dict[str, object]:
 
 
 def _executor_source(*, assigned_actions=()) -> dict[str, object]:
-    return executor_args_v4.build_source(
+    return executor_args_v5.build_source(
         current_requirement="Read one file",
         execution_state=_execution_state(assigned_actions=assigned_actions),
         selected_operation="read_file",
@@ -99,21 +99,21 @@ def test_executor_execution_state_builder_projects_durable_actions() -> None:
         error={"type": "HarnessError", "message": "read_file requires a regular file"},
         outcome_type="failure",
     )
-    state = executor_args_v4.build_execution_state(
+    state = executor_args_v5.build_execution_state(
         active_step_id="S1", active_step_revision=1, declared_phase="observe",
         effective_phase="observe", assigned_actions=[action],
         mechanical_evidence={"missing_read_roots": ["README.md"]},
-        target_contract=_typed_target_contract(), repair_gaps=["read remains incomplete"],
+        target_contract=_typed_target_contract(),
     )
     assert state["assigned_action_count"] == 1
     assert state["failed_action_count"] == 1
     assert state["last_action"]["result_progress"]["error_message"] == (
         "read_file requires a regular file"
     )
-    assert state["repair_gaps"] == ["read remains incomplete"]
+    assert state["feedback"] is None
     action.status = SimpleNamespace(value="running")
     with pytest.raises(ValueError, match="running action"):
-        executor_args_v4.build_execution_state(
+        executor_args_v5.build_execution_state(
             active_step_id="S1", active_step_revision=1, declared_phase="observe",
             effective_phase="observe", assigned_actions=[action],
             mechanical_evidence={}, target_contract=_typed_target_contract(),
@@ -121,7 +121,7 @@ def test_executor_execution_state_builder_projects_durable_actions() -> None:
 
 
 def _typed_target_contract() -> dict[str, object]:
-    return executor_args_v4.build_target_contract(
+    return executor_args_v5.build_target_contract(
         phase="observe", roots=["README.md"],
         target_descriptors=[
             {
@@ -153,7 +153,7 @@ def test_protocol_schema_identities_are_frozen_without_historical_versions() -> 
     from pathlib import Path
 
     modules = {}
-    directory = Path(executor_args_v4.__file__).parent
+    directory = Path(executor_args_v5.__file__).parent
     for path in directory.glob("*.py"):
         if path.name == "__init__.py":
             continue
@@ -161,11 +161,11 @@ def test_protocol_schema_identities_are_frozen_without_historical_versions() -> 
         if hasattr(module, "INPUT_SCHEMA_VERSION"):
             modules[module] = path.stem
     expected = {
-        selector_intent_v4: ("selector-intent", "v4"),
-        executor_args_v4: ("executor-args", "v4"),
-        auditor_step_v3: ("auditor-step", "v3"),
-        finalizer_answer: ("finalizer-answer", "v1"),
-        auditor_final: ("auditor-final", "v2"),
+        selector_intent_v5: ("selector-intent", "v5"),
+        executor_args_v5: ("executor-args", "v5"),
+        auditor_step_v4: ("auditor-step", "v4"),
+        finalizer_answer: ("finalizer-answer", "v2"),
+        auditor_final: ("auditor-final", "v3"),
     }
     assert set(modules) == set(expected)
     for module, (stage, version) in expected.items():
@@ -177,30 +177,38 @@ def test_protocol_schema_identities_are_frozen_without_historical_versions() -> 
         assert all(marker not in identity for marker in (".v6", ".v7", ".v8"))
 
 
-def test_selector_intent_v4_exact_suffix_and_failure_aware_progress() -> None:
+@pytest.mark.parametrize("final_candidate", [False, True])
+def test_auditor_wire_definition_does_not_cap_evidence_or_gaps(final_candidate: bool) -> None:
+    from rwkv_lh.model import LongHorizonModel
+    properties = LongHorizonModel._goal_audit_definition(final_candidate)["parameters"]["properties"]
+    assert "maxItems" not in properties["evidence_refs"]
+    assert "maxItems" not in properties["gaps"]
+
+
+def test_selector_intent_v5_exact_suffix_and_failure_aware_progress() -> None:
     source = _selector_source()
-    prompt = selector_intent_v4.render_prompt(source)
-    target = selector_intent_v4.render_target(source)
-    assert target == "\nSelectorIntentV4: read_file"
-    assert selector_intent_v4.parse_target(target) == "read_file"
-    assert prompt.startswith("SelectorIntentPromptV4: ")
+    prompt = selector_intent_v5.render_prompt(source)
+    target = selector_intent_v5.render_target(source)
+    assert target == "\nSelectorIntentV5: read_file"
+    assert selector_intent_v5.parse_target(target) == "read_file"
+    assert prompt.startswith("SelectorIntentPromptV5: ")
     assert "selected_operation" not in prompt
     assert '"error_type":"JSONDecodeError"' in prompt
     assert '"target_kind":"text_file"' in prompt
     with pytest.raises(ValueError, match="fields/order"):
-        selector_intent_v4.validate_source({**source, "unexpected_field": "unexpected"})
+        selector_intent_v5.validate_source({**source, "unexpected_field": "unexpected"})
     # A succeeded action cannot carry an error and a failed one must.
     bad = json.loads(json.dumps(source))
     bad["current_progress"]["last_action"]["status"] = "succeeded"
     with pytest.raises(ValueError, match="cannot carry an error"):
-        selector_intent_v4.validate_source(bad)
+        selector_intent_v5.validate_source(bad)
     legacy = json.loads(json.dumps(source))
     legacy["current_progress"].pop("workspace_targets")
     with pytest.raises(ValueError, match="fields/order"):
-        selector_intent_v4.validate_source(legacy)
+        selector_intent_v5.validate_source(legacy)
 
 
-def test_selector_intent_v4_build_current_progress_is_the_only_constructor() -> None:
+def test_selector_intent_v5_build_current_progress_is_the_only_constructor() -> None:
     class _Status:
         def __init__(self, value: str) -> None:
             self.value = value
@@ -223,7 +231,7 @@ def test_selector_intent_v4_build_current_progress_is_the_only_constructor() -> 
             "metadata": {"target_kind": "text_file", "secret": "drop me"},
         },
     )
-    progress = selector_intent_v4.build_current_progress(
+    progress = selector_intent_v5.build_current_progress(
         assigned_actions=[failed],
         read_roots=["app.py"],
         write_roots=[],
@@ -239,26 +247,26 @@ def test_selector_intent_v4_build_current_progress_is_the_only_constructor() -> 
     last = progress["last_action"]
     assert last["arguments"] == {"path": "app.py", "start": "0", "nested": "<object:1 keys>"}
     assert last["error_type"] == "NotJSON"
-    assert len(last["error_message"]) == selector_intent_v4.MAX_ERROR_MESSAGE_CHARS
+    assert len(last["error_message"]) == selector_intent_v5.MAX_ERROR_MESSAGE_CHARS
     assert last["result_metadata"] == {"outcome_type": "failed", "target_kind": "text_file"}
     assert progress["workspace_targets"] == [{"path": "app.py", "target_kind": "text_file"}]
     assert progress["failed_action_count"] == 1
-    assert tuple(progress) == selector_intent_v4.PROGRESS_FIELDS
+    assert tuple(progress) == selector_intent_v5.PROGRESS_FIELDS
 
 
-def test_executor_args_v4_round_trip_binds_typed_targets_and_failure_fact() -> None:
+def test_executor_args_v5_round_trip_binds_typed_targets_and_failure_fact() -> None:
     action = SimpleNamespace(
         action_id="A1", action_type="read_file", status=SimpleNamespace(value="failed"),
         arguments={"path": "."}, result={"success": False, "outcome_type": "failure"},
         error={"type": "HarnessError", "message": "read_file requires a regular file"},
     )
     source = _executor_source(assigned_actions=[action])
-    prompt = executor_args_v4.render_prompt(source)
-    target = executor_args_v4.render_target(source)
+    prompt = executor_args_v5.render_prompt(source)
+    target = executor_args_v5.render_target(source)
 
-    assert prompt.startswith(executor_args_v4.PROMPT_PREFIX)
-    assert executor_args_v4.parse_target(target).arguments == {"path": "README.md"}
-    payload = json.loads(prompt.removeprefix(executor_args_v4.PROMPT_PREFIX))
+    assert prompt.startswith(executor_args_v5.PROMPT_PREFIX)
+    assert executor_args_v5.parse_target(target).arguments == {"path": "README.md"}
+    payload = json.loads(prompt.removeprefix(executor_args_v5.PROMPT_PREFIX))
     assert payload["execution_state"]["target_contract"] == _typed_target_contract()
     assert payload["execution_state"]["last_action"]["result_progress"]["error_message"] == (
         "read_file requires a regular file"
@@ -267,25 +275,25 @@ def test_executor_args_v4_round_trip_binds_typed_targets_and_failure_fact() -> N
         "read_file"
     ] = ["missing.txt"]
     with pytest.raises(ValueError, match="typed descriptor"):
-        executor_args_v4.validate_source(source)
+        executor_args_v5.validate_source(source)
 
 
-def test_executor_args_v4_binds_exact_observation_authority() -> None:
+def test_executor_args_v5_binds_exact_observation_authority() -> None:
     source = _executor_source()
-    prompt = executor_args_v4.render_prompt(source)
-    assert prompt.startswith(executor_args_v4.PROMPT_PREFIX)
-    payload = json.loads(prompt.removeprefix(executor_args_v4.PROMPT_PREFIX))
+    prompt = executor_args_v5.render_prompt(source)
+    assert prompt.startswith(executor_args_v5.PROMPT_PREFIX)
+    payload = json.loads(prompt.removeprefix(executor_args_v5.PROMPT_PREFIX))
     assert payload["observation_binding"]["summary_fact_authority"] is False
     assert payload["observation_binding"]["projection_version"] == (
         "typed-lineage-observation-funnel.v1"
     )
-    assert executor_args_v4.parse_target(
-        executor_args_v4.render_target(source)
+    assert executor_args_v5.parse_target(
+        executor_args_v5.render_target(source)
     ).arguments == {"path": "README.md"}
 
     source["observation_binding"]["fact_action_ids"] = []
     with pytest.raises(ValueError, match="exactly match"):
-        executor_args_v4.validate_source(source)
+        executor_args_v5.validate_source(source)
 
 
 @pytest.mark.parametrize("retired", ["v2", "v3", "v999"])
@@ -293,12 +301,12 @@ def test_executor_generation_boundary_rejects_retired_protocols(retired: str) ->
     from rwkv_lh.model_io import ModelIOError, validate_independent_executor_generation_input
 
     source = _executor_source()
-    current = executor_args_v4.render_generation_prompt(source)
+    current = executor_args_v5.render_generation_prompt(source)
     validate_independent_executor_generation_input(current, source["current_requirement"])
     old_input = current.replace(
-        executor_args_v4.PROMPT_PREFIX, f"ExecutorArgsPrompt{retired.upper()}: "
-    ).replace(executor_args_v4.INPUT_SCHEMA_VERSION,
-              executor_args_v4.INPUT_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + retired)
+        executor_args_v5.PROMPT_PREFIX, f"ExecutorArgsPrompt{retired.upper()}: "
+    ).replace(executor_args_v5.INPUT_SCHEMA_VERSION,
+              executor_args_v5.INPUT_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + retired)
     with pytest.raises(ModelIOError, match="retired|current Executor-Args input protocol"):
         validate_independent_executor_generation_input(old_input, source["current_requirement"])
 
@@ -307,7 +315,7 @@ def test_executor_generation_boundary_validates_the_complete_shared_contract() -
     from rwkv_lh.model_io import ModelIOError, validate_independent_executor_generation_input
 
     source = _executor_source()
-    current = executor_args_v4.render_generation_prompt(source)
+    current = executor_args_v5.render_generation_prompt(source)
     invalid = current.replace('"summary_fact_authority":false', '"summary_fact_authority":true')
     with pytest.raises(ModelIOError, match="factual authority"):
         validate_independent_executor_generation_input(invalid, source["current_requirement"])
@@ -318,7 +326,7 @@ def test_executor_current_input_can_quote_a_historical_marker_as_data() -> None:
 
     source = _executor_source()
     source["current_requirement"] = "Explain the text ExecutorArgsPromptV3: as file data."
-    prompt = executor_args_v4.render_generation_prompt(source)
+    prompt = executor_args_v5.render_generation_prompt(source)
     validate_independent_executor_generation_input(prompt, source["current_requirement"])
 
 
@@ -327,14 +335,14 @@ def test_executor_current_frame_can_quote_its_own_prefix_as_data(quoted_content:
     from rwkv_lh.model_io import validate_independent_executor_generation_input
 
     source = _executor_source()
-    quoted = executor_args_v4.PROMPT_PREFIX
+    quoted = executor_args_v5.PROMPT_PREFIX
     if quoted_content == "fake_object":
         quoted += json.dumps({"schema_version": "example", "role": "executor_args"})
     elif quoted_content == "complete_frame":
-        quoted = executor_args_v4.render_generation_prompt(source)
+        quoted = executor_args_v5.render_generation_prompt(source)
     source["current_requirement"] = "Explain this literal text:\n\n" + quoted
     source["executor_history"].append({"observation": quoted})
-    prompt = executor_args_v4.render_generation_prompt(source)
+    prompt = executor_args_v5.render_generation_prompt(source)
 
     validate_independent_executor_generation_input(prompt, source["current_requirement"])
 
@@ -343,10 +351,10 @@ def test_executor_framing_selects_the_final_complete_retry_input() -> None:
     from rwkv_lh.model_io import validate_independent_executor_generation_input
 
     source = _executor_source()
-    prior = executor_args_v4.render_generation_prompt(source)
-    prior += executor_args_v4.render_target(source)
-    source["current_requirement"] = "Read again and explain " + executor_args_v4.PROMPT_PREFIX
-    current = executor_args_v4.render_generation_prompt(source)
+    prior = executor_args_v5.render_generation_prompt(source)
+    prior += executor_args_v5.render_target(source)
+    source["current_requirement"] = "Read again and explain " + executor_args_v5.PROMPT_PREFIX
+    current = executor_args_v5.render_generation_prompt(source)
     validate_independent_executor_generation_input(
         prior + "\n\n" + current, source["current_requirement"],
     )
@@ -357,12 +365,12 @@ def test_executor_framing_rejects_an_actual_noncurrent_trailing_frame(version: s
     from rwkv_lh.model_io import ModelIOError, validate_independent_executor_generation_input
 
     source = _executor_source()
-    current = executor_args_v4.render_generation_prompt(source)
+    current = executor_args_v5.render_generation_prompt(source)
     trailing = current.replace(
-        executor_args_v4.PROMPT_PREFIX, f"ExecutorArgsPrompt{version.upper()}: ",
+        executor_args_v5.PROMPT_PREFIX, f"ExecutorArgsPrompt{version.upper()}: ",
     ).replace(
-        executor_args_v4.INPUT_SCHEMA_VERSION,
-        executor_args_v4.INPUT_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version,
+        executor_args_v5.INPUT_SCHEMA_VERSION,
+        executor_args_v5.INPUT_SCHEMA_VERSION.rsplit(".", 1)[0] + "." + version,
     )
     with pytest.raises(ModelIOError):
         validate_independent_executor_generation_input(
@@ -373,24 +381,24 @@ def test_executor_framing_rejects_an_actual_noncurrent_trailing_frame(version: s
 def test_step_auditor_v3_round_trip_and_catalog_binding() -> None:
     step = _step()
     evidence = _evidence()
-    catalog = auditor_step_v3.build_gap_catalog(step, evidence)
-    source = auditor_step_v3.build_prompt_source(
+    catalog = auditor_step_v4.build_gap_catalog(step, evidence)
+    source = auditor_step_v4.build_prompt_source(
         boundary="observation_complete", active_step=step,
         available_evidence_refs=["A1"], evidence_records=evidence,
     )
     source.update(
         decision={
             "verdict": "continue", "step_id": "S1", "step_complete": True,
-            "evidence_refs": ["A1"], "gaps": [], "reason": auditor_step_v3.REASON_COMPLETE,
+            "evidence_refs": ["A1"], "gaps": [], "reason": auditor_step_v4.REASON_COMPLETE,
         },
         completion_verifier_id="completion-verifier-v1",
     )
-    prompt = auditor_step_v3.render_prompt(source)
-    target = auditor_step_v3.render_target(source)
+    prompt = auditor_step_v4.render_prompt(source)
+    target = auditor_step_v4.render_target(source)
 
-    assert prompt.startswith("AuditorStepPromptV3: ")
-    assert auditor_step_v3.parse_target(target).arguments["verdict"] == "continue"
-    payload = json.loads(prompt.removeprefix("AuditorStepPromptV3: "))
+    assert prompt.startswith("AuditorStepPromptV4: ")
+    assert auditor_step_v4.parse_target(target).arguments["verdict"] == "continue"
+    payload = json.loads(prompt.removeprefix("AuditorStepPromptV4: "))
     assert payload["gap_catalog"] == catalog
 
     repair = {
@@ -401,19 +409,19 @@ def test_step_auditor_v3_round_trip_and_catalog_binding() -> None:
             "step_complete": False,
             "evidence_refs": ["A1"],
             "gaps": [catalog[0]["code"]],
-            "reason": auditor_step_v3.REASON_INCOMPLETE,
+            "reason": auditor_step_v4.REASON_INCOMPLETE,
         },
     }
-    auditor_step_v3.validate_source(repair)
+    auditor_step_v4.validate_source(repair)
     with pytest.raises(ValueError, match="gap_catalog"):
-        auditor_step_v3.validate_source(
+        auditor_step_v4.validate_source(
             {
                 **repair,
                 "decision": {**repair["decision"], "gaps": ["invented-gap"]},
             }
         )
     with pytest.raises(ValueError, match="canonical"):
-        auditor_step_v3.parse_target(
+        auditor_step_v4.parse_target(
             ModelCommand(
                 "audit_decision",
                 {**repair["decision"], "reason": "invented reason"},
@@ -456,7 +464,7 @@ def test_final_auditor_round_trip_and_repair_semantics() -> None:
     target = auditor_final.render_target(source)
     assert auditor_final.parse_target(target).arguments["verdict"] == "ready_for_final"
     assert "final_verifier_id" not in prompt
-    prompt_payload = json.loads(prompt.removeprefix("AuditorFinalPromptV2: "))
+    prompt_payload = json.loads(prompt.removeprefix(auditor_final.PROMPT_PREFIX))
     question = prompt_payload["current_question"]
     assert "exactly these six fields" in question
     assert "evidence_refs and gaps arrays" in question
@@ -475,4 +483,4 @@ def test_final_auditor_round_trip_and_repair_semantics() -> None:
 def test_source_field_order_is_part_of_every_protocol() -> None:
     source = dict(reversed(tuple(_selector_source().items())))
     with pytest.raises(ValueError, match="fields/order"):
-        selector_intent_v4.validate_source(source)
+        selector_intent_v5.validate_source(source)

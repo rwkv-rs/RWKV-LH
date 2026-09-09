@@ -1,0 +1,123 @@
+{
+  "source_kind": "existing_public_unit_test_inputs_before_builder_consolidation",
+  "source_test_path": "tests/test_goal_state_protocols.py",
+  "source_test_sha256": "4722b194a75960d9ea3147965d109c012c122f2d237cd32d5969383d766c0f72",
+  "capture_script_sha256": "adae7c7220f03290074d3d2a2d247496b5d5f08702c82600da51bd8dd061ea12",
+  "records": [
+    {
+      "protocol": "auditor_step_v4",
+      "source_sha256": "7eb98bdb7d9bb93dc5b2dd1d9ceea3d2c4aeed1aec881595df1a9eb8d17fc698",
+      "arguments": {
+        "boundary": "observation_complete",
+        "active_step": {
+          "step_id": "S1",
+          "objective": "Read the registered file",
+          "phase": "observe",
+          "stage": 1,
+          "depends_on": [],
+          "success_evidence": [
+            "file contents observed"
+          ],
+          "obligation_ids": [
+            "O1"
+          ],
+          "read_roots": [
+            "README.md"
+          ],
+          "write_roots": [],
+          "allowed_operations": [
+            "read_file"
+          ],
+          "constraints": []
+        },
+        "available_evidence_refs": [
+          "A1"
+        ],
+        "evidence_records": [
+          {
+            "evidence_ref": "A1",
+            "kind": "action",
+            "value": "ok"
+          }
+        ]
+      },
+      "prompt": "AuditorStepPromptV4: {\"schema_version\":\"rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v4\",\"role\":\"auditor_step\",\"boundary\":\"observation_complete\",\"active_step\":{\"step_id\":\"S1\",\"objective\":\"Read the registered file\",\"phase\":\"observe\",\"stage\":1,\"depends_on\":[],\"success_evidence\":[\"file contents observed\"],\"obligation_ids\":[\"O1\"],\"read_roots\":[\"README.md\"],\"write_roots\":[],\"allowed_operations\":[\"read_file\"],\"constraints\":[]},\"gap_catalog\":[{\"code\":\"phase_evidence_unproved:observe\",\"criterion\":\"No accepted evidence yet proves the declared observe phase complete.\"},{\"code\":\"read_root_unproved:README.md\",\"criterion\":\"The active read root 'README.md' lacks a successful complete observation.\"},{\"code\":\"success_criterion_unproved:4da52dc30cd4\",\"criterion\":\"file contents observed\"}],\"available_evidence_refs\":[\"A1\"],\"evidence_records\":[{\"evidence_ref\":\"A1\",\"kind\":\"action\",\"value\":\"ok\"}],\"feedback\":null,\"current_question\":\"Return audit_decision with exactly these six fields: verdict, step_id, step_complete, evidence_refs, gaps, reason. Always include both evidence_refs and gaps arrays, even when an array is empty. Use continue only when this active step is evidence-complete for its declared phase; do not require mutation from observe or derive_evidence phases. Otherwise use repair and copy only exact gap codes from gap_catalog. Use reason exactly 'evidence_complete' for continue or 'evidence_incomplete' for repair.\"}",
+      "prompt_sha256": "7da2ef83c1e6998a636d0461945df32df1354a132c21ceb18daeed4e3511a13b",
+      "protocol_source_sha256": "ede49dd8b33d6671e1478a54288ae737c9ef90e3484a67ecbcec60ddfd0ca7db"
+    },
+    {
+      "protocol": "finalizer_answer",
+      "source_sha256": "f9da7a74fca43224ccbe7943be0a25917487ecd5f69a5b337b74549e82bf14a7",
+      "arguments": {
+        "immutable_goal": "Report the observed value",
+        "completed_steps": [
+          {
+            "step_id": "S1",
+            "evidence_refs": [
+              "A1"
+            ]
+          }
+        ],
+        "committed_facts": [
+          {
+            "fact_id": "F1",
+            "value": "ok",
+            "evidence_refs": [
+              "A1"
+            ]
+          }
+        ],
+        "evidence_records": [
+          {
+            "evidence_ref": "A1",
+            "kind": "action",
+            "value": "ok"
+          }
+        ],
+        "format_contract": {
+          "format_id": "plain-v1",
+          "language": "en",
+          "required_sections": []
+        }
+      },
+      "prompt": "FinalizerAnswerPromptV2: {\"schema_version\":\"rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v2\",\"role\":\"finalizer_answer\",\"immutable_goal\":\"Report the observed value\",\"completed_steps\":[{\"step_id\":\"S1\",\"evidence_refs\":[\"A1\"]}],\"committed_facts\":[{\"fact_id\":\"F1\",\"value\":\"ok\",\"evidence_refs\":[\"A1\"]}],\"evidence_records\":[{\"evidence_ref\":\"A1\",\"kind\":\"action\",\"value\":\"ok\"}],\"format_contract\":{\"format_id\":\"plain-v1\",\"language\":\"en\",\"required_sections\":[]},\"feedback\":null,\"retry_feedback\":null,\"current_question\":\"Return exactly one final_answer candidate grounded only in committed facts; do not claim completion authority or emit an audit verdict.\"}",
+      "prompt_sha256": "f12e67b34e848e7df7ff349bc46c8d029c6499e5d11f1b1c07a17772bffeca6b",
+      "protocol_source_sha256": "6399afdb3a6282ec73b282c034e9b5d144297032ad2516ff8bc0ccb6aece3d31"
+    },
+    {
+      "protocol": "auditor_final",
+      "source_sha256": "a60dea4a45f1b665b2179988349e677a8d68986c13b9fc1cca9aa19382cdc0b6",
+      "arguments": {
+        "immutable_goal": "Report the observed value",
+        "completed_steps": [
+          {
+            "step_id": "S1",
+            "evidence_refs": [
+              "A1"
+            ]
+          }
+        ],
+        "available_evidence_refs": [
+          "A1"
+        ],
+        "evidence_records": [
+          {
+            "evidence_ref": "A1",
+            "kind": "action",
+            "value": "ok"
+          }
+        ],
+        "final_candidate": {
+          "function": "final_answer",
+          "params": {
+            "text": "The observed value is ok."
+          }
+        }
+      },
+      "prompt": "AuditorFinalPromptV3: {\"schema_version\":\"rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v3\",\"role\":\"auditor_final\",\"immutable_goal\":\"Report the observed value\",\"completed_steps\":[{\"step_id\":\"S1\",\"evidence_refs\":[\"A1\"]}],\"available_evidence_refs\":[\"A1\"],\"evidence_records\":[{\"evidence_ref\":\"A1\",\"kind\":\"action\",\"value\":\"ok\"}],\"final_candidate\":{\"function\":\"final_answer\",\"params\":{\"text\":\"The observed value is ok.\"}},\"gap_catalog\":[{\"code\":\"candidate_omits_required_result\",\"criterion\":\"The final candidate omits a result required by the immutable goal.\",\"repair_scope\":\"answer\"},{\"code\":\"candidate_unsupported_claim\",\"criterion\":\"The final candidate contains a claim not supported by committed evidence.\",\"repair_scope\":\"answer\"},{\"code\":\"goal_requirement_unproved:724ffbd5bd87\",\"criterion\":\"Report the observed value\",\"repair_scope\":\"execution\"}],\"feedback\":null,\"current_question\":\"Return audit_decision with exactly these six fields: verdict, step_id, step_complete, evidence_refs, gaps, reason. At this final boundary step_id is always the empty string and step_complete is always false; all listed completed_steps are already complete. Always include both evidence_refs and gaps arrays. Use ready_for_final only when the candidate fully answers immutable_goal using committed evidence; otherwise use repair and copy only exact gap codes from gap_catalog. Use reason exactly 'final_evidence_complete' for ready_for_final or 'final_evidence_incomplete' for repair.\"}",
+      "prompt_sha256": "fdf1df530abf233d014b2c39e89ae66ad57a27d8406f3cc43c4f2d346310ad43",
+      "protocol_source_sha256": "1be58460a3e0bf2011f2c1b31037eeaf158df2f10374ab45c035929fe9715b83"
+    }
+  ],
+  "purpose": "unit protocol wire fixture only; no training labels or Agent evidence"
+}

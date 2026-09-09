@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from rwkv_lh.exact_tool_selector.input_protocol import (
-    G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL,
+    CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
 )
 from rwkv_lh.exact_tool_selector.native_network_client import (
     NativeNetworkSelectorSettings,
@@ -224,7 +224,7 @@ def test_selector_model_can_be_bound_by_role_environment(monkeypatch) -> None:
         "STATE_PROFILE_ID": "zero",
         "STATE_PROFILE_SHA256": "0" * 64,
         "STATE_PROFILE_MANIFEST_SHA256": "4" * 64,
-        "INPUT_PROTOCOL": G1J_SELECTOR_INTENT_V4_INPUT_PROTOCOL,
+        "INPUT_PROTOCOL": CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
     }
     for suffix, value in values.items():
         monkeypatch.setenv(f"RWKV_LH_SELECTOR_{suffix}", value)

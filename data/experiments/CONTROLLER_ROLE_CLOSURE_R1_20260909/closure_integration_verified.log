@@ -1,0 +1,229 @@
+........................................................................ [ 58%]
+................F..................................                      [100%]
+=================================== FAILURES ===================================
+______ test_goal_stage_checker_transport_pending_resolves_after_response _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/closure_integration/test_goal_stage_checker_transp0')
+
+    def test_goal_stage_checker_transport_pending_resolves_after_response(
+        tmp_path: Path,
+    ) -> None:
+        class RecoveringStagePlanner(_StrongPlanner):
+            def review_goal_stage(self, request):
+                if not self.stage_review_requests:
+                    self.stage_review_requests.append(request)
+                    raise RuntimeError("temporary stage checker transport failure")
+                return super().review_goal_stage(request)
+    
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "GOAL-STAGE-TRANSPORT-RESUME")
+        model = LongHorizonModel(
+            ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            tool_selector=_selector([]),
+        )
+        planner = RecoveringStagePlanner()
+        controller = StatefulGoalLoopController(
+            store,
+            model=model,
+            harness=model.harness,
+            supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"),
+            max_transitions=1,
+        )
+        plan = RollingGoalPlan(goal_digest=state.goal.digest)
+        plan.apply_goal_patch(_strong_patch(state))
+        plan.apply_audit(
+            GoalAuditDecision(
+                audit_id="AUD-stage-transport",
+                verdict=GoalAuditVerdict.CONTINUE,
+                step_id="S1",
+                evidence_refs=("A00001",),
+                gaps=(),
+                completed_steps=(AuditedStep("S1", ("A00001",)),),
+                reason="test evidence",
+            )
+        )
+        state.actions["A00001"] = ActionRecord(
+            action_id="A00001", sequence=1, status=ActionStatus.SUCCEEDED,
+            action_type="write_file", arguments={"path": "result.txt"},
+            wire_arguments={"path": "result.txt"}, action_fingerprint="fixture",
+            idempotency_key="fixture", decision_id="D-fixture", request_id="MR-fixture",
+            started_at=utc_now(), ended_at=utc_now(), result={"success": True},
+            outcome_type="success",
+        )
+>       controller._persist(state, "action_finished", {
+            "action_id": "A00001", "action": state.actions["A00001"].to_dict(),
+            "artifacts": [], "artifact_revisions": [],
+        })
+
+tests/test_stateful_goal_loop.py:4532: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/controller.py:5673: in _persist
+    saved = self.store.save(
+rwkv_lh/store.py:214: in save
+    saved.rebuild_projection()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = RunState(run_id='GOAL-STAGE-TRANSPORT-RESUME', goal=GoalState(goal_id='G1', request='Inspect the project and report ve..._at='2026-09-09T08:49:46.211+00:00', updated_at='2026-09-09T08:49:46.225+00:00', schema_version='long-horizon.run.v18')
+
+    def rebuild_projection(self) -> None:
+        """Fold the immutable causal chain into disposable runtime projections."""
+    
+        self.status = RunStatus.INITIALIZED
+        self.actions = {}
+        self.active_action_id = None
+        self.next_action_sequence = 1
+        self.artifacts = {}
+        self.artifact_revisions = {}
+        self.model_events = {}
+        self.decisions = {}
+        self.tool_selections = {}
+        self.pending_selection_id = ""
+        self.rollovers = {}
+        self.temp_decisions = []
+        self.failure_budgets = {}
+        self.observation_counts = {}
+        self.protocol_rejections = 0
+        self.final_output = ""
+        self.final_decision_id = ""
+        self.errors = []
+    
+        previous_id: str | None = None
+        seen: set[str] = set()
+        for expected_sequence, event_id in enumerate(self.causal_order, start=1):
+            event = self.causal_records.get(event_id)
+            if event is None:
+                raise ValueError(f"causal order references missing event: {event_id}")
+            if event.event_id != event_id or event.run_id != self.run_id:
+                raise ValueError("causal event identity mismatch")
+            if event.sequence != expected_sequence or event.parent_id != previous_id:
+                raise ValueError("causal event sequence or parent mismatch")
+            if event.cause_id is not None and event.cause_id not in seen:
+                raise ValueError("causal event cause must reference an earlier event")
+            previous_id = event_id
+            seen.add(event_id)
+            payload = event.payload
+    
+            if event.event_type == "run_started":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.RUNNING
+            elif event.event_type == "run_completed":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.COMPLETED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_interrupted":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.INTERRUPTED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_blocked":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.BLOCKED
+                self.final_output = ""
+                self.final_decision_id = ""
+            elif event.event_type == "run_failed":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.FAILED
+                self.final_output = str(payload.get("final_output") or "")
+                self.final_decision_id = str(payload.get("decision_id") or "")
+            elif event.event_type == "run_yielded":
+                if event.subject_id != self.run_id:
+                    raise ValueError("run event subject mismatch")
+                self.status = RunStatus.RUNNING
+                self.final_output = ""
+                self.final_decision_id = ""
+            elif event.event_type == "action_started":
+                action_value = payload.get("action")
+                if not isinstance(action_value, Mapping):
+                    raise ValueError("action_started requires a complete action")
+                action = ActionRecord.from_dict(action_value)
+                if event.subject_id != action.action_id:
+                    raise ValueError("action_started subject mismatch")
+                if action.status != ActionStatus.RUNNING:
+                    raise ValueError("action_started must carry running status")
+                if action.action_id in self.actions:
+                    raise ValueError("action id was started more than once")
+                if action.sequence != self.next_action_sequence:
+                    raise ValueError("action sequence is not contiguous")
+                self._validate_atom_execution_contract_digest(
+                    action.atom_execution_contract_digest
+                )
+                decision = self.decisions.get(action.decision_id)
+                if decision is None or not decision.accepted:
+                    raise ValueError(
+                        "action_started must reference an accepted model decision"
+                    )
+                if decision.request_id != action.request_id:
+                    raise ValueError("action/model request identity mismatch")
+                if (
+                    decision.selected_operation
+                    and decision.selected_operation != action.action_type
+                ):
+                    raise ValueError("action/model selected operation mismatch")
+                if (
+                    decision.atom_execution_contract_digest
+                    and decision.atom_execution_contract_digest
+                    != action.atom_execution_contract_digest
+                ):
+                    raise ValueError("action/model atom contract mismatch")
+                if decision.tool_selection_id:
+                    selection = self.tool_selections.get(decision.tool_selection_id)
+                    common_invalid = (
+                        selection is None
+                        or selection.status is not ToolSelectionStatus.CONSUMED
+                        or selection.authorizes_execution is not False
+                        or selection.selected_operation != action.action_type
+                        or selection.atom_execution_contract_digest
+                        != action.atom_execution_contract_digest
+                    )
+                    direct_invalid = (
+                        decision.tool_selection_binding_kind == "consumed_handoff"
+                        and selection is not None
+                        and selection.consumed_decision_id != decision.decision_id
+                    )
+                    lineage_invalid = (
+                        decision.tool_selection_binding_kind
+                        == "non_authoritative_lineage"
+                        and selection is not None
+                        and selection.consumed_decision_id == decision.decision_id
+                    )
+                    if (
+                        common_invalid
+                        or direct_invalid
+                        or lineage_invalid
+                        or decision.tool_selection_binding_kind
+                        not in {
+                            "consumed_handoff",
+                            "non_authoritative_lineage",
+                        }
+                    ):
+                        raise ValueError(
+                            "action requires a consumed, reauthorized Selector handoff"
+                        )
+                if self.active_action_id is not None:
+                    raise ValueError("more than one action is active")
+                self.actions[action.action_id] = action
+                self.active_action_id = action.action_id
+                self.next_action_sequence += 1
+            elif event.event_type == "action_finished":
+                action_value = payload.get("action")
+                if not isinstance(action_value, Mapping):
+                    raise ValueError("action_finished requires a complete action")
+                action = ActionRecord.from_dict(action_value)
+                if event.subject_id != action.action_id:
+                    raise ValueError("action_finished subject mismatch")
+                started = self.actions.get(action.action_id)
+                if started is None or started.status != ActionStatus.RUNNING:
+>                   raise ValueError("action_finished has no matching running action")
+E                   ValueError: action_finished has no matching running action
+
+rwkv_lh/schema.py:1351: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_stateful_goal_loop.py::test_goal_stage_checker_transport_pending_resolves_after_response
+1 failed, 122 passed in 60.38s (0:01:00)
