@@ -1,0 +1,269 @@
+{
+  "schema_version": "rwkv-e2e.causal-ledger.v3",
+  "policy": {
+    "semantic_inference": false,
+    "records_rewritten": false,
+    "linkage_only": true,
+    "hidden_acceptance_included": false
+  },
+  "request_order": [],
+  "requests": [],
+  "actions": {},
+  "causal_events": [
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000001",
+      "run_id": "RP-MAINT-01",
+      "sequence": 1,
+      "parent_id": null,
+      "cause_id": null,
+      "subject_id": "RP-MAINT-01",
+      "event_type": "run_created",
+      "payload_schema": "rwkv-lh.run-created.v1",
+      "payload": {
+        "goal_digest": "2092d90a28ecd67ce3ef16ad2e0facbea8e5755d36a2fb782af30a70209931de"
+      },
+      "created_at": "2026-09-09T10:10:51.108+00:00",
+      "digest": "c7e1e876545761b8d38577ea14dca469d0741ab00dfb5470ecc91e1ea5aa4fc9"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000002",
+      "run_id": "RP-MAINT-01",
+      "sequence": 2,
+      "parent_id": "CE-000001",
+      "cause_id": "CE-000001",
+      "subject_id": "RP-MAINT-01",
+      "event_type": "run_started",
+      "payload_schema": "rwkv-lh.run-started.v1",
+      "payload": {
+        "architecture": "rwkv-stateful-goal-loop.v7",
+        "persistent_executor_state_count": 0,
+        "executor_state_scope": "one_selected_action",
+        "executor_facts_source": "bounded_causal_projection",
+        "selector_state_isolated": true,
+        "selector_state_count_per_step": 0,
+        "selector_state_policy": "three_fresh_initial_state_evaluations",
+        "selector_input_scope": "current_subtask_only",
+        "selector_menu_order_ids": [
+          "canonical",
+          "rotate_8",
+          "rotate_17"
+        ],
+        "selector_vote_rule": "three_menu_order_vote_v1",
+        "selector_authority": "exclusive_tool_intent_and_selection",
+        "executor_reselects_tool": false,
+        "selector_model": "rwkv7-g1j-2.9b-20260831-ctx16384",
+        "planner": {
+          "provider": "openai_compatible",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        },
+        "planner_contract": "rwkv-lh.goal-plan-patch.v4",
+        "step_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "finalizer_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "final_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "auditor_state_source": "clean_boundary_bootstrap",
+        "auditor_inherits_executor_state": false,
+        "audit_wkv_merge": false,
+        "strong_model_dependency": true,
+        "strong_model_role": "planner_and_read_only_stage_checker",
+        "plan_stage_format": "nested_stages_with_peer_steps",
+        "stage_barriers": true,
+        "parallel_mutations": false,
+        "resumed": false,
+        "protocol_rejection_budget_reset": false,
+        "supersedes_terminal_event_id": ""
+      },
+      "created_at": "2026-09-09T10:10:52.898+00:00",
+      "digest": "802f2d75d84a5c0d79bf862b7cd690ed24fd76026ae41fbd65100074a312230f"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000003",
+      "run_id": "RP-MAINT-01",
+      "sequence": 3,
+      "parent_id": "CE-000002",
+      "cause_id": "CE-000002",
+      "subject_id": "RP-MAINT-01",
+      "event_type": "strong_planner_call_failed",
+      "payload_schema": "rwkv-lh.strong-planner-call-failed.v1",
+      "payload": {
+        "phase": "goal_plan",
+        "error": {
+          "type": "SupervisorTransportError",
+          "message": "supervisor request interrupted during goal_plan: ReadTimeout"
+        },
+        "resumable": true
+      },
+      "created_at": "2026-09-09T10:18:51.328+00:00",
+      "digest": "58aa48a77bf2aae1185d24af4ab75e9e9e3d52e3ccdb38df1746ba580fc0f46b"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000004",
+      "run_id": "RP-MAINT-01",
+      "sequence": 4,
+      "parent_id": "CE-000003",
+      "cause_id": "CE-000003",
+      "subject_id": "supervisor:goal_plan",
+      "event_type": "supervisor_call_pending",
+      "payload_schema": "rwkv-lh.supervisor-call-pending.v1",
+      "payload": {
+        "pending_id": "SUP-PENDING-goal_plan-0001",
+        "phase": "goal_plan",
+        "attempt": 1,
+        "state": "pending_retry",
+        "retry_trigger": "resume_or_proactive_scheduler",
+        "retry_policy": {
+          "transport_retries_are_owned_by_supervisor_client": true,
+          "controller_inline_replay": false,
+          "reenter_from_committed_causal_state": true
+        },
+        "at": "2026-09-09T10:18:51.337+00:00"
+      },
+      "created_at": "2026-09-09T10:18:51.337+00:00",
+      "digest": "2bf445aaeb66e7a6edceb5bc69eae2a03cd30628a8d69304a1eb0f774b319a71"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000005",
+      "run_id": "RP-MAINT-01",
+      "sequence": 5,
+      "parent_id": "CE-000004",
+      "cause_id": "CE-000004",
+      "subject_id": "RP-MAINT-01",
+      "event_type": "run_yielded",
+      "payload_schema": "rwkv-lh.run-yielded.v1",
+      "payload": {
+        "reason": "strong_planner_unavailable",
+        "boundary_type": "run_interrupted",
+        "resumable": true,
+        "termination_permitted": false,
+        "continuation": "controller_resume",
+        "candidate_decision_id": "",
+        "candidate_output_source": "none",
+        "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_output": "",
+        "at": "2026-09-09T10:18:51.345+00:00"
+      },
+      "created_at": "2026-09-09T10:18:51.345+00:00",
+      "digest": "b0a848883e80bc347c2600790da71f94d17000b9ee2f9d19238dcbcea5fd2fae"
+    }
+  ],
+  "event_revision_sequence": [
+    {
+      "event_index": 0,
+      "revision": 0,
+      "event_type": "run_created",
+      "event_data": {
+        "goal_digest": "2092d90a28ecd67ce3ef16ad2e0facbea8e5755d36a2fb782af30a70209931de"
+      },
+      "state_sha256": "ec5251212026ba0b992e34f0e873f77d653082176ef528a4d01742640e535985",
+      "state_change_count": 0,
+      "state_change_digest": "1c7b0be7cfcb529d61df7c7b50baa91e6919dcf0eba40e68669653ab2880c711"
+    },
+    {
+      "event_index": 1,
+      "revision": 1,
+      "event_type": "run_started",
+      "event_data": {
+        "architecture": "rwkv-stateful-goal-loop.v7",
+        "persistent_executor_state_count": 0,
+        "executor_state_scope": "one_selected_action",
+        "executor_facts_source": "bounded_causal_projection",
+        "selector_state_isolated": true,
+        "selector_state_count_per_step": 0,
+        "selector_state_policy": "three_fresh_initial_state_evaluations",
+        "selector_input_scope": "current_subtask_only",
+        "selector_menu_order_ids": [
+          "canonical",
+          "rotate_8",
+          "rotate_17"
+        ],
+        "selector_vote_rule": "three_menu_order_vote_v1",
+        "selector_authority": "exclusive_tool_intent_and_selection",
+        "executor_reselects_tool": false,
+        "selector_model": "rwkv7-g1j-2.9b-20260831-ctx16384",
+        "planner": {
+          "provider": "openai_compatible",
+          "model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384"
+        },
+        "planner_contract": "rwkv-lh.goal-plan-patch.v4",
+        "step_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "finalizer_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "final_auditor_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+        "auditor_state_source": "clean_boundary_bootstrap",
+        "auditor_inherits_executor_state": false,
+        "audit_wkv_merge": false,
+        "strong_model_dependency": true,
+        "strong_model_role": "planner_and_read_only_stage_checker",
+        "plan_stage_format": "nested_stages_with_peer_steps",
+        "stage_barriers": true,
+        "parallel_mutations": false,
+        "resumed": false,
+        "protocol_rejection_budget_reset": false,
+        "supersedes_terminal_event_id": ""
+      },
+      "state_sha256": "f07b7e1477feadf715490372b1050491113ea03bc8b95d14087cfa92b03799d4",
+      "state_change_count": 6,
+      "state_change_digest": "10cf13e7d59b1aebba5e312ad1e5c5023f2fcf81748580f9ee28ee3da2a39a8a"
+    },
+    {
+      "event_index": 2,
+      "revision": 2,
+      "event_type": "strong_planner_call_failed",
+      "event_data": {
+        "phase": "goal_plan",
+        "error": {
+          "type": "SupervisorTransportError",
+          "message": "supervisor request interrupted during goal_plan: ReadTimeout"
+        },
+        "resumable": true
+      },
+      "state_sha256": "57928fcbbf45f9d8e512c1e86332b0de9e4c0cd0c27011699fba527361e01fd8",
+      "state_change_count": 4,
+      "state_change_digest": "85f74ad7eda8308acadfb008acd828088fd66b89b85e8f171adacc43c634c809"
+    },
+    {
+      "event_index": 3,
+      "revision": 3,
+      "event_type": "supervisor_call_pending",
+      "event_data": {
+        "pending_id": "SUP-PENDING-goal_plan-0001",
+        "phase": "goal_plan",
+        "attempt": 1,
+        "state": "pending_retry",
+        "retry_trigger": "resume_or_proactive_scheduler",
+        "retry_policy": {
+          "transport_retries_are_owned_by_supervisor_client": true,
+          "controller_inline_replay": false,
+          "reenter_from_committed_causal_state": true
+        },
+        "at": "2026-09-09T10:18:51.337+00:00"
+      },
+      "state_sha256": "92a56882c8949273afa72c458c354d7daf98a61ef01f5d415b6b4c581bf7f960",
+      "state_change_count": 4,
+      "state_change_digest": "7b6c0376b4e09d65a4a89f4e2a2d6db340e16f2b575e33999b59d5a82291378d"
+    },
+    {
+      "event_index": 4,
+      "revision": 4,
+      "event_type": "run_yielded",
+      "event_data": {
+        "reason": "strong_planner_unavailable",
+        "boundary_type": "run_interrupted",
+        "resumable": true,
+        "termination_permitted": false,
+        "continuation": "controller_resume",
+        "candidate_decision_id": "",
+        "candidate_output_source": "none",
+        "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_output": "",
+        "at": "2026-09-09T10:18:51.345+00:00"
+      },
+      "state_sha256": "0ba5c9b8ef0f94d839830dc9ff824642cbbc000f082d225de717b6ad9b3680b9",
+      "state_change_count": 4,
+      "state_change_digest": "0a87f7199f709ba550bc8e03097a64560074bd254584e290859a574df7f0d152"
+    }
+  ]
+}
