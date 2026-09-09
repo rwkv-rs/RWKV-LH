@@ -116,6 +116,9 @@ class CandidateGeneration:
     response_model: str = ""
     state_profile_id: str = ""
     state_profile_sha256: str = ""
+    prompt_token_ids: tuple[int, ...] | None = None
+    prompt_token_ids_scope: str = "unspecified"
+    input_bos_token_count: int = 0
 
     @property
     def raw_output_sha256(self) -> str:
@@ -130,6 +133,9 @@ class CandidateGeneration:
             "raw_output_sha256": self.raw_output_sha256,
             "raw_output_utf8_bytes": len(self.raw_output.encode("utf-8")),
             "raw_token_ids": list(self.raw_token_ids),
+            "prompt_token_ids": list(self.prompt_token_ids) if self.prompt_token_ids is not None else None,
+            "prompt_token_ids_scope": self.prompt_token_ids_scope,
+            "input_bos_token_count": self.input_bos_token_count,
             "finish_reason": self.finish_reason,
             "response_id": self.response_id,
             "response_model": self.response_model,
@@ -139,6 +145,15 @@ class CandidateGeneration:
             "state_profile_sha256": self.state_profile_sha256,
             "postprocessed": False,
         }
+
+
+def _prompt_token_ids(metadata: Any) -> tuple[int, ...] | None:
+    value = metadata.get("prompt_token_ids") if isinstance(metadata, Mapping) else None
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)) or any(type(token) is not int or token < 0 for token in value):
+        raise ModelSessionError("prompt_token_ids must be non-negative integers")
+    return tuple(value)
 
 
 def _restore_attested_stop_suffix(
@@ -661,6 +676,9 @@ class ModelSession:
             response_model=str(getattr(response, "model", "") or ""),
             state_profile_id=self.settings.state_profile_id,
             state_profile_sha256=self.settings.state_profile_sha256,
+            prompt_token_ids=_prompt_token_ids(response_metadata),
+            prompt_token_ids_scope="full_prompt",
+            input_bos_token_count=self.settings.bos_token_count,
         )
         self._emit(
             {
@@ -756,6 +774,7 @@ class ModelSession:
                 "lane_id": candidate.parent.lane_id,
                 "candidate_id": candidate.candidate_id,
                 "candidate_checkpoint_id": candidate.checkpoint.checkpoint_id,
+                "candidate_digest": candidate.checkpoint.transcript_digest,
                 "restored_checkpoint_id": candidate.parent.checkpoint_id,
                 "error": str(error)[:2000],
                 "state_transport": self.transport,
@@ -889,6 +908,7 @@ class NativeRWKVModelSession(ModelSession):
             "authoritative": False,
             "cache_binding": cache_binding.to_dict(),
             "cache_binding_digest": cache_binding.digest,
+            "server_input_metadata": dict(snapshot.metadata),
         }
         return checkpoint
 
@@ -1374,6 +1394,9 @@ class NativeRWKVModelSession(ModelSession):
             response_model=self.model_name,
             state_profile_id=self.settings.state_profile_id,
             state_profile_sha256=self.settings.state_profile_sha256,
+            prompt_token_ids=_prompt_token_ids(returned.metadata),
+            prompt_token_ids_scope=str(returned.metadata.get("prompt_token_ids_scope") or "unspecified"),
+            input_bos_token_count=self.settings.bos_token_count,
         )
         self._emit(
             {
@@ -1441,6 +1464,7 @@ class NativeRWKVModelSession(ModelSession):
                 "lane_id": candidate.parent.lane_id,
                 "candidate_id": candidate.candidate_id,
                 "candidate_checkpoint_id": candidate.checkpoint.checkpoint_id,
+                "candidate_digest": candidate.checkpoint.native_state_digest,
                 "restored_checkpoint_id": candidate.parent.checkpoint_id,
                 "error": str(error)[:2000],
                 "state_transport": self.transport,

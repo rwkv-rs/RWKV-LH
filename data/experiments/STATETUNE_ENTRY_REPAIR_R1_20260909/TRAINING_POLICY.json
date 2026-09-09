@@ -1,0 +1,79 @@
+{
+  "schema_version": "rwkv-lh.training-management-record.v1",
+  "record_kind": "owner_policy_and_requirements_not_a_training_run",
+  "recorded_date": "2026-09-09",
+  "owner_decision_verbatim": "取消固定三轮上限，改按预注册指标、预算和实际训练记录管理",
+  "fixed_role_round_cap": null,
+  "historical_count_reconciliation_is_quota_gate": false,
+  "existing_authorization_persists_within_scope": true,
+  "new_unspecified_training_budget_authorized": false,
+  "stage_order": [
+    "selector_intent",
+    "executor_args",
+    "auditor_step",
+    "finalizer_answer",
+    "auditor_final"
+  ],
+  "stage_condition": "Freeze validated preceding role States; target and later roles zero. Keep one production Controller.",
+  "entry_gates": [
+    "authorized_development_source",
+    "producer_model_state_identity",
+    "causal_and_token_evidence",
+    "legitimate_target_authority",
+    "preregistered_role_counts_and_coverage",
+    "fixed_regression_identity",
+    "registered_trainer_parameters_and_budget"
+  ],
+  "not_entry_gates": [
+    "fixed_number_of_rounds",
+    "historical_remaining_quota",
+    "agent_already_meets_post_training_acceptance",
+    "all_later_roles_already_reached"
+  ],
+  "preregister_before_training": [
+    "run_id",
+    "role_and_stage",
+    "authorization_scope",
+    "model_sha256",
+    "tokenizer_sha256",
+    "protocol_sha256",
+    "source_run_ids",
+    "dataset_manifest_sha256",
+    "fixed_regression_file_sha256_and_fingerprint",
+    "coverage_scope_sha256",
+    "frozen_upstream_state_profiles",
+    "trainer_source_sha256",
+    "adapter_source_sha256",
+    "initial_state_profile_and_sha256",
+    "seed",
+    "optimizer_and_hyperparameters",
+    "maximum_optimizer_steps",
+    "maximum_wall_time",
+    "resource_budget",
+    "role_metrics_and_thresholds",
+    "agent_observation_metrics",
+    "stop_and_candidate_retention_rules"
+  ],
+  "record_after_training": [
+    "status",
+    "started_at",
+    "ended_at",
+    "actual_optimizer_steps",
+    "resource_consumption",
+    "training_log_sha256",
+    "output_state_sha256",
+    "fixed_regression_result_sha256",
+    "agent_comparison_result_sha256",
+    "stop_reason"
+  ],
+  "historical_current_g1j_completed_run_count": null,
+  "historical_count_status": "unknown; old G1i family inventory is not a verified current G1J run total",
+  "historical_accounting_reference": {
+    "path": "data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/TRAINING_ROUND_ACCOUNTING_REVIEW.zh-CN.md",
+    "sha256": "19111348578a9380617e8cd9d825f385050c761143493a97d11d9946a81599a8",
+    "policy_status": "historical quota instructions superseded; execution facts retained"
+  },
+  "actual_training_runs_started_in_this_repair": [],
+  "new_formal_dataset_versions_created_in_this_repair": [],
+  "current_training_driver_status": "No verified optimizer training entry in current rwkv_lh/ or scripts/."
+}

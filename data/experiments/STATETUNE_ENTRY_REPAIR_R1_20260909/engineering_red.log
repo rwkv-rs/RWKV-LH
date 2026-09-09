@@ -1,0 +1,49 @@
+FFFFF.F                                                                  [100%]
+=================================== FAILURES ===================================
+___________ test_requested_command_sandbox_never_falls_back_to_host ____________
+tests/test_engineering_boundaries.py:23: in test_requested_command_sandbox_never_falls_back_to_host
+    assert not calls
+E   assert not [(['/home/chase/GitHub/RWKV-LH/.venv/bin/python', '-c', "print('safe')"],)]
+_______________ test_command_sandbox_does_not_share_host_network _______________
+tests/test_engineering_boundaries.py:33: in test_command_sandbox_does_not_share_host_network
+    assert "--share-net" not in command
+E   AssertionError: assert '--share-net' not in ['/usr/bin/bwrap', '--die-with-parent', '--unshare-all', '--share-net', '--new-session', '--ro-bind', ...]
+_____ test_restarted_web_manager_does_not_spawn_over_persisted_live_worker _____
+tests/test_engineering_boundaries.py:45: in test_restarted_web_manager_does_not_spawn_over_persisted_live_worker
+    manager.launch(run_id, resume=True)
+rwkv_lh/web_ui.py:451: in launch
+    pid=process.pid,
+        ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'pid'
+___ test_development_benchmarks_keep_runtime_data_in_package[rwkv_agent_v1] ____
+tests/test_engineering_boundaries.py:63: in test_development_benchmarks_keep_runtime_data_in_package
+    assert {"tasks.json", "acceptance.json"} <= files
+E   AssertionError: assert {'acceptance.... 'tasks.json'} <= set()
+E     
+E     Extra items in the left set:
+E     'tasks.json'
+E     'acceptance.json'
+_ test_development_benchmarks_keep_runtime_data_in_package[rwkv_agent_capability_ladder_v1] _
+tests/test_engineering_boundaries.py:63: in test_development_benchmarks_keep_runtime_data_in_package
+    assert {"tasks.json", "acceptance.json"} <= files
+E   AssertionError: assert {'acceptance.... 'tasks.json'} <= set()
+E     
+E     Extra items in the left set:
+E     'tasks.json'
+E     'acceptance.json'
+__ test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[9] __
+tests/test_stateful_goal_loop.py:2106: in test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions
+    assert set(action_ids[:root_count]) <= set(refs)
+E   AssertionError: assert {'A00001', 'A...'A00006', ...} <= {'A00001', 'A...'A00006', ...}
+E     
+E     Extra items in the left set:
+E     'A00008'
+E     'A00009'
+=========================== short test summary info ============================
+FAILED tests/test_engineering_boundaries.py::test_requested_command_sandbox_never_falls_back_to_host
+FAILED tests/test_engineering_boundaries.py::test_command_sandbox_does_not_share_host_network
+FAILED tests/test_engineering_boundaries.py::test_restarted_web_manager_does_not_spawn_over_persisted_live_worker
+FAILED tests/test_engineering_boundaries.py::test_development_benchmarks_keep_runtime_data_in_package[rwkv_agent_v1]
+FAILED tests/test_engineering_boundaries.py::test_development_benchmarks_keep_runtime_data_in_package[rwkv_agent_capability_ladder_v1]
+FAILED tests/test_stateful_goal_loop.py::test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[9]
+6 failed, 1 passed, 62 deselected in 4.82s

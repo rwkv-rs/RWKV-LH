@@ -82,7 +82,7 @@ def test_executor_budget_uses_current_source_and_renderer(
     model._definitions_by_name = {'read_file': definition}
     state = SimpleNamespace(model_events={}, actions={})
     checkpoint = SimpleNamespace(event_ids=())
-    monkeypatch.setattr(model, '_bound_executor_fact_records', lambda *args, **kwargs: ())
+    monkeypatch.setattr(LongHorizonModel, '_bound_executor_fact_records', lambda *args, **kwargs: ())
     target = executor_args_v4.build_target_contract(
         phase='observe',
         roots=['README.md'],

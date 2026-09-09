@@ -2626,6 +2626,8 @@ class ActionHarness:
         )
 
     def _run_command(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+        if self.sandbox_commands and not self._bubblewrap:
+            raise HarnessError("command sandbox was requested but bubblewrap is unavailable")
         argv = arguments.get("argv")
         if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
             raise HarnessError("run_command requires a non-empty string argv array")
@@ -2825,7 +2827,6 @@ class ActionHarness:
             str(self._bubblewrap),
             "--die-with-parent",
             "--unshare-all",
-            "--share-net",
             "--new-session",
             "--ro-bind",
             "/usr",

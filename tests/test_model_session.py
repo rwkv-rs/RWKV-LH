@@ -924,7 +924,7 @@ def test_generation_keeps_immutable_raw_record_and_profile_identity() -> None:
             return Response(
                 raw,
                 finish_reason="length",
-                metadata={"token_ids": [1, 2, 3]},
+                metadata={"token_ids": [1, 2, 3], "prompt_token_ids": [0, 11, 12]},
                 response_id="cmpl-raw",
                 model="rwkv-13.3b",
             )
@@ -952,6 +952,8 @@ def test_generation_keeps_immutable_raw_record_and_profile_identity() -> None:
     assert record["raw_output"] == raw
     assert record["raw_output_sha256"] == hashlib.sha256(raw.encode()).hexdigest()
     assert record["raw_token_ids"] == [1, 2, 3]
+    assert record["prompt_token_ids"] == [0, 11, 12]
+    assert record["prompt_token_ids_scope"] == "full_prompt"
     assert record["finish_reason"] == "length"
     assert record["postprocessed"] is False
     assert checkpoint.state_profile_id == "executor"

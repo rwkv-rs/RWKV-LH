@@ -15,6 +15,13 @@ from rwkv_lh.runtime.sampling import (
 from rwkv_lh.runtime.settings import RuntimeSettings
 
 
+@pytest.mark.parametrize("reason", [None, "", "length"])
+def test_completion_does_not_invent_natural_stop(reason):
+    response = OpenAICompatibleRWKVClient._completion_response(
+        {"choices": [{"text": "{}", "finish_reason": reason}]}, 0, 1)
+    assert response.finish_reason == (reason or "")
+
+
 class FakeResponse:
     def __init__(self, payload, status_code=200, headers=None):
         self.content = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -429,6 +436,7 @@ def test_native_state_create_uses_state_endpoint_and_verifies_cache_binding(monk
                     "tokenizer_build": "tokenizer-1",
                     "cache_binding_digest": binding.digest,
                     "protocol_version": "rwkv-lh.native-state.v1",
+                    "metadata": {"prompt_token_ids": [0, 11, 12], "prompt_token_ids_scope": "delta"},
                 }
             )
         ]
@@ -445,6 +453,7 @@ def test_native_state_create_uses_state_endpoint_and_verifies_cache_binding(monk
     )
 
     assert snapshot.state_ref == "WKV-1"
+    assert snapshot.metadata["prompt_token_ids"] == [0, 11, 12]
     method, endpoint, arguments = fake.calls[0]
     assert method == "POST"
     assert endpoint.endswith("/v1/state/create")

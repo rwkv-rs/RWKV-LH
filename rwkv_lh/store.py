@@ -715,7 +715,10 @@ class LongHorizonStore:
             dict(payload),
             ensure_ascii=False,
             separators=(",", ":"),
-            sort_keys=True,
+            # Role renderers preserve nested fact-field order. Sorting storage
+            # keys discards input bytes needed to reconstruct a past request.
+            # Event/projection identity still uses its separate canonical hash.
+            sort_keys=False,
         )
         encoded = rendered.encode("utf-8")
         if len(encoded) < LongHorizonStore._compression_threshold_bytes:

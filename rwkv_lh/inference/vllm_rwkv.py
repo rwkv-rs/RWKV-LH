@@ -553,6 +553,10 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 "expected_label": expected_label,
                 "candidate_labels": list(normalized),
                 "prompt_token_count": len(prompt_ids),
+                "prompt_token_ids": list(prompt_ids),
+                "prompt_token_ids_scope": "full_prompt",
+                "input_bos_token_count": len(prompt_ids) - len(self._tokenizer.encode(
+                    str(prompt), truncation=False, add_special_tokens=False)),
                 "target_token_ids": list(expected_ids),
                 "target_token_count": len(expected_ids),
                 "teacher_forced": {
@@ -743,6 +747,10 @@ class PersistentVLLMRWKVExtractor(LocalVLLMRWKVExtractor):
                 "schema_version": "rwkv-lh.native-role-suffix-selection.v1",
                 "candidate_labels": list(normalized),
                 "prompt_token_count": len(prompt_ids),
+                "prompt_token_ids": list(prompt_ids),
+                "prompt_token_ids_scope": "full_prompt",
+                "input_bos_token_count": len(prompt_ids) - len(self._tokenizer.encode(
+                    str(prompt), truncation=False, add_special_tokens=False)),
                 "selected_label": str(node[terminal]),
                 "token_ids": selected_ids,
                 "decisions": decisions,

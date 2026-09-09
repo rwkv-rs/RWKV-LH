@@ -96,7 +96,17 @@ class WorkspaceProvenanceResolver:
         self.untrusted_text_provider = untrusted_text_provider
         self.goal_bound = bool(goal_bound)
 
-    def _matches_untrusted_text(self, needle: str) -> bool:
+    @staticmethod
+    def _unapproved_fragments(text: str, public_text: str) -> set[str]:
+        # Classify copied lexical units as well as whole argument strings.
+        # Padding, case changes and URL punctuation cannot launder a private
+        # word into MODEL_PUBLIC_QUERY. Words explicitly supplied by the user
+        # retain their public provenance when combined into a new query.
+        public = set(re.findall(r"\w+", public_text.casefold()))
+        return {word for word in re.findall(r"\w+", text.casefold())
+                if len(word.encode("utf-8")) >= 3 and word not in public}
+
+    def _matches_untrusted_text(self, needle: str, *, public_text: str = "") -> bool:
         if self.untrusted_text_provider is None or len(needle.encode("utf-8")) < 3:
             return False
         try:
@@ -104,11 +114,13 @@ class WorkspaceProvenanceResolver:
         except Exception:
             # Provenance uncertainty must reject at the policy boundary.
             return True
+        fragments = self._unapproved_fragments(needle, public_text)
         for value in values:
             candidate = str(value or "").strip()
             if len(candidate.encode("utf-8")) < 3:
                 continue
-            if needle in candidate or candidate in needle:
+            if (needle in candidate or candidate in needle
+                    or fragments.intersection(re.findall(r"\w+", candidate.casefold()))):
                 return True
         return False
 
@@ -159,6 +171,7 @@ class WorkspaceProvenanceResolver:
         except OSError:
             complete = False
         needle_bytes = needle.encode("utf-8")
+        fragments = self._unapproved_fragments(needle, goal.request)
         for path in paths:
             try:
                 is_file = path.is_file()
@@ -184,7 +197,9 @@ class WorkspaceProvenanceResolver:
             except OSError:
                 complete = False
                 continue
-            if needle_bytes not in content:
+            if needle_bytes not in content and not fragments.intersection(
+                re.findall(r"\w+", content.decode("utf-8", errors="replace").casefold())
+            ):
                 continue
             declared_public = any(
                 relative == public_root or public_root in relative.parents
@@ -220,7 +235,7 @@ class WorkspaceProvenanceResolver:
             if text in goal.request:
                 labels[key] = EgressProvenance.USER_PUBLIC_LITERAL
                 continue
-            if self._matches_untrusted_text(text):
+            if self._matches_untrusted_text(text, public_text=goal.request):
                 labels[key] = EgressProvenance.TOOL_UNTRUSTED
                 continue
             public_match, sensitive_match, complete = self._workspace_matches(

@@ -191,7 +191,7 @@ class StatefulGoalLoopController(LongHorizonController):
         step_id: str,
         step_revision: int,
     ) -> tuple[str, ...]:
-        """Project bounded cumulative Harness facts for one assigned plan step."""
+        """Keep the latest boundary and every root's newest Harness proof."""
 
         bindings = goal_step_action_bindings(state)
         actions = sorted(
@@ -228,12 +228,10 @@ class StatefulGoalLoopController(LongHorizonController):
                 )
                 if match is not None and match not in selected:
                     selected.append(match)
-                if len(selected) >= 8:
-                    break
 
         # Root-free semantic steps still need at least one successful Harness
         # fact when the latest boundary is a failure.
-        if len(selected) < 8 and not any(
+        if not any(
             action.status is ActionStatus.SUCCEEDED
             and bool((action.result or {}).get("success"))
             for action in selected
@@ -648,29 +646,7 @@ class StatefulGoalLoopController(LongHorizonController):
         # remainder is empty we deliberately fall back to the complete scope:
         # a semantic Auditor repair can still require another action after all
         # mechanically declared roots have evidence.
-        remaining_roots: tuple[str, ...] = ()
-        if mechanical_evidence is not None:
-            remaining_key = (
-                "missing_read_roots"
-                if phase == "observe"
-                else "missing_write_roots"
-                if phase == "mutate" or (phase == "execute" and step.write_roots)
-                else ""
-            )
-            if remaining_key:
-                remaining_roots = tuple(
-                    str(root)
-                    for root in mechanical_evidence.get(remaining_key) or ()
-                )
-        roots = (
-            remaining_roots
-            if remaining_roots
-            else tuple(step.read_roots)
-            if phase == "observe"
-            else tuple(step.write_roots)
-            if phase == "mutate" or (phase == "execute" and step.write_roots)
-            else ()
-        )
+        roots = self._goal_step_target_roots(step, phase, mechanical_evidence)
         try:
             descriptors = (
                 self.harness.workspace_target_descriptors(
@@ -744,6 +720,37 @@ class StatefulGoalLoopController(LongHorizonController):
             roots=roots,
             target_descriptors=projected_descriptors,
             compatible_targets_by_operation=compatible,
+        )
+
+    @staticmethod
+    def _goal_step_target_roots(
+        step: Any,
+        phase: str,
+        mechanical_evidence: Mapping[str, Any] | None,
+    ) -> tuple[str, ...]:
+        """Share the exact Planner remainder scope with trace reconstruction."""
+
+        remaining_roots: tuple[str, ...] = ()
+        if mechanical_evidence is not None:
+            remaining_key = (
+                "missing_read_roots"
+                if phase == "observe"
+                else "missing_write_roots"
+                if phase == "mutate" or (phase == "execute" and step.write_roots)
+                else ""
+            )
+            if remaining_key:
+                remaining_roots = tuple(
+                    str(root) for root in mechanical_evidence.get(remaining_key) or ()
+                )
+        return (
+            remaining_roots
+            if remaining_roots
+            else tuple(step.read_roots)
+            if phase == "observe"
+            else tuple(step.write_roots)
+            if phase == "mutate" or (phase == "execute" and step.write_roots)
+            else ()
         )
 
     @staticmethod
@@ -1695,58 +1702,6 @@ class StatefulGoalLoopController(LongHorizonController):
                 "the rejected action feedback"
             )
 
-    @staticmethod
-    def _pending_action_repair_feedback(
-        state: Any,
-    ) -> GoalAuditDecision | None:
-        """Replay a Step Auditor repair not yet linked to a Planner patch."""
-
-        consumed_audit_ids = {
-            str(event.payload.get("source_audit_id") or "")
-            for event_id in state.causal_order
-            if (event := state.causal_records[event_id]).event_type
-            == "goal_plan_patch_committed"
-            and str(event.payload.get("source_audit_id") or "")
-        }
-        action_boundaries = {
-            event.subject_id: (
-                str(event.payload.get("active_step_id") or ""),
-                int(event.payload.get("active_step_revision", 0) or 0),
-            )
-            for event_id in state.causal_order
-            if (event := state.causal_records[event_id]).event_type
-            == "goal_audit_boundary_opened"
-            and str(event.payload.get("boundary_kind") or "") == "action"
-        }
-        plan = rolling_goal_plan(state)
-        frontier_ids = {step.step_id for step in plan.frontier}
-        # The Step Auditor only runs after the mechanical gate is satisfied, so a
-        # REPAIR means the declared roots are covered yet the objective is not
-        # proved.  Repeating an action on the same step would be an identical
-        # zero-progress repeat; the Planner must refine the step instead.  Prior
-        # actions stay in the durable record for the revised step's facts.
-        for event_id in reversed(state.causal_order):
-            event = state.causal_records[event_id]
-            if event.event_type != "goal_audit_accepted":
-                continue
-            raw = event.payload.get("audit")
-            if not isinstance(raw, Mapping):
-                continue
-            audit = GoalAuditDecision.from_dict(raw)
-            boundary_id = str(event.payload.get("audit_boundary_id") or "")
-            boundary_step = action_boundaries.get(boundary_id)
-            if (
-                audit.verdict is not GoalAuditVerdict.REPAIR
-                or audit.audit_id in consumed_audit_ids
-                or boundary_step is None
-                or audit.step_id not in frontier_ids
-                or boundary_step[0] != audit.step_id
-                or plan.step_revisions.get(audit.step_id, 0) != boundary_step[1]
-            ):
-                continue
-            return audit
-        return None
-
     @classmethod
     def _pending_controller_repair_feedback(
         cls,
@@ -2356,19 +2311,11 @@ class StatefulGoalLoopController(LongHorizonController):
                         pending_observation = None
                         continue
 
-                    pending_action_repair = self._pending_action_repair_feedback(state)
-                    if pending_action_repair is not None:
-                        boundary = self._issue_strong_plan_patch(
-                            state,
-                            plan=plan,
-                            audit=pending_action_repair,
-                            transitions=transitions,
-                        )
-                        if boundary is not None:
-                            return boundary
-                        transitions += 1
-                        continue
-
+                    # A semantic REPAIR keeps the step open. Its gaps are fed to
+                    # the existing Selector/Executor builders; root coverage does
+                    # not imply that their next action will repeat the last one.
+                    # Structural failures and stage repairs still request a plan
+                    # patch below; identical action budgets remain independent.
                     pending_controller_repair = (
                         self._pending_controller_repair_feedback(state)
                     )
@@ -2514,6 +2461,30 @@ class StatefulGoalLoopController(LongHorizonController):
                             mechanical_evidence,
                             effective_phase=effective_phase,
                             target_contract=target_contract,
+                        )
+                        # Freeze the Harness observations before any Selector or
+                        # Executor request. Later extraction must never inspect
+                        # the current workspace to guess its historical types.
+                        self._persist(
+                            state,
+                            "goal_role_input_boundary",
+                            {
+                                "active_step_id": active_step_id,
+                                "active_step_revision": active_step_revision,
+                                "effective_phase": effective_phase,
+                                "eligible_operations": list(eligible_operations),
+                                "target_contract": dict(target_contract),
+                                "mechanical_evidence_sha256": hashlib.sha256(
+                                    json.dumps(
+                                        mechanical_evidence,
+                                        ensure_ascii=False,
+                                        sort_keys=True,
+                                        separators=(",", ":"),
+                                    ).encode("utf-8")
+                                ).hexdigest(),
+                                "executor_execution_state": executor_execution_state,
+                            },
+                            subject_id=active_step_id,
                         )
                         selector_stage_context = goal_frontier_selector_context(
                             {

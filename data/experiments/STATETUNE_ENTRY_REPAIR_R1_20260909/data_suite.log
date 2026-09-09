@@ -1,0 +1,22 @@
+.F.FF................................................................... [ 71%]
+.............................                                            [100%]
+=================================== FAILURES ===================================
+____________ test_stage_checkpoint_must_match_frozen_upstream_state ____________
+tests/test_role_trace_stages.py:47: in test_stage_checkpoint_must_match_frozen_upstream_state
+    validate_collection_states(state, [], contract)
+rwkv_lh/role_trace_stages.py:66: in validate_collection_states
+    raise ValueError("source contains a nonzero or unidentified State checkpoint for its collection contract")
+E   ValueError: source contains a nonzero or unidentified State checkpoint for its collection contract
+_________ test_mock_controller_exports_can_rebuild_all_five_role_paths _________
+tests/test_role_trace_dataset_integration.py:217: in test_mock_controller_exports_can_rebuild_all_five_role_paths
+    assert not excluded
+E   AssertionError: assert not [{'event_id': 'CE-000016', 'request_id': 'MR-f3103ae17ea84d6b', 'role': 'auditor_step', 'reason': 'Auditor semantic ta...02290e91514dfe', 'role': 'auditor_final', 'reason': 'Auditor semantic target requires independent double review', ...}]
+_ test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens[native_rwkv] _
+tests/test_role_trace_dataset_integration.py:230: in test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens
+    assert not excluded
+E   AssertionError: assert not [{'event_id': 'CE-000016', 'request_id': 'MR-9f544ec5fd764700', 'role': 'auditor_step', 'reason': 'Auditor semantic ta...526932bff341f1', 'role': 'auditor_final', 'reason': 'Auditor semantic target requires independent double review', ...}]
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_stages.py::test_stage_checkpoint_must_match_frozen_upstream_state
+FAILED tests/test_role_trace_dataset_integration.py::test_mock_controller_exports_can_rebuild_all_five_role_paths
+FAILED tests/test_role_trace_dataset_integration.py::test_native_mock_controller_exports_rebuild_five_roles_with_original_stop_tokens[native_rwkv]
+3 failed, 98 passed in 73.62s (0:01:13)

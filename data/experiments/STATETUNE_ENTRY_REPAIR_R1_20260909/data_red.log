@@ -1,0 +1,24 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_step_audit_cannot_label_a_proved_mutation_root_missing __________
+tests/test_role_trace_labels.py:141: in test_step_audit_cannot_label_a_proved_mutation_root_missing
+    with pytest.raises(ValueError, match="contradict"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_kernel_acceptance_does_not_grant_auditor_semantic_label_authority ____
+tests/test_role_trace_dataset_integration.py:199: in test_kernel_acceptance_does_not_grant_auditor_semantic_label_authority
+    assert samples == []
+E   AssertionError: assert [{'schema_ver...IXTURE', ...}] == []
+E     
+E     Left contains one more item: {'schema_version': 'rwkv-lh.role-trace-extraction.v1', 'role': 'auditor_step', 'request_id': 'MR-99e15ec7c00e4a23', 'run_id': 'ROLE-INPUT-CONTROLLER-FIXTURE', ...}
+E     Use -v to get more diff
+________ test_focused_role_coverage_is_frozen_with_immutable_regression ________
+tests/test_role_trace_artifacts.py:79: in test_focused_role_coverage_is_frozen_with_immutable_regression
+    bundle = api.build_artifacts(rows, provenance=_provenance(), coverage_requirements=scope)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: build_artifacts() got an unexpected keyword argument 'coverage_requirements'
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_labels.py::test_step_audit_cannot_label_a_proved_mutation_root_missing
+FAILED tests/test_role_trace_dataset_integration.py::test_kernel_acceptance_does_not_grant_auditor_semantic_label_authority
+FAILED tests/test_role_trace_artifacts.py::test_focused_role_coverage_is_frozen_with_immutable_regression
+3 failed, 85 deselected in 3.54s

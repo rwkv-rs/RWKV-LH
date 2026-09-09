@@ -1433,3 +1433,22 @@ def test_user_literal_keeps_public_provenance_when_provider_echoes_it(tmp_path) 
         "query": EgressProvenance.USER_PUBLIC_LITERAL,
     }
     assert decision.allowed is True
+
+
+@pytest.mark.parametrize("source", ["workspace", "tool"])
+@pytest.mark.parametrize("query", ["lookup verified", "lookup VERIFIED details", "https://example.invalid/?q=verified"])
+def test_egress_padding_cannot_make_a_private_source_fragment_public(tmp_path, source, query):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    config = RetrievalRuntimeConfig(mode=NetworkPolicyMode.AUTO_PUBLIC)
+    goal = GoalState.create(request="Find public information.", constraints=[], workspace_root=workspace,
+                            runtime_policy=runtime_policy_document(config))
+    if source == "workspace":
+        (workspace / "private.txt").write_text("verified content", encoding="utf-8")
+    resolver = WorkspaceProvenanceResolver(config,
+        untrusted_text_provider=(lambda: ["verified content"]) if source == "tool" else None)
+    arguments = {"query": query}
+    labels = resolver(goal, "web_search", arguments)
+    assert labels["query"] is (EgressProvenance.WORKSPACE_SENSITIVE if source == "workspace" else EgressProvenance.TOOL_UNTRUSTED)
+    assert not NetworkPolicy(config.mode).authorize(tool="web_search", arguments=arguments, provenance=labels).allowed
+    assert arguments == {"query": query}

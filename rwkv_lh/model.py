@@ -1070,28 +1070,7 @@ class LongHorizonModel:
                     evidence_records=evidence_records,
                 )
             assignment = protocol_module.render_prompt(prompt_source)
-            audit_definition = deepcopy(GOAL_AUDIT_DEFINITION)
-            audit_definition["parameters"]["properties"]["verdict"]["enum"] = (
-                ["repair", "ready_for_final"]
-                if final_candidate
-                else ["continue", "repair"]
-            )
-            if final_candidate:
-                audit_definition["description"] = (
-                    "Return the bounded final-evidence audit verdict. This never "
-                    "completes a plan step: step_id is the empty string and "
-                    "step_complete is false."
-                )
-                audit_definition["parameters"]["properties"]["step_id"] = {
-                    "type": "string",
-                    "const": "",
-                    "description": "Final audit constant: the empty string.",
-                }
-                audit_definition["parameters"]["properties"]["step_complete"] = {
-                    "type": "boolean",
-                    "const": False,
-                    "description": "Final audit constant: false.",
-                }
+            audit_definition = self._goal_audit_definition(final_candidate)
             audit_checkpoint = audit_session.bootstrap(
                 lane_kind,
                 assignment,
@@ -1322,6 +1301,30 @@ class LongHorizonModel:
             )
         checkpoint = self._checkpoint(state, persist)
         return self._append_event(state, checkpoint, event, persist)
+
+    @staticmethod
+    def _goal_audit_definition(final_candidate: bool) -> dict[str, Any]:
+        """Share the exact Auditor bootstrap contract with trace reconstruction."""
+
+        definition = deepcopy(GOAL_AUDIT_DEFINITION)
+        definition["parameters"]["properties"]["verdict"]["enum"] = (
+            ["repair", "ready_for_final"] if final_candidate else ["continue", "repair"]
+        )
+        if final_candidate:
+            definition["description"] = (
+                "Return the bounded final-evidence audit verdict. This never "
+                "completes a plan step: step_id is the empty string and "
+                "step_complete is false."
+            )
+            definition["parameters"]["properties"]["step_id"] = {
+                "type": "string", "const": "",
+                "description": "Final audit constant: the empty string.",
+            }
+            definition["parameters"]["properties"]["step_complete"] = {
+                "type": "boolean", "const": False,
+                "description": "Final audit constant: false.",
+            }
+        return definition
 
     @classmethod
     def _audit_evidence_records(
@@ -1637,8 +1640,9 @@ class LongHorizonModel:
         )
         return checkpoint
 
+    @classmethod
     def _executor_fact_records(
-        self,
+        cls,
         state: RunState,
         action_ids: Sequence[str],
         *,
@@ -1661,7 +1665,7 @@ class LongHorizonModel:
                     "action_id": action.action_id,
                     "operation": action.action_type,
                     "arguments": dict(action.arguments),
-                    "result": self._project_action_result(
+                    "result": cls._project_action_result(
                         action.result or {},
                         operation=action.action_type,
                         arguments=action.arguments,
@@ -1711,8 +1715,9 @@ class LongHorizonModel:
         )
         return replace(checkpoint, native_state_metadata=metadata)
 
+    @classmethod
     def _bound_executor_fact_records(
-        self,
+        cls,
         state: RunState,
         checkpoint: ModelCheckpoint,
         *,
@@ -1739,7 +1744,7 @@ class LongHorizonModel:
             raise ModelProtocolError(
                 "Executor requirement changed after its exact fact scope was bound"
             )
-        records = self._executor_fact_records(
+        records = cls._executor_fact_records(
             state,
             selected_ids,
             focus_text=focus_text,
@@ -2481,8 +2486,9 @@ class LongHorizonModel:
         )
         return selected_operation, committed
 
+    @classmethod
     def _executor_prompt_source(
-        self,
+        cls,
         state: RunState,
         checkpoint: ModelCheckpoint,
         definition: Mapping[str, Any],
@@ -2512,7 +2518,7 @@ class LongHorizonModel:
                     "content_refs": list(event.content_refs),
                 }
             )
-        bound_fact_records = self._bound_executor_fact_records(
+        bound_fact_records = cls._bound_executor_fact_records(
             state,
             checkpoint,
             focus_text=current_requirement,

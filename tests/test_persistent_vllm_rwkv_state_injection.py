@@ -353,6 +353,28 @@ def test_native_suffix_evaluation_uses_one_prompt_forward_and_three_state_clones
     assert identity["post_prompt_state_clones"] == 3
 
 
+@pytest.mark.parametrize("serving", [False, True])
+def test_suffix_trace_retains_exact_model_input_including_bos(monkeypatch, serving):
+    extractor = PersistentVLLMRWKVExtractor(LocalVLLMRWKVSettings(max_tokens=32))
+    extractor._model = _SuffixChoiceModel()
+    extractor._tokenizer = _SuffixChoiceTokenizer()
+    extractor._runtime = {}
+    _SuffixChoiceModel.calls = []
+    monkeypatch.setattr(extractor, "load", lambda: None)
+    monkeypatch.setattr(extractor, "_load_base_identity", lambda: {})
+    original_tensor = torch.tensor
+    monkeypatch.setattr(torch, "tensor", lambda *args, **kwargs: original_tensor(
+        *args, **{key: value for key, value in kwargs.items() if key != "device"}))
+    if serving:
+        result, _ = extractor.select_suffix_choices("prompt", candidate_suffixes={"a": "suffix-a", "b": "suffix-b"})
+    else:
+        result, _ = extractor.evaluate_suffix_choices("prompt", expected_label="a",
+                                                     candidate_suffixes={"a": "suffix-a", "b": "suffix-b"})
+    assert result["prompt_token_ids"] == _SuffixChoiceModel.calls[0] == [0, 1]
+    assert result["prompt_token_ids_scope"] == "full_prompt"
+    assert result["input_bos_token_count"] == 1
+
+
 def test_native_suffix_evaluation_rejects_nonadditive_candidate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

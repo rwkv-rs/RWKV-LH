@@ -116,8 +116,15 @@ class NativeStateSnapshot:
     tokenizer_build: str
     cache_binding_digest: str
     protocol_version: str = NATIVE_STATE_PROTOCOL_VERSION
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.metadata, Mapping):
+            raise ValueError("native snapshot metadata must be a mapping")
+        token_ids = self.metadata.get("prompt_token_ids")
+        if token_ids is not None and (not isinstance(token_ids, (list, tuple))
+                or any(type(token) is not int or token < 0 for token in token_ids)):
+            raise ValueError("native snapshot prompt_token_ids must be non-negative integers")
         required = {
             "state_ref": self.state_ref,
             "state_digest": self.state_digest,

@@ -1,5 +1,7 @@
 # RWKV-LH
 
+当前状态（2026-09-09）：本轮修复 Controller 在首个动作后因 REPAIR 无条件请求重规划、trace 标签与 token 证据等工程问题，并统一逐角色 StateTune 规则。Agent 最新完整模型实测仍是历史 R7：A/B 各 Strict **0/12**、completed **0/12**、mutation **0**，均在首次目录观察后终止 `strong_planner_unavailable` / `fixed_plan_exhausted`；本轮没有新增模型成绩。证据与限制见 [当前交接](docs/HANDOFF.zh-CN.md) 和 [整改报告](data/experiments/STATETUNE_ENTRY_REPAIR_R1_20260909/REPORT.zh-CN.md)。
+
 RWKV-LH 是使用 RWKV 分角色推理与持久化因果记录的 Agent 运行时。产品入口只有 `rwkv-stateful-goal-loop.v7` 一条控制链。
 
 ```text
@@ -19,17 +21,9 @@ Strong Planner
 
 每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v4、Executor 为 v4、Step Auditor 为 v3、Finalizer 为 v1、Final Auditor 为 v2。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
 
-服务器 `rwkv-8222` 已按本地上传方式部署。R2 A 已运行 12 题：Strict **0/12**、completed **0/12**、mutation **0**，12 题均因 `strong_planner_unavailable` 停止，11 题没有 RWKV 生成；B 臂未启动，不能计算双零噪声或进入训练，详见 [A 臂报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/R2_A_RUN_REPORT.zh-CN.md)。此前中断的 R1 尝试仍按 [INVALID_ATTEMPT_01](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/INVALID_ATTEMPT_01.json) 保留。
+StateTune 按 **Selector → Executor → Step Auditor → Finalizer → Final Auditor** 推进。当前角色的数据和预注册验证条件满足后训练，固定其 State，再收集下一角色的真实问题；后序角色未到达不阻止前序角色。Agent 低分是改进对象，正式保留组合仍须通过 Agent 验收。owner 已取消固定三轮上限，后续按指标、预算和实际训练 run 管理。
 
-原生适配轮没有运行新的 Agent 评测，没有新增 Strict / completed / mutation / 终止原因指标。按 owner 授权，Planner 与 Stage Checker 已配置为同一现有 13.3B 服务，使用 `vllm-rwkv-native` 的 `/completions` 和独立显式 zero State；Planner 输出预算为 8,192 tokens，共用读取超时为 240 秒，Stage Checker 仍为 2,400 tokens，其余角色预算与职责不变。生产 Planner 单次连接探针已得到 HTTP 200 和自然结束的合法 JSON，但 `GoalPlanPatch` 首先因额外顶层 `goal_digest` 拒绝；完整原文的独立检查还发现 `success_evidence` 类型等合同问题。该轮未启动全面基线，接入缺陷仍未解决；当前按后续 owner 授权观察运行，不能宣称接入问题全部解决，详见 [原生适配报告](data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
-
-最新强模型复测仍未达到开跑门槛：next-token.cc 的认证模型目录正常，但当前完整 `gpt-5.6-sol` Planner 请求在 32.8 秒后返回 HTTP 500 / `do_request_failed`。固定矩阵首错停止，0 通过、1 失败、9 未运行；该诊断未切换配置或启动基线，见 [稳定性复测记录](data/experiments/STRONG_UPSTREAM_STABILITY_R1_20260907/REPORT.zh-CN.md)。随后 owner 明确授权直接使用 g1j-13.3B 开始测试，强模型恢复后再议。R3 因共享工作树中的并行源码改动触发启动身份检查，在模型生成前中止：0 调用、0 题，没有新增 Agent 成绩，原始冻结记录保留，见 [R3 中止报告](data/experiments/ZERO_STATE_AGENT_BASELINE_R3_20260907/REPORT.zh-CN.md)。R4 已改用隔离工作树 `/home/chase/GitHub/RWKV-LH-zero-baseline-r4`，固定提交 `eb861256c8edf2e3f0361027a68ed0fc35cddcf5`；2026-09-07 06:55:08 UTC 启动 A 臂后，首题收尾因运行器导入全部登记题集、缺少封存题集模块而失败，现已停止并标 INVALID。A 仅有 2 条 `runner_error` 记录，Strict / completed / mutation 未知，不能使用占位 0；B 未开始。当前在隔离目录修复通用运行器依赖并准备 R5，重新冻结后两臂从头运行，强模型延期；失败不会被修补或从分母删除，训练仍未授权。
-
-Planner 的步骤和阶段数量由任务决定，不设固定上限；提示词、schema、计划补丁、未完成计划及阶段检查入口完整保留计划。当前模型仍有 16,384-token 上下文上限，不能静默截断步骤或证据来适配窗口。依赖、职责、根路径与证据约束继续校验，任务结束仍由 RWKV 结合目标覆盖和执行证据判断，见 [数量限制整改](data/experiments/PLANNER_UNBOUNDED_PLAN_R1_20260907/REPORT.zh-CN.md)。旧输出与冻结报告不重评分，后续双零两臂均须重新冻结并完整运行。
-
-owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、已有项目维护、Web、全栈各 2 题，共 12 题。它是按需求编写的项目开发基准，包含新建和维护交付，**不是采集的真实用户 trace**。私有黑盒验证在隔离的只读 workspace snapshot 上执行，Web/全栈使用真实 Playwright 浏览器；参考实现和错误变异仅供作者验证，不进入 Agent 输入。完整隔离验收与本轮 pytest 结果以最终记录为准，尚无有效双零模型基线。
-
-现有 Ladder-10 可用于有限的小项目/接口闭环；E2E-90 主要是文件、工具与恢复机制回归，含 2 个已有脚手架的迷你项目，不能称为 90 个真实项目。E2E-LH09 的 `mock_api` 与当前生产菜单仍存在适配冲突；不改旧题或分母来掩盖该问题。生产 trace 抽取器已实现五角色输入重建、原始生成与标签证据校验、固定切分和覆盖/相似度审计，只输出候选工件；操作与经验见 [数据管线使用说明](docs/ROLE_TRACE_DATASET.zh-CN.md)。尚未冻结正式角色数据集或启动训练。
+当前管线支持生产 trace 重建、冻结前序 State、语义复核与独立纠正目标、角色覆盖和固定回归审计；只输出候选文件。本轮未冻结正式角色数据或启动训练，当前优化器训练器仍需按实际 backend 接通和验证，见 [StateTune 现状](docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。模型升级复用同一架构，优先调整模型/词表/State/上下文/传输适配，不自动恢复旧协议或旧 State。
 
 ## 文档与记录
 
@@ -38,7 +32,7 @@ owner 已授权新增 `realprojectdevv1`：CLI、数据流水线、HTTP API、�
 - [当前交接](docs/HANDOFF.zh-CN.md)
 - [StateTune 数据生成管线源码、现状与经验](docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)
 - [生产 trace 数据管线使用说明](docs/ROLE_TRACE_DATASET.zh-CN.md)
-- [本轮清理与验证记录](data/experiments/PROTOCOL_DATA_CHAIN_UNIFICATION_R1_20260907/ROUND_ANALYSIS.zh-CN.md)
+- [本轮工程与 StateTune 入口整改](data/experiments/STATETUNE_ENTRY_REPAIR_R1_20260909/REPORT.zh-CN.md)
 - [基线准备与可见题集审查](data/experiments/ZERO_STATE_AGENT_BASELINE_R1_20260907/READINESS_ANALYSIS.zh-CN.md)
 - [服务器资源清理与当前部署记录](data/experiments/SERVER_RUNTIME_CLEANUP_R1_20260907/)
 - [本轮 13.3B Supervisor 原生适配与连接验证](data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)
@@ -59,7 +53,9 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 
 首次设置参考 `.env.example` 创建 `.env.local`；已有配置应保留。普通回归不执行 `acceptance_tests/`，不得把读取 Holdout 的验收测试加入默认套件。Torch / State 注入和必需的浏览器验证不能跳过。测试工件默认位于 `data/test_runs/pytest/`。CI 安装同样的两个 extra，并使用 `playwright install --with-deps chromium` 准备浏览器和系统依赖；同步完成后直接调用 `.venv/bin/`，避免默认依赖同步移除 extra。
 
-本轮 Planner / Stage Checker 配置示例指向 `http://127.0.0.1:29613/v1`（转发服务器 `18234/v1`），两者模型 alias 为 `rwkv7-g1j-13.3b-zero-state-capability-ctx16384`。`RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native`，关闭计划缓存、留空 fallback。原生请求保留 `System✿` / `User✿` / `Bot✿<think` 格式，不发送 `response_format`，避免当前部署缺少 `lmformatenforcer` 的约束生成路径。返回值必须自然 `stop` 且原文以 `>` 开始，仅合回本次实际发送的 `<think` 后交既有严格 JSON decoder；模型仍须自行输出合法字段，Controller 不补写计划内容。
+当前生成前缀按角色区分：Planner 使用原生 `fake_think` 的 `<think></think`，不请求 CoT；Stage Checker 保持 `open_think` 的 `<think`。该设置直接作用于原生 prompt，不依赖先前被 chat 渲染链过滤的自定义 kwargs；模型仍须自行输出合法 JSON 和字段。
+
+最近冻结的 Planner / Stage Checker 配置示例指向 `http://127.0.0.1:29613/v1`（转发服务器 `18234/v1`），两者模型 alias 为 `rwkv7-g1j-13.3b-zero-state-capability-ctx16384`。`RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native`，关闭计划缓存、留空 fallback。原生请求保留 `System✿` / `User✿` / `Bot✿{generation_prefill}` 格式，不发送 `response_format`，避免当前部署缺少 `lmformatenforcer` 的约束生成路径。返回值必须自然 `stop` 且原文以 `>` 开始，仅合回本次实际发送的生成前缀后交既有严格 JSON decoder；模型仍须自行输出合法字段，Controller 不补写计划内容。
 
 服务器禁止使用 Git，所有 Git 版本管理和查询都在本地完成；源码仅通过 SSH 配合 rsync/SCP 从本地上传。部署时同时上传完整 engine 源码清单，包含相对路径与逐文件 SHA-256，并冻结 manifest 自身 SHA-256。服务须根据上传清单验证实际文件身份；启动、健康检查和 attestation 均不得执行 `git rev-parse`、`git status` 或其他 Git 命令。每次新部署与运行须绑定本轮核验记录，不能沿用旧冻结身份。
 
@@ -80,4 +76,4 @@ uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev
 .venv/bin/rwkv-lh-web
 ```
 
-训练和新建角色数据集版本目录仍需要 owner 书面确认；新增开发基准的授权不改变累计训练轮次。封存 Holdout 未参与本轮开发、作者验证或基线准备。
+训练和正式角色数据版本按 owner 已有书面授权范围执行；固定三轮上限已取消，改按预注册指标、预算和实际 run 记录管理。封存 Holdout 未参与本轮开发、作者验证或基线准备。

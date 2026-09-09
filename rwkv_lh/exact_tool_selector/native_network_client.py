@@ -36,6 +36,7 @@ NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA = (
     "rwkv-lh.native-exact-tool-selector-service-response.v1"
 )
 NATIVE_SELECTOR_LANE_ID = "LANE:SELECTOR"
+NATIVE_SELECTOR_CHECKPOINT_TRANSPORT = "native_rwkv_lm_head_suffix_trie_selector_intent_v4"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
@@ -288,7 +289,7 @@ class NativeNetworkSelectorClient:
             lane_kind=ModelLaneKind.SELECTOR,
             parent_checkpoint_id=None,
             model=self.settings.model,
-            transport="native_rwkv_lm_head_suffix_trie_selector_intent_v4",
+            transport=NATIVE_SELECTOR_CHECKPOINT_TRANSPORT,
             transcript=transcript,
             transcript_digest=transcript_digest,
             token_count=selection.input_token_count,
@@ -314,6 +315,7 @@ class NativeNetworkSelectorClient:
 
 __all__ = [
     "NATIVE_SELECTOR_LANE_ID",
+    "NATIVE_SELECTOR_CHECKPOINT_TRANSPORT",
     "NATIVE_SELECTOR_SERVICE_REQUEST_SCHEMA",
     "NATIVE_SELECTOR_SERVICE_RESPONSE_SCHEMA",
     "NativeNetworkSelectorClient",

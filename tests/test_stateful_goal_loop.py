@@ -2025,14 +2025,17 @@ def test_incomplete_goal_obligation_coverage_requests_a_continuation_patch(
     assert plan.uncovered_obligation_phases == {}
 
 
+@pytest.mark.parametrize("root_count", [2, 9])
 def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
     tmp_path: Path,
+    root_count: int,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "ROOT-EVIDENCE-WINDOW")
     workspace = Path(state.goal.workspace_root)
-    (workspace / "pricing.py").write_text("PRICE = 1\n", encoding="utf-8")
-    (workspace / "verify_project.py").write_text("print('ok')\n", encoding="utf-8")
+    roots = tuple(f"source-{index}.py" for index in range(root_count))
+    for index, root in enumerate(roots):
+        (workspace / root).write_text(f"VALUE = {index}\n", encoding="utf-8")
     patch = GoalPlanPatch(
         patch_id="GPP-root-evidence",
         base_revision=0,
@@ -2041,7 +2044,7 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
                 step_id="READ",
                 objective="Read pricing.py and verify_project.py",
                 success_evidence=("both files are observed",),
-                read_roots=("pricing.py", "verify_project.py"),
+                read_roots=roots,
             ),
         ),
         replace_steps=(),
@@ -2049,18 +2052,7 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
         reason="Inspect both files",
     )
     outputs = [
-        json.dumps(
-            {
-                "function": "read_file",
-                "params": {"path": "pricing.py"},
-            }
-        ),
-        json.dumps(
-            {
-                "function": "read_file",
-                "params": {"path": "verify_project.py"},
-            }
-        ),
+        *(json.dumps({"function": "read_file", "params": {"path": root}}) for root in roots),
         *(
             json.dumps(
                 {
@@ -2087,7 +2079,7 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
         subject_id=patch.patch_id,
     )
     action_ids = []
-    for operation in ("read_file", "read_file", *("list_directory",) * 10):
+    for operation in (*("read_file",) * root_count, *("list_directory",) * 10):
         decision = model.next_command(
             state,
             controller._persist_callback,
@@ -2111,10 +2103,9 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
         state, "READ", 1
     )
 
-    assert action_ids[0] in refs
-    assert action_ids[1] in refs
+    assert set(action_ids[:root_count]) <= set(refs)
     assert action_ids[-1] in refs
-    assert len(refs) == 3
+    assert len(refs) == root_count + 1
 
 
 def test_audit_kernel_rejects_successful_but_wrong_scope_action(tmp_path: Path) -> None:
@@ -2519,7 +2510,7 @@ def test_repeated_goal_io_failures_route_controller_feedback_before_budget(
     assert controller._pending_audit_boundary(result.state) is None
 
 
-def test_read_only_step_repair_routes_to_planner_before_identical_repeat(
+def test_read_only_step_repair_keeps_same_step_and_bounds_identical_repeats(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2586,20 +2577,19 @@ def test_read_only_step_repair_routes_to_planner_before_identical_repeat(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "interrupted"
-    assert len(result.state.actions) == 1
-    assert len(selector._session.payloads) == 3
-    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 1
-    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 1
-    assert len(controller.supervisor.requests) == 2
-    repair = controller.supervisor.requests[1].latest_audit
-    assert repair is not None
-    assert repair["verdict"] == "repair"
-    assert repair["gaps"] == ["phase_evidence_unproved:observe"]
+    assert result.state.status.value == "blocked"
+    assert len(result.state.actions) == 3
+    assert len(selector._session.payloads) == 9
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
+    assert len(controller.supervisor.requests) == 1
+    assert any(event.event_type == "run_blocked" and
+               event.payload["reason"] == "identical_success_budget_exhausted"
+               for event in events)
     assert controller._pending_audit_boundary(result.state) is None
 
 
-def test_mutation_noop_repair_routes_to_planner_before_identical_repeat(
+def test_mutation_noop_repair_keeps_same_step_and_bounds_identical_repeats(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2671,32 +2661,31 @@ def test_mutation_noop_repair_routes_to_planner_before_identical_repeat(
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
     ]
-    assert result.state.status.value == "interrupted"
-    assert len(result.state.actions) == 1
-    assert len(selector._session.payloads) == 3
-    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 1
-    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 1
-    assert len(controller.supervisor.requests) == 2
-    repair = controller.supervisor.requests[1].latest_audit
-    assert repair is not None
-    assert repair["verdict"] == "repair"
-    assert repair["gaps"] == ["phase_evidence_unproved:mutate"]
-    assert all(event.event_type != "run_blocked" for event in events)
+    assert result.state.status.value == "blocked"
+    assert len(result.state.actions) == 3
+    assert len(selector._session.payloads) == 9
+    assert sum(event.event_type == "goal_audit_boundary_opened" for event in events) == 2
+    assert sum(event.event_type == "goal_audit_boundary_resolved" for event in events) == 2
+    assert len(controller.supervisor.requests) == 1
+    assert any(event.event_type == "run_blocked" and
+               event.payload["reason"] == "identical_success_budget_exhausted"
+               for event in events)
     assert controller._pending_audit_boundary(result.state) is None
 
 
-def test_step_auditor_repair_patch_is_consumed_and_run_recovers(
+def test_successful_directory_observation_repair_can_read_next_without_replanning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = LongHorizonStore(tmp_path / "state")
     state = store.create_run(_goal(tmp_path), "ACTION-REPAIR-RECOVERY")
+    (Path(state.goal.workspace_root) / "result.txt").write_text("verified content", encoding="utf-8")
     queue = _QueueClient(
         [
             json.dumps(
                 {
-                    "function": "write_file",
-                    "params": {"path": "result.txt", "content": "wrong"},
+                    "function": "list_directory",
+                    "params": {"path": "."},
                 }
             ),
             json.dumps(
@@ -2705,7 +2694,7 @@ def test_step_auditor_repair_patch_is_consumed_and_run_recovers(
                     step_id="S1",
                     step_complete=False,
                     evidence_refs=["A00001"],
-                    gaps=["phase_evidence_unproved:mutate"],
+                    gaps=["phase_evidence_unproved:observe"],
                     reason="readback is required",
                 )
             ),
@@ -2738,11 +2727,9 @@ def test_step_auditor_repair_patch_is_consumed_and_run_recovers(
         ]
     )
     session = ModelSession(queue, settings=_settings(progressive=True))
-    selector = _selector(["write_file", "read_file"])
+    selector = _selector(["list_directory", "read_file"])
     model = LongHorizonModel(session, tool_selector=selector)
-    planner = _StrongPlanner(
-        (_strong_patch(state), _strong_readback_correction_patch(state))
-    )
+    planner = _StrongPlanner(_strong_observe_patch(state))
     monkeypatch.setattr(
         StatefulGoalLoopController,
         "_validate_contract_patch_semantics",
@@ -2760,20 +2747,16 @@ def test_step_auditor_repair_patch_is_consumed_and_run_recovers(
 
     assert result.state.status.value == "completed"
     assert result.final_output == "Recovered."
-    assert len(planner.requests) == 2
-    assert planner.requests[1].latest_audit is not None
-    assert planner.requests[1].latest_audit["verdict"] == "repair"
+    assert len(planner.requests) == 1
+    assert [action.action_type for action in result.state.actions.values()] == ["list_directory", "read_file"]
     committed = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
         if result.state.causal_records[event_id].event_type
         == "goal_plan_patch_committed"
     ]
-    assert len(committed) == 2
-    assert committed[1].payload["source_audit_id"] == (
-        planner.requests[1].latest_audit["audit_id"]
-    )
-    assert rolling_goal_plan(result.state).step_revisions["S1"] == 2
+    assert len(committed) == 1
+    assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
 
 
 def test_protocol_invalid_step_audit_routes_controller_feedback_and_recovers(

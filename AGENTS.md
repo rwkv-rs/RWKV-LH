@@ -17,15 +17,17 @@
 - `scripts/`、`temp/`、`tests/` 中不得手写协议字典字面量（`current_progress`、`execution_state`、`gap_catalog` 等）。
 - 新增协议版本时必须删除旧协议模块、渲染器、兼容入口与旧字节码，不留 identity stub 或本地归档；入口只接受当前模块常量指定的版本，所有旧版和未知版本一律拒绝。
 - 运行时 attestation 标签（`goal_state_protocol`、`input_protocol`、decoder manifest）必须引用协议模块常量，不得硬编码字符串。
+- 产品只保留当前一条 Controller 架构。RWKV 升级通过模型、tokenizer、State 形状、上下文与传输适配配置处理；模型版本变化不自动触发角色协议重写，旧 State 不得在未验证兼容性时复用。
 
 ## 3. 数据与实验
 
 - 实验、测试与验证数据统一放在 `data/`，按来源、版本、用途分层；每个数据集的 manifest 必须记录来源 run、生成脚本 SHA、协议模块 SHA、切分算法、相似度参数、覆盖度审计结果。
 - 角色数据只能从生产 trace 抽取（规范 §2.1）；禁止合成生成器自行发明场景；禁止重放已退役 schema 的数据集；禁止为通过某道题写路径/后缀特判。
 - 每角色一份不变的回归集；每一轮候选都在同一回归集上与 zero 比较，不得每轮重新生成 dev/confirmation。
-- 未经 owner 书面确认，不得启动训练、不得新建 `data/datasets/` 版本目录。
+- 未经 owner 书面确认，不得启动训练、不得新建 `data/datasets/` 版本目录；已有授权按其角色、目标与预算连续执行，不重复索取授权。
 - owner 已于 2026-09-07 授权 `data/datasets/rwkv_lh_real_project_dev_v1/` 的 12 题开发评测：CLI、数据、HTTP API、维护、Web、全栈各 2 题，运行器标识 `realprojectdevv1`。来源是按需求编写的开发基准，不是采集的真实用户 trace；此授权不新增角色训练额度，也不允许把参考实现直接当作 StateTune 角色数据。私有黑盒验收和作者 reference/mutant 不进入 Agent workspace；Web/全栈须实际运行 Playwright，验证器在隔离环境中读取只读 workspace snapshot。
-- 角色轮次按实际训练累计；换数据版本、回退初始化或 replacement 命名不重置计数，任何角色禁止第 4 轮。Selector 已满 3 轮；Executor / Step Auditor 的“剩 1 轮”与已有 Round3 登记冲突，在 owner 对账确认前没有可自动使用的训练额度；Final Auditor 最多 3 轮。
+- owner 于 2026-09-09 明确取消固定三轮训练上限，改按预注册指标、预算和实际训练记录管理。每次训练登记 run、角色、模型/数据/训练器 SHA、初始化与输出 State、实际 optimizer steps、资源消耗和验收结果；失败、中止和历史次数不明如实记录，换版本或 replacement 不抹去历史。旧“已用完/剩余轮次”和历史次数对账不再构成额度门。
+- StateTune 按 Selector → Executor → Step Auditor → Finalizer → Final Auditor 逐角色采集、训练和验证。前序角色的合格 State 固定后采集下一角色，目标角色与后序角色从 zero 开始。只要求当前角色的预注册数据覆盖和证据质量，不要求后序角色先出现；Agent 低分和未完成是训练改进对象，不作为首轮训练禁令。正式保留组合仍须通过 Agent 验收。
 - 旧角色数据、生成/评测链与旧实验从工作树直接删除，不保留 retired/archive 副本；历史只从 Git / GitHub 记录查询。未跟踪文件不会自动进入远端历史。本轮清理仅保留路径、SHA 和验证记录。
 
 ## 4. 对比实验纪律

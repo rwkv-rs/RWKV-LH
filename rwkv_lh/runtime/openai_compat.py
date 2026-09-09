@@ -280,8 +280,8 @@ class OpenAICompatibleRWKVClient:
             raise RWKVProtocolError("response content must be a string")
         usage = TokenUsage.from_mapping(data.get("usage") if isinstance(data.get("usage"), Mapping) else {})
         metadata: dict[str, Any] = {"http_attempts": attempts}
-        if isinstance(data.get("prompt_token_ids"), list):
-            if any(
+        if data.get("prompt_token_ids") is not None:
+            if not isinstance(data["prompt_token_ids"], list) or any(
                 not isinstance(item, int) or isinstance(item, bool) or item < 0
                 for item in data["prompt_token_ids"]
             ):
@@ -297,7 +297,7 @@ class OpenAICompatibleRWKVClient:
         return CompletionResponse(
             content=content,
             role=str(message.get("role") or "assistant"),
-            finish_reason=str(choice.get("finish_reason") or "stop"),
+            finish_reason=str(choice.get("finish_reason") or ""),
             usage=usage.to_dict(),
             response_id=str(data.get("id") or ""),
             model=str(data.get("model") or ""),
@@ -558,6 +558,7 @@ class OpenAICompatibleRWKVClient:
             server_build=str(selected.get("server_build") or ""),
             tokenizer_build=str(selected.get("tokenizer_build") or ""),
             cache_binding_digest=str(selected.get("cache_binding_digest") or ""),
+            metadata=selected.get("metadata") or {},
             protocol_version=str(
                 selected.get("protocol_version") or NATIVE_STATE_PROTOCOL_VERSION
             ),
@@ -674,7 +675,7 @@ class OpenAICompatibleRWKVClient:
             state_ref=str(selected.get("state_ref") or ""),
             state_digest=str(selected.get("state_digest") or ""),
             content=str(selected.get("content") or ""),
-            finish_reason=str(selected.get("finish_reason") or "stop"),
+            finish_reason=str(selected.get("finish_reason") or ""),
             metadata=dict(metadata) if isinstance(metadata, Mapping) else {},
             parent_state_digest=str(selected.get("parent_state_digest") or ""),
             parent_cache_binding_digest=str(

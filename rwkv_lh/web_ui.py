@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import io
 import json
@@ -406,12 +407,20 @@ class ManualRunManager:
         self._lock = threading.Lock()
 
     def launch(self, run_id: str, *, resume: bool = False) -> dict[str, Any]:
-        metadata = self.repository.metadata(run_id)
-        with self._lock:
+        run_root = self.repository.run_root(run_id)
+        # The child retains this claim across UI restarts, including a parent
+        # crash between Popen and PID publication. Closing the parent's copy
+        # must not unlock the shared open-file description held by the worker.
+        with self._lock, (run_root / "worker.lock").open("a+b") as claim:
+            try:
+                fcntl.flock(claim.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError("run is already active") from exc
+            metadata = self.repository.metadata(run_id)
             process = self._processes.get(run_id)
-            if process is not None and process.poll() is None:
+            if ((process is not None and process.poll() is None)
+                    or self._managed_pid_alive(run_id, metadata.get("pid"))):
                 raise RuntimeError("run is already active")
-            run_root = self.repository.run_root(run_id)
             request = self.repository.request_document(run_id)
             update_metadata(
                 run_root,
@@ -421,7 +430,6 @@ class ManualRunManager:
                 error="",
                 resume_count=int(metadata.get("resume_count", 0)) + int(resume),
             )
-            log = (run_root / "worker.log").open("ab", buffering=0)
             command = [
                 sys.executable,
                 "-m",
@@ -433,24 +441,21 @@ class ManualRunManager:
             ]
             if resume:
                 command.append("--resume")
-            process = subprocess.Popen(
-                command,
-                cwd=str(PROJECT_ROOT),
-                env=os.environ.copy(),
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            log.close()
+            with (run_root / "worker.log").open("ab", buffering=0) as log:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(PROJECT_ROOT),
+                    env=os.environ.copy(),
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    pass_fds=(claim.fileno(),),
+                )
             self._processes[run_id] = process
-        current = self.repository.metadata(run_id)
-        if current.get("phase") not in TERMINAL_PHASES:
-            return update_metadata(
-                self.repository.run_root(run_id),
-                active=True,
-                pid=process.pid,
-            )
-        return current
+            current = self.repository.metadata(run_id)
+            if current.get("phase") not in TERMINAL_PHASES:
+                return update_metadata(run_root, active=True, pid=process.pid)
+            return current
 
     def active(self, run_id: str) -> bool:
         with self._lock:
