@@ -1,0 +1,51 @@
+{
+  "agent_metrics": null,
+  "role_training_samples": 0,
+  "optimizer_steps": 0,
+  "source_head": "176b2d11b280d40a7edf28a01833c79f828b2336",
+  "environment": "WSL UbuntuRecovered",
+  "setup": [
+    "uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev",
+    ".venv/bin/python -m playwright install chromium"
+  ],
+  "red": {
+    "command": ".venv/bin/python -m pytest -q tests/test_ultradata.py",
+    "exit_code": 2,
+    "observed": "ModuleNotFoundError: No module named 'rwkv_lh.ultradata'",
+    "evidence": "initial tool execution before implementation; no separate raw log was captured"
+  },
+  "targeted": {
+    "passed": 16,
+    "skipped": 0,
+    "seconds": 1.77
+  },
+  "full": {
+    "command": ".venv/bin/python -m pytest -q tests/",
+    "passed": 1118,
+    "skipped": 0,
+    "seconds": 184.34,
+    "log_path": "data/experiments/ULTRADATA_PILOT_R1_20260909/pytest-full.log",
+    "log_sha256": "229c64337e226a0841c4d44eb1909c582fa700cad78b171d3b1ca910202aaa14"
+  },
+  "limitations": [
+    "no model evaluation or role training",
+    "no full-corpus audit",
+    "no source environment replay for SFT",
+    "no full contamination screening against public development tasks",
+    "no holdout access"
+  ],
+  "implementation": [
+    {
+      "path": "rwkv_lh/ultradata.py",
+      "sha256": "48b919d8c88ed43eef5d2a053cefdc92c8a736fbd75e3181c78f85452cbbceef"
+    },
+    {
+      "path": "scripts/prepare_ultradata_pilot.py",
+      "sha256": "dcf2e7bd134d43d3cb037a6d5b7411b25428342928ffdd488a639e0fc230fe6d"
+    },
+    {
+      "path": "tests/test_ultradata.py",
+      "sha256": "b956cb6264f1d3899237ad9427c0ebe4cf0df2e979a7d977e37b37f98eba64cd"
+    }
+  ]
+}

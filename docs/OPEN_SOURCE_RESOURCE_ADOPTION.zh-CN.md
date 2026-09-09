@@ -2,6 +2,8 @@
 
 核查日期：2026-09-09。Agent 没有新增完整评测成绩；正式 optimizer steps 为 0。本轮完成资料核查与接入设计，没有把外部轨迹登记为当前生产 trace，也没有下载完整训练集。抓取来源、失败记录及论文 SHA 见 [核查记录](../data/experiments/OPEN_SOURCE_RESOURCE_REVIEW_R1_20260909/SOURCE_FETCH.json)。
 
+后续 owner 已明确提高 MiniCPM5-2B 的研究优先级，并要求先推进 UltraData Tool-Use／Code-Agent 与可执行 Code。当前方法研究以 MiniCPM5-2B 的数据分层、专项后训练和能力整合为 P0；首轮任务准备及入口见 [UltraData 试点](ULTRADATA_PILOT.zh-CN.md)。原资料核查的能力结论不随工程接入自动升级。
+
 | 资源 | 已核实的发布内容 | 对 RWKV-LH 的用途与限制 |
 |---|---|---|
 | [RSI-Harness](https://github.com/CosmosMind-ai/RSI-Harness) 与 [MetaRSI-v1 论文](https://www.cosmosmind.ai/research/metarsi-v1.pdf) | 仓库是 Pi + Genome 配置层；当前 README 明确不包含基准、数据生成、训练或评测代码。论文讨论数据、Harness、模型三种改进面的调度。 | 借鉴稳定内核、声明式配置、改动后重新采集证据、冻结评测与实验账本。不能将开源 Harness 当成已可运行的完整 StateTune 系统；论文的自我教学实验不要求我们取消独立强模型 Planner。 |
