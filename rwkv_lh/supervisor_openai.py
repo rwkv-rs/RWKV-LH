@@ -1,6 +1,6 @@
 """OpenAI-compatible adapter for the bounded strong-model supervisor.
 
-Credentials are loaded from the ignored project ``.env`` file or the process
+Credentials are loaded from the ignored project ``.env.local`` file or the process
 environment.  The adapter records only request metadata, digests, latency, and
 usage; API keys and raw provider headers are never included in audit events.
 """
@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - project runtime is WSL/Linux
     fcntl = None
 
 from rwkv_lh.runtime.role_config import role_bool, role_env, role_float, role_int
-from rwkv_lh.runtime.settings import PROJECT_ROOT, load_local_env
+from rwkv_lh.runtime.settings import DEFAULT_ENV_FILE, PROJECT_ROOT, load_local_env
 from rwkv_lh.runtime import supervisor_vllm_rwkv
 from rwkv_lh.runtime.protocol import RWKVProtocolError
 from rwkv_lh.contract_graph import (
@@ -68,7 +68,7 @@ from rwkv_lh.supervisor import (
 
 
 AuditHook = Callable[[Mapping[str, Any]], None]
-DEFAULT_SUPERVISOR_ENV_FILE = PROJECT_ROOT / ".env"
+DEFAULT_SUPERVISOR_ENV_FILE = DEFAULT_ENV_FILE
 _RETRYABLE_STATUS = {425, 429, 500, 502, 503, 504}
 # The configured relay exposes Responses, but the exact GoalPlan v4 request
 # repeatedly returned an upstream HTTP 500 while the byte-equivalent system
@@ -184,6 +184,7 @@ class SupervisorAPISettings:
     plan_cache_enabled: bool = True
     plan_cache_dir: str = str(PROJECT_ROOT / "data" / "cache" / "supervisor_plans")
     backend_profile: str = "openai-compatible"
+    stream_responses: bool = False
 
     @classmethod
     def from_env(
@@ -215,6 +216,7 @@ class SupervisorAPISettings:
             backend_profile=role_env(
                 "planner", "backend_profile", default="openai-compatible",
             ),
+            stream_responses=role_bool("planner", "stream", default=False),
             connect_timeout_seconds=role_float(
                 "planner",
                 "connect_timeout",
@@ -382,6 +384,7 @@ class SupervisorAPISettings:
     def public_dict(self) -> dict[str, Any]:
         return {
             "backend_profile": self.backend_profile,
+            "stream_responses": self.stream_responses,
             "base_url": self.base_url,
             "model": self.model,
             "stage_checker_model": self.stage_checker_model,
@@ -865,6 +868,79 @@ class SupervisorProtocolError(RuntimeError):
     """The supervisor provider response violated the local JSON contract."""
 
 
+def _decode_chat_completion_stream(response: Any, *, deadline: float) -> dict[str, Any]:
+    """Assemble one SSE chat completion without interpreting partial model JSON."""
+
+    event_lines: list[str] = []
+    content: list[str] = []
+    model = ""
+    finish_reason: str | None = None
+    usage: dict[str, Any] = {}
+    for raw_line in response.iter_lines():
+        if time.monotonic() > deadline:
+            raise requests.ReadTimeout("supervisor stream exceeded the request read budget")
+        try:
+            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+        except UnicodeDecodeError as exc:
+            raise SupervisorProtocolError("supervisor stream is not UTF-8") from exc
+        if line:
+            if line.startswith("data:"):
+                event_lines.append(line[5:].removeprefix(" "))
+            continue
+        if not event_lines:
+            continue
+        event = "\n".join(event_lines)
+        event_lines.clear()
+        if event == "[DONE]":
+            if finish_reason is None:
+                raise SupervisorProtocolError("supervisor stream ended without finish_reason")
+            return {
+                "model": model,
+                "choices": [{"message": {"role": "assistant", "content": "".join(content)},
+                             "finish_reason": finish_reason}],
+                "usage": usage,
+            }
+        try:
+            chunk = json.loads(event)
+        except ValueError as exc:
+            raise SupervisorProtocolError("supervisor stream contains invalid JSON event") from exc
+        if not isinstance(chunk, Mapping) or chunk.get("error"):
+            raise SupervisorProtocolError("supervisor stream contains an invalid/error event")
+        chunk_model = chunk.get("model")
+        if chunk_model:
+            if not isinstance(chunk_model, str) or (model and model != chunk_model):
+                raise SupervisorProtocolError("supervisor stream changed model identity")
+            model = chunk_model
+        if chunk.get("usage") is not None:
+            if not isinstance(chunk["usage"], Mapping):
+                raise SupervisorProtocolError("supervisor stream has invalid usage")
+            usage = dict(chunk["usage"])
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or len(choices) > 1:
+            raise SupervisorProtocolError("supervisor stream requires a single choice")
+        if not choices:
+            continue
+        choice = choices[0]
+        if not isinstance(choice, Mapping) or choice.get("index") != 0:
+            raise SupervisorProtocolError("supervisor stream requires choice index 0")
+        delta = choice.get("delta")
+        if not isinstance(delta, Mapping) or delta.get("tool_calls") or delta.get("refusal"):
+            raise SupervisorProtocolError("supervisor stream requires an assistant text delta")
+        text = delta.get("content")
+        if text is not None and not isinstance(text, str):
+            raise SupervisorProtocolError("supervisor stream content delta must be text")
+        if finish_reason is not None:
+            raise SupervisorProtocolError("supervisor stream contains a choice after its finish")
+        if text:
+            content.append(text)
+        reason = choice.get("finish_reason")
+        if reason is not None:
+            if not isinstance(reason, str) or not reason:
+                raise SupervisorProtocolError("supervisor stream has invalid finish_reason")
+            finish_reason = reason
+    raise SupervisorProtocolError("supervisor stream ended before [DONE]")
+
+
 def _decode_supervisor_json_content(
     content: str,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -1053,7 +1129,9 @@ class OpenAICompatibleSupervisorClient:
 
     def _post_completion(self, endpoint: str, body: Mapping[str, Any]):
         with self._request_slot():
-            return self._session().post(
+            streaming = body.get("stream") is True
+            deadline = time.monotonic() + self.settings.read_timeout_seconds
+            response = self._session().post(
                 endpoint,
                 headers=self._headers(),
                 json=dict(body),
@@ -1062,7 +1140,22 @@ class OpenAICompatibleSupervisorClient:
                     self.settings.read_timeout_seconds,
                 ),
                 verify=self.settings.verify_tls,
+                **({"stream": True} if streaming else {}),
             )
+            if not streaming:
+                return response, None, None
+            # Keep serialization and the connection lease through the complete
+            # stream. Return errors with the HTTP response so audit still knows
+            # this was HTTP 200, distinct from a connection failure.
+            try:
+                if response.status_code >= 400:
+                    getattr(response, "content", None)  # cache the error body before close
+                    return response, None, None
+                return response, _decode_chat_completion_stream(response, deadline=deadline), None
+            except Exception as exc:
+                return response, None, exc
+            finally:
+                response.close()
 
     def _emit(self, event: Mapping[str, Any]) -> None:
         if self.audit_hook is None:
@@ -1150,6 +1243,7 @@ class OpenAICompatibleSupervisorClient:
                     f"rwkv_lh_supervisor_{phase}_{schema_revision}",
                     schema,
                 ),
+                **({"stream": True} if self.settings.stream_responses else {}),
             },
             transport,
         )
@@ -1356,6 +1450,7 @@ class OpenAICompatibleSupervisorClient:
                 "input_sha256": hashlib.sha256(payload_bytes).hexdigest(),
                 "input_chars": len(payload_bytes.decode("utf-8")),
                 "max_tokens": int(max_tokens),
+                "stream": body.get("stream") is True,
                 "response_format": (
                     None if transport == supervisor_vllm_rwkv.TRANSPORT else "json_object"
                 ),
@@ -1393,7 +1488,7 @@ class OpenAICompatibleSupervisorClient:
                         "attempt": attempt,
                     }
                 )
-                response = self._post_completion(endpoint, body)
+                response, streamed_data, stream_error = self._post_completion(endpoint, body)
                 last_status = response.status_code
                 latency_ms = round((time.perf_counter() - started) * 1000, 1)
                 if response.status_code in _RETRYABLE_STATUS and attempt < self.settings.retry_attempts:
@@ -1408,7 +1503,9 @@ class OpenAICompatibleSupervisorClient:
                         response=response,
                     )
                 try:
-                    data = response.json()
+                    if stream_error is not None:
+                        raise stream_error
+                    data = streamed_data if streamed_data is not None else response.json()
                 except (ValueError, json.JSONDecodeError) as exc:
                     raise SupervisorProtocolError(
                         "supervisor returned invalid JSON"
@@ -1472,6 +1569,11 @@ class OpenAICompatibleSupervisorClient:
                             "supervisor response has empty JSON content"
                         )
                     finish_reason = str(choices[0].get("finish_reason") or "")
+                    if phase in {"goal_plan", "goal_stage_review"} and finish_reason != "stop":
+                        raise SupervisorProtocolError(
+                            f"supervisor {phase} requires finish_reason='stop'; "
+                            f"received {finish_reason!r}"
+                        )
                 # Restore only the exact prefix sent in this native request.
                 # Planner continues an already empty thinking tag; Stage Checker
                 # supplies its reasoning and closing tag. Neither output is repaired.
@@ -1501,6 +1603,7 @@ class OpenAICompatibleSupervisorClient:
                         "provider": self.provider_name,
                         "model": str(data.get("model") or selected_model),
                         "transport": transport,
+                        "stream": body.get("stream") is True,
                         "latency_ms": latency_ms,
                         "http_attempts": attempt,
                         "finish_reason": finish_reason,
@@ -2904,7 +3007,9 @@ class OpenAICompatibleSupervisorClient:
     def plan_goal_patch(self, request: Any) -> Any:
         """Produce one native rolling-plan delta and nothing else."""
 
-        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+        from rwkv_lh.goal_loop_protocol import (
+            GoalPlanPatch, GoalPlanRequest, GoalPlanResponseError,
+        )
 
         if not isinstance(request, GoalPlanRequest):
             raise TypeError("goal planner requires GoalPlanRequest")
@@ -3028,8 +3133,8 @@ class OpenAICompatibleSupervisorClient:
         )
         if request.local_validation_repair is not None:
             system_prompt += (
-                " The immediately preceding patch was rejected by the Controller's "
-                "rolling-plan validator. local_validation_repair is the authoritative "
+                " The immediately preceding patch was rejected by local protocol or "
+                "rolling-plan validation. local_validation_repair is the authoritative "
                 "final instruction. Return one fresh complete patch that fixes its exact "
                 "error against active_plan. Do not reuse an existing id in add_stages, "
                 "do not put one id in both replace_stages and discard_step_ids, and do "
@@ -3064,25 +3169,22 @@ class OpenAICompatibleSupervisorClient:
                 # of the number of steps required by the task.
                 max_tokens=self.settings.max_plan_tokens,
             )
-        patch = GoalPlanPatch.from_model_value(
-            value,
-            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
-            base_revision=request.plan_revision,
-        )
-        if initial and (patch.replace_steps or patch.discard_step_ids):
-            raise SupervisorProtocolError(
-                "initial Goal PlanPatch cannot replace or discard steps"
+        try:
+            patch = GoalPlanPatch.from_model_value(
+                value,
+                patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+                base_revision=request.plan_revision,
             )
-        if initial and not patch.add_steps:
-            raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
-        if initial and not patch.goal_obligations:
-            raise SupervisorProtocolError(
-                "initial Goal PlanPatch requires immutable goal_obligations"
-            )
-        if not initial and patch.goal_obligations:
-            raise SupervisorProtocolError(
-                "continuation Goal PlanPatch cannot redefine goal_obligations"
-            )
+            if initial and (patch.replace_steps or patch.discard_step_ids):
+                raise ValueError("initial Goal PlanPatch cannot replace or discard steps")
+            if initial and not patch.add_steps:
+                raise ValueError("initial Goal PlanPatch requires add_steps")
+            if initial and not patch.goal_obligations:
+                raise ValueError("initial Goal PlanPatch requires immutable goal_obligations")
+            if not initial and patch.goal_obligations:
+                raise ValueError("continuation Goal PlanPatch cannot redefine goal_obligations")
+        except (TypeError, ValueError) as exc:
+            raise GoalPlanResponseError(str(exc), rejected_patch=value) from exc
         if not cache_hit:
             # Cross-step ids, dependencies, replacement legality, and completed
             # evidence are validated by the Controller against its reconstructed

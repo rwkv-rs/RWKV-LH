@@ -1,0 +1,29 @@
+{
+  "round_id": "PLANNER_STRONG_ROUTING_R1_20260909",
+  "base_commit": "d13f28407350194cc051579d611b849710e27197",
+  "owner_instruction": "修改 Planner 解析器；Planner 应使用强模型，不再沿用 13.3B",
+  "scope": ["canonical deployment configuration", "Planner validation feedback and failure classification", "bounded real strong Planner smoke"],
+  "preserved_architecture": "one current Controller and five RWKV State roles",
+  "regressions": {
+    "red_test_count": 15,
+    "required": "all new regressions and full tests/ pass, no skipped Torch/State/browser verification",
+    "old_observation": "R3 remains paused and is not rescored with this parser"
+  },
+  "smoke": {
+    "source": "owner-visible local public file inspection request; no benchmark or private verifier",
+    "configured_model": "gpt-5.6-sol",
+    "configuration_source": "existing ignored .env.strong.local, migrated into .env.local",
+    "logical_planner_calls_max": 2,
+    "semantic_repair_attempts": 1,
+    "transport_attempts_per_call": 1,
+    "output_tokens_per_call": 8192,
+    "read_timeout_seconds": 240,
+    "wall_seconds_max": 600,
+    "success": "provider response naturally stops, reports configured model, parses current GoalPlanPatch and passes existing Controller plan validation",
+    "allowed_source_content": "public README fixture only",
+    "not_agent_score": true
+  },
+  "formal_optimizer_steps": 0,
+  "formal_datasets_created": 0,
+  "full_benchmark_restarted": false
+}

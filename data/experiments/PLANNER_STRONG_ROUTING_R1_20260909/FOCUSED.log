@@ -1,0 +1,337 @@
+...........FFFFFFFFFFFF................................................. [ 33%]
+........................................................................ [ 66%]
+.......................................................................  [100%]
+=================================== FAILURES ===================================
+___ test_goal_planner_never_accepts_json_without_natural_completion[length] ____
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+_ test_goal_planner_never_accepts_json_without_natural_completion[content_filter] _
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+____ test_goal_planner_never_accepts_json_without_natural_completion[None] _____
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[top] _
+
+invalid_part = 'top'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:957: TypeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[stage] _
+
+invalid_part = 'stage'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:957: TypeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[step] _
+
+invalid_part = 'step'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:957: TypeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[obligation] _
+
+invalid_part = 'obligation'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:957: TypeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[obligations] _
+
+invalid_part = 'obligations'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:994: TypeError
+___ test_planner_initial_and_continuation_errors_are_repairable_values[add] ____
+
+invalid_part = 'add'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:994: TypeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[replace] __
+
+invalid_part = 'replace'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:994: TypeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[discard] __
+
+invalid_part = 'discard'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:994: TypeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[continuation] _
+
+invalid_part = 'continuation'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:994: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[length]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[content_filter]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[None]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[top]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[stage]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[step]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[obligation]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[obligations]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[add]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[replace]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[discard]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[continuation]
+12 failed, 203 passed in 46.35s

@@ -65,38 +65,30 @@ owner 于 2026-09-07 明确取消 Planner 步数要求。Planner 按任务需要
 
 每步仍有一个职责 phase，阶段内步骤独立且根路径不冲突，依赖只能指向更早阶段；义务绑定、字段类型、有效根、证据权威、完成步骤不可改写及非空阶段等语义合同继续生效。模型上下文、输出 token 和执行资源预算独立登记，不把这些资源预算伪装成固定步数要求。规模政策改变后新运行重新冻结，历史输出及成绩保留原始口径，不重评分。
 
-取消计划数量上限不等于模型上下文无限。最近冻结部署的 13.3B 服务窗口为 16,384 tokens，新运行须核验实际值，请求必须核对实际输入与登记的输出预算；超出窗口不能静默截断计划、删证据、临时降低预算或伪装为模型完成。任务结束仍由 RWKV 结合目标覆盖和执行证据判断，并通过既有完成校验；资源不足只能明确报告中断或阻塞。
+取消计划数量上限不等于模型上下文无限。当前 RWKV 服务窗口为 16,384 tokens；独立强模型的上下文由其服务决定，不能套用 RWKV 的窗口值或仅凭模型 alias 推断。新运行须核验实际限制和请求预算；超出窗口不能静默截断计划、删证据、临时降低预算或伪装为模型完成。任务结束仍由 RWKV 结合目标覆盖和执行证据判断，并通过既有完成校验；资源不足只能明确报告中断或阻塞。
 
-### 1.5 本地 13.3B Supervisor 原生传输
+### 1.5 独立强模型 Supervisor 与唯一配置入口
 
-owner 于 2026-09-07 授权 Planner 与 Stage Checker 使用同一现有 13.3B 服务。2026-09-07 冻结部署配置如下，新运行须核验实际身份；`SupervisorAPISettings` 的通用 backend 默认仍是 `openai-compatible`，本地部署必须显式选择原生 profile。
+owner 于 2026-09-09 要求 Planner 使用强模型。本地已有的强模型配置现已合入唯一 `.env.local`，Planner / Stage Checker 与 RWKV runtime 的默认读取路径一致，显式进程变量优先。清除旧 `.env` 中的 Supervisor 路由与冗余 `.env.strong.local`，不得依赖组件初始化次序决定模型。历史 13.3B Planner 观察保持原始身份，不改写成强模型结果。
 
 | 配置 | 当前值 |
 |---|---|
-| `RWKV_LH_PLANNER_BACKEND_PROFILE` | `vllm-rwkv-native` |
-| Planner / Stage Checker 模型 alias | `rwkv7-g1j-13.3b-zero-state-capability-ctx16384` |
-| 本地 base URL / 远端端口 | `http://127.0.0.1:29613/v1` / `rwkv-8222:18234/v1` |
+| `RWKV_LH_PLANNER_BACKEND_PROFILE` | `openai-compatible` |
+| `RWKV_LH_PLANNER_STREAM` | `true`，当前网关使用 SSE；通用程序默认 false，原生 RWKV 传输不受此开关影响 |
+| Planner / Stage Checker 模型 alias | `gpt-5.6-sol` |
+| base URL | owner 已配置的 `https://next-token.cc/v1`；不在代码中固定服务地址 |
 | `RWKV_LH_PLANNER_MAX_PLAN_TOKENS` | `8192` |
 | `RWKV_LH_PLANNER_READ_TIMEOUT` | `240` 秒，两个 Supervisor 角色共用 |
 | `RWKV_LH_PLANNER_MAX_CONTRACT_REVIEW_TOKENS` | Stage Checker 保持 `2400` |
 | `RWKV_LH_PLANNER_PLAN_CACHE_ENABLED` | `false` |
 | `RWKV_LH_PLANNER_FALLBACK_MODELS` | 空 |
+| 本地语义纠错 / 传输尝试 | 默认 1 次语义纠错；最多 2 次传输尝试，协议错误不消耗传输重试 |
 
-当前生成前缀按角色区分：Planner 使用原生 `fake_think` 的 `<think></think`，不请求 CoT；Stage Checker 保持 `open_think` 的 `<think`。该设置直接作用于原生 prompt，不依赖先前被 chat 渲染链过滤的自定义 kwargs；模型仍须自行输出合法 JSON 和字段。
+当前通过 `/chat/completions` 发送生产 `GoalPlanRequest` / `GoalStageReviewRequest`，使用 `response_format=json_object` 并显式发送输出 token 上限。当前网关对完整非流式 Planner 请求返回过 HTTP 500，相同输入的 SSE 诊断成功；这支持配置流式传输，但不能据此断言网关内部故障原因。流式实现保留同一请求串行锁直到读完，拼接标准 SSE 文本增量后才做 JSON/合同校验；缺少 DONE/finish、切换 model、多个 choice、结束后追加内容均拒绝，读取预算按中断处理。通用聊天与原生 RWKV 传输都要求自然 `stop`，`length` 即使伴随完整 JSON 也拒绝；未知停止原因不伪装成完成。Planner 只生成计划，Stage Checker 只审查已完成阶段；五个 RWKV 角色继续使用各自模型与 State。
 
-原生适配只用于 `goal_plan` / `goal_stage_review`。Planner 仍只输出计划补丁，Stage Checker 仍只审查已完成阶段；Selector、Executor、Step Auditor、Finalizer、Final Auditor 的模型、预算、职责和 State 不变。唯一的角色请求构造与 system prompt 不变，传输模块仅将已有 payload 按 `_render_user_payload` 序列化后包装为下列原生文本：
+完整 JSON 未满足当前合同或初始/续写边界时，保留原始对象，使用 `GoalPlanResponseError` 进入 Controller 已有的语义纠错；错误说明指出缺失/多余字段，原始计划放在同一请求尾部。被拒绝的对象没有修改计划的权威，不准重写 root、发明字段、接纳旧版本或拼补截断 JSON。网络失败仍保留 pending 与原传输错误。RWKV 原生传输适配作为同一协议的 backend 配置继续可用；其历史验证见 [原生适配报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
 
-```text
-System✿{system_prompt}✿
-User✿{payload_text}✿
-Bot✿{generation_prefill}
-```
-
-向 `/completions` 发送 `TextCompletionRequest.payload(..., sampler_mode="native")`，不发送 `response_format` / `structured_outputs`，从而避开本部署缺少 `lmformatenforcer` 的约束生成路径。明确传入 temperature 0.1、top_p 1、top_k 0、presence/frequency penalty 0、decay 0.996、stop `✿`、stop token 0、BOS 和返回 token IDs；每次请求显式指定 `zero` / 64 个 `0` 的 State SHA，不继承其他角色的采样上下文、WKV 或 State handle。
-
-响应必须是唯一 choice，`text` 非空且从 `>` 开始，`finish_reason` 严格为 `stop`；`length` 即使伴随完整 JSON 也拒绝。只把本次实际发出的角色生成前缀合回原文后交既有严格 JSON decoder，再执行原 GoalPlanPatch / StageReview 合同校验。不得扫描任意 JSON 后缀、补写字段或放宽语义约束。审计保存 raw output、prompt/prefill/output SHA 及返回的 token IDs；IDs 缺失/null不单独否定 JSON，但不能声称已有完整 token trace；已返回的非法 token 类型必须拒绝。缓存身份绑定实际 endpoint、传输参数、预算和 zero 身份，本轮配置仍关闭缓存。
-
-连接探针和使用 mock 审计的 Controller fixture 均不计 Agent 分数、双零噪声或 StateTune 来源。完整源码、测试与连接证据见 [本轮原生适配报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
+连接探针与 Planner 单边界检查均不计 Agent 分数、双零噪声或 StateTune 来源；模型名由服务返回，自托管权重级 attestation 不适用于这个外部接口。配置迁移与验证证据见 [Planner 修复报告](../data/experiments/PLANNER_STRONG_ROUTING_R1_20260909/REPORT.zh-CN.md)。
 
 ### 1.6 单一架构与模型升级
 

@@ -1,0 +1,37 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+_ test_supervisor_stream_can_be_configured_without_affecting_native_transport __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_supervisor_stream_can_be_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74472f261b70>
+
+    def test_supervisor_stream_can_be_configured_without_affecting_native_transport(tmp_path, monkeypatch):
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        path = tmp_path / "provider.env"
+        path.write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=https://fixture.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-key",
+            "RWKV_LH_PLANNER_MODEL=provider-configured-model",
+            "RWKV_LH_PLANNER_STREAM=true",
+        )))
+        loaded = SupervisorAPISettings.from_env(path)
+        assert loaded.stream_responses is True
+        assert loaded.public_dict()["stream_responses"] is True
+        client = OpenAICompatibleSupervisorClient(replace(loaded, backend_profile="vllm-rwkv-native"))
+>       _, body, _ = client._wire_request(
+            phase="goal_plan", selected_model=loaded.model, system_prompt="Fixture",
+            request_payload=GoalPlanRequest(
+                run_id="RUN-native-stream-isolation", immutable_request="Inspect",
+                goal_digest="native-fixture", plan_revision=0,
+                active_plan=RollingGoalPlan(goal_digest="native-fixture").to_model_dict(),
+                latest_audit=None, workspace_manifest={"entries": []},
+            ).to_dict(), max_tokens=8192, schema_revision="fixture", schema={},
+        )
+E       TypeError: OpenAICompatibleSupervisorClient._wire_request() got an unexpected keyword argument 'request_payload'
+
+tests/test_supervisor_openai.py:1058: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_openai.py::test_supervisor_stream_can_be_configured_without_affecting_native_transport
+1 failed, 9 passed, 60 deselected in 0.29s

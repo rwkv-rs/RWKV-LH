@@ -1,8 +1,14 @@
 # 当前交接
 
-更新日期：2026-09-09；当前轮 `RWKV29_DEPLOY_COMPAT_R1_20260909`。执行规范见 [统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)，闭环已提交 `b2f74b679259d9ea5512c8e7849d45f0534a1b9d`，分析见 [链路报告](../data/experiments/CONTROLLER_ROLE_CLOSURE_R1_20260909/REPORT.zh-CN.md)；2.9B 已部署并通过 Native 兼容验证，见 [部署报告](../data/experiments/RWKV29_DEPLOY_COMPAT_R1_20260909/REPORT.zh-CN.md)。统一设计见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
+更新日期：2026-09-09；当前轮 `PLANNER_STRONG_ROUTING_R1_20260909`。Planner / Stage Checker 默认配置已切到独立强模型，解析纠错和 SSE 接收已修复；完整回归 1102 passed，0 skipped。真实强模型生成已有证据，生产计划接纳和 Agent 闭环尚未证明，详见 [Planner 报告](../data/experiments/PLANNER_STRONG_ROUTING_R1_20260909/REPORT.zh-CN.md)。2.9B 已部署并通过 Native 兼容验证，见 [部署报告](../data/experiments/RWKV29_DEPLOY_COMPAT_R1_20260909/REPORT.zh-CN.md)。执行规范与统一设计见 [统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)、[角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
 
 ## Agent 实测与 trace 到达位置
+
+当前生产链路 R3 由 owner 主动暂停：12 题中仅 10 题有终止记录，这些记录 Strict / completed / mutation / actions 均为 0，原始终止 `strong_planner_unavailable`；两个 Web 题未完成，不能作为完整 12 题成绩。Planner 当时仍为 13.3B，尚未产生 Selector 可训练边界，见 [R3 暂停报告](../data/experiments/CURRENT_ROLE_CHAIN_OBSERVATION_R3_20260909/REPORT.zh-CN.md)。本轮未重新启动整套评测或训练。
+
+当前 `.env.local` 统一配置 Planner / Stage Checker 为 `gpt-5.6-sol`、stream=true，原 13.3B 不再是默认 Planner。真实 SSE 诊断输出通过当前计划合同，但生产检查的一次 521-token 完整输出含无效的空 required_phases，语义纠错与一次原样传输恢复均遇到网关 500。不能将模型列表健康、角色合同通过或工程测试等同于 Agent 验收。外部可用资源与静态轨迹限制见 [接入判断](OPEN_SOURCE_RESOURCE_ADOPTION.zh-CN.md)。
+
+Planner 报告 SHA-256：`0b12736abe22dd4a931062bf979cd619912685c3dc275d4ec34be7c7837245b2`；最终完整测试日志 SHA-256：`8145b83468ec5e1e9b5eda65b1920b14754a7563379a035eef30151c52b4dd58`。完整文件清单见该轮 `EVIDENCE_SHA256.json`。
 
 最近完整模型对比仍是 2026-09-07 的 R7：A/B 各 Strict **0/12**、completed **0/12**、mutation **0**，各成功目录观察 12 次；所有题原始终止 `strong_planner_unavailable`，子分类 `fixed_plan_exhausted`。模型没有执行第二个动作，后面的读文件、变更、检查、Stage 与 Final 路径尚无该轮能力证据。不能把它解释为已走到第二或第三阶段。
 
@@ -35,7 +41,7 @@ R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e
 
 ## 下一步与仍未证明的能力
 
-1. 统一角色链路已完成本轮工程整改与完整回归。首次当前版本真实观察又发现 Supervisor 将 HTTP-200 协议失败放进传输重试循环，已修复并保留中止数据，见 [重试归属报告](../data/experiments/SUPERVISOR_PROTOCOL_RETRY_R1_20260909/REPORT.zh-CN.md)。首题未经过 Planner，Selector 尚无新数据；后续重新冻结全部 12 题，不拼接中止运行的成绩。
+1. Controller 既有工程整改、Supervisor HTTP-200 重试归属和本轮 Planner 配置/解析/SSE 修复已通过各自完整回归。下一次运行必须重新冻结源码、实际强模型路由及预算；不拼接或重评分 R3。先验证可持续的 Planner 请求及 pending 恢复，不能把原样传输探针等同于 Controller 自动恢复；owner 暂停的整套评测与训练不得自动启动。
 2. 2.9B 已上线 `rwkv-lh-selector-current.service`（GPU 2，本地端口 29621），原始权重与转换后权重均核验，32 层 / 40×64 State 已通过至 16384 tokens 的 Native 前向与反向验证。本地旧 Selector 协议/模型 SHA 配置已更新；原 13.3B 服务保持运行。服务器仅使用上传的完整 SHA manifest，没有 Git。
 3. 登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前数值训练后端已经验证；正式角色数据消费、优化器运行登记与候选验收仍需接通，不能将数值反向测试算作训练。
 4. Planner 合同生成、Stage Checker 上下文/自然结束、后续编码与最终完成能力仍须新生产运行测量；E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。

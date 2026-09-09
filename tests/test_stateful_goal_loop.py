@@ -4471,6 +4471,89 @@ def test_planner_semantic_repair_is_bounded_and_not_reported_unavailable(
     assert terminal.payload["reason"] == "strong_planner_semantic_invalid"
 
 
+@pytest.mark.parametrize("failure", ["wrong_field", "missing_initial_obligations"])
+def test_planner_raw_parse_rejection_reaches_same_boundary_repair(
+    tmp_path: Path, failure: str,
+) -> None:
+    from rwkv_lh.supervisor_openai import OpenAIGoalSupervisorClient, SupervisorAPISettings
+
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "PLANNER-RAW-REPAIR")
+    model = LongHorizonModel(
+        ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+        tool_selector=_selector([]),
+    )
+    patch = GoalPlanPatch(
+        patch_id="GPP-provider-fixture", base_revision=0,
+        goal_obligations=(GoalObligation("O1", "Workspace is inspected", ("observe",)),),
+        add_steps=(GoalPlanStep(
+            step_id="S1", objective="Inspect the workspace", phase="observe",
+            obligation_ids=("O1",), read_roots=(".",),
+            success_evidence=("Workspace entries are observed",),
+        ),), replace_steps=(), discard_step_ids=(), reason="Inspect current evidence",
+    )
+    valid = patch.to_dict()
+    for key in ("schema_version", "patch_id", "base_revision"):
+        valid.pop(key)
+    for stage in valid["add_stages"]:
+        for step in stage["steps"]:
+            step.pop("allowed_operations")
+    invalid = deepcopy(valid)
+    if failure == "wrong_field":
+        obligation = invalid["goal_obligations"][0]
+        obligation["observable_predicate"] = obligation.pop("predicate")
+    else:
+        invalid["goal_obligations"] = []
+
+    class ProviderSession:
+        def __init__(self):
+            self.posts = []
+            self.outputs = [invalid, valid]
+
+        def post(self, url, **kwargs):
+            self.posts.append(kwargs["json"])
+            value = self.outputs.pop(0)
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "model": "strong-fixture",
+                "choices": [{"finish_reason": "stop", "message": {
+                    "role": "assistant", "content": json.dumps(value),
+                }}],
+            })
+
+    session = ProviderSession()
+    planner = OpenAIGoalSupervisorClient(SupervisorAPISettings(
+        base_url="https://planner.invalid/v1", api_key="fixture-only",
+        model="strong-fixture", stage_checker_model="strong-fixture",
+        retry_attempts=2, plan_cache_enabled=False,
+    ), session=session)
+    controller = StatefulGoalLoopController(
+        store, model=model, harness=model.harness, supervisor=planner,
+        supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=4,
+    )
+
+    result = controller._issue_strong_plan_patch(
+        state, plan=rolling_goal_plan(state), transitions=0,
+    )
+
+    assert result is None
+    assert len(session.posts) == 2
+    first = json.loads(session.posts[0]["messages"][-1]["content"])
+    second = json.loads(session.posts[1]["messages"][-1]["content"])
+    assert "local_validation_repair" not in first
+    assert second["local_validation_repair"]["rejected_patch"] == invalid
+    assert second["active_plan"] == first["active_plan"]
+    assert list(second)[-1] == "local_validation_repair"
+    events = [state.causal_records[key] for key in state.causal_order]
+    rejected = [event for event in events if event.event_type == "strong_planner_patch_rejected"]
+    assert len(rejected) == 1
+    assert rejected[0].payload["rejected_patch"] == invalid
+    assert not any(event.event_type == "strong_planner_call_failed" for event in events)
+    committed = [event for event in events if event.event_type == "goal_plan_patch_committed"]
+    assert len(committed) == 1
+    assert committed[0].payload["patch"]["goal_obligations"] == valid["goal_obligations"]
+    assert not state.actions
+
+
 def test_goal_planner_transport_pending_is_durable_and_resolved_on_reentry(
     tmp_path: Path,
 ) -> None:

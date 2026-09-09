@@ -1,0 +1,18 @@
+{
+  "purpose": "Validate the configured SSE transport through the production Planner and Controller boundary after the exact-body SSE diagnostic passed",
+  "model": "gpt-5.6-sol",
+  "backend_profile": "openai-compatible",
+  "stream": true,
+  "input_builder": "GoalPlanRequest.to_dict through StatefulGoalLoopController._issue_strong_plan_patch",
+  "source": "public README inspection fixture",
+  "logical_calls_max": 2,
+  "transport_attempts_per_call": 1,
+  "semantic_repair_attempts": 1,
+  "max_tokens": 8192,
+  "read_timeout_seconds": 240,
+  "wall_seconds_max": 600,
+  "required": "natural stop and DONE, reported configured model, current protocol and Controller validators accept exactly one plan, no Agent action",
+  "agent_score": null,
+  "formal_optimizer_steps": 0,
+  "old_failed_attempts_preserved": true
+}

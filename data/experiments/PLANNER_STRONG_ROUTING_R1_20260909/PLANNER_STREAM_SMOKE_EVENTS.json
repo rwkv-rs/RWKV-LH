@@ -1,0 +1,121 @@
+[
+  {
+    "event_type": "run_created",
+    "payload": {
+      "goal_digest": "dfbb125784417f52cd9e640a456e1e11a01c402907f03fd10375c7a4ea7c4bf0"
+    }
+  },
+  {
+    "event_type": "strong_planner_patch_rejected",
+    "payload": {
+      "phase": "goal_plan",
+      "attempt": 1,
+      "configured_semantic_repair_attempts": 1,
+      "error": {
+        "type": "GoalPlanResponseError",
+        "message": "Goal obligation requires at least one execution phase"
+      },
+      "rejected_patch": {
+        "goal_obligations": [
+          {
+            "obligation_id": "O1",
+            "predicate": "README.md is inspected and the test command documented in it is identified from the file contents",
+            "required_phases": [
+              "observe"
+            ]
+          },
+          {
+            "obligation_id": "O2",
+            "predicate": "The reported test command includes file-grounded citation evidence identifying README.md and the relevant documented text or location",
+            "required_phases": [
+              "observe"
+            ]
+          },
+          {
+            "obligation_id": "O3",
+            "predicate": "The documented test command is not executed and no files are modified",
+            "required_phases": []
+          }
+        ],
+        "add_stages": [
+          {
+            "stage": 1,
+            "steps": [
+              {
+                "step_id": "S1",
+                "objective": "Inspect README.md to locate the documented test command and capture the exact command text with its file citation context",
+                "phase": "observe",
+                "depends_on": [],
+                "obligation_ids": [
+                  "O1",
+                  "O2",
+                  "O3"
+                ],
+                "success_evidence": [
+                  "Successful read evidence shows README.md contents containing the documented test command and enough surrounding text or location to cite it",
+                  "No command invocation or file mutation is performed"
+                ],
+                "read_roots": [
+                  "README.md"
+                ],
+                "write_roots": [],
+                "constraints": [
+                  "Do not execute any command described in README.md",
+                  "Do not modify any file",
+                  "Use only the inspected README.md content as the basis for the command and citation"
+                ]
+              }
+            ]
+          }
+        ],
+        "replace_stages": [],
+        "discard_step_ids": [],
+        "reason": "Inspect the sole requested file, bind the documented test command to direct file evidence, and preserve the explicit no-execution and no-modification constraints."
+      },
+      "repair_scheduled": true,
+      "resumable": true
+    }
+  },
+  {
+    "event_type": "strong_planner_call_failed",
+    "payload": {
+      "phase": "goal_plan",
+      "error": {
+        "type": "SupervisorTransportError",
+        "message": "supervisor HTTP 500 during goal_plan"
+      },
+      "resumable": true
+    }
+  },
+  {
+    "event_type": "supervisor_call_pending",
+    "payload": {
+      "pending_id": "SUP-PENDING-goal_plan-0001",
+      "phase": "goal_plan",
+      "attempt": 1,
+      "state": "pending_retry",
+      "retry_trigger": "resume_or_proactive_scheduler",
+      "retry_policy": {
+        "transport_retries_are_owned_by_supervisor_client": true,
+        "controller_inline_replay": false,
+        "reenter_from_committed_causal_state": true
+      },
+      "at": "2026-09-09T11:39:53.184+00:00"
+    }
+  },
+  {
+    "event_type": "run_yielded",
+    "payload": {
+      "reason": "strong_planner_unavailable",
+      "boundary_type": "run_interrupted",
+      "resumable": true,
+      "termination_permitted": false,
+      "continuation": "controller_resume",
+      "candidate_decision_id": "",
+      "candidate_output_source": "none",
+      "candidate_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_output": "",
+      "at": "2026-09-09T11:39:53.205+00:00"
+    }
+  }
+]

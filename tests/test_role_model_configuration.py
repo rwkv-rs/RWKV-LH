@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +24,62 @@ from scripts.run_rwkv_e2e_benchmark import (
     _close_stateful_goal_role_sessions,
     _goal_role_settings,
 )
+
+
+@pytest.mark.parametrize("supervisor_first", [True, False])
+@pytest.mark.parametrize("process_override", [True, False])
+def test_planner_and_runtime_share_one_default_env_in_either_load_order(
+    tmp_path, monkeypatch, supervisor_first, process_override,
+) -> None:
+    import rwkv_lh.runtime.settings as runtime_module
+    import rwkv_lh.supervisor_openai as supervisor_module
+
+    for key in tuple(os.environ):
+        if key.startswith(("RWKV_", "SUPERVISOR_")):
+            monkeypatch.delenv(key)
+    (tmp_path / ".env.local").write_text("\n".join((
+        "RWKV_LH_PLANNER_BASE_URL=https://strong.invalid/v1",
+        "RWKV_LH_PLANNER_API_KEY=fixture-key",
+        "RWKV_LH_PLANNER_MODEL=strong-planner",
+        "RWKV_LH_STAGE_CHECKER_MODEL=strong-stage-checker",
+        "RWKV_LH_PLANNER_BACKEND_PROFILE=openai-compatible",
+        "RWKV_LH_EXECUTOR_MODEL=rwkv-executor",
+        "RWKV_LH_SELECTOR_MODEL=rwkv-selector",
+        "SUPERVISOR_MAX_REVIEW_REPAIRS=2",
+    )), encoding="utf-8")
+    (tmp_path / ".env").write_text("\n".join((
+        "RWKV_LH_PLANNER_BASE_URL=http://stale.invalid/v1",
+        "RWKV_LH_PLANNER_API_KEY=stale-fixture-key",
+        "RWKV_LH_PLANNER_MODEL=stale-rwkv-planner",
+        "RWKV_LH_STAGE_CHECKER_MODEL=stale-rwkv-checker",
+        "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+    )), encoding="utf-8")
+    if process_override:
+        monkeypatch.setenv("RWKV_LH_PLANNER_MODEL", "process-planner")
+    original_loader = runtime_module.load_local_env
+    loaded_paths = []
+
+    def fixture_loader(path=runtime_module.DEFAULT_ENV_FILE, **kwargs):
+        loaded_paths.append(Path(path).name)
+        original_loader(tmp_path / Path(path).name, **kwargs)
+
+    monkeypatch.setattr(runtime_module, "load_local_env", fixture_loader)
+    monkeypatch.setattr(supervisor_module, "load_local_env", fixture_loader)
+    if supervisor_first:
+        planner = SupervisorAPISettings.from_env()
+        runtime = RuntimeSettings.from_env()
+    else:
+        runtime = RuntimeSettings.from_env()
+        planner = SupervisorAPISettings.from_env()
+    policy = supervisor_module.supervisor_policy_from_env()
+
+    assert loaded_paths == [".env.local"] * 3
+    assert planner.model == ("process-planner" if process_override else "strong-planner")
+    assert planner.stage_checker_model == "strong-stage-checker"
+    assert planner.backend_profile == "openai-compatible"
+    assert runtime.model == "rwkv-executor"
+    assert os.environ["RWKV_LH_SELECTOR_MODEL"] == "rwkv-selector"
+    assert policy.max_review_repairs == 2
 
 
 def test_executor_model_can_be_bound_by_role_environment(monkeypatch) -> None:

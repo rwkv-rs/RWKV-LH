@@ -20,6 +20,7 @@ from rwkv_lh.goal_loop_protocol import (
     GoalAuditVerdict,
     GoalPlanPatch,
     GoalPlanRequest,
+    GoalPlanResponseError,
     GoalStageReview,
     GoalStageReviewRequest,
     GoalStageReviewVerdict,
@@ -1311,6 +1312,9 @@ class StatefulGoalLoopController(LongHorizonController):
                 returned = method(request)
             except ValueError as exc:
                 semantic_error = exc
+                if isinstance(exc, GoalPlanResponseError):
+                    rejected_patch = deepcopy(exc.rejected_patch)
+                    self._persist_supervisor_resolved(state, phase="goal_plan")
             except Exception as exc:
                 self._persist(
                     state,

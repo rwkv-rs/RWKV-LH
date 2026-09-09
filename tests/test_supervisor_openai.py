@@ -4,6 +4,7 @@ import json
 import hashlib
 import os
 import re
+from contextlib import contextmanager
 from dataclasses import replace
 
 import requests
@@ -16,7 +17,10 @@ from rwkv_lh.contract_graph import (
     ContractReviewRequest,
     ResultCapsule,
 )
-from rwkv_lh.goal_loop_protocol import GoalPlanRequest, GoalStageReviewRequest
+from rwkv_lh.goal_loop_protocol import (
+    GoalObligation, GoalPlanPatch, GoalPlanRequest, GoalPlanStep,
+    GoalStageReviewRequest, RollingGoalPlan,
+)
 from rwkv_lh.supervisor import (
     SupervisorDirectiveRequest,
     SupervisorPlanRequest,
@@ -896,6 +900,253 @@ def settings() -> SupervisorAPISettings:
         retry_attempts=1,
         plan_cache_enabled=False,
     )
+
+
+def _current_planner_model_value() -> dict:
+    patch = GoalPlanPatch(
+        patch_id="GPP-parser-fixture", base_revision=0,
+        goal_obligations=(GoalObligation("O1", "Workspace is inspected", ("observe",)),),
+        add_steps=(GoalPlanStep(
+            step_id="S1", objective="Inspect the workspace", phase="observe",
+            obligation_ids=("O1",), read_roots=(".",),
+            success_evidence=("Workspace entries are observed",),
+        ),), replace_steps=(), discard_step_ids=(), reason="Inspect current evidence",
+    )
+    value = patch.to_dict()
+    for key in ("schema_version", "patch_id", "base_revision"):
+        value.pop(key)
+    for stage in value["add_stages"]:
+        for step in stage["steps"]:
+            step.pop("allowed_operations")
+    return value
+
+
+class StreamingResponse:
+    status_code = 200
+
+    def __init__(self, value, *, defect=None):
+        self.closed = False
+        self.on_read = lambda: None
+        content = json.dumps(value, ensure_ascii=False)
+        self.chunks = [
+            {"model": "gpt-test", "choices": [{"index": 0, "delta": {"content": text}, "finish_reason": None}]}
+            for text in (content[:31], content[31:])
+        ]
+        self.chunks.append({"model": "gpt-test", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+        self.chunks.append({"choices": [], "usage": {"completion_tokens": 120}})
+        self.defect = defect
+        if defect == "missing_finish":
+            self.chunks.pop(2)
+        elif defect == "length":
+            self.chunks[2]["choices"][0]["finish_reason"] = "length"
+        elif defect == "wrong_choice":
+            self.chunks[0]["choices"][0]["index"] = 1
+        elif defect == "changed_model":
+            self.chunks[1]["model"] = "unexpected-model"
+        elif defect == "late_content":
+            self.chunks.append({"choices": [{"index": 0, "delta": {"content": "extra"}, "finish_reason": None}]})
+
+    def iter_lines(self):
+        self.on_read()
+        yield b": keepalive"
+        yield b""
+        for chunk in self.chunks:
+            if self.defect == "invalid_chunk":
+                yield b"data: {invalid"
+            else:
+                # SSE permits multiple data lines within one event.
+                lines = json.dumps(chunk, ensure_ascii=False, indent=2).splitlines()
+                for line in lines:
+                    yield b"data: " + line.encode("utf-8")
+            yield b""
+        if self.defect != "missing_done":
+            yield b"data: [DONE]"
+            yield b""
+
+    def close(self):
+        self.closed = True
+
+
+def test_streamed_planner_holds_request_slot_and_uses_identical_contract():
+    value = _current_planner_model_value()
+    value["reason"] += "，保留原始中文。"
+    provider_response = StreamingResponse(value)
+    fake = FakeSession([provider_response])
+    audit = []
+    client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True), session=fake, audit_hook=audit.append)
+    active_slot = False
+
+    @contextmanager
+    def request_slot():
+        nonlocal active_slot
+        active_slot = True
+        try:
+            yield
+        finally:
+            active_slot = False
+
+    def assert_slot_held():
+        assert active_slot
+
+    client._client._request_slot = request_slot
+    provider_response.on_read = assert_slot_held
+    request = GoalPlanRequest(
+        run_id="RUN-stream-plan", immutable_request="Inspect the workspace",
+        goal_digest="stream-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="stream-fixture").to_model_dict(),
+        latest_audit=None, workspace_manifest={"entries": []},
+    )
+
+    patch = client.plan_goal_patch(request)
+
+    assert patch.reason == value["reason"]
+    assert fake.posts[0]["stream"] is True
+    assert fake.posts[0]["json"]["stream"] is True
+    assert fake.posts[0]["json"]["max_tokens"] == 8192
+    assert provider_response.closed and not active_slot
+    returned = next(event for event in audit if event["type"] == "supervisor_request_returned")
+    assert returned["finish_reason"] == "stop"
+    assert returned["usage"]["completion_tokens"] == 120
+    assert returned["stream"] is True
+
+
+@pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+    provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+    fake = FakeSession([provider_response])
+    audit = []
+    client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+    request = GoalPlanRequest(
+        run_id="RUN-stream-rejection", immutable_request="Inspect the workspace",
+        goal_digest="stream-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="stream-fixture").to_model_dict(),
+        latest_audit=None, workspace_manifest={"entries": []},
+    )
+
+    with pytest.raises(SupervisorProtocolError):
+        client.plan_goal_patch(request)
+
+    assert len(fake.posts) == 1
+    assert provider_response.closed
+    assert not any(event["type"] == "supervisor_request_returned" for event in audit)
+    failed = next(event for event in audit if event["type"] == "supervisor_request_failed")
+    assert failed["http_status"] == 200
+
+
+def test_supervisor_stream_deadline_is_an_interruption():
+    with pytest.raises(requests.ReadTimeout, match="read budget"):
+        supervisor_openai_module._decode_chat_completion_stream(
+            StreamingResponse(_current_planner_model_value()), deadline=-1,
+        )
+
+
+def test_supervisor_stream_can_be_configured_without_affecting_native_transport(tmp_path, monkeypatch):
+    for key in tuple(os.environ):
+        if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):
+            monkeypatch.delenv(key)
+    path = tmp_path / "provider.env"
+    path.write_text("\n".join((
+        "RWKV_LH_PLANNER_BASE_URL=https://fixture.invalid/v1",
+        "RWKV_LH_PLANNER_API_KEY=fixture-key",
+        "RWKV_LH_PLANNER_MODEL=provider-configured-model",
+        "RWKV_LH_PLANNER_STREAM=true",
+    )))
+    loaded = SupervisorAPISettings.from_env(path)
+    assert loaded.stream_responses is True
+    assert loaded.public_dict()["stream_responses"] is True
+    client = OpenAICompatibleSupervisorClient(replace(loaded, backend_profile="vllm-rwkv-native"))
+    _, body, _ = client._wire_request(
+        phase="goal_plan", selected_model=loaded.model, system_prompt="Fixture",
+        payload_text=supervisor_openai_module._render_user_payload(GoalPlanRequest(
+            run_id="RUN-native-stream-isolation", immutable_request="Inspect",
+            goal_digest="native-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="native-fixture").to_model_dict(),
+            latest_audit=None, workspace_manifest={"entries": []},
+        ).to_dict()), max_tokens=8192, schema_revision="fixture", schema={},
+    )
+    assert body["stream"] is False
+
+
+@pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+    provider_response = response(_current_planner_model_value())
+    provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+    fake = FakeSession([provider_response])
+    client = OpenAIGoalSupervisorClient(settings(), session=fake)
+    request = GoalPlanRequest(
+        run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+        goal_digest="incomplete-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="incomplete-fixture").to_model_dict(), latest_audit=None,
+        workspace_manifest={"entries": []},
+    )
+
+    with pytest.raises(SupervisorProtocolError, match="finish_reason"):
+        client.plan_goal_patch(request)
+
+    assert len(fake.posts) == 1
+
+
+@pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+    value = _current_planner_model_value()
+    selected = {
+        "top": value,
+        "stage": value["add_stages"][0],
+        "step": value["add_stages"][0]["steps"][0],
+        "obligation": value["goal_obligations"][0],
+    }[invalid_part]
+    selected["unexpected_fixture_field"] = "Model supplied this field"
+    fake = FakeSession([response(value)])
+    client = OpenAIGoalSupervisorClient(settings(), session=fake)
+    request = GoalPlanRequest(
+        run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+        goal_digest="parser-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+        workspace_manifest={"entries": []},
+    )
+
+    with pytest.raises(ValueError) as captured:
+        client.plan_goal_patch(request)
+
+    assert captured.value.rejected_patch == value
+    assert "unexpected_fixture_field" in str(captured.value)
+    assert "unexpected=" in str(captured.value)
+    assert "missing=" in str(captured.value)
+    assert len(fake.posts) == 1
+    # A later caller cannot mutate the provider-owned record through its input.
+    selected["unexpected_fixture_field"] = "Changed after rejection"
+    assert captured.value.rejected_patch != value
+
+
+@pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+    value = _current_planner_model_value()
+    revision = 0
+    if invalid_part == "obligations":
+        value["goal_obligations"] = []
+    elif invalid_part == "add":
+        value["add_stages"] = []
+    elif invalid_part == "replace":
+        value["replace_stages"] = value["add_stages"]
+        value["add_stages"] = []
+    elif invalid_part == "discard":
+        value["discard_step_ids"] = ["S-previous"]
+    else:
+        revision = 1
+    fake = FakeSession([response(value)])
+    client = OpenAIGoalSupervisorClient(settings(), session=fake)
+    request = GoalPlanRequest(
+        run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+        goal_digest="parser-fixture", plan_revision=revision,
+        active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+        workspace_manifest={"entries": []},
+    )
+
+    with pytest.raises(ValueError) as captured:
+        client.plan_goal_patch(request)
+
+    assert captured.value.rejected_patch == value
+    assert len(fake.posts) == 1
 
 
 def test_goal_planner_returns_replaceable_steps_without_stealing_selector_role():

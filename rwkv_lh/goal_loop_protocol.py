@@ -8,6 +8,7 @@ grant a model output authority over Harness facts.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
@@ -31,6 +32,30 @@ GOAL_AUDIT_INPUT_PROTOCOL = "rwkv-lh.role-pure-goal-audit.v2"
 GOAL_AUDIT_OPERATION = "audit_decision"
 GOAL_PLAN_PATCH_SCHEMA_VERSION = "rwkv-lh.goal-plan-patch.v4"
 GOAL_STAGE_REVIEW_SCHEMA_VERSION = "rwkv-lh.goal-stage-review.v1"
+
+
+class GoalPlanResponseError(ValueError):
+    """A complete Planner object failed validation and can be sent back for repair.
+
+    Preserve the actual model value before a typed patch exists. Transport and
+    incomplete JSON errors are separate; this exception never supplies missing
+    fields or grants a rejected object authority to change the rolling plan.
+    """
+
+    def __init__(self, message: str, *, rejected_patch: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.rejected_patch = deepcopy(dict(rejected_patch))
+
+
+def _plan_field_difference(
+    actual: Mapping[str, Any], required: set[str], *, allowed: set[str] | None = None,
+) -> str:
+    return (
+        f"missing={sorted(required - set(actual))}; "
+        f"unexpected={sorted(set(actual) - (allowed if allowed is not None else required))}"
+    )
+
+
 GOAL_AUDIT_DEFINITION: dict[str, Any] = {
     "name": GOAL_AUDIT_OPERATION,
     "description": (
@@ -198,10 +223,11 @@ class GoalObligation:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "GoalObligation":
-        if set(value) != {"obligation_id", "predicate", "required_phases"}:
+        required = {"obligation_id", "predicate", "required_phases"}
+        if set(value) != required:
             raise ValueError(
                 "Goal obligation requires exactly obligation_id, predicate, and "
-                "required_phases"
+                f"required_phases; {_plan_field_difference(value, required)}"
             )
         raw_phases = value.get("required_phases")
         if not isinstance(raw_phases, Sequence) or isinstance(
@@ -389,7 +415,8 @@ class GoalPlanPatch:
         if set(value) != expected:
             raise ValueError(
                 "Goal PlanPatch requires exactly goal_obligations (v4), "
-                "add_stages, replace_stages, discard_step_ids, and reason"
+                "add_stages, replace_stages, discard_step_ids, and reason; "
+                + _plan_field_difference(value, expected)
             )
 
         def steps(field_name: str) -> tuple[GoalPlanStep, ...]:
@@ -398,10 +425,15 @@ class GoalPlanPatch:
                 raise ValueError(f"Goal PlanPatch {field_name} must be an array")
             flattened: list[GoalPlanStep] = []
             seen_stages: set[int] = set()
-            for item in raw:
+            for stage_index, item in enumerate(raw):
                 if not isinstance(item, Mapping) or set(item) != {"stage", "steps"}:
+                    detail = (
+                        _plan_field_difference(item, {"stage", "steps"})
+                        if isinstance(item, Mapping) else "received a non-object"
+                    )
                     raise ValueError(
-                        f"Goal PlanPatch {field_name} stages require stage and steps"
+                        f"Goal PlanPatch {field_name}[{stage_index}] stages require "
+                        f"stage and steps; {detail}"
                     )
                 stage = item.get("stage")
                 if isinstance(stage, bool) or not isinstance(stage, int) or stage < 1:
@@ -424,7 +456,7 @@ class GoalPlanPatch:
                     raise ValueError(
                         f"Goal PlanPatch {field_name} cannot contain an empty stage"
                     )
-                for raw_step in raw_steps:
+                for step_index, raw_step in enumerate(raw_steps):
                     if not isinstance(raw_step, Mapping):
                         raise ValueError(
                             f"Goal PlanPatch {field_name} steps must be objects"
@@ -441,6 +473,7 @@ class GoalPlanPatch:
                         "constraints",
                     }
                     expected_step_fields.update({"obligation_ids", "phase"})
+                    allowed_fields = expected_step_fields
                     if allow_internal_step_fields:
                         actual_fields = set(raw_step)
                         allowed_fields = expected_step_fields | {
@@ -455,7 +488,11 @@ class GoalPlanPatch:
                     if not fields_valid:
                         raise ValueError(
                             "Goal PlanPatch step fields differ from the fixed "
-                            "contract including phase"
+                            f"contract including phase at {field_name}[{stage_index}]"
+                            f".steps[{step_index}]; "
+                            + _plan_field_difference(
+                                raw_step, expected_step_fields, allowed=allowed_fields,
+                            )
                         )
                     parsed_step = GoalPlanStep.from_dict(
                         {**dict(raw_step), "stage": stage}

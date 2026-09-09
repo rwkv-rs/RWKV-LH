@@ -1,0 +1,67 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_goal_planner_never_accepts_json_without_natural_completion[length] ____
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+_ test_goal_planner_never_accepts_json_without_natural_completion[content_filter] _
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+____ test_goal_planner_never_accepts_json_without_natural_completion[None] _____
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+>           active_plan=RollingGoalPlan().to_model_dict(), latest_audit=None,
+                        ^^^^^^^^^^^^^^^^^
+            workspace_manifest={"entries": []},
+        )
+E       TypeError: RollingGoalPlan.__init__() missing 1 required positional argument: 'goal_digest'
+
+tests/test_supervisor_openai.py:932: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[length]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[content_filter]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[None]
+3 failed, 57 deselected in 0.15s

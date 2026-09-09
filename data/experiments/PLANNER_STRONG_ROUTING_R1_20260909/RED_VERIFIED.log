@@ -1,0 +1,1520 @@
+FFFFFFFFFFFFFFFFFF                                                       [100%]
+=================================== FAILURES ===================================
+___ test_goal_planner_never_accepts_json_without_natural_completion[length] ____
+
+finish_reason = 'length'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="incomplete-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+>       with pytest.raises(SupervisorProtocolError, match="finish_reason"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_openai.py:936: Failed
+_ test_goal_planner_never_accepts_json_without_natural_completion[content_filter] _
+
+finish_reason = 'content_filter'
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="incomplete-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+>       with pytest.raises(SupervisorProtocolError, match="finish_reason"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_openai.py:936: Failed
+____ test_goal_planner_never_accepts_json_without_natural_completion[None] _____
+
+finish_reason = None
+
+    @pytest.mark.parametrize("finish_reason", ["length", "content_filter", None])
+    def test_goal_planner_never_accepts_json_without_natural_completion(finish_reason):
+        provider_response = response(_current_planner_model_value())
+        provider_response.payload["choices"][0]["finish_reason"] = finish_reason
+        fake = FakeSession([provider_response])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-incomplete-plan", immutable_request="Inspect the workspace",
+            goal_digest="incomplete-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="incomplete-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+>       with pytest.raises(SupervisorProtocolError, match="finish_reason"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SupervisorProtocolError
+
+tests/test_supervisor_openai.py:936: Failed
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[top] _
+
+invalid_part = 'top'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+            client.plan_goal_patch(request)
+    
+>       assert captured.value.rejected_patch == value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ValueError' object has no attribute 'rejected_patch'
+
+tests/test_supervisor_openai.py:964: AttributeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[stage] _
+
+invalid_part = 'stage'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+            client.plan_goal_patch(request)
+    
+>       assert captured.value.rejected_patch == value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ValueError' object has no attribute 'rejected_patch'
+
+tests/test_supervisor_openai.py:964: AttributeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[step] _
+
+invalid_part = 'step'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+            client.plan_goal_patch(request)
+    
+>       assert captured.value.rejected_patch == value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ValueError' object has no attribute 'rejected_patch'
+
+tests/test_supervisor_openai.py:964: AttributeError
+_ test_planner_parse_error_preserves_original_value_and_names_wrong_fields[obligation] _
+
+invalid_part = 'obligation'
+
+    @pytest.mark.parametrize("invalid_part", ["top", "stage", "step", "obligation"])
+    def test_planner_parse_error_preserves_original_value_and_names_wrong_fields(invalid_part):
+        value = _current_planner_model_value()
+        selected = {
+            "top": value,
+            "stage": value["add_stages"][0],
+            "step": value["add_stages"][0]["steps"][0],
+            "obligation": value["goal_obligations"][0],
+        }[invalid_part]
+        selected["unexpected_fixture_field"] = "Model supplied this field"
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-rejection", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=0,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+            client.plan_goal_patch(request)
+    
+>       assert captured.value.rejected_patch == value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ValueError' object has no attribute 'rejected_patch'
+
+tests/test_supervisor_openai.py:964: AttributeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[obligations] _
+
+invalid_part = 'obligations'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_openai.py:999: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3815: in plan_goal_patch
+    return self._client.plan_goal_patch(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7421b5a3a250>
+request = GoalPlanRequest(run_id='RUN-parser-boundary', immutable_request='Inspect the workspace', goal_digest='parser-fixture',...={'entries': []}, latest_stage_review=None, recent_action_facts=(), local_validation_repair=None, repair_feedback=None)
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        """Produce one native rolling-plan delta and nothing else."""
+    
+        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+    
+        if not isinstance(request, GoalPlanRequest):
+            raise TypeError("goal planner requires GoalPlanRequest")
+        initial = request.plan_revision == 0
+        system_prompt = (
+            "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "Plan; never execute tools, select or restrict tool names, fill tool "
+            "parameters, audit evidence, mark completion, or write a final answer. "
+            "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
+            "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
+            "The exact top-level keys are goal_obligations, add_stages, "
+            "replace_stages, discard_step_ids, and reason. Each stage has exactly "
+            "stage and steps. "
+            "Each step has exactly step_id, objective, phase, depends_on, "
+            "obligation_ids, success_evidence, read_roots, write_roots, and "
+            "constraints. Plan the steps needed for the task. Each step gives the "
+            "RWKV Executor one "
+            "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
+            "means workspace or public-source inspection; mutate means direct file "
+            "changes; execute means local command invocation; derive_evidence means "
+            "calculation, time/date derivation, or evidence binding. The phase value "
+            "must be exactly one literal token from observe, mutate, execute, or "
+            "derive_evidence. Never write labels such as 'public-source observe'; a "
+            "public-source inspection still uses the exact phase value observe. A phase only "
+            "narrows the Selector menu; never name a concrete tool. The root arrays "
+            "are exact: local observe => read_roots non-empty, write_roots=[]; "
+            "public-source observe => read_roots=[], write_roots=[]; mutate => "
+            "read_roots=[], write_roots non-empty; read-only execute => "
+            "read_roots=[], write_roots=[]; mutating execute => read_roots=[], "
+            "write_roots contains only intended mutation targets; derive_evidence => "
+            "read_roots=[], write_roots=[]. Never put a file in read_roots for "
+            "mutate, execute, or derive_evidence. Such a step consumes earlier "
+            "inspection only through depends_on. Split unrelated files, observation, "
+            "mutation, command execution, and verification when their evidence "
+            "differs. A generic request to verify a file does not authorize an execute "
+            "phase: use a later observe/readback step unless the immutable request or "
+            "inspected workspace names an actual command, test, or executable verifier. "
+            "Read an available verifier or specification in a prior observe step before "
+            "the mutation it constrains. "
+            "Return nested stages, each containing its peer steps; do not repeat the "
+            "stage number inside a step. Same-stage steps are independent: "
+            "they cannot depend on each other and their read/write roots cannot conflict. "
+            "Dependencies must point to an earlier stage. A stage is a barrier: all of "
+            "its steps are audited and checked before the next stage starts. "
+            "GOAL COVERAGE CONTRACT: On the initial patch, goal_obligations must "
+            "enumerate every explicit result, side effect, prohibition, requested "
+            "verification, and requested deliverable in the immutable request. Each "
+            "obligation has a stable obligation_id, an observable predicate, and the "
+            "minimal required_phases whose successful Harness evidence is necessary. "
+            "Use observe when satisfying it requires inspecting workspace or public "
+            "facts; mutate when it requires creating or changing a local artifact; "
+            "execute when it explicitly requires a command/test/run or when executable "
+            "verification is part of the requested result; derive_evidence only for a "
+            "calculation, time/date derivation, or evidence binding. A prohibition that "
+            "requires a recorded decision still needs the phases used to inspect and "
+            "write that decision. Every step must bind at least one obligation_id and "
+            "advances only its own declared phase. On correction or continuation "
+            "patches, goal_obligations must be [] and step obligation_ids must reuse "
+            "the immutable IDs shown in active_plan. Exact step text, IDs, count, "
+            "stages, and order may vary; only complete obligation-phase evidence gates "
+            "the goal. "
+            "Completed steps in active_plan are immutable. Open steps may be replaced "
+            "in replace_stages or removed in discard_step_ids; do not retain stale work "
+            "merely to preserve append-only history. New ids belong in add_stages. "
+            "Dependencies may refer only to steps that remain active or are added by "
+            "this patch. EVIDENCE AUTHORITY: success_evidence simply describes what "
+            "later successful Actions must prove; it does not report that work is "
+            "already complete. Planner text is never completion evidence. Only the "
+            "RWKV Auditor can accept runtime Action evidence. "
+            "FINAL EVIDENCE REPAIR: repair_feedback binds the accepted Final Auditor "
+            "gaps to this plan revision. Consume its criteria and evidence refs to "
+            "add executable work that proves the missing requirement. Preserve "
+            "completed steps and immutable obligations. A rejected candidate is "
+            "context, never evidence; changing its wording cannot fill execution gaps. "
+            "FACT CONSUMPTION: recent_action_facts contains bounded typed Harness "
+            "observations. Its arguments_projection and result_projection fields are "
+            "JSON-encoded packets, not prose. Preserve their literal booleans, exact "
+            "diagnostics, and lineage-bound spans when planning the next frontier. A "
+            "complete negative observation is still decisive evidence: for example, "
+            "valid_json=false with parse_outcome_complete=true proves that candidate "
+            "is not readable JSON. When the immutable request names a fallback, move "
+            "to that fallback after the preferred source is disproved. Do not replace "
+            "a repaired frontier with the same phase and roots merely to repeat an "
+            "identical complete observation; consume the observed outcome and change "
+            "the next semantic work. "
+            "The Controller has already fixed the one project mother path. You have "
+            "no authority to name, infer, replace, expand, or emit that mother path. "
+            "Every read_roots and write_roots item is only a project-relative file "
+            "or subdirectory locator beneath it, grounded in the request or "
+            "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
+            "absolute path, never invent a '/workspace' prefix, never use a backslash, "
+            "and never use '..'. "
+            "FORMAT EXAMPLE (shape only; replace every example value): "
+            '{"goal_obligations":[{"obligation_id":"O1",'
+            '"predicate":"one observable required result",'
+            '"required_phases":["observe"]}],'
+            '"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '"objective":"one coherent responsibility","phase":"observe",'
+            '"depends_on":[],'
+            '"obligation_ids":["O1"],'
+            '"success_evidence":["successful action evidence covers the required read"],'
+            '"read_roots":["."],"write_roots":[],'
+            '"constraints":[]}]}],"replace_stages":[],'
+            '"discard_step_ids":[],"reason":"concise planning reason"}. '
+            "Return the same nested shape with real values; do not flatten steps. "
+            + (
+                "This is the initial patch: replace_stages and discard_step_ids are "
+                "empty, goal_obligations is non-empty and exhaustive, and add_stages "
+                "contains the first executable stages."
+                if initial
+                else "This is a correction or continuation patch: goal_obligations is "
+                "always []; make only the smallest change needed "
+                "for latest_audit or latest_stage_review, replacing or discarding "
+                "obsolete open work or adding later repair stages. When "
+                "latest_audit.verdict is repair or latest_stage_review.verdict is "
+                "repair, and active_plan "
+                "still has a frontier, the patch must replace or discard at least "
+                "one current frontier step so the gap is addressed before unrelated "
+                "downstream work; merely appending a later stage is invalid."
+            )
+        )
+        if request.local_validation_repair is not None:
+            system_prompt += (
+                " The immediately preceding patch was rejected by the Controller's "
+                "rolling-plan validator. local_validation_repair is the authoritative "
+                "final instruction. Return one fresh complete patch that fixes its exact "
+                "error against active_plan. Do not reuse an existing id in add_stages, "
+                "do not put one id in both replace_stages and discard_step_ids, and do "
+                "not leave a retained step dependent on a discarded step."
+            )
+        request_payload = request.to_dict()
+        schema = self._goal_plan_patch_schema()
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v2"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
+            phase="goal_plan",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+        )
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_plan",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                # Goal Planner has its own response-token budget, independent
+                # of the number of steps required by the task.
+                max_tokens=self.settings.max_plan_tokens,
+            )
+        patch = GoalPlanPatch.from_model_value(
+            value,
+            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+            base_revision=request.plan_revision,
+        )
+        if initial and (patch.replace_steps or patch.discard_step_ids):
+            raise SupervisorProtocolError(
+                "initial Goal PlanPatch cannot replace or discard steps"
+            )
+        if initial and not patch.add_steps:
+            raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
+        if initial and not patch.goal_obligations:
+>           raise SupervisorProtocolError(
+                "initial Goal PlanPatch requires immutable goal_obligations"
+            )
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: initial Goal PlanPatch requires immutable goal_obligations
+
+rwkv_lh/supervisor_openai.py:3079: SupervisorProtocolError
+___ test_planner_initial_and_continuation_errors_are_repairable_values[add] ____
+
+invalid_part = 'add'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+            client.plan_goal_patch(request)
+    
+>       assert captured.value.rejected_patch == value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ValueError' object has no attribute 'rejected_patch'
+
+tests/test_supervisor_openai.py:1001: AttributeError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[replace] __
+
+invalid_part = 'replace'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_openai.py:999: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3815: in plan_goal_patch
+    return self._client.plan_goal_patch(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7421b5a78f50>
+request = GoalPlanRequest(run_id='RUN-parser-boundary', immutable_request='Inspect the workspace', goal_digest='parser-fixture',...={'entries': []}, latest_stage_review=None, recent_action_facts=(), local_validation_repair=None, repair_feedback=None)
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        """Produce one native rolling-plan delta and nothing else."""
+    
+        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+    
+        if not isinstance(request, GoalPlanRequest):
+            raise TypeError("goal planner requires GoalPlanRequest")
+        initial = request.plan_revision == 0
+        system_prompt = (
+            "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "Plan; never execute tools, select or restrict tool names, fill tool "
+            "parameters, audit evidence, mark completion, or write a final answer. "
+            "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
+            "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
+            "The exact top-level keys are goal_obligations, add_stages, "
+            "replace_stages, discard_step_ids, and reason. Each stage has exactly "
+            "stage and steps. "
+            "Each step has exactly step_id, objective, phase, depends_on, "
+            "obligation_ids, success_evidence, read_roots, write_roots, and "
+            "constraints. Plan the steps needed for the task. Each step gives the "
+            "RWKV Executor one "
+            "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
+            "means workspace or public-source inspection; mutate means direct file "
+            "changes; execute means local command invocation; derive_evidence means "
+            "calculation, time/date derivation, or evidence binding. The phase value "
+            "must be exactly one literal token from observe, mutate, execute, or "
+            "derive_evidence. Never write labels such as 'public-source observe'; a "
+            "public-source inspection still uses the exact phase value observe. A phase only "
+            "narrows the Selector menu; never name a concrete tool. The root arrays "
+            "are exact: local observe => read_roots non-empty, write_roots=[]; "
+            "public-source observe => read_roots=[], write_roots=[]; mutate => "
+            "read_roots=[], write_roots non-empty; read-only execute => "
+            "read_roots=[], write_roots=[]; mutating execute => read_roots=[], "
+            "write_roots contains only intended mutation targets; derive_evidence => "
+            "read_roots=[], write_roots=[]. Never put a file in read_roots for "
+            "mutate, execute, or derive_evidence. Such a step consumes earlier "
+            "inspection only through depends_on. Split unrelated files, observation, "
+            "mutation, command execution, and verification when their evidence "
+            "differs. A generic request to verify a file does not authorize an execute "
+            "phase: use a later observe/readback step unless the immutable request or "
+            "inspected workspace names an actual command, test, or executable verifier. "
+            "Read an available verifier or specification in a prior observe step before "
+            "the mutation it constrains. "
+            "Return nested stages, each containing its peer steps; do not repeat the "
+            "stage number inside a step. Same-stage steps are independent: "
+            "they cannot depend on each other and their read/write roots cannot conflict. "
+            "Dependencies must point to an earlier stage. A stage is a barrier: all of "
+            "its steps are audited and checked before the next stage starts. "
+            "GOAL COVERAGE CONTRACT: On the initial patch, goal_obligations must "
+            "enumerate every explicit result, side effect, prohibition, requested "
+            "verification, and requested deliverable in the immutable request. Each "
+            "obligation has a stable obligation_id, an observable predicate, and the "
+            "minimal required_phases whose successful Harness evidence is necessary. "
+            "Use observe when satisfying it requires inspecting workspace or public "
+            "facts; mutate when it requires creating or changing a local artifact; "
+            "execute when it explicitly requires a command/test/run or when executable "
+            "verification is part of the requested result; derive_evidence only for a "
+            "calculation, time/date derivation, or evidence binding. A prohibition that "
+            "requires a recorded decision still needs the phases used to inspect and "
+            "write that decision. Every step must bind at least one obligation_id and "
+            "advances only its own declared phase. On correction or continuation "
+            "patches, goal_obligations must be [] and step obligation_ids must reuse "
+            "the immutable IDs shown in active_plan. Exact step text, IDs, count, "
+            "stages, and order may vary; only complete obligation-phase evidence gates "
+            "the goal. "
+            "Completed steps in active_plan are immutable. Open steps may be replaced "
+            "in replace_stages or removed in discard_step_ids; do not retain stale work "
+            "merely to preserve append-only history. New ids belong in add_stages. "
+            "Dependencies may refer only to steps that remain active or are added by "
+            "this patch. EVIDENCE AUTHORITY: success_evidence simply describes what "
+            "later successful Actions must prove; it does not report that work is "
+            "already complete. Planner text is never completion evidence. Only the "
+            "RWKV Auditor can accept runtime Action evidence. "
+            "FINAL EVIDENCE REPAIR: repair_feedback binds the accepted Final Auditor "
+            "gaps to this plan revision. Consume its criteria and evidence refs to "
+            "add executable work that proves the missing requirement. Preserve "
+            "completed steps and immutable obligations. A rejected candidate is "
+            "context, never evidence; changing its wording cannot fill execution gaps. "
+            "FACT CONSUMPTION: recent_action_facts contains bounded typed Harness "
+            "observations. Its arguments_projection and result_projection fields are "
+            "JSON-encoded packets, not prose. Preserve their literal booleans, exact "
+            "diagnostics, and lineage-bound spans when planning the next frontier. A "
+            "complete negative observation is still decisive evidence: for example, "
+            "valid_json=false with parse_outcome_complete=true proves that candidate "
+            "is not readable JSON. When the immutable request names a fallback, move "
+            "to that fallback after the preferred source is disproved. Do not replace "
+            "a repaired frontier with the same phase and roots merely to repeat an "
+            "identical complete observation; consume the observed outcome and change "
+            "the next semantic work. "
+            "The Controller has already fixed the one project mother path. You have "
+            "no authority to name, infer, replace, expand, or emit that mother path. "
+            "Every read_roots and write_roots item is only a project-relative file "
+            "or subdirectory locator beneath it, grounded in the request or "
+            "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
+            "absolute path, never invent a '/workspace' prefix, never use a backslash, "
+            "and never use '..'. "
+            "FORMAT EXAMPLE (shape only; replace every example value): "
+            '{"goal_obligations":[{"obligation_id":"O1",'
+            '"predicate":"one observable required result",'
+            '"required_phases":["observe"]}],'
+            '"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '"objective":"one coherent responsibility","phase":"observe",'
+            '"depends_on":[],'
+            '"obligation_ids":["O1"],'
+            '"success_evidence":["successful action evidence covers the required read"],'
+            '"read_roots":["."],"write_roots":[],'
+            '"constraints":[]}]}],"replace_stages":[],'
+            '"discard_step_ids":[],"reason":"concise planning reason"}. '
+            "Return the same nested shape with real values; do not flatten steps. "
+            + (
+                "This is the initial patch: replace_stages and discard_step_ids are "
+                "empty, goal_obligations is non-empty and exhaustive, and add_stages "
+                "contains the first executable stages."
+                if initial
+                else "This is a correction or continuation patch: goal_obligations is "
+                "always []; make only the smallest change needed "
+                "for latest_audit or latest_stage_review, replacing or discarding "
+                "obsolete open work or adding later repair stages. When "
+                "latest_audit.verdict is repair or latest_stage_review.verdict is "
+                "repair, and active_plan "
+                "still has a frontier, the patch must replace or discard at least "
+                "one current frontier step so the gap is addressed before unrelated "
+                "downstream work; merely appending a later stage is invalid."
+            )
+        )
+        if request.local_validation_repair is not None:
+            system_prompt += (
+                " The immediately preceding patch was rejected by the Controller's "
+                "rolling-plan validator. local_validation_repair is the authoritative "
+                "final instruction. Return one fresh complete patch that fixes its exact "
+                "error against active_plan. Do not reuse an existing id in add_stages, "
+                "do not put one id in both replace_stages and discard_step_ids, and do "
+                "not leave a retained step dependent on a discarded step."
+            )
+        request_payload = request.to_dict()
+        schema = self._goal_plan_patch_schema()
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v2"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
+            phase="goal_plan",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+        )
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_plan",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                # Goal Planner has its own response-token budget, independent
+                # of the number of steps required by the task.
+                max_tokens=self.settings.max_plan_tokens,
+            )
+        patch = GoalPlanPatch.from_model_value(
+            value,
+            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+            base_revision=request.plan_revision,
+        )
+        if initial and (patch.replace_steps or patch.discard_step_ids):
+>           raise SupervisorProtocolError(
+                "initial Goal PlanPatch cannot replace or discard steps"
+            )
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: initial Goal PlanPatch cannot replace or discard steps
+
+rwkv_lh/supervisor_openai.py:3073: SupervisorProtocolError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[discard] __
+
+invalid_part = 'discard'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_openai.py:999: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3815: in plan_goal_patch
+    return self._client.plan_goal_patch(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7421b59f1b80>
+request = GoalPlanRequest(run_id='RUN-parser-boundary', immutable_request='Inspect the workspace', goal_digest='parser-fixture',...={'entries': []}, latest_stage_review=None, recent_action_facts=(), local_validation_repair=None, repair_feedback=None)
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        """Produce one native rolling-plan delta and nothing else."""
+    
+        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+    
+        if not isinstance(request, GoalPlanRequest):
+            raise TypeError("goal planner requires GoalPlanRequest")
+        initial = request.plan_revision == 0
+        system_prompt = (
+            "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "Plan; never execute tools, select or restrict tool names, fill tool "
+            "parameters, audit evidence, mark completion, or write a final answer. "
+            "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
+            "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
+            "The exact top-level keys are goal_obligations, add_stages, "
+            "replace_stages, discard_step_ids, and reason. Each stage has exactly "
+            "stage and steps. "
+            "Each step has exactly step_id, objective, phase, depends_on, "
+            "obligation_ids, success_evidence, read_roots, write_roots, and "
+            "constraints. Plan the steps needed for the task. Each step gives the "
+            "RWKV Executor one "
+            "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
+            "means workspace or public-source inspection; mutate means direct file "
+            "changes; execute means local command invocation; derive_evidence means "
+            "calculation, time/date derivation, or evidence binding. The phase value "
+            "must be exactly one literal token from observe, mutate, execute, or "
+            "derive_evidence. Never write labels such as 'public-source observe'; a "
+            "public-source inspection still uses the exact phase value observe. A phase only "
+            "narrows the Selector menu; never name a concrete tool. The root arrays "
+            "are exact: local observe => read_roots non-empty, write_roots=[]; "
+            "public-source observe => read_roots=[], write_roots=[]; mutate => "
+            "read_roots=[], write_roots non-empty; read-only execute => "
+            "read_roots=[], write_roots=[]; mutating execute => read_roots=[], "
+            "write_roots contains only intended mutation targets; derive_evidence => "
+            "read_roots=[], write_roots=[]. Never put a file in read_roots for "
+            "mutate, execute, or derive_evidence. Such a step consumes earlier "
+            "inspection only through depends_on. Split unrelated files, observation, "
+            "mutation, command execution, and verification when their evidence "
+            "differs. A generic request to verify a file does not authorize an execute "
+            "phase: use a later observe/readback step unless the immutable request or "
+            "inspected workspace names an actual command, test, or executable verifier. "
+            "Read an available verifier or specification in a prior observe step before "
+            "the mutation it constrains. "
+            "Return nested stages, each containing its peer steps; do not repeat the "
+            "stage number inside a step. Same-stage steps are independent: "
+            "they cannot depend on each other and their read/write roots cannot conflict. "
+            "Dependencies must point to an earlier stage. A stage is a barrier: all of "
+            "its steps are audited and checked before the next stage starts. "
+            "GOAL COVERAGE CONTRACT: On the initial patch, goal_obligations must "
+            "enumerate every explicit result, side effect, prohibition, requested "
+            "verification, and requested deliverable in the immutable request. Each "
+            "obligation has a stable obligation_id, an observable predicate, and the "
+            "minimal required_phases whose successful Harness evidence is necessary. "
+            "Use observe when satisfying it requires inspecting workspace or public "
+            "facts; mutate when it requires creating or changing a local artifact; "
+            "execute when it explicitly requires a command/test/run or when executable "
+            "verification is part of the requested result; derive_evidence only for a "
+            "calculation, time/date derivation, or evidence binding. A prohibition that "
+            "requires a recorded decision still needs the phases used to inspect and "
+            "write that decision. Every step must bind at least one obligation_id and "
+            "advances only its own declared phase. On correction or continuation "
+            "patches, goal_obligations must be [] and step obligation_ids must reuse "
+            "the immutable IDs shown in active_plan. Exact step text, IDs, count, "
+            "stages, and order may vary; only complete obligation-phase evidence gates "
+            "the goal. "
+            "Completed steps in active_plan are immutable. Open steps may be replaced "
+            "in replace_stages or removed in discard_step_ids; do not retain stale work "
+            "merely to preserve append-only history. New ids belong in add_stages. "
+            "Dependencies may refer only to steps that remain active or are added by "
+            "this patch. EVIDENCE AUTHORITY: success_evidence simply describes what "
+            "later successful Actions must prove; it does not report that work is "
+            "already complete. Planner text is never completion evidence. Only the "
+            "RWKV Auditor can accept runtime Action evidence. "
+            "FINAL EVIDENCE REPAIR: repair_feedback binds the accepted Final Auditor "
+            "gaps to this plan revision. Consume its criteria and evidence refs to "
+            "add executable work that proves the missing requirement. Preserve "
+            "completed steps and immutable obligations. A rejected candidate is "
+            "context, never evidence; changing its wording cannot fill execution gaps. "
+            "FACT CONSUMPTION: recent_action_facts contains bounded typed Harness "
+            "observations. Its arguments_projection and result_projection fields are "
+            "JSON-encoded packets, not prose. Preserve their literal booleans, exact "
+            "diagnostics, and lineage-bound spans when planning the next frontier. A "
+            "complete negative observation is still decisive evidence: for example, "
+            "valid_json=false with parse_outcome_complete=true proves that candidate "
+            "is not readable JSON. When the immutable request names a fallback, move "
+            "to that fallback after the preferred source is disproved. Do not replace "
+            "a repaired frontier with the same phase and roots merely to repeat an "
+            "identical complete observation; consume the observed outcome and change "
+            "the next semantic work. "
+            "The Controller has already fixed the one project mother path. You have "
+            "no authority to name, infer, replace, expand, or emit that mother path. "
+            "Every read_roots and write_roots item is only a project-relative file "
+            "or subdirectory locator beneath it, grounded in the request or "
+            "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
+            "absolute path, never invent a '/workspace' prefix, never use a backslash, "
+            "and never use '..'. "
+            "FORMAT EXAMPLE (shape only; replace every example value): "
+            '{"goal_obligations":[{"obligation_id":"O1",'
+            '"predicate":"one observable required result",'
+            '"required_phases":["observe"]}],'
+            '"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '"objective":"one coherent responsibility","phase":"observe",'
+            '"depends_on":[],'
+            '"obligation_ids":["O1"],'
+            '"success_evidence":["successful action evidence covers the required read"],'
+            '"read_roots":["."],"write_roots":[],'
+            '"constraints":[]}]}],"replace_stages":[],'
+            '"discard_step_ids":[],"reason":"concise planning reason"}. '
+            "Return the same nested shape with real values; do not flatten steps. "
+            + (
+                "This is the initial patch: replace_stages and discard_step_ids are "
+                "empty, goal_obligations is non-empty and exhaustive, and add_stages "
+                "contains the first executable stages."
+                if initial
+                else "This is a correction or continuation patch: goal_obligations is "
+                "always []; make only the smallest change needed "
+                "for latest_audit or latest_stage_review, replacing or discarding "
+                "obsolete open work or adding later repair stages. When "
+                "latest_audit.verdict is repair or latest_stage_review.verdict is "
+                "repair, and active_plan "
+                "still has a frontier, the patch must replace or discard at least "
+                "one current frontier step so the gap is addressed before unrelated "
+                "downstream work; merely appending a later stage is invalid."
+            )
+        )
+        if request.local_validation_repair is not None:
+            system_prompt += (
+                " The immediately preceding patch was rejected by the Controller's "
+                "rolling-plan validator. local_validation_repair is the authoritative "
+                "final instruction. Return one fresh complete patch that fixes its exact "
+                "error against active_plan. Do not reuse an existing id in add_stages, "
+                "do not put one id in both replace_stages and discard_step_ids, and do "
+                "not leave a retained step dependent on a discarded step."
+            )
+        request_payload = request.to_dict()
+        schema = self._goal_plan_patch_schema()
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v2"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
+            phase="goal_plan",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+        )
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_plan",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                # Goal Planner has its own response-token budget, independent
+                # of the number of steps required by the task.
+                max_tokens=self.settings.max_plan_tokens,
+            )
+        patch = GoalPlanPatch.from_model_value(
+            value,
+            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+            base_revision=request.plan_revision,
+        )
+        if initial and (patch.replace_steps or patch.discard_step_ids):
+>           raise SupervisorProtocolError(
+                "initial Goal PlanPatch cannot replace or discard steps"
+            )
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: initial Goal PlanPatch cannot replace or discard steps
+
+rwkv_lh/supervisor_openai.py:3073: SupervisorProtocolError
+_ test_planner_initial_and_continuation_errors_are_repairable_values[continuation] _
+
+invalid_part = 'continuation'
+
+    @pytest.mark.parametrize("invalid_part", ["obligations", "add", "replace", "discard", "continuation"])
+    def test_planner_initial_and_continuation_errors_are_repairable_values(invalid_part):
+        value = _current_planner_model_value()
+        revision = 0
+        if invalid_part == "obligations":
+            value["goal_obligations"] = []
+        elif invalid_part == "add":
+            value["add_stages"] = []
+        elif invalid_part == "replace":
+            value["replace_stages"] = value["add_stages"]
+            value["add_stages"] = []
+        elif invalid_part == "discard":
+            value["discard_step_ids"] = ["S-previous"]
+        else:
+            revision = 1
+        fake = FakeSession([response(value)])
+        client = OpenAIGoalSupervisorClient(settings(), session=fake)
+        request = GoalPlanRequest(
+            run_id="RUN-parser-boundary", immutable_request="Inspect the workspace",
+            goal_digest="parser-fixture", plan_revision=revision,
+            active_plan=RollingGoalPlan(goal_digest="parser-fixture").to_model_dict(), latest_audit=None,
+            workspace_manifest={"entries": []},
+        )
+    
+        with pytest.raises(ValueError) as captured:
+>           client.plan_goal_patch(request)
+
+tests/test_supervisor_openai.py:999: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/supervisor_openai.py:3815: in plan_goal_patch
+    return self._client.plan_goal_patch(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.supervisor_openai.OpenAICompatibleSupervisorClient object at 0x7421b6097890>
+request = GoalPlanRequest(run_id='RUN-parser-boundary', immutable_request='Inspect the workspace', goal_digest='parser-fixture',...={'entries': []}, latest_stage_review=None, recent_action_facts=(), local_validation_repair=None, repair_feedback=None)
+
+    def plan_goal_patch(self, request: Any) -> Any:
+        """Produce one native rolling-plan delta and nothing else."""
+    
+        from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanRequest
+    
+        if not isinstance(request, GoalPlanRequest):
+            raise TypeError("goal planner requires GoalPlanRequest")
+        initial = request.plan_revision == 0
+        system_prompt = (
+            "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "Plan; never execute tools, select or restrict tool names, fill tool "
+            "parameters, audit evidence, mark completion, or write a final answer. "
+            "OUTPUT CONTRACT: Return exactly one JSON object and nothing else: no "
+            "Markdown fence, prose, analysis, comments, tool calls, or extra keys. "
+            "The exact top-level keys are goal_obligations, add_stages, "
+            "replace_stages, discard_step_ids, and reason. Each stage has exactly "
+            "stage and steps. "
+            "Each step has exactly step_id, objective, phase, depends_on, "
+            "obligation_ids, success_evidence, read_roots, write_roots, and "
+            "constraints. Plan the steps needed for the task. Each step gives the "
+            "RWKV Executor one "
+            "coherent responsibility and exactly one phase. PHASE CONTRACT: observe "
+            "means workspace or public-source inspection; mutate means direct file "
+            "changes; execute means local command invocation; derive_evidence means "
+            "calculation, time/date derivation, or evidence binding. The phase value "
+            "must be exactly one literal token from observe, mutate, execute, or "
+            "derive_evidence. Never write labels such as 'public-source observe'; a "
+            "public-source inspection still uses the exact phase value observe. A phase only "
+            "narrows the Selector menu; never name a concrete tool. The root arrays "
+            "are exact: local observe => read_roots non-empty, write_roots=[]; "
+            "public-source observe => read_roots=[], write_roots=[]; mutate => "
+            "read_roots=[], write_roots non-empty; read-only execute => "
+            "read_roots=[], write_roots=[]; mutating execute => read_roots=[], "
+            "write_roots contains only intended mutation targets; derive_evidence => "
+            "read_roots=[], write_roots=[]. Never put a file in read_roots for "
+            "mutate, execute, or derive_evidence. Such a step consumes earlier "
+            "inspection only through depends_on. Split unrelated files, observation, "
+            "mutation, command execution, and verification when their evidence "
+            "differs. A generic request to verify a file does not authorize an execute "
+            "phase: use a later observe/readback step unless the immutable request or "
+            "inspected workspace names an actual command, test, or executable verifier. "
+            "Read an available verifier or specification in a prior observe step before "
+            "the mutation it constrains. "
+            "Return nested stages, each containing its peer steps; do not repeat the "
+            "stage number inside a step. Same-stage steps are independent: "
+            "they cannot depend on each other and their read/write roots cannot conflict. "
+            "Dependencies must point to an earlier stage. A stage is a barrier: all of "
+            "its steps are audited and checked before the next stage starts. "
+            "GOAL COVERAGE CONTRACT: On the initial patch, goal_obligations must "
+            "enumerate every explicit result, side effect, prohibition, requested "
+            "verification, and requested deliverable in the immutable request. Each "
+            "obligation has a stable obligation_id, an observable predicate, and the "
+            "minimal required_phases whose successful Harness evidence is necessary. "
+            "Use observe when satisfying it requires inspecting workspace or public "
+            "facts; mutate when it requires creating or changing a local artifact; "
+            "execute when it explicitly requires a command/test/run or when executable "
+            "verification is part of the requested result; derive_evidence only for a "
+            "calculation, time/date derivation, or evidence binding. A prohibition that "
+            "requires a recorded decision still needs the phases used to inspect and "
+            "write that decision. Every step must bind at least one obligation_id and "
+            "advances only its own declared phase. On correction or continuation "
+            "patches, goal_obligations must be [] and step obligation_ids must reuse "
+            "the immutable IDs shown in active_plan. Exact step text, IDs, count, "
+            "stages, and order may vary; only complete obligation-phase evidence gates "
+            "the goal. "
+            "Completed steps in active_plan are immutable. Open steps may be replaced "
+            "in replace_stages or removed in discard_step_ids; do not retain stale work "
+            "merely to preserve append-only history. New ids belong in add_stages. "
+            "Dependencies may refer only to steps that remain active or are added by "
+            "this patch. EVIDENCE AUTHORITY: success_evidence simply describes what "
+            "later successful Actions must prove; it does not report that work is "
+            "already complete. Planner text is never completion evidence. Only the "
+            "RWKV Auditor can accept runtime Action evidence. "
+            "FINAL EVIDENCE REPAIR: repair_feedback binds the accepted Final Auditor "
+            "gaps to this plan revision. Consume its criteria and evidence refs to "
+            "add executable work that proves the missing requirement. Preserve "
+            "completed steps and immutable obligations. A rejected candidate is "
+            "context, never evidence; changing its wording cannot fill execution gaps. "
+            "FACT CONSUMPTION: recent_action_facts contains bounded typed Harness "
+            "observations. Its arguments_projection and result_projection fields are "
+            "JSON-encoded packets, not prose. Preserve their literal booleans, exact "
+            "diagnostics, and lineage-bound spans when planning the next frontier. A "
+            "complete negative observation is still decisive evidence: for example, "
+            "valid_json=false with parse_outcome_complete=true proves that candidate "
+            "is not readable JSON. When the immutable request names a fallback, move "
+            "to that fallback after the preferred source is disproved. Do not replace "
+            "a repaired frontier with the same phase and roots merely to repeat an "
+            "identical complete observation; consume the observed outcome and change "
+            "the next semantic work. "
+            "The Controller has already fixed the one project mother path. You have "
+            "no authority to name, infer, replace, expand, or emit that mother path. "
+            "Every read_roots and write_roots item is only a project-relative file "
+            "or subdirectory locator beneath it, grounded in the request or "
+            "workspace_manifest. Use '.' for the whole fixed project. Never emit an "
+            "absolute path, never invent a '/workspace' prefix, never use a backslash, "
+            "and never use '..'. "
+            "FORMAT EXAMPLE (shape only; replace every example value): "
+            '{"goal_obligations":[{"obligation_id":"O1",'
+            '"predicate":"one observable required result",'
+            '"required_phases":["observe"]}],'
+            '"add_stages":[{"stage":1,"steps":[{"step_id":"S1",'
+            '"objective":"one coherent responsibility","phase":"observe",'
+            '"depends_on":[],'
+            '"obligation_ids":["O1"],'
+            '"success_evidence":["successful action evidence covers the required read"],'
+            '"read_roots":["."],"write_roots":[],'
+            '"constraints":[]}]}],"replace_stages":[],'
+            '"discard_step_ids":[],"reason":"concise planning reason"}. '
+            "Return the same nested shape with real values; do not flatten steps. "
+            + (
+                "This is the initial patch: replace_stages and discard_step_ids are "
+                "empty, goal_obligations is non-empty and exhaustive, and add_stages "
+                "contains the first executable stages."
+                if initial
+                else "This is a correction or continuation patch: goal_obligations is "
+                "always []; make only the smallest change needed "
+                "for latest_audit or latest_stage_review, replacing or discarding "
+                "obsolete open work or adding later repair stages. When "
+                "latest_audit.verdict is repair or latest_stage_review.verdict is "
+                "repair, and active_plan "
+                "still has a frontier, the patch must replace or discard at least "
+                "one current frontier step so the gap is addressed before unrelated "
+                "downstream work; merely appending a later stage is invalid."
+            )
+        )
+        if request.local_validation_repair is not None:
+            system_prompt += (
+                " The immediately preceding patch was rejected by the Controller's "
+                "rolling-plan validator. local_validation_repair is the authoritative "
+                "final instruction. Return one fresh complete patch that fixes its exact "
+                "error against active_plan. Do not reuse an existing id in add_stages, "
+                "do not put one id in both replace_stages and discard_step_ids, and do "
+                "not leave a retained step dependent on a discarded step."
+            )
+        request_payload = request.to_dict()
+        schema = self._goal_plan_patch_schema()
+        cache_schema = "rwkv-lh.validated-goal-plan-cache.v2"
+        cache_path = self._validated_response_cache_path(
+            phase="goal_plan",
+            cache_schema=cache_schema,
+            request_payload=request_payload,
+            system_prompt=system_prompt,
+            schema=schema,
+        )
+        value = self._load_validated_response_cache(
+            cache_path,
+            phase="goal_plan",
+            run_id=request.run_id,
+            request_digest=request.goal_digest,
+        )
+        cache_hit = value is not None
+        if value is None:
+            value = self._request_json(
+                phase="goal_plan",
+                run_id=request.run_id,
+                request_digest=request.goal_digest,
+                system_prompt=system_prompt,
+                request_payload=request_payload,
+                schema=schema,
+                # Goal Planner has its own response-token budget, independent
+                # of the number of steps required by the task.
+                max_tokens=self.settings.max_plan_tokens,
+            )
+        patch = GoalPlanPatch.from_model_value(
+            value,
+            patch_id=f"GPP-{uuid.uuid4().hex[:16]}",
+            base_revision=request.plan_revision,
+        )
+        if initial and (patch.replace_steps or patch.discard_step_ids):
+            raise SupervisorProtocolError(
+                "initial Goal PlanPatch cannot replace or discard steps"
+            )
+        if initial and not patch.add_steps:
+            raise SupervisorProtocolError("initial Goal PlanPatch requires add_steps")
+        if initial and not patch.goal_obligations:
+            raise SupervisorProtocolError(
+                "initial Goal PlanPatch requires immutable goal_obligations"
+            )
+        if not initial and patch.goal_obligations:
+>           raise SupervisorProtocolError(
+                "continuation Goal PlanPatch cannot redefine goal_obligations"
+            )
+E           rwkv_lh.supervisor_openai.SupervisorProtocolError: continuation Goal PlanPatch cannot redefine goal_obligations
+
+rwkv_lh/supervisor_openai.py:3083: SupervisorProtocolError
+_ test_planner_and_runtime_share_one_default_env_in_either_load_order[True-True] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_and_runtime_share0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7421b59ce690>
+supervisor_first = True, process_override = True
+
+    @pytest.mark.parametrize("supervisor_first", [True, False])
+    @pytest.mark.parametrize("process_override", [True, False])
+    def test_planner_and_runtime_share_one_default_env_in_either_load_order(
+        tmp_path, monkeypatch, supervisor_first, process_override,
+    ) -> None:
+        import rwkv_lh.runtime.settings as runtime_module
+        import rwkv_lh.supervisor_openai as supervisor_module
+    
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        (tmp_path / ".env.local").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=https://strong.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-key",
+            "RWKV_LH_PLANNER_MODEL=strong-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=strong-stage-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=openai-compatible",
+            "RWKV_LH_EXECUTOR_MODEL=rwkv-executor",
+            "RWKV_LH_SELECTOR_MODEL=rwkv-selector",
+            "SUPERVISOR_MAX_REVIEW_REPAIRS=2",
+        )), encoding="utf-8")
+        (tmp_path / ".env").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=http://stale.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=stale-fixture-key",
+            "RWKV_LH_PLANNER_MODEL=stale-rwkv-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=stale-rwkv-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+        )), encoding="utf-8")
+        if process_override:
+            monkeypatch.setenv("RWKV_LH_PLANNER_MODEL", "process-planner")
+        original_loader = runtime_module.load_local_env
+        loaded_paths = []
+    
+        def fixture_loader(path=runtime_module.DEFAULT_ENV_FILE, **kwargs):
+            loaded_paths.append(Path(path).name)
+            original_loader(tmp_path / Path(path).name, **kwargs)
+    
+        monkeypatch.setattr(runtime_module, "load_local_env", fixture_loader)
+        monkeypatch.setattr(supervisor_module, "load_local_env", fixture_loader)
+        if supervisor_first:
+            planner = SupervisorAPISettings.from_env()
+            runtime = RuntimeSettings.from_env()
+        else:
+            runtime = RuntimeSettings.from_env()
+            planner = SupervisorAPISettings.from_env()
+        policy = supervisor_module.supervisor_policy_from_env()
+    
+>       assert loaded_paths == [".env.local"] * 3
+E       AssertionError: assert ['.env', '.env.local', '.env'] == ['.env.local'... '.env.local']
+E         
+E         At index 0 diff: '.env' != '.env.local'
+E         Use -v to get more diff
+
+tests/test_role_model_configuration.py:76: AssertionError
+_ test_planner_and_runtime_share_one_default_env_in_either_load_order[True-False] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_and_runtime_share1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7421b59cdc10>
+supervisor_first = False, process_override = True
+
+    @pytest.mark.parametrize("supervisor_first", [True, False])
+    @pytest.mark.parametrize("process_override", [True, False])
+    def test_planner_and_runtime_share_one_default_env_in_either_load_order(
+        tmp_path, monkeypatch, supervisor_first, process_override,
+    ) -> None:
+        import rwkv_lh.runtime.settings as runtime_module
+        import rwkv_lh.supervisor_openai as supervisor_module
+    
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        (tmp_path / ".env.local").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=https://strong.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-key",
+            "RWKV_LH_PLANNER_MODEL=strong-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=strong-stage-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=openai-compatible",
+            "RWKV_LH_EXECUTOR_MODEL=rwkv-executor",
+            "RWKV_LH_SELECTOR_MODEL=rwkv-selector",
+            "SUPERVISOR_MAX_REVIEW_REPAIRS=2",
+        )), encoding="utf-8")
+        (tmp_path / ".env").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=http://stale.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=stale-fixture-key",
+            "RWKV_LH_PLANNER_MODEL=stale-rwkv-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=stale-rwkv-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+        )), encoding="utf-8")
+        if process_override:
+            monkeypatch.setenv("RWKV_LH_PLANNER_MODEL", "process-planner")
+        original_loader = runtime_module.load_local_env
+        loaded_paths = []
+    
+        def fixture_loader(path=runtime_module.DEFAULT_ENV_FILE, **kwargs):
+            loaded_paths.append(Path(path).name)
+            original_loader(tmp_path / Path(path).name, **kwargs)
+    
+        monkeypatch.setattr(runtime_module, "load_local_env", fixture_loader)
+        monkeypatch.setattr(supervisor_module, "load_local_env", fixture_loader)
+        if supervisor_first:
+            planner = SupervisorAPISettings.from_env()
+            runtime = RuntimeSettings.from_env()
+        else:
+            runtime = RuntimeSettings.from_env()
+            planner = SupervisorAPISettings.from_env()
+        policy = supervisor_module.supervisor_policy_from_env()
+    
+>       assert loaded_paths == [".env.local"] * 3
+E       AssertionError: assert ['.env.local', '.env', '.env'] == ['.env.local'... '.env.local']
+E         
+E         At index 1 diff: '.env' != '.env.local'
+E         Use -v to get more diff
+
+tests/test_role_model_configuration.py:76: AssertionError
+_ test_planner_and_runtime_share_one_default_env_in_either_load_order[False-True] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_and_runtime_share2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7421b608bee0>
+supervisor_first = True, process_override = False
+
+    @pytest.mark.parametrize("supervisor_first", [True, False])
+    @pytest.mark.parametrize("process_override", [True, False])
+    def test_planner_and_runtime_share_one_default_env_in_either_load_order(
+        tmp_path, monkeypatch, supervisor_first, process_override,
+    ) -> None:
+        import rwkv_lh.runtime.settings as runtime_module
+        import rwkv_lh.supervisor_openai as supervisor_module
+    
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        (tmp_path / ".env.local").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=https://strong.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-key",
+            "RWKV_LH_PLANNER_MODEL=strong-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=strong-stage-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=openai-compatible",
+            "RWKV_LH_EXECUTOR_MODEL=rwkv-executor",
+            "RWKV_LH_SELECTOR_MODEL=rwkv-selector",
+            "SUPERVISOR_MAX_REVIEW_REPAIRS=2",
+        )), encoding="utf-8")
+        (tmp_path / ".env").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=http://stale.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=stale-fixture-key",
+            "RWKV_LH_PLANNER_MODEL=stale-rwkv-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=stale-rwkv-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+        )), encoding="utf-8")
+        if process_override:
+            monkeypatch.setenv("RWKV_LH_PLANNER_MODEL", "process-planner")
+        original_loader = runtime_module.load_local_env
+        loaded_paths = []
+    
+        def fixture_loader(path=runtime_module.DEFAULT_ENV_FILE, **kwargs):
+            loaded_paths.append(Path(path).name)
+            original_loader(tmp_path / Path(path).name, **kwargs)
+    
+        monkeypatch.setattr(runtime_module, "load_local_env", fixture_loader)
+        monkeypatch.setattr(supervisor_module, "load_local_env", fixture_loader)
+        if supervisor_first:
+            planner = SupervisorAPISettings.from_env()
+            runtime = RuntimeSettings.from_env()
+        else:
+            runtime = RuntimeSettings.from_env()
+            planner = SupervisorAPISettings.from_env()
+        policy = supervisor_module.supervisor_policy_from_env()
+    
+>       assert loaded_paths == [".env.local"] * 3
+E       AssertionError: assert ['.env', '.env.local', '.env'] == ['.env.local'... '.env.local']
+E         
+E         At index 0 diff: '.env' != '.env.local'
+E         Use -v to get more diff
+
+tests/test_role_model_configuration.py:76: AssertionError
+_ test_planner_and_runtime_share_one_default_env_in_either_load_order[False-False] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_and_runtime_share3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7421b59383c0>
+supervisor_first = False, process_override = False
+
+    @pytest.mark.parametrize("supervisor_first", [True, False])
+    @pytest.mark.parametrize("process_override", [True, False])
+    def test_planner_and_runtime_share_one_default_env_in_either_load_order(
+        tmp_path, monkeypatch, supervisor_first, process_override,
+    ) -> None:
+        import rwkv_lh.runtime.settings as runtime_module
+        import rwkv_lh.supervisor_openai as supervisor_module
+    
+        for key in tuple(os.environ):
+            if key.startswith(("RWKV_", "SUPERVISOR_")):
+                monkeypatch.delenv(key)
+        (tmp_path / ".env.local").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=https://strong.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=fixture-key",
+            "RWKV_LH_PLANNER_MODEL=strong-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=strong-stage-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=openai-compatible",
+            "RWKV_LH_EXECUTOR_MODEL=rwkv-executor",
+            "RWKV_LH_SELECTOR_MODEL=rwkv-selector",
+            "SUPERVISOR_MAX_REVIEW_REPAIRS=2",
+        )), encoding="utf-8")
+        (tmp_path / ".env").write_text("\n".join((
+            "RWKV_LH_PLANNER_BASE_URL=http://stale.invalid/v1",
+            "RWKV_LH_PLANNER_API_KEY=stale-fixture-key",
+            "RWKV_LH_PLANNER_MODEL=stale-rwkv-planner",
+            "RWKV_LH_STAGE_CHECKER_MODEL=stale-rwkv-checker",
+            "RWKV_LH_PLANNER_BACKEND_PROFILE=vllm-rwkv-native",
+        )), encoding="utf-8")
+        if process_override:
+            monkeypatch.setenv("RWKV_LH_PLANNER_MODEL", "process-planner")
+        original_loader = runtime_module.load_local_env
+        loaded_paths = []
+    
+        def fixture_loader(path=runtime_module.DEFAULT_ENV_FILE, **kwargs):
+            loaded_paths.append(Path(path).name)
+            original_loader(tmp_path / Path(path).name, **kwargs)
+    
+        monkeypatch.setattr(runtime_module, "load_local_env", fixture_loader)
+        monkeypatch.setattr(supervisor_module, "load_local_env", fixture_loader)
+        if supervisor_first:
+            planner = SupervisorAPISettings.from_env()
+            runtime = RuntimeSettings.from_env()
+        else:
+            runtime = RuntimeSettings.from_env()
+            planner = SupervisorAPISettings.from_env()
+        policy = supervisor_module.supervisor_policy_from_env()
+    
+>       assert loaded_paths == [".env.local"] * 3
+E       AssertionError: assert ['.env.local', '.env', '.env'] == ['.env.local'... '.env.local']
+E         
+E         At index 1 diff: '.env' != '.env.local'
+E         Use -v to get more diff
+
+tests/test_role_model_configuration.py:76: AssertionError
+__ test_planner_raw_parse_rejection_reaches_same_boundary_repair[wrong_field] __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_raw_parse_rejecti0')
+failure = 'wrong_field'
+
+    @pytest.mark.parametrize("failure", ["wrong_field", "missing_initial_obligations"])
+    def test_planner_raw_parse_rejection_reaches_same_boundary_repair(
+        tmp_path: Path, failure: str,
+    ) -> None:
+        from rwkv_lh.supervisor_openai import OpenAIGoalSupervisorClient, SupervisorAPISettings
+    
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "PLANNER-RAW-REPAIR")
+        model = LongHorizonModel(
+            ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            tool_selector=_selector([]),
+        )
+        patch = GoalPlanPatch(
+            patch_id="GPP-provider-fixture", base_revision=0,
+            goal_obligations=(GoalObligation("O1", "Workspace is inspected", ("observe",)),),
+            add_steps=(GoalPlanStep(
+                step_id="S1", objective="Inspect the workspace", phase="observe",
+                obligation_ids=("O1",), read_roots=(".",),
+                success_evidence=("Workspace entries are observed",),
+            ),), replace_steps=(), discard_step_ids=(), reason="Inspect current evidence",
+        )
+        valid = patch.to_dict()
+        for key in ("schema_version", "patch_id", "base_revision"):
+            valid.pop(key)
+        for stage in valid["add_stages"]:
+            for step in stage["steps"]:
+                step.pop("allowed_operations")
+        invalid = deepcopy(valid)
+        if failure == "wrong_field":
+            obligation = invalid["goal_obligations"][0]
+            obligation["observable_predicate"] = obligation.pop("predicate")
+        else:
+            invalid["goal_obligations"] = []
+    
+        class ProviderSession:
+            def __init__(self):
+                self.posts = []
+                self.outputs = [invalid, valid]
+    
+            def post(self, url, **kwargs):
+                self.posts.append(kwargs["json"])
+                value = self.outputs.pop(0)
+                return SimpleNamespace(status_code=200, json=lambda: {
+                    "model": "strong-fixture",
+                    "choices": [{"finish_reason": "stop", "message": {
+                        "role": "assistant", "content": json.dumps(value),
+                    }}],
+                })
+    
+        session = ProviderSession()
+        planner = OpenAIGoalSupervisorClient(SupervisorAPISettings(
+            base_url="https://planner.invalid/v1", api_key="fixture-only",
+            model="strong-fixture", stage_checker_model="strong-fixture",
+            retry_attempts=2, plan_cache_enabled=False,
+        ), session=session)
+        controller = StatefulGoalLoopController(
+            store, model=model, harness=model.harness, supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=4,
+        )
+    
+        result = controller._issue_strong_plan_patch(
+            state, plan=rolling_goal_plan(state), transitions=0,
+        )
+    
+        assert result is None
+        assert len(session.posts) == 2
+        first = json.loads(session.posts[0]["messages"][-1]["content"])
+        second = json.loads(session.posts[1]["messages"][-1]["content"])
+        assert "local_validation_repair" not in first
+>       assert second["local_validation_repair"]["rejected_patch"] == invalid
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'rejected_patch'
+
+tests/test_stateful_goal_loop.py:4543: KeyError
+_ test_planner_raw_parse_rejection_reaches_same_boundary_repair[missing_initial_obligations] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_planner_raw_parse_rejecti1')
+failure = 'missing_initial_obligations'
+
+    @pytest.mark.parametrize("failure", ["wrong_field", "missing_initial_obligations"])
+    def test_planner_raw_parse_rejection_reaches_same_boundary_repair(
+        tmp_path: Path, failure: str,
+    ) -> None:
+        from rwkv_lh.supervisor_openai import OpenAIGoalSupervisorClient, SupervisorAPISettings
+    
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "PLANNER-RAW-REPAIR")
+        model = LongHorizonModel(
+            ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+            tool_selector=_selector([]),
+        )
+        patch = GoalPlanPatch(
+            patch_id="GPP-provider-fixture", base_revision=0,
+            goal_obligations=(GoalObligation("O1", "Workspace is inspected", ("observe",)),),
+            add_steps=(GoalPlanStep(
+                step_id="S1", objective="Inspect the workspace", phase="observe",
+                obligation_ids=("O1",), read_roots=(".",),
+                success_evidence=("Workspace entries are observed",),
+            ),), replace_steps=(), discard_step_ids=(), reason="Inspect current evidence",
+        )
+        valid = patch.to_dict()
+        for key in ("schema_version", "patch_id", "base_revision"):
+            valid.pop(key)
+        for stage in valid["add_stages"]:
+            for step in stage["steps"]:
+                step.pop("allowed_operations")
+        invalid = deepcopy(valid)
+        if failure == "wrong_field":
+            obligation = invalid["goal_obligations"][0]
+            obligation["observable_predicate"] = obligation.pop("predicate")
+        else:
+            invalid["goal_obligations"] = []
+    
+        class ProviderSession:
+            def __init__(self):
+                self.posts = []
+                self.outputs = [invalid, valid]
+    
+            def post(self, url, **kwargs):
+                self.posts.append(kwargs["json"])
+                value = self.outputs.pop(0)
+                return SimpleNamespace(status_code=200, json=lambda: {
+                    "model": "strong-fixture",
+                    "choices": [{"finish_reason": "stop", "message": {
+                        "role": "assistant", "content": json.dumps(value),
+                    }}],
+                })
+    
+        session = ProviderSession()
+        planner = OpenAIGoalSupervisorClient(SupervisorAPISettings(
+            base_url="https://planner.invalid/v1", api_key="fixture-only",
+            model="strong-fixture", stage_checker_model="strong-fixture",
+            retry_attempts=2, plan_cache_enabled=False,
+        ), session=session)
+        controller = StatefulGoalLoopController(
+            store, model=model, harness=model.harness, supervisor=planner,
+            supervisor_policy=SupervisorPolicy(mode="static"), max_transitions=4,
+        )
+    
+        result = controller._issue_strong_plan_patch(
+            state, plan=rolling_goal_plan(state), transitions=0,
+        )
+    
+>       assert result is None
+E       AssertionError: assert ControllerResult(state=RunState(run_id='PLANNER-RAW-REPAIR', goal=GoalState(goal_id='G1', request='Inspect the project...0', updated_at='2026-09-09T11:17:01.402+00:00', schema_version='long-horizon.run.v18'), final_output='', transitions=0) is None
+
+tests/test_stateful_goal_loop.py:4538: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[length]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[content_filter]
+FAILED tests/test_supervisor_openai.py::test_goal_planner_never_accepts_json_without_natural_completion[None]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[top]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[stage]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[step]
+FAILED tests/test_supervisor_openai.py::test_planner_parse_error_preserves_original_value_and_names_wrong_fields[obligation]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[obligations]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[add]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[replace]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[discard]
+FAILED tests/test_supervisor_openai.py::test_planner_initial_and_continuation_errors_are_repairable_values[continuation]
+FAILED tests/test_role_model_configuration.py::test_planner_and_runtime_share_one_default_env_in_either_load_order[True-True]
+FAILED tests/test_role_model_configuration.py::test_planner_and_runtime_share_one_default_env_in_either_load_order[True-False]
+FAILED tests/test_role_model_configuration.py::test_planner_and_runtime_share_one_default_env_in_either_load_order[False-True]
+FAILED tests/test_role_model_configuration.py::test_planner_and_runtime_share_one_default_env_in_either_load_order[False-False]
+FAILED tests/test_stateful_goal_loop.py::test_planner_raw_parse_rejection_reaches_same_boundary_repair[wrong_field]
+FAILED tests/test_stateful_goal_loop.py::test_planner_raw_parse_rejection_reaches_same_boundary_repair[missing_initial_obligations]
+18 failed, 138 deselected in 1.93s

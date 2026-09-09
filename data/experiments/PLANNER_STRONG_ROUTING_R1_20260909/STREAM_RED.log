@@ -1,0 +1,475 @@
+FFFFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+_____ test_streamed_planner_holds_request_slot_and_uses_identical_contract _____
+
+    def test_streamed_planner_holds_request_slot_and_uses_identical_contract():
+        value = _current_planner_model_value()
+        value["reason"] += "，保留原始中文。"
+        provider_response = StreamingResponse(value)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:976: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', 'model': 'gpt-test', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[missing_done] _
+
+defect = 'missing_done'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[missing_finish] _
+
+defect = 'missing_finish'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[length] _
+
+defect = 'length'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[wrong_choice] _
+
+defect = 'wrong_choice'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[changed_model] _
+
+defect = 'changed_model'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[late_content] _
+
+defect = 'late_content'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+_ test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[invalid_chunk] _
+
+defect = 'invalid_chunk'
+
+    @pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+    def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
+        provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
+        fake = FakeSession([provider_response])
+        audit = []
+>       client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2), session=fake, audit_hook=audit.append)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_supervisor_openai.py:1018: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SupervisorAPISettings(base_url='https://supervisor.invalid/v1', api_key='test-secret-never-audited', model='gpt-test',...ed=False, plan_cache_dir='/home/chase/GitHub/RWKV-LH/data/cache/supervisor_plans', backend_profile='openai-compatible')
+changes = {'stream_responses': True, 'retry_attempts': 2, 'base_url': 'https://supervisor.invalid/v1', 'api_key': 'test-secret-never-audited', ...}
+
+    def _replace(self, /, **changes):
+        # We're going to mutate 'changes', but that's okay because it's a
+        # new dict, even if called with 'replace(self, **my_changes)'.
+    
+        # It's an error to have init=False fields in 'changes'.
+        # If a field is not in 'changes', read its value from the provided 'self'.
+    
+        for f in getattr(self, _FIELDS).values():
+            # Only consider normal fields or InitVars.
+            if f._field_type is _FIELD_CLASSVAR:
+                continue
+    
+            if not f.init:
+                # Error if this field is specified in changes.
+                if f.name in changes:
+                    raise TypeError(f'field {f.name} is declared with '
+                                    f'init=False, it cannot be specified with '
+                                    f'replace()')
+                continue
+    
+            if f.name not in changes:
+                if f._field_type is _FIELD_INITVAR and f.default is MISSING:
+                    raise TypeError(f"InitVar {f.name!r} "
+                                    f'must be specified with replace()')
+                changes[f.name] = getattr(self, f.name)
+    
+        # Create the new object, which calls __init__() and
+        # __post_init__() (if defined), using all of the init fields we've
+        # added and/or left in 'changes'.  If there are values supplied in
+        # changes that aren't fields, this will correctly raise a
+        # TypeError.
+>       return self.__class__(**changes)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SupervisorAPISettings.__init__() got an unexpected keyword argument 'stream_responses'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/dataclasses.py:1630: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_holds_request_slot_and_uses_identical_contract
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[missing_done]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[missing_finish]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[length]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[wrong_choice]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[changed_model]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[late_content]
+FAILED tests/test_supervisor_openai.py::test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry[invalid_chunk]
+8 failed, 60 deselected in 0.38s
