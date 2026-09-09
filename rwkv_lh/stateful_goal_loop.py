@@ -2408,8 +2408,8 @@ class StatefulGoalLoopController(LongHorizonController):
                     )
                 except RWKVRuntimeError as exc:
                     transport_failures += 1
-                    self._record_transport_failure(state, exc, transport_failures)
-                    if transport_failures >= self._MAX_TRANSPORT_FAILURES:
+                    retryable = self._record_transport_failure(state, exc, transport_failures)
+                    if not retryable or transport_failures >= self._MAX_TRANSPORT_FAILURES:
                         return self._yield(
                             state,
                             "model_transport_unavailable",

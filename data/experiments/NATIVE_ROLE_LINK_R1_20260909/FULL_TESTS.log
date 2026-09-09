@@ -1,0 +1,73 @@
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 25%]
+........................................................................ [ 31%]
+........................................................................ [ 37%]
+........................................................................ [ 44%]
+........................................................................ [ 50%]
+........................................................................ [ 56%]
+........................................................................ [ 62%]
+..........................FF............................................ [ 69%]
+........................................................................ [ 75%]
+........................................................................ [ 81%]
+........................................................................ [ 88%]
+........................................................................ [ 94%]
+...............................................................          [100%]
+=================================== FAILURES ===================================
+_____________ test_transport_outage_lands_in_failed_terminal_state _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-native-link-r1/data/test_runs/pytest/test_transport_outage_lands_in0')
+
+    def test_transport_outage_lands_in_failed_terminal_state(tmp_path: Path) -> None:
+        """M16/M17/M21 regression: an endpoint outage must never leave the run
+        in `running`; every exit appends a terminal causal event."""
+    
+        calls: list[dict | str] = [TRANSPORT_FAILURE] * 40
+        controller, store, _, _ = build(tmp_path, calls)
+        result = controller.run("RUN")
+        assert result.state.status == RunStatus.FAILED
+        assert result.final_output == ""
+        terminal = [
+            event
+            for event in result.state.causal_records.values()
+            if event.event_type == "run_failed"
+        ]
+        assert len(terminal) == 1
+        assert terminal[0].payload["reason"] == "model_transport_unavailable"
+        transport_events = [
+            event
+            for event in result.state.causal_records.values()
+            if event.event_type == "model_transport_failure"
+        ]
+>       assert len(transport_events) == 16  # 8 in the main loop + 8 in the terminal path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert 2 == 16
+E        +  where 2 = len([CausalEvent(event_id='CE-000004', run_id='RUN', sequence=4, parent_id='CE-000003', cause_id='CE-000003', subject_id='...6241a49cf98c72d2903b94445cbbf1', created_at='2026-09-09T13:01:54.686+00:00', schema_version='rwkv-lh.causal-event.v2')])
+
+tests/test_round119_fact_integrity.py:170: AssertionError
+___________ test_transient_transport_failure_recovers_and_continues ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-native-link-r1/data/test_runs/pytest/test_transient_transport_failu0')
+
+    def test_transient_transport_failure_recovers_and_continues(tmp_path: Path) -> None:
+        controller, _, workspace, _ = build(
+            tmp_path,
+            [
+                TRANSPORT_FAILURE,
+                call("write_file", path="out.txt", content="ok"),
+                call("final_answer", text="Wrote out.txt."),
+            ],
+        )
+        result = controller.run("RUN")
+>       assert result.state.status == RunStatus.COMPLETED
+E       AssertionError: assert <RunStatus.IN...'interrupted'> == <RunStatus.CO...: 'completed'>
+E         
+E         - completed
+E         + interrupted
+
+tests/test_round119_fact_integrity.py:185: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_round119_fact_integrity.py::test_transport_outage_lands_in_failed_terminal_state
+FAILED tests/test_round119_fact_integrity.py::test_transient_transport_failure_recovers_and_continues
+2 failed, 1141 passed in 192.30s (0:03:12)

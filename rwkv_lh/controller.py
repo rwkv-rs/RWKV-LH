@@ -64,7 +64,9 @@ from rwkv_lh.parallel_atoms import (
     AtomExecutionStatus,
     AtomWorkerPool,
 )
-from rwkv_lh.runtime.protocol import RWKVRuntimeError
+from rwkv_lh.runtime.protocol import (
+    RWKVHTTPError, RWKVOutcomeUnknownError, RWKVProtocolError, RWKVRuntimeError,
+)
 from rwkv_lh.retrieval.runtime import operation_allowed_by_retrieval_policy
 from rwkv_lh.run_lifecycle import (
     goal_self_termination_only,
@@ -504,8 +506,8 @@ class LongHorizonController:
                     transport_failures = 0
                 except RWKVRuntimeError as exc:
                     transport_failures += 1
-                    self._record_transport_failure(state, exc, transport_failures)
-                    if transport_failures >= self._MAX_TRANSPORT_FAILURES:
+                    retryable = self._record_transport_failure(state, exc, transport_failures)
+                    if not retryable or transport_failures >= self._MAX_TRANSPORT_FAILURES:
                         terminal_reason = "model_transport_unavailable"
                         break
                     self._transport_backoff(transport_failures)
@@ -3786,8 +3788,8 @@ class LongHorizonController:
                 transport_failures = 0
             except RWKVRuntimeError as exc:
                 transport_failures += 1
-                self._record_transport_failure(state, exc, transport_failures)
-                if transport_failures >= self._MAX_TRANSPORT_FAILURES:
+                retryable = self._record_transport_failure(state, exc, transport_failures)
+                if not retryable or transport_failures >= self._MAX_TRANSPORT_FAILURES:
                     terminal_reason = "model_transport_unavailable"
                     break
                 self._transport_backoff(transport_failures)
@@ -5400,8 +5402,8 @@ class LongHorizonController:
                 )
             except RWKVRuntimeError as exc:
                 transport_failures += 1
-                self._record_transport_failure(state, exc, transport_failures)
-                if transport_failures >= self._MAX_TRANSPORT_FAILURES:
+                retryable = self._record_transport_failure(state, exc, transport_failures)
+                if not retryable or transport_failures >= self._MAX_TRANSPORT_FAILURES:
                     failure_reason = "model_transport_unavailable"
                     break
                 self._transport_backoff(transport_failures)
@@ -5464,18 +5466,24 @@ class LongHorizonController:
         state: RunState,
         exc: BaseException,
         attempt: int,
-    ) -> None:
+    ) -> bool:
+        retryable = (
+            exc.retryable if isinstance(exc, RWKVHTTPError)
+            else not isinstance(exc, (RWKVOutcomeUnknownError, RWKVProtocolError))
+        )
         self._persist(
             state,
             "model_transport_failure",
             {
                 "error": {"type": type(exc).__name__, "message": str(exc)[:2000]},
                 "attempt": attempt,
-                "max_attempts": self._MAX_TRANSPORT_FAILURES,
+                "max_attempts": self._MAX_TRANSPORT_FAILURES if retryable else 1,
+                "retryable": retryable,
                 "action_executed": False,
                 "at": utc_now(),
             },
         )
+        return retryable
 
     def _transport_backoff(self, attempt: int) -> None:
         time.sleep(min(self._TRANSPORT_BACKOFF_CAP_SECONDS, 2.0 ** attempt))

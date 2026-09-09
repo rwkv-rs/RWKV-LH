@@ -3958,6 +3958,35 @@ def test_stateful_protocol_budget_blocks_across_controller_slices(
     assert latest_start.payload["protocol_rejection_budget_reset"] is True
 
 
+@pytest.mark.parametrize("failure_kind", ["nonretryable_http", "outcome_unknown", "invalid_transport_protocol"])
+def test_stateful_runtime_failure_does_not_repeat_uncertain_or_rejected_model_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_kind: str,
+) -> None:
+    from rwkv_lh.runtime.protocol import RWKVHTTPError, RWKVOutcomeUnknownError, RWKVProtocolError
+    errors = {"nonretryable_http": RWKVHTTPError(400, "invalid request recovery identity"),
+        "outcome_unknown": RWKVOutcomeUnknownError("Native receipt unresolved"),
+        "invalid_transport_protocol": RWKVProtocolError("Native binding differs")}
+    store = LongHorizonStore(tmp_path / "state")
+    state = store.create_run(_goal(tmp_path), "NO-NATIVE-RESUBMISSION")
+    model = LongHorizonModel(ModelSession(_QueueClient([]), settings=_settings(progressive=True)),
+        tool_selector=_selector(["write_file"] * 8))
+    calls = []
+    def rejected(*args, **kwargs):
+        calls.append(True)
+        raise errors[failure_kind]
+    monkeypatch.setattr(model, "next_command", rejected)
+    monkeypatch.setattr(StatefulGoalLoopController, "_transport_backoff", lambda *a: None)
+    controller = StatefulGoalLoopController(store, model=model, harness=model.harness,
+        supervisor=_StrongPlanner(_strong_patch(state)), supervisor_policy=SupervisorPolicy(mode="static"),
+        max_transitions=20)
+    result = controller.run(state.run_id)
+    assert len(calls) == 1
+    assert not result.state.actions
+    assert result.state.status.value != "completed"
+    failures = [event for event in result.state.causal_records.values() if event.event_type == "model_transport_failure"]
+    assert len(failures) == 1 and failures[0].payload["retryable"] is False
+
+
 def test_goal_audit_protocol_budget_stops_repeated_pre_final_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

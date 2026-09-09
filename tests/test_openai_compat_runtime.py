@@ -363,6 +363,8 @@ def test_runtime_capabilities_require_explicit_recurrent_state_declaration(monke
                         "rollback": True,
                         "export": True,
                         "import": True,
+                        "request_recovery": True,
+                        "request_recovery_protocol": "rwkv-lh.native-request-recovery.v1",
                     },
                 }
             )
@@ -408,6 +410,8 @@ def test_runtime_capabilities_preserve_server_native_state_transport(monkeypatch
                         "rollback": True,
                         "export": True,
                         "import": True,
+                        "request_recovery": True,
+                        "request_recovery_protocol": "rwkv-lh.native-request-recovery.v1",
                     },
                 }
             )

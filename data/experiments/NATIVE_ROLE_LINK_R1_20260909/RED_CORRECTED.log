@@ -1,0 +1,1457 @@
+FFFFFFFFFFFFFFFFFFFFFF                                                   [100%]
+=================================== FAILURES ===================================
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-create] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a47bb0>
+operation = 'create', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:96: in invoke
+    return runtime.state_create(**args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:591: in state_create
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16949a90>
+method = 'POST', path = '/state/create'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na...ing.v1', 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'lane_id': 'LANE:ACTION', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-append] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a47a80>
+operation = 'append', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:98: in invoke
+    return getattr(runtime, 'state_' + operation)(parent_state_ref='WKV-parent', **args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:610: in state_append
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16945e50>
+method = 'POST', path = '/state/append'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na... 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'parent_state_ref': 'WKV-parent', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-fork] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f168a5490>
+operation = 'fork', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:98: in invoke
+    return getattr(runtime, 'state_' + operation)(parent_state_ref='WKV-parent', **args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:630: in state_fork
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16946c10>
+method = 'POST', path = '/state/fork'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na... 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'parent_state_ref': 'WKV-parent', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-generate] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a53020>
+operation = 'generate', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16a47bb0>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-commit] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a53bd0>
+operation = 'commit', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:104: in invoke
+    return runtime.state_commit(candidate_state_ref='WKV-candidate', cache_binding=binding())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:695: in state_commit
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f166dcc30>
+method = 'POST', path = '/state/commit'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na..._id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'candidate_state_ref': 'WKV-candidate', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-rollback] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16901e50>
+operation = 'rollback', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:106: in invoke
+    return runtime.state_rollback(candidate_state_ref='WKV-candidate', parent_state_ref='WKV-parent')
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:711: in state_rollback
+    self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f168da570>
+method = 'POST', path = '/state/rollback'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'candidate_state_ref': 'WKV-candidate', 'parent_state_ref': 'WKV-parent'}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-import] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16902350>
+operation = 'import', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:108: in invoke
+    return runtime.state_import(export_record={'locator': 'opaque-export'}, cache_binding=binding())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:728: in state_import
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16978270>
+method = 'POST', path = '/state/import'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na...LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'export_record': {'locator': 'opaque-export'}, ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-create] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f169432f0>
+operation = 'create', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:96: in invoke
+    return runtime.state_create(**args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:591: in state_create
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f169787c0>
+method = 'POST', path = '/state/create'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na...ing.v1', 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'lane_id': 'LANE:ACTION', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-append] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16943890>
+operation = 'append', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:98: in invoke
+    return getattr(runtime, 'state_' + operation)(parent_state_ref='WKV-parent', **args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:610: in state_append
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16902c50>
+method = 'POST', path = '/state/append'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na... 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'parent_state_ref': 'WKV-parent', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-fork] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16919e10>
+operation = 'fork', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:98: in invoke
+    return getattr(runtime, 'state_' + operation)(parent_state_ref='WKV-parent', **args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:630: in state_fork
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16902350>
+method = 'POST', path = '/state/fork'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na... 'lane_id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'parent_state_ref': 'WKV-parent', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-generate] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f169191d0>
+operation = 'generate', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16943110>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-commit] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f1694eea0>
+operation = 'commit', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:104: in invoke
+    return runtime.state_commit(candidate_state_ref='WKV-candidate', cache_binding=binding())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:695: in state_commit
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f169428a0>
+method = 'POST', path = '/state/commit'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na..._id': 'LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'candidate_state_ref': 'WKV-candidate', ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-rollback] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a6e510>
+operation = 'rollback', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:106: in invoke
+    return runtime.state_rollback(candidate_state_ref='WKV-candidate', parent_state_ref='WKV-parent')
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:711: in state_rollback
+    self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f1695d9b0>
+method = 'POST', path = '/state/rollback'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'candidate_state_ref': 'WKV-candidate', 'parent_state_ref': 'WKV-parent'}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-import] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16a6e810>
+operation = 'import', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+>       result = invoke(client(monkeypatch, server), operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_request_protocol.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:108: in invoke
+    return runtime.state_import(export_record={'locator': 'opaque-export'}, cache_binding=binding())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/openai_compat.py:728: in state_import
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f168b9470>
+method = 'POST', path = '/state/import'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'cache_binding': {'schema_version': 'rwkv-lh.na...LANE:ACTION', 'lane_kind': 'action', 'model': 'opaque-model', ...}, 'export_record': {'locator': 'opaque-export'}, ...}
+generation = False
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt0] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16885bd0>
+corrupt = {'request_id': 'different-request'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f167bd8b0>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt1] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f16885a70>
+corrupt = {'request_digest': '0000000000000000000000000000000000000000000000000000000000000000'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16a6f710>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt2] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f168b5db0>
+corrupt = {'operation': 'fork'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16a6eb10>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt3] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f168b7750>
+corrupt = {'result_sha256': '0000000000000000000000000000000000000000000000000000000000000000'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16886620>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt4] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f1682ce60>
+corrupt = {'status': 'unknown'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16886c50>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt5] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f1692be50>
+corrupt = {'http_status': True}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f168745f0>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_ test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt6] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x773f166bd4d0>
+corrupt = {'schema_version': 'future-protocol'}
+
+    @pytest.mark.parametrize('corrupt', [
+        {'request_id': 'different-request'}, {'request_digest': '0' * 64},
+        {'operation': 'fork'}, {'result_sha256': '0' * 64}, {'status': 'unknown'},
+        {'http_status': True}, {'schema_version': 'future-protocol'},
+    ])
+    def test_unknown_or_mismatched_recovery_never_submits_another_operation(monkeypatch, corrupt):
+        server = JournalServer(lose_response=True, corrupt=corrupt)
+        with pytest.raises(RWKVOutcomeUnknownError):
+>           invoke(client(monkeypatch, server), 'generate')
+
+tests/test_native_request_protocol.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_request_protocol.py:100: in invoke
+    return runtime.state_generate(parent_state_ref='WKV-parent', request_id='MR-durable-id',
+rwkv_lh/runtime/openai_compat.py:652: in state_generate
+    data, _, _ = self._request_json(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.openai_compat.OpenAICompatibleRWKVClient object at 0x773f16874af0>
+method = 'POST', path = '/state/generate'
+payload = {'schema_version': 'rwkv-lh.native-state.v1', 'model': 'opaque-model', 'parent_state_ref': 'WKV-parent', 'parent_cache_binding_digest': '96227e82af20139fdde1712f4558c470fceb1f9e7dbe4c19ed2445364f3ab3dc', ...}
+generation = True
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        generation: bool = False,
+    ) -> tuple[dict[str, Any], float, int]:
+        endpoint = self.settings.base_url + path
+        attempts = self.settings.retry_attempts
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            try:
+                response = self._session().request(
+                    method,
+                    endpoint,
+                    headers=self._headers(),
+                    json=dict(payload) if payload is not None else None,
+                    timeout=(
+                        self.settings.connect_timeout_seconds,
+                        self.settings.read_timeout_seconds,
+                    ),
+                    verify=self.settings.verify_tls,
+                )
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                if response.status_code >= 400:
+                    detail = response.text[:1000].replace("\n", " ")
+                    error = RWKVHTTPError(
+                        response.status_code,
+                        detail,
+                        retryable=response.status_code in _RETRYABLE_STATUS,
+                    )
+                    if error.retryable and attempt < attempts:
+                        self._backoff(attempt, response.headers.get("Retry-After"))
+                        last_error = error
+                        continue
+>                   raise error
+E                   rwkv_lh.runtime.protocol.RWKVHTTPError: HTTP 400: {"detail": "invalid request recovery identity"}
+
+rwkv_lh/runtime/openai_compat.py:209: RWKVHTTPError
+_______ test_capability_admission_requires_the_current_recovery_protocol _______
+
+    def test_capability_admission_requires_the_current_recovery_protocol():
+        state = {key: True for key in ('create', 'resume', 'fork', 'commit', 'rollback', 'export', 'import')}
+        state['protocol'] = NATIVE_STATE_PROTOCOL_VERSION
+>       assert not RuntimeCapabilities.from_mapping({'recurrent_state': state}, source='test').durable_recurrent_state
+E       AssertionError: assert not True
+E        +  where True = RuntimeCapabilities(source='test', prompt_replay=True, native_tool_calls_declared=False, recurrent_state_create=True, ...recurrent_state_export=True, recurrent_state_import=True, recurrent_state_protocol='rwkv-lh.native-state.v1', error='').durable_recurrent_state
+E        +    where RuntimeCapabilities(source='test', prompt_replay=True, native_tool_calls_declared=False, recurrent_state_create=True, ...recurrent_state_export=True, recurrent_state_import=True, recurrent_state_protocol='rwkv-lh.native-state.v1', error='') = from_mapping({'recurrent_state': {'create': True, 'resume': True, 'fork': True, 'commit': True, ...}}, source='test')
+E        +      where from_mapping = RuntimeCapabilities.from_mapping
+
+tests/test_native_request_protocol.py:146: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-create]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-append]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-fork]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-generate]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-commit]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-rollback]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-import]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-create]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-append]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-fork]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-generate]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-commit]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-rollback]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-import]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt0]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt1]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt2]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt3]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt4]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt5]
+FAILED tests/test_native_request_protocol.py::test_unknown_or_mismatched_recovery_never_submits_another_operation[corrupt6]
+FAILED tests/test_native_request_protocol.py::test_capability_admission_requires_the_current_recovery_protocol
+22 failed in 0.22s

@@ -93,6 +93,8 @@ class FakeNativeStateClient:
             recurrent_state_export=self.durable,
             recurrent_state_import=self.durable,
             recurrent_state_protocol="rwkv-lh.native-state.v1",
+            recurrent_state_request_recovery=self.durable,
+            recurrent_state_request_recovery_protocol="rwkv-lh.native-request-recovery.v1",
         )
 
     def _snapshot(self, text: str, cache_binding, *, ref: str | None = None):
@@ -1274,6 +1276,8 @@ def test_session_factory_rejects_incompatible_native_protocol_attestation() -> N
                 recurrent_state_export=True,
                 recurrent_state_import=True,
                 recurrent_state_protocol="rwkv-lh.native-state.v0",
+                recurrent_state_request_recovery=True,
+                recurrent_state_request_recovery_protocol="rwkv-lh.native-request-recovery.v1",
             )
 
     client = IncompatibleProtocolClient([])

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from rwkv_lh.runtime.native_request_protocol import NATIVE_REQUEST_RECOVERY_VERSION
+
 
 class RWKVRuntimeError(RuntimeError):
     """Base class for model-runtime failures."""
@@ -237,6 +239,8 @@ class RuntimeCapabilities:
     recurrent_state_export: bool = False
     recurrent_state_import: bool = False
     recurrent_state_protocol: str = ""
+    recurrent_state_request_recovery: bool = False
+    recurrent_state_request_recovery_protocol: str = ""
     error: str = ""
 
     @property
@@ -250,6 +254,8 @@ class RuntimeCapabilities:
                 self.recurrent_state_rollback,
                 self.recurrent_state_export,
                 self.recurrent_state_import,
+                self.recurrent_state_request_recovery,
+                self.recurrent_state_request_recovery_protocol == NATIVE_REQUEST_RECOVERY_VERSION,
             )
         )
 
@@ -276,6 +282,8 @@ class RuntimeCapabilities:
             recurrent_state_export=bool(raw_state.get("export", False)),
             recurrent_state_import=bool(raw_state.get("import", False)),
             recurrent_state_protocol=str(raw_state.get("protocol") or ""),
+            recurrent_state_request_recovery=raw_state.get("request_recovery") is True,
+            recurrent_state_request_recovery_protocol=str(raw_state.get("request_recovery_protocol") or ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -292,6 +300,8 @@ class RuntimeCapabilities:
                 "export": self.recurrent_state_export,
                 "import": self.recurrent_state_import,
                 "protocol": self.recurrent_state_protocol,
+                "request_recovery": self.recurrent_state_request_recovery,
+                "request_recovery_protocol": self.recurrent_state_request_recovery_protocol,
                 "durable": self.durable_recurrent_state,
             },
             "error": self.error,

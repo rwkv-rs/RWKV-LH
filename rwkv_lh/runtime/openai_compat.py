@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import threading
 import time
+from urllib.parse import quote, urlencode
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -30,6 +32,12 @@ from rwkv_lh.runtime.native_state import (
     NativeStateCacheBinding,
     NativeStateCandidate,
     NativeStateSnapshot,
+)
+from rwkv_lh.runtime.native_request_protocol import (
+    NATIVE_REQUEST_RECOVERY_VERSION,
+    native_request_digest,
+    native_result_digest,
+    prepare_native_request,
 )
 from rwkv_lh.runtime.sampling import get_request_sampling
 from rwkv_lh.runtime.settings import RuntimeSettings, get_runtime_settings
@@ -176,9 +184,12 @@ class OpenAICompatibleRWKVClient:
         *,
         payload: Mapping[str, Any] | None = None,
         generation: bool = False,
+        native_mutation: bool = False,
     ) -> tuple[dict[str, Any], float, int]:
         endpoint = self.settings.base_url + path
-        attempts = self.settings.retry_attempts
+        # A Native mutation may already have a durable result. Recover through
+        # its read-only journal endpoint instead of submitting it a second time.
+        attempts = 1 if native_mutation else self.settings.retry_attempts
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             started = time.perf_counter()
@@ -581,6 +592,80 @@ class OpenAICompatibleRWKVClient:
             }
         )
 
+    def state_request_result(
+        self, *, request_id: str, operation: str, request_digest: str,
+    ) -> dict[str, Any]:
+        """Read an existing request receipt without submitting model work."""
+        path = "/state/requests/" + quote(request_id, safe="") + "?" + urlencode({"request_digest": request_digest})
+        result, _, _ = self._request_json("GET", path)
+        expected = {"schema_version": NATIVE_REQUEST_RECOVERY_VERSION,
+            "request_id": request_id, "operation": operation, "request_digest": request_digest}
+        if any(result.get(key) != value for key, value in expected.items()):
+            raise RWKVProtocolError("Native request query returned a different identity")
+        if result.get("status") not in {"pending", "unknown", "completed"}:
+            raise RWKVProtocolError("Native request query returned an invalid status")
+        if result["status"] == "completed":
+            body, status = result.get("result"), result.get("http_status")
+            if (not isinstance(body, dict) or native_result_digest(body) != result.get("result_sha256")
+                    or type(status) is not int or not 200 <= status <= 599):
+                raise RWKVProtocolError("Native request query returned an invalid result")
+        return result
+
+    def recover_native_request(
+        self, operation: str, payload: Mapping[str, Any], *, max_wait_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        """An uncertain State mutation is resolved by exact receipt queries only."""
+        prepared = prepare_native_request(operation, payload)
+        digest = native_request_digest(operation, prepared)
+        wait = self.settings.read_timeout_seconds if max_wait_seconds is None else max_wait_seconds
+        if type(wait) not in (int, float) or not math.isfinite(wait) or wait < 0:
+            raise ValueError("Native result query wait must be non-negative")
+        deadline = time.monotonic() + wait
+        status = "unknown"
+        while True:
+            try:
+                result = self.state_request_result(request_id=prepared["request_id"],
+                    operation=operation, request_digest=digest)
+            except (RWKVProtocolError, ValueError, TypeError) as exc:
+                raise RWKVOutcomeUnknownError("Native result query failed identity validation") from exc
+            except RWKVHTTPError as exc:
+                if not exc.retryable:
+                    raise RWKVOutcomeUnknownError(
+                        f"Native {operation} outcome remains unknown; request_id={prepared['request_id']}"
+                    ) from exc
+                result = {"status": "unavailable"}
+            except RWKVTransportError:
+                result = {"status": "unavailable"}
+            status = result["status"]
+            if status == "completed":
+                if result["http_status"] >= 400:
+                    raise RWKVHTTPError(result["http_status"], "stored Native request failure")
+                self._emit({"type": "native_request_recovered", "operation": operation,
+                    "request_id": prepared["request_id"], "request_digest": digest})
+                return dict(result["result"])
+            if status == "unknown" or time.monotonic() >= deadline:
+                break
+            time.sleep(min(max(0.01, self.settings.retry_backoff_seconds),
+                max(0.0, deadline - time.monotonic())))
+        raise RWKVOutcomeUnknownError(
+            f"Native {operation} outcome remains {status}; request_id={prepared['request_id']}"
+        )
+
+    def _native_request(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        prepared = prepare_native_request(operation, payload)
+        self._emit({"type": "native_request_prepared", "operation": operation,
+            "request_id": prepared["request_id"], "request_digest": native_request_digest(operation, prepared)})
+        try:
+            data, _, _ = self._request_json("POST", "/state/" + operation,
+                payload=prepared, generation=True, native_mutation=True)
+            return data
+        except RWKVHTTPError as exc:
+            if not exc.retryable:
+                raise
+        except (RWKVTransportError, RWKVProtocolError):
+            pass
+        return self.recover_native_request(operation, prepared)
+
     def state_create(
         self,
         *,
@@ -588,10 +673,8 @@ class OpenAICompatibleRWKVClient:
         text: str,
         cache_binding: NativeStateCacheBinding,
     ) -> NativeStateSnapshot:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/create",
-            payload=self._native_payload(
+        data = self._native_request(
+            "create", self._native_payload(
                 cache_binding,
                 lane_id=str(lane_id),
                 delta=str(text),
@@ -607,10 +690,8 @@ class OpenAICompatibleRWKVClient:
         text: str,
         cache_binding: NativeStateCacheBinding,
     ) -> NativeStateSnapshot:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/append",
-            payload=self._native_payload(
+        data = self._native_request(
+            "append", self._native_payload(
                 cache_binding,
                 parent_state_ref=str(parent_state_ref),
                 lane_id=str(lane_id),
@@ -627,10 +708,8 @@ class OpenAICompatibleRWKVClient:
         text: str,
         cache_binding: NativeStateCacheBinding,
     ) -> NativeStateSnapshot:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/fork",
-            payload=self._native_payload(
+        data = self._native_request(
+            "fork", self._native_payload(
                 cache_binding,
                 parent_state_ref=str(parent_state_ref),
                 lane_id=str(lane_id),
@@ -649,10 +728,8 @@ class OpenAICompatibleRWKVClient:
         sampling: Mapping[str, Any],
         parent_cache_binding_digest: str,
     ) -> NativeStateCandidate:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/generate",
-            payload=self._attach_state_profile(
+        data = self._native_request(
+            "generate", self._attach_state_profile(
                 {
                     "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
                     "model": self.model_name,
@@ -666,7 +743,6 @@ class OpenAICompatibleRWKVClient:
                     "sampling": dict(sampling),
                 }
             ),
-            generation=True,
         )
         raw = data.get("candidate")
         selected = raw if isinstance(raw, Mapping) else data
@@ -692,10 +768,8 @@ class OpenAICompatibleRWKVClient:
         candidate_state_ref: str,
         cache_binding: NativeStateCacheBinding,
     ) -> NativeStateSnapshot:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/commit",
-            payload=self._native_payload(
+        data = self._native_request(
+            "commit", self._native_payload(
                 cache_binding,
                 candidate_state_ref=str(candidate_state_ref),
             ),
@@ -708,10 +782,8 @@ class OpenAICompatibleRWKVClient:
         candidate_state_ref: str,
         parent_state_ref: str,
     ) -> None:
-        self._request_json(
-            "POST",
-            "/state/rollback",
-            payload={
+        self._native_request(
+            "rollback", {
                 "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
                 "model": self.model_name,
                 "candidate_state_ref": str(candidate_state_ref),
@@ -725,10 +797,8 @@ class OpenAICompatibleRWKVClient:
         export_record: Mapping[str, Any],
         cache_binding: NativeStateCacheBinding,
     ) -> NativeStateSnapshot:
-        data, _, _ = self._request_json(
-            "POST",
-            "/state/import",
-            payload=self._native_payload(
+        data = self._native_request(
+            "import", self._native_payload(
                 cache_binding,
                 export_record=dict(export_record),
             ),

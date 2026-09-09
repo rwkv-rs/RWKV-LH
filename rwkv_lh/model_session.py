@@ -856,7 +856,8 @@ class NativeRWKVModelSession(ModelSession):
         capabilities = client.capabilities()
         if not capabilities.durable_recurrent_state:
             raise NativeStateUnavailableError(
-                "native state requires declared create/resume/fork/commit/rollback/export/import"
+                "native state requires declared create/resume/fork/commit/rollback/export/import "
+                "and the current request recovery protocol"
             )
         if capabilities.recurrent_state_protocol != NATIVE_STATE_PROTOCOL_VERSION:
             raise NativeStateUnavailableError(

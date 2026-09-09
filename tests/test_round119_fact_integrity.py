@@ -17,7 +17,7 @@ from rwkv_lh.controller import LongHorizonController
 from rwkv_lh.harness import ActionHarness, HarnessError
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_session import ModelSession
-from rwkv_lh.runtime.protocol import RWKVOutcomeUnknownError
+from rwkv_lh.runtime.protocol import RWKVTransportError
 from rwkv_lh.runtime.settings import RuntimeSettings
 from rwkv_lh.schema import RunStatus, TaskAction
 from rwkv_lh.store import LongHorizonStore
@@ -45,7 +45,9 @@ class QueueClient:
             raise AssertionError("unexpected model request")
         item = self.outputs.pop(0)
         if item == "<transport-failure>":
-            raise RWKVOutcomeUnknownError("connection dropped mid-generation")
+            # These tests cover a known pre-request outage. An uncertain
+            # generation is a different boundary and must never be resampled.
+            raise RWKVTransportError("connection failed before request submission")
         return Response(item)
 
 
