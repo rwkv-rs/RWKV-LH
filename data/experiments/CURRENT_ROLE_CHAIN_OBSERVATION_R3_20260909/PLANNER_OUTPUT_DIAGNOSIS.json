@@ -1,0 +1,1042 @@
+{
+  "purpose": "wire/stop diagnosis only; no rescore or modified runtime",
+  "cases_with_recorded_outputs": 9,
+  "calls": 19,
+  "finish_reasons": {
+    "length": 9,
+    "stop": 10
+  },
+  "first_json_complete": 10,
+  "rows": [
+    {
+      "task_id": "RP-API-01",
+      "call_id": "SUP-8c522a2443d64a0cb249",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1998,
+        "total_tokens": 10190,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "732e5375abc1515136077facfe821260e07b7680b61eb5fbfe5bb7ffb27e9219",
+      "raw_chars": 30659,
+      "prompt_chars": 7942,
+      "input_chars": 1351,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"predicate\": \"server.py is a valid Python file and can be imported without syntax/import errors\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"predicate\": \"server.py contains a public-facing HTTP server that binds to 0.0.0.0:8000 and exposes /api/rooms, /api/rooms/<room_id>, /api/bookings, /api/bookings/<booking_id>, /api/bookings/cancel/<booking_id>, and /api/bookings/cancel/<booking_id>/verify\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"predicate\": \"server.py implements SQLite persistence with a bookings table, no-overlap enforcement, and concurrent-safe booking/cancellation\",\n      \"requ",
+      "tail": "d the restarted server still serves the same data\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O153\",\n      \"predicate\": \"server.py can be started, then restarted, and the restarted server still serves the same data\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O154\",\n      \"predicate\": \"server.py can be started, then restarted, and the restarted server still serves the same data\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O155\",\n      \"predicate\": \"server.py can be started, then restarted, and the restarted server still serves the same data\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O156\",\n      \"predicate\": \"server",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 30651,
+        "total_chars": 30658
+      },
+      "obligation_declarations": 156,
+      "last_obligation_ids": [
+        "O152",
+        "O153",
+        "O154",
+        "O155",
+        "O156"
+      ],
+      "first_predicates": [
+        "server.py is a valid Python file and can be imported without syntax/import errors",
+        "server.py contains a public-facing HTTP server that binds to 0.0.0.0:8000 and exposes /api/rooms, /api/rooms/<room_id>, /api/bookings, /api/bookings/<booking_id>, /api/bookings/cancel/<booking_id>, and /api/bookings/cancel/<booking_id>/verify",
+        "server.py implements SQLite persistence with a bookings table, no-overlap enforcement, and concurrent-safe booking/cancellation",
+        "server.py implements a verify endpoint that can be used to confirm a cancellation",
+        "server.py starts a background HTTP server and remains responsive to requests"
+      ],
+      "last_predicates": [
+        "server.py can be started, then restarted, and the restarted server still serves the same data",
+        "server.py can be started, then restarted, and the restarted server still serves the same data",
+        "server.py can be started, then restarted, and the restarted server still serves the same data",
+        "server.py can be started, then restarted, and the restarted server still serves the same data",
+        "server.py can be started, then restarted, and the restarted server still serves the same data"
+      ]
+    },
+    {
+      "task_id": "RP-API-02",
+      "call_id": "SUP-f5fa7a598f704a69b0e9",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1988,
+        "total_tokens": 3483,
+        "completion_tokens": 1495,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "4433ec17e4c4cdbc224d36df8d03d3db98c972de857d30c52fbb550746ef2cc9",
+      "raw_chars": 5571,
+      "prompt_chars": 7940,
+      "input_chars": 1349,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"predicate\": \"server.py implements idempotent key handling and atomic multi-SKU deduction\",\n      \"required_phases\": [\"observe\", \"mutate\", \"execute\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"predicate\": \"server.py prevents overselling under concurrent requests\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"predicate\": \"server.py restores from SQLite after restart\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"predicate\": \"server.py returns correct HTTP status codes for success, failure, and retry paths\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O5\",\n   ",
+      "tail": "y, atomicity, concurrency safety, and restart recovery.\",\n          \"phase\": \"mutate\",\n          \"depends_on\": [\"S1\", \"S2\", \"S3\", \"S4\"],\n          \"obligation_ids\": [\"O5\"],\n          \"success_evidence\": [\"README.md contains idempotency key documentation\", \"README.md contains atomicity documentation\", \"README.md contains concurrency safety documentation\", \"README.md contains restart recovery documentation\"],\n          \"read_roots\": [\"README.md\"],\n          \"write_roots\": [\"README.md\"],\n          \"constraints\": []\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Planning revision 0: initial plan to inspect server.py, README.md, and verify_public.py; run public API contract tests; update README.md.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 5570,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 12,
+      "obligation_declarations": 12,
+      "last_obligation_ids": [
+        "O8",
+        "O9",
+        "O10",
+        "O11",
+        "O12"
+      ],
+      "first_predicates": [
+        "server.py implements idempotent key handling and atomic multi-SKU deduction",
+        "server.py prevents overselling under concurrent requests",
+        "server.py restores from SQLite after restart",
+        "server.py returns correct HTTP status codes for success, failure, and retry paths",
+        "README.md documents the idempotency key, atomicity, concurrency safety, and restart recovery"
+      ],
+      "last_predicates": [
+        "server.py passes the idempotency key test",
+        "server.py passes the concurrent oversell test",
+        "server.py passes the restart recovery test",
+        "server.py passes the failure path test",
+        "server.py passes the retry path test"
+      ]
+    },
+    {
+      "task_id": "RP-API-02",
+      "call_id": "SUP-3c5f51787e024efe9b38",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 2170,
+        "total_tokens": 10362,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "823add72a30b86d449f0a93382a8de5ac600402863c7cb0d58956eda5a8a1f99",
+      "raw_chars": 29241,
+      "prompt_chars": 8752,
+      "input_chars": 1758,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"server.py contains a single public endpoint that accepts POST /orders with JSON body {sku, quantity, idempotency_key} and returns 201/200 on success or 422/409 on failure\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"server.py contains a single public endpoint that accepts POST /orders with JSON body {sku, quantity, idempotency_key} and returns 201/200 on success or 422/409 on failure\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"server.py contains a single public endpoint that accepts POST /orders with JSON body {sku, ",
+      "tail": "\n          \"step_id\": \"S1\",\n          \"objective\": \"Inspect the current repository and verify the exact server.py, verify_public.py, and README.md contents.\",\n          \"phase\": \"observe\",\n          \"depends_on\": [],\n          \"obligation_ids\": [\"O1\", \"O2\", \"O3\", \"O4\", \"O5\", \"O6\", \"O7\", \"O8\", \"O9\", \"O10\", \"O11\", \"O12\", \"O13\", \"O14\", \"O15\", \"O16\", \"O17\", \"O18\", \"O19\", \"O20\", \"O21\", \"O22\", \"O23\", \"O24\", \"O25\", \"O26\", \"O27\", \"O28\", \"O29\", \"O30\", \"O31\", \"O32\", \"O33\", \"O34\", \"O35\", \"O36\", \"O37\", \"O38\", \"O39\", \"O40\", \"O41\", \"O42\", \"O43\", \"O44\", \"O45\", \"O46\", \"O47\", \"O48\", \"O49\", \"O50\", \"O51\", \"O52\", \"O53\", \"O54\", \"O55\", \"O56\", \"O57\", \"O58\", \"O59\", \"O60\", \"O61\", \"O62\", \"O63\", \"O64\", \"O65\", \"O66\", \"O67\", \"O68\", \"O69\", \"O70\", \"O71\", \"O72\", \"O73\", \"O",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 29238,
+        "total_chars": 29240
+      },
+      "obligation_declarations": 100,
+      "last_obligation_ids": [
+        "O96",
+        "O97",
+        "O98",
+        "O99",
+        "O100"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "call_id": "SUP-024d4056e9724c29af13",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1829,
+        "total_tokens": 3901,
+        "completion_tokens": 2072,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "fac732a9ab58e89f4def8b3da0cca1cb6887f6d634a2a15f1dc08f6a5e5c8cae",
+      "raw_chars": 8299,
+      "prompt_chars": 7826,
+      "input_chars": 1235,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"OB-01\",\n      \"observable_predicate\": \"A Python CLI tool exists at a fixed path and can be invoked with a command-line interface.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-02\",\n      \"observable_predicate\": \"The tool can create a backup snapshot of a local directory.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-03\",\n      \"observable_predicate\": \"The tool can restore a backup snapshot to a local directory.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-04\",\n      \"observable_predicate\": \"The tool can list available backup snapshots.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {",
+      "tail": "ctory\"]\n        },\n        {\n          \"step_id\": \"S11\",\n          \"objective\": \"Verify that a corrupt backup is rejected and a hostile backup is not written.\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S6\"],\n          \"obligation_ids\": [\"OB-06\"],\n          \"success_evidence\": \"The backup command rejects a corrupt backup and the restore command rejects a hostile backup before writing.\",\n          \"read_roots\": [\"backup_cli\", \"backup_cli/backup.py\"],\n          \"write_roots\": [],\n          \"constraints\": [\"Do not write outside the destination directory\"]\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial planning for the backup utility with all required phases and dependencies.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 8298,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 8,
+      "obligation_declarations": 8,
+      "last_obligation_ids": [
+        "OB-04",
+        "OB-05",
+        "OB-06",
+        "OB-07",
+        "OB-08"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "call_id": "SUP-7352a752baa6405588e1",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1970,
+        "total_tokens": 3980,
+        "completion_tokens": 2010,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "7ebdf28f6f192cd54b201442164f34d0f77e53d8217b7686c6fa4b80ff7b4313",
+      "raw_chars": 8381,
+      "prompt_chars": 8491,
+      "input_chars": 1497,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"OB-001\",\n      \"observable_predicate\": \"CLI tool exists and is importable\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"OB-002\",\n      \"observable_predicate\": \"CLI tool has a help/usage message\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"OB-003\",\n      \"observable_predicate\": \"CLI tool can snapshot a directory\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-004\",\n      \"observable_predicate\": \"CLI tool can restore a snapshot\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-005\",\n      \"observable_predicate\": \"CLI tool rejects corrupt/hostile backups\",\n      \"requi",
+      "tail": "cess_evidence\": [\n            \"read_roots contains README.md\",\n            \"read_roots contains README.md\",\n            \"read_roots contains README.md\",\n            \"read_roots contains README.md\"\n          ],\n          \"read_roots\": [\"README.md\"],\n          \"write_roots\": [],\n          \"constraints\": [\"read_roots must not contain any write targets\"]\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial patch: add_stages contains 10 stages with 10 steps each, covering all goal_obligations. Each step has exactly one phase, non-empty success_evidence, and read_roots/write_roots that do not conflict with the same stage. No step depends on itself. All obligations are covered by at least one step.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 8380,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 8,
+      "obligation_declarations": 8,
+      "last_obligation_ids": [
+        "OB-004",
+        "OB-005",
+        "OB-006",
+        "OB-007",
+        "OB-008"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "call_id": "SUP-2aaf8f92fcc346e7a546",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1829,
+        "total_tokens": 2822,
+        "completion_tokens": 993,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "c96bebbf42f7db1d0ba6a16e241160c55209f1dab603269d85554e7a14e5433d",
+      "raw_chars": 3774,
+      "prompt_chars": 7826,
+      "input_chars": 1235,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"A Python standard-library CLI exists at ./backup_cli.py and is importable.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"A README.md exists at ./README.md and contains usage documentation.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"A test file exists at ./tests/test_backup_cli.py and contains executable tests.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"A snapshot can be created and restored without corrupting an existing destination or writing outsi",
+      "tail": "       \"write_roots\": [\"./README.md\"],\n          \"constraints\": [\"write_only_to_new_file\", \"no_destructive_writes\"]\n        },\n        {\n          \"step_id\": \"S5\",\n          \"objective\": \"Run the test suite to verify the snapshot and restore behavior.\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S3\"],\n          \"obligation_ids\": [\"O4\", \"O5\"],\n          \"success_evidence\": \"test_runner returns success and no destructive writes occurred.\",\n          \"read_roots\": [\".\"],\n          \"write_roots\": [],\n          \"constraints\": [\"no_destructive_writes\"]\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial patch: create the CLI, tests, and documentation, then run tests to verify safety.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 3773,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 5,
+      "obligation_declarations": 5,
+      "last_obligation_ids": [
+        "O1",
+        "O2",
+        "O3",
+        "O4",
+        "O5"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "call_id": "SUP-71a0abaf13d443619baf",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1970,
+        "total_tokens": 3788,
+        "completion_tokens": 1818,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "4cf130b1f709cda9a3b05cb867a2a865372166727e9ed32f1d4ca4fb6f3f214b",
+      "raw_chars": 7461,
+      "prompt_chars": 8491,
+      "input_chars": 1497,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"OB-01\",\n      \"observable_predicate\": \"CLI accepts --backup, --restore, and --dry-run flags and prints usage when no subcommand is given\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-02\",\n      \"observable_predicate\": \"backup creates a timestamped snapshot of the source directory and does not overwrite an existing destination\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-03\",\n      \"observable_predicate\": \"restore overwrites the destination only when the destination exists and the backup is valid\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OB-04\",\n      \"observable_predicate\": \"corrupt or",
+      "tail": "ge is at least 80% for core logic\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S8\"],\n          \"obligation_ids\": [\"OB-05\"],\n          \"success_evidence\": [\n            \"pytest passes all tests\",\n            \"coverage report shows at least 80% for core logic\"\n          ],\n          \"read_roots\": [\"src\", \"tests\"],\n          \"write_roots\": [],\n          \"constraints\": [\n            \"Do not write to the destination directory\",\n            \"Do not run any code outside the test environment\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial patch: create project skeleton, write CLI skeleton, write tests, write README.md, then implement backup/restore logic and run tests.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 7460,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 6,
+      "obligation_declarations": 6,
+      "last_obligation_ids": [
+        "OB-02",
+        "OB-03",
+        "OB-04",
+        "OB-05",
+        "OB-06"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-01",
+      "call_id": "SUP-0f7552e1f4e14fae8f5c",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1829,
+        "total_tokens": 10021,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "9ee335d744dc0bc9754733a75815bd42246caef4531fbd97037fdf20d9a3c6b7",
+      "raw_chars": 32537,
+      "prompt_chars": 7826,
+      "input_chars": 1235,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"A Python CLI exists at ./backup_cli.py and is importable.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"A README.md exists at ./README.md and contains a usage section.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"A test file exists at ./tests/test_backup_cli.py and contains at least one test.\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"A backup operation preserves the destination when the source is valid and does not overwrite the destination when the ",
+      "tail": "\",\n      \"observable_predicate\": \"The CLI rejects a non-existent source and does not write to the destination.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O165\",\n      \"observable_predicate\": \"The CLI rejects a non-existent restore target and does not write to the destination.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O166\",\n      \"observable_predicate\": \"The CLI rejects a non-existent source and does not write to the destination.\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O167\",\n      \"observable_predicate\": \"The CLI rejects a non-existent restore target and does not write to the destination.\",\n      \"required_phases\": [\"execute\"]\n    },\n    ",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Expecting value",
+        "position": 32536,
+        "total_chars": 32536
+      },
+      "obligation_declarations": 167,
+      "last_obligation_ids": [
+        "O163",
+        "O164",
+        "O165",
+        "O166",
+        "O167"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "call_id": "SUP-d8cda96ac6434d5782bc",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1823,
+        "total_tokens": 3346,
+        "completion_tokens": 1523,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "d481dedc38062d90c78f1cfc86e6cceeef4839dee47096c2ed1a1b6aba9d8654",
+      "raw_chars": 6211,
+      "prompt_chars": 7808,
+      "input_chars": 1217,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"project_root contains a README.md with a complete, executable specification\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"project_root contains a local time-recording CLI source tree with a main entry point\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"project_root contains a test suite that can be executed locally\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"project_root contains a documentation artifact describing the CLI\",\n      \"required_phases\": [\"o",
+      "tail": "         \"depends_on\": [\"S8\"],\n          \"obligation_ids\": [\"O10\"],\n          \"success_evidence\": \"All tests pass.\"\n        },\n        {\n          \"step_id\": \"S10\",\n          \"objective\": \"Check that the project root contains a local time-recording CLI that passes all documentation checks.\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S9\"],\n          \"obligation_ids\": [\"O11\"],\n          \"success_evidence\": \"All documentation checks pass.\"\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial plan to inspect the project root, read the README.md specification, and verify the source tree, tests, and documentation. Then build, run, and test the CLI to ensure it meets all requirements.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 6210,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 11,
+      "obligation_declarations": 11,
+      "last_obligation_ids": [
+        "O7",
+        "O8",
+        "O9",
+        "O10",
+        "O11"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "call_id": "SUP-4642fb3d486c4eae97d2",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1967,
+        "total_tokens": 2845,
+        "completion_tokens": 878,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "32df94c55a328ba6524c8ba4fa6f073a74d57b530156d543b8df6b92d5c3f04d",
+      "raw_chars": 3525,
+      "prompt_chars": 8507,
+      "input_chars": 1513,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"CLI executable exists and is importable\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"CLI imports records from different time zones\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"CLI prevents duplicate imports\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"CLI produces correct daily project totals when work spans midnight\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O5\",\n      \"observable_predicate\": \"CLI project, tests, and d",
+      "tail": "do not emit an absolute path\"]\n        },\n        {\n          \"step_id\": \"S5\",\n          \"objective\": \"Run CLI tests and verify all obligations\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S4\"],\n          \"obligation_ids\": [\"O1\", \"O2\", \"O3\", \"O4\"],\n          \"success_evidence\": \"All CLI tests pass and obligations are satisfied\",\n          \"read_roots\": [\".\"],\n          \"write_roots\": [],\n          \"constraints\": [\"Use only local files; do not emit an absolute path\"]\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial patch: create project skeleton, implement timezone-aware import, duplicate prevention, daily totals, and tests; all obligations are covered and phases are correct.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 3524,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 5,
+      "obligation_declarations": 5,
+      "last_obligation_ids": [
+        "O1",
+        "O2",
+        "O3",
+        "O4",
+        "O5"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-CLI-02",
+      "call_id": "SUP-c4da600c71fb4152a685",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1823,
+        "total_tokens": 10015,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "437ed0ca8a103340e0af7b369ccd869a824eab2f17052227ccd17e2a66d1bdb7",
+      "raw_chars": 32507,
+      "prompt_chars": 7808,
+      "input_chars": 1217,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"project root contains a README.md with a complete, executable specification\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"project root contains a requirements.txt with the required runtime dependencies\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"project root contains a src/ directory with the CLI source files\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"project root contains a tests/ directory with unit tests\",\n      \"required_phases\": [\"observe\"]\n    ",
+      "tail": "ation_id\": \"O181\",\n      \"observable_predicate\": \"project root contains a docs/ directory with documentation\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O182\",\n      \"observable_predicate\": \"project root contains a Makefile with build, test, and run targets\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O183\",\n      \"observable_predicate\": \"project root contains a .gitignore with appropriate entries\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O184\",\n      \"observable_predicate\": \"project root contains a LICENSE file\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O185\",\n      \"observable_predicate\": \"project root contains",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 32484,
+        "total_chars": 32506
+      },
+      "obligation_declarations": 185,
+      "last_obligation_ids": [
+        "O181",
+        "O182",
+        "O183",
+        "O184",
+        "O185"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-DATA-01",
+      "call_id": "SUP-7f866661a019417f98cc",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1835,
+        "total_tokens": 10027,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "3cba13f6cf8d830373a2c4b473358ac7ad7ef8f6990a51e19329db8782510acb",
+      "raw_chars": 32283,
+      "prompt_chars": 7876,
+      "input_chars": 1285,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"G1\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G2\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G3\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G4\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G5\",\n      \"o",
+      "tail": "uired_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G185\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G186\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G187\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"G188\",\n      \"observable_predicate\": \"README.md contains a public interface and reporting rules\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\":",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Expecting value",
+        "position": 32282,
+        "total_chars": 32282
+      },
+      "obligation_declarations": 188,
+      "last_obligation_ids": [
+        "G184",
+        "G185",
+        "G186",
+        "G187",
+        "G188"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "call_id": "SUP-ee475c628d344797b855",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1833,
+        "total_tokens": 7640,
+        "completion_tokens": 5807,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "346a117c162da807b5117cadd648f7acca1efa5549a3a36dfc88fc426f2b2a07",
+      "raw_chars": 21583,
+      "prompt_chars": 7836,
+      "input_chars": 1245,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"README.md contains a project description, a CLI command, and a run-instructions section\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"README.md contains a project description, a CLI command, and a run-instructions section\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"README.md contains a project description, a CLI command, and a run-instructions section\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"README.md contains a project description, a CLI command, ",
+      "tail": "O60\", \"O61\", \"O62\", \"O63\", \"O64\", \"O65\", \"O66\", \"O67\", \"O68\", \"O69\", \"O70\", \"O71\", \"O72\", \"O73\", \"O74\", \"O75\", \"O76\", \"O77\", \"O78\", \"O79\", \"O80\", \"O81\", \"O82\", \"O83\", \"O84\", \"O85\", \"O86\", \"O87\", \"O88\", \"O89\", \"O90\", \"O91\", \"O92\", \"O93\", \"O94\", \"O95\", \"O96\", \"O97\", \"O98\", \"O99\", \"O100\"],\n          \"success_evidence\": \"README.md contains a project description, a CLI command, and a run-instructions section\",\n          \"read_roots\": [\".\"],\n          \"write_roots\": [],\n          \"constraints\": []\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial planning: extract the project description, CLI command, and run-instructions section from README.md to establish the project context and requirements.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 21582,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 100,
+      "obligation_declarations": 100,
+      "last_obligation_ids": [
+        "O96",
+        "O97",
+        "O98",
+        "O99",
+        "O100"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-DATA-02",
+      "call_id": "SUP-744e02820c19492bab1c",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1974,
+        "total_tokens": 10166,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "31c42a5665a17f804832b8ba69018539e098b2e4ed02cd175eb9c7be70f5888d",
+      "raw_chars": 34847,
+      "prompt_chars": 8501,
+      "input_chars": 1507,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"README.md contains a project description, a CLI usage section, and a run-instructions section\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"README.md contains a section describing the expected log format and the quarantine behavior\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"README.md contains a section describing the CLI commands and their arguments\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"README.md contains a section describing the test suite and",
+      "tail": "pected behavior of the CLI for handling repeated ingestion\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O153\",\n      \"observable_predicate\": \"README.md contains a section describing the expected behavior of the CLI for handling query traffic totals by time, path, and status\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O154\",\n      \"observable_predicate\": \"README.md contains a section describing the expected behavior of the CLI for handling inspection of quarantined records\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O155\",\n      \"observable_predicate\": \"README.md contains a section describing the expected behavior of the CLI for handling restarts\",",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Expecting property name enclosed in double quotes",
+        "position": 34846,
+        "total_chars": 34846
+      },
+      "obligation_declarations": 155,
+      "last_obligation_ids": [
+        "O151",
+        "O152",
+        "O153",
+        "O154",
+        "O155"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "call_id": "SUP-9a2dc445d5cd4adda21b",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2591,
+        "total_tokens": 5599,
+        "completion_tokens": 3008,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "8523cda7dbc9524290188c6ef5f526f201e34a4016ca8c307784108adedb5193",
+      "raw_chars": 6786,
+      "prompt_chars": 8778,
+      "input_chars": 2187,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_digest\": \"848afbdab59dcb9f54a6cd6b8f8130ad0039c6e8b622e23853af152c18cabe92\",\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"OBL-001\",\n      \"observable_predicate\": \"server.py 可被启动并监听指定端口，且不依赖外部网络或远程 CDN\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OBL-002\",\n      \"observable_predicate\": \"GET /api/proposals 返回 proposals 数组，包含 id、title、description、closed、votes、voted 字段\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OBL-003\",\n      \"observable_predicate\": \"POST /api/proposals 创建非空标题和描述的提案，返回含 id 的对象\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"OBL-004\",\n      \"observable_predicate\": \"GET /api/proposals?voter=name&sort=newest|votes 按票数降序",
+      "tail": "7\", \"OBL-008\", \"OBL-009\", \"OBL-010\", \"OBL-011\"],\n          \"success_evidence\": \"所有 API 返回 JSON；201 含 id；错误对象含 error；id 稳定唯一\"\n        },\n        {\n          \"step_id\": \"S1-10\",\n          \"objective\": \"人工验证：启动服务，创建提案，投票，关闭提案，验证幂等、排序、关闭后禁用、UI 状态、数据持久化\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S1-1\", \"S1-2\", \"S1-3\", \"S1-4\", \"S1-5\", \"S1-6\", \"S1-7\", \"S1-8\", \"S1-9\"],\n          \"obligation_ids\": [\"OBL-001\", \"OBL-002\", \"OBL-003\", \"OBL-004\", \"OBL-005\", \"OBL-006\", \"OBL-007\", \"OBL-008\", \"OBL-009\", \"OBL-010\", \"OBL-011\"],\n          \"success_evidence\": \"所有功能按需求行为正确；无外部依赖；数据持久化到 SQLite\"\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"初始计划：按需求拆解为 10 个阶段，每个阶段包含一个可执行步骤，覆盖所有 API、UI、数据持久化、运行方式和验证要求。\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 6785,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_digest",
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 11,
+      "obligation_declarations": 11,
+      "last_obligation_ids": [
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-FULL-02",
+      "call_id": "SUP-23aa89e86938488c8ac3",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 2755,
+        "total_tokens": 10947,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "97abc9604b076143931c50b861f1cd6c567afce5a3ad52ac30c2917106d26f75",
+      "raw_chars": 20616,
+      "prompt_chars": 9515,
+      "input_chars": 2521,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_digest\": \"848afbdab59dcb9f54a6cd6b8f8130ad0039c6e8b622e23853af152c18cabe92\",\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"POST /api/proposals 接收 {title,description} 返回含 id 的对象\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"同一成员每提案最多一票；重复操作不改变其他票，返回含 id 和 votes 对象\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"GET /api/proposals?voter=名字&sort=newest|votes 按票数降序、平票按 id 升序；newest 按创建新到旧\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"observable_predicate\": \"PUT /api/proposals/ID/vote 接收 {voter,active} 添加/移除该成员唯一票；关闭后 HTTP",
+      "tail": "作不改变其他票\"\n        },\n        {\n          \"step_id\": \"S66\",\n          \"objective\": \"实现同一成员每提案最多一票，重复操作不改变其他票\",\n          \"phase\": \"observe\",\n          \"depends_on\": [\"S65\"],\n          \"obligation_ids\": [\"O9\"],\n          \"success_evidence\": \"同一成员每提案最多一票，重复操作不改变其他票\"\n        },\n        {\n          \"step_id\": \"S67\",\n          \"objective\": \"实现同一成员每提案最多一票，重复操作不改变其他票\",\n          \"phase\": \"observe\",\n          \"depends_on\": [\"S66\"],\n          \"obligation_ids\": [\"O9\"],\n          \"success_evidence\": \"同一成员每提案最多一票，重复操作不改变其他票\"\n        },\n        {\n          \"step_id\": \"S68\",\n          \"objective\": \"实现同一成员每提案最多一票，重复操作不改变其他票\",\n          \"phase\": \"observe\",\n          \"depends_on\": [\"S67\"],\n          \"obligation_ids\": [\"O9\"],\n          \"success_evidence\": \"同一成",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 20611,
+        "total_chars": 20615
+      },
+      "obligation_declarations": 15,
+      "last_obligation_ids": [
+        "O11",
+        "O12",
+        "O13",
+        "O14",
+        "O15"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    },
+    {
+      "task_id": "RP-MAINT-01",
+      "call_id": "SUP-e6eee596dc7044809486",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2386,
+        "total_tokens": 4163,
+        "completion_tokens": 1777,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "03871c12c4c3448968563c8e9895502eaf5d620c5fc8ae45861507b8229dc557",
+      "raw_chars": 7231,
+      "prompt_chars": 8804,
+      "input_chars": 2213,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"predicate\": \"README.md contains a v1/v2 migration contract and a backup-before-upgrade command\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"predicate\": \"config_cli.py contains a CLI command that runs migrations and supports a backup-before-upgrade option\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"predicate\": \"config_store/migrations.py contains a migration function that preserves non-JSON/non-Unicode columns and leaves unrelated tables unchanged\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"predicate\": \"config_store/sqlite_io.py contains a backu",
+      "tail": "nts\": []\n        },\n        {\n          \"step_id\": \"S10\",\n          \"objective\": \"Run the migration command with a rollback option and capture the result.\",\n          \"phase\": \"execute\",\n          \"depends_on\": [\"S9\"],\n          \"obligation_ids\": [\"O7\"],\n          \"success_evidence\": \"The migration command can be rolled back and the original database is restored.\",\n          \"read_roots\": [\".\"],\n          \"write_roots\": [\"config_store\"],\n          \"constraints\": []\n        }\n      ]\n    }\n  ],\n  \"replace_stages\": [],\n  \"discard_step_ids\": [],\n  \"reason\": \"Initial plan to verify the migration contract, CLI command, migration function, backup function, and JSON-safe serializer, then test failure handling, idempotency, backup, and rollback.\"\n}",
+      "first_json_complete": true,
+      "first_json_chars": 7230,
+      "chars_after_first_json": 0,
+      "first_json_top_keys": [
+        "goal_obligations",
+        "add_stages",
+        "replace_stages",
+        "discard_step_ids",
+        "reason"
+      ],
+      "obligation_count": 10,
+      "obligation_declarations": 10,
+      "last_obligation_ids": [
+        "O6",
+        "O7",
+        "O8",
+        "O9",
+        "O10"
+      ],
+      "first_predicates": [
+        "README.md contains a v1/v2 migration contract and a backup-before-upgrade command",
+        "config_cli.py contains a CLI command that runs migrations and supports a backup-before-upgrade option",
+        "config_store/migrations.py contains a migration function that preserves non-JSON/non-Unicode columns and leaves unrelated tables unchanged",
+        "config_store/sqlite_io.py contains a backup_db function that writes a full backup before any upgrade",
+        "config_store/values.py contains a JSON-safe value serializer that preserves Unicode and non-JSON types"
+      ],
+      "last_predicates": [
+        "a local test run shows that a failed upgrade does not corrupt the original database",
+        "a local test run shows that a failed upgrade can be rolled back and the original database is restored",
+        "a local test run shows that a successful upgrade preserves non-JSON/non-Unicode columns and unrelated tables",
+        "a local test run shows that a successful upgrade is idempotent and does not duplicate rows",
+        "a local test run shows that a successful upgrade writes a backup before upgrade and restores it after rollback"
+      ]
+    },
+    {
+      "task_id": "RP-MAINT-01",
+      "call_id": "SUP-92ce69ab66a44bf097f8",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 2527,
+        "total_tokens": 10719,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "f736082b56c0975ebbd9c042a968dc79c5555d55feeae4e8a5e6e8bc464e47be",
+      "raw_chars": 31915,
+      "prompt_chars": 9469,
+      "input_chars": 2475,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"predicate\": \"README.md contains a v1/v2 migration contract and a CLI backup/restore contract\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"predicate\": \"config_cli.py contains a CLI backup command that writes a backup to a user-specified path\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"predicate\": \"config_cli.py contains a CLI restore command that restores from a backup path\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O4\",\n      \"predicate\": \"config_store/migrations.py contains a migration function that preserves all JSON fields and Unicode values\",\n      \"r",
+      "tail": "es\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O155\",\n      \"predicate\": \"config_store/values.py contains a JSON-safe value serializer that preserves Unicode and JSON types\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O156\",\n      \"predicate\": \"config_store/values.py contains a JSON-safe value deserializer that preserves Unicode and JSON types\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O157\",\n      \"predicate\": \"config_store/values.py contains a JSON-safe value serializer that preserves Unicode and JSON types\",\n      \"required_phases\": [\"observe\"]\n    },\n    {\n      \"obligation_id\": \"O158\",\n      \"predicate\": \"config_store/values.py contains a JSON-safe value deserialize",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 31852,
+        "total_chars": 31914
+      },
+      "obligation_declarations": 158,
+      "last_obligation_ids": [
+        "O154",
+        "O155",
+        "O156",
+        "O157",
+        "O158"
+      ],
+      "first_predicates": [
+        "README.md contains a v1/v2 migration contract and a CLI backup/restore contract",
+        "config_cli.py contains a CLI backup command that writes a backup to a user-specified path",
+        "config_cli.py contains a CLI restore command that restores from a backup path",
+        "config_store/migrations.py contains a migration function that preserves all JSON fields and Unicode values",
+        "config_store/migrations.py contains a migration function that leaves unrelated tables unchanged"
+      ],
+      "last_predicates": [
+        "config_store/values.py contains a JSON-safe value serializer that preserves Unicode and JSON types",
+        "config_store/values.py contains a JSON-safe value deserializer that preserves Unicode and JSON types",
+        "config_store/values.py contains a JSON-safe value serializer that preserves Unicode and JSON types",
+        "config_store/values.py contains a JSON-safe value deserializer that preserves Unicode and JSON types",
+        "config_store/values.py contains a JSON-safe value serializer that preserves Unicode and JSON types"
+      ]
+    },
+    {
+      "task_id": "RP-MAINT-02",
+      "call_id": "SUP-203b6eb2215e45559631",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 2485,
+        "total_tokens": 10677,
+        "completion_tokens": 8192,
+        "prompt_tokens_details": null
+      },
+      "raw_sha256": "f6cda13d6536eb222e6d11aeafc1c9cc9ecb9d507ad06ba0385c847ecff11d3a",
+      "raw_chars": 33155,
+      "prompt_chars": 9123,
+      "input_chars": 2532,
+      "registered_max_tokens": 8192,
+      "sampling": {
+        "temperature": 0.1,
+        "top_p": 1.0,
+        "top_k": 0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "penalty_decay": 0.996,
+        "add_special_tokens": true,
+        "stop": [
+          "✿"
+        ],
+        "stop_token_ids": [
+          0
+        ]
+      },
+      "head": ">{\n  \"goal_obligations\": [\n    {\n      \"obligation_id\": \"O1\",\n      \"observable_predicate\": \"document_index/__init__.py contains a public CLI entry point that can be invoked with a single command and returns a non-zero exit code on failure\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O2\",\n      \"observable_predicate\": \"document_index/__init__.py contains a public CLI entry point that can be invoked with a single command and returns a non-zero exit code on failure\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O3\",\n      \"observable_predicate\": \"document_index/__init__.py contains a public CLI entry point that can be invoked with a single command and returns a non-zero exit code on ",
+      "tail": " point that can be invoked with a single command and returns a non-zero exit code on failure\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O126\",\n      \"observable_predicate\": \"document_index/__init__.py contains a public CLI entry point that can be invoked with a single command and returns a non-zero exit code on failure\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O127\",\n      \"observable_predicate\": \"document_index/__init__.py contains a public CLI entry point that can be invoked with a single command and returns a non-zero exit code on failure\",\n      \"required_phases\": [\"execute\"]\n    },\n    {\n      \"obligation_id\": \"O128\",\n      \"observable_predicate\": \"document_index/__init",
+      "first_json_complete": false,
+      "json_error": {
+        "message": "Unterminated string starting at",
+        "position": 33132,
+        "total_chars": 33154
+      },
+      "obligation_declarations": 128,
+      "last_obligation_ids": [
+        "O124",
+        "O125",
+        "O126",
+        "O127",
+        "O128"
+      ],
+      "first_predicates": [],
+      "last_predicates": []
+    }
+  ]
+}
