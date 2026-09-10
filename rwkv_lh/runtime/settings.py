@@ -70,6 +70,9 @@ class RuntimeSettings:
     read_timeout_seconds: float = 300.0
     retry_attempts: int = 2
     retry_backoff_seconds: float = 0.5
+    # A Native mutation whose receipt query proves it was never recorded
+    # (never claimed, never executed) may be safely resubmitted this many times.
+    native_resubmit_attempts: int = 2
     default_temperature: float = 0.1
     default_top_p: float = 1.0
     default_top_k: int = 0
@@ -133,6 +136,12 @@ class RuntimeSettings:
             ),
             retry_backoff_seconds=role_float(
                 "executor", "retry_backoff", legacy="RWKV_RETRY_BACKOFF", default=0.5
+            ),
+            native_resubmit_attempts=role_int(
+                "executor",
+                "native_resubmit_attempts",
+                legacy="RWKV_NATIVE_RESUBMIT_ATTEMPTS",
+                default=2,
             ),
             default_temperature=role_float(
                 "executor",
@@ -275,6 +284,11 @@ class RuntimeSettings:
                 normalized,
                 "retry_backoff",
                 default=fallback.retry_backoff_seconds,
+            ),
+            native_resubmit_attempts=role_int(
+                normalized,
+                "native_resubmit_attempts",
+                default=fallback.native_resubmit_attempts,
             ),
             default_temperature=role_float(
                 normalized,

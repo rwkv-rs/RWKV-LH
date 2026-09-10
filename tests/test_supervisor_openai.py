@@ -4,6 +4,7 @@ import json
 import hashlib
 import os
 import re
+import time
 from contextlib import contextmanager
 from dataclasses import replace
 
@@ -32,6 +33,7 @@ from rwkv_lh.supervisor_openai import (
     OpenAICompatibleSupervisorClient,
     OpenAIGoalSupervisorClient,
     SupervisorAPISettings,
+    SupervisorGenerationInterrupted,
     SupervisorProtocolError,
     SupervisorTransportError,
     _decode_supervisor_json_content,
@@ -1010,7 +1012,65 @@ def test_streamed_planner_holds_request_slot_and_uses_identical_contract():
     assert returned["stream"] is True
 
 
-@pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "length", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
+def test_stream_tolerates_usage_only_trailer_choice_after_finish():
+    # Many OpenAI-compatible gateways send a final usage chunk that still
+    # carries choices[0] with an empty delta and a repeated finish_reason.
+    value = _current_planner_model_value()
+    provider_response = StreamingResponse(value)
+    provider_response.chunks[3] = {
+        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        "usage": {"completion_tokens": 120},
+    }
+    data = supervisor_openai_module._decode_chat_completion_stream(
+        provider_response, deadline=time.monotonic() + 30,
+    )
+    assert json.loads(data["choices"][0]["message"]["content"]) == value
+    assert data["choices"][0]["finish_reason"] == "stop"
+    assert data["usage"] == {"completion_tokens": 120}
+
+
+def test_stream_still_rejects_text_or_changed_finish_after_finish():
+    value = _current_planner_model_value()
+    text_after = StreamingResponse(value, defect="late_content")
+    with pytest.raises(SupervisorProtocolError, match="text after its finish"):
+        supervisor_openai_module._decode_chat_completion_stream(
+            text_after, deadline=time.monotonic() + 30,
+        )
+    changed = StreamingResponse(value)
+    changed.chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "length"}]})
+    with pytest.raises(SupervisorProtocolError, match="changed finish_reason"):
+        supervisor_openai_module._decode_chat_completion_stream(
+            changed, deadline=time.monotonic() + 30,
+        )
+
+
+def test_streamed_length_interruption_gets_one_bounded_same_budget_retry():
+    # An output-budget interruption is a resource outcome, not an invalid
+    # model result: it retries within retry_attempts, unlike protocol defects.
+    first = StreamingResponse(_current_planner_model_value(), defect="length")
+    second = StreamingResponse(_current_planner_model_value(), defect="length")
+    fake = FakeSession([first, second])
+    audit = []
+    client = OpenAIGoalSupervisorClient(
+        replace(settings(), stream_responses=True, retry_attempts=2, retry_backoff_seconds=0.0),
+        session=fake, audit_hook=audit.append)
+    request = GoalPlanRequest(
+        run_id="RUN-length-retry", immutable_request="Inspect the workspace",
+        goal_digest="stream-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="stream-fixture").to_model_dict(),
+        latest_audit=None, workspace_manifest={"entries": []},
+    )
+
+    with pytest.raises(SupervisorGenerationInterrupted):
+        client.plan_goal_patch(request)
+
+    assert len(fake.posts) == 2
+    assert first.closed and second.closed
+    failed = next(event for event in audit if event["type"] == "supervisor_request_failed")
+    assert failed["error_category"] == "generation_limit"
+
+
+@pytest.mark.parametrize("defect", ["missing_done", "missing_finish", "wrong_choice", "changed_model", "late_content", "invalid_chunk"])
 def test_streamed_planner_rejects_incomplete_or_ambiguous_stream_without_retry(defect):
     provider_response = StreamingResponse(_current_planner_model_value(), defect=defect)
     fake = FakeSession([provider_response])

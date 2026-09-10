@@ -70,17 +70,21 @@ def test_request_options_cannot_override_contract_or_carry_non_json(options):
 
 @pytest.mark.parametrize("content", ["", '{"unfinished":', '{"complete_but_truncated":true}'])
 @pytest.mark.parametrize("phase", ["goal_plan", "goal_stage_review"])
-def test_output_exhaustion_is_recorded_before_content_parsing_and_never_retried(content, phase):
+def test_output_exhaustion_is_recorded_before_content_parsing_with_bounded_retry(content, phase):
+    # finish_reason=length is a resource outcome: it is recorded before any
+    # content parsing and retried within retry_attempts on the same budget
+    # (unlike protocol defects, which never retry).
     usage = {"completion_tokens": 32768, "completion_tokens_details": {"reasoning_tokens": 32768}}
     envelope = {"model": "future-provider", "choices": [{"message": {"role": "assistant", "content": content},
         "finish_reason": "length"}], "usage": usage}
-    fake = FakeSession([FakeResponse(envelope)])
+    fake = FakeSession([FakeResponse(envelope), FakeResponse(envelope)])
     audit = []
-    client = OpenAICompatibleSupervisorClient(replace(settings(), retry_attempts=2), session=fake, audit_hook=audit.append)
+    client = OpenAICompatibleSupervisorClient(replace(settings(), retry_attempts=2, retry_backoff_seconds=0.0),
+                                              session=fake, audit_hook=audit.append)
     with pytest.raises(SupervisorProtocolError, match="finish_reason") as captured:
         request(client, phase)
     assert type(captured.value).__name__ == "SupervisorGenerationInterrupted"
-    assert len(fake.posts) == 1
+    assert len(fake.posts) == 2
     received = next(event for event in audit if event["type"] == "supervisor_response_envelope_received")
     failed = next(event for event in audit if event["type"] == "supervisor_request_failed")
     assert audit.index(received) < audit.index(failed)

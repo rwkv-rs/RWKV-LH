@@ -22,8 +22,9 @@ import pytest
 from rwkv_lh.exact_tool_selector.native_network_protocol import NativeNetworkToolSelection
 from rwkv_lh.goal_state_protocols import selector_intent_v6
 from rwkv_lh.goal_state_protocols.role_trace_dataset_v1 import (
-    DatasetIntegrityError, ROLE_MODULES, SOURCE_CODE_PATHS, extract_registration, extract_source,
-    load_source_run, register_case,
+    DatasetIntegrityError, EQUIVALENCE_WAIVER_SCHEMA, NON_WAIVABLE_PATHS, ROLE_MODULES,
+    SOURCE_CODE_PATHS, extract_registration, extract_source, load_source_run,
+    read_equivalence_waiver, register_case,
 )
 from rwkv_lh.model_session import ModelSession
 from rwkv_lh.role_trace_stages import LANE_ROLES
@@ -387,6 +388,136 @@ def test_focused_scope_must_be_pinned_in_source_before_it_can_relax_coverage(moc
     assert result["quality_gates"]["requested_roles_present"] is True
     assert result["coverage_audit"]["selector_intent"]["execute"] == 0
     assert result["status"] == "invalid"  # one family cannot supply three splits
+
+
+WAIVER_TARGET = "rwkv_lh/harness.py"
+
+
+def _stale_frozen_manifest(case):
+    """Rewrite the frozen manifest so one file's frozen SHA differs from disk.
+
+    This simulates a production fix landing after the trace was frozen: the
+    manifest keeps the old (fake) digest while the working tree has the real
+    bytes. All pinned artifact hashes are re-sealed so only the whole-tree
+    scope check can object.
+    """
+    record = case["registration"]["source_runs"][0]
+    manifest_path = Path(record["artifacts"]["source_tree_manifest"]["path"])
+    manifest = decode_json(manifest_path.read_text())
+    frozen_sha = hashlib.sha256(b"MOCK-PREVIOUS-FROZEN-BYTES").hexdigest()
+    for item in manifest:
+        if item["path"] == WAIVER_TARGET:
+            item["sha256"] = frozen_sha
+    _replace_artifact(case, "source_tree_manifest", manifest)
+    protocol_path = Path(record["artifacts"]["run_protocol"]["path"])
+    protocol = decode_json(protocol_path.read_text())
+    protocol["code"]["source_tree_manifest_sha256"] = hashlib.sha256(json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    _replace_artifact(case, "run_protocol", protocol)
+    repository = Path(__file__).resolve().parents[1]
+    current_sha = hashlib.sha256((repository / WAIVER_TARGET).read_bytes()).hexdigest()
+    return frozen_sha, current_sha
+
+
+def _waiver_document(entries, *, reviewers=("MOCK-REVIEWER-ONE", "MOCK-REVIEWER-TWO"), decision="accept"):
+    return {"schema_version": EQUIVALENCE_WAIVER_SCHEMA, "decision": decision,
+            "reviewers": list(reviewers), "entries": entries}
+
+
+def _waiver_entry(path, frozen_sha, current_sha):
+    return {"path": path, "frozen_sha256": frozen_sha, "current_sha256": current_sha,
+            "rationale": "MOCK waiver for code tests; not a real human review.",
+            "evidence_refs": ["data/experiments/MOCK_EVIDENCE_R0_00000000/REPORT.md"]}
+
+
+def _write_waiver(tmp_dir, document):
+    path = tmp_dir / "equivalence_waiver.json"
+    _write_json(path, document)
+    return path, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_source_scope_change_rejected_without_exactly_pinned_waiver(mock_controller_case):
+    case = mock_controller_case
+    frozen_sha, current_sha = _stale_frozen_manifest(case)
+    record = case["registration"]["source_runs"][0]
+    with pytest.raises(DatasetIntegrityError, match="implementation differs"):
+        load_source_run(record, base_dir=case["root"])
+    # A waiver pinning the wrong frozen digest does not relax the scope check.
+    wrong = {WAIVER_TARGET: (hashlib.sha256(b"MOCK-OTHER-BYTES").hexdigest(), current_sha)}
+    with pytest.raises(DatasetIntegrityError, match="implementation differs"):
+        load_source_run(record, base_dir=case["root"], equivalence_waiver=wrong)
+    # Same for a waiver pinning a current digest that is not the working tree.
+    stale = {WAIVER_TARGET: (frozen_sha, hashlib.sha256(b"MOCK-OTHER-BYTES").hexdigest())}
+    with pytest.raises(DatasetIntegrityError, match="implementation differs"):
+        load_source_run(record, base_dir=case["root"], equivalence_waiver=stale)
+    exact = {WAIVER_TARGET: (frozen_sha, current_sha)}
+    source = load_source_run(record, base_dir=case["root"], equivalence_waiver=exact)
+    assert source.waived_paths == (WAIVER_TARGET,)
+    # The waived source still passes the full extraction defenses unchanged.
+    samples, excluded = extract_source(_with_mock_audit_reviews(source))
+    assert not excluded
+    assert {sample["role"] for sample in samples} == set(ROLE_MODULES)
+
+
+def test_unwaived_sources_load_with_empty_waived_paths(mock_controller_case):
+    source = _load(mock_controller_case)
+    assert source.waived_paths == ()
+
+
+def test_waiver_document_review_and_entry_constraints(mock_controller_case, tmp_path):
+    frozen_sha = hashlib.sha256(b"MOCK-PREVIOUS-FROZEN-BYTES").hexdigest()
+    current_sha = hashlib.sha256(b"MOCK-CURRENT-BYTES").hexdigest()
+    good_entry = _waiver_entry(WAIVER_TARGET, frozen_sha, current_sha)
+    path, sha = _write_waiver(tmp_path, _waiver_document([good_entry]))
+    assert read_equivalence_waiver(path, sha) == {WAIVER_TARGET: (frozen_sha, current_sha)}
+    rejected = [
+        (_waiver_document([good_entry], decision="reject"), "not an accepted review"),
+        (_waiver_document([good_entry], reviewers=("MOCK-REVIEWER-ONE",)), "two distinct reviewers"),
+        (_waiver_document([good_entry], reviewers=("MOCK-SAME", "MOCK-SAME ")), "two distinct reviewers"),
+        (_waiver_document([]), "no entries"),
+        (_waiver_document([good_entry, good_entry]), "duplicate waiver entry"),
+        (_waiver_document([_waiver_entry(WAIVER_TARGET, frozen_sha, frozen_sha)]), "distinct frozen/current"),
+        (_waiver_document([{**good_entry, "rationale": " "}]), "rationale"),
+        (_waiver_document([{**good_entry, "evidence_refs": []}]), "evidence refs"),
+        ({**_waiver_document([good_entry]), "schema_version": "other.v1"}, "unsupported"),
+    ]
+    for index, (document, match) in enumerate(rejected):
+        bad_path = tmp_path / f"bad_waiver_{index}.json"
+        _write_json(bad_path, document)
+        with pytest.raises(DatasetIntegrityError, match=match):
+            read_equivalence_waiver(bad_path, hashlib.sha256(bad_path.read_bytes()).hexdigest())
+
+
+def test_waiver_can_never_cover_vocabulary_protocols_or_unknown_paths(mock_controller_case, tmp_path):
+    frozen_sha = hashlib.sha256(b"MOCK-PREVIOUS-FROZEN-BYTES").hexdigest()
+    current_sha = hashlib.sha256(b"MOCK-CURRENT-BYTES").hexdigest()
+    assert NON_WAIVABLE_PATHS <= set(SOURCE_CODE_PATHS)
+    # role_trace_* helpers are outside the frozen scope entirely; a waiver
+    # naming them (or any unknown path) is rejected as unknown.
+    for target in sorted(NON_WAIVABLE_PATHS) + ["rwkv_lh/role_trace_inputs.py", "unrelated/path.py"]:
+        document = _waiver_document([_waiver_entry(target, frozen_sha, current_sha)])
+        bad_path = tmp_path / (target.replace("/", "_") + ".json")
+        _write_json(bad_path, document)
+        with pytest.raises(DatasetIntegrityError, match="cannot cover this path"):
+            read_equivalence_waiver(bad_path, hashlib.sha256(bad_path.read_bytes()).hexdigest())
+
+
+def test_waived_extraction_records_waiver_provenance(mock_controller_case, tmp_path):
+    case = mock_controller_case
+    frozen_sha, current_sha = _stale_frozen_manifest(case)
+    _write_json(case["registration_path"], case["registration"])
+    with pytest.raises(DatasetIntegrityError, match="both the reviewed document"):
+        extract_registration(case["registration_path"], case["root"] / "waiver_missing_pin",
+                             equivalence_waiver={WAIVER_TARGET: (frozen_sha, current_sha)})
+    path, sha = _write_waiver(tmp_path, _waiver_document([_waiver_entry(WAIVER_TARGET, frozen_sha, current_sha)]))
+    waiver = read_equivalence_waiver(path, sha)
+    manifest = extract_registration(case["registration_path"], case["root"] / "waived_audit",
+                                    equivalence_waiver=waiver, equivalence_waiver_sha256=sha)
+    assert manifest["provenance"]["equivalence_waiver_sha256"] == sha
+    assert manifest["provenance"]["waived_paths"] == [WAIVER_TARGET]
+    with pytest.raises(DatasetIntegrityError, match="implementation differs"):
+        extract_registration(case["registration_path"], case["root"] / "unwaived_audit")
 
 
 def test_frozen_artifact_sha_rejects_post_registration_edit(mock_controller_case):

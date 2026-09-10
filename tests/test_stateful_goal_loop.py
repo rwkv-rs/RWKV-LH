@@ -1708,6 +1708,39 @@ def test_run_command_root_coverage_and_scope_use_observed_workspace_delta() -> N
     )
 
 
+def test_failed_run_command_out_of_scope_writes_are_still_gaps() -> None:
+    # A command can write outside its declared roots and then exit nonzero;
+    # the pollution is real even though the action is a recorded failure.
+    action = SimpleNamespace(
+        action_type="run_command",
+        arguments={"argv": ["python", "generate.py"]},
+        result={
+            "success": False,
+            "metadata": {
+                "workspace_changes": {
+                    "complete": True,
+                    "reason": "",
+                    "changed_paths": ["outside.txt"],
+                }
+            },
+        },
+    )
+
+    assert StatefulGoalLoopController._run_command_write_scope_gaps(
+        action, ("output/generated.txt",)
+    ) == (
+        "run_command changed paths outside declared write_roots: ['outside.txt']",
+    )
+    # A failed command with no observable delta also fails closed.
+    action.result["metadata"] = {}
+    assert StatefulGoalLoopController._run_command_write_scope_gaps(
+        action, ("output/generated.txt",)
+    ) == (
+        "run_command workspace changes are not fully observable: "
+        "workspace change set unavailable",
+    )
+
+
 def test_run_command_without_complete_workspace_delta_fails_closed() -> None:
     action = SimpleNamespace(
         action_type="run_command",

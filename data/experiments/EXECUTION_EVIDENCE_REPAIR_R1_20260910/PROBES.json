@@ -1,0 +1,78 @@
+{
+  "code_commit": "ca5b2edf1318dc6b3977d4612eaa88965c3df5f8",
+  "sandboxed_host": true,
+  "command_effect_probes": [
+    {
+      "operation": "check_command",
+      "declared_read_only": true,
+      "declared_write_roots_for_scope_guard": [],
+      "success": true,
+      "exit_code": 0,
+      "unexpected_file_exists": false,
+      "workspace_ephemeral": true,
+      "writes_discarded": true,
+      "scope_guard_gaps": [],
+      "failed_command_scope_gaps_with_observed_delta": null,
+      "sandboxed": true,
+      "arguments": {
+        "argv": [
+          "python",
+          "-c",
+          "from pathlib import Path; Path('outside.txt').write_text('unexpected change'); raise SystemExit(0)"
+        ]
+      },
+      "limitation": "production Harness execution plus exact production scope guard; no end-to-end model run"
+    },
+    {
+      "operation": "run_command",
+      "declared_read_only": false,
+      "declared_write_roots_for_scope_guard": [
+        "allowed.txt"
+      ],
+      "success": false,
+      "exit_code": 1,
+      "unexpected_file_exists": true,
+      "workspace_ephemeral": null,
+      "writes_discarded": null,
+      "scope_guard_gaps": [
+        "run_command workspace changes are not fully observable: workspace change set unavailable"
+      ],
+      "failed_command_scope_gaps_with_observed_delta": [
+        "run_command changed paths outside declared write_roots: ['outside.txt']"
+      ],
+      "sandboxed": true,
+      "arguments": {
+        "argv": [
+          "python",
+          "-c",
+          "from pathlib import Path; Path('outside.txt').write_text('unexpected change'); raise SystemExit(1)"
+        ]
+      },
+      "limitation": "production Harness execution plus exact production scope guard; no end-to-end model run"
+    }
+  ],
+  "timeout_evidence": {
+    "output": "PARTIAL_DIAGNOSTIC_READY\n",
+    "exit_code": null,
+    "success": false,
+    "outcome_type": "timeout",
+    "error": {
+      "type": "TimeoutExpired",
+      "message": "command timed out after 3.0 seconds; partial stdout/stderr retained in output"
+    },
+    "timed_out": true,
+    "diagnostic_produced": true,
+    "partial_stdout_preserved": true,
+    "command_streams_present": true
+  },
+  "contrast_baseline": "data/experiments/ENGINEERING_REMAINING_AUDIT_R1_20260910/PROBES.json",
+  "expectations": {
+    "check_command.unexpected_file_exists": false,
+    "run_command_failed.scope_gaps_with_observed_delta": "non-empty",
+    "timeout.partial_stdout_preserved": true
+  },
+  "roles_or_protocols_modified": false,
+  "agent_runs": 0,
+  "optimizer_steps": 0,
+  "script_sha256": "93beb1f664a87bed18ad9edde27aec4458c5d1e2dcd1dbfdaf4c59e00350c434"
+}

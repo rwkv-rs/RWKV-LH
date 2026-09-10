@@ -324,9 +324,11 @@ class StatefulGoalLoopController(LongHorizonController):
             f"missing successful mutation evidence for write_root {root!r}"
             for root in missing_write_roots
         )
+        # Scope is judged on every executed command, not only successful ones:
+        # a failed command's out-of-root writes still pollute the workspace.
         command_scope_gaps = tuple(
             gap
-            for action in successful_actions
+            for action in assigned_actions
             for gap in cls._run_command_write_scope_gaps(
                 action,
                 tuple(step.write_roots),
@@ -683,13 +685,14 @@ class StatefulGoalLoopController(LongHorizonController):
     ) -> tuple[str, ...]:
         """Fail closed when a mutating command's exact path delta is unavailable or wider."""
 
+        # check_command runs against a discarded workspace view (its writes are
+        # never retained); non-command actions are bounded by their own
+        # argument contracts. A FAILED run_command is still scope-checked: a
+        # command can write outside the declared roots and then exit nonzero,
+        # and those writes pollute the workspace all the same.
         if action.action_type != "run_command" or not write_roots:
             return ()
         result = action.result if isinstance(action.result, Mapping) else {}
-        if not bool(result.get("success")):
-            # A failed command is already a recorded failure; scope is judged
-            # only on commands whose effects the step may claim as evidence.
-            return ()
         metadata = (
             result.get("metadata")
             if isinstance(result.get("metadata"), Mapping)

@@ -20,6 +20,7 @@ from rwkv_lh.runtime.protocol import (
     RWKVHTTPError,
     RWKVOutcomeUnknownError,
     RWKVProtocolError,
+    RWKVRequestNotRecorded,
     RWKVTransportError,
     RuntimeCapabilities,
     TextCompletionRequest,
@@ -70,6 +71,17 @@ class OpenAICompatibleRWKVClient:
     def _new_session(self) -> requests.Session:
         session = requests.Session()
         session.trust_env = self.settings.trust_environment_proxies
+        # Retry only connection establishment (the request was never sent, so
+        # this is always safe); read/status retries stay at the application
+        # layer where journal receipts decide what may be replayed.
+        adapter = requests.adapters.HTTPAdapter(
+            max_retries=requests.adapters.Retry(
+                total=None, connect=2, read=0, status=0, redirect=0,
+                backoff_factor=0.2,
+            )
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
         if self.settings.proxy_url:
             session.proxies.update(
                 {
@@ -190,6 +202,13 @@ class OpenAICompatibleRWKVClient:
         # A Native mutation may already have a durable result. Recover through
         # its read-only journal endpoint instead of submitting it a second time.
         attempts = 1 if native_mutation else self.settings.retry_attempts
+        headers = self._headers()
+        if native_mutation:
+            # A stale pooled keep-alive connection (or an idle tunnel hop) can
+            # die before the request reaches the application, which fails the
+            # heavyweight mutation with an unknown outcome. Forcing a fresh
+            # connection removes that failure mode for a negligible cost.
+            headers["Connection"] = "close"
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             started = time.perf_counter()
@@ -197,7 +216,7 @@ class OpenAICompatibleRWKVClient:
                 response = self._session().request(
                     method,
                     endpoint,
-                    headers=self._headers(),
+                    headers=headers,
                     json=dict(payload) if payload is not None else None,
                     timeout=(
                         self.settings.connect_timeout_seconds,
@@ -597,7 +616,14 @@ class OpenAICompatibleRWKVClient:
     ) -> dict[str, Any]:
         """Read an existing request receipt without submitting model work."""
         path = "/state/requests/" + quote(request_id, safe="") + "?" + urlencode({"request_digest": request_digest})
-        result, _, _ = self._request_json("GET", path)
+        try:
+            result, _, _ = self._request_json("GET", path)
+        except RWKVHTTPError as exc:
+            if exc.status_code == 404:
+                # The journal claims a row before any execution starts, so an
+                # unrecorded request id proves the request never executed.
+                return {"status": "not_recorded"}
+            raise
         expected = {"schema_version": NATIVE_REQUEST_RECOVERY_VERSION,
             "request_id": request_id, "operation": operation, "request_digest": request_digest}
         if any(result.get(key) != value for key, value in expected.items()):
@@ -613,6 +639,7 @@ class OpenAICompatibleRWKVClient:
 
     def recover_native_request(
         self, operation: str, payload: Mapping[str, Any], *, max_wait_seconds: float | None = None,
+        original_error: Exception | None = None,
     ) -> dict[str, Any]:
         """An uncertain State mutation is resolved by exact receipt queries only."""
         prepared = prepare_native_request(operation, payload)
@@ -621,18 +648,23 @@ class OpenAICompatibleRWKVClient:
         if type(wait) not in (int, float) or not math.isfinite(wait) or wait < 0:
             raise ValueError("Native result query wait must be non-negative")
         deadline = time.monotonic() + wait
+        original = f"; original error: {type(original_error).__name__}: {str(original_error)[:500]}" if original_error is not None else ""
         status = "unknown"
+        not_recorded_confirmations = 0
         while True:
             try:
                 result = self.state_request_result(request_id=prepared["request_id"],
                     operation=operation, request_digest=digest)
             except (RWKVProtocolError, ValueError, TypeError) as exc:
-                raise RWKVOutcomeUnknownError("Native result query failed identity validation") from exc
+                raise RWKVOutcomeUnknownError(
+                    f"Native result query failed identity validation{original}"
+                ) from (original_error or exc)
             except RWKVHTTPError as exc:
                 if not exc.retryable:
                     raise RWKVOutcomeUnknownError(
-                        f"Native {operation} outcome remains unknown; request_id={prepared['request_id']}"
-                    ) from exc
+                        f"Native {operation} outcome remains unknown; "
+                        f"request_id={prepared['request_id']}; receipt query: {exc}{original}"
+                    ) from (original_error or exc)
                 result = {"status": "unavailable"}
             except RWKVTransportError:
                 result = {"status": "unavailable"}
@@ -643,28 +675,60 @@ class OpenAICompatibleRWKVClient:
                 self._emit({"type": "native_request_recovered", "operation": operation,
                     "request_id": prepared["request_id"], "request_digest": digest})
                 return dict(result["result"])
+            if status == "not_recorded":
+                # One backoff plus a second confirmation guards against the
+                # original POST bytes still being in flight toward the journal.
+                not_recorded_confirmations += 1
+                if not_recorded_confirmations >= 2:
+                    raise RWKVRequestNotRecorded(
+                        f"Native {operation} was never recorded by the server journal; "
+                        f"request_id={prepared['request_id']}; it never executed and may be "
+                        f"resubmitted{original}"
+                    ) from original_error
             if status == "unknown" or time.monotonic() >= deadline:
                 break
             time.sleep(min(max(0.01, self.settings.retry_backoff_seconds),
                 max(0.0, deadline - time.monotonic())))
         raise RWKVOutcomeUnknownError(
-            f"Native {operation} outcome remains {status}; request_id={prepared['request_id']}"
-        )
+            f"Native {operation} outcome remains {status}; "
+            f"request_id={prepared['request_id']}{original}"
+        ) from original_error
 
     def _native_request(self, operation: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         prepared = prepare_native_request(operation, payload)
+        digest = native_request_digest(operation, prepared)
         self._emit({"type": "native_request_prepared", "operation": operation,
-            "request_id": prepared["request_id"], "request_digest": native_request_digest(operation, prepared)})
-        try:
-            data, _, _ = self._request_json("POST", "/state/" + operation,
-                payload=prepared, generation=True, native_mutation=True)
-            return data
-        except RWKVHTTPError as exc:
-            if not exc.retryable:
-                raise
-        except (RWKVTransportError, RWKVProtocolError):
-            pass
-        return self.recover_native_request(operation, prepared)
+            "request_id": prepared["request_id"], "request_digest": digest})
+        resubmits = max(1, int(self.settings.native_resubmit_attempts))
+        for attempt in range(1, resubmits + 1):
+            first_error: Exception
+            try:
+                data, _, _ = self._request_json("POST", "/state/" + operation,
+                    payload=prepared, generation=True, native_mutation=True)
+                return data
+            except RWKVHTTPError as exc:
+                if not exc.retryable:
+                    raise
+                first_error = exc
+            except (RWKVTransportError, RWKVProtocolError) as exc:
+                first_error = exc
+            # The original failure is audited before recovery so a later
+            # receipt-query result can never erase the first cause.
+            self._emit({"type": "native_request_transport_error", "operation": operation,
+                "request_id": prepared["request_id"], "request_digest": digest,
+                "error_type": type(first_error).__name__,
+                "error_message": str(first_error)[:500],
+                "attempt": attempt, "will_recover": True})
+            try:
+                return self.recover_native_request(operation, prepared, original_error=first_error)
+            except RWKVRequestNotRecorded:
+                if attempt >= resubmits:
+                    raise
+                self._emit({"type": "native_request_resubmitted", "operation": operation,
+                    "request_id": prepared["request_id"], "request_digest": digest,
+                    "attempt": attempt + 1})
+                self._backoff(attempt, None)
+        raise RWKVTransportError("native request submission loop exited unexpectedly")
 
     def state_create(
         self,

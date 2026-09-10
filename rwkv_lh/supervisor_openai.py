@@ -120,22 +120,6 @@ def _int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
-def _float_env(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, default))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be a number") from exc
-
-
-def _bool_env(name: str, default: bool) -> bool:
-    value = str(os.environ.get(name, str(default))).strip().casefold()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be a boolean")
-
-
 def _render_user_payload(request_payload: Mapping[str, Any]) -> str:
     """Render authoritative requirements and repair questions at the byte tail."""
 
@@ -213,8 +197,11 @@ class SupervisorAPISettings:
     retry_backoff_seconds: float = 0.5
     verify_tls: bool = True
     max_plan_tokens: int = 8192
-    max_review_tokens: int = 1400
-    max_directive_tokens: int = 1200
+    # With provider thinking enabled, reasoning tokens are billed against
+    # max_tokens; 1400/1200 made finish_reason=length routine on review and
+    # directive calls (preregistered budget change, not a scoring threshold).
+    max_review_tokens: int = 2800
+    max_directive_tokens: int = 2400
     max_contract_plan_tokens: int = 4000
     max_contract_review_tokens: int = 2400
     semantic_repair_attempts: int = 1
@@ -307,13 +294,13 @@ class SupervisorAPISettings:
                 "planner",
                 "max_review_tokens",
                 legacy="SUPERVISOR_MAX_REVIEW_TOKENS",
-                default=1400,
+                default=2800,
             ),
             max_directive_tokens=role_int(
                 "planner",
                 "max_directive_tokens",
                 legacy="SUPERVISOR_MAX_DIRECTIVE_TOKENS",
-                default=1200,
+                default=2400,
             ),
             max_contract_plan_tokens=role_int(
                 "planner",
@@ -991,14 +978,21 @@ def _decode_chat_completion_stream(
         text = delta.get("content")
         if text is not None and not isinstance(text, str):
             raise SupervisorProtocolError("supervisor stream content delta must be text")
+        reason = choice.get("finish_reason")
+        if reason is not None and (not isinstance(reason, str) or not reason):
+            raise SupervisorProtocolError("supervisor stream has invalid finish_reason")
         if finish_reason is not None:
-            raise SupervisorProtocolError("supervisor stream contains a choice after its finish")
+            # OpenAI-compatible gateways commonly send one usage-only trailer
+            # chunk after the finish; only text or a changed finish_reason
+            # after the finish corrupts the assembled completion.
+            if text:
+                raise SupervisorProtocolError("supervisor stream contains text after its finish")
+            if reason is not None and reason != finish_reason:
+                raise SupervisorProtocolError("supervisor stream changed finish_reason after its finish")
+            continue
         if text:
             content.append(text)
-        reason = choice.get("finish_reason")
         if reason is not None:
-            if not isinstance(reason, str) or not reason:
-                raise SupervisorProtocolError("supervisor stream has invalid finish_reason")
             finish_reason = reason
     raise SupervisorProtocolError("supervisor stream ended before [DONE]")
 
@@ -1778,6 +1772,17 @@ class OpenAICompatibleSupervisorClient:
             except SupervisorTransportError as exc:
                 error = exc
                 if exc.retryable and attempt < self.settings.retry_attempts:
+                    delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
+                    if delay:
+                        time.sleep(delay)
+                    continue
+                break
+            except SupervisorGenerationInterrupted as exc:
+                error = exc
+                # An output-budget interruption is a resource outcome, not an
+                # invalid model result: one bounded same-budget retry can
+                # complete where the first sample ran long.
+                if attempt < self.settings.retry_attempts:
                     delay = self.settings.retry_backoff_seconds * (2 ** (attempt - 1))
                     if delay:
                         time.sleep(delay)

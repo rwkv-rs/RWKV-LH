@@ -8,6 +8,8 @@
 
 ## 当前整改与验证状态
 
+[执行证据与传输修复 R1](../data/experiments/EXECUTION_EVIDENCE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**审计确认的 E1–E4 全部修复，E6 兼容准入通道落地，完整回归 1447 passed、0 failed**。R1 准入器新增双人复核等价豁免映射表（vocab 与角色协议不可豁免，checkpoint 字节重建等语义防线不受影响，无 waiver 行为逐字节不变）；R2 check_command 改为 bwrap tmp-overlay 临时工作区（写入不保留）、失败命令写范围 fail-closed、超时保留部分输出（对照探针三项全部达预期）；R3 Native 首错保留审计事件、收据 404 语义化为"证明未执行"并有界重发（真 unknown 仍绝不重发）、连接层 connect-only 重试 + mutation `Connection: close`、benchmark 增 `--native-transport-resume-attempts`（不改评分）；R4 SSE 容忍 usage 尾帧、length 有界重试、thinking 下 review/directive 预算 2800/2400。删除三个确认无引用的死函数；全仓死代码候选清单与 E5 持续会话设计+可行性探针一并归档。**遗留门（owner）**：重跑 15 题评测；`EQUIVALENCE_WAIVER_DRAFT.json`（6 文件，decision=draft）双人复核改 accept 后用 `--equivalence-waiver` 验证旧 trace 恢复准入。
+
 [剩余问题审计 R1](../data/experiments/ENGINEERING_REMAINING_AUDIT_R1_20260910/REPORT.zh-CN.md)：当前确认 4 项代码缺陷（check_command 可写、失败命令漏写范围检查、超时丢部分输出、Native 恢复丢首次错误）、2 项设计/能力缺口（持续进程会话、修复后 trace 兼容准入），另有 1 项 Native create 未知结果事故。该数量是已证实事项下限，不是全仓库错误总数。真实隔离 Harness 与离线客户端探针已留证；本轮未修生产代码、未重跑 Agent 或训练。97 次 Executor + 49 次 Step Auditor 输入交接已核验，不能扩称全部角色能力通过；最终两个角色仍未到达。
 
 [命令入口整改 R1](../data/experiments/COMMAND_ENTRYPOINT_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1432 passed、0 skipped**，修正后的行为测试在旧 Harness 上 14 failed / 4 passed。项目原生可执行文件不再被当成 Python 脚本，console script 保留解释器参数；原 WEB-02 命令在独立 bubblewrap 中退出 0。修改在本地命令执行层，推理服务器上传源码和 manifest 身份仍为下述已验证版本。本轮无新 Agent 成绩，Native create 404 的最初传输原因仍未查明。
@@ -37,7 +39,7 @@ Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标�
 
 当前角色是 Selector。最新 3+12 题合并后有 81 条自动标签（train 76 / dev 3 / confirmation 2）、126 条待独立复核；原登记的 execute / mutate / missing_target / py_root 覆盖及三切分非空均已通过。386 对跨切分比较有 113 对超过 0.95，候选 INVALID。当前障碍是切分污染和纠错标签复核，不能继续表述为没有足够原始边界或任何 execute。九边界的具体复核包已提交，owner 的独立强模型离线复核提议尚未答复，不能冒充双人人工签名。
 
-补充当前来源准入状态：上述 81 条是冻结采集版本的历史候选数量。命令入口修复改变 harness.py 后，当前抽取器要求几乎全部生产源码 SHA 相等，15/15 原来源均被拒绝；不能声称只完成复核即可按当前代码冻结。需验证生产者证据与当前角色输入/执行语义的兼容，或从修复后版本重新采集；不得直接撤销完整性保护。详见剩余问题审计 `PROBES.json`。
+补充当前来源准入状态：上述 81 条是冻结采集版本的历史候选数量。命令入口修复改变 harness.py 后，当前抽取器要求几乎全部生产源码 SHA 相等，15/15 原来源均被拒绝；不能声称只完成复核即可按当前代码冻结。执行证据与传输修复 R1 已落地兼容准入通道：`EQUIVALENCE_WAIVER_DRAFT.json` 已 pin 全部 6 个修改文件的 frozen/current SHA，经两名 reviewer 审阅 diff 并将 decision 改为 accept 后，`--equivalence-waiver <path> --waiver-sha256 <pin>` 可使旧 trace 恢复准入（完整性保护未撤销：字节重建、协议 SHA、token 回放仍无条件生效）。详见剩余问题审计与修复轮的 `PROBES.json`。
 
 R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通。通用命令执行缺陷已修复且完整回归通过，原采集结果保持封存；下一次 Agent/训练须绑定实际客户端源码与服务身份。当前角色数据合格后执行已授权 StateTune，合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 

@@ -12,20 +12,110 @@ import pytest
 import requests
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
-from rwkv_lh.runtime.protocol import RWKVOutcomeUnknownError, RuntimeCapabilities
+from rwkv_lh.runtime.protocol import (
+    RWKVOutcomeUnknownError, RWKVRequestNotRecorded, RuntimeCapabilities,
+)
 from test_openai_compat_runtime import FakeResponse, FakeSession, _cache_binding, settings
 
 
-def test_unknown_rollback_does_not_repeat_post(monkeypatch):
+NOT_RECORDED = FakeResponse({"detail": "request ID is not recorded"}, status_code=404)
+
+
+def test_proven_unrecorded_request_is_resubmitted_not_left_unknown(monkeypatch):
+    # The journal claims a row before any execution, so a twice-confirmed 404
+    # receipt proves the POST never reached the application (e.g. a dead
+    # pooled keep-alive connection). The content-addressed request is then
+    # safely resubmitted instead of being reported as an unknown outcome.
+    events = []
     fake = FakeSession([
-        requests.ReadTimeout("response lost"),
-        FakeResponse({"detail": "request is unknown"}, status_code=404),
+        requests.ConnectionError("dead pooled connection"),
+        NOT_RECORDED,
+        NOT_RECORDED,
+        FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+    ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings(), audit_hook=events.append)
+    client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+    assert [method for method, _, _ in fake.calls] == ["POST", "GET", "GET", "POST"]
+    # Both submissions carry the same content-addressed request id, so the
+    # server journal deduplicates a late-arriving original.
+    assert fake.calls[0][2]["json"]["request_id"] == fake.calls[3][2]["json"]["request_id"]
+    kinds = [event["type"] for event in events]
+    assert kinds == [
+        "native_request_prepared",
+        "native_request_transport_error",
+        "native_request_resubmitted",
+    ]
+    # The first cause is audited before any receipt query can overwrite it.
+    assert events[1]["error_type"] == "RWKVOutcomeUnknownError"
+    assert "dead pooled connection" in events[1]["error_message"]
+
+
+def test_unrecorded_resubmission_is_bounded_and_keeps_the_original_cause(monkeypatch):
+    fake = FakeSession([
+        requests.ConnectionError("first failure"),
+        NOT_RECORDED,
+        NOT_RECORDED,
+        requests.ConnectionError("second failure"),
+        NOT_RECORDED,
+        NOT_RECORDED,
     ])
     monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
     client = OpenAICompatibleRWKVClient(settings())
-    with pytest.raises(RWKVOutcomeUnknownError):
+    with pytest.raises(RWKVRequestNotRecorded) as excinfo:
+        client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+    assert [method for method, _, _ in fake.calls] == [
+        "POST", "GET", "GET", "POST", "GET", "GET",
+    ]
+    assert "never executed" in str(excinfo.value)
+    assert "second failure" in str(excinfo.value)
+
+
+def test_single_unconfirmed_not_recorded_receipt_does_not_resubmit(monkeypatch):
+    # One 404 can race the original POST bytes; only a second confirmation
+    # after backoff proves the request was never recorded.
+    fake = FakeSession([
+        requests.ReadTimeout("response lost"),
+        NOT_RECORDED,
+        FakeResponse({"detail": "proxy hiccup"}, status_code=503),
+        NOT_RECORDED,
+        FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+    ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings(retry_attempts=1))
+    client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+    # One 404, an unavailable receipt endpoint, then the confirming 404:
+    # resubmission happens only after the second 404 confirmation.
+    assert [method for method, _, _ in fake.calls] == [
+        "POST", "GET", "GET", "GET", "POST",
+    ]
+
+
+def test_unknown_receipt_still_never_repeats_post(monkeypatch):
+    from rwkv_lh.runtime.native_request_recovery import (
+        NativeRequestRecord, native_request_digest, prepare_native_request,
+    )
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+    payload = prepare_native_request("rollback", {
+        "schema_version": NATIVE_STATE_PROTOCOL_VERSION, "model": "rwkv-test",
+        "candidate_state_ref": "candidate", "parent_state_ref": "parent",
+    })
+    unknown = NativeRequestRecord(
+        payload["request_id"], "rollback",
+        native_request_digest("rollback", payload), "unknown",
+    ).to_response()
+    fake = FakeSession([
+        requests.ReadTimeout("response lost"),
+        FakeResponse(unknown),
+    ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    client = OpenAICompatibleRWKVClient(settings())
+    with pytest.raises(RWKVOutcomeUnknownError) as excinfo:
         client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
     assert [method for method, _, _ in fake.calls] == ["POST", "GET"]
+    # The receipt outcome does not erase the original transport failure.
+    assert "original error" in str(excinfo.value)
+    assert "response lost" in str(excinfo.value)
 
 
 def test_native_capabilities_require_explicit_safe_chunk_and_recovery_support():
@@ -39,6 +129,27 @@ def test_native_capabilities_require_explicit_safe_chunk_and_recovery_support():
     missing = RuntimeCapabilities.from_mapping({}, source="fixture")
     assert missing.recurrent_state_chunked_prefill is False
     assert missing.recurrent_state_request_recovery is False
+
+
+def test_journal_claims_the_request_row_before_any_execution_starts(tmp_path):
+    # Contract anchor for client-side 404 semantics: because this row exists
+    # before invoke() runs, a receipt query that returns 404 proves the request
+    # never executed and may be safely resubmitted. Breaking this ordering
+    # silently breaks RWKVRequestNotRecorded recovery.
+    from rwkv_lh.runtime.native_request_recovery import (
+        NativeRequestJournal, NativeRequestResult, prepare_native_request,
+    )
+    journal = NativeRequestJournal(tmp_path / "requests.sqlite3")
+    payload = prepare_native_request("generate", {"model": "fixture", "request_id": "R-claim"})
+    observed = []
+
+    async def invoke():
+        record = journal.lookup(payload["request_id"])
+        observed.append(None if record is None else record.status)
+        return NativeRequestResult({"content": "fixture"})
+
+    asyncio.run(journal.execute("generate", payload, invoke))
+    assert observed == ["pending"]
 
 
 @pytest.mark.parametrize("operation", ["generate", "commit", "rollback"])

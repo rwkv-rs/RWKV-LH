@@ -20,6 +20,15 @@ class RWKVOutcomeUnknownError(RWKVTransportError):
     """A generation may have completed, but its response was not received."""
 
 
+class RWKVRequestNotRecorded(RWKVTransportError):
+    """The server journal proves this request was never claimed or executed.
+
+    The journal row is inserted before any work starts, so a confirmed 404 on
+    the receipt query means the POST never reached the application; the same
+    content-addressed request may be safely resubmitted.
+    """
+
+
 class RWKVHTTPError(RWKVRuntimeError):
     """The server returned a non-success HTTP response."""
 

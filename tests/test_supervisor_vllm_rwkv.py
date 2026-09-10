@@ -162,7 +162,7 @@ def test_supervisor_defaults_expand_planner_only_and_public_config_is_safe():
     assert settings.read_timeout_seconds == 240.0
     assert (settings.max_review_tokens, settings.max_directive_tokens,
             settings.max_contract_plan_tokens, settings.max_contract_review_tokens) == (
-        1400, 1200, 4000, 2400,
+        2800, 2400, 4000, 2400,
     )
     public = settings.public_dict()
     assert public["backend_profile"] == settings.backend_profile
@@ -303,7 +303,10 @@ def test_native_rejects_non_stop_even_with_complete_json(finish_reason):
     client = OpenAICompatibleSupervisorClient(_native_settings(retry_attempts=3, retry_backoff_seconds=0), session=session)
     with pytest.raises(SupervisorProtocolError):
         client.plan_goal_patch(request)
-    assert len(session.posts) == 1
+    # An output-budget interruption (finish_reason=length) is a resource
+    # outcome and gets bounded same-budget retries; every other non-stop
+    # completion is a protocol defect and never retries.
+    assert len(session.posts) == (3 if finish_reason == "length" else 1)
 
 
 @pytest.mark.parametrize("fault", [

@@ -49,6 +49,13 @@ SOURCE_CODE_PATHS = tuple(sorted({
       if not path.name.startswith("role_trace_")),
     str(VOCAB_PATH.relative_to(ROOT)),
 }))
+EQUIVALENCE_WAIVER_SCHEMA = "rwkv-lh.role-trace-source-equivalence.v1"
+# The vocabulary and the five role protocol modules define sample semantics
+# directly; their identity may never be waived, only re-frozen.
+NON_WAIVABLE_PATHS = frozenset({
+    str(VOCAB_PATH.relative_to(ROOT)),
+    *(str(Path(module.__file__).resolve().relative_to(ROOT)) for module in ROLE_MODULES.values()),
+})
 
 
 class DatasetIntegrityError(ValueError):
@@ -75,7 +82,8 @@ def _is_sha(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
 
 
-def _validate_frozen_scope(record: Mapping, protocol: Any, source_manifest: Any) -> None:
+def _validate_frozen_scope(record: Mapping, protocol: Any, source_manifest: Any,
+                           waiver: Mapping[str, tuple[str, str]] | None = None) -> list[str]:
     from rwkv_lh.stateful_goal_loop import STATEFUL_GOAL_LOOP_ARCHITECTURE
 
     if not isinstance(protocol, Mapping) or protocol.get("schema_version") != "rwkv-lh.round-run-protocol.v1":
@@ -96,9 +104,20 @@ def _validate_frozen_scope(record: Mapping, protocol: Any, source_manifest: Any)
     if len(paths) != len(source_manifest) or len(paths) != len(set(paths)):
         raise DatasetIntegrityError("frozen source manifest contains duplicate/malformed paths")
     hashes = {item["path"]: item.get("sha256") for item in source_manifest}
+    waived = []
     for path in SOURCE_CODE_PATHS:
-        if hashes.get(path) != _digest((ROOT / path).read_bytes()):
-            raise DatasetIntegrityError(f"source production builder/State implementation differs: {path}")
+        current = _digest((ROOT / path).read_bytes())
+        if hashes.get(path) == current:
+            continue
+        # The whole-tree SHA is a coarse proxy; a double-reviewed equivalence
+        # waiver may relax it for an exactly pinned (frozen, current) pair.
+        # Role protocol hashes, checkpoint byte rebuilds and token replay
+        # remain unconditional downstream.
+        if waiver is not None and waiver.get(path) == (hashes.get(path), current):
+            waived.append(path)
+            continue
+        raise DatasetIntegrityError(f"source production builder/State implementation differs: {path}")
+    return waived
 
 
 def _pairs(pairs):
@@ -172,6 +191,51 @@ def read_registration(path: Path) -> dict[str, Any]:
     return value
 
 
+def read_equivalence_waiver(path: Path, sha256: str) -> dict[str, tuple[str, str]]:
+    """Parse a double-reviewed source-equivalence waiver into {path: (frozen, current)}.
+
+    A waiver relaxes only the coarse whole-tree SHA proxy for exactly pinned
+    byte pairs. It can never cover the vocabulary or a role protocol module,
+    and it does not touch the unconditional semantic defenses (per-role
+    protocol SHA, checkpoint byte rebuild, timeline recomputation, raw token
+    replay), which still reject on any observable divergence.
+    """
+    value = _json(read_artifact({"path": str(path), "sha256": sha256}, ROOT))
+    if not isinstance(value, dict) or value.get("schema_version") != EQUIVALENCE_WAIVER_SCHEMA:
+        raise DatasetIntegrityError("unsupported source equivalence waiver schema")
+    if set(value) != {"schema_version", "decision", "reviewers", "entries"}:
+        raise DatasetIntegrityError("source equivalence waiver fields are invalid")
+    if value["decision"] != "accept":
+        raise DatasetIntegrityError("source equivalence waiver is not an accepted review")
+    reviewers = value["reviewers"]
+    if (not isinstance(reviewers, list) or len(reviewers) != 2
+            or any(not isinstance(item, str) or not item.strip() for item in reviewers)
+            or len({item.strip() for item in reviewers}) != 2):
+        raise DatasetIntegrityError("source equivalence waiver requires exactly two distinct reviewers")
+    entries = value["entries"]
+    if not isinstance(entries, list) or not entries:
+        raise DatasetIntegrityError("source equivalence waiver lists no entries")
+    waiver: dict[str, tuple[str, str]] = {}
+    for entry in entries:
+        if not isinstance(entry, Mapping) or set(entry) != {"path", "frozen_sha256", "current_sha256", "rationale", "evidence_refs"}:
+            raise DatasetIntegrityError("waiver entry fields are invalid")
+        target = entry["path"]
+        if target in waiver:
+            raise DatasetIntegrityError(f"duplicate waiver entry: {target}")
+        if target not in SOURCE_CODE_PATHS or target in NON_WAIVABLE_PATHS:
+            raise DatasetIntegrityError(f"waiver cannot cover this path: {target}")
+        if (not _is_sha(entry["frozen_sha256"]) or not _is_sha(entry["current_sha256"])
+                or entry["frozen_sha256"] == entry["current_sha256"]):
+            raise DatasetIntegrityError(f"waiver entry requires distinct frozen/current SHA-256: {target}")
+        refs = entry["evidence_refs"]
+        if (not isinstance(entry["rationale"], str) or not entry["rationale"].strip()
+                or not isinstance(refs, list) or not refs or len(refs) != len(set(refs))
+                or any(not isinstance(ref, str) or not ref.strip() for ref in refs)):
+            raise DatasetIntegrityError(f"waiver entry requires a rationale and unique evidence refs: {target}")
+        waiver[target] = (entry["frozen_sha256"], entry["current_sha256"])
+    return waiver
+
+
 @dataclass(frozen=True)
 class SourceRun:
     registration: Mapping[str, Any]
@@ -180,6 +244,7 @@ class SourceRun:
     model_trace: Sequence[Mapping[str, Any]]
     reviews: Sequence[Mapping[str, Any]]
     collection_contract: Mapping[str, Any] | None = None
+    waived_paths: tuple[str, ...] = ()
 
 
 def _json_changes(before: Any, after: Any, path: str = "$") -> list[dict[str, Any]]:
@@ -207,7 +272,8 @@ def _json_changes(before: Any, after: Any, path: str = "$") -> list[dict[str, An
 
 
 def load_source_run(record: Mapping[str, Any], *, base_dir: Path,
-                    coverage_scope_sha256: str | None = None) -> SourceRun:
+                    coverage_scope_sha256: str | None = None,
+                    equivalence_waiver: Mapping[str, tuple[str, str]] | None = None) -> SourceRun:
     if record.get("source_kind") != "production_trace":
         raise DatasetIntegrityError("only production_trace may supply role data")
     if record.get("collection_mode") not in {"all_zero", "role_stage"}:
@@ -229,7 +295,8 @@ def load_source_run(record: Mapping[str, Any], *, base_dir: Path,
             raise DatasetIntegrityError(f"source protocol SHA mismatch: {role}")
     raw = {name: read_artifact(item, base_dir) for name, item in artifacts.items()}
     protocol = _json(raw["run_protocol"])
-    _validate_frozen_scope(record, protocol, _json(raw["source_tree_manifest"]))
+    waived = _validate_frozen_scope(record, protocol, _json(raw["source_tree_manifest"]),
+                                    waiver=equivalence_waiver)
     if coverage_scope_sha256 is not None and protocol.get("role_data_scope_sha256") != coverage_scope_sha256:
         raise DatasetIntegrityError("coverage scope was not pinned in the frozen source run protocol")
     contract = protocol.get("role_data_collection")
@@ -320,7 +387,7 @@ def load_source_run(record: Mapping[str, Any], *, base_dir: Path,
         validate_collection_states(final_state, trace, contract)
     except ValueError as exc:
         raise DatasetIntegrityError(str(exc)) from exc
-    return SourceRun(dict(record), final_state, snapshots, trace, reviews, contract)
+    return SourceRun(dict(record), final_state, snapshots, trace, reviews, contract, tuple(waived))
 
 
 def register_case(case_dir: Path, *, run_id: str, source_run_id: str, project_family: str, suite: str) -> dict:
@@ -898,9 +965,13 @@ def extract_source(source: SourceRun, *, roles: Sequence[str] = tuple(ROLE_MODUL
 
 
 def extract_registration(registration_path: Path, output_dir: Path, *, roles: Sequence[str] = tuple(ROLE_MODULES),
-                         prior_regression: Mapping | None = None, expected_regression_fingerprint: str | None = None) -> dict:
+                         prior_regression: Mapping | None = None, expected_regression_fingerprint: str | None = None,
+                         equivalence_waiver: Mapping[str, tuple[str, str]] | None = None,
+                         equivalence_waiver_sha256: str | None = None) -> dict:
     from rwkv_lh.role_trace_artifacts import build_artifacts, write_artifacts, validate_coverage_requirements
 
+    if (equivalence_waiver is None) != (equivalence_waiver_sha256 is None):
+        raise DatasetIntegrityError("equivalence waiver requires both the reviewed document and its pinned SHA")
     output = validate_output_path(output_dir)
     registration_path = _source_path(Path(registration_path))
     registration = read_registration(registration_path)
@@ -917,8 +988,11 @@ def extract_registration(registration_path: Path, output_dir: Path, *, roles: Se
             raise DatasetIntegrityError(str(exc)) from exc
         scope_sha = registration["coverage_scope"]["sha256"]
     samples, exclusions, source_rows = [], [], []
+    waived_paths: set[str] = set()
     for record in registration["source_runs"]:
-        source = load_source_run(record, base_dir=registration_path.parent, coverage_scope_sha256=scope_sha)
+        source = load_source_run(record, base_dir=registration_path.parent, coverage_scope_sha256=scope_sha,
+                                 equivalence_waiver=equivalence_waiver)
+        waived_paths.update(source.waived_paths)
         rows, rejected = extract_source(source, roles=roles)
         if prior_regression is not None:
             from rwkv_lh.role_trace_artifacts import split_project_family
@@ -940,6 +1014,8 @@ def extract_registration(registration_path: Path, output_dir: Path, *, roles: Se
         "recomputed_rows": len(samples), "exclusions": exclusions,
         "requested_roles": list(roles),
         "coverage_scope_sha256": scope_sha,
+        "equivalence_waiver_sha256": equivalence_waiver_sha256,
+        "waived_paths": sorted(waived_paths),
         "server_input_token_ids_complete": all(row["context"].get("token_ids_complete") for row in samples) if samples else False,
         "output_kind": "candidate_audit_only", "training_started": False,
         "formal_dataset_version_created": False,
@@ -965,6 +1041,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     extract.add_argument("--prior-regression", type=Path, help="Explicitly provided frozen regression artifact (never inferred)")
     extract.add_argument("--regression-sha256", help="Pinned SHA-256 from the prior freeze registration")
     extract.add_argument("--expected-regression-fingerprint", help="Pinned regression identity, independent of the supplied file")
+    extract.add_argument("--equivalence-waiver", type=Path, help="Double-reviewed source equivalence waiver (never inferred)")
+    extract.add_argument("--waiver-sha256", help="Pinned SHA-256 of the equivalence waiver document")
     args = parser.parse_args(argv)
     try:
         if args.command == "register":
@@ -981,8 +1059,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not all((args.prior_regression, args.regression_sha256, args.expected_regression_fingerprint)):
                 raise DatasetIntegrityError("regression reuse requires a file and both independent pins")
             prior = _json(read_artifact({"path": str(args.prior_regression.resolve()), "sha256": args.regression_sha256}, ROOT))
+        waiver = None
+        if any((args.equivalence_waiver, args.waiver_sha256)):
+            if not all((args.equivalence_waiver, args.waiver_sha256)):
+                raise DatasetIntegrityError("equivalence waiver requires a file and its independent pin")
+            waiver = read_equivalence_waiver(args.equivalence_waiver.resolve(), args.waiver_sha256)
         manifest = extract_registration(args.registration, args.output, roles=args.role or tuple(ROLE_MODULES),
-                                        prior_regression=prior, expected_regression_fingerprint=args.expected_regression_fingerprint)
+                                        prior_regression=prior, expected_regression_fingerprint=args.expected_regression_fingerprint,
+                                        equivalence_waiver=waiver,
+                                        equivalence_waiver_sha256=args.waiver_sha256 if waiver is not None else None)
         print(_canonical(manifest))
         return 0 if manifest.get("status") == "valid" else 2
     except (ValueError, OSError, sqlite3.Error) as exc:

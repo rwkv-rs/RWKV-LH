@@ -69,7 +69,8 @@ def test_main_preserves_each_case_failure_and_continues_only_by_explicit_policy(
     args = argparse.Namespace(
         output=str(output), suite="core30", supervisor="openai", supervisor_strategy="static",
         stateful_goal=False, independent_selector=False, concurrency=concurrency,
-        supervisor_pending_resume_attempts=0, supervisor_batch_failure_policy=policy,
+        supervisor_pending_resume_attempts=0, native_transport_resume_attempts=0,
+        supervisor_batch_failure_policy=policy,
         tool_disclosure_mode=None, retry_failures_from="", case=[], max_cases=None,
         max_transitions=200, list=False, validate_only=False,
     )

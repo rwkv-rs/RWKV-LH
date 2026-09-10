@@ -538,12 +538,14 @@ class FaultInjectingHarness(ActionHarness):
         argv: list[str],
         *,
         include_project_venv: bool = False,
+        **sandbox_options,
     ) -> tuple[list[str], str]:
         command, sandbox_path = super()._bubblewrap_command(
             goal,
             cwd,
             argv,
             include_project_venv=include_project_venv,
+            **sandbox_options,
         )
         command = [item for item in command if item != "--share-net"]
         return command, sandbox_path
@@ -1921,6 +1923,43 @@ def _resume_current_supervisor_pending(
     return current, attempts, waited_seconds
 
 
+def _latest_native_transport_interruption(state) -> bool:
+    """The run's newest durable fact is a resumable Native transport yield."""
+    if state.status != RunStatus.INTERRUPTED or not state.causal_order:
+        return False
+    latest = state.causal_records[state.causal_order[-1]]
+    return (
+        latest.event_type == "run_interrupted"
+        and latest.payload.get("reason") == "model_transport_unavailable"
+        and bool(latest.payload.get("resumable"))
+    )
+
+
+def _resume_native_transport_interruptions(
+    result: ControllerResult,
+    *,
+    max_attempts: int,
+    resume: Callable[[], ControllerResult],
+) -> tuple[ControllerResult, int]:
+    """Bounded re-entry after Native transport infrastructure interruptions.
+
+    A ``model_transport_unavailable`` yield is an infrastructure outcome, not a
+    model decision; the original interruption events stay durable in the same
+    causal store, so evidence of the failed attempt is never rewritten and no
+    scoring changes. Only the currently latest unresolved interruption
+    qualifies — a run that fails again for any other reason stops here.
+    """
+
+    attempts = 0
+    current = result
+    while attempts < max_attempts and _latest_native_transport_interruption(
+        current.state
+    ):
+        current = resume()
+        attempts += 1
+    return current, attempts
+
+
 def final_output_non_intervention_evidence(
     model_trace: list[dict[str, Any]],
     final_output: str,
@@ -1977,6 +2016,7 @@ def run_case(
     supervisor_strategy: str = "static",
     independent_selector: bool = False,
     supervisor_pending_resume_attempts: int = 0,
+    native_transport_resume_attempts: int = 0,
     stateful_goal: bool = False,
 ) -> dict[str, Any]:
     if stateful_goal and supervisor_strategy != "goal_stages":
@@ -2285,6 +2325,28 @@ def run_case(
             observations["supervisor_pending_exhausted"] = bool(
                 unresolved_supervisor_pending(result.state)
             )
+        if result is not None and native_transport_resume_attempts:
+            result, native_resume_count = _resume_native_transport_interruptions(
+                result,
+                max_attempts=native_transport_resume_attempts,
+                resume=lambda: _run_controller(
+                    store,
+                    model,
+                    harness,
+                    task_id,
+                    max_transitions=max_transitions,
+                    supervisor=supervisor_client,
+                    supervisor_policy=supervisor_policy,
+                    atom_worker_pool=atom_worker_pool,
+                    stateful_goal=stateful_goal,
+                ),
+            )
+            if native_resume_count:
+                observations["native_transport_resume_count"] = native_resume_count
+                observations["native_transport_resume_exhausted"] = (
+                    _latest_native_transport_interruption(result.state)
+                )
+                observations["infra_retry"] = True
         state = result.state
         final_output = result.final_output
         if control.get("resume_after_completion") and state.status == RunStatus.COMPLETED:
@@ -2848,6 +2910,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--native-transport-resume-attempts",
+        type=int,
+        default=1,
+        help=(
+            "bounded re-entry count after a resumable model_transport_unavailable "
+            "interruption (Native transport infrastructure failure); the original "
+            "interruption events stay durable and scoring is unchanged"
+        ),
+    )
+    parser.add_argument(
         "--supervisor-batch-failure-policy",
         choices=[SUPERVISOR_BATCH_STOP_NON_RETRYABLE, SUPERVISOR_BATCH_CONTINUE_MODEL_FAILURES],
         default=SUPERVISOR_BATCH_STOP_NON_RETRYABLE,
@@ -2872,6 +2944,10 @@ def main() -> int:
     if not 0 <= arguments.supervisor_pending_resume_attempts <= 5:
         raise ValueError(
             "supervisor pending resume attempts must be between 0 and 5"
+        )
+    if not 0 <= arguments.native_transport_resume_attempts <= 5:
+        raise ValueError(
+            "native transport resume attempts must be between 0 and 5"
         )
     if arguments.supervisor == "none" and arguments.supervisor_strategy != "static":
         raise ValueError(
@@ -3076,6 +3152,9 @@ def main() -> int:
                     supervisor_pending_resume_attempts=(
                         arguments.supervisor_pending_resume_attempts
                     ),
+                    native_transport_resume_attempts=(
+                        arguments.native_transport_resume_attempts
+                    ),
                     stateful_goal=arguments.stateful_goal,
                 )
             except Exception as exc:
@@ -3115,6 +3194,9 @@ def main() -> int:
                     independent_selector=arguments.independent_selector,
                     supervisor_pending_resume_attempts=(
                         arguments.supervisor_pending_resume_attempts
+                    ),
+                    native_transport_resume_attempts=(
+                        arguments.native_transport_resume_attempts
                     ),
                     stateful_goal=arguments.stateful_goal,
                 )

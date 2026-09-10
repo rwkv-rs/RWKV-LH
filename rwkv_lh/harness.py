@@ -625,9 +625,11 @@ class ActionHarness:
         ),
         "check_command": ActionDefinition(
             "check_command", (
-                "Run a read-only test, linter, or inspection command with argv and shell "
-                "disabled. Set expected_exit_code explicitly when the intended observable "
-                "result is nonzero, for example grep returning 1 when no match remains."
+                "Run a test, linter, or inspection command with argv and shell disabled "
+                "against a discardable workspace view: the command may write caches or "
+                "temporary files, but nothing it writes is retained in the workspace. "
+                "Set expected_exit_code explicitly when the intended observable result "
+                "is nonzero, for example grep returning 1 when no match remains."
             ),
             True, False, True, 120.0,
             {
@@ -701,6 +703,7 @@ class ActionHarness:
         self.output_limit_chars = max(1000, int(output_limit_chars))
         self.sandbox_commands = bool(sandbox_commands)
         self._bubblewrap = shutil.which("bwrap") if self.sandbox_commands else None
+        self._overlay_support: bool | None = None
         self._definitions = dict(type(self)._definitions)
         self._handlers: dict[str, Callable[[GoalState, dict[str, Any]], ActionResult]] = {
             "write_file": self._write_file,
@@ -2615,7 +2618,13 @@ class ActionHarness:
             },
         )
 
-    def _run_command(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+    def _run_command(
+        self,
+        goal: GoalState,
+        arguments: dict[str, Any],
+        *,
+        ephemeral_workspace: bool = False,
+    ) -> ActionResult:
         if self.sandbox_commands and not self._bubblewrap:
             raise HarnessError("command sandbox was requested but bubblewrap is unavailable")
         argv = arguments.get("argv")
@@ -2689,84 +2698,214 @@ class ActionHarness:
             environment["PYTHONPATH"] = str(site_packages)
             runtime_bin = Path(sys.executable).resolve(strict=True).parent
             environment["PATH"] = os.pathsep.join([str(runtime_bin), environment.get("PATH", os.defpath)])
-        command = list(resolved_argv)
-        sandboxed = bool(self._bubblewrap)
-        if self._bubblewrap:
-            command, sandbox_path = self._bubblewrap_command(
-                goal,
-                cwd,
-                resolved_argv,
-                include_project_venv=project_runtime_requested,
-            )
-            environment["PATH"] = sandbox_path
-            if project_runtime_requested:
-                environment["PYTHONPATH"] = (
-                    "/opt/rwkv-lh-venv/lib/"
-                    f"python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
-                )
-        completed = subprocess.run(
-            command,
-            cwd=cwd,
-            env=environment,
-            shell=False,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-        )
-        stdout = completed.stdout or ""
-        stderr = completed.stderr or ""
-        output = stdout + stderr
-        stdout_bytes = stdout.encode("utf-8")
-        stderr_bytes = stderr.encode("utf-8")
+        workspace_root = Path(goal.workspace_root)
         expected_exit_code = int(arguments.get("expected_exit_code", 0))
-        exit_code_matched = completed.returncode == expected_exit_code
-        return ActionResult(
-            "run_command",
-            exit_code_matched,
-            output=output,
-            exit_code=completed.returncode,
-            metadata={
-                "argv": requested_argv,
-                "resolved_argv": resolved_argv,
-                "executable_resolution": executable_resolution,
-                "cwd": str(cwd.relative_to(Path(goal.workspace_root))),
-                "output_truncated": False,
-                "command_streams": {
-                    "stdout": {
-                        "start_byte": 0,
-                        "end_byte": len(stdout_bytes),
-                        "chars": len(stdout),
-                        "bytes": len(stdout_bytes),
-                        "sha256": hashlib.sha256(stdout_bytes).hexdigest(),
+        ephemeral_copy: tempfile.TemporaryDirectory | None = None
+        try:
+            if ephemeral_workspace and not (
+                self._bubblewrap and self._ephemeral_overlay_supported()
+            ):
+                # Without a kernel overlay the check runs against a discarded
+                # copy, so its writes can never reach the real workspace.
+                ephemeral_copy = tempfile.TemporaryDirectory(
+                    prefix="rwkv-lh-ephemeral-workspace-"
+                )
+                copy_root = Path(ephemeral_copy.name) / "workspace"
+                shutil.copytree(workspace_root, copy_root, symlinks=True)
+                copy_root = copy_root.resolve(strict=True)
+                resolved_argv = [
+                    self._rebase_workspace_path(item, workspace_root, copy_root)
+                    for item in resolved_argv
+                ]
+                cwd = copy_root / cwd.relative_to(workspace_root)
+                workspace_root = copy_root
+            command = list(resolved_argv)
+            sandboxed = bool(self._bubblewrap)
+            if self._bubblewrap:
+                command, sandbox_path = self._bubblewrap_command(
+                    goal,
+                    cwd,
+                    resolved_argv,
+                    include_project_venv=project_runtime_requested,
+                    workspace=workspace_root,
+                    ephemeral_overlay=ephemeral_workspace and ephemeral_copy is None,
+                )
+                environment["PATH"] = sandbox_path
+                if project_runtime_requested:
+                    environment["PYTHONPATH"] = (
+                        "/opt/rwkv-lh-venv/lib/"
+                        f"python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+                    )
+
+            def command_result(
+                stdout: str,
+                stderr: str,
+                exit_code: int | None,
+                *,
+                timed_out: bool = False,
+            ) -> ActionResult:
+                stdout_bytes = stdout.encode("utf-8")
+                stderr_bytes = stderr.encode("utf-8")
+                exit_code_matched = exit_code == expected_exit_code
+                metadata: dict[str, Any] = {
+                    "argv": requested_argv,
+                    "resolved_argv": resolved_argv,
+                    "executable_resolution": executable_resolution,
+                    "cwd": str(cwd.relative_to(workspace_root)),
+                    "output_truncated": False,
+                    "command_streams": {
+                        "stdout": {
+                            "start_byte": 0,
+                            "end_byte": len(stdout_bytes),
+                            "chars": len(stdout),
+                            "bytes": len(stdout_bytes),
+                            "sha256": hashlib.sha256(stdout_bytes).hexdigest(),
+                        },
+                        "stderr": {
+                            "start_byte": len(stdout_bytes),
+                            "end_byte": len(stdout_bytes) + len(stderr_bytes),
+                            "chars": len(stderr),
+                            "bytes": len(stderr_bytes),
+                            "sha256": hashlib.sha256(stderr_bytes).hexdigest(),
+                        },
                     },
-                    "stderr": {
-                        "start_byte": len(stdout_bytes),
-                        "end_byte": len(stdout_bytes) + len(stderr_bytes),
-                        "chars": len(stderr),
-                        "bytes": len(stderr_bytes),
-                        "sha256": hashlib.sha256(stderr_bytes).hexdigest(),
-                    },
-                },
-                "sandboxed": sandboxed,
-                "sandbox_backend": "bubblewrap" if sandboxed else "none",
-                "expected_exit_code": expected_exit_code,
-                "exit_code_matched": exit_code_matched,
-            },
-            error=(
-                None
-                if exit_code_matched
-                else {
-                    "type": "CommandFailed",
-                    "message": (
-                        f"exit code {completed.returncode}; expected "
-                        f"{expected_exit_code}"
-                    ),
+                    "sandboxed": sandboxed,
+                    "sandbox_backend": "bubblewrap" if sandboxed else "none",
+                    "expected_exit_code": expected_exit_code,
+                    "exit_code_matched": exit_code_matched,
                 }
-            ),
-        )
+                if timed_out:
+                    metadata["timed_out"] = True
+                if ephemeral_workspace:
+                    metadata["workspace_ephemeral"] = True
+                    metadata["writes_discarded"] = True
+                if timed_out:
+                    error = {
+                        "type": "TimeoutExpired",
+                        "message": (
+                            f"command timed out after {timeout} seconds; "
+                            "partial stdout/stderr retained in output"
+                        ),
+                    }
+                elif exit_code_matched:
+                    error = None
+                else:
+                    error = {
+                        "type": "CommandFailed",
+                        "message": (
+                            f"exit code {exit_code}; expected "
+                            f"{expected_exit_code}"
+                        ),
+                    }
+                return ActionResult(
+                    "run_command",
+                    exit_code_matched and not timed_out,
+                    output=stdout + stderr,
+                    exit_code=exit_code,
+                    metadata=metadata,
+                    error=error,
+                )
+
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=cwd,
+                    env=environment,
+                    shell=False,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    timeout=timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                # CPython attaches the bytes read before the kill; those partial
+                # streams are the only crash-site evidence the model gets.
+                return command_result(
+                    self._partial_stream(exc.stdout),
+                    self._partial_stream(exc.stderr),
+                    None,
+                    timed_out=True,
+                )
+            return command_result(
+                completed.stdout or "",
+                completed.stderr or "",
+                completed.returncode,
+            )
+        finally:
+            if ephemeral_copy is not None:
+                ephemeral_copy.cleanup()
+
+    @staticmethod
+    def _partial_stream(value: bytes | str | None) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return value
+
+    @staticmethod
+    def _rebase_workspace_path(argument: str, workspace: Path, replacement: Path) -> str:
+        path = Path(argument)
+        if not path.is_absolute() or not path.exists():
+            return argument
+        resolved = path.resolve()
+        if resolved.is_relative_to(workspace.resolve()):
+            return str(replacement / resolved.relative_to(workspace.resolve()))
+        return argument
+
+    def _ephemeral_overlay_supported(self) -> bool:
+        """Functionally probe bwrap --tmp-overlay once; help text is not proof."""
+        if self._overlay_support is None:
+            supported = False
+            if self._bubblewrap:
+                with tempfile.TemporaryDirectory(
+                    prefix="rwkv-lh-overlay-probe-"
+                ) as probe:
+                    lower = Path(probe) / "lower"
+                    lower.mkdir()
+                    try:
+                        completed = subprocess.run(
+                            [
+                                str(self._bubblewrap),
+                                "--die-with-parent",
+                                "--unshare-all",
+                                "--new-session",
+                                "--ro-bind",
+                                "/usr",
+                                "/usr",
+                                "--symlink",
+                                "usr/bin",
+                                "/bin",
+                                "--symlink",
+                                "usr/lib",
+                                "/lib",
+                                "--symlink",
+                                "usr/lib64",
+                                "/lib64",
+                                "--dir",
+                                "/workspace",
+                                "--overlay-src",
+                                str(lower),
+                                "--tmp-overlay",
+                                "/workspace",
+                                "/bin/sh",
+                                "-c",
+                                "echo probe > /workspace/probe.txt",
+                            ],
+                            capture_output=True,
+                            timeout=30.0,
+                            check=False,
+                        )
+                        supported = (
+                            completed.returncode == 0
+                            and not (lower / "probe.txt").exists()
+                        )
+                    except (OSError, subprocess.TimeoutExpired):
+                        supported = False
+            self._overlay_support = supported
+        return self._overlay_support
 
     def _bubblewrap_command(
         self,
@@ -2775,10 +2914,13 @@ class ActionHarness:
         argv: list[str],
         *,
         include_project_venv: bool = False,
+        workspace: Path | None = None,
+        ephemeral_overlay: bool = False,
     ) -> tuple[list[str], str]:
         """Build a read-isolated command sandbox with one writable workspace."""
 
-        workspace = Path(goal.workspace_root).resolve(strict=True)
+        workspace = (workspace if workspace is not None
+                     else Path(goal.workspace_root)).resolve(strict=True)
         sandbox_cwd = Path("/workspace") / cwd.relative_to(workspace)
         child_argv = list(argv)
         executable = child_argv[0]
@@ -2884,10 +3026,15 @@ class ActionHarness:
             "/dev",
             "--tmpfs",
             "/tmp",
-            "--bind",
-            str(workspace),
-            "/workspace",
         ]
+        if ephemeral_overlay:
+            # Writes land in a tmpfs upper layer and vanish with the process;
+            # the real workspace is only the read-only lower layer.
+            command.extend(
+                ["--overlay-src", str(workspace), "--tmp-overlay", "/workspace"]
+            )
+        else:
+            command.extend(["--bind", str(workspace), "/workspace"])
         sandbox_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         if runtime_root is not None:
             command.extend(
@@ -2915,7 +3062,10 @@ class ActionHarness:
         return command, sandbox_path
 
     def _check_command(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
-        result = self._run_command(goal, arguments)
+        # The declared read-only contract is enforced physically: the command
+        # sees a discardable workspace view (kernel overlay, or a copied tree
+        # when no overlay is available), so no write it makes is retained.
+        result = self._run_command(goal, arguments, ephemeral_workspace=True)
         result.action_type = "check_command"
         return result
 
