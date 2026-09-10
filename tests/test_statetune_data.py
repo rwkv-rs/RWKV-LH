@@ -138,6 +138,130 @@ def test_freezer_reextracts_using_audit_location_before_publishing_dataset(tmp_p
         data.freeze_dataset(registration, registration_reference=registration_ref, output=output)
 
 
+def _freeze_fixture(tmp_path, *, waiver_sha=None, rows=None, selection=None):
+    """Build a freeze registration around mocked extraction artifacts."""
+    source_ref = write(tmp_path / "source.json", {"unit_test_only": True})
+    authorization = write(tmp_path / "owner.json", {"unit_test_only": True})
+    provenance = {"source_registration_sha256": source_ref["sha256"]}
+    if waiver_sha is not None:
+        provenance["equivalence_waiver_sha256"] = waiver_sha
+    candidate = {"schema": ARTIFACT_SCHEMA, "purpose": "audit_candidate_only", "status": "valid",
+        "provenance": provenance,
+        "counts_by_role": {"selector_intent": {"train": 3, "dev": 1, "confirmation": 1}},
+        "regression_fingerprint": "a" * 64, "regression_reused": False}
+    registration = {"schema_version": data.FREEZE_SCHEMA, "role": "selector_intent",
+        "authorization": authorization, "candidate_manifest": write(tmp_path / "audit.json", candidate),
+        "source_registration": source_ref,
+        "minimum_counts": {"train": 1, "dev": 1, "confirmation": 1}, "regression_fingerprint": "a" * 64}
+    if selection is not None:
+        registration["row_selection"] = write(tmp_path / "selection.json", selection)
+    return candidate, registration
+
+
+def _mock_extract(monkeypatch, tmp_path, candidate, rows, observed_kwargs):
+    def extract(source, output, **kwargs):
+        observed_kwargs.update(kwargs)
+        trace.validate_output_path(output)
+        output.mkdir(parents=True)
+        with (output / "candidates.jsonl").open("x") as handle:
+            for item in rows:
+                handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+        write(output / "regression_candidate.json", {"unit_test_only": True})
+        return candidate
+    monkeypatch.setattr(trace, "ROOT", tmp_path)
+    monkeypatch.setattr(trace, "extract_registration", extract)
+
+
+def _selection_rows():
+    rows = []
+    for index, split in enumerate(["train", "train", "train", "dev", "confirmation"]):
+        sample = row()
+        sample["sample_id"] = f"RT-{index}"
+        sample["split"] = split
+        rows.append(sample)
+    return rows
+
+
+def test_freeze_replays_the_candidates_admission_waiver(tmp_path, monkeypatch):
+    waiver_document = {"schema_version": trace.EQUIVALENCE_WAIVER_SCHEMA, "decision": "accept",
+        "reviewers": ["MOCK-ONE", "MOCK-TWO"],
+        "entries": [{"path": "rwkv_lh/harness.py", "frozen_sha256": "c" * 64, "current_sha256": "d" * 64,
+                     "rationale": "MOCK waiver for freeze wiring test.",
+                     "evidence_refs": ["data/experiments/MOCK/REPORT.md"]}]}
+    waiver_ref = write(tmp_path / "waiver.json", waiver_document)
+    candidate, registration = _freeze_fixture(tmp_path, waiver_sha=waiver_ref["sha256"])
+    registration["equivalence_waiver"] = waiver_ref
+    registration_ref = write(tmp_path / "freeze.json", registration)
+    observed = {}
+    _mock_extract(monkeypatch, tmp_path, candidate, _selection_rows(), observed)
+    monkeypatch.setattr(trace, "read_equivalence_waiver",
+                        lambda path, sha: {"rwkv_lh/harness.py": ("c" * 64, "d" * 64)})
+    manifest = data.freeze_dataset(registration, registration_reference=registration_ref,
+                                   output=tmp_path / "data/datasets/waiver-freeze")
+    # The freeze re-extraction runs under exactly the pinned admission waiver.
+    assert observed["equivalence_waiver"] == {"rwkv_lh/harness.py": ("c" * 64, "d" * 64)}
+    assert observed["equivalence_waiver_sha256"] == waiver_ref["sha256"]
+    assert manifest["equivalence_waiver_sha256"] == waiver_ref["sha256"]
+
+
+def test_freeze_rejects_waiver_mismatch_in_either_direction(tmp_path, monkeypatch):
+    # Candidate admitted under a waiver, freeze registers none.
+    candidate, registration = _freeze_fixture(tmp_path, waiver_sha="e" * 64)
+    registration_ref = write(tmp_path / "freeze.json", registration)
+    with pytest.raises(ValueError, match="waiver the freeze does not register"):
+        data.freeze_dataset(registration, registration_reference=registration_ref,
+                            output=tmp_path / "data/datasets/missing-waiver")
+    # Freeze registers a waiver whose sha differs from the candidate's admission.
+    waiver_ref = write(tmp_path / "other_waiver.json", {"unit_test_only": True})
+    (tmp_path / "second").mkdir()
+    candidate2, registration2 = _freeze_fixture(tmp_path / "second", waiver_sha="e" * 64)
+    registration2["equivalence_waiver"] = waiver_ref
+    registration2_ref = write(tmp_path / "freeze2.json", registration2)
+    with pytest.raises(ValueError, match="differs from the candidate's admission waiver"):
+        data.freeze_dataset(registration2, registration_reference=registration2_ref,
+                            output=tmp_path / "data/datasets/wrong-waiver")
+
+
+def test_freeze_replays_a_registered_row_selection_exactly(tmp_path, monkeypatch):
+    policy_evidence = write(tmp_path / "policy_result.json", {"unit_test_only": True})
+    selection = {"schema_version": data.SELECTION_SCHEMA, "role": "selector_intent",
+        "kept_sample_ids": ["RT-0", "RT-3", "RT-4"],
+        "counts": {"train": 1, "dev": 1, "confirmation": 1},
+        "policy_evidence_refs": [policy_evidence]}
+    candidate, registration = _freeze_fixture(tmp_path, selection=selection)
+    registration_ref = write(tmp_path / "freeze.json", registration)
+    _mock_extract(monkeypatch, tmp_path, candidate, _selection_rows(), {})
+    output = tmp_path / "data/datasets/selected-freeze"
+    manifest = data.freeze_dataset(registration, registration_reference=registration_ref, output=output)
+    # Only the selected train row is frozen; counts reflect the selection.
+    train_rows = [json.loads(line) for line in (output / "train.jsonl").read_text().splitlines() if line]
+    assert [item["sample_id"] for item in train_rows] == ["RT-0"]
+    assert manifest["counts"] == {"train": 1, "dev": 1, "confirmation": 1}
+    assert manifest["row_selection"] == registration["row_selection"]
+
+
+@pytest.mark.parametrize("corruption,reason", [
+    ({"kept_sample_ids": ["RT-0", "RT-999", "RT-4"]}, "absent from re-extraction"),
+    ({"counts": {"train": 2, "dev": 1, "confirmation": 1}}, "counts differ from kept IDs"),
+    ({"counts": {"train": 1, "dev": 2, "confirmation": 0}}, "sample counts are not met"),
+    ({"kept_sample_ids": ["RT-0", "RT-0", "RT-4"]}, "unique nonempty sample IDs"),
+    ({"policy_evidence_refs": []}, "pinned policy evidence"),
+    ({"role": "executor_args"}, "mismatched row selection"),
+])
+def test_freeze_rejects_selection_that_does_not_replay(tmp_path, monkeypatch, corruption, reason):
+    policy_evidence = write(tmp_path / "policy_result.json", {"unit_test_only": True})
+    selection = {"schema_version": data.SELECTION_SCHEMA, "role": "selector_intent",
+        "kept_sample_ids": ["RT-0", "RT-3", "RT-4"],
+        "counts": {"train": 1, "dev": 1, "confirmation": 1},
+        "policy_evidence_refs": [policy_evidence], **corruption}
+    candidate, registration = _freeze_fixture(tmp_path, selection=selection)
+    registration_ref = write(tmp_path / "freeze.json", registration)
+    _mock_extract(monkeypatch, tmp_path, candidate, _selection_rows(), {})
+    with pytest.raises(ValueError, match=reason):
+        data.freeze_dataset(registration, registration_reference=registration_ref,
+                            output=tmp_path / "data/datasets/bad-selection")
+
+
 def test_failed_reextraction_does_not_publish_dataset(tmp_path, monkeypatch):
     source_ref = write(tmp_path / "source.json", {"unit_test_only": True})
     candidate = {"schema": ARTIFACT_SCHEMA, "purpose": "audit_candidate_only", "status": "valid",

@@ -14,6 +14,7 @@ from rwkv_lh.token_budget import VOCAB_PATH, tokenizer
 
 FREEZE_SCHEMA = "rwkv-lh.statetune-data-freeze.v1"
 DATASET_SCHEMA = "rwkv-lh.statetune-role-dataset.v1"
+SELECTION_SCHEMA = "rwkv-lh.statetune-row-selection.v1"
 
 
 def sealed(reference: Mapping[str, Any]) -> dict:
@@ -76,6 +77,37 @@ def normalize_row(row: Mapping, *, role: str, model_sha256: str, context_tokens:
     return {"sample_id": row["sample_id"], "input_token_ids": list(source), "target_token_ids": list(target)}
 
 
+def _read_selection(registration: Mapping, candidate: Mapping, role: str) -> dict | None:
+    """Load the sealed post-extraction row selection, if one is registered.
+
+    A selection is the registered outcome of the preregistered review and
+    similarity-dedup pipeline (e.g. 210→20). It never adds or edits rows —
+    it only names which re-extracted sample IDs survive into training — and
+    its own evidence chain (dispositions, dedup policy result) is pinned by
+    sha inside the document.
+    """
+    reference = registration.get("row_selection")
+    if reference is None:
+        return None
+    selection = sealed(reference)
+    core.require(selection.get("schema_version") == SELECTION_SCHEMA and selection.get("role") == role,
+                 "unknown or mismatched row selection registration")
+    kept = selection.get("kept_sample_ids")
+    core.require(isinstance(kept, list) and kept and all(isinstance(item, str) and item for item in kept)
+                 and len(set(kept)) == len(kept), "row selection requires unique nonempty sample IDs")
+    counts = selection.get("counts")
+    core.require(isinstance(counts, Mapping) and set(counts) == {"train", "dev", "confirmation"}
+                 and all(type(n) is int and n >= 0 for n in counts.values())
+                 and sum(counts.values()) == len(kept), "row selection counts differ from kept IDs")
+    evidence = selection.get("policy_evidence_refs")
+    core.require(isinstance(evidence, list) and evidence
+                 and all(isinstance(item, Mapping) and set(item) == {"path", "sha256"} for item in evidence),
+                 "row selection requires pinned policy evidence")
+    for item in evidence:
+        core.verify_file(item["path"], item["sha256"])
+    return dict(selection)
+
+
 def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, output: Path) -> dict:
     """An explicit owner-scoped freeze, re-extracted from the original trace.
 
@@ -93,11 +125,24 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
     core.require(candidate.get("provenance", {}).get("source_registration_sha256") == source_ref["sha256"],
                  "candidate source registration differs")
     sealed(source_ref)
+    waiver_ref = registration.get("equivalence_waiver")
+    waiver = None
+    if waiver_ref is not None:
+        # The freeze must replay exactly the admission the candidate used:
+        # same double-reviewed waiver document, pinned by the same sha.
+        core.require(candidate.get("provenance", {}).get("equivalence_waiver_sha256") == waiver_ref["sha256"],
+                     "freeze waiver differs from the candidate's admission waiver")
+        waiver = trace.read_equivalence_waiver(Path(waiver_ref["path"]), waiver_ref["sha256"])
+    else:
+        core.require(not candidate.get("provenance", {}).get("equivalence_waiver_sha256"),
+                     "candidate was admitted under a waiver the freeze does not register")
+    selection = _read_selection(registration, candidate, role)
     counts = candidate["counts_by_role"]
     core.require(set(counts) == {role}, "freeze must contain exactly the current role")
+    effective_counts = dict(selection["counts"]) if selection is not None else dict(counts[role])
     minimum = registration["minimum_counts"]
     core.require(set(minimum) == {"train", "dev", "confirmation"}
-                 and all(type(n) is int and n > 0 and counts[role][split] >= n for split, n in minimum.items()),
+                 and all(type(n) is int and n > 0 and effective_counts[split] >= n for split, n in minimum.items()),
                  "pre-registered role sample counts are not met")
     fingerprint = registration["regression_fingerprint"]
     core.require(candidate["regression_fingerprint"] == fingerprint, "frozen regression fingerprint differs")
@@ -115,11 +160,27 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
     try:
         audit_root = audit_temporary / "verified_candidates"
         reproduced = trace.extract_registration(Path(source_ref["path"]), audit_root, roles=[role],
-            prior_regression=prior, expected_regression_fingerprint=fingerprint if prior else None)
+            prior_regression=prior, expected_regression_fingerprint=fingerprint if prior else None,
+            equivalence_waiver=waiver,
+            equivalence_waiver_sha256=waiver_ref["sha256"] if waiver is not None else None)
         core.require(reproduced == candidate, "candidate audit differs from production re-extraction")
         all_rows = [json.loads(line) for line in (audit_root / "candidates.jsonl").read_text().splitlines() if line]
         core.require(all(row.get("context", {}).get("token_ids_complete") is True for row in all_rows),
                      "dataset contains incomplete server input token traces")
+        if selection is not None:
+            by_id = {row["sample_id"]: row for row in all_rows}
+            core.require(len(by_id) == len(all_rows), "re-extracted rows have duplicate sample IDs")
+            kept_ids = set(selection["kept_sample_ids"])
+            missing = kept_ids - set(by_id)
+            core.require(not missing, "row selection names sample IDs absent from re-extraction")
+            selected_rows = [by_id[sample_id] for sample_id in selection["kept_sample_ids"]]
+            observed = {"train": 0, "dev": 0, "confirmation": 0}
+            for item in selected_rows:
+                core.require(item.get("split") in observed, "selected row has an unknown split")
+                observed[item["split"]] += 1
+            core.require(observed == dict(selection["counts"]),
+                         "row selection counts differ from re-extracted splits")
+            all_rows = selected_rows
         model_shas = {row["context"]["initial_state"]["model_sha256"] for row in all_rows}
         core.require(len(model_shas) == 1, "one role dataset cannot mix model identities")
         training = [row for row in all_rows if row["split"] == "train"]
@@ -129,7 +190,9 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
             "role": role, "input_protocol": protocol, "protocol_sha256": protocol_sha,
             "tokenizer_sha256": core.sha256_file(VOCAB_PATH), "model_sha256": next(iter(model_shas)),
             "freeze_registration": dict(registration_reference), "authorization": registration["authorization"],
-            "counts": counts[role], "candidate_audit": candidate,
+            "counts": effective_counts, "candidate_audit": candidate,
+            "equivalence_waiver_sha256": waiver_ref["sha256"] if waiver is not None else None,
+            "row_selection": dict(registration["row_selection"]) if selection is not None else None,
             "train": {"file": "train.jsonl", "sha256": core.sha256_file(staging / "train.jsonl")},
             "regression": {"file": "regression.json", "sha256": core.sha256_file(staging / "regression.json"),
                            "fingerprint": fingerprint}}
