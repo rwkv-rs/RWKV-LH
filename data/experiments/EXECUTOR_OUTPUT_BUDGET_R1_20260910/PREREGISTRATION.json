@@ -1,0 +1,50 @@
+{
+  "registered_at": "2026-09-10T15:18:00.303375+00:00",
+  "owner_authorization": "2026-09-10 owner explicitly requests separate Executor1800->3600 budget experiment",
+  "production_commit": "21c0cf45",
+  "tasks": [
+    "RP-FULL-02",
+    "RP-WEB-02"
+  ],
+  "arms_in_order": [
+    {
+      "id": "baseline1800",
+      "executor_max_output_tokens": 1800
+    },
+    {
+      "id": "candidate3600",
+      "executor_max_output_tokens": 3600
+    }
+  ],
+  "schedule": "Start only after COMMAND_PATH_COLLECTION_R1_20260910 completes. Run both fresh arms; do not reuse historical or command-collection scores as baseline.",
+  "runtime_override": "Identical bounded experiment driver delegates LongHorizonModel.next_command to the unchanged production method with one explicit max_output_tokens argument. No source or prompt patch; persist driver SHA and per-arm config SHA.",
+  "fixed": {
+    "all_role_states": "zero",
+    "temperature": 0.1,
+    "max_transitions": 200,
+    "case_wall_seconds": 1800,
+    "case_concurrency": 1,
+    "native_transport_resume_attempts": 1,
+    "supervisor_pending_resume_attempts": 0,
+    "supervisor": "unchanged official deepseek-v4-pro low thinking",
+    "total_wall_seconds": 7200
+  },
+  "primary": "Count every Executor returned generation with finish_reason=length, including retries; separately record Executor generations and length rate.",
+  "keep": [
+    "both arms have complete raw results for both tasks, no wall-budget exhaustion or infrastructure failure",
+    "baseline length count >0; candidate total length count <=50% of baseline and candidate length rate < baseline",
+    "candidate Strict total >=baseline Strict total and no previously passing case becomes failing"
+  ],
+  "secondary": [
+    "completed",
+    "mutation count",
+    "terminal reasons",
+    "per-case length counts",
+    "runtime errors",
+    "elapsed time and token usage"
+  ],
+  "interpretation": "Pilot comparison on two affected tasks; a numerical KEEP is not evidence beyond historical Agent noise or final architecture acceptance.",
+  "no_adaptive_rerun": true,
+  "no_rescore": true,
+  "optimizer_steps": 0
+}
