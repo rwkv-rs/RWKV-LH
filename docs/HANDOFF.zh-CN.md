@@ -1,8 +1,12 @@
 # 当前交接
 
-2026-09-10新增 [执行修复复测R1](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/REPORT.zh-CN.md)：**Strict 0/15、completed 0/15、mutation 4、动作28**；5题无进展、3题协议拒绝、7题官方DeepSeek HTTP402 / Insufficient Balance，后7题未进入RWKV。100次已返回交接字节/token核验通过，完整回归1447 passed、0 skipped，未训练。Owner已充值并明确授权继续，下一独立R2只重跑这7题，原R1不改分、不续写结果。原完整KEEP未成立，RP-CLI-02/WEB-02关键路径尚待补证。
+2026-09-10 [充值后执行复测R2](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/REPORT.zh-CN.md) 已全部完成：**Strict 0/7、completed 0/7、mutation 2、动作18**；5题无进展、1题Executor协议拒绝、1题Step Auditor协议拒绝。与R1已生成八题的同源码关联视图为 **Strict 0/15、completed 0/15、mutation 6、动作46**（10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝），不是一次性新15题运行。充值后Supervisor请求失败0、输出中断0，R2新增60次交接全部核验，关联视图160次；Finalizer/Final Auditor仍未到达。生产源码冻结b3e89de6不变，完整回归1447 passed、0 failed、0 skipped，optimizer steps=0。
 
-本轮两个独立AI reviewer已获owner明确授权，仅用于waiver技术复核。原全量draft未获一致批准；新14来源、仅Selector的精确scope已双签并正式提取，排除受旧check执行语义影响的RP-WEB-02。恢复60自动候选、126待复核，原9边界/27行完整保留；候选仍INVALID（execute=0，281对跨切分比较有101对超阈值），没有借waiver批准语义标签或训练。详见 [waiver结果](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/WAIVER_RESULT.md) 和 [架构复核](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/ARCHITECTURE_FIT_REVIEW.zh-CN.md)。以下较早交接为历史背景，以本段和新轮次证据为当前状态。
+**KEEP未通过。** 新确认 [Native首错审计接线缺陷](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/NATIVE_AUDIT_WIRING_FINDING.zh-CN.md)：实际产品/benchmark会话工厂未将audit_hook交给Native client，四角色离线POST/404/404/POST均成功恢复却丢失首错事件。故不能由native_first_errors=0声称无首错丢失；此项未修复，后续独立工程轮需先失败后通过的工厂集成回归，不能用训练掩盖。Executor另有18次length（FULL-02十二次、WEB-02六次），与Supervisor中断分开。WEB-02两次写入但没有运行check/run命令，历史命令路径仍未在本轮Agent覆盖。最新 [正式架构复核](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/ARCHITECTURE_FIT_REVIEW.zh-CN.md) 保留五角色作为工作架构，不宣告能力通过；三项流程单变量轮仍排首轮StateTune之后。R2报告SHA `88a4790423c6546d31ed34785564b68f58f2bb03dda1ba526b270f4c78d6391d`，证据清单SHA `b0b8209e8b25edc517529dcb4a4f354197f6020bab045fb758beabf86dc3c69f`。
+
+原 [执行修复复测R1](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/REPORT.zh-CN.md) 的 **Strict 0/15、completed 0/15、mutation 4、动作28** 与七题HTTP402原始记录全部保留。R2复核三个R1证据清单下303个文件SHA均未变，R1不改分、不续写。R1关于Native零日志的过强解释以本轮接线探针更正为准。Owner负责push。
+
+本轮两个独立AI reviewer已获owner明确授权，仅用于waiver技术复核。原全量draft未获一致批准；新14来源、仅Selector的精确scope已双签并正式提取，排除受旧check执行语义影响的RP-WEB-02。恢复60自动候选、126待复核，原9边界/27行完整保留；候选仍INVALID（execute=0，281对跨切分比较有101对超阈值），没有借waiver批准语义标签或训练。详见 [waiver结果](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/WAIVER_RESULT.md)。R2不扩大此waiver。以下较早交接为历史背景，以以上最新段落和R2证据为当前状态；旧文“首错修复全部落地”和“待充值/AI授权未答复”均已被新证据更新。
 
 更新日期：2026-09-10。最新完整开发采集 [REALPROJECT 官方 R3](../data/experiments/REALPROJECT_OFFICIAL_COLLECTION_R3_20260910/REPORT.zh-CN.md)：**Strict 0/12、completed 0/12、mutation 0、动作 43**；12 题均取得初始计划。7 题无进展、2 题参数/工具协议拒绝、1 题 Native create 未确认、1 题 Step Auditor 协议拒绝、1 题命令执行失败。全部已返回的 117 次角色交接通过输入字节及完整 token 核验；不是全链路语义验收通过。optimizer steps 仍为 **0**。
 

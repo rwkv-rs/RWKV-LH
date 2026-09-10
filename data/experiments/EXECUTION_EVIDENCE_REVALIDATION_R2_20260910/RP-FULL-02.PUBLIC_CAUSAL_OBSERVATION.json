@@ -1,0 +1,1191 @@
+{
+  "case": "RP-FULL-02",
+  "events": [
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000003",
+      "run_id": "RP-FULL-02",
+      "sequence": 3,
+      "parent_id": "CE-000002",
+      "cause_id": "CE-000002",
+      "subject_id": "GPP-67d057d324ab4c71",
+      "event_type": "goal_plan_patch_committed",
+      "payload_schema": "rwkv-lh.goal-plan-patch-committed.v1",
+      "payload": {
+        "patch_id": "GPP-67d057d324ab4c71",
+        "patch": {
+          "schema_version": "rwkv-lh.goal-plan-patch.v4",
+          "patch_id": "GPP-67d057d324ab4c71",
+          "base_revision": 0,
+          "add_stages": [
+            {
+              "stage": 1,
+              "steps": [
+                {
+                  "step_id": "S1",
+                  "objective": "Create server.py implementing HTTP server with SQLite persistence, API endpoints, routing, validation, idempotent voting, closing, and serving index.html; use only Python standard library modules.",
+                  "phase": "mutate",
+                  "depends_on": [],
+                  "success_evidence": [
+                    "server.py exists and contains code for endpoints"
+                  ],
+                  "obligation_ids": [
+                    "O1",
+                    "O4",
+                    "O5",
+                    "O6",
+                    "O7",
+                    "O8",
+                    "O9"
+                  ],
+                  "read_roots": [],
+                  "write_roots": [
+                    "server.py"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "Use only Python standard library",
+                    "Database file path must be taken from --db argument and written there",
+                    "Source directory must not be written to at runtime"
+                  ]
+                },
+                {
+                  "step_id": "S2",
+                  "objective": "Create index.html as public UI with required fields, buttons, sorting, dynamic name blur update, accessible English labels, and no external resources.",
+                  "phase": "mutate",
+                  "depends_on": [],
+                  "success_evidence": [
+                    "index.html exists and contains required UI elements"
+                  ],
+                  "obligation_ids": [
+                    "O2",
+                    "O10"
+                  ],
+                  "read_roots": [],
+                  "write_roots": [
+                    "index.html"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "All labels in English",
+                    "No external CDN or downloads",
+                    "Use native browser only"
+                  ]
+                },
+                {
+                  "step_id": "S3",
+                  "objective": "Create README.md with startup command and manual verification steps for API and browser.",
+                  "phase": "mutate",
+                  "depends_on": [],
+                  "success_evidence": [
+                    "README.md exists with instructions"
+                  ],
+                  "obligation_ids": [
+                    "O3"
+                  ],
+                  "read_roots": [],
+                  "write_roots": [
+                    "README.md"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "Include exact run command"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 2,
+              "steps": [
+                {
+                  "step_id": "S4",
+                  "objective": "Inspect server.py, index.html, README.md to verify they exist and comply with constraints: server.py uses only stdlib, index.html has required UI elements and no external refs, README instructions correct.",
+                  "phase": "observe",
+                  "depends_on": [
+                    "S1",
+                    "S2",
+                    "S3"
+                  ],
+                  "success_evidence": [
+                    "Inspection confirms files exist and meet content requirements"
+                  ],
+                  "obligation_ids": [
+                    "O1",
+                    "O2",
+                    "O3",
+                    "O10"
+                  ],
+                  "read_roots": [
+                    "server.py",
+                    "index.html",
+                    "README.md"
+                  ],
+                  "write_roots": [],
+                  "allowed_operations": [],
+                  "constraints": []
+                }
+              ]
+            },
+            {
+              "stage": 3,
+              "steps": [
+                {
+                  "step_id": "S5",
+                  "objective": "Execute integration tests: create temporary directory test_tmp, run server with --db test_tmp/test.db, perform API calls (create, get with sorts, vote idempotency, close, persistence across server restart), fetch GET / and verify required labels, then stop server.",
+                  "phase": "execute",
+                  "depends_on": [
+                    "S4"
+                  ],
+                  "success_evidence": [
+                    "All API requests return expected status codes and JSON; idempotency and closure enforced; persistence confirmed after restart; GET / serves index.html with labels"
+                  ],
+                  "obligation_ids": [
+                    "O2",
+                    "O4",
+                    "O5",
+                    "O6",
+                    "O7",
+                    "O8",
+                    "O9"
+                  ],
+                  "read_roots": [],
+                  "write_roots": [
+                    "test_tmp"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": [
+                    "Use Python standard library only for testing; do not modify source files"
+                  ]
+                }
+              ]
+            },
+            {
+              "stage": 4,
+              "steps": [
+                {
+                  "step_id": "S6",
+                  "objective": "Remove temporary test directory test_tmp to clean workspace.",
+                  "phase": "execute",
+                  "depends_on": [
+                    "S5"
+                  ],
+                  "success_evidence": [
+                    "test_tmp directory no longer exists"
+                  ],
+                  "obligation_ids": [
+                    "O11"
+                  ],
+                  "read_roots": [],
+                  "write_roots": [
+                    "test_tmp"
+                  ],
+                  "allowed_operations": [],
+                  "constraints": []
+                }
+              ]
+            },
+            {
+              "stage": 5,
+              "steps": [
+                {
+                  "step_id": "S7",
+                  "objective": "Final inspection: list workspace root and verify only server.py, index.html, README.md remain; check source files not modified during testing.",
+                  "phase": "observe",
+                  "depends_on": [
+                    "S6"
+                  ],
+                  "success_evidence": [
+                    "Workspace root listing shows only expected files; server.py, index.html, README.md unchanged"
+                  ],
+                  "obligation_ids": [
+                    "O8",
+                    "O11"
+                  ],
+                  "read_roots": [
+                    "."
+                  ],
+                  "write_roots": [],
+                  "allowed_operations": [],
+                  "constraints": []
+                }
+              ]
+            }
+          ],
+          "replace_stages": [],
+          "discard_step_ids": [],
+          "reason": "Initial plan creates self-contained project, verifies code, runs API/persistence tests, and cleans workspace.",
+          "goal_obligations": [
+            {
+              "obligation_id": "O1",
+              "predicate": "server.py exists and its code uses only Python standard library modules (no third-party imports).",
+              "required_phases": [
+                "observe",
+                "mutate"
+              ]
+            },
+            {
+              "obligation_id": "O2",
+              "predicate": "index.html exists and contains the required public UI elements with English labels (Your name, Proposal title, Proposal description, Create proposal, Sort proposals newest/votes, article elements with proposal title, description, Votes count, Voting open/closed, Vote/Remove vote buttons, Close voting), and uses no external CDN or downloadable resources.",
+              "required_phases": [
+                "observe",
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O3",
+              "predicate": "README.md exists and includes startup command (python server.py --host 127.0.0.1 --port PORT --db PATH) and manual verification steps for both API and browser UI.",
+              "required_phases": [
+                "observe",
+                "mutate"
+              ]
+            },
+            {
+              "obligation_id": "O4",
+              "predicate": "POST /api/proposals with JSON {title, description} where both non-empty creates a proposal, returns HTTP 201 with JSON object containing unique id; invalid input (missing/non-string/empty title or description) returns HTTP 400 with JSON object containing error.",
+              "required_phases": [
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O5",
+              "predicate": "GET /api/proposals?voter=NAME&sort=newest|votes returns HTTP 200 with JSON {\"proposals\":[{\"id\":unique,\"title\":text,\"description\":text,\"closed\":bool,\"votes\":nonnegative int,\"voted\":bool}]} and sorts votes descending then id ascending when sort=votes, and newest first when sort=newest.",
+              "required_phases": [
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O6",
+              "predicate": "PUT /api/proposals/{id}/vote with JSON {voter, active:true/false} adds/removes the voter's unique vote idempotently, returns HTTP 200 with JSON {id, votes}; closed proposal returns HTTP 409; invalid input returns 400; missing proposal returns 404.",
+              "required_phases": [
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O7",
+              "predicate": "PATCH /api/proposals/{id} with {closed:true} permanently closes the proposal; afterwards vote endpoint with active true or false returns HTTP 409; repeated close is idempotent success.",
+              "required_phases": [
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O8",
+              "predicate": "SQLite database is created at PATH provided at runtime, data persists across server restart using same PATH, and source directory is not modified (remains read-only) during server operation.",
+              "required_phases": [
+                "observe",
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O9",
+              "predicate": "All API responses are JSON; successful creation returns 201, query/update returns 200; invalid input returns 400, missing resource returns 404, closed vote returns 409; error responses include object with error.",
+              "required_phases": [
+                "mutate",
+                "execute"
+              ]
+            },
+            {
+              "obligation_id": "O10",
+              "predicate": "Client-side script updates voting status when voter name changes and input loses focus; vote/remove buttons reflect current member and closed state; buttons disabled after close; proposal articles show Voting open or Voting closed; all interactions use native browser features only.",
+              "required_phases": [
+                "observe",
+                "mutate"
+              ]
+            },
+            {
+              "obligation_id": "O11",
+              "predicate": "Workspace after completion contains only server.py, index.html, README.md (and no temporary test artifacts); test_tmp directory is removed.",
+              "required_phases": [
+                "observe",
+                "execute"
+              ]
+            }
+          ]
+        },
+        "plan_revision": 1,
+        "request_digest": "f3b12be8c2c66c254fe0b7b89f1952f3588000962a6c425c62f87242d81340a7",
+        "supervisor": {
+          "provider": "openai_compatible",
+          "model": "deepseek-v4-pro"
+        },
+        "planner_only": true,
+        "rwkv_action_authority": true,
+        "replaced_step_ids": [],
+        "discarded_step_ids": [],
+        "source_audit_id": "",
+        "source_stage_review_id": ""
+      },
+      "created_at": "2026-09-10T13:17:25.181+00:00",
+      "digest": "ff061c4861eb9c43348a5a760de0691568630dcb1ccb561030aa7511e6b662d3"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000010",
+      "run_id": "RP-FULL-02",
+      "sequence": 10,
+      "parent_id": "CE-000009",
+      "cause_id": "CE-000009",
+      "subject_id": "D-3589d9f86ac245e7",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-3589d9f86ac245e7",
+        "request_id": "MR-58c706086df5464a",
+        "selection_id": "NSEL-ENS-4623bf80a62f48cf",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 3 column 28 (char 53)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 3 column 28 (char 53)",
+          "at": "2026-09-10T13:18:03.378+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 1,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:18:03.381+00:00",
+      "digest": "9f96dcd60edccdd6c1e7a080912b621b13024af8b71fd866c66887c7040fff22"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000015",
+      "run_id": "RP-FULL-02",
+      "sequence": 15,
+      "parent_id": "CE-000014",
+      "cause_id": "CE-000014",
+      "subject_id": "D-78087508568d48a0",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-78087508568d48a0",
+        "request_id": "MR-2403ad46296a4a42",
+        "selection_id": "NSEL-ENS-4623bf80a62f48cf",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 14 (char 79)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 14 (char 79)",
+          "at": "2026-09-10T13:18:53.150+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 2,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:18:53.153+00:00",
+      "digest": "eddde4c9787ce2d783da247a7f9db56ba1bbfaa2e4bdc60240dc18663a26bb15"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000022",
+      "run_id": "RP-FULL-02",
+      "sequence": 22,
+      "parent_id": "CE-000021",
+      "cause_id": "CE-000021",
+      "subject_id": "D-647a1624fbd64941",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-647a1624fbd64941",
+        "request_id": "MR-fbe07e671cd94e5d",
+        "selection_id": "NSEL-ENS-969b306b583f48ce",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+          "at": "2026-09-10T13:19:30.748+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 3,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:19:30.752+00:00",
+      "digest": "1f9b857405651c26b5ab23be8ebe751d9832ff4275287588b4db6f4a62cf63c0"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000027",
+      "run_id": "RP-FULL-02",
+      "sequence": 27,
+      "parent_id": "CE-000026",
+      "cause_id": "CE-000026",
+      "subject_id": "D-759a932e6a5145b6",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-759a932e6a5145b6",
+        "request_id": "MR-836508d088d14914",
+        "selection_id": "NSEL-ENS-969b306b583f48ce",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Expecting property name enclosed in double quotes: line 3 column 1 (char 3)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Expecting property name enclosed in double quotes: line 3 column 1 (char 3)",
+          "at": "2026-09-10T13:20:07.833+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 4,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:20:07.837+00:00",
+      "digest": "7f131530e05c17271e6b434712ee9874e405af8c4911f2430824e238f5ac4f86"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000034",
+      "run_id": "RP-FULL-02",
+      "sequence": 34,
+      "parent_id": "CE-000033",
+      "cause_id": "CE-000033",
+      "subject_id": "D-0eebd16976c5402d",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-0eebd16976c5402d",
+        "request_id": "MR-f1a6e4618dc645c2",
+        "selection_id": "NSEL-ENS-7142b4b48ac640fe",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+          "at": "2026-09-10T13:20:46.183+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 5,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:20:46.190+00:00",
+      "digest": "8f10c593ccf7b5c9604d08ccff2ef898bff4c04eb4afe533daa5291081409fb9"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000039",
+      "run_id": "RP-FULL-02",
+      "sequence": 39,
+      "parent_id": "CE-000038",
+      "cause_id": "CE-000038",
+      "subject_id": "D-5a6b87ab69df4d5c",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-5a6b87ab69df4d5c",
+        "request_id": "MR-406512d8528f4f22",
+        "selection_id": "NSEL-ENS-7142b4b48ac640fe",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 4 column 14 (char 56)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 4 column 14 (char 56)",
+          "at": "2026-09-10T13:21:23.563+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 6,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:21:23.570+00:00",
+      "digest": "5f1d453c9095e4d30ae168f74a06f1bd1b452ec09b9599ce1713c4f96c99ad1e"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000046",
+      "run_id": "RP-FULL-02",
+      "sequence": 46,
+      "parent_id": "CE-000045",
+      "cause_id": "CE-000045",
+      "subject_id": "D-3b322cd10e4c462d",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-3b322cd10e4c462d",
+        "request_id": "MR-1edca6752a6041ea",
+        "selection_id": "NSEL-ENS-5357c0ff5aa74ee8",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+          "at": "2026-09-10T13:22:02.186+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 7,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:22:02.194+00:00",
+      "digest": "3c8a2e9265230257b454eef9e54162f57d52299d5f86a326bd1418cfe3e372f4"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000051",
+      "run_id": "RP-FULL-02",
+      "sequence": 51,
+      "parent_id": "CE-000050",
+      "cause_id": "CE-000050",
+      "subject_id": "D-1ed7effd8ad342e5",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-1ed7effd8ad342e5",
+        "request_id": "MR-eae69d90255e40e1",
+        "selection_id": "NSEL-ENS-5357c0ff5aa74ee8",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+          "at": "2026-09-10T13:22:38.614+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 8,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:22:38.624+00:00",
+      "digest": "463fde61d84a22e9a99d8b27900f21bf3a5946bfe7048b3c4cd4084c280e4b7e"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000058",
+      "run_id": "RP-FULL-02",
+      "sequence": 58,
+      "parent_id": "CE-000057",
+      "cause_id": "CE-000057",
+      "subject_id": "D-7f34e070810b4ded",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-7f34e070810b4ded",
+        "request_id": "MR-4d4fa012d9184682",
+        "selection_id": "NSEL-ENS-2cc1ae31fe554eed",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+          "at": "2026-09-10T13:23:17.374+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 9,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:23:17.387+00:00",
+      "digest": "4de64f1d9a83c565144b8963e7f7694550c6861b7bf7401a4d44e3481e3c486e"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000063",
+      "run_id": "RP-FULL-02",
+      "sequence": 63,
+      "parent_id": "CE-000062",
+      "cause_id": "CE-000062",
+      "subject_id": "D-a3288c334aa64fd2",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-a3288c334aa64fd2",
+        "request_id": "MR-4c92036bd9434b49",
+        "selection_id": "NSEL-ENS-2cc1ae31fe554eed",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+          "at": "2026-09-10T13:23:54.883+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 10,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:23:54.894+00:00",
+      "digest": "92d78926338b9a1ffaa41da6418da5914e938a841fada8c3c80791ae6d08fcfd"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000070",
+      "run_id": "RP-FULL-02",
+      "sequence": 70,
+      "parent_id": "CE-000069",
+      "cause_id": "CE-000069",
+      "subject_id": "D-551cc85e41f24811",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-551cc85e41f24811",
+        "request_id": "MR-ca7876dda20f4da1",
+        "selection_id": "NSEL-ENS-294683c656fd4c28",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 5 column 16 (char 83)",
+          "at": "2026-09-10T13:24:33.780+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 11,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:24:33.794+00:00",
+      "digest": "a26a29141298ef53e89d28784bd51d88b0935a5984fd330190b13bd57ad2286c"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000075",
+      "run_id": "RP-FULL-02",
+      "sequence": 75,
+      "parent_id": "CE-000074",
+      "cause_id": "CE-000074",
+      "subject_id": "D-44060f12c7ba4a39",
+      "event_type": "protocol_rejection_recorded",
+      "payload_schema": "rwkv-lh.protocol-rejection.v1",
+      "payload": {
+        "decision_id": "D-44060f12c7ba4a39",
+        "request_id": "MR-4c39e7460e01482e",
+        "selection_id": "NSEL-ENS-294683c656fd4c28",
+        "selected_operation": "write_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "write_file",
+          "description": "Atomically write UTF-8 text inside the workspace.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "content": {
+                "type": "string",
+                "description": "UTF-8 text"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "must be true to preserve idempotent retry"
+              },
+              "create_parents": {
+                "type": "boolean",
+                "const": true,
+                "default": true,
+                "description": "missing parent directories are created"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Unterminated string starting at: line 4 column 16 (char 58)",
+          "at": "2026-09-10T13:25:11.344+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S1",
+        "active_step_revision": 1,
+        "rejection_count": 12,
+        "action_executed": false
+      },
+      "created_at": "2026-09-10T13:25:11.358+00:00",
+      "digest": "381e2f2b9550465a65e58e1be6332e0b55adf88d369760f2870f6a6f9c2898a2"
+    },
+    {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000076",
+      "run_id": "RP-FULL-02",
+      "sequence": 76,
+      "parent_id": "CE-000075",
+      "cause_id": "CE-000075",
+      "subject_id": "RP-FULL-02",
+      "event_type": "run_blocked",
+      "payload_schema": "rwkv-lh.run-terminal.v1",
+      "payload": {
+        "reason": "protocol_rejection_budget_exhausted",
+        "decision_id": "",
+        "output_source": "none",
+        "controller_rewritten": false,
+        "final_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_output": "",
+        "resumable": true,
+        "termination_permitted": false,
+        "continuation": "explicit_manual_resume_only",
+        "at": "2026-09-10T13:25:11.411+00:00"
+      },
+      "created_at": "2026-09-10T13:25:11.426+00:00",
+      "digest": "24ec691cc7c6c9709261abd5080174f1b7b908851fa99a865cd54ce1bacf9c23"
+    }
+  ],
+  "actions": {},
+  "supervisor_failures": [],
+  "verifier_metadata": {
+    "backend": "bubblewrap",
+    "acceptance_transport": "stdin",
+    "workspace_mount": "read_only_snapshot",
+    "network": "unshared",
+    "pid_namespace": "private",
+    "repository_mounted": false,
+    "verifier_logs_exposed_to_agent": false
+  }
+}

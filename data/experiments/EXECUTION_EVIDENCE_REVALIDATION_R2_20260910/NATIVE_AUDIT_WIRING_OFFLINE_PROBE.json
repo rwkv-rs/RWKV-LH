@@ -1,0 +1,83 @@
+{
+  "diagnostic_only": true,
+  "network_requests": 0,
+  "production_modified": false,
+  "factory": "scripts.run_rwkv_e2e_benchmark._build_stateful_goal_role_sessions",
+  "results": [
+    {
+      "role": "executor_args",
+      "client_hook_is_none": true,
+      "session_hook_present": true,
+      "client_event_received": 0,
+      "session_control_received": 1,
+      "probe_only_manual_wiring_received": 1
+    },
+    {
+      "role": "auditor_step",
+      "client_hook_is_none": true,
+      "session_hook_present": true,
+      "client_event_received": 0,
+      "session_control_received": 1,
+      "probe_only_manual_wiring_received": 1
+    },
+    {
+      "role": "finalizer_answer",
+      "client_hook_is_none": true,
+      "session_hook_present": true,
+      "client_event_received": 0,
+      "session_control_received": 1,
+      "probe_only_manual_wiring_received": 1
+    },
+    {
+      "role": "auditor_final",
+      "client_hook_is_none": true,
+      "session_hook_present": true,
+      "client_event_received": 0,
+      "session_control_received": 1,
+      "probe_only_manual_wiring_received": 1
+    }
+  ],
+  "offline_control_events": [
+    {
+      "type": "offline_session_control",
+      "probe_only": true,
+      "model_role": "executor_args"
+    },
+    {
+      "type": "native_request_transport_error",
+      "probe_only": true,
+      "model_role": "executor_args"
+    },
+    {
+      "type": "offline_session_control",
+      "probe_only": true,
+      "model_role": "auditor_step"
+    },
+    {
+      "type": "native_request_transport_error",
+      "probe_only": true,
+      "model_role": "auditor_step"
+    },
+    {
+      "type": "offline_session_control",
+      "probe_only": true,
+      "model_role": "finalizer_answer"
+    },
+    {
+      "type": "native_request_transport_error",
+      "probe_only": true,
+      "model_role": "finalizer_answer"
+    },
+    {
+      "type": "offline_session_control",
+      "probe_only": true,
+      "model_role": "auditor_final"
+    },
+    {
+      "type": "native_request_transport_error",
+      "probe_only": true,
+      "model_role": "auditor_final"
+    }
+  ],
+  "conclusion": "Native client events are dropped by the actual session factory. A zero event count cannot establish absence of recovered Native transport exceptions."
+}
