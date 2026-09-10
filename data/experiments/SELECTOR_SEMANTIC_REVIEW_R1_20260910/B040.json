@@ -1,0 +1,294 @@
+{
+  "packet_id": "B040",
+  "source_run_id": "ULTRADATA_OFFICIAL_COLLECTION_R6_20260910-all_zero",
+  "run_id": "ULTRA-Code_00002",
+  "boundary_event_id": "CE-000062",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 2,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-e0bfcd16a4c04309",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:mutate",
+            "criterion": "The declared mutate phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00002"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 1,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-7a0bb85b74a14740",
+        "source_role": "auditor_step",
+        "step_id": "S1",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "content": "import sys\n\ndef main():\n    N = int(sys.stdin.readline().strip())\n    if N % 2 == 0:\n        print(\"Takahashi\")\n    else:\n        print(\"Aoki\")\n\nif __name__ ==…",
+          "create_parents": "true",
+          "overwrite": "true",
+          "path": "main.py"
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [
+          "main.py"
+        ],
+        "observed_roots": [],
+        "operation": "write_file",
+        "result_metadata": {
+          "outcome_type": "success"
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "append_file": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "copy_file": {
+          "destination": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          },
+          "source": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "delete_file": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "make_directory": {
+          "path": {
+            "access": "write",
+            "availability": "unavailable",
+            "compatible_path_count": 0,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "move_file": {
+          "destination": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          },
+          "source": {
+            "access": "read_write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "patch_json": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "remove_line": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "replace_text": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "write_file": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        },
+        "write_json": {
+          "path": {
+            "access": "write",
+            "availability": "available",
+            "compatible_path_count": 1,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "main.py"
+            ]
+          }
+        }
+      },
+      "recent_rejections": [
+        {
+          "action_executed": false,
+          "error": "operation 'execute_shell' is not displayed in this turn",
+          "error_kind": "ModelIOError",
+          "event_id": "CE-000056",
+          "rejected_arguments": {
+            "command": "cat > main.py <<'PY'\nimport sys\n\ndef main():\n    N = int(sys.stdin.readline().strip())\n    if N % 2 == 0:\n        print(\"Takahashi\")\n    else:\n        print(\"Aoki\")\n\nif __name__ == \"__main__\":\n    main()\nPY\n\ncat main.py\n"
+          },
+          "selected_operation": "delete_file",
+          "selection_id": "NSEL-ENS-672b80ca112949c7",
+          "step_id": "S1",
+          "step_revision": 1
+        },
+        {
+          "action_executed": false,
+          "error": "operation 'execute_shell' is not displayed in this turn",
+          "error_kind": "ModelIOError",
+          "event_id": "CE-000061",
+          "rejected_arguments": {
+            "command": "cat > main.py <<'PY'\nimport sys\n\ndef main():\n    N = int(sys.stdin.readline().strip())\n    if N % 2 == 0:\n        print(\"Takahashi\")\n    else:\n        print(\"Aoki\")\n\nif __name__ == \"__main__\":\n    main()\nPY\n\ncat main.py\n"
+          },
+          "selected_operation": "delete_file",
+          "selection_id": "NSEL-ENS-672b80ca112949c7",
+          "step_id": "S1",
+          "step_revision": 1
+        }
+      ],
+      "successful_action_count": 2,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": "main.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": ".",
+          "target_kind": "directory"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [
+        "N can be as large as 10^18; use an algorithm with sufficient efficiency for the 3-second limit.",
+        "Do not use third-party imports."
+      ],
+      "objective": "Write main.py with a correct Python 3 solution using only the standard library; read one integer N from stdin and print the winner followed by a newline.",
+      "phase": "mutate",
+      "read_roots": [],
+      "success_evidence": [
+        "The action's write evidence shows main.py created or overwritten with source code that imports only standard library modules and implements the game solution."
+      ],
+      "write_roots": [
+        "main.py"
+      ]
+    },
+    "eligible_labels": [
+      "write_file",
+      "write_json",
+      "patch_json",
+      "replace_text",
+      "remove_line",
+      "append_file",
+      "delete_file"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-735f702f04181b248b1d60f52002d5ddd735c32389acfc6c3627b079b5e43f74",
+      "request_id": "SELTRACE-6e8b1927a78c480b",
+      "original_target_text": "\nSelectorIntentV6: delete_file",
+      "original_output_record_sha256": "ada55f37adc18d0842a24886ed16b3e206f0f0d5f202f61217381819ced3f139",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "6b9c5bb967244f959c0a94fbb6fbb14aeeb342e68c6ada205a655a03c6e2eb6e"
+    },
+    {
+      "sample_id": "RT-3eca3e927cc07079e4c331160219ee09e93c8400900d97ccc7605463a02af1e0",
+      "request_id": "SELTRACE-7b459970cf6c4975",
+      "original_target_text": "\nSelectorIntentV6: delete_file",
+      "original_output_record_sha256": "5b99dfb80772220cc486d81bcac75e6f90f19a5a95db97ca2e68dad41ef6dee9",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "a1cbf3868d329b1f1ed703d6d1b3741ca1573523d34d01067e7c1c050b3009c9"
+    },
+    {
+      "sample_id": "RT-27e7b63b8c4fc78b6714171fdd3cf510799d387311092814436f45c5f1d8bf16",
+      "request_id": "SELTRACE-d6867bc070934739",
+      "original_target_text": "\nSelectorIntentV6: delete_file",
+      "original_output_record_sha256": "570a0f5e81826e357a852b4687489b58621ef7b4c2f264c8887652fd488b092d",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "4a8d213b0bd72b244a9e47a1493ef8218552c8001041b15c7d6e0e06bffdcae1"
+    }
+  ]
+}

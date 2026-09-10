@@ -1,0 +1,34 @@
+# 独立 AI reviewer one：全部126条Selector语义复核
+
+身份：AI reviewer /root/waiver_review_one，依据owner本轮明确授权；独立阅读B001–B044全部44个真实boundary包及各126条原目标，未读取另一reviewer的决策。manifest SHA=8a98d5585045d5acc5abca01f7e2b16fd8c8f25394b4d2cfdc9114c0361443f4。
+
+Agent级：没有新运行，Strict/completed/mutation及终止原因没有新成绩。本复核不代表Agent KEEP。角色级：126/126逐行留证，**46 accept_original、68 accept_correction、12 reject**；这是单名AI reviewer意见，不能直接当双审一致或训练可用数量。
+
+## 范围与方法
+
+逐包读完整protocol_source，包括目标、success_evidence、约束、eligible_labels、可用目标类型、上次参数/结果、反馈与全部recent_rejections；分别判断每个menu原operation。脚本仅将这些人工编写的44包判断展开成精确逐行记录，不是生产规则或以文件后缀自动判标签。每行绑定sample_id/request_id/input SHA/original_output_record SHA、packet SHA、原operation、决定和理由；混合menu包按各自原目标决定accept_original或accept_correction。
+
+已核验manifest本身SHA、44包SHA、126行源JSONL SHA，每行input SHA重新从原input_text字节计算；request_id、original_output_record_sha256与原JSONL逐项匹配，126条sample_id集合精确相等、无缺失或重复。源JSONL SHA=e6944b08906ac450ff375a3780bfe6f5188e09b304fbcc25f6076637e8fc8fb5。
+
+所有原available_evidence_refs均为空，决策evidence_refs全部为空。理由使用包内Selector可见事实，不把feedback内A编号擅自扩为可引用证据，也没有发明未来动作或隐藏验收。建议纠错operation全部属于相应eligible集合。
+
+## 决策理由
+
+- B001–B005、B010–B012：接受原内容观察operation。server结构/README主题检索可以由read_file或修正参数后的search_text完成。旧filename、整句或猜测函数名pattern零匹配，说明那些参数不够好；不能因此认定Selector选search_text必错。接受operation不批准重复旧pattern，也不代表读取目标已经完成。
+- B006–B009、B018：明确完整README内容/全部规格细节要求，并有窄匹配无法满足的上下文（B018为初始明确全文约束）。对search_text建议eligible的read_file；已有read_file lane保留原选择。
+- B015–B017、B022–B029：目录发现已完成或明确要求源文件正文，列表无法提供剩余内容；后续还有对README文本调用list_directory的显式目标类型拒绝。建议read_file。该理由来自具体内容义务与已知目标，不是单凭某次动作未成功。
+- B021：初始全文只读目标，read_file合理，即使该lane没有成功执行也接受原选择。
+- B030–B035：需要创建缺失的HTML完整文件，write_file合理。重复Executor JSON解析失败且action_executed=false不能转嫁为Selector操作错误；18条原write_file全部接受，不批准生成代码或未闭合JSON。
+- B036–B044：目标是创建/覆盖main.py源代码，不是删除。write_file可直接覆盖，delete_file无法交付所需程序；将delete_file改为write_file，已有write_file保留。部分rejection进一步证明模型尝试写文件却被delete_file菜单挡住。没有把错误shell API或算法当合格代码。
+
+## 12条明确保留拒绝
+
+B013、B014、B019、B020各3行：last_action显示read_file succeeded且truncated=false，但Auditor反馈仍称完整观察/内容不完整或仅泛泛observe未证。包内没有返回正文、缺失字节范围或具体内容差距，可见证据冲突无法判断再read一次是有效修复还是原地重复。拒绝这些模糊的恢复标签，不凭Auditor一句话推翻元数据，也不凭成功元数据断言全部语义完成；无确切替换operation。
+
+这12行拒绝不代表read_file作为工具本身错误。其余原operation接受同样不代表step应完成。严格区分operation、Executor参数/代码、Auditor完成判断，避免把后序失败全部反标Selector。
+
+## 产物与限制
+
+DECISIONS_ONE.json SHA-256：e963d3da1774abf5cf5cf2c050921f56962158c4733ca37e3453d607ed1b0d70。
+
+分析/展开脚本：temp/semantic_one_display_20260910.py、temp/semantic_one_decisions_20260910.py，均以绝对路径执行。只写本review产物，未改源码、协议、评分或原样本；未跑测试/正式extract/训练，未读hidden acceptance或holdout。与另一reviewer不一致的行须保持待处理或排除，不能为清零修改已作出的独立判断。即便双审一致，也仍需来源、token、范围、固定切分相似度、覆盖等后续门。

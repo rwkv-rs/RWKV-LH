@@ -1,0 +1,19 @@
+# 同一waiver续签的语义附件绑定复核（二）
+
+身份：AI reviewer /root/waiver_review_two。**accept，仅限精确附件与wrapper字节。** 本次按授权可读两份已完成独立决定，仅做机械绑定核对；未修改原决定、旧签或劝服另一reviewer一致。
+
+无新Agent评测或训练，optimizer steps保持0。独立重新对账126行：34原标签一致、68纠正目标一致、24一票否决/不一致剔除；102个获共同批准的标签恰有204条review记录。逐条核对两个原reviewer身份、request/source/run/boundary、input SHA、original output SHA、目标SHA、purpose、rationale与evidence_refs，实际集合等于由两份决定重算的预期集合，无多项少项。原34条没有伪造纠正，68纠正使用当前协议TARGET_PREFIX/parse_target及eligible校验；正式完整builder/token校验仍由生产extract执行。
+
+派生registration去掉human_reviews后与原14来源注册逐字段相同；coverage和全部源工件引用不变；RP-WEB-02未加入。附件文件逐份SHA匹配派生注册，原waiver仍是f53186ecfca2f97126b132f41b1bc37bdef46e77ce91b3cde4a68385ef0a3aaa对应的相同十文件，不扩大source/role/训练范围。
+
+已完整阅读wrapper：无调用者选参，先核proposal里原/派生注册、waiver、dispositions和双决定SHA，再确认只有human_reviews增量及14来源，检查附件SHA与两个独立approval的proposal/wrapper SHA；固定生产CLI --role selector_intent，使用新输出目录，不修改旧提取。require/SystemExit不受python -O影响。审批与proposal自身SHA联锁使其引用不能在审批后悄然换scope。
+
+pending_dispositions=0仅表示126行都有最终处置，**不表示生产review_queue必为空**；24拒绝不得获得review附件或变为训练正例。分歧保持为reject，覆盖、相似度、固定切分和训练门仍须检查。
+
+只读核验脚本初次尝试直接render排序后的protocol_source时触发字段顺序拒绝，未写任何提取数据；随后用协议常量/parse_target验证目标字节和eligible，正式builder强校验未被覆盖或声称通过。未执行wrapper/正式extract，未改生产代码。
+
+绑定：
+
+- proposal SHA：d2a5fd5423997272b561252e1f8cdd7d6888365ed77030e20a62b2b75f8efcd4
+- wrapper SHA：220b16922cbc8432c04c4a2a861c7a1b3e2fde267f8e70c0563cda35ee985fee
+- 核验记录 SCOPE_ADDENDUM_VERIFICATION_TWO.json SHA：12417702b5951085aea690503eb26523ca0eb00171d7db5ddec8c379662b656c

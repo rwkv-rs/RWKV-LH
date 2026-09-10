@@ -1,0 +1,223 @@
+{
+  "packet_id": "B023",
+  "source_run_id": "REALPROJECT_OFFICIAL_COLLECTION_R3_20260910-all_zero",
+  "run_id": "RP-MAINT-01",
+  "boundary_event_id": "CE-000050",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 2,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-0397a2705a164ede",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:observe",
+            "criterion": "The declared observe phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00002"
+            ],
+            "repair_scope": "step"
+          },
+          {
+            "code": "success_criterion_unproved:3240b761aad2",
+            "criterion": "Action successfully reads README.md, sample_v1.sql, config_cli.py, config_store/__init__.py, config_store/migrations.py, config_store/sqlite_io.py, config_store/values.py and returns their content, enabling identification of required contract points and current implementation gaps.",
+            "evidence_refs": [
+              "A00002"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 1,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-c4410a93fea341da",
+        "source_role": "auditor_step",
+        "step_id": "S1",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "max_entries": "1024",
+          "max_tokens": "4096",
+          "path": ".",
+          "recursive": "true",
+          "start_after": ""
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [],
+        "observed_roots": [
+          "."
+        ],
+        "operation": "list_directory",
+        "result_metadata": {
+          "entry_count": 8,
+          "outcome_type": "success",
+          "truncated": false
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "file_digest": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 7,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "list_directory": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 2,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "read_file": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 7,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "read_json": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 7,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "search_text": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 9,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        }
+      },
+      "recent_rejections": [],
+      "successful_action_count": 2,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": ".",
+          "target_kind": "directory"
+        },
+        {
+          "path": "config_store",
+          "target_kind": "directory"
+        },
+        {
+          "path": "README.md",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "config_cli.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "sample_v1.sql",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "config_store/__init__.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "config_store/migrations.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "config_store/sqlite_io.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "config_store/values.py",
+          "target_kind": "text_file"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [
+        "Do not modify any files during observation."
+      ],
+      "objective": "Inspect the project workspace to extract the exact v1/v2 migration and CLI contract from README and sample_v1.sql, and review current implementation files to identify defects in migration, backup, recovery, JSON type handling, Unicode handling, and unrelated table retention.",
+      "phase": "observe",
+      "read_roots": [
+        "."
+      ],
+      "success_evidence": [
+        "Action successfully reads README.md, sample_v1.sql, config_cli.py, config_store/__init__.py, config_store/migrations.py, config_store/sqlite_io.py, config_store/values.py and returns their content, enabling identification of required contract points and current implementation gaps."
+      ],
+      "write_roots": []
+    },
+    "eligible_labels": [
+      "list_directory",
+      "search_text",
+      "read_file",
+      "read_json",
+      "file_digest"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-c90c721983cc43940ab5280aefa27d92f60586b1b5e3b45ccd25d3d81abbb0df",
+      "request_id": "SELTRACE-216dec301889420b",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "615751b9e2c3582023a300308661878ce3d7510a5b0bfc7f6dbf3cf4b3df3089",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "31aa6516b0c3919a5b0c0e30b28209eae7bfd8d3460e745bd2d7a6269d85fb23"
+    },
+    {
+      "sample_id": "RT-c7a480a6e22757d9090b687df85bf3047c53f275bee2770236f43e7fff65b149",
+      "request_id": "SELTRACE-2f5e9d9729014e6b",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "56ba223ce83054ab5651b0f0207186da103ccaa53ed1c07f072863aa58c38381",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "5cb13710dd4bdced9a413883a3ecda9bab8a48668ef56a0f7e51460c74eab74a"
+    },
+    {
+      "sample_id": "RT-df023010d295e264f37ff39431edf74b1543228b67124e2432af0f3d0f2e55ae",
+      "request_id": "SELTRACE-4235e680328f4ce2",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "de89b66aa79ac1685b6002e751da31e58a6223e6df87da140be632eed85f3d9b",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "1d364ab83ccb00adb6579a26d2ee964a6b7662116e75ef7f59d904f015200ef3"
+    }
+  ]
+}
