@@ -1,6 +1,6 @@
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
-更新日期：2026-09-10。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。最新完整采集为 REALPROJECT 官方 R3：Strict 0/12、completed 0/12、mutation 0、动作 43；UltraData 官方 R6：Strict 0/3、completed 0/3、mutation 3、动作 6。15 题均取得官方 DeepSeek 初始计划，已返回的 146 次角色交接核验通过，另有一次 Native create 未确认。后续命令入口整改完整回归 1432 passed、0 skipped；固定 Selector 回归、优化器与 2.9B 数值兼容入口已接通。合并 Selector 来源覆盖通过，但跨切分相似度和纠错标签复核尚未完成，optimizer steps 仍为 0。工程验证不替代 Agent 验收，规范门槛未改；原始结果、当前状态及 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
+更新日期：2026-09-10。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。执行修复复测R1与充值后R2的同源码十五题关联视图为 Strict 0/15、completed 0/15、mutation 6、动作46；10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝。它不是一次性新运行，原R1七题HTTP402及原始评分均保留。当前证明了给定工作区中的代码文件写入，未证明自主初始化到交付的项目闭环。新增Native审计接线修复按独立工程轮记录，尚无该新源码的Agent分数；不改变本规范门槛或重评分旧记录。Selector仍需精确来源准入、覆盖、固定切分相似度和独立语义标签；optimizer steps为0。工程验证不替代Agent验收，原始结果、当前状态、测试及SHA见 [当前交接](HANDOFF.zh-CN.md)。
 
 已修复 REPAIR 的无条件改计划分支、根证据固定八条截断及数据标签等工程问题。当前工作流程是先 Selector，满足当前角色的来源、标签、预注册覆盖与验证条件后训练，再固定前序 State 推进下一角色。Agent 能力低分不再作为训练前禁令。owner 已取消固定三轮上限；历史训练事实用于追溯，后续按指标、预算和实际 run 管理。
 

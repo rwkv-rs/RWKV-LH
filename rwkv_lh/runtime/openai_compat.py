@@ -61,6 +61,7 @@ class OpenAICompatibleRWKVClient:
     ):
         self.settings = settings or get_runtime_settings()
         self.audit_hook = audit_hook
+        self._audit_subscribers: list[AuditHook] = []
         self._main_session = self._new_session()
         self._thread_sessions = threading.local()
 
@@ -180,14 +181,21 @@ class OpenAICompatibleRWKVClient:
             return "/chat/completions"
         return "/completions"
 
+    def add_audit_hook(self, hook: AuditHook | None) -> None:
+        """Subscribe an owning session without replacing a caller's observer."""
+        if hook is not None and hook not in self._audit_subscribers:
+            self._audit_subscribers.append(hook)
+
     def _emit(self, event: Mapping[str, Any]) -> None:
-        if self.audit_hook is None:
-            return
-        try:
-            self.audit_hook(dict(event))
-        except Exception:
-            # Observability must never change model-call semantics.
-            return
+        hooks = list(self._audit_subscribers)
+        if self.audit_hook is not None and self.audit_hook not in hooks:
+            hooks.insert(0, self.audit_hook)
+        for hook in hooks:
+            try:
+                hook(dict(event))
+            except Exception:
+                # One observer must not suppress another or change requests.
+                continue
 
     def _request_json(
         self,

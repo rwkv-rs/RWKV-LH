@@ -21,6 +21,75 @@ from test_openai_compat_runtime import FakeResponse, FakeSession, _cache_binding
 NOT_RECORDED = FakeResponse({"detail": "request ID is not recorded"}, status_code=404)
 
 
+@pytest.mark.parametrize("explicit_client", [False, True])
+def test_session_factory_delivers_first_transport_error(monkeypatch, explicit_client):
+    from types import SimpleNamespace
+    from rwkv_lh.model_session import create_model_session
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+
+    events, existing = [], []
+    fake = FakeSession([
+        requests.ConnectionError("factory first cause"), NOT_RECORDED, NOT_RECORDED,
+        FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+    ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+        durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+    client = OpenAICompatibleRWKVClient(settings(), audit_hook=existing.append) if explicit_client else None
+    session = create_model_session(client, settings=settings(), audit_hook=events.append)
+    session.native_client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+    assert [event["type"] for event in events] == [
+        "native_request_prepared", "native_request_transport_error", "native_request_resubmitted"]
+    assert "factory first cause" in events[1]["error_message"]
+    if explicit_client:
+        assert existing == events
+
+
+def test_session_audit_subscription_is_deduplicated_and_failure_isolated():
+    from rwkv_lh.model_session import ModelSession
+
+    events = []
+    def broken(event):
+        event["type"] = "changed by failing observer"
+        raise RuntimeError("observer failure")
+    client = OpenAICompatibleRWKVClient(settings(), audit_hook=broken)
+    ModelSession(client, settings=settings(), audit_hook=events.append)
+    ModelSession(client, settings=settings(), audit_hook=events.append)
+    client._emit({"type": "native_request_transport_error"})
+    assert events == [{"type": "native_request_transport_error"}]
+
+
+def test_benchmark_native_recovery_keeps_each_role_audit_isolated(monkeypatch):
+    from types import SimpleNamespace
+    from scripts.run_rwkv_e2e_benchmark import (
+        _build_stateful_goal_role_sessions, _close_stateful_goal_role_sessions,
+    )
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+
+    monkeypatch.setattr("rwkv_lh.runtime.settings.load_local_env", lambda *a, **k: None)
+    def new_session(self):
+        return FakeSession([
+            requests.ConnectionError("isolated role first cause"), NOT_RECORDED, NOT_RECORDED,
+            FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+        ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", new_session)
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+        durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+    trace = []
+    sessions = _build_stateful_goal_role_sessions(settings(), trace)
+    try:
+        for role, session in sessions.items():
+            start = len(trace)
+            session.native_client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+            emitted = trace[start:]
+            assert len(emitted) == 3
+            assert all(event["model_role"] == role for event in emitted)
+            assert emitted[1]["type"] == "native_request_transport_error"
+            assert "isolated role first cause" in emitted[1]["error_message"]
+    finally:
+        _close_stateful_goal_role_sessions(sessions)
+
+
 def test_proven_unrecorded_request_is_resubmitted_not_left_unknown(monkeypatch):
     # The journal claims a row before any execution, so a twice-confirmed 404
     # receipt proves the POST never reached the application (e.g. a dead

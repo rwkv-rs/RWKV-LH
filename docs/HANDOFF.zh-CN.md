@@ -1,5 +1,11 @@
 # 当前交接
 
+**当前能力：能在给定工作区创建源文件并开始写代码，尚不能可靠地自主完成项目。** 最新Agent证据是下方十五题关联视图：Strict 0/15、completed 0/15、mutation 6；10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝。工作区由runner预备，不能把它视为Agent已独立完成项目初始化。工程测试全绿也不代替运行、调试与交付验收。
+
+Owner要求“更新状态，进行下一步”后，已执行 [Native审计接线修复R1](../data/experiments/NATIVE_AUDIT_WIRING_REPAIR_R1_20260910/REPORT.zh-CN.md)：统一会话构造接通底层审计，保留已有回调、去重送达、隔离观察者异常；真实四角色工厂恢复路径有回归覆盖，未改变模型、提示词、预算、评分或角色分工。具体先失败后通过与完整回归结果见新报告。本轮没有新的Agent分数，历史R1/R2用于新源码候选对比时INVALID，原始结果不修改。未部署服务、未训练。
+
+Selector准入预检也已完成：新源码与十五个旧来源的model_session.py SHA不同，现有准入器全部拒绝。历史双AI waiver仅绑定原14来源/Selector与旧精确SHA，原九边界/27行保留，不能自动扩大到本次修改；原候选的execute覆盖、固定切分相似度和独立语义标签问题也未解决。**下一阶段是新源码精确兼容复核/冻结来源，随后补齐Selector数据质量门，再登记已授权首轮StateTune。** Agent低分和后序角色未到达本身不是训练禁令。以下R2及更早内容是冻结历史，以本段与新修复报告为最新状态。
+
 2026-09-10 [充值后执行复测R2](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/REPORT.zh-CN.md) 已全部完成：**Strict 0/7、completed 0/7、mutation 2、动作18**；5题无进展、1题Executor协议拒绝、1题Step Auditor协议拒绝。与R1已生成八题的同源码关联视图为 **Strict 0/15、completed 0/15、mutation 6、动作46**（10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝），不是一次性新15题运行。充值后Supervisor请求失败0、输出中断0，R2新增60次交接全部核验，关联视图160次；Finalizer/Final Auditor仍未到达。生产源码冻结b3e89de6不变，完整回归1447 passed、0 failed、0 skipped，optimizer steps=0。
 
 **KEEP未通过。** 新确认 [Native首错审计接线缺陷](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/NATIVE_AUDIT_WIRING_FINDING.zh-CN.md)：实际产品/benchmark会话工厂未将audit_hook交给Native client，四角色离线POST/404/404/POST均成功恢复却丢失首错事件。故不能由native_first_errors=0声称无首错丢失；此项未修复，后续独立工程轮需先失败后通过的工厂集成回归，不能用训练掩盖。Executor另有18次length（FULL-02十二次、WEB-02六次），与Supervisor中断分开。WEB-02两次写入但没有运行check/run命令，历史命令路径仍未在本轮Agent覆盖。最新 [正式架构复核](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/ARCHITECTURE_FIT_REVIEW.zh-CN.md) 保留五角色作为工作架构，不宣告能力通过；三项流程单变量轮仍排首轮StateTune之后。R2报告SHA `88a4790423c6546d31ed34785564b68f58f2bb03dda1ba526b270f4c78d6391d`，证据清单SHA `b0b8209e8b25edc517529dcb4a4f354197f6020bab045fb758beabf86dc3c69f`。

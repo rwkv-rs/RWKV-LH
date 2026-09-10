@@ -1,0 +1,87 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_session_factory_delivers_first_transport_error[False] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d97df1b62c0>
+explicit_client = False
+
+    @pytest.mark.parametrize("explicit_client", [False, True])
+    def test_session_factory_delivers_first_transport_error(monkeypatch, explicit_client):
+        from types import SimpleNamespace
+        from rwkv_lh.model_session import create_model_session
+        from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+    
+        events, existing = [], []
+        fake = FakeSession([
+            requests.ConnectionError("factory first cause"), NOT_RECORDED, NOT_RECORDED,
+            FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+        ])
+        monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+        monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+            durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+        client = OpenAICompatibleRWKVClient(settings(), audit_hook=existing.append) if explicit_client else None
+        session = create_model_session(client, settings=settings(), audit_hook=events.append)
+        session.native_client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+>       assert [event["type"] for event in events] == [
+            "native_request_prepared", "native_request_transport_error", "native_request_resubmitted"]
+E       AssertionError: assert [] == ['native_requ..._resubmitted']
+E         
+E         Right contains 3 more items, first extra item: 'native_request_prepared'
+E         Use -v to get more diff
+
+tests/test_native_request_recovery.py:41: AssertionError
+__________ test_session_factory_delivers_first_transport_error[True] ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d97df1b6780>
+explicit_client = True
+
+    @pytest.mark.parametrize("explicit_client", [False, True])
+    def test_session_factory_delivers_first_transport_error(monkeypatch, explicit_client):
+        from types import SimpleNamespace
+        from rwkv_lh.model_session import create_model_session
+        from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+    
+        events, existing = [], []
+        fake = FakeSession([
+            requests.ConnectionError("factory first cause"), NOT_RECORDED, NOT_RECORDED,
+            FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+        ])
+        monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+        monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+            durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+        client = OpenAICompatibleRWKVClient(settings(), audit_hook=existing.append) if explicit_client else None
+        session = create_model_session(client, settings=settings(), audit_hook=events.append)
+        session.native_client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+>       assert [event["type"] for event in events] == [
+            "native_request_prepared", "native_request_transport_error", "native_request_resubmitted"]
+E       AssertionError: assert [] == ['native_requ..._resubmitted']
+E         
+E         Right contains 3 more items, first extra item: 'native_request_prepared'
+E         Use -v to get more diff
+
+tests/test_native_request_recovery.py:41: AssertionError
+_____ test_session_audit_subscription_is_deduplicated_and_failure_isolated _____
+
+    def test_session_audit_subscription_is_deduplicated_and_failure_isolated():
+        from rwkv_lh.model_session import ModelSession
+    
+        events = []
+        def broken(event):
+            event["type"] = "changed by failing observer"
+            raise RuntimeError("observer failure")
+        client = OpenAICompatibleRWKVClient(settings(), audit_hook=broken)
+        ModelSession(client, settings=settings(), audit_hook=events.append)
+        ModelSession(client, settings=settings(), audit_hook=events.append)
+        client._emit({"type": "native_request_transport_error"})
+>       assert events == [{"type": "native_request_transport_error"}]
+E       AssertionError: assert [] == [{'type': 'na...sport_error'}]
+E         
+E         Right contains one more item: {'type': 'native_request_transport_error'}
+E         Use -v to get more diff
+
+tests/test_native_request_recovery.py:59: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_native_request_recovery.py::test_session_factory_delivers_first_transport_error[False]
+FAILED tests/test_native_request_recovery.py::test_session_factory_delivers_first_transport_error[True]
+FAILED tests/test_native_request_recovery.py::test_session_audit_subscription_is_deduplicated_and_failure_isolated
+3 failed, 63 deselected in 0.10s

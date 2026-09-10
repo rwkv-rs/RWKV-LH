@@ -211,6 +211,8 @@ class ModelSession:
         self.settings = settings or get_runtime_settings()
         self.client = client or OpenAICompatibleRWKVClient(self.settings)
         self.audit_hook = audit_hook
+        if isinstance(self.client, OpenAICompatibleRWKVClient):
+            self.client.add_audit_hook(audit_hook)
 
     @property
     def model_name(self) -> str:
@@ -1602,6 +1604,9 @@ def create_model_session(
 
     selected_settings = settings or get_runtime_settings()
     selected_client = client or OpenAICompatibleRWKVClient(selected_settings)
+    if isinstance(selected_client, OpenAICompatibleRWKVClient):
+        # Bind before capability discovery as well as for subsequent requests.
+        selected_client.add_audit_hook(audit_hook)
     mode = selected_settings.state_transport
     if mode == "prompt_replay":
         return ModelSession(
