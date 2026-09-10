@@ -1,0 +1,67 @@
+{
+  "purpose": "read-only check of a strong Planner claim against public samples; no role labels or score changes",
+  "plan_event": "CE-000003",
+  "step_id": "S2",
+  "source_request_sha256": "6553f9e0787f55cb7d9f9361f663f677bd62da7888c9091e3054b0511b611ce7",
+  "source_public_file_sha256": "45a41c9edfd095115d6bbcb7c986fd2f6ec92ecf95815796222e2a928c837bd9",
+  "recorded_formula": "The derivation records F(X,Y,K)=sum_i=0..X sum_j=0..Y (-1)^(i+j) C(X,i)C(Y,j)C((X-i)(Y-j),K), total=(R-X+1)(C-Y+1)C(K,D)F(X,Y,K) mod 1000000007, with sample calculations matching 12, 10, 364527243, and 976668549.",
+  "samples": [
+    {
+      "public_input": [
+        3,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "public_expected": 12,
+      "recorded_plan_formula_result": 12,
+      "matches_public_expected": true
+    },
+    {
+      "public_input": [
+        4,
+        5,
+        3,
+        1,
+        3,
+        0
+      ],
+      "public_expected": 10,
+      "recorded_plan_formula_result": 10,
+      "matches_public_expected": true
+    },
+    {
+      "public_input": [
+        23,
+        18,
+        15,
+        13,
+        100,
+        95
+      ],
+      "public_expected": 364527243,
+      "recorded_plan_formula_result": 364527243,
+      "matches_public_expected": true
+    },
+    {
+      "public_input": [
+        30,
+        30,
+        24,
+        22,
+        145,
+        132
+      ],
+      "public_expected": 976668549,
+      "recorded_plan_formula_result": 591535028,
+      "matches_public_expected": false
+    }
+  ],
+  "semantic_difference": "The user constrains only the four outer boundaries of the occupied rectangle. The recorded formula excludes every empty row and column, including internal ones.",
+  "private_acceptance_read": false,
+  "agent_workspace_modified": false,
+  "training_labels_created": false,
+  "script_sha256": "1037c490cade76501e71234ce011dc1fbdb18bb280480184afc4b759d45c1ace"
+}
