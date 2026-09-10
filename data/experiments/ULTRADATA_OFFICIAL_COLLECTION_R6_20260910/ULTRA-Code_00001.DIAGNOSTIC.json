@@ -1,0 +1,337 @@
+{
+  "case": "ULTRA-Code_00001",
+  "agent": {
+    "passed": false,
+    "agent_completed": false,
+    "action_count": 3,
+    "status": "blocked"
+  },
+  "mutations": 1,
+  "supervisor_calls": [
+    {
+      "type": "supervisor_request_started",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": 32768,
+      "request_options": {
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "low"
+      },
+      "finish_reason": null,
+      "usage": null,
+      "latency_ms": null,
+      "output_chars": null,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_returned",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": null,
+      "request_options": null,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2994,
+        "completion_tokens": 5611,
+        "total_tokens": 8605,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 5028
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 2994
+      },
+      "latency_ms": 131698.6,
+      "output_chars": 2461,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_started",
+      "phase": "goal_stage_review",
+      "model": "deepseek-v4-pro",
+      "max_tokens": 16384,
+      "request_options": {
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "low"
+      },
+      "finish_reason": null,
+      "usage": null,
+      "latency_ms": null,
+      "output_chars": null,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_returned",
+      "phase": "goal_stage_review",
+      "model": "deepseek-v4-pro",
+      "max_tokens": null,
+      "request_options": null,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2456,
+        "completion_tokens": 1734,
+        "total_tokens": 4190,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1596
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 2456
+      },
+      "latency_ms": 37596.7,
+      "output_chars": 500,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_started",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": 32768,
+      "request_options": {
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "low"
+      },
+      "finish_reason": null,
+      "usage": null,
+      "latency_ms": null,
+      "output_chars": null,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_returned",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": null,
+      "request_options": null,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 4511,
+        "completion_tokens": 5534,
+        "total_tokens": 10045,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 4936
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 4511
+      },
+      "latency_ms": 139479.7,
+      "output_chars": 2524,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_started",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": 32768,
+      "request_options": {
+        "thinking": {
+          "type": "enabled"
+        },
+        "reasoning_effort": "low"
+      },
+      "finish_reason": null,
+      "usage": null,
+      "latency_ms": null,
+      "output_chars": null,
+      "error_category": null,
+      "error": null
+    },
+    {
+      "type": "supervisor_request_returned",
+      "phase": "goal_plan",
+      "model": "deepseek-v4-pro",
+      "max_tokens": null,
+      "request_options": null,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 5217,
+        "completion_tokens": 3402,
+        "total_tokens": 8619,
+        "prompt_tokens_details": {
+          "cached_tokens": 1408
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2789
+        },
+        "prompt_cache_hit_tokens": 1408,
+        "prompt_cache_miss_tokens": 3809
+      },
+      "latency_ms": 69191.0,
+      "output_chars": 2575,
+      "error_category": null,
+      "error": null
+    }
+  ],
+  "role_calls": {
+    "executor_args": 5,
+    "auditor_step": 2
+  },
+  "failures": [
+    {
+      "type": "protocol_rejection_recorded",
+      "payload": {
+        "decision_id": "D-a4b960db773a4168",
+        "request_id": "MR-0ee58235b78c45f2",
+        "selection_id": "NSEL-ENS-1b77d1d9e9434e9d",
+        "selected_operation": "delete_file",
+        "rejected_arguments": {
+          "path": "main.py",
+          "content": "import sys\n\ndef solve():\n    data = sys.stdin.read().strip().split()\n    if not data:\n        return\n    R, C, X, Y, D, L = map(int, data)\n    MOD = 1000000007\n    \n    if D + L != X * Y:\n        print(0)\n        return\n    \n    def comb(n, k):\n        if k < 0 or k > n:\n            return 0\n        k = min(k, n - k)\n        num = 1\n        for i in range(k):\n            num = num * (n - i) % MOD\n        den = 1\n        for i in range(1, k + 1):\n            den = den * i % MOD\n        return num * pow(den, MOD - 2, MOD) % MOD\n    \n    ans = comb(X - 1, D - 1) * comb(Y - 1, L - 1) % MOD\n    print(ans)\n\nif __name__ == \"__main__\":\n    solve()"
+        },
+        "selected_operation_schema": {
+          "name": "delete_file",
+          "description": "Delete one explicitly scoped path.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "missing_ok": {
+                "type": "boolean",
+                "default": false
+              },
+              "recursive": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "operation 'write_file' is not displayed in this turn",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "operation 'write_file' is not displayed in this turn",
+          "at": "2026-09-10T02:01:57.821+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S2",
+        "active_step_revision": 2,
+        "rejection_count": 1,
+        "action_executed": false
+      }
+    },
+    {
+      "type": "protocol_rejection_recorded",
+      "payload": {
+        "decision_id": "D-a4204e11cc134110",
+        "request_id": "MR-6dc9c39d5fc0456f",
+        "selection_id": "NSEL-ENS-1b77d1d9e9434e9d",
+        "selected_operation": "delete_file",
+        "rejected_arguments": {},
+        "selected_operation_schema": {
+          "name": "delete_file",
+          "description": "Delete one explicitly scoped path.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "relative path"
+              },
+              "missing_ok": {
+                "type": "boolean",
+                "default": false
+              },
+              "recursive": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "schema_already_disclosed": true,
+        "error_kind": "ModelIOError",
+        "error": "model output is not one JSON object: Expecting ',' delimiter: line 3 column 725 (char 750)",
+        "error_record": {
+          "type": "ModelProtocolError",
+          "message": "model output is not one JSON object: Expecting ',' delimiter: line 3 column 725 (char 750)",
+          "at": "2026-09-10T02:02:04.529+00:00"
+        },
+        "protocol_scope": "action",
+        "feedback": null,
+        "audit_boundary_id": "",
+        "active_step_id": "S2",
+        "active_step_revision": 2,
+        "rejection_count": 2,
+        "action_executed": false
+      }
+    },
+    {
+      "type": "run_blocked",
+      "payload": {
+        "reason": "identical_success_budget_exhausted",
+        "decision_id": "",
+        "output_source": "none",
+        "controller_rewritten": false,
+        "final_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_output": "",
+        "resumable": true,
+        "termination_permitted": false,
+        "continuation": "explicit_manual_resume_only",
+        "at": "2026-09-10T02:02:13.273+00:00"
+      }
+    }
+  ],
+  "writes": [
+    {
+      "action_id": "A00001",
+      "operation": "write_file",
+      "path": "main.py",
+      "content_sha256": "c748337bba72591c6ba36e5f15cc8a27b6922eac4bedffc51047802e84e5b448",
+      "workspace_before": "6b982b04e224b998e8fdfd23c3ff16f2f64046e4993fa0de4c221a639c549aa9",
+      "workspace_after": "6c7ee3719cbc939dbda5f3ed02ea1b1c2b5eca09a317687690c81a0f20321b18"
+    },
+    {
+      "action_id": "A00002",
+      "operation": "write_file",
+      "path": "main.py",
+      "content_sha256": "c748337bba72591c6ba36e5f15cc8a27b6922eac4bedffc51047802e84e5b448",
+      "workspace_before": "6c7ee3719cbc939dbda5f3ed02ea1b1c2b5eca09a317687690c81a0f20321b18",
+      "workspace_after": "6c7ee3719cbc939dbda5f3ed02ea1b1c2b5eca09a317687690c81a0f20321b18"
+    },
+    {
+      "action_id": "A00003",
+      "operation": "write_file",
+      "path": "main.py",
+      "content_sha256": "c748337bba72591c6ba36e5f15cc8a27b6922eac4bedffc51047802e84e5b448",
+      "workspace_before": "6c7ee3719cbc939dbda5f3ed02ea1b1c2b5eca09a317687690c81a0f20321b18",
+      "workspace_after": "6c7ee3719cbc939dbda5f3ed02ea1b1c2b5eca09a317687690c81a0f20321b18"
+    }
+  ],
+  "audit_sha256": "18f99c27e3f266ef923a5e8b6406520acb3a2f964cececacd67b5b94d6c743dd",
+  "script_sha256": "1b894af06c459c9aaba109a5e0e03f981bbcd9da4adbc482fae5011942ec00df",
+  "purpose": "diagnostic observation only; no role labels or rescore"
+}

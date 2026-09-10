@@ -4,6 +4,8 @@
 
 最新官方配置实测 [UltraData R5](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。2 题默认 high 思考独占 32768 输出 token，1 题第二步工具/参数失败；14 次 Native 完整输入 token 精确核验通过。该轮发现的扩展工具 trace 重建缺失已在后续 R1 工程整改修复，旧轮结果未重评分。正式角色训练仍为 0，12 题新预登记尚未生成，已明确关闭并待修复后全量重新登记。
 
+最新 [UltraData 官方 R6](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R6_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 3、动作 6**；三题均拿到计划并写入文件，0 个 Strong 请求失败，29/29 角色交接完整核验。终止于无进展、工具/参数拒绝和 Step Auditor 协议错误。Selector 12 条自动标签、27 条待复核；execute/confirmation 缺失，跨切分相似度超限，不能训练。固定 12 题 REALPROJECT 官方 R3 已启动，源码 e7c455b6 保持冻结。
+
 ## 当前整改与验证状态
 
 [官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；算法不能成为额外不可变目标的提示修订待真实采集验证。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。实际训练仍为 0，下一步为固定 3+12 题的新轮采集。
