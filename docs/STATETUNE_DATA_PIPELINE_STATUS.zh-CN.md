@@ -1,6 +1,6 @@
 # StateTune 管线现状
 
-更新日期：2026-09-09，当前轮 `RWKV29_DEPLOY_COMPAT_R1_20260909`。Agent 最近完整实测仍为历史 R7 双臂各 Strict 0/12、completed 0/12、mutation 0；本轮未新增 Agent 成绩或训练 run。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)，2.9B 服务及训练数值后端验证见 [部署报告](../data/experiments/RWKV29_DEPLOY_COMPAT_R1_20260909/REPORT.zh-CN.md)。
+更新日期：2026-09-10，当前轮 `STATETUNE_DRIVER_INTEGRATION_R2_20260910`。Agent 最近完整开发实测为 REALPROJECT R1：Strict 0/12、completed 0/12、mutation 0、动作 0；10 题旧 Planner 网关 HTTP 500，2 题 Native State 边界错误。官方 DeepSeek 的独立计划请求已成功，但还没有该配置下的完整 Agent 成绩。新训练/评测入口完整回归 **1390 passed、0 skipped**，真实 optimizer steps 仍为 0。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
 
 ## 当前具备的能力
 
@@ -14,16 +14,20 @@
 | 完整输入 token | 可保存并证明服务器返回的 full input/BOS；未返回或仅有 delta 的来源仍标未证明 |
 | 正式角色数据 | 本轮未创建 `data/datasets/` 版本，没有合格生产样本量或冻结回归的新增结论 |
 | Native 数值训练后端 | 当前唯一 `statetune_native_model` / `statetune_native_recurrence`；共享 `RWKV7Layout`，2.9B zero/非零 State 全词表对齐、16384 token 反向及冻结底模核验通过 |
-| 优化器训练入口 | 正式角色数据消费、优化器 run 登记与候选验收仍须接通；当前数值验证没有 optimizer steps，抽取器本身不训练 |
+| 正式数据消费 | `scripts/run_state_tune.py freeze` 重新从生产 trace 抽取并核对完整候选清单，原子发布 train 与固定 regression；训练入口仅解析 train |
+| 优化器训练入口 | `scripts/run_state_tune.py train`：完整源码/模型/数值兼容登记、State-only AdamW、真实 step 与中断日志、候选导出及同一服务 loader 校验；机制单测不计实际角色训练 |
+| 固定角色回归 | `scripts/run_state_tune.py evaluate`：当前阶段 Selector，从持久化快照调用同一输入 builder、Native 服务及生产三菜单投票；固定 dev/confirmation 同时比较 zero/候选，逐菜单与最终投票都不得退化 |
 | 当前角色 State 改善 | 未训练、未得到新 State，也没有修复后 Agent 提升证据 |
 
 当前数据接口与文件字段详见 [生产 trace 使用说明](ROLE_TRACE_DATASET.zh-CN.md)。测试 mock、作者参考实现和私有验收不能填充正式角色数据数量。
+
+评测规则须在优化器之前登记。Selector 同时报告菜单准确率、完整三菜单组准确率、服务失败与未运行数量；缺少的菜单不补造、不额外调用，不完整组单独报告。zero 已达标且候选没有改善时优先保留 zero 作为该阶段基线。角色合格只决定是否进入下一阶段采集，评测器始终不宣称 Agent 正式保留通过。后续角色的语义评测必须沿用既有独立复核标准，不能把 Selector 的分类评分直接套给 Auditor 或 Finalizer。
 
 ## 按角色推进，不以 Agent 达标作为训练前提
 
 Selector 先学习正确工具选择；足够数据和本阶段验证条件满足后训练。固定合格 Selector 后继续真实参数填写与执行，收集 Executor 的失败恢复与正确执行，再依次推进 Step Auditor、Finalizer、Final Auditor。每一步只要求当前角色的预注册覆盖；未到达后序角色会减少那些角色的数据，不会使前序角色自动无效。
 
-R7 停在首次目录观察后的错误控制分支，第二个动作还没有发生。修复该控制流使后续动作可以发生，但不能据此预报后序模型已经正确。训练所需的“合格 trace”指输入、原始输出、State、因果与标签可信，并不要求任务已经成功；语义错误可以在同一真实边界复核纠正。只有缺失关键原始事实或矛盾的来源不能靠补造恢复。
+历史 R7 停在首次目录观察后的错误控制分支；随后控制流整改后的真实采集又暴露旧网关与数值 State 边界问题。后者已通过真实 GPU 的精确前缀、重试与重启验证，仍需新完整任务验证后续角色。训练所需的“合格 trace”指输入、原始输出、State、因果与标签可信，并不要求任务已经成功；语义错误可以在同一真实边界复核纠正。只有缺失关键原始事实或矛盾的来源不能靠补造恢复。
 
 Agent Strict、完成率、mutation 和终止原因持续观察；最终组合仍按既有 Agent 验收和消融决定是否保留。只换目标 State 的阶段比较与整个 Agent 是否达标分别登记。
 

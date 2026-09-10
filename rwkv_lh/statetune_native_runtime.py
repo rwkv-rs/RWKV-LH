@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import sys
 from typing import Any, Mapping
 
 from rwkv_lh import statetune_core as a
+from rwkv_lh.inference.uploaded_sources import PROJECT_SCHEMA, verify_manifest
 
 NATIVE_RUNTIME_VERSION = "rwkv-lh.statetune-native-runtime.v2"
 NATIVE_BUILD_VERSION = "rwkv-lh.statetune-native-build.v1"
@@ -41,22 +42,12 @@ def _sealed_ref(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def verify_project_source(reference: Mapping[str, Any], source_root: Path) -> None:
-    manifest = _sealed_ref(reference)
-    a.require(manifest.get("schema_version") == "rwkv-lh.uploaded-project-source.v1"
-              and Path(manifest["remote_root"]).resolve() == source_root.resolve(),
-              "native project source root or manifest version differs")
-    expected = {}
-    for row in manifest["files"]:
-        path = PurePosixPath(row["path"])
-        a.require(not path.is_absolute() and '..' not in path.parts and row["path"] not in expected,
-                  "native source path is unsafe or duplicated")
-        expected[row["path"]] = (row["sha256"], row["bytes"])
-    actual = {}
-    for path in source_root.rglob('*'):
-        a.require(not path.is_symlink(), "native project source contains a symlink")
-        if path.is_file() and '__pycache__' not in path.parts:
-            actual[path.relative_to(source_root).as_posix()] = (a.sha256_file(path), path.stat().st_size)
-    a.require(bool(expected) and actual == expected, "complete native project source inventory differs")
+    a.require(set(reference) == {"path", "sha256"}, "native source requires an exact sealed reference")
+    try:
+        verify_manifest(Path(reference["path"]), reference["sha256"],
+                        expected_schema=PROJECT_SCHEMA, expected_root=source_root.resolve())
+    except RuntimeError as exc:
+        raise ValueError(f"native source admission failed: {exc}") from exc
 
 
 def verify_build(build: Mapping[str, Any], source_root: Path) -> None:

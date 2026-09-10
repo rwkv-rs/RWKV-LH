@@ -1,6 +1,6 @@
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
-更新日期：2026-09-10。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。最新完整开发采集为 REALPROJECT R1：Strict 0/12、completed 0/12、mutation 0、动作 0；10 题强模型网关 HTTP 500，2 题 Native 生成 State 边界错误。交接 R1 后的真实测试尚未完成闭环；当前 R2 数值整改完整回归 1341 passed、0 skipped，两道原始失败输入的 GPU 验证及服务重启验证已通过。工程验证不替代 Agent 验收，optimizer steps 仍为 0。各轮原始结果、当前状态及 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
+更新日期：2026-09-10。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。最新完整开发采集为 REALPROJECT R1：Strict 0/12、completed 0/12、mutation 0、动作 0；10 题强模型网关 HTTP 500，2 题 Native 生成 State 边界错误。交接 R1 后的真实测试尚未完成闭环；R2 数值整改两道原始失败输入的 GPU 及重启验证已通过；最新 StateTune 入口整合完整回归 1390 passed、0 skipped，固定 Selector 回归与优化器入口已接通，2.9B 新部署后端数值复验通过。工程验证不替代 Agent 验收，optimizer steps 仍为 0。各轮原始结果、当前状态及 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
 
 已修复 REPAIR 的无条件改计划分支、根证据固定八条截断及数据标签等工程问题。当前工作流程是先 Selector，满足当前角色的来源、标签、预注册覆盖与验证条件后训练，再固定前序 State 推进下一角色。Agent 能力低分不再作为训练前禁令。owner 已取消固定三轮上限；历史训练事实用于追溯，后续按指标、预算和实际 run 管理。
 
