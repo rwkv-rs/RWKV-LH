@@ -1,14 +1,14 @@
 # 当前交接
 
-更新日期：2026-09-10。最新完整开发采集 [REALPROJECT R1](../data/experiments/REALPROJECT_HANDOFF_COLLECTION_R1_20260910/REPORT.zh-CN.md)：**Strict 0/12、completed 0/12、mutation 0、动作 0**；10 题 Planner 网关 HTTP 500，2 题 Executor 参数重试前 Native State 边界错误。另一次 [UltraData R4](../data/experiments/ULTRADATA_COLLECTION_R4_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。两轮全部结束并封存，optimizer steps 仍为 **0**。
+更新日期：2026-09-10。最新完整开发采集 [REALPROJECT 官方 R3](../data/experiments/REALPROJECT_OFFICIAL_COLLECTION_R3_20260910/REPORT.zh-CN.md)：**Strict 0/12、completed 0/12、mutation 0、动作 43**；12 题均取得初始计划。7 题无进展、2 题参数/工具协议拒绝、1 题 Native create 未确认、1 题 Step Auditor 协议拒绝、1 题命令执行失败。全部已返回的 117 次角色交接通过输入字节及完整 token 核验；不是全链路语义验收通过。optimizer steps 仍为 **0**。
 
-最新官方配置实测 [UltraData R5](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。2 题默认 high 思考独占 32768 输出 token，1 题第二步工具/参数失败；14 次 Native 完整输入 token 精确核验通过。该轮发现的扩展工具 trace 重建缺失已在后续 R1 工程整改修复，旧轮结果未重评分。正式角色训练仍为 0，12 题新预登记尚未生成，已明确关闭并待修复后全量重新登记。
+此前第三方网关 [REALPROJECT R1](../data/experiments/REALPROJECT_HANDOFF_COLLECTION_R1_20260910/REPORT.zh-CN.md) 为 Strict 0/12、completed 0/12、mutation 0、动作 0，10 题 HTTP 500、2 题 Native 边界失败。官方 [UltraData R5](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md) 为 Strict 0/3、completed 0/3、mutation 0、动作 1，2 题默认 high 思考耗尽输出。这些历史结果保持原评分；旧 REALPROJECT 官方 R2 只预备、从未生成，已关闭。
 
-最新 [UltraData 官方 R6](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R6_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 3、动作 6**；三题均拿到计划并写入文件，0 个 Strong 请求失败，29/29 角色交接完整核验。终止于无进展、工具/参数拒绝和 Step Auditor 协议错误。Selector 12 条自动标签、27 条待复核；execute/confirmation 缺失，跨切分相似度超限，不能训练。固定 12 题 REALPROJECT 官方 R3 已启动，源码 e7c455b6 保持冻结。
+最新 [UltraData 官方 R6](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R6_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 3、动作 6**；三题均拿到计划并写入文件，0 个 Strong 请求失败，29/29 角色交接完整核验。终止于无进展、工具/参数拒绝和 Step Auditor 协议错误。3+12 题已全部结束，均使用冻结源码 e7c455b6。
 
 ## 当前整改与验证状态
 
-[官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；算法不能成为额外不可变目标的提示修订待真实采集验证。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。实际训练仍为 0，下一步为固定 3+12 题的新轮采集。
+[官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；新 3+12 题全部取得计划，仍有计划补丁语义拒绝。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。新采集发现 Harness 将 python3 二进制误当 Python script，须进入下一工程轮修复；另有一次 Native create 未确认待核实。
 
 [交接结构整改 R1](../data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md) 已提交 `82319f95`：原始需求贯穿 Executor / Step Auditor，参数拒绝由同一步的 Selector / Executor 接收，路径资格和执行权限共用参数合同，逻辑交接及事实提交与 Native 缓存物化分开。完整回归 1321 passed、0 skipped；随后真实采集暴露新的数值边界缺陷，因此不能将工程通过称作完整交接验收通过。
 
@@ -31,9 +31,9 @@
 
 Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标、预算和实际 optimizer steps 管理；授权持续有效，不重复询问。Agent 低分和后序角色未到达不构成首轮训练禁令。
 
-当前角色是 Selector。UltraData R4 有 1 次交接 / 3 菜单求值，3 条自动候选均 train；REALPROJECT R1 有 2 次交接 / 6 菜单求值，6 条均待独立复核。两轮没有足够的 mutate / execute / missing-target 证据，尚未满足原预注册 30 条验证菜单、10 个不同边界及固定 train/dev/confirmation 非空条件。没有合格正式数据集，不把错误参数或协议通过直接标成正确工具选择。
+当前角色是 Selector。最新 3+12 题合并后有 81 条自动标签（train 76 / dev 3 / confirmation 2）、126 条待独立复核；原登记的 execute / mutate / missing_target / py_root 覆盖及三切分非空均已通过。386 对跨切分比较有 113 对超过 0.95，候选 INVALID。当前障碍是切分污染和纠错标签复核，不能继续表述为没有足够原始边界或任何 execute。九边界的具体复核包已提交，owner 的独立强模型离线复核提议尚未答复，不能冒充双人人工签名。
 
-R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通并冻结。下一步使用官方 DeepSeek Planner 在当前源码上完成固定 3+12 题的新采集。当前角色来源和覆盖合格后执行已授权 StateTune；合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
+R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通。先处理已发现的通用命令执行缺陷，保留本轮原始结果；当前角色数据合格后执行已授权 StateTune，合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 
 已封存结果不续跑或重评分。Real Agent Holdout V2 保持隔离，未读取，仅最终验收一次使用。Owner 负责 push；本地已提交 R4 `70f5ae0a`、REALPROJECT R1 `f9a37498`，各轮完整 SHA 清单位于实验目录的 `EVIDENCE_SHA256.json`。
 

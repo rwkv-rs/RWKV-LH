@@ -1,0 +1,479 @@
+{
+  "case": "RP-WEB-02",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "operation": "list_directory",
+      "arguments": {
+        "path": ".",
+        "recursive": false,
+        "max_entries": 1024,
+        "start_after": "",
+        "max_tokens": 4096
+      },
+      "status": "succeeded",
+      "error": null,
+      "result_metadata": {
+        "path": ".",
+        "recursive": false,
+        "entries": [
+          {
+            "path": "README.md",
+            "type": "file",
+            "size_bytes": 1709
+          }
+        ],
+        "entry_count": 1,
+        "truncated": false,
+        "next_cursor": "",
+        "complete": true
+      },
+      "output_excerpt": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1709, \"type\": \"file\"}], \"entry_count\": 1, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}"
+    },
+    {
+      "action_id": "A00002",
+      "operation": "search_text",
+      "arguments": {
+        "pattern": "startup command",
+        "path": "README.md",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 4000,
+        "start_after": "",
+        "mode": "regex",
+        "case_sensitive": true
+      },
+      "status": "succeeded",
+      "error": null,
+      "result_metadata": {
+        "contract_digest": "549982a61f3fe0550c685f3a1819882ac3e9d81ce1474d221dbdefea695ea09c",
+        "match_count": 0,
+        "files_considered": 1,
+        "files_searched": 1,
+        "skipped_file_count": 0,
+        "truncated": false,
+        "complete": true,
+        "next_cursor": "",
+        "observed_tokens": 139
+      },
+      "output_excerpt": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"README.md\", \"pattern\": \"startup command\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}"
+    },
+    {
+      "action_id": "A00003",
+      "operation": "check_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "status": "failed",
+      "error": {
+        "type": "CommandFailed",
+        "message": "exit code 1; expected 0"
+      },
+      "result_metadata": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "resolved_argv": [
+          "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "executable_resolution": "project_runtime_console_script",
+        "cwd": ".",
+        "output_truncated": false,
+        "command_streams": {
+          "stdout": {
+            "start_byte": 0,
+            "end_byte": 0,
+            "chars": 0,
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "start_byte": 0,
+            "end_byte": 115,
+            "chars": 115,
+            "bytes": 115,
+            "sha256": "66622338d33cf8b25df11cb38bc169050582d4c4d64adc5da085ae3aa0e58558"
+          }
+        },
+        "sandboxed": true,
+        "sandbox_backend": "bubblewrap",
+        "expected_exit_code": 0,
+        "exit_code_matched": false
+      },
+      "output_excerpt": "  File \"/opt/rwkv-lh-python/bin/python3.13\", line 1\n    ELF\u0002\u0001\u0001\nSyntaxError: source code cannot contain null bytes\n"
+    },
+    {
+      "action_id": "A00004",
+      "operation": "check_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "status": "failed",
+      "error": {
+        "type": "CommandFailed",
+        "message": "exit code 1; expected 0"
+      },
+      "result_metadata": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "resolved_argv": [
+          "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "executable_resolution": "project_runtime_console_script",
+        "cwd": ".",
+        "output_truncated": false,
+        "command_streams": {
+          "stdout": {
+            "start_byte": 0,
+            "end_byte": 0,
+            "chars": 0,
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "start_byte": 0,
+            "end_byte": 115,
+            "chars": 115,
+            "bytes": 115,
+            "sha256": "66622338d33cf8b25df11cb38bc169050582d4c4d64adc5da085ae3aa0e58558"
+          }
+        },
+        "sandboxed": true,
+        "sandbox_backend": "bubblewrap",
+        "expected_exit_code": 0,
+        "exit_code_matched": false
+      },
+      "output_excerpt": "  File \"/opt/rwkv-lh-python/bin/python3.13\", line 1\n    ELF\u0002\u0001\u0001\nSyntaxError: source code cannot contain null bytes\n"
+    },
+    {
+      "action_id": "A00005",
+      "operation": "check_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "status": "failed",
+      "error": {
+        "type": "CommandFailed",
+        "message": "exit code 1; expected 0"
+      },
+      "result_metadata": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "resolved_argv": [
+          "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "executable_resolution": "project_runtime_console_script",
+        "cwd": ".",
+        "output_truncated": false,
+        "command_streams": {
+          "stdout": {
+            "start_byte": 0,
+            "end_byte": 0,
+            "chars": 0,
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "start_byte": 0,
+            "end_byte": 115,
+            "chars": 115,
+            "bytes": 115,
+            "sha256": "66622338d33cf8b25df11cb38bc169050582d4c4d64adc5da085ae3aa0e58558"
+          }
+        },
+        "sandboxed": true,
+        "sandbox_backend": "bubblewrap",
+        "expected_exit_code": 0,
+        "exit_code_matched": false
+      },
+      "output_excerpt": "  File \"/opt/rwkv-lh-python/bin/python3.13\", line 1\n    ELF\u0002\u0001\u0001\nSyntaxError: source code cannot contain null bytes\n"
+    },
+    {
+      "action_id": "A00006",
+      "operation": "check_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "status": "failed",
+      "error": {
+        "type": "CommandFailed",
+        "message": "exit code 1; expected 0"
+      },
+      "result_metadata": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "resolved_argv": [
+          "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "executable_resolution": "project_runtime_console_script",
+        "cwd": ".",
+        "output_truncated": false,
+        "command_streams": {
+          "stdout": {
+            "start_byte": 0,
+            "end_byte": 0,
+            "chars": 0,
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "start_byte": 0,
+            "end_byte": 115,
+            "chars": 115,
+            "bytes": 115,
+            "sha256": "66622338d33cf8b25df11cb38bc169050582d4c4d64adc5da085ae3aa0e58558"
+          }
+        },
+        "sandboxed": true,
+        "sandbox_backend": "bubblewrap",
+        "expected_exit_code": 0,
+        "exit_code_matched": false
+      },
+      "output_excerpt": "  File \"/opt/rwkv-lh-python/bin/python3.13\", line 1\n    ELF\u0002\u0001\u0001\nSyntaxError: source code cannot contain null bytes\n"
+    },
+    {
+      "action_id": "A00007",
+      "operation": "check_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "status": "failed",
+      "error": {
+        "type": "CommandFailed",
+        "message": "exit code 1; expected 0"
+      },
+      "result_metadata": {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "resolved_argv": [
+          "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+          "/home/chase/GitHub/RWKV-LH/.venv/bin/python3",
+          "-c",
+          "import sys; print('python3', sys.version_info.major, sys.version_info.minor, sys.version_info.micro)"
+        ],
+        "executable_resolution": "project_runtime_console_script",
+        "cwd": ".",
+        "output_truncated": false,
+        "command_streams": {
+          "stdout": {
+            "start_byte": 0,
+            "end_byte": 0,
+            "chars": 0,
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "start_byte": 0,
+            "end_byte": 115,
+            "chars": 115,
+            "bytes": 115,
+            "sha256": "66622338d33cf8b25df11cb38bc169050582d4c4d64adc5da085ae3aa0e58558"
+          }
+        },
+        "sandboxed": true,
+        "sandbox_backend": "bubblewrap",
+        "expected_exit_code": 0,
+        "exit_code_matched": false
+      },
+      "output_excerpt": "  File \"/opt/rwkv-lh-python/bin/python3.13\", line 1\n    ELF\u0002\u0001\u0001\nSyntaxError: source code cannot contain null bytes\n"
+    }
+  ],
+  "role_calls": {
+    "executor_args": 8,
+    "auditor_step": 2
+  },
+  "first_protocol_rejection": {
+    "event_id": "CE-000030",
+    "sequence": 30,
+    "type": "protocol_rejection_recorded",
+    "payload": {
+      "feedback": null,
+      "request_id": "MR-b440cec249b54dc4",
+      "selected_operation": "search_text",
+      "rejected_arguments": {
+        "pattern": "startup command",
+        "path": ".",
+        "recursive": true,
+        "max_results": 100,
+        "max_tokens": 4096,
+        "max_file_bytes": 5000000,
+        "max_line_chars": 4000,
+        "start_after": "",
+        "mode": "regex",
+        "case_sensitive": true
+      },
+      "error": "[operation_target_contract] selected operation arguments are not Harness-compatible: path='.' is outside roots=['README.md']; compatible_targets={'path': {'access': 'read', 'scope_roots': ['README.md'], 'compatible_paths': ['README.md'], 'creatable_roots': [], 'discovery_complete': True, 'availability': 'available'}}",
+      "active_step_id": "S7",
+      "action_executed": false
+    }
+  },
+  "first_audit_events": [
+    {
+      "event_id": "CE-000017",
+      "sequence": 17,
+      "type": "goal_audit_recorded",
+      "payload": {
+        "audit": {
+          "schema_version": "rwkv-lh.goal-audit-decision.v1",
+          "audit_id": "AUD-5abd20db993b4426",
+          "verdict": "continue",
+          "step_id": "S1",
+          "evidence_refs": [
+            "A00001"
+          ],
+          "gaps": [],
+          "completed_steps": [
+            {
+              "step_id": "S1",
+              "evidence_refs": [
+                "A00001"
+              ]
+            }
+          ],
+          "reason": "evidence_complete"
+        },
+        "request_id": "MR-d033e9a8b0f74fb9"
+      }
+    },
+    {
+      "event_id": "CE-000019",
+      "sequence": 19,
+      "type": "goal_audit_accepted",
+      "payload": {
+        "audit": {
+          "schema_version": "rwkv-lh.goal-audit-decision.v1",
+          "audit_id": "AUD-5abd20db993b4426",
+          "verdict": "continue",
+          "step_id": "S1",
+          "evidence_refs": [
+            "A00001"
+          ],
+          "gaps": [],
+          "completed_steps": [
+            {
+              "step_id": "S1",
+              "evidence_refs": [
+                "A00001"
+              ]
+            }
+          ],
+          "reason": "evidence_complete"
+        },
+        "feedback": null,
+        "request_id": "MR-d033e9a8b0f74fb9"
+      }
+    },
+    {
+      "event_id": "CE-000021",
+      "sequence": 21,
+      "type": "goal_audit_boundary_resolved",
+      "payload": {}
+    }
+  ],
+  "last_audit_events": [
+    {
+      "event_id": "CE-000071",
+      "sequence": 71,
+      "type": "goal_audit_boundary_resolved",
+      "payload": {
+        "active_step_id": "S8"
+      }
+    },
+    {
+      "event_id": "CE-000084",
+      "sequence": 84,
+      "type": "goal_audit_boundary_resolved",
+      "payload": {
+        "active_step_id": "S8"
+      }
+    },
+    {
+      "event_id": "CE-000097",
+      "sequence": 97,
+      "type": "goal_audit_boundary_resolved",
+      "payload": {
+        "active_step_id": "S8"
+      }
+    }
+  ],
+  "termination": [
+    {
+      "event_id": "CE-000107",
+      "sequence": 107,
+      "type": "run_blocked",
+      "payload": {
+        "reason": "identical_failure_budget_exhausted",
+        "resumable": true,
+        "controller_rewritten": false
+      }
+    }
+  ]
+}
