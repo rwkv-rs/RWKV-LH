@@ -74,17 +74,19 @@ owner 于 2026-09-09 要求 Planner 使用强模型。本地已有的强模型�
 | 配置 | 当前值 |
 |---|---|
 | `RWKV_LH_PLANNER_BACKEND_PROFILE` | `openai-compatible` |
-| `RWKV_LH_PLANNER_STREAM` | `true`，当前网关使用 SSE；通用程序默认 false，原生 RWKV 传输不受此开关影响 |
-| Planner / Stage Checker 模型 alias | `gpt-5.6-sol` |
-| base URL | owner 已配置的 `https://next-token.cc/v1`；不在代码中固定服务地址 |
-| `RWKV_LH_PLANNER_MAX_PLAN_TOKENS` | `8192` |
-| `RWKV_LH_PLANNER_READ_TIMEOUT` | `240` 秒，两个 Supervisor 角色共用 |
-| `RWKV_LH_PLANNER_MAX_CONTRACT_REVIEW_TOKENS` | Stage Checker 保持 `2400` |
+| `RWKV_LH_PLANNER_STREAM` | `true`，官方服务使用 SSE；通用程序默认 false，原生 RWKV 传输不受此开关影响 |
+| Planner / Stage Checker 模型 alias | `deepseek-v4-pro` |
+| base URL | owner 于 2026-09-10 选择的官方 `https://api.deepseek.com`；不在代码中固定服务地址 |
+| `RWKV_LH_PLANNER_MAX_PLAN_TOKENS` | `32768` |
+| `RWKV_LH_PLANNER_READ_TIMEOUT` | `600` 秒，两个 Supervisor 角色共用 |
+| `RWKV_LH_PLANNER_MAX_CONTRACT_REVIEW_TOKENS` | Stage Checker `16384` |
 | `RWKV_LH_PLANNER_PLAN_CACHE_ENABLED` | `false` |
 | `RWKV_LH_PLANNER_FALLBACK_MODELS` | 空 |
 | 本地语义纠错 / 传输尝试 | 默认 1 次语义纠错；最多 2 次传输尝试，协议错误不消耗传输重试 |
 
-当前通过 `/chat/completions` 发送生产 `GoalPlanRequest` / `GoalStageReviewRequest`，使用 `response_format=json_object` 并显式发送输出 token 上限。当前网关对完整非流式 Planner 请求返回过 HTTP 500，相同输入的 SSE 诊断成功；这支持配置流式传输，但不能据此断言网关内部故障原因。流式实现保留同一请求串行锁直到读完，拼接标准 SSE 文本增量后才做 JSON/合同校验；缺少 DONE/finish、切换 model、多个 choice、结束后追加内容均拒绝，读取预算按中断处理。通用聊天与原生 RWKV 传输都要求自然 `stop`，`length` 即使伴随完整 JSON 也拒绝；未知停止原因不伪装成完成。Planner 只生成计划，Stage Checker 只审查已完成阶段；五个 RWKV 角色继续使用各自模型与 State。
+2026-09-10 已按 owner 指令切换 DeepSeek 官方服务。真实公开任务计划一次调用成功，4 阶段 6 步，生成 12314 tokens（思考 10919），耗时 200.37 秒。后续读取预算按新 token 上限登记为 600 秒；不得将旧网关错误或探针成功改写成整题 Agent 成绩。详情见 [官方接入证据](../data/experiments/DEEPSEEK_OFFICIAL_PLANNER_R1_20260910/REPORT.zh-CN.md)。
+
+当前通过 `/chat/completions` 发送生产 `GoalPlanRequest` / `GoalStageReviewRequest`，使用 `response_format=json_object` 并显式发送输出 token 上限。此前第三方网关对完整非流式 Planner 请求返回过 HTTP 500，相同输入的 SSE 诊断成功；这支持配置流式传输，但不能据此断言网关内部故障原因。流式实现保留同一请求串行锁直到读完，拼接标准 SSE 文本增量后才做 JSON/合同校验；缺少 DONE/finish、切换 model、多个 choice、结束后追加内容均拒绝，读取预算按中断处理。通用聊天与原生 RWKV 传输都要求自然 `stop`，`length` 即使伴随完整 JSON 也拒绝；未知停止原因不伪装成完成。Planner 只生成计划，Stage Checker 只审查已完成阶段；五个 RWKV 角色继续使用各自模型与 State。
 
 完整 JSON 未满足当前合同或初始/续写边界时，保留原始对象，使用 `GoalPlanResponseError` 进入 Controller 已有的语义纠错；错误说明指出缺失/多余字段，原始计划放在同一请求尾部。被拒绝的对象没有修改计划的权威，不准重写 root、发明字段、接纳旧版本或拼补截断 JSON。网络失败仍保留 pending 与原传输错误。RWKV 原生传输适配作为同一协议的 backend 配置继续可用；其历史验证见 [原生适配报告](../data/experiments/VLLM_RWKV_SUPERVISOR_ADAPTER_R1_20260907/REPORT.zh-CN.md)。
 

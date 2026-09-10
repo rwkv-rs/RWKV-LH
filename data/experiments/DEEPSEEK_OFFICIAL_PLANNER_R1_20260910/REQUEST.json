@@ -1,0 +1,37 @@
+{
+  "run_id": "DEEPSEEK-PLANNER-PROBE",
+  "goal_digest": "556fc5b520f5b7103465519e0a3ab1549233c8c23c4c6b3f1286af7e6e28eb4c",
+  "plan_revision": 0,
+  "active_plan": {
+    "goal_digest": "556fc5b520f5b7103465519e0a3ab1549233c8c23c4c6b3f1286af7e6e28eb4c",
+    "goal_obligations": [],
+    "uncovered_obligation_phases": {},
+    "batch_complete": false,
+    "goal_coverage_complete": false,
+    "stages": [],
+    "frontier_step_ids": [],
+    "current_stage": null,
+    "completed_stages": [],
+    "discarded_step_ids": [],
+    "plan_revision": 0
+  },
+  "latest_audit": null,
+  "latest_stage_review": null,
+  "workspace_manifest": {
+    "entries": [
+      {
+        "path": ".",
+        "type": "directory",
+        "target_kind": "directory",
+        "exists": true
+      }
+    ],
+    "truncated": false,
+    "complete": true,
+    "entry_count": 1,
+    "next_cursor": ""
+  },
+  "recent_action_facts": [],
+  "repair_feedback": null,
+  "current_requirement": "AtCoder's office is divided into an $ R \\times C $ grid ($ R $ rows and $ C $ columns), where each cell can either contain an employee's desk, a server rack, or be an empty space.  \n In a region of AtCoder, winter is cold, and to save on heating costs, it was decided to only enclose the necessary spaces in the office.  \n However, due to material constraints, the enclosed area must be a rectangular region parallel to the grid lines.  \n Therefore,\n\n- Immediately above the topmost row with a desk or server rack,\n- Immediately below the bottommost row with a desk or server rack,\n- Immediately left of the leftmost column with a desk or server rack,\n- Immediately right of the rightmost column with a desk or server rack\n\nThese four boundaries were enclosed with walls.  \n The enclosed area became an $ X \\times Y $ grid ($ X $ rows and $ Y $ columns).  \n Additionally, the office contains $ D $ desks and $ L $ server racks.  \n Write a program to determine the number of possible patterns for the arrangement of desks and server racks in the office, modulo $ 1000000007 = 10^9+7 $.  \n The input is given from the standard input in the following format: > $ R $ $ C $ $ X $ $ Y $ $ D $ $ L $\n\n1. The first line contains integers $ R, C (1 ≦ R, C ≦ 30) $ representing the number of rows and columns in the office grid, separated by spaces.\n2. The second line contains integers $ X, Y (1 ≦ X ≦ R, 1 ≦ Y ≦ C) $ representing the number of rows and columns in the enclosed area, separated by spaces.\n3. The third line contains integers $ D, L (D, L ≧ 0, 1 ≦ D+L ≦ X \\times Y) $ representing the number of desks and server racks in the office, separated by spaces.\n\nOutput the number of possible patterns for the arrangement of desks and server racks in the office, modulo $ 1000000007 = 10^9+7 $, on a single line.  \nEnsure a newline at the end of the output. If you correctly solve all test cases where $ D+L = X \\times Y $, you will receive $ 100 $ out of $ 101 $ points.  \nThe full solution is very difficult, so consider starting by securing partial points.\n\n```\n<pre class=\"prettyprint linenums\">\n3 2\n2 2\n2 2\n```\n\n```\n<pre class=\"prettyprint linenums\">\n12\n```\n\n- This case satisfies $ D+L=X \\times Y $ and may be included in the partial points test cases.\n- There are $ 12 $ possible arrangements, where `D` is a desk, `L` is a server rack, and `.` is an empty space.\n\n```\nDD  DL  DL  LD  LD  LL  ..  ..  ..  ..  ..  ..\nLL  DL  LD  DL  LD  DD  DD  DL  DL  LD  LD  LL\n..  ..  ..  ..  ..  ..  LL  DL  LD  DL  LD  DD\n```\n\n```\n<pre class=\"prettyprint linenums\">\n4 5\n3 1\n3 0\n```\n\n```\n<pre class=\"prettyprint linenums\">\n10\n```\n\n- This case satisfies $ D+L=X \\times Y $ and may be included in the partial points test cases.\n\n```\n<pre class=\"prettyprint linenums\">\n23 18\n15 13\n100 95\n```\n\n```\n<pre class=\"prettyprint linenums\">\n364527243\n```\n\n- This case satisfies $ D+L=X \\times Y $ and may be included in the partial points test cases.\n- The number of office layout patterns is $ 145180660592914517790287604376765671109248284280228061640640 $, and you should output the remainder when divided by $ 10^9+7 $, which is $ 364527243 $.\n\n```\n<pre class=\"prettyprint linenums\">\n30 30\n24 22\n145 132\n```\n\n```\n<pre class=\"prettyprint linenums\">\n976668549\n```\n\n- This case does not satisfy $ D+L=X \\times Y $ and will not be included in the partial points test cases.\n- Do not force a solution; only attempt if you have spare capacity.\n\nThe input will be given via stdin and the output should be printed to stdout by your code.\n\nNow solve the problem by providing the code.\n\nSubmission contract: Implement main.py in Python 3 using the standard library. Read one test case from stdin and write the specified answer to stdout. The verifier runs each test in a fresh process, comparing UTF-8 output after removing trailing whitespace only. Limits per test: 3 seconds wall time, 512 MiB address space. Create and run your own checks before delivering."
+}

@@ -14,7 +14,7 @@
 
 产品入口 `rwkv-stateful-goal-loop.v7`，保持五个训练角色：Selector → Executor → Step Auditor → Finalizer → Final Auditor。各角色只使用唯一 builder：前三者 v6、Finalizer v2、Final Auditor v4。步骤未完成与参数失败留在当前步骤；计划调整必须有阶段或目标缺口依据。任务、阶段和步骤数量不设固定上限，资源耗尽只能中断或阻塞。详见 [链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md) 和 [唯一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)。
 
-- Planner / Stage Checker：独立强模型 `deepseek-v4-pro`，唯一配置 `.env.local`，stream=true；本次切换预注册输出上限分别 32768 / 16384，读取预算 240 秒。owner 已切换官方 `https://api.deepseek.com`，模型列表鉴权 HTTP 200，真实 Planner 验证待完成；此前第三方网关 `https://next-token.cc/v1` 多次返回 `new_api_error/do_request_failed`。不能据此推断模型生成了错误计划；UltraData R4 另有一次 HTTP 200 后流协议拒绝，旧轮未保留原始 SSE，具体事件原因仍未知。
+- Planner / Stage Checker：独立强模型 `deepseek-v4-pro`，唯一配置 `.env.local`，stream=true；本次切换预注册输出上限分别 32768 / 16384，读取预算 600 秒（本次已完成探针为 240 秒）。owner 已切换官方 `https://api.deepseek.com`，模型列表鉴权 HTTP 200，实际完整计划请求已通过，一次 HTTP 尝试、自然 stop、4 阶段 6 步，200.37 秒；此前第三方网关 `https://next-token.cc/v1` 多次返回 `new_api_error/do_request_failed`。不能据此推断模型生成了错误计划；UltraData R4 另有一次 HTTP 200 后流协议拒绝，旧轮未保留原始 SSE，具体事件原因仍未知。
 - Selector：已部署 2.9B，GPU 2，`rwkv-lh-selector-current.service`，本地端口 29621。32 层、40×64 State 已通过既有至 16384 tokens 的 Native 前向与反向机制验证；优化器未运行。
 - Executor / 两个 Auditor / Finalizer：13.3B，`rwkv-lh-native-current.service`，GPU 0，本地 29613 → 服务器 18234。独立角色 zero，不复用未验证的旧 State。
 - 当前部署根 `/home/chase/GitHub/RWKV-LH-native-boundary-r2-20260910`；项目 127 文件 manifest SHA `bad4c15874aa4996aa61b0556de9a4e45b864cf97071d30dead5f838ef77bcd3`，engine 6393 文件 manifest SHA `0861deb143507dbd77c123829be6502af9ca93f5f85c280443f08e946d9e3d96`。服务器没有使用 Git；旧 Native unit 已停止和禁用，当前服务仅导入上传的唯一项目实现。
@@ -28,3 +28,5 @@ Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标�
 R2 实际数值边界验收已封存；接通正式角色数据消费、优化器登记及固定回归验收入口，然后冻结新源码采集。当前角色来源和覆盖合格后执行已授权 StateTune；合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 
 已封存结果不续跑或重评分。Real Agent Holdout V2 保持隔离，未读取，仅最终验收一次使用。Owner 负责 push；本地已提交 R4 `70f5ae0a`、REALPROJECT R1 `f9a37498`，各轮完整 SHA 清单位于实验目录的 `EVIDENCE_SHA256.json`。
+
+历史回查：UltraData R2/R3 可核对的 22 次已提交生成全部已存在 +2 token 偏移，另 9 次未证明；见 [历史审计](../data/experiments/NATIVE_BOUNDARY_HISTORY_AUDIT_R1_20260910/REPORT.zh-CN.md)。官方切换的请求、预算和脚本局限见 [DeepSeek 验证](../data/experiments/DEEPSEEK_OFFICIAL_PLANNER_R1_20260910/REPORT.zh-CN.md)。

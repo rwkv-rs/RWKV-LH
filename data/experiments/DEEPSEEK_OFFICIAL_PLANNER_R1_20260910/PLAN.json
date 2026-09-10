@@ -1,0 +1,197 @@
+{
+  "schema_version": "rwkv-lh.goal-plan-patch.v4",
+  "patch_id": "GPP-ac94ea764dad4b4c",
+  "base_revision": 0,
+  "add_stages": [
+    {
+      "stage": 1,
+      "steps": [
+        {
+          "step_id": "S1",
+          "objective": "Inspect the fixed project workspace to identify existing files and confirm whether main.py already exists.",
+          "phase": "observe",
+          "depends_on": [],
+          "success_evidence": [
+            "Workspace inspection evidence lists project files and confirms the current state of main.py."
+          ],
+          "obligation_ids": [
+            "O1"
+          ],
+          "read_roots": [
+            "."
+          ],
+          "write_roots": [],
+          "allowed_operations": [],
+          "constraints": [
+            "Inspect the project root only; do not modify files."
+          ]
+        },
+        {
+          "step_id": "S2",
+          "objective": "Derive the exact combinatorial formula for the number of arrangements: answer = (R-X+1)*(C-Y+1)*C(D+L,D)*B modulo MOD, where B counts subsets in an X by Y rectangle with top, bottom, left, and right boundaries occupied, using inclusion-exclusion and special handling for X=1 or Y=1.",
+          "phase": "derive_evidence",
+          "depends_on": [],
+          "success_evidence": [
+            "Derivation evidence records the formula and the inclusion-exclusion expression for B, including X=1 and Y=1 cases."
+          ],
+          "obligation_ids": [
+            "O2"
+          ],
+          "read_roots": [],
+          "write_roots": [],
+          "allowed_operations": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "steps": [
+        {
+          "step_id": "S3",
+          "objective": "Implement the derived formula in main.py using only the Python 3 standard library, reading R, C, X, Y, D, L from stdin and printing the answer modulo 1_000_000_007.",
+          "phase": "mutate",
+          "depends_on": [
+            "S1",
+            "S2"
+          ],
+          "success_evidence": [
+            "Mutation evidence shows main.py written with standard-library-only code implementing the derived formula and printing one integer followed by a newline."
+          ],
+          "obligation_ids": [
+            "O1",
+            "O2"
+          ],
+          "read_roots": [],
+          "write_roots": [
+            "main.py"
+          ],
+          "allowed_operations": [],
+          "constraints": [
+            "Use only the Python 3 standard library.",
+            "Read all six integers from stdin.",
+            "Print exactly one integer followed by a newline.",
+            "Use modulo 1_000_000_007.",
+            "Do not write files other than main.py."
+          ]
+        },
+        {
+          "step_id": "S4",
+          "objective": "Create check_main.py containing a local verifier that runs all provided sample cases through main.py and compares against expected outputs, and includes brute-force enumeration checks for very small grids.",
+          "phase": "mutate",
+          "depends_on": [
+            "S2"
+          ],
+          "success_evidence": [
+            "Mutation evidence shows check_main.py created with sample-case assertions and small-grid brute-force verification logic."
+          ],
+          "obligation_ids": [
+            "O4"
+          ],
+          "read_roots": [],
+          "write_roots": [
+            "check_main.py"
+          ],
+          "allowed_operations": [],
+          "constraints": [
+            "Do not alter main.py.",
+            "Keep brute-force cases small enough to run quickly.",
+            "Reference main.py by its project-relative name."
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "steps": [
+        {
+          "step_id": "S5",
+          "objective": "Run the local verification command that executes check_main.py, invoking main.py on sample and brute-force checks.",
+          "phase": "execute",
+          "depends_on": [
+            "S3",
+            "S4"
+          ],
+          "success_evidence": [
+            "Execution evidence exits with status 0 and shows sample outputs 12, 10, 364527243, 976668549 and all small brute-force comparisons passing with no exceptions."
+          ],
+          "obligation_ids": [
+            "O1",
+            "O2",
+            "O3",
+            "O4"
+          ],
+          "read_roots": [],
+          "write_roots": [],
+          "allowed_operations": [],
+          "constraints": [
+            "Run the check command read-only without modifying workspace files."
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "steps": [
+        {
+          "step_id": "S6",
+          "objective": "Read back the final main.py to confirm it contains the standard-library solution code and ends with a print statement that produces a newline.",
+          "phase": "observe",
+          "depends_on": [
+            "S5"
+          ],
+          "success_evidence": [
+            "Readback evidence shows main.py uses only standard-library imports and contains a top-level print statement for the answer."
+          ],
+          "obligation_ids": [
+            "O1"
+          ],
+          "read_roots": [
+            "main.py"
+          ],
+          "write_roots": [],
+          "allowed_operations": [],
+          "constraints": []
+        }
+      ]
+    }
+  ],
+  "replace_stages": [],
+  "discard_step_ids": [],
+  "reason": "Initial patch: first inspect the workspace and derive the counting formula, then write the solution and local checks, execute all checks, and finally inspect the delivered file.",
+  "goal_obligations": [
+    {
+      "obligation_id": "O1",
+      "predicate": "main.py exists, uses only the Python 3 standard library, reads one test case from stdin, and writes a single integer answer followed by a newline to stdout.",
+      "required_phases": [
+        "observe",
+        "mutate",
+        "execute"
+      ]
+    },
+    {
+      "obligation_id": "O2",
+      "predicate": "Program computes the correct number of possible office arrangements modulo 1_000_000_007 for every valid input, including D+L = X*Y and cases where D+L < X*Y.",
+      "required_phases": [
+        "mutate",
+        "execute",
+        "derive_evidence"
+      ]
+    },
+    {
+      "obligation_id": "O3",
+      "predicate": "The provided sample inputs are executed and produce 12, 10, 364527243, and 976668549 respectively.",
+      "required_phases": [
+        "execute"
+      ]
+    },
+    {
+      "obligation_id": "O4",
+      "predicate": "Own local checks are created and executed, covering sample cases plus small brute-force comparisons for tiny grids, with all checks passing before delivery.",
+      "required_phases": [
+        "mutate",
+        "execute"
+      ]
+    }
+  ]
+}
