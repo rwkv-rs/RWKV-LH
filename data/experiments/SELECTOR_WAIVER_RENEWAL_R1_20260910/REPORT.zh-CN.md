@@ -1,0 +1,9 @@
+# 两轮源码改动的限定等价重签 R1
+
+本轮来源重提取没有新Agent分数；原十五题 Strict 0/15、completed 0/15、mutation 6 不改分。新的命令路径采集另行登记。
+
+两名已获owner授权的独立AI reviewer批准同一14来源、仅Selector的限定重签。累计10个文件逐一pin原冻结SHA→21c0cf45当前SHA，覆盖审计接线f34e4964与扇出21c0cf45。角色协议和vocab不可豁免，输入/token/checkpoint重建仍由生产准入器逐字核验。
+
+批准不是全局执行等价结论：观察者异常隔离和atom client生命周期有行为影响；14来源均为stateful_goal，且排除了涉及旧命令语义的RP-WEB-02。不得用于新来源、其它角色、并行atom或命令语义豁免。
+
+固定wrapper正式提取恢复60自动候选、126待审行，与原数据逐行全字段完全一致。waiver SHA f53186ecfca2f97126b132f41b1bc37bdef46e77ce91b3cde4a68385ef0a3aaa，wrapper SHA58aedb07b622959b516b53280314efaacd95c2ee1f493d5221adbcd0ca1d668f。来源准入已恢复，质量状态仍INVALID；execute=0及相似度/语义标签不因waiver放宽。后续语义复核附件在独立记录中限定绑定同一14来源，不修改本次原始签署和提取结果。optimizer steps=0。
