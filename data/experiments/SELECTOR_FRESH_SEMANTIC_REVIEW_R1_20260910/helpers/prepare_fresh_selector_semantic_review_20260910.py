@@ -1,0 +1,3 @@
+from pathlib import Path
+R=Path('/home/chase/GitHub/RWKV-LH');s=(R/'temp/prepare_selector_semantic_review_20260910.py').read_text();s=s.replace('SELECTOR_SEMANTIC_REVIEW_R1_20260910','SELECTOR_FRESH_SEMANTIC_REVIEW_R1_20260910').replace('EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/scoped_selector_candidates/review_queue.jsonl','COMMAND_PATH_COLLECTION_R1_20260910/fresh_selector_candidates/review_queue.jsonl').replace('126','43').replace('all43 rows','new43 production rows in the owner-authorized Selector data-gate workflow')
+p=R/'temp/present_fresh_selector_semantic_review_20260910.py';p.write_text(s)

@@ -1,0 +1,18 @@
+# 独立 AI reviewer one：新采集43条Selector复核
+
+身份：AI reviewer /root/waiver_review_one。依据既有owner双AI数据门流程的必要延续，不声称owner另行逐项指定这43条。独立阅读B001–B015完整可见protocol_source和全部43行原operation，未读取另一reviewer决定，未按旧任务编号套用标签。
+
+Agent级：没有新Agent运行，本复核不产生Strict/completed/mutation或终止原因的新成绩。角色级：43/43逐行完成，**24 accept_original、16 accept_correction、3 reject**；这是单reviewer意见，不是已获双审一致、训练准入或覆盖门通过。
+
+逐行核验manifest SHA=288acbe0b71abcab659e286765473740e03a644962e4b9370efc3aa33065065d、15包SHA、原JSONL SHA=f8a70ecd913d78f24810199521c2570397be40af7ef37d52bacf3597a223c46a；43个sample集合精确一致且无重复。input SHA由原input_text重新计算，request_id和original_output_record SHA与源行逐项匹配，纠错全部eligible，evidence_refs仅用原允许集合（本次为空，未添加feedback中的A编号）。
+
+- B001–B002：原search_text接受。新目标是项目背景和文档风格，修正pattern后的正文/结构搜索可以合理推进；过去README正则零匹配不自动证明操作错误。接受原operation不认可再次重复错误参数或已完成全文观察。
+- B003–B005：目录已成功列出且README是已知文本目标，但目标还要README内容；将list_directory纠正为read_file。
+- B006：新明确目标要求1611字节README完整内容，初始无action；search_text纠正为read_file。
+- B007：read_file已succeeded且truncated=false，与持续泛化observe未证反馈存在信息缺口。没有返回正文或缺失范围，不能确认再读是有效恢复而非重复。3行全部reject，无虚构替换。
+- B008–B013：HTML目标仍missing，write_file直接符合完整文档创建；后续2/4/6/8/10次未执行的JSON解析拒绝是Executor输出格式问题，不把它们反标成Selector工具选择错误。18条原write_file接受，不批准生成内容或运行结果。
+- B014–B015：新WEB-02目标明确全文返回；startup搜索零匹配不能满足该要求，6行纠正为read_file。这里评的是新源码新来源，不沿用旧WEB-02源码豁免排除结论。
+
+全部包均为observe或mutate输入，未将任何未执行请求包装为execute覆盖。新来源不需要旧源码waiver。无模型调用、测试、正式extract、生产修改、旧证据改写或训练；未读私有验收/holdout。单人拒绝/不一致须按后续双审对账保留，不能为了待审清零自动放行。
+
+产物DECISIONS_ONE.json SHA=a2f1f287ca9f0a4a67bc2a38d0b48832650ec88eb3c3b910b0544c22ac9ecbfa。辅助脚本temp/semantic_fresh_one_display_20260910.py、temp/semantic_fresh_one_decisions_20260910.py均以绝对路径执行；脚本只展开已逐包形成的独立判断并校验绑定，不是生产场景特判。
