@@ -1,10 +1,20 @@
 # 当前交接
 
-**当前能力：能在给定工作区创建源文件并开始写代码，尚不能可靠地自主完成项目。** 最新Agent证据是下方十五题关联视图：Strict 0/15、completed 0/15、mutation 6；10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝。工作区由runner预备，不能把它视为Agent已独立完成项目初始化。工程测试全绿也不代替运行、调试与交付验收。
+**当前能力：已证明在给定工作区写入代码文件，尚未证明可靠自主创建并交付项目。** 最新三轮独立Agent结果如下，不合并分母：
 
-Owner要求“更新状态，进行下一步”后，已执行 [Native审计接线修复R1](../data/experiments/NATIVE_AUDIT_WIRING_REPAIR_R1_20260910/REPORT.zh-CN.md)：统一会话构造接通底层审计，保留已有回调、去重送达、隔离观察者异常；真实四角色工厂恢复路径有回归覆盖，未改变模型、提示词、预算、评分或角色分工。具体先失败后通过与完整回归结果见新报告。本轮没有新的Agent分数，历史R1/R2用于新源码候选对比时INVALID，原始结果不修改。未部署服务、未训练。
+| 轮次 | Strict | completed | mutation | 动作 | 终止原因 |
+|---|---:|---:|---:|---:|---|
+| 新命令路径采集 | 0/4 | 0/4 | 0 | 13 | identical_success_budget_exhausted×3；protocol_rejection_budget_exhausted×1 |
+| baseline1800 | 0/2 | 0/2 | 0 | 4 | identical_success_budget_exhausted×1；strong_planner_unavailable×1 |
+| candidate3600 | 0/2 | 0/2 | 0 | 2 | goal_audit_protocol_rejection_budget_exhausted×1；protocol_rejection_budget_exhausted×1 |
 
-Selector准入预检也已完成：新源码与十五个旧来源的model_session.py SHA不同，现有准入器全部拒绝。历史双AI waiver仅绑定原14来源/Selector与旧精确SHA，原九边界/27行保留，不能自动扩大到本次修改；原候选的execute覆盖、固定切分相似度和独立语义标签问题也未解决。**下一阶段是新源码精确兼容复核/冻结来源，随后补齐Selector数据质量门，再登记已授权首轮StateTune。** Agent低分和后序角色未到达本身不是训练禁令。以下R2及更早内容是冻结历史，以本段与新修复报告为最新状态。
+最新全流程状态见[六项继续执行结果](../data/experiments/SELECTOR_GATE_CONTINUATION_R1_20260910/REPORT.zh-CN.md)。指定f34e4964与21c0cf45已push；当前部署根`/home/chase/GitHub/RWKV-LH-audit-fanout-r1-20260910`，项目manifest SHA `f7569e52896794cda754bce231ea9d449b5013516fd2dfc890064f0099343926`，engine SHA `5c229e24e9158a5d66df8c67d508c2934044766f49dbea39f4a89d64080c1d74`，服务完整文件身份与健康通过，服务器无Git。生产源码保持21c0cf45，完整回归1455 passed/0failed/0skipped。
+
+[重签](../data/experiments/SELECTOR_WAIVER_RENEWAL_R1_20260910/REPORT.zh-CN.md)已双AI accept，waiver `f53186ecfca2f97126b132f41b1bc37bdef46e77ce91b3cde4a68385ef0a3aaa`恢复原14来源60候选、126待审行。[旧126复核](../data/experiments/SELECTOR_SEMANTIC_REVIEW_R1_20260910/REPORT.zh-CN.md)和[新43复核](../data/experiments/SELECTOR_FRESH_SEMANTIC_REVIEW_R1_20260910/REPORT.zh-CN.md)均已完成处置：136共同接受、33拒绝，待审0。按[预注册去重](../data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/REPORT.zh-CN.md)，210→20（15train/3dev/2confirmation），原5anchor不变，超相似对0/81。
+
+[新四题采集](../data/experiments/COMMAND_PATH_COLLECTION_R1_20260910/REPORT.zh-CN.md)仍check/run=0、execute=0，命令路径覆盖目标未达到。[预算试验](../data/experiments/EXECUTOR_OUTPUT_BUDGET_R1_20260910/REPORT.zh-CN.md)为NO_KEEP，生产Executor默认1800不变。[最终训练预检R2](../data/experiments/SELECTOR_TRAINING_PREFLIGHT_R2_20260910/REPORT.zh-CN.md)纠正R1中间/最终行相同的文字，已对实际最终20条全部normalize通过。候选仍INVALID：缺execute覆盖，freeze_dataset又未接通waiver/筛选再现。首轮尚未登记、optimizer steps=0；首次freeze不要求虚构prior，已有regression复用才要求三重pin。owner授权有效，低分不是禁训门；下一步补真实execute来源与冻结接口，再按数据门登记smoke/首训。
+
+以下R2及更早段落是冻结历史，旧文中的“尚未部署”“待重签”“仅授权waiver”及旧源码首错缺陷状态以以上最新证据为准。后续本地记录提交按AGENTS由owner push。
 
 2026-09-10 [充值后执行复测R2](../data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R2_20260910/REPORT.zh-CN.md) 已全部完成：**Strict 0/7、completed 0/7、mutation 2、动作18**；5题无进展、1题Executor协议拒绝、1题Step Auditor协议拒绝。与R1已生成八题的同源码关联视图为 **Strict 0/15、completed 0/15、mutation 6、动作46**（10题无进展、4题Executor协议拒绝、1题Step Auditor协议拒绝），不是一次性新15题运行。充值后Supervisor请求失败0、输出中断0，R2新增60次交接全部核验，关联视图160次；Finalizer/Final Auditor仍未到达。生产源码冻结b3e89de6不变，完整回归1447 passed、0 failed、0 skipped，optimizer steps=0。
 

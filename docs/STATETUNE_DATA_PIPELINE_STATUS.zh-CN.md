@@ -1,6 +1,6 @@
 # StateTune 管线现状
 
-更新日期：2026-09-10。官方 DeepSeek 新完整采集：REALPROJECT R3 为 **Strict 0/12、completed 0/12、mutation 0、动作 43**；UltraData R6 为 **Strict 0/3、completed 0/3、mutation 3、动作 6**。已返回的 146 次角色交接全部通过输入字节和完整 token 核验，另有一次 Native create 未确认。后续命令执行整改已修复 Python 二进制被当脚本的问题，原始命令在独立沙箱复验成功，完整回归 **1432 passed、0 skipped**；没有重评分。合并 Selector 自动标签 81 条（76/3/2）、待复核 126 条，原登记覆盖通过，但 113 对跨切分输入超出 0.95，相应候选 INVALID；纠错标签复核方式待 owner 答复。真实 optimizer steps 仍为 0。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
+更新日期：2026-09-11。新四题Agent采集Strict 0/4、completed 0/4、mutation 0、动作13；三题重复动作无进展，一题Executor协议拒绝。独立Executor1800/3600预算轮结果见[当前交接](HANDOFF.zh-CN.md)，不得混算不同轮次。指定源码提交已push并部署21c0cf45，完整回归1455 passed/0failed/0skipped。原14来源精确waiver已双AI accept；旧126与新43待审全部处置（136共同接受、33拒绝）。74自动+136双审共210候选，按预注册聚类保留20（15/3/2），原5验证anchor不变，超相似对0/81；execute仍0，候选INVALID。最终20条已全部经生产normalize校验，源zero/tokenizer条件通过，详情及R1文字更正见[预检R2](../data/experiments/SELECTOR_TRAINING_PREFLIGHT_R2_20260910/REPORT.zh-CN.md)。freeze_dataset尚未传递waiver与筛选策略再现，首训/optimizer smoke未启动，steps=0。首次freeze可无prior，只有复用既有regression才要求三重pin；不把Agent低分或缺prior造成循环禁训。
 
 ## 当前具备的能力
 
@@ -14,7 +14,7 @@
 | 完整输入 token | 可保存并证明服务器返回的 full input/BOS；未返回或仅有 delta 的来源仍标未证明 |
 | 正式角色数据 | 本轮未创建 `data/datasets/` 版本，没有合格生产样本量或冻结回归的新增结论 |
 | Native 数值训练后端 | 当前唯一 `statetune_native_model` / `statetune_native_recurrence`；共享 `RWKV7Layout`，2.9B zero/非零 State 全词表对齐、16384 token 反向及冻结底模核验通过 |
-| 正式数据消费 | `scripts/run_state_tune.py freeze` 重新从生产 trace 抽取并核对完整候选清单，原子发布 train 与固定 regression；训练入口仅解析 train |
+| 正式数据消费 | `scripts/run_state_tune.py freeze` 基础重提取/原子发布已接通，训练只读train；当前waiver与预注册去重派生来源的精确再现尚未接通，不能绕过校验直接消费 |
 | 优化器训练入口 | `scripts/run_state_tune.py train`：完整源码/模型/数值兼容登记、State-only AdamW、真实 step 与中断日志、候选导出及同一服务 loader 校验；机制单测不计实际角色训练 |
 | 固定角色回归 | `scripts/run_state_tune.py evaluate`：当前阶段 Selector，从持久化快照调用同一输入 builder、Native 服务及生产三菜单投票；固定 dev/confirmation 同时比较 zero/候选，逐菜单与最终投票都不得退化 |
 | 当前角色 State 改善 | 未训练、未得到新 State，也没有修复后 Agent 提升证据 |
