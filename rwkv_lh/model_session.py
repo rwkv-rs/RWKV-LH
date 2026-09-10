@@ -211,8 +211,11 @@ class ModelSession:
         self.settings = settings or get_runtime_settings()
         self.client = client or OpenAICompatibleRWKVClient(self.settings)
         self.audit_hook = audit_hook
-        if isinstance(self.client, OpenAICompatibleRWKVClient):
-            self.client.add_audit_hook(audit_hook)
+        # Duck-typed so a wrapping/proxy client that forwards audit
+        # subscription is wired too instead of silently losing events.
+        subscribe = getattr(self.client, "add_audit_hook", None)
+        if callable(subscribe):
+            subscribe(audit_hook)
 
     @property
     def model_name(self) -> str:
@@ -221,7 +224,12 @@ class ModelSession:
     def _emit(self, event: Mapping[str, Any]) -> None:
         if self.audit_hook is None:
             return
-        self.audit_hook(dict(event))
+        try:
+            self.audit_hook(dict(event))
+        except Exception:
+            # Same isolation contract as the client layer: an observer must
+            # never change model-call semantics or interrupt the session.
+            return
 
     def _checkpoint(
         self,
@@ -1604,9 +1612,11 @@ def create_model_session(
 
     selected_settings = settings or get_runtime_settings()
     selected_client = client or OpenAICompatibleRWKVClient(selected_settings)
-    if isinstance(selected_client, OpenAICompatibleRWKVClient):
-        # Bind before capability discovery as well as for subsequent requests.
-        selected_client.add_audit_hook(audit_hook)
+    # Bind before capability discovery as well as for subsequent requests;
+    # duck-typed so wrapped clients that expose subscription are wired too.
+    subscribe = getattr(selected_client, "add_audit_hook", None)
+    if callable(subscribe):
+        subscribe(audit_hook)
     mode = selected_settings.state_transport
     if mode == "prompt_replay":
         return ModelSession(
@@ -1655,14 +1665,18 @@ def create_model_session(
     if mode == "native_required":
         raise NativeStateUnavailableError(reason)
     if audit_hook is not None:
-        audit_hook(
-            {
-                "type": "model_session_transport_fallback",
-                "requested_transport": "native_rwkv",
-                "selected_transport": "prompt_replay",
-                "reason": reason,
-            }
-        )
+        try:
+            audit_hook(
+                {
+                    "type": "model_session_transport_fallback",
+                    "requested_transport": "native_rwkv",
+                    "selected_transport": "prompt_replay",
+                    "reason": reason,
+                }
+            )
+        except Exception:
+            # Observer failures never change transport selection.
+            pass
     return ModelSession(
         selected_client,  # type: ignore[arg-type]
         settings=selected_settings,

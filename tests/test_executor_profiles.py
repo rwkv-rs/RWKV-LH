@@ -163,7 +163,7 @@ def test_product_executor_and_auditor_share_deployment_binding_not_state(
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime._product_tool_selector",
-        lambda: SimpleNamespace(),
+        lambda audit_hook=None: SimpleNamespace(),
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime.RuntimeSettings.for_role",

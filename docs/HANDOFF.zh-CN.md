@@ -51,9 +51,9 @@ Selector准入预检也已完成：新源码与十五个旧来源的model_sessio
 
 Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标、预算和实际 optimizer steps 管理；授权持续有效，不重复询问。Agent 低分和后序角色未到达不构成首轮训练禁令。
 
-当前角色是 Selector。最新 3+12 题合并后有 81 条自动标签（train 76 / dev 3 / confirmation 2）、126 条待独立复核；原登记的 execute / mutate / missing_target / py_root 覆盖及三切分非空均已通过。386 对跨切分比较有 113 对超过 0.95，候选 INVALID。当前障碍是切分污染和纠错标签复核，不能继续表述为没有足够原始边界或任何 execute。九边界的具体复核包已提交，owner 的独立强模型离线复核提议尚未答复，不能冒充双人人工签名。
+当前角色是 Selector。**当前有效候选状态以本文最上方最新段落为准**：已双签生效的是范围化 waiver `SCOPED_EQUIVALENCE_WAIVER_ACCEPTED.json`（新 14 来源、仅 Selector，排除 RP-WEB-02），提取恢复 60 条自动候选（train 55 / dev 3 / confirmation 2）、126 条待独立复核，原 9 边界/27 行完整保留；候选仍 INVALID——**execute=0**（原 15 条 execute 覆盖全部来自被排除的 RP-WEB-02）且 281 对跨切分比较有 101 对超过 0.95。历史全量数字（81 条、386/113 对）属旧 15 来源版本，仅作背景。execute 覆盖的正确补法是用修复后代码重跑含命令路径的采集，不是扩大 waiver。独立复核不能冒充双人人工签名。
 
-补充当前来源准入状态：上述 81 条是冻结采集版本的历史候选数量。命令入口修复改变 harness.py 后，当前抽取器要求几乎全部生产源码 SHA 相等，15/15 原来源均被拒绝；不能声称只完成复核即可按当前代码冻结。执行证据与传输修复 R1 已落地兼容准入通道：`EQUIVALENCE_WAIVER_DRAFT.json` 已 pin 全部 6 个修改文件的 frozen/current SHA，经两名 reviewer 审阅 diff 并将 decision 改为 accept 后，`--equivalence-waiver <path> --waiver-sha256 <pin>` 可使旧 trace 恢复准入（完整性保护未撤销：字节重建、协议 SHA、token 回放仍无条件生效）。详见剩余问题审计与修复轮的 `PROBES.json`。
+补充当前来源准入状态：命令入口修复改变 harness.py 后，当前抽取器要求几乎全部生产源码 SHA 相等，15/15 原来源均被拒绝；不能声称只完成复核即可按当前代码冻结。执行证据与传输修复 R1 落地了兼容准入通道并已实际使用一次（上述范围化 waiver）；原 `EQUIVALENCE_WAIVER_DRAFT.json` 因 reviewer one 不予 accept 保持 draft，未再使用。**注意 waiver 绑定精确 SHA 对：审计接线修复 f34e4964 及其后补丁改动了 model_session.py / runtime/openai_compat.py 等文件，已生效 waiver 对新源码失效，下一次等价复核必须覆盖全部新改动文件**（完整性保护未撤销：字节重建、协议 SHA、token 回放仍无条件生效）。详见剩余问题审计与修复轮的 `PROBES.json`。
 
 R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通。通用命令执行缺陷已修复且完整回归通过，原采集结果保持封存；下一次 Agent/训练须绑定实际客户端源码与服务身份。当前角色数据合格后执行已授权 StateTune，合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 

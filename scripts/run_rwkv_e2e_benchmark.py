@@ -1234,6 +1234,49 @@ def _close_stateful_goal_role_sessions(
     return tuple(failures)
 
 
+def _build_atom_model_factory(
+    executor_settings: RuntimeSettings,
+    model_trace: list[dict[str, Any]],
+    selector_settings: NativeNetworkSelectorSettings | None,
+):
+    """Build the per-atom model factory with one isolated client per atom.
+
+    Like the Goal-role factory, ``client`` is deliberately omitted: each atom
+    subscribes its own trace hook, and subscribing per-atom hooks on a shared
+    client would fan every transport event out to all prior atoms' hooks —
+    duplicated ``model_trace`` rows under the wrong atom identity, and an
+    unbounded subscriber list. The atom's client is closed once its run ends.
+    """
+
+    def atom_model_factory(contract, scoped_harness):
+        def append_atom_trace(event: Mapping[str, Any]) -> None:
+            model_trace.append(
+                {
+                    **dict(event),
+                    "atom_id": contract.atom.atom_id,
+                    "contract_digest": contract.contract_digest,
+                }
+            )
+
+        return LongHorizonModel(
+            create_model_session(
+                settings=executor_settings,
+                audit_hook=append_atom_trace,
+            ),
+            harness=scoped_harness,
+            tool_selector=(
+                NativeNetworkSelectorClient(
+                    selector_settings,
+                    audit_hook=append_atom_trace,
+                )
+                if selector_settings is not None
+                else None
+            ),
+        )
+
+    return atom_model_factory
+
+
 def _write_run_metadata(
     output: Path,
     *,
@@ -2137,7 +2180,10 @@ def run_case(
         actions=selector_actions,
     )
     tool_selector = (
-        NativeNetworkSelectorClient(selector_settings)
+        NativeNetworkSelectorClient(
+            selector_settings,
+            audit_hook=model_trace.append,
+        )
         if selector_settings is not None
         else None
     )
@@ -2159,36 +2205,14 @@ def run_case(
         )
     atom_worker_pool: AtomWorkerPool | None = None
     if not stateful_goal and supervisor_strategy in {"parallel_atoms", "contract_graph"}:
-        assert rwkv_client is not None
-
-        def atom_model_factory(contract, scoped_harness):
-            def append_atom_trace(event: Mapping[str, Any]) -> None:
-                model_trace.append(
-                    {
-                        **dict(event),
-                        "atom_id": contract.atom.atom_id,
-                        "contract_digest": contract.contract_digest,
-                    }
-                )
-
-            return LongHorizonModel(
-                create_model_session(
-                    client=rwkv_client,
-                    settings=executor_binding.settings,
-                    audit_hook=append_atom_trace,
-                ),
-                harness=scoped_harness,
-                tool_selector=(
-                    NativeNetworkSelectorClient(selector_settings)
-                    if selector_settings is not None
-                    else None
-                ),
-            )
-
         atom_worker_pool = ThreadedRWKVAtomPool(
             case_root / "atom_workers",
             harness=harness,
-            model_factory=atom_model_factory,
+            model_factory=_build_atom_model_factory(
+                executor_binding.settings,
+                model_trace,
+                selector_settings,
+            ),
         )
     observations: dict[str, Any] = {}
     result: ControllerResult | None = None

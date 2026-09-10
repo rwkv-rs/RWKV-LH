@@ -616,6 +616,49 @@ class ThreadedRWKVAtomPool:
         *,
         max_transitions: int,
     ) -> AtomExecutionOutcome:
+        scoped_harness = ScopedAtomHarness(
+            self.harness,
+            contract,
+            threading.RLock(),
+        )
+        model = self.model_factory(contract, scoped_harness)
+        try:
+            return self._run_atom_with_model(
+                model,
+                scoped_harness,
+                parent_goal,
+                stage,
+                contract,
+                atom_workspace,
+                completed_outcomes,
+                max_transitions=max_transitions,
+            )
+        finally:
+            # A factory that allocates one client per atom relies on this
+            # close; cleanup is best-effort and never replaces the outcome.
+            close = getattr(
+                getattr(getattr(model, "session", None), "client", None),
+                "close",
+                None,
+            )
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+
+    def _run_atom_with_model(
+        self,
+        model: Any,
+        scoped_harness: "ScopedAtomHarness",
+        parent_goal: GoalState,
+        stage: AtomBatch,
+        contract: AtomExecutionContract,
+        atom_workspace: Path,
+        completed_outcomes: Mapping[str, AtomExecutionOutcome],
+        *,
+        max_transitions: int,
+    ) -> AtomExecutionOutcome:
         # Imported lazily so the parent controller can depend on the pool protocol
         # without creating a module import cycle.
         from rwkv_lh.controller import LongHorizonController
@@ -623,12 +666,6 @@ class ThreadedRWKVAtomPool:
         atom = contract.atom
         atom_root = self.root / stage.stage_id / atom.atom_id
         store = LongHorizonStore(atom_root / "state", checkpoint_retention=1000)
-        scoped_harness = ScopedAtomHarness(
-            self.harness,
-            contract,
-            threading.RLock(),
-        )
-        model = self.model_factory(contract, scoped_harness)
         binding = AtomExecutionBinding(
             contract=contract,
             completed_dependencies=tuple(

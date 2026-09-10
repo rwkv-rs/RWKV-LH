@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -184,10 +184,21 @@ class NativeNetworkSelectorClient:
         settings: NativeNetworkSelectorSettings,
         *,
         session: _HTTPSession | None = None,
+        audit_hook: Callable[[Mapping[str, Any]], None] | None = None,
     ) -> None:
         self.settings = settings
         self.input_protocol = network_selector_input_protocol(settings.input_protocol)
         self._session = session or requests.Session()
+        self.audit_hook = audit_hook
+
+    def _emit(self, event: Mapping[str, Any]) -> None:
+        if self.audit_hook is None:
+            return
+        try:
+            self.audit_hook(dict(event))
+        except Exception:
+            # An observer must never change Selector request semantics.
+            return
 
     def _request_payload(
         self,
@@ -235,11 +246,27 @@ class NativeNetworkSelectorClient:
                 ),
             )
         except requests.RequestException as exc:
+            # The first cause is audited before the typed error propagates, so
+            # a Selector transport failure is never a zero-event interruption.
+            self._emit({
+                "type": "selector_transport_error",
+                "run_id": payload["run_id"], "trace_id": payload["trace_id"],
+                "menu_order_id": payload["menu_order_id"],
+                "error_type": type(exc).__name__,
+                "error_message": str(exc)[:500],
+            })
             raise NativeNetworkSelectorError(
                 "native Selector transport failed with unknown outcome: "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         if response.status_code != 200:
+            self._emit({
+                "type": "selector_transport_error",
+                "run_id": payload["run_id"], "trace_id": payload["trace_id"],
+                "menu_order_id": payload["menu_order_id"],
+                "error_type": "HTTPStatus",
+                "error_message": f"HTTP {response.status_code}: {response.text[:500]}",
+            })
             raise NativeNetworkSelectorError(
                 f"native Selector HTTP {response.status_code}: {response.text[:1000]}"
             )

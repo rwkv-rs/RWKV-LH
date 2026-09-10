@@ -45,6 +45,107 @@ def test_session_factory_delivers_first_transport_error(monkeypatch, explicit_cl
         assert existing == events
 
 
+def test_shared_client_never_fans_events_out_to_other_subscribers_hooks(monkeypatch):
+    # Regression shape for the atom-factory defect: repeatedly building
+    # sessions with DIFFERENT hooks on one shared client must not let one
+    # request's transport events fan out to every prior hook (duplicated
+    # trace rows under the wrong identity) nor grow the subscriber list
+    # unboundedly. The benchmark atom factory therefore allocates one client
+    # per atom; this test pins the client-side invariant that makes sharing
+    # unsafe explicit and bounded.
+    from types import SimpleNamespace
+    from rwkv_lh.model_session import create_model_session
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+
+    fake = FakeSession([
+        requests.ConnectionError("shared client first cause"), NOT_RECORDED, NOT_RECORDED,
+        FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+    ])
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", lambda self: fake)
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+        durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+    client = OpenAICompatibleRWKVClient(settings())
+    first_trace: list = []
+    second_trace: list = []
+    create_model_session(client, settings=settings(), audit_hook=first_trace.append)
+    session = create_model_session(client, settings=settings(), audit_hook=second_trace.append)
+    session.native_client.state_rollback(candidate_state_ref="candidate", parent_state_ref="parent")
+    # Documented current semantics: a shared client multicasts to every
+    # subscriber, so the first hook still hears the second session's request.
+    assert len(client._audit_subscribers) == 2
+    assert [event["type"] for event in second_trace] == [
+        "native_request_prepared", "native_request_transport_error", "native_request_resubmitted"]
+    assert first_trace == second_trace  # fan-out is why per-atom clients are required
+
+
+def test_benchmark_atom_factory_allocates_one_client_per_atom(monkeypatch):
+    from types import SimpleNamespace
+    from scripts.run_rwkv_e2e_benchmark import _build_atom_model_factory
+    from rwkv_lh.runtime.native_state import NATIVE_STATE_PROTOCOL_VERSION
+
+    monkeypatch.setattr("rwkv_lh.runtime.settings.load_local_env", lambda *a, **k: None)
+
+    def new_session(self):
+        return FakeSession([
+            requests.ConnectionError("atom first cause"), NOT_RECORDED, NOT_RECORDED,
+            FakeResponse({"rolled_back": True, "parent_state_ref": "parent"}),
+        ])
+
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "_new_session", new_session)
+    monkeypatch.setattr(OpenAICompatibleRWKVClient, "capabilities", lambda self: SimpleNamespace(
+        durable_recurrent_state=True, recurrent_state_protocol=NATIVE_STATE_PROTOCOL_VERSION))
+    trace: list = []
+    factory = _build_atom_model_factory(settings(), trace, None)
+    contracts = [
+        SimpleNamespace(atom=SimpleNamespace(atom_id=f"ATOM-{index}"), contract_digest=f"D-{index}")
+        for index in range(3)
+    ]
+    models = [factory(contract, None) for contract in contracts]
+    clients = [model.session.client for model in models]
+    assert len({id(client) for client in clients}) == 3  # one isolated client per atom
+    assert all(len(client._audit_subscribers) == 1 for client in clients)
+    for index, model in enumerate(models):
+        start = len(trace)
+        model.session.native_client.state_rollback(
+            candidate_state_ref="candidate", parent_state_ref="parent")
+        emitted = trace[start:]
+        # Exactly this atom's three events, attributed to this atom only.
+        assert len(emitted) == 3
+        assert all(event["atom_id"] == f"ATOM-{index}" for event in emitted)
+        assert all(event["contract_digest"] == f"D-{index}" for event in emitted)
+        assert emitted[1]["type"] == "native_request_transport_error"
+        assert "atom first cause" in emitted[1]["error_message"]
+
+
+def test_atom_pool_closes_the_per_atom_client_after_the_run(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from rwkv_lh.parallel_atoms import ThreadedRWKVAtomPool
+
+    closed: list[str] = []
+
+    class FactoryModel:
+        def __init__(self, atom_id: str):
+            self.session = SimpleNamespace(
+                client=SimpleNamespace(close=lambda: closed.append(atom_id)),
+            )
+
+    pool = ThreadedRWKVAtomPool.__new__(ThreadedRWKVAtomPool)
+    pool.harness = SimpleNamespace()
+    pool.model_factory = lambda contract, scoped_harness: FactoryModel(contract.atom.atom_id)
+
+    def boom(self, model, *args, **kwargs):
+        raise RuntimeError("atom body failure")
+
+    monkeypatch.setattr(ThreadedRWKVAtomPool, "_run_atom_with_model", boom)
+    monkeypatch.setattr("rwkv_lh.parallel_atoms.ScopedAtomHarness",
+                        lambda harness, contract, lock: SimpleNamespace())
+    contract = SimpleNamespace(atom=SimpleNamespace(atom_id="ATOM-CLOSE"), contract_digest="D")
+    with pytest.raises(RuntimeError, match="atom body failure"):
+        pool._run_atom(SimpleNamespace(), SimpleNamespace(), contract, tmp_path, {}, max_transitions=1)
+    # The client is closed even when the atom body raises.
+    assert closed == ["ATOM-CLOSE"]
+
+
 def test_session_audit_subscription_is_deduplicated_and_failure_isolated():
     from rwkv_lh.model_session import ModelSession
 

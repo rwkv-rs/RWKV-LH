@@ -183,13 +183,25 @@ class OpenAICompatibleRWKVClient:
 
     def add_audit_hook(self, hook: AuditHook | None) -> None:
         """Subscribe an owning session without replacing a caller's observer."""
-        if hook is not None and hook not in self._audit_subscribers:
+        if hook is None:
+            return
+        try:
+            known = hook in self._audit_subscribers
+        except Exception:
+            # A subscriber with a throwing __eq__ must not break wiring.
+            known = False
+        if not known:
             self._audit_subscribers.append(hook)
 
     def _emit(self, event: Mapping[str, Any]) -> None:
         hooks = list(self._audit_subscribers)
-        if self.audit_hook is not None and self.audit_hook not in hooks:
-            hooks.insert(0, self.audit_hook)
+        if self.audit_hook is not None:
+            try:
+                known = self.audit_hook in hooks
+            except Exception:
+                known = False
+            if not known:
+                hooks.insert(0, self.audit_hook)
         for hook in hooks:
             try:
                 hook(dict(event))

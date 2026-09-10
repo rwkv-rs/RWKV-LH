@@ -241,6 +241,46 @@ def test_native_service_uses_progress_v4_and_no_external_head() -> None:
     assert "expected_label" not in wire
 
 
+def test_selector_transport_failures_are_audited_before_the_typed_error() -> None:
+    import requests
+
+    class _DeadSession:
+        def post(self, _url, *, json, timeout):
+            raise requests.ConnectionError("selector tunnel died")
+
+    class _ErrorSession:
+        def post(self, _url, *, json, timeout):
+            response = _Response({})
+            response.status_code = 503
+            response.text = "selector backlog"
+            return response
+
+    from rwkv_lh.exact_tool_selector.native_network_client import (
+        NativeNetworkSelectorError,
+    )
+
+    settings = _settings()
+    events: list[dict] = []
+    dead = NativeNetworkSelectorClient(
+        settings, session=_DeadSession(), audit_hook=events.append
+    )
+    with pytest.raises(NativeNetworkSelectorError, match="unknown outcome"):
+        dead.select(_input(), run_id="RUN-AUDIT", trace_id="TRACE-AUDIT")
+    http_error = NativeNetworkSelectorClient(
+        settings, session=_ErrorSession(), audit_hook=events.append
+    )
+    with pytest.raises(NativeNetworkSelectorError, match="HTTP 503"):
+        http_error.select(_input(), run_id="RUN-AUDIT", trace_id="TRACE-AUDIT")
+    assert [event["type"] for event in events] == [
+        "selector_transport_error", "selector_transport_error",
+    ]
+    assert events[0]["error_type"] == "ConnectionError"
+    assert "selector tunnel died" in events[0]["error_message"]
+    assert events[1]["error_type"] == "HTTPStatus"
+    assert "selector backlog" in events[1]["error_message"]
+    assert all(event["trace_id"] == "TRACE-AUDIT" for event in events)
+
+
 def test_native_service_rejects_noncanonical_progress() -> None:
     settings = _settings()
     service = NativeNetworkSelectorService(

@@ -29,13 +29,15 @@ from rwkv_lh.trace_projection import projected_tool_outputs
 AuditHook = Callable[[Mapping[str, Any]], None]
 
 
-def _product_tool_selector() -> NativeNetworkSelectorClient | None:
+def _product_tool_selector(
+    audit_hook: AuditHook | None = None,
+) -> NativeNetworkSelectorClient | None:
     from rwkv_lh.runtime.settings import load_local_env
 
     load_local_env()
     settings = NativeNetworkSelectorSettings.from_env()
     return (
-        NativeNetworkSelectorClient(settings)
+        NativeNetworkSelectorClient(settings, audit_hook=audit_hook)
         if settings is not None
         else None
     )
@@ -90,7 +92,14 @@ def build_product_controller(
     root = Path(state_root).expanduser().resolve()
     config = retrieval_policy_from_goal(state.goal)
     supervisor_mode_from_policy(state.goal.runtime_policy)
-    tool_selector = _product_tool_selector()
+
+    def selector_audit(event: Mapping[str, Any]) -> None:
+        if model_audit_hook is not None:
+            model_audit_hook({**dict(event), "model_role": "selector_intent"})
+
+    tool_selector = _product_tool_selector(
+        audit_hook=selector_audit if model_audit_hook is not None else None,
+    )
     if tool_selector is None:
         raise ValueError(
             "stateful_goal requires complete RWKV_LH_SELECTOR_* configuration; "

@@ -3532,7 +3532,7 @@ def test_product_stateful_goal_fails_closed_without_selector_then_builds_with_it
     state = store.create_run(_goal(tmp_path), "PRODUCT-STATEFUL")
     monkeypatch.setattr(
         "rwkv_lh.product_runtime._product_tool_selector",
-        lambda: None,
+        lambda audit_hook=None: None,
     )
     monkeypatch.setattr(
         "rwkv_lh.product_runtime.create_model_session",
@@ -3555,7 +3555,7 @@ def test_product_stateful_goal_fails_closed_without_selector_then_builds_with_it
 
     monkeypatch.setattr(
         "rwkv_lh.product_runtime._product_tool_selector",
-        lambda: _selector([]),
+        lambda audit_hook=None: _selector([]),
     )
     controller = build_product_controller(store, state, state_root=tmp_path / "runtime")
 
