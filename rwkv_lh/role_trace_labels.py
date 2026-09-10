@@ -16,7 +16,8 @@ from rwkv_lh.executor_provenance import validate_executor_argument_provenance
 from rwkv_lh.goal_state_protocols import (
     auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer,
 )
-from rwkv_lh.harness import ActionHarness, HarnessError, TaskAction
+from rwkv_lh.harness import HarnessError, TaskAction
+from rwkv_lh.role_trace_inputs import _reconstruction_harness
 
 
 _MODULES = {
@@ -73,7 +74,7 @@ def validate_role_target(
         if role == "executor_args":
             if "bound_fact_records" not in rebuilt:
                 raise RoleTraceLabelError("Executor target lacks reconstructed bound fact records")
-            normalized, _trace = ActionHarness().normalize_action_with_trace(
+            normalized, _trace = _reconstruction_harness().normalize_action_with_trace(
                 TaskAction(parsed.name, dict(parsed.arguments)),
             )
             validate_executor_argument_provenance(

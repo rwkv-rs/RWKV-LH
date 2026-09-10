@@ -2,9 +2,11 @@
 
 更新日期：2026-09-10。最新完整开发采集 [REALPROJECT R1](../data/experiments/REALPROJECT_HANDOFF_COLLECTION_R1_20260910/REPORT.zh-CN.md)：**Strict 0/12、completed 0/12、mutation 0、动作 0**；10 题 Planner 网关 HTTP 500，2 题 Executor 参数重试前 Native State 边界错误。另一次 [UltraData R4](../data/experiments/ULTRADATA_COLLECTION_R4_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。两轮全部结束并封存，optimizer steps 仍为 **0**。
 
-最新官方配置实测 [UltraData R5](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。2 题默认 high 思考独占 32768 输出 token，1 题第二步工具/参数失败；14 次 Native 完整输入 token 精确核验通过。另发现扩展工具的 trace 重建缺失，尚未完整解决。正式角色训练仍为 0，12 题新预登记尚未生成，已明确关闭并待修复后全量重新登记。
+最新官方配置实测 [UltraData R5](../data/experiments/ULTRADATA_OFFICIAL_COLLECTION_R5_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。2 题默认 high 思考独占 32768 输出 token，1 题第二步工具/参数失败；14 次 Native 完整输入 token 精确核验通过。该轮发现的扩展工具 trace 重建缺失已在后续 R1 工程整改修复，旧轮结果未重评分。正式角色训练仍为 0，12 题新预登记尚未生成，已明确关闭并待修复后全量重新登记。
 
 ## 当前整改与验证状态
+
+[官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；算法不能成为额外不可变目标的提示修订待真实采集验证。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。实际训练仍为 0，下一步为固定 3+12 题的新轮采集。
 
 [交接结构整改 R1](../data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md) 已提交 `82319f95`：原始需求贯穿 Executor / Step Auditor，参数拒绝由同一步的 Selector / Executor 接收，路径资格和执行权限共用参数合同，逻辑交接及事实提交与 Native 缓存物化分开。完整回归 1321 passed、0 skipped；随后真实采集暴露新的数值边界缺陷，因此不能将工程通过称作完整交接验收通过。
 
@@ -18,10 +20,10 @@
 
 产品入口 `rwkv-stateful-goal-loop.v7`，保持五个训练角色：Selector → Executor → Step Auditor → Finalizer → Final Auditor。各角色只使用唯一 builder：前三者 v6、Finalizer v2、Final Auditor v4。步骤未完成与参数失败留在当前步骤；计划调整必须有阶段或目标缺口依据。任务、阶段和步骤数量不设固定上限，资源耗尽只能中断或阻塞。详见 [链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md) 和 [唯一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)。
 
-- Planner / Stage Checker：独立强模型 `deepseek-v4-pro`，唯一配置 `.env.local`，stream=true；本次切换预注册输出上限分别 32768 / 16384，读取预算 600 秒（本次已完成探针为 240 秒）。owner 已切换官方 `https://api.deepseek.com`，模型列表鉴权 HTTP 200，实际完整计划请求已通过，一次 HTTP 尝试、自然 stop、4 阶段 6 步，200.37 秒；此前第三方网关 `https://next-token.cc/v1` 多次返回 `new_api_error/do_request_failed`。不能据此推断模型生成了错误计划；UltraData R4 另有一次 HTTP 200 后流协议拒绝，旧轮未保留原始 SSE，具体事件原因仍未知。
+- Planner / Stage Checker：独立强模型 `deepseek-v4-pro`，唯一配置 `.env.local`，stream=true、thinking=enabled、reasoning_effort=low；本次切换预注册输出上限分别 32768 / 16384，读取预算 600 秒（本次已完成探针为 240 秒）。owner 已切换官方 `https://api.deepseek.com`，模型列表鉴权 HTTP 200，实际完整计划请求已通过，一次 HTTP 尝试、自然 stop、4 阶段 6 步，200.37 秒；此前第三方网关 `https://next-token.cc/v1` 多次返回 `new_api_error/do_request_failed`。不能据此推断模型生成了错误计划；UltraData R4 另有一次 HTTP 200 后流协议拒绝，旧轮未保留原始 SSE，具体事件原因仍未知。
 - Selector：已部署 2.9B，GPU 2，`rwkv-lh-selector-current.service`，本地端口 29621。32 层、40×64 State 已通过既有至 16384 tokens 的 Native 前向与反向机制验证；优化器未运行。
 - Executor / 两个 Auditor / Finalizer：13.3B，`rwkv-lh-native-current.service`，GPU 0，本地 29613 → 服务器 18234。独立角色 zero，不复用未验证的旧 State。
-- 当前部署根 `/home/chase/GitHub/RWKV-LH-statetune-driver-r2-20260910`；项目 131 文件 manifest SHA `d8952c5dab4248a93db339720f37dd4e7657fa175882e8fc23b5a1613b8241e6`，engine 6393 文件 manifest SHA `4327197e8305f2a79ed750128df4ec689df16e2bd234b438d634bbd9d7fa395d`。服务器没有使用 Git；当前服务仅导入上传的唯一项目实现。Native build 身份为 `f4160292923d32c2a7b4c029a6ae0442b8490a673d4eb424de977c613d3f7bf8`。
+- 当前部署根 `/home/chase/GitHub/RWKV-LH-official-planner-repair-r1-final-20260910`；项目 131 文件 manifest SHA `0953f64292f0a0411ca42f9b8b5f7452af5cec11b8b3f12c90c5976a927434e0`，engine 6393 文件 manifest SHA `07bb8f39eba57b513e862bf23dd439e11cd264a03ce1c942678d140466c2b352`。服务器没有使用 Git；当前服务仅导入上传的唯一项目实现。Native build 身份为 `4970b89a548fc5b1dffbbdff91c3be2021f3cd953c934d343458b576e48b5c35`。
 
 ## StateTune 的真实进度与下一步
 

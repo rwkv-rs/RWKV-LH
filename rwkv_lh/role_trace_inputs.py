@@ -33,12 +33,40 @@ from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import FINAL_ANSWER_DEFINITION, canonical_digest, parse_model_command, render_bootstrap
 from rwkv_lh.operation_contracts import project_goal_step_operations
+from rwkv_lh.retrieval.actions import build_retrieval_actions
+from rwkv_lh.retrieval.policy import NetworkPolicy
+from rwkv_lh.retrieval.providers import PublicConnectorProvider
 from rwkv_lh.schema import RunState
 from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 
 
 class RoleInputReconstructionError(ValueError):
     """Required durable facts are absent, inconsistent or outside this boundary."""
+
+
+def _reconstruction_harness() -> ActionHarness:
+    """Read the production tool definitions without creating an execution runtime.
+
+    The full stable menu includes policy-gated extensions even for offline runs.
+    Reuse their factory and configured connector capabilities; never reconstruct
+    a tool contract from the model's prompt or a separate schema copy.
+    """
+
+    def unavailable(*args, **kwargs):
+        raise RoleInputReconstructionError("trace reconstruction cannot execute tools")
+
+    class DefinitionOnlyBackend:
+        provider_name = "definition-only"
+        execute = staticmethod(unavailable)
+        recover = staticmethod(unavailable)
+
+    actions = build_retrieval_actions(
+        backend=DefinitionOnlyBackend(), network_policy=NetworkPolicy(),
+        provenance_resolver=unavailable,
+        connector_operations=PublicConnectorProvider.supported_operations,
+        include_network_actions=True, clock=unavailable,
+    )
+    return ActionHarness(actions=actions)
 
 
 _MODULES = {
@@ -257,7 +285,7 @@ def _rebuild(role, state, request):
             operation = str(boundary.payload.get("selected_operation") or "")
             if operation not in eligible:
                 raise RoleInputReconstructionError("Executor operation is outside durable eligibility")
-            definition = ActionHarness().g1i_tool_definitions([operation])[0]
+            definition = _reconstruction_harness().g1i_tool_definitions([operation])[0]
             if canonical_digest(definition) != boundary.payload.get("definition_digest"):
                 raise RoleInputReconstructionError("current Harness definition differs from durable disclosure")
             source, facts = LongHorizonModel._executor_prompt_source(

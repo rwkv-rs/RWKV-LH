@@ -1,6 +1,6 @@
 # StateTune 管线现状
 
-更新日期：2026-09-10，当前轮 `STATETUNE_DRIVER_INTEGRATION_R2_20260910`。Agent 最近完整开发实测为 REALPROJECT R1：Strict 0/12、completed 0/12、mutation 0、动作 0；10 题旧 Planner 网关 HTTP 500，2 题 Native State 边界错误。官方 DeepSeek 的独立计划请求已成功，但还没有该配置下的完整 Agent 成绩。新训练/评测入口完整回归 **1390 passed、0 skipped**，真实 optimizer steps 仍为 0。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
+更新日期：2026-09-10，当前工程轮 `OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910`。官方 DeepSeek 完整 UltraData R5 为 Strict 0/3、completed 0/3、mutation 0、动作 1：2 题高思考耗尽输出，1 题角色协议拒绝。后续工程修复已完成扩展工具重建及标签校验、显式思考配置和失败证据记录；完整回归 **1414 passed、0 skipped**。真实 optimizer steps 仍为 0，固定 3+12 题将重新采集。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
 
 ## 当前具备的能力
 
