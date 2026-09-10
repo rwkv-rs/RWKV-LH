@@ -1,0 +1,9 @@
+# Selector最终行训练预检 R2与R1文字更正
+
+关联新采集Agent Strict 0/4、completed 0/4、mutation 0，三题无进展、一题协议拒绝；本轮不产生新Agent分数。
+
+独立review发现R1预检报告的文字错误：final210保留20行并非与reviewed162保留20行全部相同。两者17个sample ID相同且全字段一致，按预注册字典序代表规则替换了3条train行；5条原开发/确认anchor未变。R1的FINAL_GATE.json已正确记录final_rows_equal_to_normalized_preflight=false，其报告却写成相同。原报告与SHA封存保留，以本更正和新核验为准，不修改去重结果或规则。
+
+现对final210实际全部20行重新调用生产normalize_row，20/20通过完整服务器token、BOS、目标token、模型、协议与上下文长度校验；源profile全部zero，tokenizerSHA e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89。完整增删身份和逐行结果见FINAL_DATA_VERIFICATION.json。
+
+execute仍0、候选INVALID；独立review确认冻结入口仍缺waiver/筛选再现传递。这些是未训练的实际原因，Agent低分不是禁令。源数据检查不等于训练注入attestation或optimizer smoke；optimizer steps=0，没有新建正式角色数据集。

@@ -1,0 +1,89 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "review_kind": "read_only_training_preflight_audit",
+  "decision": "core_blocking_conclusion_confirmed_with_material_reporting_error",
+  "files": [
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_TRAINING_PREFLIGHT_R1_20260910/DATA_PREFLIGHT.json",
+      "sha256": "00ebd634679b511a745d6723a3be5cd2b1fe2782ef3854d58f30998f72decb61"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_TRAINING_PREFLIGHT_R1_20260910/FINAL_GATE.json",
+      "sha256": "ffe830736edc53fc936979f577fc0fe3f1b89c646790335b5800ce582ec509db"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_TRAINING_PREFLIGHT_R1_20260910/REPORT.zh-CN.md",
+      "sha256": "29551bcc7de402701e83ec1575e5001f9d18cc97b32a0b87970786c394d51002"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/rwkv_lh/statetune_data.py",
+      "sha256": "d730fb3ddd01bb1bb5a10e6308d221b7a06d9c00e0d8a18b070d226e9a2f7166"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py",
+      "sha256": "ea38a6e80fb4e7d87158d500854f895e3d6ec7d2b638d77ca3a1d0dc5b2d5dec"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/reviewed162/candidates.jsonl",
+      "sha256": "da902c8d0b9733a2bdb0cf6c29c7af6354b6b8f729bea3b67ae0192839a1dccb"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/final210/candidates.jsonl",
+      "sha256": "f9cf8f57536f9410c16c15959a7c30774ba9ec7b0f1f74192de45f6b3a17cdd7"
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/final210/manifest.json",
+      "sha256": "641f9f3619eb2165a9209bb583048fe352f07dab8ee279b6cc04c2069e15f48e"
+    }
+  ],
+  "confirmed": {
+    "final_status": "invalid",
+    "quality_gates": {
+      "cross_split_similarity": true,
+      "nonempty_role_splits": true,
+      "nonempty_samples": true,
+      "requested_roles_present": true,
+      "required_coverage_per_role": false
+    },
+    "execute_rows": 0,
+    "execute_is_preregistered_requirement": true,
+    "final_split_counts": {
+      "train": 15,
+      "dev": 3,
+      "confirmation": 2
+    },
+    "all_final_source_metadata_profiles_zero": true,
+    "final_row_tokenizer_sha_metadata_matches_preflight": true,
+    "freeze_source_registration_provenance_missing": true,
+    "freeze_reproduction_passes_waiver": false,
+    "extract_registration_supports_row_filter_argument": false,
+    "initial_freeze_requires_existing_prior_regression": false
+  },
+  "material_findings": [
+    {
+      "priority": "P1",
+      "file": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_TRAINING_PREFLIGHT_R1_20260910/REPORT.zh-CN.md",
+      "claim": "最终20条与已normalize检查20条逐行相同，20/20通过",
+      "finding": "False. The normalized reviewed162 candidate and final210 share only17 sample IDs. Three train rows were replaced; common17 rows are exactly equal. FINAL_GATE correctly says equality=false. DATA_PREFLIGHT only proves prior20 normalization, not all final20.",
+      "added_final_ids": [
+        "RT-2d589006579bf2e16ad2a4747dd711696993c1833705e5a62849884d63d3113c",
+        "RT-6cfd97c09d1165234bbcbf71c6bc49016606e33c0574140c0ac23ec15eefd8a8",
+        "RT-ce3e10b46a30d7226cc8311041b6ec67414377e911d5993bbbd8d3fa5165eadd"
+      ],
+      "removed_normalized_ids": [
+        "RT-020a4175702a2dca911c677b59c0f8d166ca1b1246f1f64a88cc5494127b9f75",
+        "RT-7c1bc3eafb0230e29e8d0c08ac7cb047c61150ad50417e346afe49d567ee4bcd",
+        "RT-a51ac92350af06433fc360c89b03ad836951e7c5f72e70ea9ed3ecd0fe3a98ce"
+      ],
+      "required_reporting_correction": "State17 final rows are covered by prior normalization; three final rows need source/normalize revalidation before claiming final20/20. Do not alter sealed evidence; record corrected follow-up."
+    }
+  ],
+  "scope_notes": [
+    "freeze_dataset first rejects status invalid, then requires source_registration_sha256 provenance, then enforces counts/fingerprint. Its reproduction only passes roles,prior_regression,expected_regression_fingerprint, with no waiver mapping/SHA. extract_registration accepts exact waiver but no preregistered row-filter policy. Exact reproduced manifest comparison makes filtered/waiver candidates non-freezeable without integration work.",
+    "Source token/BOS/target/model/length checks are data checks, not optimizer forward/backward or runtime zero-State injection smoke. normalize_row itself does not establish zero profile; source profile inspection is separate.",
+    "execute0 plus preregistered required_coverage=false is a real data gate; Agent Strict0 or incomplete final tasks are not the gate. No training or data version creation is justified by this review.",
+    "Prior-regression triple pins apply when reusing a valid fixed regression. Code explicitly allows prior=None for initial freeze when regression_reused=false; absence of an already-published prior must not become a separate circular prohibition on first freeze. A candidate regression fingerprint and valid quality gates still required.",
+    "FINAL_GATE zero_source_profiles_and_tokenizer_verified=false is conservative as final normalization was not established, but raw source metadata for all final20 does say zero and matching tokenizer. Do not confuse this with optimizer attestation."
+  ],
+  "actions_performed": "Read code and sealed JSON/JSONL, compare IDs/fields/SHA only; no training, optimizer smoke, freeze, tests, production edits or sealed artifact edits."
+}
