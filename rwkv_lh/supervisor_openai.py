@@ -1,13 +1,14 @@
 """OpenAI-compatible adapter for the bounded strong-model supervisor.
 
 Credentials are loaded from the ignored project ``.env.local`` file or the process
-environment.  The adapter records only request metadata, digests, latency, and
-usage; API keys and raw provider headers are never included in audit events.
+environment. The adapter records response evidence, request metadata, digests,
+latency and usage; API keys and raw headers are never included in audit events.
 """
 
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import os
 import threading
@@ -868,7 +869,9 @@ class SupervisorProtocolError(RuntimeError):
     """The supervisor provider response violated the local JSON contract."""
 
 
-def _decode_chat_completion_stream(response: Any, *, deadline: float) -> dict[str, Any]:
+def _decode_chat_completion_stream(
+    response: Any, *, deadline: float, on_line: Callable[[bytes], None] | None = None,
+) -> dict[str, Any]:
     """Assemble one SSE chat completion without interpreting partial model JSON."""
 
     event_lines: list[str] = []
@@ -877,6 +880,8 @@ def _decode_chat_completion_stream(response: Any, *, deadline: float) -> dict[st
     finish_reason: str | None = None
     usage: dict[str, Any] = {}
     for raw_line in response.iter_lines():
+        if on_line is not None:
+            on_line(raw_line if isinstance(raw_line, bytes) else raw_line.encode("utf-8"))
         if time.monotonic() > deadline:
             raise requests.ReadTimeout("supervisor stream exceeded the request read budget")
         try:
@@ -1127,7 +1132,7 @@ class OpenAICompatibleSupervisorClient:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-    def _post_completion(self, endpoint: str, body: Mapping[str, Any]):
+    def _post_completion(self, endpoint: str, body: Mapping[str, Any], *, audit_context: Mapping[str, Any]):
         with self._request_slot():
             streaming = body.get("stream") is True
             deadline = time.monotonic() + self.settings.read_timeout_seconds
@@ -1147,14 +1152,35 @@ class OpenAICompatibleSupervisorClient:
             # Keep serialization and the connection lease through the complete
             # stream. Return errors with the HTTP response so audit still knows
             # this was HTTP 200, distinct from a connection failure.
+            lines: list[str] = []
+            digest = hashlib.sha256()
+            decoded = False
+
+            def record_line(line: bytes) -> None:
+                # iter_lines excludes line terminators; length framing preserves
+                # empty lines and multiline SSE events without normalization.
+                lines.append(base64.b64encode(line).decode("ascii"))
+                digest.update(len(line).to_bytes(8, "big"))
+                digest.update(line)
+
             try:
                 if response.status_code >= 400:
                     getattr(response, "content", None)  # cache the error body before close
                     return response, None, None
-                return response, _decode_chat_completion_stream(response, deadline=deadline), None
+                data = _decode_chat_completion_stream(response, deadline=deadline, on_line=record_line)
+                decoded = True
+                return response, data, None
             except Exception as exc:
                 return response, None, exc
             finally:
+                if response.status_code < 400:
+                    self._emit({
+                        "type": "supervisor_stream_received", **audit_context,
+                        "http_status": response.status_code,
+                        "evidence_format": "iter_lines_base64_length_u64be_sha256",
+                        "lines_base64": lines, "lines_sha256": digest.hexdigest(),
+                        "decoded": decoded,
+                    })
                 response.close()
 
     def _emit(self, event: Mapping[str, Any]) -> None:
@@ -1488,7 +1514,10 @@ class OpenAICompatibleSupervisorClient:
                         "attempt": attempt,
                     }
                 )
-                response, streamed_data, stream_error = self._post_completion(endpoint, body)
+                response, streamed_data, stream_error = self._post_completion(endpoint, body, audit_context={
+                    "call_id": call_id, "phase": phase, "run_id": run_id,
+                    "request_digest": request_digest, "attempt": attempt,
+                })
                 last_status = response.status_code
                 latency_ms = round((time.perf_counter() - started) * 1000, 1)
                 if response.status_code in _RETRYABLE_STATUS and attempt < self.settings.retry_attempts:

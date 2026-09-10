@@ -1040,6 +1040,43 @@ def test_supervisor_stream_deadline_is_an_interruption():
         )
 
 
+@pytest.mark.parametrize("lines", [
+    [b'event: telemetry', b'data: {"provider_status":"upstream reconnect"}', b''],
+    [b'data: {"choices":', b''],
+    [b'data: \xff', b''],
+    [b'data: {"unfinished":'],
+])
+def test_rejected_supervisor_stream_preserves_exact_consumed_lines_and_attempt(lines):
+    import base64
+    provider_response = StreamingResponse(_current_planner_model_value())
+    provider_response.iter_lines = lambda: iter(lines)
+    audit = []
+    client = OpenAIGoalSupervisorClient(replace(settings(), stream_responses=True, retry_attempts=2),
+        session=FakeSession([provider_response]), audit_hook=audit.append)
+    request = GoalPlanRequest(
+        run_id="RUN-stream-evidence", immutable_request="Inspect the workspace",
+        goal_digest="stream-fixture", plan_revision=0,
+        active_plan=RollingGoalPlan(goal_digest="stream-fixture").to_model_dict(),
+        latest_audit=None, workspace_manifest={"entries": []},
+    )
+    with pytest.raises(SupervisorProtocolError):
+        client.plan_goal_patch(request)
+    evidence = [event for event in audit if event["type"] == "supervisor_stream_received"]
+    assert len(evidence) == 1
+    transcript = evidence[0]
+    consumed = [base64.b64decode(value) for value in transcript["lines_base64"]]
+    assert consumed == lines[:len(consumed)] and consumed
+    assert transcript["lines_sha256"] == hashlib.sha256(b''.join(
+        len(line).to_bytes(8, "big") + line for line in consumed)).hexdigest()
+    failed = next(event for event in audit if event["type"] == "supervisor_request_failed")
+    assert transcript["call_id"] == failed["call_id"]
+    assert transcript["attempt"] == 1
+    assert transcript["http_status"] == 200
+    assert transcript["decoded"] is False
+    assert transcript["run_id"] == request.run_id
+    assert provider_response.closed
+
+
 def test_supervisor_stream_can_be_configured_without_affecting_native_transport(tmp_path, monkeypatch):
     for key in tuple(os.environ):
         if key.startswith(("RWKV_LH_PLANNER_", "RWKV_LH_STAGE_CHECKER_", "SUPERVISOR_")):

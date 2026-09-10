@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, replace
 from typing import Any
@@ -291,6 +292,7 @@ class RWKVNativeStateService:
         record = self.records.get(state_ref)
         if record is None:
             raise HTTPException(status_code=410, detail="state cache reference expired")
+        self._input_evidence(record)
         self.records.move_to_end(state_ref)
         return record
 
@@ -536,6 +538,8 @@ class RWKVNativeStateService:
         if final is None or not final.outputs:
             raise RuntimeError("RWKV native generation returned no output")
         selected = final.outputs[0]
+        if not isinstance(selected.finish_reason, str) or not selected.finish_reason:
+            raise RuntimeError("RWKV native generation returned no valid finish reason")
         token_ids = [int(item) for item in selected.token_ids]
         if not token_ids:
             raise RuntimeError("RWKV native generation returned no token IDs")
@@ -557,7 +561,7 @@ class RWKVNativeStateService:
             processed_token_count=int(result["processed_token_count"]),
         )
         self._validate_worker_record(actual, result)
-        return str(selected.text), token_ids, str(selected.finish_reason or "stop")
+        return str(selected.text), token_ids, selected.finish_reason
 
     async def _materialize_delta(
         self,
@@ -625,6 +629,7 @@ class RWKVNativeStateService:
                 await self._collective("drop", {"state_ref": ref})
 
     async def _export(self, record: _StateRecord) -> _StateRecord:
+        self._input_evidence(record)
         store_key = record.state_digest
         results = await self._collective(
             "export",
@@ -830,31 +835,57 @@ class RWKVNativeStateService:
         )
         sampling = payload.get("sampling")
         stop = payload.get("stop")
-        input_evidence = self._input_evidence(parent) if payload.get("return_token_ids") is True else {}
+        evidence = self._input_evidence(parent)
+        input_evidence = evidence if payload.get("return_token_ids") is True else {}
         async with self.lock:
-            content, token_ids, finish_reason = await self._generate_tokens(
-                source=parent,
-                target=target,
-                prompt_token_ids=[parent.pending_token_id],
-                request_id=f"native-generate-{request_id}",
-                max_tokens=max(1, int(payload.get("max_tokens") or 1)),
-                stop=[str(item) for item in stop] if isinstance(stop, list) else [],
-                sampling=dict(sampling) if isinstance(sampling, dict) else {},
-                pending_token_id=None,
+            # The sampler can advance beyond a frontend text-stop before its
+            # terminal output/capture reaches us. Its live row is private work,
+            # never the State identity of that output. Materialize the published
+            # cache from the parent and returned IDs through the same exact
+            # token-consumption primitive used by append. This is deterministic
+            # cache construction, not another role decision or a resample.
+            scratch = replace(
+                target, state_ref=self._new_ref(),
+                state_digest=_digest({"sampling_scratch": target.state_digest}),
             )
-            metadata = self._consensus(
-                await self._collective("get", {"state_ref": target.state_ref})
-            )
-            target = replace(
-                target,
-                pending_token_id=int(metadata["pending_token_id"]),
-                processed_token_count=int(metadata["processed_token_count"]),
-                input_token_ids=([*parent.input_token_ids, *token_ids]
-                                 if parent.input_token_ids is not None else None),
-                input_bos_token_count=parent.input_bos_token_count,
-            )
-            target = await self._export(target)
-            self._remember(target)
+            published = False
+            try:
+                content, token_ids, finish_reason = await self._generate_tokens(
+                    source=parent, target=scratch,
+                    prompt_token_ids=[parent.pending_token_id],
+                    request_id=f"native-generate-{request_id}",
+                    max_tokens=max(1, int(payload.get("max_tokens") or 1)),
+                    stop=[str(item) for item in stop] if isinstance(stop, list) else [],
+                    sampling=dict(sampling) if isinstance(sampling, dict) else {},
+                    pending_token_id=None,
+                )
+                if not token_ids or any(type(token) is not int or token < 0 for token in token_ids):
+                    raise RuntimeError("Native generation returned invalid token IDs")
+                captured = self._consensus(await self._collective("get", {"state_ref": scratch.state_ref}))
+                target = replace(
+                    target,
+                    input_token_ids=([*parent.input_token_ids, *token_ids]
+                                     if parent.input_token_ids is not None else None),
+                    input_bos_token_count=parent.input_bos_token_count,
+                )
+                started = time.monotonic()
+                target = await self._materialize_delta(parent, target, token_ids)
+                materialization = {
+                    "method": "verified_parent_and_returned_token_ids",
+                    "semantic_samples": 1,
+                    "consumed_delta_tokens": len(token_ids),
+                    "prefill_requests": (len(token_ids) - 1) // min(4096, int(self.engine_client.model_config.max_model_len) - 1) + 1,
+                    "wall_seconds": time.monotonic() - started,
+                    "sampler_processed_token_count": int(captured["processed_token_count"]),
+                    "published_processed_token_count": target.processed_token_count,
+                }
+                target = await self._export(target)
+                self._remember(target)
+                published = True
+            finally:
+                await self._collective("drop", {"state_ref": scratch.state_ref})
+                if not published:
+                    await self._collective("drop", {"state_ref": target.state_ref})
         return {
             "candidate": {
                 "state_ref": target.state_ref,
@@ -864,6 +895,7 @@ class RWKVNativeStateService:
                 "metadata": {
                     "token_ids": token_ids,
                     "response_id": request_id,
+                    "state_materialization": materialization,
                     **input_evidence,
                 },
                 "parent_state_digest": parent.state_digest,

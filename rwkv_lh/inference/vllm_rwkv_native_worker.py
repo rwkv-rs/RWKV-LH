@@ -24,6 +24,13 @@ from vllm.v1.worker.gpu.model_states.interface import ModelState
 from vllm.v1.worker.gpu.states import RequestState
 from vllm.v1.worker.utils import AttentionGroup
 from rwkv_lh.runtime.native_state import NATIVE_STATE_LIFECYCLE_VERSION
+from rwkv_lh.inference.vllm_rwkv_state_profiles_v1 import (
+    RWKV7InitialStateProfile,
+    RWKV7InitialStateProfiles,
+    RWKV7_ZERO_STATE_PROFILE,
+    resolve_request_profile,
+    sha256_file,
+)
 
 logger = init_logger(__name__)
 
@@ -37,211 +44,8 @@ RWKV7_NATIVE_STATE_WRITE_REF_XARG = "rwkv_native_state_write_ref"
 RWKV7_NATIVE_STATE_WRITE_DIGEST_XARG = "rwkv_native_state_write_digest"
 RWKV7_NATIVE_STATE_WRITE_BINDING_XARG = "rwkv_native_state_write_binding_digest"
 RWKV7_NATIVE_STATE_WRITE_PENDING_XARG = "rwkv_native_state_write_pending_token_id"
-RWKV7_STATE_PROFILE_MANIFEST_SCHEMA = "vllm.rwkv7-state-profiles.v1"
-RWKV7_STATE_PROFILE_XARG = "rwkv_state_profile"
-RWKV7_STATE_PROFILE_SHA256_XARG = "rwkv_state_profile_sha256"
-RWKV7_ZERO_STATE_PROFILE = "zero"
-_PROFILE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _NATIVE_STATE_REF_PATTERN = re.compile(r"^WKV-[0-9a-f]{32}$")
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-@dataclass(frozen=True)
-class RWKV7InitialStateProfile:
-    profile_id: str
-    state_sha256: str
-    wkv_state: torch.Tensor | None
-
-
-class RWKV7InitialStateProfiles:
-    """Immutable initial WKV states selected by registered request IDs."""
-
-    def __init__(
-        self,
-        profiles: dict[str, RWKV7InitialStateProfile],
-        default_profile_id: str,
-    ) -> None:
-        self._profiles = dict(profiles)
-        self.default_profile_id = default_profile_id
-        if default_profile_id not in self._profiles:
-            raise ValueError("RWKV7 default state profile is not registered")
-
-    @classmethod
-    def zero_only(cls) -> "RWKV7InitialStateProfiles":
-        return cls(
-            {
-                RWKV7_ZERO_STATE_PROFILE: RWKV7InitialStateProfile(
-                    profile_id=RWKV7_ZERO_STATE_PROFILE,
-                    state_sha256="0" * 64,
-                    wkv_state=None,
-                )
-            },
-            RWKV7_ZERO_STATE_PROFILE,
-        )
-
-    @classmethod
-    def load(
-        cls,
-        manifest_path: str,
-        manifest_sha256: str | None,
-        *,
-        model_artifact: str,
-        model_revision: str,
-        total_num_layers: int,
-        total_num_heads: int,
-        layer_offset: int,
-        num_layers: int,
-        tp_size: int,
-        tp_rank: int,
-        num_heads: int,
-        head_size: int,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> "RWKV7InitialStateProfiles":
-        path = Path(manifest_path).resolve()
-        if not path.is_file():
-            raise FileNotFoundError(
-                f"RWKV7 state-profile manifest does not exist: {path}"
-            )
-        expected_manifest_sha256 = str(manifest_sha256 or "").lower()
-        if not _SHA256_PATTERN.fullmatch(expected_manifest_sha256):
-            raise ValueError(
-                "VLLM_RWKV7_STATE_PROFILE_MANIFEST_SHA256 must pin the manifest"
-            )
-        actual_manifest_sha256 = _sha256_file(path)
-        if actual_manifest_sha256 != expected_manifest_sha256:
-            raise ValueError(
-                "RWKV7 state-profile manifest SHA-256 mismatch: "
-                f"expected {expected_manifest_sha256}, got {actual_manifest_sha256}"
-            )
-
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict):
-            raise TypeError("RWKV7 state-profile manifest must be an object")
-        if manifest.get("schema_version") != RWKV7_STATE_PROFILE_MANIFEST_SCHEMA:
-            raise ValueError("unsupported RWKV7 state-profile manifest schema")
-        if manifest.get("model_artifact") != model_artifact:
-            raise ValueError("RWKV7 state-profile model artifact mismatch")
-        if manifest.get("model_revision") != model_revision:
-            raise ValueError("RWKV7 state-profile model revision mismatch")
-
-        entries = manifest.get("profiles")
-        if not isinstance(entries, list) or not entries:
-            raise ValueError("RWKV7 state-profile manifest requires profiles")
-        profiles = cls.zero_only()._profiles
-        expected_keys = {
-            f"blocks.{layer}.att.time_state" for layer in range(total_num_layers)
-        }
-        for entry in entries:
-            if not isinstance(entry, dict):
-                raise TypeError("RWKV7 state-profile entries must be objects")
-            profile_id = entry.get("id")
-            if not isinstance(profile_id, str) or not _PROFILE_ID_PATTERN.fullmatch(
-                profile_id
-            ):
-                raise ValueError("RWKV7 state-profile ID is invalid")
-            if profile_id == RWKV7_ZERO_STATE_PROFILE or profile_id in profiles:
-                raise ValueError(f"duplicate RWKV7 state-profile ID: {profile_id}")
-            if entry.get("format") != "rwkv-peft-time-state.v1":
-                raise ValueError("unsupported RWKV7 state-profile format")
-            state_sha256 = str(entry.get("sha256") or "").lower()
-            if not _SHA256_PATTERN.fullmatch(state_sha256):
-                raise ValueError(f"RWKV7 state-profile {profile_id!r} lacks SHA-256")
-            state_path_value = entry.get("path")
-            if not isinstance(state_path_value, str) or not state_path_value:
-                raise ValueError(f"RWKV7 state-profile {profile_id!r} lacks path")
-            state_path = Path(state_path_value)
-            if not state_path.is_absolute():
-                state_path = path.parent / state_path
-            state_path = state_path.resolve()
-            if not state_path.is_file():
-                raise FileNotFoundError(
-                    f"RWKV7 state-profile does not exist: {state_path}"
-                )
-            actual_state_sha256 = _sha256_file(state_path)
-            if actual_state_sha256 != state_sha256:
-                raise ValueError(f"RWKV7 state-profile {profile_id!r} SHA-256 mismatch")
-
-            checkpoint = torch.load(
-                state_path,
-                map_location="cpu",
-                weights_only=True,
-            )
-            if not isinstance(checkpoint, dict) or set(checkpoint) != expected_keys:
-                raise ValueError(f"RWKV7 state-profile {profile_id!r} key set mismatch")
-            layer_tensors: list[torch.Tensor] = []
-            for global_layer in range(layer_offset, layer_offset + num_layers):
-                key = f"blocks.{global_layer}.att.time_state"
-                value = checkpoint[key]
-                if not isinstance(value, torch.Tensor):
-                    raise TypeError(
-                        f"RWKV7 state-profile {profile_id!r} value is not a tensor"
-                    )
-                expected_shape = (total_num_heads, head_size, head_size)
-                if tuple(value.shape) != expected_shape:
-                    raise ValueError(
-                        f"RWKV7 state-profile {profile_id!r} shape mismatch for {key}"
-                    )
-                if value.dtype != torch.bfloat16:
-                    raise ValueError(
-                        f"RWKV7 state-profile {profile_id!r} dtype mismatch for {key}"
-                    )
-                if (
-                    not torch.isfinite(value).all().item()
-                    or not torch.count_nonzero(value).item()
-                ):
-                    raise ValueError(
-                        f"RWKV7 state-profile {profile_id!r} has invalid "
-                        f"values in {key}"
-                    )
-                layer_tensors.append(value.detach())
-            initial = torch.stack(layer_tensors, dim=0)
-            if initial.shape[1] % tp_size:
-                raise ValueError("RWKV7 state-profile heads are not TP divisible")
-            heads_per_rank = initial.shape[1] // tp_size
-            initial = initial.narrow(1, tp_rank * heads_per_rank, heads_per_rank)
-            expected_runtime_shape = (
-                num_layers,
-                num_heads,
-                head_size,
-                head_size,
-            )
-            if tuple(initial.shape) != expected_runtime_shape:
-                raise ValueError(
-                    f"RWKV7 state-profile {profile_id!r} runtime shape mismatch"
-                )
-            # RWKV-PEFT persists time_state as [layer, head, value, key].
-            # The recurrent state pool and FLA API consume
-            # [layer, head, key, value].  These dimensions are both 64, so a
-            # shape check cannot detect an omitted or duplicate conversion.
-            initial = initial.transpose(-2, -1).contiguous()
-            profiles[profile_id] = RWKV7InitialStateProfile(
-                profile_id=profile_id,
-                state_sha256=state_sha256,
-                wkv_state=initial.to(device=device, dtype=dtype),
-            )
-
-        default_profile_id = manifest.get("default_profile", RWKV7_ZERO_STATE_PROFILE)
-        if not isinstance(default_profile_id, str):
-            raise TypeError("RWKV7 default state-profile ID must be a string")
-        if default_profile_id != RWKV7_ZERO_STATE_PROFILE:
-            raise ValueError("RWKV7 state-profile manifest default must be zero")
-        return cls(profiles, default_profile_id)
-
-    def resolve(self, profile_id: str | None) -> RWKV7InitialStateProfile:
-        resolved_id = profile_id or self.default_profile_id
-        profile = self._profiles.get(resolved_id)
-        if profile is None:
-            raise ValueError(f"unknown RWKV7 state-profile ID: {resolved_id!r}")
-        return profile
 
 
 @dataclass(frozen=True)
@@ -706,7 +510,7 @@ class RWKV7ModelState(ModelState):
         )
         model_artifact_path = Path(model_artifact).expanduser()
         if model_artifact_path.is_file():
-            model_revision = _sha256_file(model_artifact_path.resolve())
+            model_revision = sha256_file(model_artifact_path.resolve())
         else:
             model_revision = str(
                 getattr(self.model_config, "revision", None)
@@ -1330,39 +1134,9 @@ class RWKV7ModelState(ModelState):
         if not self.free_rows:
             raise RuntimeError("RWKV7 state pool is full")
 
-        requested_profile_id = None
-        requested_profile_sha256 = None
         sampling_params = new_req_data.sampling_params
-        extra_args = (
-            sampling_params.extra_args
-            if sampling_params is not None and sampling_params.extra_args is not None
-            else {}
-        )
-        if sampling_params is not None and sampling_params.extra_args is not None:
-            requested_profile_id = sampling_params.extra_args.get(
-                RWKV7_STATE_PROFILE_XARG
-            )
-            requested_profile_sha256 = sampling_params.extra_args.get(
-                RWKV7_STATE_PROFILE_SHA256_XARG
-            )
-            if requested_profile_id is not None and not isinstance(
-                requested_profile_id, str
-            ):
-                raise TypeError("RWKV7 state-profile request value must be a string")
-            if requested_profile_sha256 is not None and not isinstance(
-                requested_profile_sha256, str
-            ):
-                raise TypeError("RWKV7 state-profile SHA-256 must be a string")
-        if bool(requested_profile_id) != bool(requested_profile_sha256):
-            raise ValueError(
-                "RWKV7 request state-profile ID and SHA-256 are both required"
-            )
-        profile = self.initial_state_profiles.resolve(requested_profile_id)
-        if (
-            requested_profile_sha256 is not None
-            and requested_profile_sha256 != profile.state_sha256
-        ):
-            raise ValueError("RWKV7 request state-profile SHA-256 mismatch")
+        profile = resolve_request_profile(self.initial_state_profiles, sampling_params)
+        extra_args = getattr(sampling_params, "extra_args", None) or {}
         prompt_token_ids = tuple(new_req_data.prompt_token_ids or ())
         native_read_values = (
             extra_args.get(RWKV7_NATIVE_STATE_READ_REF_XARG),

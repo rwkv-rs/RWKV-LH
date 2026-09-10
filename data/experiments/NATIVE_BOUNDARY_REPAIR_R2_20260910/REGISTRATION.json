@@ -1,0 +1,25 @@
+{
+  "round_id": "NATIVE_BOUNDARY_REPAIR_R2_20260910",
+  "baseline_commit": "f9a37498",
+  "actual_failure_source": "data/experiments/REALPROJECT_HANDOFF_COLLECTION_R1_20260910/NATIVE_TOKEN_EVIDENCE_FAILURE.json",
+  "objectives": [
+    "Publish only recurrent States materialized from the verified parent and authoritative returned token IDs, independently of the sampler's live row",
+    "Preserve one semantic sample, unchanged raw output and exact receipt replay; expose deterministic cache materialization separately",
+    "Reject malformed token evidence before all state transitions; never adjust counts to hide an inexact numerical boundary",
+    "Use the canonical State profile loader in Native and Selector",
+    "Preserve Supervisor stream evidence before protocol validation without relaxing the parser"
+  ],
+  "required_validation": [
+    "Red then green regression for sampler States at, ahead of and behind the returned stop boundary",
+    "Repeated generation, commit, append, rollback, durable restart and request replay",
+    "Materialization failure publishes no candidate and never resamples an unknown request",
+    "Canonical State profile identity, shape and transpose tests",
+    "Full tests suite with no skips",
+    "Live stop-string generation, retry input and exported numerical State equality with deterministic prefix materialization"
+  ],
+  "collection_policy": "Fresh source freeze for later production collection; previous completed runs remain sealed and are not rescored",
+  "optimizer_steps": 0,
+  "training_authorization": "Existing owner stagewise authorization persists; no optimizer until current-role registered data and evaluation are ready",
+  "holdout_access": false,
+  "server_git_allowed": false
+}

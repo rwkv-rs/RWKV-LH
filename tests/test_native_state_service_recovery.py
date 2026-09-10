@@ -11,7 +11,7 @@ from test_native_state_service import service_module
 from test_openai_compat_runtime import _cache_binding
 
 
-def service_fixture(module, path, exports, counters):
+def service_fixture(module, path, exports, counters, *, sample_overshoot=0):
     class Service(module.RWKVNativeStateService):
         def __init__(self):
             super().__init__(SimpleNamespace(model_config=SimpleNamespace(max_model_len=16384)), SimpleNamespace())
@@ -29,16 +29,25 @@ def service_fixture(module, path, exports, counters):
             counters[kind] = counters.get(kind, 0) + 1
             await self._ensure_loaded(kwargs["source"])
             pending = 7 if kwargs["pending_token_id"] is None else kwargs["pending_token_id"]
+            consumed = self.worker_states[kwargs["source"].state_ref]["consumed_token_ids"]
+            consumed = [*consumed, *kwargs["prompt_token_ids"]]
+            if kind == "sample":
+                consumed.extend([4, 5])
+                if sample_overshoot < 0:
+                    consumed = consumed[:sample_overshoot]
+                else:
+                    consumed.extend([888] * sample_overshoot)
             record = replace(kwargs["target"], pending_token_id=pending,
-                             processed_token_count=kwargs["source"].processed_token_count + len(kwargs["prompt_token_ids"])
-                             + (2 if kind == "sample" else 0))
-            self.worker_states[record.state_ref] = {**asdict(record), "authoritative": False}
+                             processed_token_count=len(consumed))
+            self.worker_states[record.state_ref] = {**asdict(record), "authoritative": False,
+                                                    "consumed_token_ids": consumed}
             return "original", [4, 5, 7], "stop"
 
         async def _collective(self, action, payload=None):
             ref = payload.get("state_ref")
             if action == "seed":
-                self.worker_states[ref] = {**payload, "processed_token_count": 0, "authoritative": False}
+                self.worker_states[ref] = {**payload, "processed_token_count": 0, "authoritative": False,
+                                           "consumed_token_ids": []}
             elif action == "drop":
                 counters["drop"] = counters.get("drop", 0) + 1
                 self.worker_states.pop(ref, None)
@@ -86,6 +95,7 @@ def test_restart_replays_generate_without_reverting_commit_or_rollback(tmp_path,
         service = service_fixture(service_module, path, exports, counters)
         initial, generated, request = await create_and_generate(service)
         candidate_ref = generated["candidate"]["state_ref"]
+        drops_before_final = counters.get("drop", 0)
         assert service._record(candidate_ref).export_record is not None
         if final_operation == "commit":
             binding = replace(_cache_binding(), parent_state_digest=initial["state_digest"], state_chain_digest="e" * 64)
@@ -105,7 +115,7 @@ def test_restart_replays_generate_without_reverting_commit_or_rollback(tmp_path,
             assert restarted._record(candidate_ref).committed is True
             assert restarted.worker_states[candidate_ref]["cache_binding_digest"] == binding.digest
         else:
-            assert counters["drop"] == 1
+            assert counters["drop"] == drops_before_final + 1
             with pytest.raises(service_module.HTTPException) as failure:
                 restarted._record(candidate_ref)
             assert failure.value.status_code == 410

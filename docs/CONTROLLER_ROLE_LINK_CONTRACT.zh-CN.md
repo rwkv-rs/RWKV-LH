@@ -1,6 +1,6 @@
 # Controller 与角色的链路契约
 
-状态：2026-09-10，`ROLE_CHAIN_ROOT_REPAIR_R1_20260910` 正在对交接和 Native 状态管理进行架构整改。此前闭环并未保证原始需求、参数拒绝和 Native 输入证据实际到达；八项根因见 `ERROR_PROPAGATION_AUDIT_R1_20260909`。生产模型能力必须用新冻结运行测量，工程通过不等于 Agent 通过。
+状态：2026-09-10，交接架构整改 R1 已提交并实测，REALPROJECT R1 为 Strict 0/12、completed 0/12、mutation 0；首次生成的数值 State 捕获边界仍有偏差。R2 当前完整回归 1341 passed、0 skipped，两道原始失败输入的真实 GPU 与重启验证已通过；工程通过不等于 Agent 或完整交接验收通过。最新证据与各轮 SHA 见 [当前交接](HANDOFF.zh-CN.md)。
 
 Owner 本轮明确：保留当前五角色，先分析链路连接；兼容各种任务依靠统一设计，不依靠题型、路径或后缀穷举。此前的逐角色 StateTune、取消固定三轮上限、重新部署 2.9B 并验证训练后端的授权继续有效；当前先完成本链路工作。
 
@@ -17,6 +17,8 @@ Executor v6 同时接收 immutable_goal 与当前步骤；Step Auditor v6 接收
 工具路径合同由 operation_contracts.py 的参数声明统一导出结构前提和读写副作用。copy 的 source 为工作区内读取；move 的 source 是修改，必须在完整 write_roots 内。Selector 接收各参数的可用性和副作用摘要；Executor 只接收已选工具的参数合同。原始需求、显式范围完整保留，附加发现提示有界且省略时标记不完整；完整描述留在原始交接边界中，生产与 trace 使用同一投影函数。
 
 Native 指直接管理 RWKV 循环 State 的推理传输。服务、worker 和请求身份代码以当前仓库为唯一来源；部署引擎直接导入，删除引擎内重复实现。服务持久记录实际消费的 token，跨 append/import/restart 保留；只有与本地逐段输入重建匹配的 full_context 及真实 BOS 记录才构成训练输入证据。
+
+生成结果的发布规则统一为“已核验父 State＋实际返回 token IDs”。采样的 worker 行可能在前端 stop 判定后继续推进，只作为私有工作区；通过现有精确 token 物化操作建立输出边界后，才导出、持久化并返回候选。角色语义只采样一次，缓存消费 token 数、物化请求数和耗时单独记录。缺失或冲突的 token 证据不得修改计数后接纳；失败不能返回成功候选或重新采样结果未知的请求。Native、Selector 与训练导出共用唯一 State profile loader。
 
 ```mermaid
 flowchart LR

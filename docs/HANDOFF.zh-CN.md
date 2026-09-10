@@ -1,63 +1,30 @@
 # 当前交接
 
-更新日期：2026-09-10；最新已封存 Agent 采集仍为 `ULTRADATA_COLLECTION_R3_20260909`：固定三题 **Strict 0/3、completed 0/3、mutation 0、动作 2**，终止为 Stage HTTP 500、Planner HTTP 500、连续工具协议拒绝，见 [R3 报告](../data/experiments/ULTRADATA_COLLECTION_R3_20260909/REPORT.zh-CN.md)。本轮完成 [交接架构整改 R1](../data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md)，完整回归 **1321 passed、0 skipped**。工程验证不替代 Agent 成绩，optimizer steps 仍为 0；新架构真实运行须使用新冻结源码。详见 [统一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md) 和 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)。
+更新日期：2026-09-10。最新完整开发采集 [REALPROJECT R1](../data/experiments/REALPROJECT_HANDOFF_COLLECTION_R1_20260910/REPORT.zh-CN.md)：**Strict 0/12、completed 0/12、mutation 0、动作 0**；10 题 Planner 网关 HTTP 500，2 题 Executor 参数重试前 Native State 边界错误。另一次 [UltraData R4](../data/experiments/ULTRADATA_COLLECTION_R4_20260910/REPORT.zh-CN.md)：**Strict 0/3、completed 0/3、mutation 0、动作 1**。两轮全部结束并封存，optimizer steps 仍为 **0**。
 
-## Agent 实测与 trace 到达位置
+## 当前整改与验证状态
 
-2026-09-10 完成 [错误起点与放大链审计](../data/experiments/ERROR_PROPAGATION_AUDIT_R1_20260909/REPORT.zh-CN.md)，逐项读取 R1/R2/R3 九条原始链并重建 R3 十四次 Executor 完整 Native 上下文。重要补充：第三题十二次实现请求没有完整业务规则，Controller 只传步骤摘要，独立 Executor bootstrap 又不含原始需求。已确认八项现存接口/反馈/数据问题，包含 move 源路径写范围遗漏、发现不完整标记无法重建，以及 Native full input token 证据缺失。本次只分析，没有更改生产或重评分。
+[交接结构整改 R1](../data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md) 已提交 `82319f95`：原始需求贯穿 Executor / Step Auditor，参数拒绝由同一步的 Selector / Executor 接收，路径资格和执行权限共用参数合同，逻辑交接及事实提交与 Native 缓存物化分开。完整回归 1321 passed、0 skipped；随后真实采集暴露新的数值边界缺陷，因此不能将工程通过称作完整交接验收通过。
 
-最新 R3：Planner 三次请求（两次接纳、一次 500），Stage Checker 两次（一次 advance、一次 500）；Selector 八次交接 / 24 次菜单求值、Executor 十四次、Step Auditor 两次，后续角色未到达。16 次 RWKV 生成均自然 stop，没有输出 token 截断。两个 HTTP 失败保持 pending；第三题的预算是 12 次连续协议拒绝，不能混称 Planner 输出预算耗尽。
+两道实际失败题中，首次生成后服务器 processed_token_count + 1 比返回 token 的完整历史长度多 2；后续 append 原样继承偏差。错误起点是把终止输出时捕获的 worker 当前 State 当作该输出对应的 State。原始数值证据见 REALPROJECT R1 `NATIVE_TOKEN_EVIDENCE_FAILURE.json`；该轮报告 SHA-256 `6bbd6c78a7a2333fa09482f68857834a73fa45b4c73aac4910186b65cfbe1cc4`。
 
-R3 两个审计输入已重建并匹配原始 SHA，空目录观察不再被判作 read-root 未证明。第三题进入 mutate 后，现有资格筛选只检查 move/copy 的 destination，而执行前同时校验 source；重选又未收到 action 协议拒绝，六次 Selector 输入摘要完全相同。这两项是待修连接缺陷，不能通过放大重试次数或把错误转给 Planner 解决。原始边界与输出见 R3 `CONTRACT_COMPARISON.json`。
+当前 [数值边界整改 R2](../data/experiments/NATIVE_BOUNDARY_REPAIR_R2_20260910/REGISTRATION.json)：候选缓存仅从已核验父 State 与实际返回 token 物化后发布，采样工作区不直接作为交接 State；单次角色采样与确定性缓存工作分别计量。Native / Selector 共用 State profile loader；Supervisor 在协议解析前保留原始 SSE 行，缺少生成停止原因不再伪造 stop。完整测试 **1341 passed、0 skipped、231.41 秒**；新源码已上传并验证完整项目 / engine 清单，真实 GPU 停止符、重试与重启验证已通过，State 张量与精确前缀最大绝对差为 0。R2 已封存，尚无新 Agent 成绩。
 
-R3 自动 Selector 候选六条、两个不同观察边界，均为 train；创建阶段十八条错误菜单行进入独立复核，未作为正例。原 30 行 / 十边界、四项覆盖、非空固定切分条件未满足；固定三题家族本身没有 confirmation，不能靠反复重跑补齐。候选全集 invalid，optimizer steps 0；不要求后序角色完成或 Agent 先高分。
+## 唯一架构与服务配置
 
-Owner 提交已完成的 UltraData 试点后明确要求开始，本轮沿用已有逐角色授权执行固定三题采集。R1 三题在 Executor Native 初始化处失败、动作均为 0；当前客户端补齐恢复身份并修复不可重试错误被反复重试的问题后，重新冻结 R2，未重评分 R1。角色级：R2 Selector 九次交接、27 次菜单求值；Executor 九次、Step Auditor 六次；Stage Checker、Finalizer、Final Auditor 未调用。所有角色独立 zero，optimizer steps 为 0。
+产品入口 `rwkv-stateful-goal-loop.v7`，保持五个训练角色：Selector → Executor → Step Auditor → Finalizer → Final Auditor。各角色只使用唯一 builder：前三者 v6、Finalizer v2、Final Auditor v4。步骤未完成与参数失败留在当前步骤；计划调整必须有阶段或目标缺口依据。任务、阶段和步骤数量不设固定上限，资源耗尽只能中断或阻塞。详见 [链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md) 和 [唯一规范](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)。
 
-R2 六次 Step Auditor 输入均重建并匹配生产 prompt SHA。真实目录观察完整，但旧 gap catalog 无条件写入“根目录缺少成功完整观察”，六次审计均选中该缺口，合法 REPAIR 又将其传回 Selector/Executor。本轮统一 Step v5 / Final v4 的待判断条件表达，并将数据侧独有的机械矛盾校验移入共享协议；生产不再接纳同类矛盾，错误审计仅重试原边界。没有发生步骤 REPAIR 误转 Planner；模型的修复后实际判断仍需新采集。完整原始证据见 R2 的 `CONTRACT_COMPARISON.json`。
+- Planner / Stage Checker：独立强模型 `deepseek-v4-pro`，唯一配置 `.env.local`，stream=true；本次切换预注册输出上限分别 32768 / 16384，读取预算 240 秒。owner 已切换官方 `https://api.deepseek.com`，模型列表鉴权 HTTP 200，真实 Planner 验证待完成；此前第三方网关 `https://next-token.cc/v1` 多次返回 `new_api_error/do_request_failed`。不能据此推断模型生成了错误计划；UltraData R4 另有一次 HTTP 200 后流协议拒绝，旧轮未保留原始 SSE，具体事件原因仍未知。
+- Selector：已部署 2.9B，GPU 2，`rwkv-lh-selector-current.service`，本地端口 29621。32 层、40×64 State 已通过既有至 16384 tokens 的 Native 前向与反向机制验证；优化器未运行。
+- Executor / 两个 Auditor / Finalizer：13.3B，`rwkv-lh-native-current.service`，GPU 0，本地 29613 → 服务器 18234。独立角色 zero，不复用未验证的旧 State。
+- 当前部署根 `/home/chase/GitHub/RWKV-LH-native-boundary-r2-20260910`；项目 127 文件 manifest SHA `bad4c15874aa4996aa61b0556de9a4e45b864cf97071d30dead5f838ef77bcd3`，engine 6393 文件 manifest SHA `0861deb143507dbd77c123829be6502af9ca93f5f85c280443f08e946d9e3d96`。服务器没有使用 Git；旧 Native unit 已停止和禁用，当前服务仅导入上传的唯一项目实现。
 
-Selector 得到九条自动标注候选（train 6 / dev 3 / confirmation 0），另 18 条进入独立复核队列；整个候选集 invalid。当前预注册覆盖、至少 30 行/十个不同选择边界、非空固定回归及跨切分相似度门未满足。不是要求后序角色先完成或 Agent 先高分。没有新建正式数据版本、没有启动优化器。
+## StateTune 的真实进度与下一步
 
-历史生产链路 R3 曾由 owner 主动暂停：12 题中仅 10 题有终止记录，这些记录 Strict / completed / mutation / actions 均为 0，原始终止 `strong_planner_unavailable`；两个 Web 题未完成，不能作为完整 12 题成绩。Planner 当时仍为 13.3B，尚未产生 Selector 可训练边界，见 [R3 暂停报告](../data/experiments/CURRENT_ROLE_CHAIN_OBSERVATION_R3_20260909/REPORT.zh-CN.md)。没有自动恢复历史整套评测或改变分母。
+Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标、预算和实际 optimizer steps 管理；授权持续有效，不重复询问。Agent 低分和后序角色未到达不构成首轮训练禁令。
 
-当前 `.env.local` 统一配置 Planner / Stage Checker 为 `gpt-5.6-sol`、stream=true，原 13.3B 不再是默认 Planner。早期网关 500 及空 required_phases 诊断保持原始记录；新的 UltraData R1/R2 六题计划全部被生产接纳，R1 首题有一次语义纠错。不能将模型列表健康、角色合同通过或工程测试等同于 Agent 验收。外部可用资源与静态轨迹限制见 [接入判断](OPEN_SOURCE_RESOURCE_ADOPTION.zh-CN.md)。
+当前角色是 Selector。UltraData R4 有 1 次交接 / 3 菜单求值，3 条自动候选均 train；REALPROJECT R1 有 2 次交接 / 6 菜单求值，6 条均待独立复核。两轮没有足够的 mutate / execute / missing-target 证据，尚未满足原预注册 30 条验证菜单、10 个不同边界及固定 train/dev/confirmation 非空条件。没有合格正式数据集，不把错误参数或协议通过直接标成正确工具选择。
 
-Planner 报告 SHA-256：`0b12736abe22dd4a931062bf979cd619912685c3dc275d4ec34be7c7837245b2`；最终完整测试日志 SHA-256：`8145b83468ec5e1e9b5eda65b1920b14754a7563379a035eef30151c52b4dd58`。完整文件清单见该轮 `EVIDENCE_SHA256.json`。
+R2 实际数值边界验收已封存；接通正式角色数据消费、优化器登记及固定回归验收入口，然后冻结新源码采集。当前角色来源和覆盖合格后执行已授权 StateTune；合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 
-最近完整模型对比仍是 2026-09-07 的 R7：A/B 各 Strict **0/12**、completed **0/12**、mutation **0**，各成功目录观察 12 次；所有题原始终止 `strong_planner_unavailable`，子分类 `fixed_plan_exhausted`。模型没有执行第二个动作，后面的读文件、变更、检查、Stage 与 Final 路径尚无该轮能力证据。不能把它解释为已走到第二或第三阶段。
-
-角色级：每臂 Executor 12 次、Step Auditor 12 次；Selector 12 次 handoff、36 次菜单求值。固定公开初始计划没有 Planner 模型生成，Stage Checker、Finalizer、Final Auditor 均未调用。24 条审计的 root-unproved 与同轮机械观察事实冲突；合同接受不能充当语义标签。
-
-R7 固定 HEAD `9d931fd18e34c18bb918b569dd1e9dec5e2d6cc6`，freeze SHA `e237c85e9705ed84d301a97132a66ddbd8668717cd9d4ec5e0c04d9c3f2a3f64`。两臂在自身冻结条件内 VALID，不能接续或重评分成修复后的结果。原 [R7 报告](/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/experiments/ZERO_STATE_AGENT_BASELINE_R7_20260907/REPORT.zh-CN.md) SHA `1809a26e0c53583270bb8a905b83298032da72cdde639bfca64873f055ea24ba`；因果分析见同轮 [TRACE_ANALYSIS 报告](/home/chase/GitHub/RWKV-LH-zero-baseline-r4/data/experiments/ZERO_STATE_AGENT_BASELINE_R7_20260907/TRACE_ANALYSIS/REPORT.zh-CN.md)。更早中止/INVALID 实验保持原始记录，不再作为当前执行安排。
-
-## 本轮代码与数据链变化
-
-- 2026-09-10 交接架构整改：原始需求贯穿 Executor / Step Auditor；协议拒绝持久传给同一步的重新选择及参数生成；工具所有路径参数的结构资格和副作用来自同一声明。完整合同保存在日志，模型输入按角色投影。逻辑交接先提交，Native 数值缓存按需物化；独立角色和事实提交不依赖 Executor 缓存。
-- Selector / Executor / Step Auditor 唯一协议为 v6，删除对应 v5 模块。实际 Native 服务与 worker 纳入当前源码，引擎移除重复实现；Native 保留真实完整输入 token 历史与 BOS，并在重启恢复中验证。当前服务共用本轮冻结的 127 文件项目源码及 6393 文件引擎，旧 Native unit 停止、禁用。
-- Controller 接受步骤 REPAIR 后继续同一步；本轮另删除工具重复失败、Executor provenance 拒绝、Step Auditor 协议无效三条误转 Planner 的分支及其专用反馈字段。重复失败和无进展预算保留。
-- 当前闭环轮补齐 Selector/Executor 共享的语义反馈、Finalizer 原候选/缺口与独立协议重试反馈；审计错误保留原边界而不重复动作/候选；最终执行缺口回到 Planner 并打开新的执行步骤。Stage Checker 接收全部相关动作，统一解析 artifact/revision 来源；去掉审计 evidence/gap 数量声明上限。工具兼容只使用结构前提，有限发现显式标记未知，显式 root 不裁剪。
-- trace 校验允许运行前冻结前序 State 的逐角色来源。当前角色未满足数据条件时明确报告该角色的缺口，后序角色尚未到达不会阻止它。
-- Auditor/Finalizer 正例需要独立语义复核；待复核原始边界写入 `review_queue.jsonl`。合法双人纠正单独保存目标及本地 token，原始输出、原 token 和证据不改写；已完成任务也不能自动把错误审计变成正例。
-- 实际 prompt IDs、scope 与 BOS 元数据透传并核验；缺失 finish_reason 不再伪造 `stop`。没有服务器完整 token 证据的行保持 `token_ids_complete=false`。
-- 修复命令沙箱静默回退、沙箱共享宿主网络、包裹私有片段的来源判定、Web 重启重复 worker，以及两个公共基准的包数据遗漏。
-
-闭环轮完整回归 **1061 passed，0 skipped，194.99 秒**；验证输入差异、同边界重试、恢复、执行补证、阶段事实与五角色逐字节重建。2.9B 部署轮完整回归 **1073 passed，0 skipped，196.81 秒**；服务真实两次选择、八项全词表 zero/非零 State 对齐和三种长度的完整反向验证通过。测试不构成生产角色数据或新增 Agent 成绩，optimizer steps 仍为 0。
-
-## 唯一架构与角色次序
-
-产品入口仍只有 `rwkv-stateful-goal-loop.v7`；每个角色使用其唯一协议 builder。Owner 本轮明确保留当前五角色，问题优先定位于角色交接；不得按题型、路径或后缀穷举兼容。先统一任务契约、工具能力、证据、反馈、重试归属和恢复语义。公共 Controller 基类及 State 部署适配器不是第二套产品架构；GoalPlanPatch 仅接受当前 v4 和显式 phase，旧重放及角色模块已删除。
-
-训练按 **Selector → Executor → Step Auditor → Finalizer → Final Auditor** 推进：当前角色达到预注册指标后固定 State，前序 State 固定、当前及后序 zero，采集下一角色的实际问题。阶段冻结仅作为下一次采集条件，正式组合仍须通过 Agent 验收与消融。模型升级主要调整模型/词表/State/上下文/传输配置，并验证适配；不因 RWKV 名称变化重写角色架构，旧 State 不自动复用。
-
-## Owner 决策与训练记录
-
-2026-09-09 owner 明确取消固定三轮上限，改按预注册指标、预算和实际训练记录管理。旧“Selector 已用尽”“Executor/Step Auditor 剩一轮”“第四轮禁止”均不再适用。历史计数未知仍记 unknown，不伪造为零，也不再以次数对账作为额度阻塞。决策及后续 run 记录要求见 [训练管理记录](../data/experiments/STATETUNE_ENTRY_REPAIR_R1_20260909/TRAINING_POLICY.json)。
-
-已有按阶段推进的授权继续有效，不重复询问同一权限。具体训练应先登记模型/数据/训练器身份、固定回归、优化参数、资源预算、指标与停止规则；正式数据版本仍在 owner 明确授权范围内。没有实际 optimizer steps 的采集/测试不计为训练。
-
-## 下一步与仍未证明的能力
-
-1. 八项交接缺陷已按当前唯一架构整改，并通过 1321 项完整回归；生产实测验证进入新冻结 R4。重点核对完整需求、参数拒绝反馈、写入与审计实际输出及 Native 全上下文 token 证据，不能重评分旧轮或修改原门槛。
-2. 2.9B 已上线 `rwkv-lh-selector-current.service`（GPU 2，本地端口 29621），原始权重与转换后权重均核验，32 层 / 40×64 State 已通过至 16384 tokens 的 Native 前向与反向验证。本地旧 Selector 协议/模型 SHA 配置已更新；原 13.3B 服务保持运行。服务器仅使用上传的完整 SHA manifest，没有 Git。
-3. 登记 Selector 覆盖 scope、样本量、固定回归、模型/数据/训练器 SHA、参数和实际预算，冻结新生产 trace。满足当前角色的预注册条件后执行已授权训练，通过后固定 State 并进入下一角色；不要求先拿到后序角色数据或 Agent 先高分。当前数值训练后端已经验证；正式角色数据消费、优化器运行登记与候选验收仍需接通，不能将数值反向测试算作训练。
-4. UltraData 三轮累计八次计划接纳，R3 首次阶段检查 advance；仍未实际写代码或完成任务。gpt-5.6-sol 网关本轮两次请求因 HTTP 500 中断，不能假称本地 parser 拒绝。E2E-LH09 的 `mock_api` 适配问题独立待修，不能恢复退役工具链或改分母。最终 Holdout 保持隔离、仅最终一次验收。
+已封存结果不续跑或重评分。Real Agent Holdout V2 保持隔离，未读取，仅最终验收一次使用。Owner 负责 push；本地已提交 R4 `70f5ae0a`、REALPROJECT R1 `f9a37498`，各轮完整 SHA 清单位于实验目录的 `EVIDENCE_SHA256.json`。
