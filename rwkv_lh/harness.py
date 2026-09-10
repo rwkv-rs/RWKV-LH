@@ -2639,28 +2639,45 @@ class ActionHarness:
         else:
             executable_resolution = "unchanged"
             executable = resolved_argv[0]
-            runtime_script: Path | None = None
+            runtime_entrypoint: Path | None = None
+            project_venv = Path(sys.prefix).absolute()
             if "/" not in executable:
                 located = shutil.which(executable)
                 if located:
                     candidate = Path(located).absolute()
-                    project_venv = Path(sys.prefix).absolute()
                     if candidate.is_relative_to(project_venv):
-                        runtime_script = candidate
-                if runtime_script is None:
+                        runtime_entrypoint = candidate
+                if runtime_entrypoint is None:
                     candidate = Path(sys.executable).parent / executable
                     if candidate.is_file() and os.access(candidate, os.X_OK):
-                        runtime_script = candidate.absolute()
-            if runtime_script is not None:
-                resolved_argv = [
-                    str(Path(sys.executable).resolve(strict=True)),
-                    str(runtime_script),
-                    *resolved_argv[1:],
-                ]
-                executable_resolution = "project_runtime_console_script"
+                        runtime_entrypoint = candidate.absolute()
+            elif Path(executable).is_absolute():
+                candidate = Path(executable).absolute()
+                if candidate.is_relative_to(project_venv) and candidate.is_file() and os.access(candidate, os.X_OK):
+                    runtime_entrypoint = candidate
+            if runtime_entrypoint is not None:
+                runtime_python = Path(sys.executable).resolve(strict=True)
+                entrypoint = runtime_entrypoint.resolve(strict=True)
+                # A venv's bin directory also contains native executables and
+                # non-Python scripts. Only a declared matching interpreter
+                # authorizes rebasing a Python console script into the sandbox.
+                with entrypoint.open("rb") as handle:
+                    header = handle.readline(4096)
+                interpreter = os.fsdecode(header[2:]).strip().split(maxsplit=1) if header.startswith(b"#!") else []
+                declared_python = bool(
+                    interpreter and Path(interpreter[0]).is_absolute()
+                    and Path(interpreter[0]).resolve() == runtime_python
+                )
+                if declared_python:
+                    resolved_argv = [str(runtime_python), *interpreter[1:], str(entrypoint), *resolved_argv[1:]]
+                    executable_resolution = "project_runtime_console_script"
+                else:
+                    resolved_argv = [str(entrypoint), *resolved_argv[1:]]
+                    executable_resolution = "project_runtime_executable"
         project_runtime_requested = executable_resolution in {
             "python_alias_to_project_runtime",
             "project_runtime_console_script",
+            "project_runtime_executable",
         }
         if project_runtime_requested:
             site_packages = (
@@ -2670,6 +2687,8 @@ class ActionHarness:
                 / "site-packages"
             )
             environment["PYTHONPATH"] = str(site_packages)
+            runtime_bin = Path(sys.executable).resolve(strict=True).parent
+            environment["PATH"] = os.pathsep.join([str(runtime_bin), environment.get("PATH", os.defpath)])
         command = list(resolved_argv)
         sandboxed = bool(self._bubblewrap)
         if self._bubblewrap:
@@ -2771,11 +2790,12 @@ class ActionHarness:
             if located:
                 resolved_executable = Path(located).resolve(strict=True)
 
-        runtime_root: Path | None = None
         sandbox_runtime = Path("/opt/rwkv-lh-python")
         venv_root = Path(sys.prefix).resolve(strict=True)
         sandbox_venv = Path("/opt/rwkv-lh-venv")
         configured_runtime_root = Path(sys.executable).resolve(strict=True).parent.parent
+        # Project scripts using /usr/bin/env need the same runtime on PATH.
+        runtime_root: Path | None = configured_runtime_root if include_project_venv else None
         if resolved_executable is not None:
             if resolved_executable.is_relative_to(workspace):
                 child_argv[0] = str(
@@ -2788,6 +2808,8 @@ class ActionHarness:
                 child_argv[0] = str(
                     sandbox_runtime / resolved_executable.relative_to(runtime_root)
                 )
+            elif resolved_executable.is_relative_to(venv_root):
+                child_argv[0] = str(sandbox_venv / resolved_executable.relative_to(venv_root))
             else:
                 raise HarnessError(
                     "command executable is outside the isolated system/workspace toolchain: "

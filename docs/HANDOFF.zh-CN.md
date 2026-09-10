@@ -8,7 +8,9 @@
 
 ## 当前整改与验证状态
 
-[官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；新 3+12 题全部取得计划，仍有计划补丁语义拒绝。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。新采集发现 Harness 将 python3 二进制误当 Python script，须进入下一工程轮修复；另有一次 Native create 未确认待核实。
+[命令入口整改 R1](../data/experiments/COMMAND_ENTRYPOINT_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1432 passed、0 skipped**，修正后的行为测试在旧 Harness 上 14 failed / 4 passed。项目原生可执行文件不再被当成 Python 脚本，console script 保留解释器参数；原 WEB-02 命令在独立 bubblewrap 中退出 0。修改在本地命令执行层，推理服务器上传源码和 manifest 身份仍为下述已验证版本。本轮无新 Agent 成绩，Native create 404 的最初传输原因仍未查明。
+
+[官方请求与 trace 整改 R1](../data/experiments/OFFICIAL_PLANNER_TRACE_REPAIR_R1_20260910/REPORT.zh-CN.md)：**1414 passed、0 skipped**；同一 R5 真实交接 14/14 输入字节一致。扩展注册表覆盖到重建和标签校验，输出耗尽在解析前保留停止原因/用量。当前 Planner 与 Stage Checker 均显式 low 思考；新 3+12 题全部取得计划，仍有计划补丁语义拒绝。最终 2.9B 8 项全词表精确对齐、至 16384 token 反向通过。后续命令入口整改已处理新采集发现的二进制误当脚本问题；另一次 Native create 未确认仍保留未查明状态。
 
 [交接结构整改 R1](../data/experiments/ROLE_CHAIN_ROOT_REPAIR_R1_20260910/REPORT.zh-CN.md) 已提交 `82319f95`：原始需求贯穿 Executor / Step Auditor，参数拒绝由同一步的 Selector / Executor 接收，路径资格和执行权限共用参数合同，逻辑交接及事实提交与 Native 缓存物化分开。完整回归 1321 passed、0 skipped；随后真实采集暴露新的数值边界缺陷，因此不能将工程通过称作完整交接验收通过。
 
@@ -33,7 +35,7 @@ Owner 已授权逐角色推进并取消固定三轮上限，按预注册指标�
 
 当前角色是 Selector。最新 3+12 题合并后有 81 条自动标签（train 76 / dev 3 / confirmation 2）、126 条待独立复核；原登记的 execute / mutate / missing_target / py_root 覆盖及三切分非空均已通过。386 对跨切分比较有 113 对超过 0.95，候选 INVALID。当前障碍是切分污染和纠错标签复核，不能继续表述为没有足够原始边界或任何 execute。九边界的具体复核包已提交，owner 的独立强模型离线复核提议尚未答复，不能冒充双人人工签名。
 
-R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通。先处理已发现的通用命令执行缺陷，保留本轮原始结果；当前角色数据合格后执行已授权 StateTune，合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
+R2 实际数值边界验收已封存；正式数据/训练/Selector 回归入口已接通。通用命令执行缺陷已修复且完整回归通过，原采集结果保持封存；下一次 Agent/训练须绑定实际客户端源码与服务身份。当前角色数据合格后执行已授权 StateTune，合格前序 State 固定后采集下一角色。不得为凑样本修改家族身份、降低门槛或合成角色场景。训练须记录模型/数据/训练器身份、初始化及输出 State、预算、实际 steps 和验收结果；历史次数未知保持 unknown。
 
 已封存结果不续跑或重评分。Real Agent Holdout V2 保持隔离，未读取，仅最终验收一次使用。Owner 负责 push；本地已提交 R4 `70f5ae0a`、REALPROJECT R1 `f9a37498`，各轮完整 SHA 清单位于实验目录的 `EVIDENCE_SHA256.json`。
 

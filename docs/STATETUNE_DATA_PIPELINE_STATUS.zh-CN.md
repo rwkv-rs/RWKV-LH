@@ -1,6 +1,6 @@
 # StateTune 管线现状
 
-更新日期：2026-09-10。官方 DeepSeek 新完整采集：REALPROJECT R3 为 **Strict 0/12、completed 0/12、mutation 0、动作 43**；UltraData R6 为 **Strict 0/3、completed 0/3、mutation 3、动作 6**。已返回的 146 次角色交接全部通过输入字节和完整 token 核验，另有一次 Native create 未确认；命令执行层新发现将 Python 二进制误当脚本的工程缺陷。冻结代码完整回归 **1414 passed、0 skipped**。合并 Selector 自动标签 81 条（76/3/2）、待复核 126 条，原登记覆盖通过，但 113 对跨切分输入超出 0.95，相应候选 INVALID；纠错标签复核方式待 owner 答复。真实 optimizer steps 仍为 0。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
+更新日期：2026-09-10。官方 DeepSeek 新完整采集：REALPROJECT R3 为 **Strict 0/12、completed 0/12、mutation 0、动作 43**；UltraData R6 为 **Strict 0/3、completed 0/3、mutation 3、动作 6**。已返回的 146 次角色交接全部通过输入字节和完整 token 核验，另有一次 Native create 未确认。后续命令执行整改已修复 Python 二进制被当脚本的问题，原始命令在独立沙箱复验成功，完整回归 **1432 passed、0 skipped**；没有重评分。合并 Selector 自动标签 81 条（76/3/2）、待复核 126 条，原登记覆盖通过，但 113 对跨切分输入超出 0.95，相应候选 INVALID；纠错标签复核方式待 owner 答复。真实 optimizer steps 仍为 0。完整状态见 [HANDOFF](HANDOFF.zh-CN.md)。
 
 ## 当前具备的能力
 
