@@ -1,0 +1,11 @@
+# Selector首轮训练前置检查 R1
+
+关联新采集Agent Strict 0/4、completed 0/4、mutation 0，三题无进展、一题协议拒绝；低分本身不构成禁止训练的理由。
+
+已完成来源精确waiver与新源码直接准入、旧126+新43独立双AI复核处置、预注册相似度处理。最终20条=15train/3dev/2confirmation，与已用生产normalize_row检查的20条逐行相同，20/20完整token/BOS/目标/协议/模型/长度校验通过。源State全部zero，tokenizer SHA e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89，模型SHA1f920b94c4684e8463f36d8b71df23a8b50551f7776d39eec9ec6970471d460b。这里是源数据检查，不能替代优化器smoke与训练时zero-State注入attestation。
+
+尚未满足的实际条件：execute覆盖=0，候选status=invalid，因此当前流程未发布合格固定regression，--prior-regression/--regression-sha256/--expected-regression-fingerprint三重pin未就绪。保留原5条候选anchor并不等于伪造一份合法回归。
+
+此外代码审查确认rwkv_lh/statetune_data.py的freeze_dataset在第117行重新调用trace.extract_registration时，只传role/prior regression/fingerprint，没有传已双签waiver或预注册行筛选规则，随后要求整个manifest完全相等。即使补上execute，也不能将当前派生候选直接冻结：缺少source_registration身份的筛选派生manifest会先被拒绝，原waiver来源又会在复验遭SHA拒绝。应在采集/预算两臂结束后作为独立集成修复，保留精确pin、双签范围和完整重建；不得采用自建训练文件或跳过复验。相关源码SHA见DATA_PREFLIGHT.json。
+
+故本轮不登记“已开始”的Selector训练、不新建data/datasets角色版本，不跑optimizer smoke；optimizer steps=0。owner授权仍有效，未要求再次授权。后续先恢复可再现的合法冻结通道与真实execute来源，全部门通过后按已授权流程登记具体预算/State/模型/数据/训练器SHA，再执行smoke和首轮训练。
