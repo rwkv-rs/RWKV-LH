@@ -162,6 +162,15 @@ SUITES = {
         expected_count=12,
         level_counts={"project": 12},
     ),
+    "diagfix2": SuiteDefinition(
+        key="diagfix2",
+        title="RWKV-DIAG-FIX-2",
+        package="benchmarks.rwkv_e2e.rwkv_diag_fix_v1",
+        tasks_schema="rwkv-diag-fix-v1.tasks.v1",
+        acceptance_schema="rwkv-diag-fix-v1.acceptance.v1",
+        expected_count=2,
+        level_counts={"project": 2},
+    ),
     "realagentholdoutv2": SuiteDefinition(
         key="realagentholdoutv2",
         title="RWKV-LH-REAL-AGENT-HOLDOUT-V2",

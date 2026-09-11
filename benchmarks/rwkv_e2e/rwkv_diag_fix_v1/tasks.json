@@ -1,0 +1,55 @@
+{
+  "schema_version": "rwkv-diag-fix-v1.tasks.v1",
+  "tasks": [
+    {
+      "task_id": "DIAG-FIX-01",
+      "level": "project",
+      "user_request": "Our textstats helper has a regression: one unit test currently fails. Run the test suite first (python -m unittest -v) to identify the failing test from its real output, fix the defect in textstats.py without weakening the tests, re-run until everything passes, and record the exact command, the failing test's name and the genuine final output line in TEST_REPORT.md.",
+      "capabilities": [
+        "test_diagnosis",
+        "command_execution",
+        "python_repair",
+        "reporting"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# textstats\n\nSmall text-statistics helper used by our release tooling. A recent edit\nintroduced a regression: **one unit test in this project currently fails**.\n\nYour job, in order:\n\n1. Run the test suite exactly as CI does: `python -m unittest -v` from the\n   project root. Read the real failure output; do not guess from the source.\n2. Fix the defect in `textstats.py`. Do not weaken, delete, or rewrite the\n   tests in `test_textstats.py` - they encode the intended behavior.\n3. Re-run `python -m unittest -v` until every test passes.\n4. Write `TEST_REPORT.md` containing: the exact command you ran, the name of\n   the test that was failing, and the genuine final output line of your\n   passing run (the `OK` summary from unittest, not a paraphrase).\n"
+        },
+        {
+          "path": "textstats.py",
+          "content": "\"\"\"Line-oriented text statistics for release notes.\"\"\"\n\n\ndef word_count(text):\n    \"\"\"Count whitespace-separated words.\"\"\"\n    if not text:\n        return 0\n    return len(text.split(\" \"))\n\n\ndef line_count(text):\n    \"\"\"Count non-empty lines.\"\"\"\n    return sum(1 for line in text.splitlines() if line.strip())\n\n\ndef top_words(text, limit):\n    \"\"\"Return the ``limit`` most frequent lowercased words, ties alphabetical.\"\"\"\n    counts = {}\n    for word in text.split():\n        key = word.lower()\n        counts[key] = counts.get(key, 0) + 1\n    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))\n    return [word for word, _ in ranked[:limit]]\n"
+        },
+        {
+          "path": "test_textstats.py",
+          "content": "import unittest\n\nimport textstats\n\n\nclass TextStatsTests(unittest.TestCase):\n    def test_simple_sentence(self):\n        self.assertEqual(textstats.word_count(\"one two three\"), 3)\n\n    def test_whitespace_robustness(self):\n        self.assertEqual(textstats.word_count(\"one  two three\"), 3)\n        self.assertEqual(textstats.word_count(\"one\\ttwo\\nthree\"), 3)\n        self.assertEqual(textstats.word_count(\"   \"), 0)\n\n    def test_line_count_skips_blank_lines(self):\n        self.assertEqual(textstats.line_count(\"a\\n\\n b\\n\\n\"), 2)\n\n    def test_top_words_frequency_then_alphabetical(self):\n        self.assertEqual(textstats.top_words(\"b a b A c\", 2), [\"a\", \"b\"])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+        }
+      ]
+    },
+    {
+      "task_id": "DIAG-FIX-02",
+      "level": "project",
+      "user_request": "Our confcheck config validator has a regression: one unit test currently fails. Run the test suite first (python -m unittest -v) to identify the failing test from its real output, fix the defect in confcheck.py without weakening the tests, re-run until everything passes, and record the exact command, the failing test's name and the genuine final output line in TEST_REPORT.md.",
+      "capabilities": [
+        "test_diagnosis",
+        "command_execution",
+        "python_repair",
+        "reporting"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# confcheck\n\nConfiguration validator for our internal job runner. A recent edit introduced\na regression: **one unit test in this project currently fails**.\n\nYour job, in order:\n\n1. Run the test suite exactly as CI does: `python -m unittest -v` from the\n   project root. Read the real failure output; do not guess from the source.\n2. Fix the defect in `confcheck.py`. Do not weaken, delete, or rewrite the\n   tests in `test_confcheck.py` - they encode the intended behavior.\n3. Re-run `python -m unittest -v` until every test passes.\n4. Write `TEST_REPORT.md` containing: the exact command you ran, the name of\n   the test that was failing, and the genuine final output line of your\n   passing run (the `OK` summary from unittest, not a paraphrase).\n"
+        },
+        {
+          "path": "confcheck.py",
+          "content": "\"\"\"Normalize and validate job-runner configuration mappings.\"\"\"\n\nDEFAULTS = {\"retries\": 3, \"timeout_seconds\": 30}\n\n\ndef normalize(config):\n    \"\"\"Return a validated config with defaults applied for missing keys.\"\"\"\n    if not isinstance(config, dict):\n        raise ValueError(\"config must be an object\")\n    unknown = set(config) - {\"retries\", \"timeout_seconds\", \"job_name\"}\n    if unknown:\n        raise ValueError(f\"unknown config keys: {sorted(unknown)}\")\n    normalized = {\"job_name\": config.get(\"job_name\") or \"default-job\"}\n    retries = config.get(\"retries\") or DEFAULTS[\"retries\"]\n    timeout = config.get(\"timeout_seconds\") or DEFAULTS[\"timeout_seconds\"]\n    if not isinstance(retries, int) or isinstance(retries, bool) or retries < 0:\n        raise ValueError(\"retries must be a non-negative integer\")\n    if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:\n        raise ValueError(\"timeout_seconds must be a positive integer\")\n    normalized[\"retries\"] = retries\n    normalized[\"timeout_seconds\"] = timeout\n    return normalized\n"
+        },
+        {
+          "path": "test_confcheck.py",
+          "content": "import unittest\n\nimport confcheck\n\n\nclass ConfcheckTests(unittest.TestCase):\n    def test_defaults_applied_when_missing(self):\n        value = confcheck.normalize({})\n        self.assertEqual(value[\"retries\"], 3)\n        self.assertEqual(value[\"timeout_seconds\"], 30)\n\n    def test_explicit_zero_retries_is_preserved(self):\n        # 0 is a meaningful setting (fail fast); it must not fall back to 3.\n        self.assertEqual(confcheck.normalize({\"retries\": 0})[\"retries\"], 0)\n\n    def test_negative_retries_rejected(self):\n        with self.assertRaises(ValueError):\n            confcheck.normalize({\"retries\": -1})\n\n    def test_unknown_keys_rejected(self):\n        with self.assertRaises(ValueError):\n            confcheck.normalize({\"retrys\": 2})\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+        }
+      ]
+    }
+  ]
+}

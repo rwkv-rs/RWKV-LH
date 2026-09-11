@@ -1,0 +1,27 @@
+{
+  "schema_version": "rwkv-diag-fix-v1.acceptance.v1",
+  "cases": {
+    "DIAG-FIX-01": {
+      "runner_control": {
+        "network_policy": "offline"
+      },
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "program": "\"\"\"Black-box diagnose-first verification; private probes never enter the workspace.\"\"\"\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n\ndef main(workspace):\n    workspace = Path(workspace).resolve()\n    result = subprocess.run([sys.executable, \"-m\", \"unittest\", \"-v\"], cwd=workspace,\n                            capture_output=True, text=True, timeout=120)\n    assert result.returncode == 0, (\"unit tests still fail\", result.stdout, result.stderr)\n    tests = (workspace / \"test_textstats.py\").read_text(encoding=\"utf-8\")\n    for anchor in (\"test_whitespace_robustness\", \"one  two three\", 'word_count(\"   \")'):\n        assert anchor in tests, f\"original test coverage was weakened: {anchor!r}\"\n    probe = (\"import textstats;\"\n             \"assert textstats.word_count('a  b\\\\tc\\\\n\\\\nd') == 4;\"\n             \"assert textstats.word_count('') == 0;\"\n             \"assert textstats.word_count('  leading and  trailing  ') == 3;\"\n             \"assert textstats.line_count('x\\\\n\\\\ny\\\\n') == 2;\"\n             \"assert textstats.top_words('b a b A c', 2) == ['a', 'b'];\"\n             \"print('BEHAVIOR_OK')\")\n    behavior = subprocess.run([sys.executable, \"-c\", probe], cwd=workspace,\n                              capture_output=True, text=True, timeout=60)\n    assert behavior.returncode == 0 and \"BEHAVIOR_OK\" in behavior.stdout, (\n        \"repaired behavior differs\", behavior.stdout, behavior.stderr)\n    report_path = workspace / \"TEST_REPORT.md\"\n    assert report_path.is_file(), \"TEST_REPORT.md is missing\"\n    report = report_path.read_text(encoding=\"utf-8\")\n    assert \"unittest\" in report, \"report does not name the command\"\n    assert \"test_whitespace_robustness\" in report, \"report does not name the failing test\"\n    assert \"OK\" in report and \"FAILED\" not in report.rsplit(\"OK\", 1)[-1], (\n        \"report lacks the genuine passing summary\")\n"
+        }
+      ]
+    },
+    "DIAG-FIX-02": {
+      "runner_control": {
+        "network_policy": "offline"
+      },
+      "checks": [
+        {
+          "kind": "project_behavior",
+          "program": "\"\"\"Black-box diagnose-first verification; private probes never enter the workspace.\"\"\"\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n\ndef main(workspace):\n    workspace = Path(workspace).resolve()\n    result = subprocess.run([sys.executable, \"-m\", \"unittest\", \"-v\"], cwd=workspace,\n                            capture_output=True, text=True, timeout=120)\n    assert result.returncode == 0, (\"unit tests still fail\", result.stdout, result.stderr)\n    tests = (workspace / \"test_confcheck.py\").read_text(encoding=\"utf-8\")\n    for anchor in (\"test_explicit_zero_retries_is_preserved\", '{\"retries\": 0}'):\n        assert anchor in tests, f\"original test coverage was weakened: {anchor!r}\"\n    probe = (\"import confcheck;\"\n             \"assert confcheck.normalize({'retries': 0})['retries'] == 0;\"\n             \"assert confcheck.normalize({})['retries'] == 3;\"\n             \"assert confcheck.normalize({'timeout_seconds': 5})['timeout_seconds'] == 5;\"\n             \"err = 0\\n\"\n             \"try:\\n\"\n             \"    confcheck.normalize({'retries': -2})\\n\"\n             \"except ValueError:\\n\"\n             \"    err = 1\\n\"\n             \"assert err == 1\\n\"\n             \"print('BEHAVIOR_OK')\")\n    behavior = subprocess.run([sys.executable, \"-c\", probe], cwd=workspace,\n                              capture_output=True, text=True, timeout=60)\n    assert behavior.returncode == 0 and \"BEHAVIOR_OK\" in behavior.stdout, (\n        \"repaired behavior differs\", behavior.stdout, behavior.stderr)\n    report_path = workspace / \"TEST_REPORT.md\"\n    assert report_path.is_file(), \"TEST_REPORT.md is missing\"\n    report = report_path.read_text(encoding=\"utf-8\")\n    assert \"unittest\" in report, \"report does not name the command\"\n    assert \"test_explicit_zero_retries_is_preserved\" in report, (\n        \"report does not name the failing test\")\n    assert \"OK\" in report and \"FAILED\" not in report.rsplit(\"OK\", 1)[-1], (\n        \"report lacks the genuine passing summary\")\n"
+        }
+      ]
+    }
+  }
+}

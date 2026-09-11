@@ -1,13 +1,18 @@
 {
   "round_id": "EXECUTE_COVERAGE_COLLECTION_R2_TBD",
-  "status": "draft_pending_owner_task_finalization",
+  "status": "tasks_built_and_design_verified_pending_owner_run",
   "variable": "collection task set only; zero rwkv_lh source changes",
   "task_ids": [
-    "RP-CLI-01",
-    "RP-WEB-02",
-    "NEW-DIAG-01 (owner finalizes: preseeded runnable project with one genuinely failing test; acceptance requires TEST_REPORT.md containing actual pytest output with exit 0)",
-    "NEW-DIAG-02 (owner finalizes: same principle, second family)"
+    "RP-CLI-01 (suite realprojectdevv1)",
+    "RP-WEB-02 (suite realprojectdevv1)",
+    "DIAG-FIX-01 (suite diagfix2)",
+    "DIAG-FIX-02 (suite diagfix2)"
   ],
+  "new_suite": {
+    "key": "diagfix2",
+    "package": "benchmarks.rwkv_e2e.rwkv_diag_fix_v1",
+    "design_verification": "both workspaces verified: unrepaired = exactly one failing unit test; acceptance program rejects unrepaired and passes the intended one-line fix plus TEST_REPORT.md; python -m unittest -v is the single CI command"
+  },
   "selection_basis": "Diagnose-first tasks make a command the shortest progress path; existing wording that merely mentions tests is proven insufficient (COMMAND_PATH_COLLECTION_R1: 13 actions, 0 commands, menus verified complete).",
   "production_commit": "162e60ee (or HEAD at execution; re-pin before run)",
   "executor_max_output_tokens": 1800,
