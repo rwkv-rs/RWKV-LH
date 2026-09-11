@@ -1,5 +1,9 @@
 # 当前交接
 
+## 2026-09-11 官方Flash新轮R3已启动
+
+Owner更新官方凭据并指定deepseek-flash，Planner/Stage Checker已切换，模型列表与余额门通过。保持de029c88最新源码及角色协议、RWKV全zero，117题R3从首题启动，启动时完成0/117、暂无成绩、optimizer steps=0。R2旧pro首题因owner切模型中断，原记录保留，不计完整评测。新trace目录FULL_TRACE_COLLECTION_R3_FLASH_20260911；[登记说明](../data/experiments/FULL_TRACE_CAMPAIGN_R3_FLASH_20260911/REPORT.zh-CN.md)。
+
 ## 2026-09-11 最新de029c88部署完成，R2重测等待Planner余额
 
 已按owner授权上传最新信息流修复及唯一新协议，132/6393文件清单核验、两模型服务健康通过；1502 passed。117道公开任务与原顺序已登记，当前实际开始0/117，无新Agent分数/角色trace，optimizer steps=0。官方余额接口确认不可用，collect被运行前余额门拒绝，未生成整批402失败。充值后可直接执行既有R2 collect；运行中402将暂停剩余队列。新旧trace分目录，不把旧协议数据视为当前valid。[部署和启动说明](../data/experiments/FULL_TRACE_CAMPAIGN_R2_20260911/REPORT.zh-CN.md)。
