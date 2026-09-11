@@ -1,5 +1,13 @@
 # 当前交接
 
+## 2026-09-11 ROLE_INFORMATION_FLOW_REPAIR_R1 信息流整改
+
+本轮无新真实Agent评测，Strict / completed / mutation / 终止原因均无修复后数据，不能宣布循环消除。修复前117题队列：严格成功0、completed0、mutation2；77题Planner HTTP402，LH09入口无trace，详细分母及终止原因见[本轮报告](../data/experiments/ROLE_INFORMATION_FLOW_REPAIR_R1_20260911/REPORT.zh-CN.md)。历史角色调用为Selector489、Executor222、Step Auditor107、Final两角色0。
+
+本地工程验收 **1502 passed、0 skipped、249.51秒**。审计重试原文按request/boundary恢复；Selector收到实际内容、累计及依赖事实；三角色共享必要证据范围；依赖不能替代当前步骤执行或清除当前机械缺口；reason具体诊断经feedback传递；必需事实不按条数删除，Prompt replay超预算不能丢弃frontier和事实绑定。协议唯一替换为Selector/Executor/Step Auditor v7、Finalizer v3、Final Auditor v5、feedback v2。生产、trace与数据入口同步。
+
+未部署、训练、新建datasets版本或push。已有服务与旧State不自动获得新协议身份，真实Agent效果待新源码/协议/预算冻结后验证。复现、测试日志、源码及报告SHA见本轮SOURCE_PINS.json和SHA256SUMS；未读取Holdout。
+
 ## 2026-09-11 R126与当前能力退化分析
 
 已核实历史R126报告Strict36/90（提交说明复测34/90），当前原90题的任务和验收对象90/90相等，Strict核心条件也一致。当前前20题固定分析：Strict0/20、completed0/20、78动作、mutation1；15重复成功、2重复失败、3协议预算阻塞。9道属于旧90题；B01/B11/B13有历史报告级成功与当前原始失败证据。当前组合未证明架构收益，不能以测试全绿或证据完整代替能力；也不能将多变量损失全部归于Selector。具体因果链、历史原始trace缺失限制及下一步见[退化分析](../data/experiments/R126_CURRENT_REGRESSION_REVIEW_R1_20260911/REPORT.zh-CN.md)。原117题队列继续，不改评分/源码/预算，未训练。

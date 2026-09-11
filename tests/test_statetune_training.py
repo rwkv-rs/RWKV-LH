@@ -178,7 +178,7 @@ def test_numeric_compatibility_must_bind_the_exact_runtime_and_model():
 
 def test_failed_runtime_admission_retains_immutable_zero_step_run(tmp_path, monkeypatch):
     import json
-    from rwkv_lh.goal_state_protocols import selector_intent_v6
+    from rwkv_lh.goal_state_protocols import selector_intent_v7
     from rwkv_lh import statetune_native_runtime
     from test_statetune_evaluation import plan
     def write(name, value):
@@ -187,8 +187,8 @@ def test_failed_runtime_admission_retains_immutable_zero_step_run(tmp_path, monk
         return {"path": str(path), "sha256": core.sha256_file(path)}
     evaluation = write("evaluation.json", plan())
     registration = {"schema_version": api().RUN_SCHEMA, "run_id": "MECHANISM-ADMISSION", "role": "selector_intent",
-        "input_protocol": selector_intent_v6.INPUT_SCHEMA_VERSION,
-        "protocol_sha256": core.sha256_file(selector_intent_v6.__file__), "optimizer": config(),
+        "input_protocol": selector_intent_v7.INPUT_SCHEMA_VERSION,
+        "protocol_sha256": core.sha256_file(selector_intent_v7.__file__), "optimizer": config(),
         "authorization": write("authorization.json", {"unit_test_only": True}),
         "evaluation_registration": evaluation, "regression_fingerprint": "a" * 64,
         "ledger_root": str(tmp_path / "runs"), "runtime": {"path": "unavailable", "sha256": "b" * 64},

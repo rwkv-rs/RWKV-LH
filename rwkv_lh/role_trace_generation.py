@@ -21,7 +21,7 @@ from rwkv_lh.exact_tool_selector.native_network_protocol import (
     NativeNetworkToolSelection,
 )
 from rwkv_lh.exact_tool_selector.network_protocol import NetworkSelectorInput
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.model_io import parse_model_command_with_trace
 from rwkv_lh.model_session import CandidateGeneration, SessionSampling, _restore_attested_stop_suffix
 from rwkv_lh.role_trace_context import TraceContextError, reconstruct_context
@@ -220,7 +220,7 @@ def _selector_trace(selection: NativeNetworkToolSelection) -> None:
     trace = selection.decoder_trace
     _equal(trace.get("prompt_token_count"), selection.input_token_count, "Selector prompt token count")
     suffixes = {
-        label: tokenizer().encode(selector_intent_v6.TARGET_PREFIX + label)
+        label: tokenizer().encode(selector_intent_v7.TARGET_PREFIX + label)
         for label in selection.eligible_labels
     }
     selected_ids = suffixes[selection.selected_operation]
@@ -260,11 +260,11 @@ def validate_selector_generation(
         selection = NativeNetworkToolSelection.from_dict(raw)
     except (ValueError, TypeError, KeyError) as exc:
         raise GenerationEvidenceError(str(exc)) from exc
-    protocol = network_selector_input_protocol(selector_intent_v6.INPUT_SCHEMA_VERSION)
+    protocol = network_selector_input_protocol(selector_intent_v7.INPUT_SCHEMA_VERSION)
     metadata = checkpoint.native_state_metadata or {}
     transcript = protocol.render_bootstrap(network_input) + "\n" + protocol.render_step(network_input)
     expected = {
-        "input_protocol": selector_intent_v6.INPUT_SCHEMA_VERSION,
+        "input_protocol": selector_intent_v7.INPUT_SCHEMA_VERSION,
         "model": selection.model, "model_sha256": selection.model_sha256,
         "decoder_id": NATIVE_SELECTOR_DECODER_ID,
         "decoder_protocol": NATIVE_SELECTOR_DECODER_PROTOCOL,

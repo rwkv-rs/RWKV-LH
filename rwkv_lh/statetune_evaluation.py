@@ -19,7 +19,7 @@ from typing import Callable, Mapping, Sequence
 from rwkv_lh import statetune_core as core
 from rwkv_lh.exact_tool_selector.native_network_client import NativeNetworkSelectorClient, NativeNetworkSelectorSettings
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_SELECTOR_MENU_ORDER_IDS, NetworkSelectorInput
-from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace, selector_intent_v6
+from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace, selector_intent_v7
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.role_trace_artifacts import _validate_prior
 from rwkv_lh.role_trace_inputs import rebuild_role_input
@@ -97,7 +97,7 @@ def rebuild_case(row: Mapping, source: trace.SourceRun, settings: NativeNetworkS
     network = NetworkSelectorInput.create(current_subtask=value["current_subtask"],
         current_progress=value["current_progress"], eligible_labels=value["eligible_labels"], menu_order_id=menu)
     core.require(network.to_dict() == value, "rebuilt network input differs")
-    target = selector_intent_v6.parse_target(row["target_text"])
+    target = selector_intent_v7.parse_target(row["target_text"])
     core.require(target in network.eligible_labels, "regression target is outside durable eligibility")
     return SelectorCase(row["sample_id"], row["split"],
                         (row["source_run_id"], row["run_id"], boundary), network, target)

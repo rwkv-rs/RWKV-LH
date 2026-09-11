@@ -41,7 +41,7 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NETWORK_SELECTOR_MENU_ORDER_IDS,
 )
 from rwkv_lh.goal_loop_protocol import GOAL_PLAN_PATCH_SCHEMA_VERSION
-from rwkv_lh.goal_state_protocols import executor_args_v6
+from rwkv_lh.goal_state_protocols import executor_args_v7
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelIOError, parse_model_command
 from rwkv_lh.model_session import create_model_session
@@ -1431,7 +1431,7 @@ def _write_run_metadata(
             and arguments.supervisor_strategy == "online_microtask"
             else "strong-supervisor-rwkv-worker.v1"
             if supervisor_health
-            else executor_args_v6.INPUT_SCHEMA_VERSION
+            else executor_args_v7.INPUT_SCHEMA_VERSION
             if selector_identity
             else "single-rwkv-direct-action.v1"
         ),

@@ -1,6 +1,6 @@
 """Failure-aware native G1J Selector renderer and exact suffix contract.
 
-V6 carries step-bound audit feedback as well as the bounded facts the root-cause audit found
+V7 carries step-bound audit feedback as well as the bounded facts the root-cause audit found
 missing from the Selector's next input: the previous action's arguments, its
 Harness error type/message, its result metadata, and the typed workspace
 targets the Controller already resolved for the active step.  Production,
@@ -25,17 +25,18 @@ from rwkv_lh.goal_state_protocols import (
 from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.goal_state_protocols.execution_failures import build_rejections, validate_rejections
 from rwkv_lh.operation_contracts import GOAL_STEP_PHASES, WORKSPACE_TARGET_KINDS, summarize_operation_targets
+from rwkv_lh.observation_funnel import project_action_result
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v6"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v7"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "SelectorIntentPromptV6: "
-TARGET_PREFIX = "\nSelectorIntentV6: "
-MENU_PREFIX = "SelectorIntentMenuV6: "
-ROLE_PREFIX = "SelectorIntentRoleV6: "
+PROMPT_PREFIX = "SelectorIntentPromptV7: "
+TARGET_PREFIX = "\nSelectorIntentV7: "
+MENU_PREFIX = "SelectorIntentMenuV7: "
+ROLE_PREFIX = "SelectorIntentRoleV7: "
 ROLE_MARKER = "\n" + ROLE_PREFIX
-MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v6"
-ENDPOINT = "/selector-intent-v6/select"
+MENU_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.selector-intent-menu.v7"
+ENDPOINT = "/selector-intent-v7/select"
 
 SUBTASK_FIELDS = (
     "objective",
@@ -53,7 +54,9 @@ PROGRESS_FIELDS = (
     "missing_read_roots",
     "missing_write_roots",
     "workspace_targets",
-    "completion_preconditions_satisfied",
+    "mechanical_preconditions_satisfied",
+    "completion_authority",
+    "evidence_records",
     "feedback",
     "target_discovery_complete",
     "recent_rejections",
@@ -68,6 +71,7 @@ LAST_ACTION_FIELDS = (
     "result_metadata",
     "observed_roots",
     "mutated_roots",
+    "observation",
 )
 WORKSPACE_TARGET_FIELDS = ("path", "target_kind")
 _PROMPT_FIELDS = ("current_subtask", "current_progress", "eligible_labels")
@@ -174,6 +178,7 @@ def project_last_action(
     mutated_roots: Sequence[str],
     outcome_type: str | None = None,
     exit_code: int | None = None,
+    result: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project one durable Harness action into the exact current ``last_action``."""
 
@@ -198,6 +203,10 @@ def project_last_action(
         ),
         "observed_roots": [str(item) for item in observed_roots],
         "mutated_roots": [str(item) for item in mutated_roots],
+        "observation": project_action_result(
+            dict(result or {}), operation=operation, arguments=arguments or {},
+            focus_text="", max_exact_chars=2400, structured_budget=3600,
+        ),
     }
 
 
@@ -233,6 +242,7 @@ def build_current_progress(
     recent_rejections: Sequence[Mapping[str, Any]] = (),
     operation_targets: Mapping[str, Any] | None = None,
     discovery_complete: bool = True,
+    evidence_records: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Build the one production ``current_progress`` from durable Harness actions.
 
@@ -260,6 +270,7 @@ def build_current_progress(
         error = result.get("error")
         exit_code = result.get("exit_code")
         last_action = project_last_action(
+            result=result,
             operation=latest.action_type,
             status=str(latest.status.value),
             succeeded=latest_succeeded,
@@ -301,9 +312,11 @@ def build_current_progress(
             mechanical_evidence.get("missing_write_roots") or ()
         ),
         "workspace_targets": project_workspace_targets(tuple(target_descriptors)),
-        "completion_preconditions_satisfied": bool(
+        "mechanical_preconditions_satisfied": bool(
             mechanical_evidence.get("completion_preconditions_satisfied")
         ),
+        "completion_authority": False,
+        "evidence_records": [dict(record) for record in evidence_records],
     }
     progress["feedback"] = dict(feedback) if feedback is not None else None
     progress["target_discovery_complete"] = discovery_complete and (
@@ -322,6 +335,7 @@ def validate_last_action(
     write_roots: Sequence[str],
 ) -> Mapping[str, Any]:
     action = _exact_fields(last_action, LAST_ACTION_FIELDS, "last_action")
+    _mapping(action["observation"], "last_action.observation")
     _nonempty(action["operation"], "last_action.operation")
     if action["status"] not in _ACTION_STATUSES:
         raise ValueError("last_action.status is invalid")
@@ -424,14 +438,20 @@ def validate_progress(
     if not set(selected["missing_write_roots"]).issubset(write_roots):
         raise ValueError("current_progress missing write roots exceed current_subtask")
     validate_workspace_targets(selected["workspace_targets"])
-    if not isinstance(selected["completion_preconditions_satisfied"], bool):
+    if selected["completion_authority"] is not False:
+        raise ValueError("mechanical progress cannot grant completion authority")
+    if not isinstance(selected["evidence_records"], list) or any(
+        not isinstance(record, Mapping) for record in selected["evidence_records"]
+    ):
+        raise ValueError("current_progress.evidence_records must contain fact records")
+    if not isinstance(selected["mechanical_preconditions_satisfied"], bool):
         raise ValueError(
-            "current_progress.completion_preconditions_satisfied must be boolean"
+            "current_progress.mechanical_preconditions_satisfied must be boolean"
         )
     expected_complete = not (
         selected["missing_read_roots"] or selected["missing_write_roots"]
     ) and selected["successful_action_count"] > 0
-    if selected["completion_preconditions_satisfied"] is not expected_complete:
+    if selected["mechanical_preconditions_satisfied"] is not expected_complete:
         raise ValueError("current_progress completion flag is inconsistent")
     last_action = selected["last_action"]
     if last_action is None:
@@ -513,6 +533,9 @@ def render_prompt(source: Any) -> str:
         "current_subtask": dict(prompt["current_subtask"]),
         "current_progress": dict(prompt["current_progress"]),
         "current_question": (
+            "Use the visible observation content, dependency evidence and feedback diagnosis. "
+            "Mechanical preconditions only describe executed scope; they never prove semantic completion. "
+            "A successful search or directory listing is not a full-file read. "
             "Choose exactly one eligible operation that advances this current "
             "subtask from the recorded mechanical progress, the previous action's "
             "exact Harness outcome, and the typed workspace targets; do not fill "

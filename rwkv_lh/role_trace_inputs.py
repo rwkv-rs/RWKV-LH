@@ -27,7 +27,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
 from rwkv_lh.goal_loop_protocol import goal_step_action_bindings, rolling_goal_plan
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer, selector_intent_v6,
+    auditor_final, auditor_step_v7, executor_args_v7, finalizer_answer, selector_intent_v7,
 )
 from rwkv_lh.harness import ActionHarness
 from rwkv_lh.model import LongHorizonModel
@@ -70,9 +70,9 @@ def _reconstruction_harness() -> ActionHarness:
 
 
 _MODULES = {
-    "selector_intent": selector_intent_v6,
-    "executor_args": executor_args_v6,
-    "auditor_step": auditor_step_v6,
+    "selector_intent": selector_intent_v7,
+    "executor_args": executor_args_v7,
+    "auditor_step": auditor_step_v7,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }
@@ -180,7 +180,7 @@ def _frontier_facts(state: RunState):
     roots = StatefulGoalLoopController._goal_step_target_roots(step, phase, mechanical)
     if tuple(raw_contract.get("roots") or ()) != roots:
         raise RoleInputReconstructionError("durable target roots differ from the active plan remainder")
-    contract = executor_args_v6.build_target_contract(
+    contract = executor_args_v7.build_target_contract(
         phase=phase, roots=roots,
         target_descriptors=raw_contract.get("target_descriptors") or (),
         operations=tuple(raw_contract["argument_targets_by_operation"]),

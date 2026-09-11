@@ -1472,6 +1472,44 @@ def evidence_action_ids(state: RunState, refs: Sequence[str]) -> frozenset[str]:
     return frozenset(action_ids)
 
 
+def goal_step_evidence_action_ids(
+    state: RunState,
+    step_id: str,
+    step_revision: int,
+    *,
+    plan: RollingGoalPlan | None = None,
+) -> tuple[str, ...]:
+    """Current-step facts plus committed dependency evidence, without count caps.
+
+    Dependency records are context, not authority to discharge this step's work.
+    Resolve action/artifact/revision refs through the same provenance function.
+    """
+    plan = rolling_goal_plan(state) if plan is None else plan
+    if step_id not in plan.steps or plan.step_revisions.get(step_id, 1) != step_revision:
+        raise ValueError("evidence scope requires the current committed step revision")
+    bindings = goal_step_action_bindings(state)
+    selected = {
+        key for key, binding in bindings.items()
+        if binding == (step_id, step_revision)
+    }
+    pending = list(plan.steps[step_id].depends_on)
+    visited: set[str] = set()
+    while pending:
+        dependency = pending.pop()
+        if dependency in visited:
+            continue
+        visited.add(dependency)
+        if dependency not in plan.steps or dependency not in plan.completed_evidence:
+            raise ValueError("evidence scope requires completed declared dependencies")
+        selected.update(evidence_action_ids(state, plan.completed_evidence[dependency]))
+        pending.extend(plan.steps[dependency].depends_on)
+    return tuple(
+        action.action_id for action in sorted(
+            (state.actions[key] for key in selected), key=lambda item: item.sequence
+        )
+    )
+
+
 def _validate_completed_step_evidence(
     state: RunState,
     plan: RollingGoalPlan,
@@ -1492,16 +1530,26 @@ def _validate_completed_step_evidence(
     if not action_ids:
         raise ValueError("completed plan step requires Harness action evidence")
     actions = [state.actions[action_id] for action_id in sorted(action_ids)]
+    allowed_context = set(goal_step_evidence_action_ids(
+        state, step_id, expected_binding[1], plan=plan,
+    ))
     wrong_step = [
         action.action_id
         for action in actions
-        if bindings.get(action.action_id) != expected_binding
+        if action.action_id not in allowed_context
     ]
     if wrong_step:
         raise ValueError(
             "audit evidence actions are not assigned to the current revision of "
             f"step {step_id!r}: {wrong_step}"
         )
+    # A dependency can explain a comparison, but cannot prove this step ran.
+    actions = [
+        action for action in actions
+        if bindings.get(action.action_id) == expected_binding
+    ]
+    if not actions:
+        raise ValueError("completed plan step requires successful current-step action evidence")
     unsuccessful = [
         action.action_id
         for action in actions

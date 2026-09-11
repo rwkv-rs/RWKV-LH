@@ -32,14 +32,14 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     build_network_selector_input,
 )
 from rwkv_lh.goal_state_protocols import ROLE_STATE_IDS, ZERO_STATE_SHA256
-from rwkv_lh.goal_state_protocols import executor_args_v6 as executor_args_protocol
+from rwkv_lh.goal_state_protocols import executor_args_v7 as executor_args_protocol
 from rwkv_lh.goal_state_protocols import auditor_final as auditor_final_protocol
-from rwkv_lh.goal_state_protocols import auditor_step_v6 as auditor_step_protocol
+from rwkv_lh.goal_state_protocols import auditor_step_v7 as auditor_step_protocol
 from rwkv_lh.goal_state_protocols import finalizer_answer as finalizer_protocol
 from rwkv_lh.goal_state_protocols.feedback import semantic_feedback
 from rwkv_lh.role_feedback import finalizer_feedback, finalizer_retry_feedback, protocol_feedback
 from rwkv_lh.goal_state_protocols import (
-    selector_intent_v6 as selector_intent_v6_protocol,
+    selector_intent_v7 as selector_intent_v7_protocol,
 )
 from rwkv_lh.harness import ActionHarness, HarnessError
 from rwkv_lh.goal_loop_protocol import (
@@ -47,6 +47,7 @@ from rwkv_lh.goal_loop_protocol import (
     GoalAuditDecision,
     RollingGoalPlan,
     available_evidence_refs,
+    goal_step_action_bindings,
     rolling_goal_plan,
     validate_audit_authority,
 )
@@ -150,7 +151,6 @@ class LongHorizonModel:
     )
     _RESULT_PROJECTION_VERSION = OBSERVATION_PROJECTION_VERSION
     _RESULT_OUTPUT_MAX_CHARS = 6000
-    _EXECUTOR_CAUSAL_FACT_LIMITS = (12, 8, 4, 2, 0)
 
     def validate_goal_role_sessions(self) -> None:
         """Fail closed unless every generative Goal role owns one session."""
@@ -1234,6 +1234,7 @@ class LongHorizonModel:
                         gap_codes=audit.gaps,
                         gap_catalog=prompt_source["gap_catalog"],
                         evidence_refs=audit.evidence_refs,
+                        diagnosis=audit.reason,
                         rejected_output=final_candidate_command.canonical if final_candidate_command is not None else "",
                     )
                     accepted_event = ModelEvent(
@@ -1356,6 +1357,7 @@ class LongHorizonModel:
     ) -> list[dict[str, Any]]:
         """Project bounded Harness facts so the Auditor can resolve every ref."""
 
+        bindings = goal_step_action_bindings(state)
         revisions = {
             revision.revision_id: revision
             for values in state.artifact_revisions.values()
@@ -1402,6 +1404,11 @@ class LongHorizonModel:
                 "evidence_ref": evidence_ref,
                 "action": {
                     "action_id": action.action_id,
+                    "step_binding": (
+                        {"step_id": bindings[action.action_id][0],
+                         "step_revision": bindings[action.action_id][1]}
+                        if action.action_id in bindings else None
+                    ),
                     "operation": action.action_type,
                     "status": action.status.value,
                     "outcome_type": action.outcome_type,
@@ -1549,52 +1556,18 @@ class LongHorizonModel:
         Executor State profile remains the only recurrent initialization.
         """
 
-        checkpoint: ModelCheckpoint | None = None
-        retained_fact_action_ids: tuple[str, ...] = ()
-        selected_recent_limit = 0
-        budget_fallbacks: list[dict[str, Any]] = []
-        last_budget_error: InputBudgetError | None = None
-        for recent_limit in self._EXECUTOR_CAUSAL_FACT_LIMITS:
-            retained = self._bounded_assignment_action_ids(
-                state,
-                recent_limit=recent_limit,
-                action_ids=fact_action_ids,
-            )
-            try:
-                checkpoint = self.session.prepare_bootstrap(
-                    ModelLaneKind.ACTION,
-                    self._assignment(
-                        state,
-                        recent_limit=recent_limit,
-                        executor_only=True,
-                        action_ids=fact_action_ids,
-                        focus_text=focus_text,
-                    ),
-                    self._menu_definitions,
-                    lane_id=self.ACTION_LANE_ID,
-                    event_ids=(),
-                    progressive_tool_disclosure=True,
-                    independent_tool_selector=True,
-                )
-            except InputBudgetError as exc:
-                last_budget_error = exc
-                budget_fallbacks.append(
-                    {
-                        "recent_limit": recent_limit,
-                        "retained_action_ids": list(retained),
-                        "error_type": type(exc).__name__,
-                        "error": str(exc)[:1000],
-                    }
-                )
-                continue
-            retained_fact_action_ids = retained
-            selected_recent_limit = recent_limit
-            break
-        if checkpoint is None:
-            raise InputBudgetError(
-                "clean Executor bootstrap exceeds the input boundary after "
-                "causal-fact limits 12, 8, 4, 2, and 0"
-            ) from last_budget_error
+        retained_fact_action_ids = self._bounded_assignment_action_ids(
+            state, recent_limit=None, action_ids=fact_action_ids,
+        )
+        # All facts requested by the responsibility boundary are mandatory.
+        # The model's input budget can interrupt this turn, never erase evidence.
+        checkpoint = self.session.prepare_bootstrap(
+            ModelLaneKind.ACTION,
+            self._assignment(state, recent_limit=None, executor_only=True,
+                action_ids=fact_action_ids, focus_text=focus_text),
+            self._menu_definitions, lane_id=self.ACTION_LANE_ID, event_ids=(),
+            progressive_tool_disclosure=True, independent_tool_selector=True,
+        )
         checkpoint = self._bind_executor_fact_scope(
             state,
             checkpoint,
@@ -1626,15 +1599,13 @@ class LongHorizonModel:
                 ),
                 "causal_fact_requested_action_ids": list(fact_action_ids or ()),
                 "causal_fact_action_ids": list(retained_fact_action_ids),
-                "causal_fact_recent_limit": selected_recent_limit,
+                "causal_fact_complete": True,
                 "causal_fact_projection_sha256": str(
                     fact_scope_metadata.get("executor_fact_projection_sha256") or ""
                 ),
                 "causal_fact_scope_digest": str(
                     fact_scope_metadata.get("executor_fact_scope_digest") or ""
                 ),
-                "input_budget_fallback_used": bool(budget_fallbacks),
-                "input_budget_fallbacks": budget_fallbacks,
             },
         )
         return checkpoint
@@ -1778,59 +1749,44 @@ class LongHorizonModel:
             if self._progressive_tool_disclosure
             else self._all_definitions
         )
-        last_budget_error: Exception | None = None
-        for recent_limit in self._EXECUTOR_CAUSAL_FACT_LIMITS:
-            try:
-                rebuilt = self.session.bootstrap(
-                    ModelLaneKind.ACTION,
-                    self._assignment(
-                        state,
-                        recent_limit=recent_limit,
-                        executor_only=self.tool_selector is not None,
-                    ),
-                    definitions,
-                    lane_id=self.ACTION_LANE_ID,
-                    event_ids=(),
-                    progressive_tool_disclosure=self._progressive_tool_disclosure,
-                    independent_tool_selector=self.tool_selector is not None,
-                )
-            except InputBudgetError as exc:
-                last_budget_error = exc
-                continue
-            state.model_states[rebuilt.checkpoint_id] = rebuilt
-            state.set_lane_head("executor", rebuilt.checkpoint_id)
-            rollover_id = f"RO-{uuid4().hex[:16]}"
-            record = ModelRolloverRecord(
-                rollover_id=rollover_id,
-                lane_id=self.ACTION_LANE_ID,
-                source_checkpoint_id=source.checkpoint_id,
-                source_digest=source.transcript_digest,
-                source_token_count=source.token_count,
-                output_checkpoint_id=rebuilt.checkpoint_id,
-                output_digest=rebuilt.transcript_digest,
-                output_token_count=rebuilt.token_count,
-                retained_event_ids=(),
-                archived_event_ids=tuple(source.event_ids),
-                input_limit=self.session.settings.max_prompt_tokens(1),
-            )
-            state.rollovers[record.rollover_id] = record
-            persist(
-                state,
-                "action_session_rolled_over",
-                {
-                    "rollover_id": record.rollover_id,
-                    "rollover": record.to_dict(),
-                    "reason": "wkv_cache_miss_deterministic_rebuild",
-                    "cache_authority": False,
-                    "semantic_request_count": 0,
-                    "source_error_type": type(cause).__name__,
-                },
-            )
-            return rebuilt
-        raise InputBudgetError(
-            "authoritative state projection exceeds the native RWKV bootstrap "
-            "boundary after causal-fact limits 12, 8, 4, 2, and 0"
-        ) from last_budget_error
+        rebuilt = self.session.bootstrap(
+            ModelLaneKind.ACTION,
+            self._assignment(state, recent_limit=None,
+                executor_only=self.tool_selector is not None),
+            definitions, lane_id=self.ACTION_LANE_ID, event_ids=(),
+            progressive_tool_disclosure=self._progressive_tool_disclosure,
+            independent_tool_selector=self.tool_selector is not None,
+        )
+        state.model_states[rebuilt.checkpoint_id] = rebuilt
+        state.set_lane_head("executor", rebuilt.checkpoint_id)
+        rollover_id = f"RO-{uuid4().hex[:16]}"
+        record = ModelRolloverRecord(
+            rollover_id=rollover_id,
+            lane_id=self.ACTION_LANE_ID,
+            source_checkpoint_id=source.checkpoint_id,
+            source_digest=source.transcript_digest,
+            source_token_count=source.token_count,
+            output_checkpoint_id=rebuilt.checkpoint_id,
+            output_digest=rebuilt.transcript_digest,
+            output_token_count=rebuilt.token_count,
+            retained_event_ids=(),
+            archived_event_ids=tuple(source.event_ids),
+            input_limit=self.session.settings.max_prompt_tokens(1),
+        )
+        state.rollovers[record.rollover_id] = record
+        persist(
+            state,
+            "action_session_rolled_over",
+            {
+                "rollover_id": record.rollover_id,
+                "rollover": record.to_dict(),
+                "reason": "wkv_cache_miss_deterministic_rebuild",
+                "cache_authority": False,
+                "semantic_request_count": 0,
+                "source_error_type": type(cause).__name__,
+            },
+        )
+        return rebuilt
 
     def _record_role_fact(self, state: RunState, event: ModelEvent, persist: PersistCallback) -> None:
         """Commit cross-role facts independently of any numerical State cache."""
@@ -2234,9 +2190,9 @@ class LongHorizonModel:
                 "selector_has_exclusive_tool_authority": True,
                 "executor_reselected_operation": False,
                 "input_protocol": self.tool_selector.settings.input_protocol,
-                "protocol_schema_version": selector_intent_v6_protocol.INPUT_SCHEMA_VERSION,
-                "protocol_sha256": self._protocol_sha256(selector_intent_v6_protocol),
-                "selector_input_scope": "current_subtask_mechanical_progress_and_last_action_outcome",
+                "protocol_schema_version": selector_intent_v7_protocol.INPUT_SCHEMA_VERSION,
+                "protocol_sha256": self._protocol_sha256(selector_intent_v7_protocol),
+                "selector_input_scope": "current_subtask_cumulative_dependency_evidence_and_feedback",
                 "selector_state_policy": "fresh_initial_state_per_evaluation",
             }
         )
@@ -2284,10 +2240,10 @@ class LongHorizonModel:
                 "selector_attestation": {
                     **self.tool_selector.settings.runtime_identity(),
                     "protocol_schema_version": (
-                        selector_intent_v6_protocol.INPUT_SCHEMA_VERSION
+                        selector_intent_v7_protocol.INPUT_SCHEMA_VERSION
                     ),
                     "protocol_sha256": self._protocol_sha256(
-                        selector_intent_v6_protocol
+                        selector_intent_v7_protocol
                     ),
                 },
             },
@@ -3166,6 +3122,15 @@ class LongHorizonModel:
             )
         if not force and checkpoint.token_count <= input_limit:
             return checkpoint
+        if self.tool_selector is not None:
+            # A generic replay summary omits the committed frontier and loses
+            # the exact Executor fact binding. Keep the complete role input or
+            # interrupt; a smaller generic assignment is not equivalent.
+            if checkpoint.token_count > input_limit:
+                raise InputBudgetError(
+                    "required Executor frontier, feedback and facts exceed the input budget"
+                )
+            return checkpoint
         source_event_ids = list(checkpoint.event_ids)
         missing_event_ids = [
             event_id
@@ -3284,7 +3249,7 @@ class LongHorizonModel:
         self,
         state: RunState,
         *,
-        recent_limit: int,
+        recent_limit: int | None,
         executor_only: bool = False,
         action_ids: Sequence[str] | None = None,
         focus_text: str = "",
@@ -3357,13 +3322,13 @@ class LongHorizonModel:
     def _bounded_assignment_action_ids(
         state: RunState,
         *,
-        recent_limit: int,
+        recent_limit: int | None,
         action_ids: Sequence[str] | None,
     ) -> tuple[str, ...]:
         """Return the exact action IDs retained by one bounded assignment."""
 
-        limit = max(0, int(recent_limit))
-        if not limit:
+        limit = None if recent_limit is None else max(0, int(recent_limit))
+        if limit == 0:
             return ()
         allowed_action_ids = (
             None if action_ids is None else set(str(item) for item in action_ids)
@@ -3376,7 +3341,9 @@ class LongHorizonModel:
                 or action.action_id in allowed_action_ids
             ),
             key=lambda item: item.sequence,
-        )[-limit:]
+        )
+        if limit is not None:
+            actions = actions[-limit:]
         return tuple(action.action_id for action in actions)
 
 

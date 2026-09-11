@@ -8,7 +8,7 @@ import pytest
 from rwkv_lh import statetune_core as core
 from rwkv_lh import statetune_data as data
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_SELECTOR_MENU_ORDER_IDS, NetworkSelectorInput
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.role_trace_inputs import rebuild_role_input
 from rwkv_lh.token_budget import tokenizer
 from test_native_network_selector_service import _settings
@@ -57,7 +57,7 @@ def case(tmp_path, *, menu="canonical", split="dev"):
     target_source = dict(rebuilt["prompt_source"])
     target_source.update(selected_operation="read_json", selection_authority="planner_contract",
                          selection_verifier_id=boundary)
-    target = selector_intent_v6.render_target(target_source)
+    target = selector_intent_v7.render_target(target_source)
     tokens = tokenizer().encode(prompt)
     sample.update(source_run_id="mechanism", run_id=state.run_id, split=split,
         sample_id=split + menu, boundary_event_id=boundary, input_text=prompt,

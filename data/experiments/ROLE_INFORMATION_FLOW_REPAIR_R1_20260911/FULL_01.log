@@ -1,0 +1,848 @@
+.....FFFFFFFFFFFFFFFFFF................................................. [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........F............................................................... [ 19%]
+........................................................................ [ 24%]
+........................................................................ [ 28%]
+........................................................................ [ 33%]
+........................................................................ [ 38%]
+........................................................................ [ 43%]
+........................................................................ [ 48%]
+........................................................................ [ 53%]
+........................................................................ [ 57%]
+........................................................................ [ 62%]
+........................................................................ [ 67%]
+........................................................................ [ 72%]
+................................................FF...................... [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+..................................................                       [100%]
+=================================== FAILURES ===================================
+_____ test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-.] _____
+
+root = '.', operation = 'list_directory'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-nested/source] _
+
+root = 'nested/source', operation = 'list_directory'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-\u8d44\u6e90/\u5b50\u76ee\u5f55] _
+
+root = '资源/子目录', operation = 'list_directory'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_______ test_proved_scope_is_not_offered_as_a_missing_fact[write_file-.] _______
+
+root = '.', operation = 'write_file'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_proved_scope_is_not_offered_as_a_missing_fact[write_file-nested/source] _
+
+root = 'nested/source', operation = 'write_file'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_proved_scope_is_not_offered_as_a_missing_fact[write_file-\u8d44\u6e90/\u5b50\u76ee\u5f55] _
+
+root = '资源/子目录', operation = 'write_file'
+
+    @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_proved_scope_is_not_offered_as_a_missing_fact(root, operation):
+>       source = _source(root=root, operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+__ test_production_and_data_reject_the_same_contradictory_gap[list_directory] __
+
+operation = 'list_directory'
+
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_production_and_data_reject_the_same_contradictory_gap(operation):
+>       source = _source(operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+____ test_production_and_data_reject_the_same_contradictory_gap[write_file] ____
+
+operation = 'write_file'
+
+    @pytest.mark.parametrize('operation', ['list_directory', 'write_file'])
+    def test_production_and_data_reject_the_same_contradictory_gap(operation):
+>       source = _source(operation=operation)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes0] ___
+
+changes = {'complete': False}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes1] ___
+
+changes = {'truncated': True}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes2] ___
+
+changes = {'succeeded': False}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.FAILED: 'failed'>, action_type=...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes3] ___
+
+changes = {'observed_root': 'other'}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes4] ___
+
+changes = {'operation': 'check_command'}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes5] ___
+
+changes = {'complete': None}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___ test_unproved_or_incomplete_observation_remains_a_possible_gap[changes6] ___
+
+changes = {'projection_complete': False}
+
+    @pytest.mark.parametrize('changes', [
+        {'complete': False}, {'truncated': True}, {'succeeded': False},
+        {'observed_root': 'other'}, {'operation': 'check_command'},
+        {'complete': None}, {'projection_complete': False},
+    ])
+    def test_unproved_or_incomplete_observation_remains_a_possible_gap(changes):
+>       source = _source(root='assigned', **changes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+___________ test_proved_mechanics_do_not_complete_the_semantic_step ____________
+
+    def test_proved_mechanics_do_not_complete_the_semantic_step():
+>       source = _source()
+                 ^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_catalog_is_explicitly_presented_as_conditions_not_findings[auditor_step] _
+
+role = 'auditor_step'
+
+    @pytest.mark.parametrize('role', ['auditor_step', 'auditor_final'])
+    def test_catalog_is_explicitly_presented_as_conditions_not_findings(role):
+>       source = _source(complete=False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_ test_catalog_is_explicitly_presented_as_conditions_not_findings[auditor_final] _
+
+role = 'auditor_final'
+
+    @pytest.mark.parametrize('role', ['auditor_step', 'auditor_final'])
+    def test_catalog_is_explicitly_presented_as_conditions_not_findings(role):
+>       source = _source(complete=False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_auditor_evidence_contract.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_auditor_evidence_contract.py:36: in _source
+    records = LongHorizonModel._audit_evidence_records(state, ['A1'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model.py:1360: in _audit_evidence_records
+    bindings = goal_step_action_bindings(state)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A1': ActionRecord(action_id='A1', sequence=1, status=<ActionStatus.SUCCEEDED: 'succeeded'>, action...on_contract_digest='')}, artifacts={}, artifact_revisions={}, goal=namespace(request='Inspect the assigned resource.'))
+
+    def goal_step_action_bindings(state: RunState) -> dict[str, tuple[str, int]]:
+        """Replay the durable action→plan-step-revision relation."""
+    
+        bindings: dict[str, tuple[str, int]] = {}
+>       for event_id in state.causal_order:
+                        ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'causal_order'
+
+rwkv_lh/goal_loop_protocol.py:1351: AttributeError
+_______________ test_step_auditor_round_trip_and_catalog_binding _______________
+
+    def test_step_auditor_round_trip_and_catalog_binding() -> None:
+        step = _step()
+        evidence = _evidence()
+        catalog = auditor_step_v7.build_gap_catalog(step, evidence)
+        source = auditor_step_v7.build_prompt_source(
+            immutable_goal="Read the requested document without modifying it",
+            boundary="observation_complete", active_step=step,
+            available_evidence_refs=["A1"], evidence_records=evidence,
+        )
+        source.update(
+            decision={
+                "verdict": "continue", "step_id": "S1", "step_complete": True,
+                "evidence_refs": ["A1"], "gaps": [], "reason": "The requested file contents are present in A1.",
+            },
+            completion_verifier_id="completion-verifier-v1",
+        )
+        prompt = auditor_step_v7.render_prompt(source)
+        target = auditor_step_v7.render_target(source)
+    
+        assert prompt.startswith("AuditorStepPromptV7: ")
+        assert auditor_step_v7.parse_target(target).arguments["verdict"] == "continue"
+        payload = json.loads(prompt.removeprefix("AuditorStepPromptV7: "))
+        assert payload["gap_catalog"] == catalog
+    
+        repair = {
+            **source,
+            "decision": {
+                "verdict": "repair",
+                "step_id": "S1",
+                "step_complete": False,
+                "evidence_refs": ["A1"],
+                "gaps": [catalog[0]["code"]],
+                "reason": "The current step still lacks the required evidence.",
+            },
+        }
+        auditor_step_v7.validate_source(repair)
+        with pytest.raises(ValueError, match="gap_catalog"):
+            auditor_step_v7.validate_source(
+                {
+                    **repair,
+                    "decision": {**repair["decision"], "gaps": ["invented-gap"]},
+                }
+            )
+>       with pytest.raises(ValueError, match="canonical"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_goal_state_protocols.py:423: Failed
+__ test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[2] __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_audit_evidence_projection0')
+root_count = 2
+
+    @pytest.mark.parametrize("root_count", [2, 9])
+    def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
+        tmp_path: Path,
+        root_count: int,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "ROOT-EVIDENCE-WINDOW")
+        workspace = Path(state.goal.workspace_root)
+        roots = tuple(f"source-{index}.py" for index in range(root_count))
+        for index, root in enumerate(roots):
+            (workspace / root).write_text(f"VALUE = {index}\n", encoding="utf-8")
+        patch = GoalPlanPatch(
+            patch_id="GPP-root-evidence",
+            base_revision=0,
+            add_steps=(
+                GoalPlanStep(phase="observe",
+                    step_id="READ",
+                    objective="Read pricing.py and verify_project.py",
+                    success_evidence=("both files are observed",),
+                    read_roots=roots,
+                ),
+            ),
+            replace_steps=(),
+            discard_step_ids=(),
+            reason="Inspect both files",
+        )
+        outputs = [
+            *(json.dumps({"function": "read_file", "params": {"path": root}}) for root in roots),
+            *(
+                json.dumps(
+                    {
+                        "function": "list_directory",
+                        "params": {"path": ".", "recursive": False},
+                    }
+                )
+                for _ in range(10)
+            ),
+        ]
+        session = ModelSession(_QueueClient(outputs), settings=_settings())
+        model = LongHorizonModel(session)
+        controller = LongHorizonController(store, model=model, harness=model.harness)
+        controller._persist(
+            state,
+            "goal_plan_patch_committed",
+            {
+                "patch_id": patch.patch_id,
+                "patch": patch.to_dict(),
+                "plan_revision": 1,
+                "request_digest": state.goal.digest,
+                "supervisor": {"provider": "test", "model": "test-planner"},
+            },
+            subject_id=patch.patch_id,
+        )
+        action_ids = []
+        for operation in (*("read_file",) * root_count, *("list_directory",) * 10):
+            decision = model.next_command(
+                state,
+                controller._persist_callback,
+                eligible_operations=(operation,),
+            )
+            action = controller._execute_decision(state, decision)
+            action_ids.append(action.action_id)
+            controller._persist(
+                state,
+                "goal_action_plan_step_assigned",
+                {
+                    "action_id": action.action_id,
+                    "step_id": "READ",
+                    "step_revision": 1,
+                    "strong_planner_patch_ids": [patch.patch_id],
+                },
+                subject_id=action.action_id,
+            )
+    
+        refs = StatefulGoalLoopController._step_audit_evidence_refs(
+            state, "READ", 1
+        )
+    
+        assert set(action_ids[:root_count]) <= set(refs)
+        assert action_ids[-1] in refs
+>       assert refs == action_ids
+E       AssertionError: assert ('A00001', 'A...'A00006', ...) == ['A00001', 'A...'A00006', ...]
+E         
+E         Use -v to get more diff
+
+tests/test_stateful_goal_loop.py:2232: AssertionError
+__ test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[9] __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_audit_evidence_projection1')
+root_count = 9
+
+    @pytest.mark.parametrize("root_count", [2, 9])
+    def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
+        tmp_path: Path,
+        root_count: int,
+    ) -> None:
+        store = LongHorizonStore(tmp_path / "state")
+        state = store.create_run(_goal(tmp_path), "ROOT-EVIDENCE-WINDOW")
+        workspace = Path(state.goal.workspace_root)
+        roots = tuple(f"source-{index}.py" for index in range(root_count))
+        for index, root in enumerate(roots):
+            (workspace / root).write_text(f"VALUE = {index}\n", encoding="utf-8")
+        patch = GoalPlanPatch(
+            patch_id="GPP-root-evidence",
+            base_revision=0,
+            add_steps=(
+                GoalPlanStep(phase="observe",
+                    step_id="READ",
+                    objective="Read pricing.py and verify_project.py",
+                    success_evidence=("both files are observed",),
+                    read_roots=roots,
+                ),
+            ),
+            replace_steps=(),
+            discard_step_ids=(),
+            reason="Inspect both files",
+        )
+        outputs = [
+            *(json.dumps({"function": "read_file", "params": {"path": root}}) for root in roots),
+            *(
+                json.dumps(
+                    {
+                        "function": "list_directory",
+                        "params": {"path": ".", "recursive": False},
+                    }
+                )
+                for _ in range(10)
+            ),
+        ]
+        session = ModelSession(_QueueClient(outputs), settings=_settings())
+        model = LongHorizonModel(session)
+        controller = LongHorizonController(store, model=model, harness=model.harness)
+        controller._persist(
+            state,
+            "goal_plan_patch_committed",
+            {
+                "patch_id": patch.patch_id,
+                "patch": patch.to_dict(),
+                "plan_revision": 1,
+                "request_digest": state.goal.digest,
+                "supervisor": {"provider": "test", "model": "test-planner"},
+            },
+            subject_id=patch.patch_id,
+        )
+        action_ids = []
+        for operation in (*("read_file",) * root_count, *("list_directory",) * 10):
+            decision = model.next_command(
+                state,
+                controller._persist_callback,
+                eligible_operations=(operation,),
+            )
+            action = controller._execute_decision(state, decision)
+            action_ids.append(action.action_id)
+            controller._persist(
+                state,
+                "goal_action_plan_step_assigned",
+                {
+                    "action_id": action.action_id,
+                    "step_id": "READ",
+                    "step_revision": 1,
+                    "strong_planner_patch_ids": [patch.patch_id],
+                },
+                subject_id=action.action_id,
+            )
+    
+        refs = StatefulGoalLoopController._step_audit_evidence_refs(
+            state, "READ", 1
+        )
+    
+        assert set(action_ids[:root_count]) <= set(refs)
+        assert action_ids[-1] in refs
+>       assert refs == action_ids
+E       AssertionError: assert ('A00001', 'A...'A00006', ...) == ['A00001', 'A...'A00006', ...]
+E         
+E         Use -v to get more diff
+
+tests/test_stateful_goal_loop.py:2232: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-.]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-nested/source]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[list_directory-\u8d44\u6e90/\u5b50\u76ee\u5f55]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[write_file-.]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[write_file-nested/source]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_scope_is_not_offered_as_a_missing_fact[write_file-\u8d44\u6e90/\u5b50\u76ee\u5f55]
+FAILED tests/test_auditor_evidence_contract.py::test_production_and_data_reject_the_same_contradictory_gap[list_directory]
+FAILED tests/test_auditor_evidence_contract.py::test_production_and_data_reject_the_same_contradictory_gap[write_file]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes0]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes1]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes2]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes3]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes4]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes5]
+FAILED tests/test_auditor_evidence_contract.py::test_unproved_or_incomplete_observation_remains_a_possible_gap[changes6]
+FAILED tests/test_auditor_evidence_contract.py::test_proved_mechanics_do_not_complete_the_semantic_step
+FAILED tests/test_auditor_evidence_contract.py::test_catalog_is_explicitly_presented_as_conditions_not_findings[auditor_step]
+FAILED tests/test_auditor_evidence_contract.py::test_catalog_is_explicitly_presented_as_conditions_not_findings[auditor_final]
+FAILED tests/test_goal_state_protocols.py::test_step_auditor_round_trip_and_catalog_binding
+FAILED tests/test_stateful_goal_loop.py::test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[2]
+FAILED tests/test_stateful_goal_loop.py::test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions[9]
+21 failed, 1469 passed in 252.71s (0:04:12)

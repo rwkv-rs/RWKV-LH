@@ -1,6 +1,6 @@
 """Observation-conditioned production/data protocol for the G1J Executor.
 
-V6 owns the typed progress contract and makes the factual authority of
+V7 owns the typed progress contract and makes the factual authority of
 the preceding Harness observations explicit.  A navigation summary may help the
 model find material, but it is never authority for a path, source literal, cursor,
 or read-modify-write base revision.
@@ -22,9 +22,9 @@ from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
 from rwkv_lh.operation_contracts import project_argument_targets
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v6"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.executor-args.v7"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "ExecutorArgsPromptV6: "
+PROMPT_PREFIX = "ExecutorArgsPromptV7: "
 OBSERVATION_BINDING_SCHEMA_VERSION = "rwkv-lh.executor-observation-binding.v1"
 TARGET_CONTRACT_SCHEMA_VERSION = "rwkv-lh.goal-step-target-contract.v3"
 EXACT_SOURCE_RULE = (
@@ -517,6 +517,8 @@ def render_prompt(source: Any) -> str:
         "committed_fact_refs": list(prompt["committed_fact_refs"]),
         "executor_history": [dict(item) for item in prompt["executor_history"]],
         "current_question": (
+            "Use feedback.diagnosis to address the unmet criterion. Read/write root coverage "
+            "is mechanical scope evidence, not proof that the task is complete. "
             "Return one canonical direct call for the selected operation. "
             "Create new content from immutable_goal and the current step requirements. "
             "Authored code and text need not already exist in observations. When referring "

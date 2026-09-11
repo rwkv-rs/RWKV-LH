@@ -14,15 +14,15 @@ from typing import Any
 
 from rwkv_lh.executor_provenance import validate_executor_argument_provenance
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer,
+    auditor_final, auditor_step_v7, executor_args_v7, finalizer_answer,
 )
 from rwkv_lh.harness import HarnessError, TaskAction
 from rwkv_lh.role_trace_inputs import _reconstruction_harness
 
 
 _MODULES = {
-    "executor_args": executor_args_v6,
-    "auditor_step": auditor_step_v6,
+    "executor_args": executor_args_v7,
+    "auditor_step": auditor_step_v7,
     "auditor_final": auditor_final,
     "finalizer_answer": finalizer_answer,
 }

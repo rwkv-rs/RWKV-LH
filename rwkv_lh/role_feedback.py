@@ -87,6 +87,23 @@ def protocol_feedback(state: Any, role: str, boundary_id: str) -> dict | None:
     return None
 
 
+def rejected_audit_output(state: Any, request_id: str, boundary_id: str) -> str:
+    """Recover the exact rejected generation from its durable audit boundary."""
+    if not request_id:
+        # A pre-generation contract failure has no rejected model output.
+        return ""
+    for event in _events(state):
+        payload = event.payload
+        if (event.event_type == "goal_audit_recorded"
+            and payload.get("request_id") == request_id
+            and payload.get("audit_boundary_id") == boundary_id):
+            raw = (payload.get("raw_generation") or {}).get("raw_output")
+            if not isinstance(raw, str):
+                raise ValueError("rejected audit generation lacks its raw output")
+            return raw
+    raise ValueError("rejected audit request has no matching durable boundary")
+
+
 def audit_protocol_rejections(state: Any, boundary_id: str) -> int:
     count = 0
     for event in _events(state):

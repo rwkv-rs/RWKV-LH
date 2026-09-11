@@ -182,7 +182,7 @@ def test_stack_attests_configured_independent_selector_health(
         "RWKV_SELECTOR_DECODER_SHA256": "2" * 64,
         "RWKV_SELECTOR_DECODER_PROTOCOL": NATIVE_SELECTOR_DECODER_PROTOCOL,
         "RWKV_SELECTOR_INPUT_PROTOCOL": (
-            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v6"
+            "rwkv-lh.g1j-per-stage-state-tuning.selector-intent.v7"
         ),
         "RWKV_SELECTOR_STATE_PROFILE_ID": "zero",
         "RWKV_SELECTOR_STATE_PROFILE_SHA256": "0" * 64,

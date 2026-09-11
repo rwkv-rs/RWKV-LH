@@ -31,7 +31,7 @@ from rwkv_lh.exact_tool_selector.network_protocol import (
     NetworkSelectorInput,
 )
 from rwkv_lh.inference.vllm_rwkv import PersistentVLLMRWKVExtractor
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.model_io import canonical_digest
 from rwkv_lh.state_router.local_backend import LocalVLLMRWKVSettings
 
@@ -105,7 +105,7 @@ def load_native_selector_decoder_manifest(
         "decoder_id": NATIVE_SELECTOR_DECODER_ID,
         "decoder_protocol": NATIVE_SELECTOR_DECODER_PROTOCOL,
         "input_protocol": CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL,
-        "target_prefix": selector_intent_v6.TARGET_PREFIX,
+        "target_prefix": selector_intent_v7.TARGET_PREFIX,
         "labels": list(NETWORK_EXACT_TOOL_LABELS),
         "algorithm": "eligible_token_sequence_trie_vocab_logit_argmax",
         "token_tie_break": "lowest_token_id",
@@ -133,7 +133,7 @@ class NativeNetworkSelectorService:
             "decoder_id": settings.decoder_id,
             "decoder_protocol": settings.decoder_protocol,
             "input_protocol": settings.input_protocol,
-            "target_prefix": selector_intent_v6.TARGET_PREFIX,
+            "target_prefix": selector_intent_v7.TARGET_PREFIX,
             "labels": list(NETWORK_EXACT_TOOL_LABELS),
             "algorithm": "eligible_token_sequence_trie_vocab_logit_argmax",
             "token_tie_break": "lowest_token_id",
@@ -203,7 +203,7 @@ class NativeNetworkSelectorService:
             "current_question",
         }:
             raise NativeNetworkSelectorServiceError(
-                "G1J Selector-Intent v6 prompt fields changed"
+                "G1J Selector-Intent v7 prompt fields changed"
             )
         if (
             step.get("schema_version") != CURRENT_G1J_NETWORK_SELECTOR_INPUT_PROTOCOL
@@ -214,7 +214,7 @@ class NativeNetworkSelectorService:
             or not isinstance(step.get("current_progress"), Mapping)
         ):
             raise NativeNetworkSelectorServiceError(
-                "G1J Selector-Intent v6 prompt identity changed"
+                "G1J Selector-Intent v7 prompt identity changed"
             )
         selector_input = NetworkSelectorInput.create(
             current_subtask=dict(step["current_subtask"]),
@@ -321,7 +321,7 @@ class NativeNetworkSelectorService:
                 + self.input_protocol.render_step(selector_input)
             )
             suffixes = {
-                label: selector_intent_v6.TARGET_PREFIX + label
+                label: selector_intent_v7.TARGET_PREFIX + label
                 for label in selector_input.eligible_labels
             }
             decoder_trace, extractor_identity = self.extractor.select_suffix_choices(

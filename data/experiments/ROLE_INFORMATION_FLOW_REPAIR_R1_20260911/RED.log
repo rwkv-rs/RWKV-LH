@@ -1,0 +1,291 @@
+FFFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+___ test_selector_sees_different_results_with_identical_mechanical_progress ____
+
+    def test_selector_sees_different_results_with_identical_mechanical_progress():
+        def progress(text):
+            return selector_intent_v6.build_current_progress(
+                assigned_actions=[action(1,output=text)], read_roots=['source.txt'], write_roots=[],
+                mechanical_evidence={}, target_descriptors=[], action_observes_root=lambda *_:True,
+                action_mutates_root=lambda *_:False)
+>       assert progress('Use arithmetic') != progress('Use date input')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_information_flow.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_role_information_flow.py:32: in progress
+    return selector_intent_v6.build_current_progress(
+rwkv_lh/goal_state_protocols/selector_intent_v6.py:314: in build_current_progress
+    validate_progress(progress, read_roots=read_roots, write_roots=write_roots)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+progress = {'assigned_action_count': 1, 'successful_action_count': 1, 'failed_action_count': 0, 'last_action': {'operation': 'read_file', 'status': 'succeeded', 'arguments': {'path': 'source.txt', 'start_byte': '1'}, 'error_type': None, ...}, ...}
+read_roots = ['source.txt'], write_roots = []
+
+    def validate_progress(
+        progress: Any,
+        *,
+        read_roots: Sequence[str],
+        write_roots: Sequence[str],
+    ) -> Mapping[str, Any]:
+        selected = _exact_fields(progress, PROGRESS_FIELDS, "current_progress")
+        validate_feedback(selected["feedback"], recipient="selector_intent")
+        validate_rejections(selected["recent_rejections"])
+        if not isinstance(selected["operation_targets"], Mapping):
+            raise ValueError("operation_targets must be an object")
+        if not isinstance(selected["target_discovery_complete"], bool):
+            raise ValueError("target discovery completeness must be explicit")
+        for name in (
+            "assigned_action_count",
+            "successful_action_count",
+            "failed_action_count",
+        ):
+            _nonnegative_int(selected[name], f"current_progress.{name}")
+        if selected["successful_action_count"] + selected["failed_action_count"] != (
+            selected["assigned_action_count"]
+        ):
+            raise ValueError("current_progress action counters are inconsistent")
+        _strings(selected["missing_read_roots"], "current_progress.missing_read_roots")
+        _strings(
+            selected["missing_write_roots"], "current_progress.missing_write_roots"
+        )
+        if not set(selected["missing_read_roots"]).issubset(read_roots):
+            raise ValueError("current_progress missing read roots exceed current_subtask")
+        if not set(selected["missing_write_roots"]).issubset(write_roots):
+            raise ValueError("current_progress missing write roots exceed current_subtask")
+        validate_workspace_targets(selected["workspace_targets"])
+        if not isinstance(selected["completion_preconditions_satisfied"], bool):
+            raise ValueError(
+                "current_progress.completion_preconditions_satisfied must be boolean"
+            )
+        expected_complete = not (
+            selected["missing_read_roots"] or selected["missing_write_roots"]
+        ) and selected["successful_action_count"] > 0
+        if selected["completion_preconditions_satisfied"] is not expected_complete:
+>           raise ValueError("current_progress completion flag is inconsistent")
+E           ValueError: current_progress completion flag is inconsistent
+
+rwkv_lh/goal_state_protocols/selector_intent_v6.py:435: ValueError
+__________ test_selector_mechanical_gate_has_no_completion_authority ___________
+
+    def test_selector_mechanical_gate_has_no_completion_authority():
+        progress = selector_intent_v6.build_current_progress(assigned_actions=[], read_roots=[],
+            write_roots=[], mechanical_evidence={}, target_descriptors=[],
+            action_observes_root=lambda *_:False, action_mutates_root=lambda *_:False)
+>       assert 'completion_preconditions_satisfied' not in progress
+E       AssertionError: assert 'completion_preconditions_satisfied' not in {'assigned_action_count': 0, 'successful_action_count': 0, 'failed_action_count': 0, 'last_action': None, ...}
+
+tests/test_role_information_flow.py:43: AssertionError
+______ test_step_audit_keeps_same_root_fragments_and_dependency_evidence _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79c99cb64ef0>
+
+    def test_step_audit_keeps_same_root_fragments_and_dependency_evidence(monkeypatch):
+        import rwkv_lh.goal_loop_protocol as goal
+        step = GoalPlanStep(step_id='S2', objective='Compare both source fragments', phase='observe',
+            stage=2, depends_on=('S1',), read_roots=('source.txt',), success_evidence=('Both parts agree with the baseline',))
+        dependency = GoalPlanStep(step_id='S1',objective='Read baseline',phase='observe',
+            read_roots=('baseline.txt',),success_evidence=('Baseline observed',))
+        plan = SimpleNamespace(steps={'S1':dependency,'S2':step}, step_revisions={'S1':1,'S2':1},
+            completed_evidence={'S1':('A00001',)}, completed_step_ids={'S1'})
+        bindings={'A00001':('S1',1),'A00002':('S2',1),'A00003':('S2',1)}
+        state=SimpleNamespace(actions={a.action_id:a for a in [action(1,path='baseline.txt'),action(2),action(3)]},
+            artifacts={},artifact_revisions={})
+        for module in (loop,goal):
+            monkeypatch.setattr(module,'rolling_goal_plan',lambda _:plan)
+            monkeypatch.setattr(module,'goal_step_action_bindings',lambda _:bindings)
+        refs=loop.StatefulGoalLoopController._step_audit_evidence_refs(state,'S2',1)
+>       assert refs==('A00001','A00002','A00003')
+E       AssertionError: assert ('A00003',) == ('A00001', 'A00002', 'A00003')
+E         
+E         At index 0 diff: 'A00003' != 'A00001'
+E         Right contains 2 more items, first extra item: 'A00002'
+E         Use -v to get more diff
+
+tests/test_role_information_flow.py:62: AssertionError
+_____ test_all_required_executor_facts_survive_even_when_more_than_twelve ______
+
+    def test_all_required_executor_facts_survive_even_when_more_than_twelve():
+        actions=[action(i) for i in range(1,18)]
+        state=SimpleNamespace(actions={a.action_id:a for a in actions})
+        refs=tuple(state.actions)
+>       assert LongHorizonModel._bounded_assignment_action_ids(state,recent_limit=None,action_ids=refs)==refs
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_information_flow.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+state = namespace(actions={'A00001': namespace(action_id='A00001', sequence=1, action_type='read_file', status=<ActionStatus.S...data': {'complete': True}}, artifact_refs=[], workspace_digest_after='workspace', error=None, outcome_type='success')})
+recent_limit = None
+action_ids = ('A00001', 'A00002', 'A00003', 'A00004', 'A00005', 'A00006', ...)
+
+    @staticmethod
+    def _bounded_assignment_action_ids(
+        state: RunState,
+        *,
+        recent_limit: int,
+        action_ids: Sequence[str] | None,
+    ) -> tuple[str, ...]:
+        """Return the exact action IDs retained by one bounded assignment."""
+    
+>       limit = max(0, int(recent_limit))
+                       ^^^^^^^^^^^^^^^^^
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+
+rwkv_lh/model.py:3365: TypeError
+____________ test_planner_default_facts_keep_early_repair_evidence _____________
+
+    def test_planner_default_facts_keep_early_repair_evidence():
+        actions=[action(i) for i in range(1,18)]
+        state=SimpleNamespace(actions={a.action_id:a for a in actions},goal=SimpleNamespace(request='Compare all records'))
+        facts=loop.StatefulGoalLoopController._recent_action_facts(state)
+>       assert [f['action_id'] for f in facts]==list(state.actions)
+E       AssertionError: assert ['A00006', 'A...'A00011', ...] == ['A00001', 'A...'A00006', ...]
+E         
+E         At index 0 diff: 'A00006' != 'A00001'
+E         Right contains 5 more items, first extra item: 'A00013'
+E         Use -v to get more diff
+
+tests/test_role_information_flow.py:76: AssertionError
+_________ test_auditors_can_return_evidence_grounded_diagnosis[False] __________
+
+final = False
+
+    @pytest.mark.parametrize('final',[False,True])
+    def test_auditors_can_return_evidence_grounded_diagnosis(final):
+        module=auditor_final if final else auditor_step_v6
+        command=ModelCommand('audit_decision',dict(verdict='repair',step_id='' if final else 'S1',
+            step_complete=False,evidence_refs=['A00001'],gaps=['candidate_unsupported_claim'] if final else ['phase_evidence_unproved:observe'],
+            reason='The search returned zero matches and did not provide the requested source content.'))
+>       assert module.parse_target(command.canonical).arguments['reason']==command.arguments['reason']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_information_flow.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = '{"function":"audit_decision","params":{"evidence_refs":["A00001"],"gaps":["phase_evidence_unproved:observe"],"reason"...o matches and did not provide the requested source content.","step_complete":false,"step_id":"S1","verdict":"repair"}}'
+
+    def parse_target(target: str) -> ModelCommand:
+        command = _audit_target(target, allowed_verdicts=("continue", "repair"))
+        expected_reason = (
+            REASON_COMPLETE
+            if command.arguments["verdict"] == "continue"
+            else REASON_INCOMPLETE
+        )
+        if command.arguments["reason"] != expected_reason:
+>           raise ValueError("Auditor target reason is not canonical for its verdict")
+E           ValueError: Auditor target reason is not canonical for its verdict
+
+rwkv_lh/goal_state_protocols/auditor_step_v6.py:309: ValueError
+__________ test_auditors_can_return_evidence_grounded_diagnosis[True] __________
+
+final = True
+
+    @pytest.mark.parametrize('final',[False,True])
+    def test_auditors_can_return_evidence_grounded_diagnosis(final):
+        module=auditor_final if final else auditor_step_v6
+        command=ModelCommand('audit_decision',dict(verdict='repair',step_id='' if final else 'S1',
+            step_complete=False,evidence_refs=['A00001'],gaps=['candidate_unsupported_claim'] if final else ['phase_evidence_unproved:observe'],
+            reason='The search returned zero matches and did not provide the requested source content.'))
+>       assert module.parse_target(command.canonical).arguments['reason']==command.arguments['reason']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_information_flow.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = '{"function":"audit_decision","params":{"evidence_refs":["A00001"],"gaps":["candidate_unsupported_claim"],"reason":"Th...ero matches and did not provide the requested source content.","step_complete":false,"step_id":"","verdict":"repair"}}'
+
+    def parse_target(target: str) -> ModelCommand:
+        command = _audit_target(target, allowed_verdicts=("ready_for_final", "repair"))
+        if command.arguments["step_id"] != "" or command.arguments["step_complete"]:
+            raise ValueError("Final Auditor target cannot complete a plan step")
+        expected_reason = (
+            REASON_READY
+            if command.arguments["verdict"] == "ready_for_final"
+            else REASON_REPAIR
+        )
+        if command.arguments["reason"] != expected_reason:
+>           raise ValueError("Final Auditor target reason is not canonical for its verdict")
+E           ValueError: Final Auditor target reason is not canonical for its verdict
+
+rwkv_lh/goal_state_protocols/auditor_final.py:258: ValueError
+______ test_semantic_feedback_keeps_diagnosis_without_replacing_criterion ______
+
+    def test_semantic_feedback_keeps_diagnosis_without_replacing_criterion():
+        from test_goal_state_protocols import _step
+        catalog=auditor_step_v6.build_gap_catalog(_step(),[])
+        code=catalog[0]['code']
+>       packet=semantic_feedback(source_role='auditor_step',boundary_id='B1',source_id='AUD1',plan_revision=1,
+            step_id='S1',step_revision=1,gap_codes=[code],gap_catalog=catalog,evidence_refs=[],
+            diagnosis='A successful search is not the requested full-file observation.')
+E       TypeError: semantic_feedback() got an unexpected keyword argument 'diagnosis'
+
+tests/test_role_information_flow.py:92: TypeError
+_________ test_actual_audit_retry_receives_rejected_raw_output[False] __________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_actual_audit_retry_receiv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79c99cb46f30>
+final = False
+
+    @pytest.mark.parametrize('final',[False,True])
+    def test_actual_audit_retry_receives_rejected_raw_output(tmp_path,monkeypatch,final):
+        store=LongHorizonStore(tmp_path/'state')
+        state=store.create_run(_goal(tmp_path),'AUDIT-RAW-RETRY')
+        write=ModelCommand('write_file',{'path':'result.txt','content':'verified'}).canonical
+        step=json.dumps(_audit_call('continue',step_id='S1',step_complete=True,evidence_refs=['A00001'],gaps=[],reason='Written'))
+        answer=ModelCommand('final_answer',{'text':'Created result.txt.'}).canonical
+        accepted=json.dumps(_audit_call('ready_for_final',step_id='',step_complete=False,evidence_refs=['A00001'],gaps=[],reason='Proved'))
+        rejected='{"function":"audit_decision","params":{"wrong_field":"original diagnostic marker"}}'
+        queue=_QueueClient([write,step,answer,rejected,accepted] if final else [write,rejected,step,answer,accepted])
+        model=LongHorizonModel(ModelSession(queue,settings=_settings(progressive=True)),tool_selector=_selector(['write_file']))
+        monkeypatch.setattr(loop.StatefulGoalLoopController,'_validate_contract_patch_semantics',staticmethod(lambda *a,**k:None))
+        result=loop.StatefulGoalLoopController(store,model=model,harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)),supervisor_policy=SupervisorPolicy(mode='static'),max_transitions=20).run(state.run_id)
+        assert result.state.status.value=='completed'
+        rejected_events=[e for e in result.state.causal_records.values() if e.event_type=='protocol_rejection_recorded']
+>       assert rejected_events[0].payload['feedback']['rejected_output']==rejected
+E       assert '' == '{"function":...tic marker"}}'
+E         
+E         - {"function":"audit_decision","params":{"wrong_field":"original diagnostic marker"}}
+
+tests/test_role_information_flow.py:115: AssertionError
+__________ test_actual_audit_retry_receives_rejected_raw_output[True] __________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_actual_audit_retry_receiv1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79c999a5b3f0>
+final = True
+
+    @pytest.mark.parametrize('final',[False,True])
+    def test_actual_audit_retry_receives_rejected_raw_output(tmp_path,monkeypatch,final):
+        store=LongHorizonStore(tmp_path/'state')
+        state=store.create_run(_goal(tmp_path),'AUDIT-RAW-RETRY')
+        write=ModelCommand('write_file',{'path':'result.txt','content':'verified'}).canonical
+        step=json.dumps(_audit_call('continue',step_id='S1',step_complete=True,evidence_refs=['A00001'],gaps=[],reason='Written'))
+        answer=ModelCommand('final_answer',{'text':'Created result.txt.'}).canonical
+        accepted=json.dumps(_audit_call('ready_for_final',step_id='',step_complete=False,evidence_refs=['A00001'],gaps=[],reason='Proved'))
+        rejected='{"function":"audit_decision","params":{"wrong_field":"original diagnostic marker"}}'
+        queue=_QueueClient([write,step,answer,rejected,accepted] if final else [write,rejected,step,answer,accepted])
+        model=LongHorizonModel(ModelSession(queue,settings=_settings(progressive=True)),tool_selector=_selector(['write_file']))
+        monkeypatch.setattr(loop.StatefulGoalLoopController,'_validate_contract_patch_semantics',staticmethod(lambda *a,**k:None))
+        result=loop.StatefulGoalLoopController(store,model=model,harness=model.harness,
+            supervisor=_StrongPlanner(_strong_patch(state)),supervisor_policy=SupervisorPolicy(mode='static'),max_transitions=20).run(state.run_id)
+        assert result.state.status.value=='completed'
+        rejected_events=[e for e in result.state.causal_records.values() if e.event_type=='protocol_rejection_recorded']
+>       assert rejected_events[0].payload['feedback']['rejected_output']==rejected
+E       assert '' == '{"function":...tic marker"}}'
+E         
+E         - {"function":"audit_decision","params":{"wrong_field":"original diagnostic marker"}}
+
+tests/test_role_information_flow.py:115: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_information_flow.py::test_selector_sees_different_results_with_identical_mechanical_progress
+FAILED tests/test_role_information_flow.py::test_selector_mechanical_gate_has_no_completion_authority
+FAILED tests/test_role_information_flow.py::test_step_audit_keeps_same_root_fragments_and_dependency_evidence
+FAILED tests/test_role_information_flow.py::test_all_required_executor_facts_survive_even_when_more_than_twelve
+FAILED tests/test_role_information_flow.py::test_planner_default_facts_keep_early_repair_evidence
+FAILED tests/test_role_information_flow.py::test_auditors_can_return_evidence_grounded_diagnosis[False]
+FAILED tests/test_role_information_flow.py::test_auditors_can_return_evidence_grounded_diagnosis[True]
+FAILED tests/test_role_information_flow.py::test_semantic_feedback_keeps_diagnosis_without_replacing_criterion
+FAILED tests/test_role_information_flow.py::test_actual_audit_retry_receives_rejected_raw_output[False]
+FAILED tests/test_role_information_flow.py::test_actual_audit_retry_receives_rejected_raw_output[True]
+10 failed in 2.58s

@@ -1,0 +1,77 @@
+F.........                                                               [100%]
+=================================== FAILURES ===================================
+___ test_selector_sees_different_results_with_identical_mechanical_progress ____
+
+    def test_selector_sees_different_results_with_identical_mechanical_progress():
+        def progress(text):
+            return selector_intent_v7.build_current_progress(
+                assigned_actions=[action(1,output=text)], read_roots=['source.txt'], write_roots=[],
+                mechanical_evidence={}, target_descriptors=[], action_observes_root=lambda *_:True,
+                action_mutates_root=lambda *_:False)
+>       assert progress('Use arithmetic') != progress('Use date input')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_information_flow.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_role_information_flow.py:32: in progress
+    return selector_intent_v7.build_current_progress(
+rwkv_lh/goal_state_protocols/selector_intent_v7.py:327: in build_current_progress
+    validate_progress(progress, read_roots=read_roots, write_roots=write_roots)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+progress = {'assigned_action_count': 1, 'successful_action_count': 1, 'failed_action_count': 0, 'last_action': {'operation': 'read_file', 'status': 'succeeded', 'arguments': {'path': 'source.txt', 'start_byte': '1'}, 'error_type': None, ...}, ...}
+read_roots = ['source.txt'], write_roots = []
+
+    def validate_progress(
+        progress: Any,
+        *,
+        read_roots: Sequence[str],
+        write_roots: Sequence[str],
+    ) -> Mapping[str, Any]:
+        selected = _exact_fields(progress, PROGRESS_FIELDS, "current_progress")
+        validate_feedback(selected["feedback"], recipient="selector_intent")
+        validate_rejections(selected["recent_rejections"])
+        if not isinstance(selected["operation_targets"], Mapping):
+            raise ValueError("operation_targets must be an object")
+        if not isinstance(selected["target_discovery_complete"], bool):
+            raise ValueError("target discovery completeness must be explicit")
+        for name in (
+            "assigned_action_count",
+            "successful_action_count",
+            "failed_action_count",
+        ):
+            _nonnegative_int(selected[name], f"current_progress.{name}")
+        if selected["successful_action_count"] + selected["failed_action_count"] != (
+            selected["assigned_action_count"]
+        ):
+            raise ValueError("current_progress action counters are inconsistent")
+        _strings(selected["missing_read_roots"], "current_progress.missing_read_roots")
+        _strings(
+            selected["missing_write_roots"], "current_progress.missing_write_roots"
+        )
+        if not set(selected["missing_read_roots"]).issubset(read_roots):
+            raise ValueError("current_progress missing read roots exceed current_subtask")
+        if not set(selected["missing_write_roots"]).issubset(write_roots):
+            raise ValueError("current_progress missing write roots exceed current_subtask")
+        validate_workspace_targets(selected["workspace_targets"])
+        if selected["completion_authority"] is not False:
+            raise ValueError("mechanical progress cannot grant completion authority")
+        if not isinstance(selected["evidence_records"], list) or any(
+            not isinstance(record, Mapping) for record in selected["evidence_records"]
+        ):
+            raise ValueError("current_progress.evidence_records must contain fact records")
+        if not isinstance(selected["mechanical_preconditions_satisfied"], bool):
+            raise ValueError(
+                "current_progress.completion_preconditions_satisfied must be boolean"
+            )
+        expected_complete = not (
+            selected["missing_read_roots"] or selected["missing_write_roots"]
+        ) and selected["successful_action_count"] > 0
+        if selected["mechanical_preconditions_satisfied"] is not expected_complete:
+>           raise ValueError("current_progress completion flag is inconsistent")
+E           ValueError: current_progress completion flag is inconsistent
+
+rwkv_lh/goal_state_protocols/selector_intent_v7.py:454: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_role_information_flow.py::test_selector_sees_different_results_with_identical_mechanical_progress
+1 failed, 9 passed in 2.78s

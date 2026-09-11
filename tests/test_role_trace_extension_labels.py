@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import executor_args_v6 as protocol
+from rwkv_lh.goal_state_protocols import executor_args_v7 as protocol
 from rwkv_lh.model_io import ModelCommand
 from rwkv_lh.role_trace_inputs import _reconstruction_harness
 from rwkv_lh.role_trace_labels import validate_role_target

@@ -26,11 +26,9 @@ from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v4"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-final.v5"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorFinalPromptV4: "
-REASON_READY = "final_evidence_complete"
-REASON_REPAIR = "final_evidence_incomplete"
+PROMPT_PREFIX = "AuditorFinalPromptV5: "
 
 _PROMPT_FIELDS = (
     "immutable_goal",
@@ -192,13 +190,9 @@ def validate_source(source: Any) -> None:
     if decision["verdict"] == "ready_for_final":
         if decision["gaps"] or not decision["evidence_refs"]:
             raise ValueError("ready_for_final requires evidence refs and no gaps")
-        if decision["reason"] != REASON_READY:
-            raise ValueError(f"ready_for_final reason must be {REASON_READY!r}")
     elif not decision["gaps"]:
         raise ValueError("final repair requires non-empty gaps")
     else:
-        if decision["reason"] != REASON_REPAIR:
-            raise ValueError(f"repair reason must be {REASON_REPAIR!r}")
         catalog_codes = {str(item["code"]) for item in selected["gap_catalog"]}
         if not set(decision["gaps"]) <= catalog_codes:
             raise ValueError("final repair gaps must be selected from gap_catalog codes")
@@ -233,8 +227,10 @@ def render_prompt(source: Any) -> str:
             "all listed completed_steps are already complete. Always include both "
             "evidence_refs and gaps arrays. Use ready_for_final only when the candidate "
             "fully answers immutable_goal using committed evidence; otherwise use "
-            "repair and copy only exact gap codes from gap_catalog. Use reason exactly "
-            f"{REASON_READY!r} for ready_for_final or {REASON_REPAIR!r} for repair."
+            "repair and copy only exact gap codes from gap_catalog. In reason, briefly "
+            "explain how the answer is supported; on repair, identify conflicting facts "
+            "or missing required evidence. Keep answer defects distinct from execution defects; "
+            "do not rewrite the answer."
         ),
     }
     return _render(PROMPT_PREFIX, payload)
@@ -249,13 +245,6 @@ def parse_target(target: str) -> ModelCommand:
     command = _audit_target(target, allowed_verdicts=("ready_for_final", "repair"))
     if command.arguments["step_id"] != "" or command.arguments["step_complete"]:
         raise ValueError("Final Auditor target cannot complete a plan step")
-    expected_reason = (
-        REASON_READY
-        if command.arguments["verdict"] == "ready_for_final"
-        else REASON_REPAIR
-    )
-    if command.arguments["reason"] != expected_reason:
-        raise ValueError("Final Auditor target reason is not canonical for its verdict")
     return command
 
 
@@ -263,8 +252,6 @@ __all__ = [
     "INPUT_SCHEMA_VERSION",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_PREFIX",
-    "REASON_READY",
-    "REASON_REPAIR",
     "build_gap_catalog",
     "build_prompt_source",
     "parse_target",

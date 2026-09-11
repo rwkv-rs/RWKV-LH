@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from rwkv_lh.goal_loop_protocol import GoalPlanStep
-from rwkv_lh.goal_state_protocols import auditor_step_v6 as step_protocol, auditor_final
+from rwkv_lh.goal_state_protocols import auditor_step_v7 as step_protocol, auditor_final
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelCommand
 from rwkv_lh.schema import ActionRecord
@@ -32,6 +32,9 @@ def _source(*, root='.', operation='list_directory', observed_root=None,
         result={'success': succeeded, 'action_type': operation, 'output': output,
                 'metadata': {'complete': complete, 'truncated': truncated}},))
     state = SimpleNamespace(actions={'A1': action}, artifacts={}, artifact_revisions={},
+                            causal_order=['E1'], causal_records={'E1': SimpleNamespace(
+                                event_type='goal_action_plan_step_assigned',
+                                payload=dict(action_id='A1', step_id='S1', step_revision=1))},
                             goal=SimpleNamespace(request='Inspect the assigned resource.'))
     records = LongHorizonModel._audit_evidence_records(state, ['A1'])
     if not projection_complete:
@@ -42,7 +45,7 @@ def _source(*, root='.', operation='list_directory', observed_root=None,
 
 def _repair(source, gap):
     return dict(verdict='repair', step_id=source['active_step']['step_id'], step_complete=False,
-        evidence_refs=['A1'], gaps=[gap], reason=step_protocol.REASON_INCOMPLETE)
+        evidence_refs=['A1'], gaps=[gap], reason="The current step still lacks the required evidence.")
 
 
 @pytest.mark.parametrize('root', ['.', 'nested/source', '资源/子目录'])

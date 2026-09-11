@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_prompt_replay_budget_cannot_erase_frontier_and_fact_binding _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/role_information_flow_rollover_red/test_prompt_replay_budget_cann0')
+
+    def test_prompt_replay_budget_cannot_erase_frontier_and_fact_binding(tmp_path):
+        from dataclasses import replace
+        from rwkv_lh.model_session import InputBudgetError
+        from rwkv_lh.schema import ModelLaneKind
+        store = LongHorizonStore(tmp_path/'state')
+        state = store.create_run(_goal(tmp_path), 'REPLAY-REQUIRED-INPUT')
+        session = ModelSession(_QueueClient([]), settings=_settings(progressive=True))
+        model = LongHorizonModel(session, tool_selector=_selector([]))
+        checkpoint = session.bootstrap(ModelLaneKind.ACTION,
+            model._assignment(state, recent_limit=None, executor_only=True),
+            model._menu_definitions, lane_id=model.ACTION_LANE_ID,
+            progressive_tool_disclosure=True, independent_tool_selector=True)
+        checkpoint = model._bind_executor_fact_scope(state, checkpoint, (), focus_text='Current step')
+        checkpoint = replace(checkpoint, token_count=session.settings.max_prompt_tokens(768)+1)
+        state.model_states[checkpoint.checkpoint_id] = checkpoint
+        state.set_lane_head('executor', checkpoint.checkpoint_id)
+        persisted = []
+>       with pytest.raises(InputBudgetError, match='required|frontier'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE InputBudgetError
+
+tests/test_role_information_flow.py:194: Failed
+=========================== short test summary info ============================
+FAILED tests/test_role_information_flow.py::test_prompt_replay_budget_cannot_erase_frontier_and_fact_binding
+1 failed, 17 deselected in 1.19s

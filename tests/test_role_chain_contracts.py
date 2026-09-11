@@ -65,22 +65,22 @@ def test_incomplete_source_discovery_keeps_unknown_eligibility(tmp_path):
 
 def test_large_discovery_does_not_flood_role_handoffs(tmp_path):
     import json
-    from rwkv_lh.goal_state_protocols import executor_args_v6, selector_intent_v6
+    from rwkv_lh.goal_state_protocols import executor_args_v7, selector_intent_v7
     from rwkv_lh.token_budget import get_token_count
     controller, state, step = setup_scope(tmp_path, roots=(".",))
     for index in range(300):
         (Path(state.goal.workspace_root) / f"item-{index:04d}").write_text("input fact")
     _, contract = controller._goal_step_operation_contract(state, step)
-    execution = executor_args_v6.build_execution_state(active_step_id="S1", active_step_revision=1,
+    execution = executor_args_v7.build_execution_state(active_step_id="S1", active_step_revision=1,
         declared_phase="mutate", effective_phase="mutate", assigned_actions=[], mechanical_evidence={}, target_contract=contract)
-    source = executor_args_v6.build_prompt_source(immutable_goal=state.goal.request, current_requirement=step.objective,
+    source = executor_args_v7.build_prompt_source(immutable_goal=state.goal.request, current_requirement=step.objective,
         execution_state=execution, selected_operation="write_file", selected_tool_contract=controller.model._definitions_by_name["write_file"],
         committed_fact_refs=[], executor_history=[])
-    progress = selector_intent_v6.build_current_progress(assigned_actions=[], read_roots=[], write_roots=step.write_roots,
+    progress = selector_intent_v7.build_current_progress(assigned_actions=[], read_roots=[], write_roots=step.write_roots,
         mechanical_evidence={}, target_descriptors=contract["target_descriptors"], action_observes_root=lambda *_: False,
         action_mutates_root=lambda *_: False, discovery_complete=contract["discovery_complete"],
         operation_targets=contract["argument_targets_by_operation"])
-    assert get_token_count(executor_args_v6.render_generation_prompt(source)) < 8192
+    assert get_token_count(executor_args_v7.render_generation_prompt(source)) < 8192
     assert get_token_count(json.dumps(progress)) < 8192
     assert set(source["execution_state"]["target_contract"]["argument_targets_by_operation"]) == {"write_file"}
     assert source["execution_state"]["target_contract"]["discovery_complete"] is False
@@ -106,9 +106,9 @@ def test_current_role_input_preserves_original_requirement(controller_role_snaps
 
 def test_executor_can_author_new_content_while_copying_observed_literals_exactly():
     from test_goal_state_protocols import _executor_source
-    from rwkv_lh.goal_state_protocols import executor_args_v6
+    from rwkv_lh.goal_state_protocols import executor_args_v7
     source = _executor_source()
-    prompt = executor_args_v6.render_prompt(source)
+    prompt = executor_args_v7.render_prompt(source)
     assert "Create new content from immutable_goal" in prompt
     assert "Copy code, text" not in prompt
     assert "base_sha256" in prompt

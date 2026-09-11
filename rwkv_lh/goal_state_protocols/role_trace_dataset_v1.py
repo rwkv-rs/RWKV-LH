@@ -18,7 +18,7 @@ import sqlite3
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.goal_state_protocols import (
-    auditor_final, auditor_step_v6, executor_args_v6, finalizer_answer, selector_intent_v6,
+    auditor_final, auditor_step_v7, executor_args_v7, finalizer_answer, selector_intent_v7,
 )
 from rwkv_lh.goal_loop_protocol import action_mutates_root, action_observes_root
 from rwkv_lh.model_io import JSON_CALL_STOP_SUFFIXES, parse_model_command_with_trace
@@ -32,9 +32,9 @@ EXTRACTION_SCHEMA = "rwkv-lh.role-trace-extraction.v1"
 ROOT = Path(__file__).resolve().parents[2]
 ZERO_SHA = "0" * 64
 ROLE_MODULES = {
-    "selector_intent": selector_intent_v6,
-    "executor_args": executor_args_v6,
-    "auditor_step": auditor_step_v6,
+    "selector_intent": selector_intent_v7,
+    "executor_args": executor_args_v7,
+    "auditor_step": auditor_step_v7,
     "finalizer_answer": finalizer_answer,
     "auditor_final": auditor_final,
 }
@@ -761,7 +761,7 @@ def extract_source(source: SourceRun, *, roles: Sequence[str] = tuple(ROLE_MODUL
                         raise DatasetIntegrityError("Selector is not explicitly zero State")
                     if checkpoint.state_profile_id != "zero" or checkpoint.state_profile_sha256 != ZERO_SHA or raw.get("model") != checkpoint.model or raw.get("model_sha256") != (checkpoint.native_state_metadata or {}).get("model_sha256"):
                         raise DatasetIntegrityError("Selector raw identity differs from checkpoint")
-                    protocol = network_selector_input_protocol(selector_intent_v6.INPUT_SCHEMA_VERSION)
+                    protocol = network_selector_input_protocol(selector_intent_v7.INPUT_SCHEMA_VERSION)
                     network = NetworkSelectorInput.create(
                         current_subtask=rebuilt["network_input"]["current_subtask"],
                         current_progress=rebuilt["network_input"]["current_progress"],

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from rwkv_lh import statetune_core as core, statetune_data as data
-from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace, selector_intent_v6
+from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace, selector_intent_v7
 from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA, build_artifacts, split_project_family, REQUIRED_COVERAGE
 from rwkv_lh.token_budget import VOCAB_PATH, tokenizer
 
@@ -21,8 +21,8 @@ def row():
     ids = tokenizer().encode(source)
     return {"schema_version": trace.EXTRACTION_SCHEMA, "sample_id": "mechanism-only",
         "role": "selector_intent", "split": "train", "recomputed": True,
-        "input_protocol": selector_intent_v6.INPUT_SCHEMA_VERSION,
-        "protocol_sha256": core.sha256_file(selector_intent_v6.__file__),
+        "input_protocol": selector_intent_v7.INPUT_SCHEMA_VERSION,
+        "protocol_sha256": core.sha256_file(selector_intent_v7.__file__),
         "input_text": source, "target_text": target, "boundary_event_id": "mock-boundary",
         "input_checkpoint_id": "mock-checkpoint", "label_authority": "executed_fixture",
         "label_evidence_action_ids": ["mock-action"], "target_origin": "raw_model_output",

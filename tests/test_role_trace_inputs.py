@@ -9,7 +9,7 @@ import pytest
 
 from rwkv_lh.exact_tool_selector.network_protocol import NETWORK_SELECTOR_MENU_ORDER_IDS
 from rwkv_lh.goal_loop_protocol import GoalPlanPatch, GoalPlanStep
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.model_io import canonical_digest
 from rwkv_lh.role_trace_inputs import RoleInputReconstructionError, rebuild_role_input
 from rwkv_lh.schema import CausalEventDraft, GoalState
@@ -18,7 +18,7 @@ from rwkv_lh.store import LongHorizonStore
 
 
 def _selector_boundary(tmp_path: Path, *, discovery_complete=True):
-    from rwkv_lh.goal_state_protocols import executor_args_v6
+    from rwkv_lh.goal_state_protocols import executor_args_v7
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -38,7 +38,7 @@ def _selector_boundary(tmp_path: Path, *, discovery_complete=True):
         "goal_plan_patch_committed", {"patch": patch.to_dict()}, subject_id="P1",
     ))
     mechanical = StatefulGoalLoopController._step_mechanical_evidence_coverage(state, "S1", 1)
-    contract = executor_args_v6.build_target_contract(
+    contract = executor_args_v7.build_target_contract(
         phase="observe", roots=("data.json",),
         target_descriptors=({"path": "data.json", "type": "file", "target_kind": "json_file", "exists": True},),
         operations=("read_json",),
@@ -77,8 +77,8 @@ def test_selector_rebuilds_three_production_menus_from_durable_boundary(tmp_path
         result = rebuild_role_input("selector_intent", restored, {
             "boundary_event_id": restored.causal_order[-1], "menu_order_id": menu_id,
         })
-        assert result["protocol_version"] == selector_intent_v6.INPUT_SCHEMA_VERSION
-        assert result["protocol_prompt"] == selector_intent_v6.render_prompt(result["prompt_source"])
+        assert result["protocol_version"] == selector_intent_v7.INPUT_SCHEMA_VERSION
+        assert result["protocol_prompt"] == selector_intent_v7.render_prompt(result["prompt_source"])
         assert result["prompt_source"]["current_progress"]["missing_read_roots"] == ["data.json"]
         assert result["coverage"]["json_root"] is True
         prompts.append(result["bootstrap_prompt"])
@@ -146,8 +146,8 @@ def controller_role_snapshots(tmp_path: Path, monkeypatch, request):
     ]
     exercise_feedback = getattr(request, "param", None) == "feedback"
     if exercise_feedback:
-        from rwkv_lh.goal_state_protocols import auditor_step_v6
-        gap = next(item["code"] for item in auditor_step_v6.build_gap_catalog(
+        from rwkv_lh.goal_state_protocols import auditor_step_v7
+        gap = next(item["code"] for item in auditor_step_v7.build_gap_catalog(
             _strong_patch(state).add_steps[0].to_dict(), ()
         ) if item["code"].startswith("phase_evidence_unproved:"))
         outputs = [
@@ -200,6 +200,10 @@ def test_all_five_roles_rebuild_feedback_from_their_exact_durable_boundary(contr
         if feedback is not None:
             assert role in feedback["recipient_roles"]
             assert feedback["source_id"] and feedback["boundary_id"]
+            if feedback["kind"] == "semantic":
+                assert feedback["diagnosis"] in ("Fixture semantic gap", "Fixture answer gap")
+            if role in ("auditor_step", "auditor_final"):
+                assert feedback["rejected_output"] == "{}"
             observed.add((role, feedback["kind"]))
         if role == "finalizer_answer" and source["retry_feedback"] is not None:
             assert feedback is not None
@@ -258,11 +262,11 @@ def test_selector_snapshot_matches_production_votes(controller_role_snapshots):
 
 
 def test_rejects_durable_harness_scope_outside_active_plan(tmp_path: Path):
-    from rwkv_lh.goal_state_protocols import executor_args_v6
+    from rwkv_lh.goal_state_protocols import executor_args_v7
 
     store, state = _selector_boundary(tmp_path)
     payload = deepcopy(state.causal_records[state.causal_order[-1]].payload)
-    contract = executor_args_v6.build_target_contract(
+    contract = executor_args_v7.build_target_contract(
         phase="observe", roots=("outside.json",),
         target_descriptors=({"path": "outside.json", "type": "file", "target_kind": "json_file", "exists": True},),
         operations=("read_json",),
@@ -322,7 +326,7 @@ def test_audit_coverage_excludes_unreferenced_actions(controller_role_snapshots)
 
 
 def test_audit_coverage_ignores_later_unseen_assignment(controller_role_snapshots):
-    from rwkv_lh.goal_state_protocols import executor_args_v6
+    from rwkv_lh.goal_state_protocols import executor_args_v7
     from rwkv_lh.model import LongHorizonModel
     from rwkv_lh.role_trace_inputs import _audit_coverage
 
@@ -331,7 +335,7 @@ def test_audit_coverage_ignores_later_unseen_assignment(controller_role_snapshot
     expected = _audit_coverage(state, visible)
     original = next(state.causal_records[eid] for eid in state.causal_order if state.causal_records[eid].event_type == "goal_role_input_boundary")
     payload = deepcopy(original.payload)
-    payload["target_contract"] = executor_args_v6.build_target_contract(
+    payload["target_contract"] = executor_args_v7.build_target_contract(
         phase="mutate", roots=("result.txt",),
         target_descriptors=({"path": "result.txt", "type": "directory", "target_kind": "directory", "exists": True},),
         operations=("write_file",),

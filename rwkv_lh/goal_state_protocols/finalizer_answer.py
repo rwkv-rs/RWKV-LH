@@ -17,9 +17,9 @@ from rwkv_lh.goal_state_protocols.feedback import validate_feedback
 from rwkv_lh.model_io import ModelCommand, validate_final_answer
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v2"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.finalizer-answer.v3"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "FinalizerAnswerPromptV2: "
+PROMPT_PREFIX = "FinalizerAnswerPromptV3: "
 
 _PROMPT_FIELDS = (
     "immutable_goal",
@@ -135,6 +135,8 @@ def render_prompt(source: Any) -> str:
         "feedback": prompt["feedback"],
         "retry_feedback": prompt["retry_feedback"],
         "current_question": (
+            "When repairing, use the feedback diagnosis and rejected candidate together; "
+            "never invent missing execution evidence. "
             "Return exactly one final_answer candidate grounded only in committed facts; "
             "do not claim completion authority or emit an audit verdict."
         ),

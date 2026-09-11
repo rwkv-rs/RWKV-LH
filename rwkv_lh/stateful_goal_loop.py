@@ -13,7 +13,7 @@ from rwkv_lh.exact_tool_selector.runtime_projection import (
     SelectorStageContext,
     goal_frontier_selector_context,
 )
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.goal_loop_protocol import (
     GOAL_PLAN_PATCH_SCHEMA_VERSION,
     GoalAuditDecision,
@@ -29,6 +29,7 @@ from rwkv_lh.goal_loop_protocol import (
     action_observes_root,
     evidence_action_ids,
     goal_step_action_bindings,
+    goal_step_evidence_action_ids,
     rolling_goal_plan,
 )
 from rwkv_lh.goal_state_protocols.feedback import build_feedback
@@ -36,8 +37,9 @@ from rwkv_lh.role_feedback import (
     step_rejections,
     audit_protocol_rejections, feedback_for_audit, pending_final_execution_repair,
     step_feedback,
+    rejected_audit_output,
 )
-from rwkv_lh.model import ModelProtocolError
+from rwkv_lh.model import LongHorizonModel, ModelProtocolError
 from rwkv_lh.harness import HarnessError
 from rwkv_lh.model_io import parse_model_command
 from rwkv_lh.model_session import InputBudgetError
@@ -91,7 +93,7 @@ class StatefulGoalLoopController(LongHorizonController):
         state: Any,
         *,
         action_ids: tuple[str, ...] | None = None,
-        max_actions: int | None = 12,
+        max_actions: int | None = None,
         result_limit: int = 2400,
     ) -> tuple[Mapping[str, Any], ...]:
         """Expose bounded Harness facts without any Executor prose."""
@@ -199,67 +201,8 @@ class StatefulGoalLoopController(LongHorizonController):
         step_id: str,
         step_revision: int,
     ) -> tuple[str, ...]:
-        """Keep the latest boundary and every root's newest Harness proof."""
-
-        bindings = goal_step_action_bindings(state)
-        actions = sorted(
-            (
-                action
-                for action_id, action in state.actions.items()
-                if bindings.get(action_id) == (step_id, step_revision)
-            ),
-            key=lambda item: item.sequence,
-        )
-        if not actions:
-            return ()
-
-        # Preserve the current boundary plus the newest successful action that
-        # covers each Planner root. A plain latest-eight window can irreversibly
-        # discard the only read/write proof after unrelated repeated actions.
-        selected: list[Any] = [actions[-1]]
-        step = rolling_goal_plan(state).steps.get(step_id)
-        if step is not None:
-            root_checks = (
-                *((root, action_mutates_root) for root in step.write_roots),
-                *((root, action_observes_root) for root in step.read_roots),
-            )
-            for root, covers in root_checks:
-                match = next(
-                    (
-                        action
-                        for action in reversed(actions)
-                        if action.status is ActionStatus.SUCCEEDED
-                        and bool((action.result or {}).get("success"))
-                        and covers(action, root)
-                    ),
-                    None,
-                )
-                if match is not None and match not in selected:
-                    selected.append(match)
-
-        # Root-free semantic steps still need at least one successful Harness
-        # fact when the latest boundary is a failure.
-        if not any(
-            action.status is ActionStatus.SUCCEEDED
-            and bool((action.result or {}).get("success"))
-            for action in selected
-        ):
-            latest_success = next(
-                (
-                    action
-                    for action in reversed(actions)
-                    if action.status is ActionStatus.SUCCEEDED
-                    and bool((action.result or {}).get("success"))
-                ),
-                None,
-            )
-            if latest_success is not None and latest_success not in selected:
-                selected.append(latest_success)
-
-        return tuple(
-            action.action_id
-            for action in sorted(selected, key=lambda item: item.sequence)
-        )
+        """Retain cumulative current-step and declared-dependency evidence."""
+        return goal_step_evidence_action_ids(state, step_id, step_revision)
 
     @classmethod
     def _step_mechanical_evidence_coverage(
@@ -363,7 +306,7 @@ class StatefulGoalLoopController(LongHorizonController):
         *,
         target_contract: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Project bounded current-step facts for fresh Selector Intent v6.
+        """Project bounded current-step facts for fresh Selector Intent v7.
 
         Delegates to the single shared ``build_current_progress`` so production,
         StateTune data generation, and acceptance evaluation agree byte for byte.
@@ -384,7 +327,7 @@ class StatefulGoalLoopController(LongHorizonController):
         )
         if any(action.status is ActionStatus.RUNNING for action in assigned):
             raise ValueError("Selector progress cannot include a running action")
-        progress = selector_intent_v6.build_current_progress(
+        progress = selector_intent_v7.build_current_progress(
             assigned_actions=assigned,
             read_roots=tuple(step.read_roots),
             write_roots=tuple(step.write_roots),
@@ -398,6 +341,10 @@ class StatefulGoalLoopController(LongHorizonController):
             discovery_complete=bool((target_contract or {}).get("discovery_complete", False)),
             recent_rejections=step_rejections(state, step_id, step_revision),
             operation_targets=(target_contract or {}).get("argument_targets_by_operation"),
+            evidence_records=LongHorizonModel._audit_evidence_records(
+                state, goal_step_evidence_action_ids(state, step_id, step_revision),
+                focus_text=step.objective,
+            ),
         )
         # Reuse the production request validator before any model call.
         SelectorStageContext(
@@ -477,9 +424,9 @@ class StatefulGoalLoopController(LongHorizonController):
             ),
             key=lambda item: item.sequence,
         )
-        from rwkv_lh.goal_state_protocols import executor_args_v6
+        from rwkv_lh.goal_state_protocols import executor_args_v7
 
-        return executor_args_v6.build_execution_state(
+        return executor_args_v7.build_execution_state(
             active_step_id=step_id,
             active_step_revision=step_revision,
             declared_phase=step.phase,
@@ -497,42 +444,8 @@ class StatefulGoalLoopController(LongHorizonController):
         step_id: str,
         step_revision: int,
     ) -> tuple[str, ...]:
-        """Return only current-step and declared-dependency facts for Executor."""
-
-        plan = rolling_goal_plan(state)
-        step = plan.steps.get(step_id)
-        if step is None:
-            raise ValueError("Executor fact scope requires a committed plan step")
-        if plan.step_revisions.get(step_id, 1) != step_revision:
-            raise ValueError("Executor fact scope received a stale step revision")
-
-        bindings = goal_step_action_bindings(state)
-        selected = {
-            action_id
-            for action_id, binding in bindings.items()
-            if binding == (step_id, step_revision)
-        }
-        revisions = {
-            revision.revision_id: revision
-            for values in state.artifact_revisions.values()
-            for revision in values
-        }
-        for dependency_id in step.depends_on:
-            for evidence_ref in plan.completed_evidence.get(dependency_id, ()):
-                if evidence_ref in state.actions:
-                    selected.add(evidence_ref)
-                elif (artifact := state.artifacts.get(evidence_ref)) is not None:
-                    selected.add(artifact.action_id)
-                elif (revision := revisions.get(evidence_ref)) is not None:
-                    selected.add(revision.action_id)
-
-        return tuple(
-            action.action_id
-            for action in sorted(
-                (state.actions[action_id] for action_id in selected),
-                key=lambda item: item.sequence,
-            )
-        )
+        """Share the exact responsibility scope with Selector and Step Auditor."""
+        return goal_step_evidence_action_ids(state, step_id, step_revision)
 
     def _goal_step_operations(
         self,
@@ -624,10 +537,10 @@ class StatefulGoalLoopController(LongHorizonController):
             )
             descriptors = tuple({str(item["path"]): item for item in (*descriptors, *source_descriptors)}.values())
             discovery_complete = discovery_complete and source_complete
-        from rwkv_lh.goal_state_protocols import executor_args_v6
+        from rwkv_lh.goal_state_protocols import executor_args_v7
         from rwkv_lh.operation_contracts import eligible_target_operations
 
-        contract = executor_args_v6.build_target_contract(
+        contract = executor_args_v7.build_target_contract(
             phase=phase, roots=roots, scope_roots=step.write_roots if phase == "mutate" else roots,
             target_descriptors=descriptors, operations=operations,
             discovery_complete=discovery_complete,
@@ -2346,7 +2259,7 @@ class StatefulGoalLoopController(LongHorizonController):
                                 if pending_budget_audit is not None
                                 else ""
                             ),
-                            "causal_fact_reduction_exhausted": True,
+                            "required_evidence_discarded": False,
                             "action_executed": False,
                             "completion_authority": False,
                         },
@@ -2381,7 +2294,10 @@ class StatefulGoalLoopController(LongHorizonController):
                             step_id=active_step_id, step_revision=active_step_revision,
                             issues=[{"code": "invalid_role_output", "criterion": str(exc),
                                      "repair_scope": "protocol", "evidence_refs": []}],
-                            rejected_output=(state.decisions[exc.decision_id].raw_output
+                            rejected_output=(rejected_audit_output(
+                                state, exc.request_id, str(pending_protocol_audit["audit_boundary_id"])
+                            ) if pending_protocol_audit is not None else
+                                state.decisions[exc.decision_id].raw_output
                                 if exc.decision_id in state.decisions else ""),
                         )
                     self._persist(

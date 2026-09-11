@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol, Sequence
 from uuid import uuid4
 
-from rwkv_lh.goal_state_protocols import executor_args_v6
+from rwkv_lh.goal_state_protocols import executor_args_v7
 from rwkv_lh.model_io import (
     JSON_CALL_STOP_SUFFIXES,
     ModelCommand,
@@ -280,7 +280,7 @@ class ModelSession:
         if executor_source.get("selected_tool_contract") != definition:
             raise ModelIOError("Executor source must match the selected tool contract")
         try:
-            return "\n\n" + executor_args_v6.render_generation_prompt(executor_source)
+            return "\n\n" + executor_args_v7.render_generation_prompt(executor_source)
         except ValueError as exc:
             raise ModelIOError(f"invalid current Executor protocol source: {exc}") from exc
 
@@ -379,7 +379,7 @@ class ModelSession:
                 "token_count": disclosed.token_count,
                 "system_tool_definition": False,
                 "goal_state_protocol": (
-                    executor_args_v6.INPUT_SCHEMA_VERSION
+                    executor_args_v7.INPUT_SCHEMA_VERSION
                     if executor_source is not None
                     else ""
                 ),
@@ -1183,7 +1183,7 @@ class NativeRWKVModelSession(ModelSession):
                 "checkpoint_id": disclosed.checkpoint_id,
                 "new_tokens": get_token_count(disclosure),
                 "goal_state_protocol": (
-                    executor_args_v6.INPUT_SCHEMA_VERSION
+                    executor_args_v7.INPUT_SCHEMA_VERSION
                     if executor_source is not None
                     else ""
                 ),

@@ -8,9 +8,9 @@ from typing import Any
 
 from rwkv_lh.goal_state_protocols import _exact_fields, _nonempty, _nonnegative_int, _objects, _strings
 
-SCHEMA_VERSION = "rwkv-lh.role-feedback.v1"
+SCHEMA_VERSION = "rwkv-lh.role-feedback.v2"
 FIELDS = ("schema_version", "kind", "source_role", "recipient_roles", "boundary_id",
-          "source_id", "plan_revision", "step_id", "step_revision", "issues", "rejected_output")
+          "source_id", "plan_revision", "step_id", "step_revision", "issues", "diagnosis", "rejected_output")
 ISSUE_FIELDS = ("code", "criterion", "repair_scope", "evidence_refs")
 ROLES = frozenset({"selector_intent", "executor_args", "auditor_step", "finalizer_answer", "auditor_final", "planner"})
 
@@ -34,6 +34,8 @@ def validate_feedback(value: Any, *, recipient: str | None = None) -> Mapping[st
         raise ValueError("feedback step and rejected output must be strings")
     if bool(packet["step_id"]) != bool(packet["step_revision"]):
         raise ValueError("feedback step revision binding is incomplete")
+    if not isinstance(packet["diagnosis"], str):
+        raise ValueError("feedback diagnosis must be text")
     scopes, codes = set(), []
     for issue in _objects(packet["issues"], "feedback.issues", nonempty=True):
         item = _exact_fields(issue, ISSUE_FIELDS, "feedback issue")
@@ -63,7 +65,7 @@ def validate_feedback(value: Any, *, recipient: str | None = None) -> Mapping[st
 
 def build_feedback(*, kind: str, source_role: str, boundary_id: str, source_id: str,
                    plan_revision: int, step_id: str = "", step_revision: int = 0,
-                   issues: Sequence[Mapping[str, Any]], rejected_output: str = "") -> dict[str, Any]:
+                   issues: Sequence[Mapping[str, Any]], diagnosis: str = "", rejected_output: str = "") -> dict[str, Any]:
     ordered = sorted((deepcopy(dict(item)) for item in issues), key=lambda item: item["code"])
     scopes = {item["repair_scope"] for item in ordered}
     recipients = ([source_role] if kind == "protocol" else ["planner"] if "execution" in scopes
@@ -71,7 +73,7 @@ def build_feedback(*, kind: str, source_role: str, boundary_id: str, source_id: 
     packet = {"schema_version": SCHEMA_VERSION, "kind": kind, "source_role": source_role,
               "recipient_roles": recipients, "boundary_id": boundary_id, "source_id": source_id,
               "plan_revision": plan_revision, "step_id": step_id, "step_revision": step_revision,
-              "issues": ordered, "rejected_output": rejected_output}
+              "issues": ordered, "diagnosis": diagnosis, "rejected_output": rejected_output}
     validate_feedback(packet)
     return packet
 
@@ -79,7 +81,7 @@ def build_feedback(*, kind: str, source_role: str, boundary_id: str, source_id: 
 def semantic_feedback(*, source_role: str, boundary_id: str, source_id: str, plan_revision: int,
                       step_id: str = "", step_revision: int = 0, gap_codes: Sequence[str],
                       gap_catalog: Sequence[Mapping[str, Any]], evidence_refs: Sequence[str],
-                      rejected_output: str = "") -> dict[str, Any] | None:
+                      diagnosis: str = "", rejected_output: str = "") -> dict[str, Any] | None:
     if not gap_codes:
         return None
     catalog = {item["code"]: item for item in gap_catalog}
@@ -90,4 +92,4 @@ def semantic_feedback(*, source_role: str, boundary_id: str, source_id: str, pla
                "evidence_refs": sorted(set(evidence_refs))} for code in gap_codes]
     return build_feedback(kind="semantic", source_role=source_role, boundary_id=boundary_id,
                           source_id=source_id, plan_revision=plan_revision, step_id=step_id,
-                          step_revision=step_revision, issues=issues, rejected_output=rejected_output)
+                          step_revision=step_revision, issues=issues, diagnosis=diagnosis, rejected_output=rejected_output)

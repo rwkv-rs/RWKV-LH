@@ -15,7 +15,7 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from rwkv_lh.model_io import canonical_digest
-from rwkv_lh.goal_state_protocols import executor_args_v6
+from rwkv_lh.goal_state_protocols import executor_args_v7
 from rwkv_lh.observation_funnel import OBSERVATION_PROJECTION_VERSION
 
 
@@ -756,7 +756,7 @@ def _path_discovery_binding(
     target_contract = execution_state.get("target_contract")
     if isinstance(target_contract, Mapping) and target_contract.get(
         "schema_version"
-    ) == executor_args_v6.TARGET_CONTRACT_SCHEMA_VERSION:
+    ) == executor_args_v7.TARGET_CONTRACT_SCHEMA_VERSION:
         compatible = target_contract.get("argument_targets_by_operation")
         operation_paths = (
             ((compatible.get(operation) or {}).get("path") or {}).get("compatible_paths")

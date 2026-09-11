@@ -1,0 +1,31 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_native_cache_rebuild_keeps_early_required_facts _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/role_information_flow_recovery/test_native_cache_rebuild_keep0')
+
+    def test_native_cache_rebuild_keeps_early_required_facts(tmp_path):
+        from test_model_session import FakeNativeStateClient, settings
+        from rwkv_lh.model_session import NativeRWKVModelSession
+        from rwkv_lh.schema import ActionRecord, GoalState, RunState
+        client = FakeNativeStateClient([])
+        model = LongHorizonModel(NativeRWKVModelSession(client, settings=settings()))
+        state = RunState(run_id='NATIVE-ALL-FACTS', goal=GoalState.create(
+            request='Compare the full observation history', constraints=[], workspace_root=tmp_path))
+        previous = model._checkpoint(state, lambda *args:None)
+        for number in range(1,18):
+            record = ActionRecord.from_dict(dict(action_id=f'A{number:05d}', sequence=number,
+                status='succeeded', action_type='read_file', arguments={'path':f'input-{number}.txt'},
+                result={'success':True, 'output':f'unique fact {number}'}))
+            state.actions[record.action_id] = record
+        model._rebuild_native_executor_cache(state, previous, lambda *args:None, cause=RuntimeError('missing cache'))
+        assert [name for name,_ in client.calls] == ['create','create']
+        rebuilt_input = client.calls[-1][1]
+>       assert all(action_id in rebuilt_input for action_id in state.actions)
+E       assert False
+E        +  where False = all(<generator object test_native_cache_rebuild_keeps_early_required_facts.<locals>.<genexpr> at 0x7c68b02325a0>)
+
+tests/test_role_information_flow.py:219: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_information_flow.py::test_native_cache_rebuild_keeps_early_required_facts
+1 failed, 1 passed, 17 deselected in 1.09s

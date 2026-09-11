@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_dependency_observation_cannot_remove_current_step_missing_root_gap ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/role_information_flow_red/test_dependency_observation_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7673622cd810>
+
+    def test_dependency_observation_cannot_remove_current_step_missing_root_gap(tmp_path, monkeypatch):
+        import rwkv_lh.model as model_module
+        state = LongHorizonStore(tmp_path/'state').create_run(_goal(tmp_path), 'DEPENDENCY-GAP')
+        state.actions['A00001'] = action(1)
+        monkeypatch.setattr(model_module, 'goal_step_action_bindings', lambda _: {'A00001': ('S1', 1)})
+        records = LongHorizonModel._audit_evidence_records(state, ['A00001'])
+        step = GoalPlanStep(step_id='S2', objective='Observe the file again after the dependency',
+            phase='observe', depends_on=('S1',), read_roots=('source.txt',),
+            success_evidence=('The current file contents were observed',))
+        catalog = auditor_step_v7.build_gap_catalog(step.to_dict(), records)
+>       assert 'read_root_unproved:source.txt' in {item['code'] for item in catalog}
+E       AssertionError: assert 'read_root_unproved:source.txt' in {'phase_evidence_unproved:observe', 'success_criterion_unproved:9bd1b37265c1'}
+
+tests/test_role_information_flow.py:129: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_role_information_flow.py::test_dependency_observation_cannot_remove_current_step_missing_root_gap
+1 failed, 10 deselected in 0.24s

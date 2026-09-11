@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from rwkv_lh.exact_tool_selector.native_network_protocol import NativeNetworkToolSelection
-from rwkv_lh.goal_state_protocols import selector_intent_v6
+from rwkv_lh.goal_state_protocols import selector_intent_v7
 from rwkv_lh.goal_state_protocols.role_trace_dataset_v1 import (
     DatasetIntegrityError, EQUIVALENCE_WAIVER_SCHEMA, NON_WAIVABLE_PATHS, ROLE_MODULES,
     SOURCE_CODE_PATHS, extract_registration, extract_source, load_source_run,
@@ -65,10 +65,10 @@ def mock_controller_case(tmp_path, monkeypatch, request):
         if failed_audit:
             command = decode_json(response.content)
             if command["function"] == "audit_decision" and command["params"]["step_id"] == "S1":
-                from rwkv_lh.goal_state_protocols import auditor_step_v6
+                from rwkv_lh.goal_state_protocols import auditor_step_v7
                 command["params"].update(verdict="repair", step_complete=False,
                     gaps=sorted(["write_root_unproved:result.txt", "phase_evidence_unproved:mutate"]),
-                    reason=auditor_step_v6.REASON_INCOMPLETE)
+                    reason="The current step still lacks the required evidence.")
                 response.content = json.dumps(command, ensure_ascii=False)
         response.metadata = {"token_ids": tokenizer().encode(response.content)}
         response.model = self.model_name
@@ -91,7 +91,7 @@ def mock_controller_case(tmp_path, monkeypatch, request):
         # Use the current production prefix constant and actual local vocabulary.
         # The logits are explicitly deterministic mock decisions.
         suffixes = {
-            label: tokenizer().encode(selector_intent_v6.TARGET_PREFIX + label)
+            label: tokenizer().encode(selector_intent_v7.TARGET_PREFIX + label)
             for label in selected.eligible_labels
         }
         selected_ids = suffixes[selected.selected_operation]

@@ -1,4 +1,4 @@
-"""Shared Step-Auditor v6 conditions, visible facts and verdict validation.
+"""Shared Step-Auditor v7 conditions, visible facts and verdict validation.
 
 Mechanical evidence rules apply equally to production and role data.  Possible
 semantic gaps remain questions for RWKV, never pre-established failure facts.
@@ -25,11 +25,9 @@ from rwkv_lh.goal_loop_protocol import action_mutates_root, action_observes_root
 from rwkv_lh.schema import ActionRecord, ActionStatus
 
 
-INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v6"
+INPUT_SCHEMA_VERSION = "rwkv-lh.g1j-per-stage-state-tuning.auditor-step.v7"
 OUTPUT_SCHEMA_VERSION = INPUT_SCHEMA_VERSION
-PROMPT_PREFIX = "AuditorStepPromptV6: "
-REASON_COMPLETE = "evidence_complete"
-REASON_INCOMPLETE = "evidence_incomplete"
+PROMPT_PREFIX = "AuditorStepPromptV7: "
 
 _PROMPT_FIELDS = (
     "immutable_goal",
@@ -80,6 +78,10 @@ def _contradicted_root_gaps(
     for record in _objects(evidence_records, "evidence_records"):
         raw = record.get("action")
         if not isinstance(raw, Mapping):
+            continue
+        binding = raw.get("step_binding")
+        if not isinstance(binding, Mapping) or binding.get("step_id") != active_step["step_id"]:
+            # Dependencies explain the task, but cannot establish this step's I/O.
             continue
         action = ActionRecord.from_dict({**raw, "action_type": raw.get("operation")})
         result = action.result or {}
@@ -237,13 +239,9 @@ def validate_source(source: Any) -> None:
     if decision["verdict"] == "continue":
         if not decision["step_complete"] or not decision["evidence_refs"] or decision["gaps"]:
             raise ValueError("continue requires completion evidence and no gaps")
-        if decision["reason"] != REASON_COMPLETE:
-            raise ValueError(f"continue reason must be {REASON_COMPLETE!r}")
     elif decision["step_complete"] or not decision["gaps"]:
         raise ValueError("repair requires an incomplete step and non-empty gaps")
     else:
-        if decision["reason"] != REASON_INCOMPLETE:
-            raise ValueError(f"repair reason must be {REASON_INCOMPLETE!r}")
         contradicted = set(decision["gaps"]) & _contradicted_root_gaps(
             selected["active_step"], selected["evidence_records"],
         )
@@ -286,8 +284,11 @@ def render_prompt(source: Any) -> str:
             "only when this active step satisfies its success criteria and the relevant "
             "requirements in immutable_goal, with evidence for its declared phase; "
             "do not require mutation from observe or derive_evidence phases. Otherwise "
-            "use repair and copy only exact gap codes from gap_catalog. Use reason "
-            f"exactly {REASON_COMPLETE!r} for continue or {REASON_INCOMPLETE!r} for repair."
+            "use repair and copy only exact gap codes from gap_catalog. In reason, "
+            "briefly explain what the cited evidence establishes; on repair, identify "
+            "the unmet criterion and missing evidence. "
+            "Ground the diagnosis in evidence_records; do not choose a tool or issue execution instructions. "
+            "Dependency evidence is comparison context; completion still needs a successful current-step action."
         ),
     }
     return _render(PROMPT_PREFIX, payload)
@@ -300,13 +301,6 @@ def render_target(source: Any) -> str:
 
 def parse_target(target: str) -> ModelCommand:
     command = _audit_target(target, allowed_verdicts=("continue", "repair"))
-    expected_reason = (
-        REASON_COMPLETE
-        if command.arguments["verdict"] == "continue"
-        else REASON_INCOMPLETE
-    )
-    if command.arguments["reason"] != expected_reason:
-        raise ValueError("Auditor target reason is not canonical for its verdict")
     return command
 
 
@@ -314,8 +308,6 @@ __all__ = [
     "INPUT_SCHEMA_VERSION",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_PREFIX",
-    "REASON_COMPLETE",
-    "REASON_INCOMPLETE",
     "build_gap_catalog",
     "build_prompt_source",
     "parse_target",

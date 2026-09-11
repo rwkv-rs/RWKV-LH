@@ -4,6 +4,8 @@
 
 Owner 本轮明确：保留当前五角色，先分析链路连接；兼容各种任务依靠统一设计，不依靠题型、路径或后缀穷举。此前的逐角色 StateTune、取消固定三轮上限、重新部署 2.9B 并验证训练后端的授权继续有效；当前先完成本链路工作。
 
+2026-09-11 信息流整改：累计动作和已提交的传递依赖共用责任范围投影，审计原始拒绝输出及具体诊断持久化传递。依赖只提供上下文，不替代当前步骤执行；当前角色输入不得因预算而退化成丢失frontier的通用摘要。协议版本和本地工程证据见[统一协议计划](G1J_UNIFIED_PROTOCOL_ITERATION_PLAN.zh-CN.md)及[整改报告](../data/experiments/ROLE_INFORMATION_FLOW_REPAIR_R1_20260911/REPORT.zh-CN.md)。本轮无新真实Agent成绩。
+
 ## 1. 固定职责，修复交接
 
 Selector 选择操作；Executor 填写该操作的参数；Harness 执行；Step Auditor 判断当前步骤是否有充分证据；Finalizer 根据事实作答；Final Auditor 审查最终回答与目标。Planner 和 Stage Checker 保持既有计划与阶段职责。Controller 负责授权、事务、证据引用、预算与执行顺序。
@@ -12,7 +14,7 @@ Selector 选择操作；Executor 填写该操作的参数；Harness 执行；Ste
 
 任务状态与模型缓存分开：需求、计划版本、动作、拒绝和审计结果以同一份持久因果日志为准。Selector 的选择绑定已保存的逻辑输入及模型/State 身份，先提交交接，再由 Executor 按原始输入段加载数值缓存。缓存故障不撤销已提交的选择；新的工具选择、独立审计及最终回答不导入上一角色的缓存。已发生动作的结果先记录，再由下一次角色输入投影读取。
 
-Executor v6 同时接收 immutable_goal 与当前步骤；Step Auditor v6 接收原始需求和具体成功条件。新内容可以依据需求创作，现有事实、游标、路径及 RMW 基础版本仍要求准确来源。Selector v6 / Executor v6 的 recent_rejections 从同一步骤 revision 的未消费拒绝记录重建，和审计语义 feedback 分别保留。
+Executor v7 同时接收 immutable_goal 与当前步骤；Step Auditor v7 接收原始需求和具体成功条件。新内容可以依据需求创作，现有事实、游标、路径及 RMW 基础版本仍要求准确来源。Selector v7 / Executor v7 的 recent_rejections 从同一步骤 revision 的未消费拒绝记录重建，和审计语义 feedback 分别保留。
 
 工具路径合同由 operation_contracts.py 的参数声明统一导出结构前提和读写副作用。copy 的 source 为工作区内读取；move 的 source 是修改，必须在完整 write_roots 内。Selector 接收各参数的可用性和副作用摘要；Executor 只接收已选工具的参数合同。原始需求、显式范围完整保留，附加发现提示有界且省略时标记不完整；完整描述留在原始交接边界中，生产与 trace 使用同一投影函数。
 

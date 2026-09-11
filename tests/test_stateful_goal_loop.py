@@ -70,7 +70,7 @@ from rwkv_lh.stateful_goal_loop import StatefulGoalLoopController
 from rwkv_lh.store import LongHorizonStore
 from rwkv_lh.supervisor import SupervisorPolicy
 from rwkv_lh.trace_projection import unresolved_supervisor_pending
-from rwkv_lh.goal_state_protocols import selector_intent_v6, executor_args_v6, finalizer_answer, auditor_final
+from rwkv_lh.goal_state_protocols import selector_intent_v7, executor_args_v7, finalizer_answer, auditor_final
 
 
 def _role_prompt_payload(prompt: str, prefix: str) -> dict:
@@ -373,7 +373,7 @@ class _SelectorHTTP:
 
     def post(self, url: str, *, json: dict, timeout: tuple[float, float]):
         del timeout
-        assert url.endswith("/selector-intent-v6/select")
+        assert url.endswith("/selector-intent-v7/select")
         self.payloads.append(dict(json))
         menu_order_id = str(json.get("menu_order_id") or "")
         if menu_order_id == "canonical":
@@ -717,16 +717,7 @@ def _audit_call(
     gaps: list[str],
     reason: str,
 ) -> dict:
-    if step_id and verdict in {"continue", "repair"}:
-        reason = (
-            "evidence_complete" if verdict == "continue" else "evidence_incomplete"
-        )
-    elif not step_id and verdict in {"ready_for_final", "repair"}:
-        reason = (
-            "final_evidence_complete"
-            if verdict == "ready_for_final"
-            else "final_evidence_incomplete"
-        )
+    if not step_id and verdict in {"ready_for_final", "repair"}:
         if verdict == "repair" and gaps and not all(
             code.startswith("goal_requirement_unproved:") or code in {
                 "candidate_omits_required_result", "candidate_unsupported_claim"
@@ -2238,7 +2229,7 @@ def test_audit_evidence_projection_keeps_root_facts_after_unrelated_actions(
 
     assert set(action_ids[:root_count]) <= set(refs)
     assert action_ids[-1] in refs
-    assert len(refs) == root_count + 1
+    assert refs == tuple(action_ids)
 
 
 def test_audit_kernel_rejects_successful_but_wrong_scope_action(tmp_path: Path) -> None:
@@ -2423,7 +2414,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert len(selector._session.payloads) == 6
     second_selector_step = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV6: "
+            "SelectorIntentPromptV7: "
         )
     )
     assert second_selector_step["current_subtask"]["phase"] == "observe"
@@ -2438,7 +2429,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert progress["missing_read_roots"] == ["result.txt"]
     assert progress["missing_write_roots"] == []
     assert {"path": "result.txt", "target_kind": "text_file"} in progress["workspace_targets"]
-    assert progress["completion_preconditions_satisfied"] is False
+    assert progress["mechanical_preconditions_satisfied"] is False
     executor_starts = [
         result.state.causal_records[event_id]
         for event_id in result.state.causal_order
@@ -2452,7 +2443,7 @@ def test_planner_separates_mutation_and_readback_into_stateful_steps(
     assert rolling_goal_plan(result.state).complete is True
 
 
-def test_clean_executor_turn_reduces_causal_facts_to_fit_input_budget(
+def test_clean_executor_turn_blocks_without_discarding_required_facts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2506,38 +2497,16 @@ def test_clean_executor_turn_reduces_causal_facts_to_fit_input_budget(
     monkeypatch.setattr(session, "bootstrap", budgeted_bootstrap)
     persisted: list[tuple[str, dict]] = []
 
-    checkpoint = model._start_clean_executor_turn(
-        state,
-        previous,
-        lambda _state, event_type, payload: persisted.append(
-            (event_type, dict(payload))
-        ),
-        fact_action_ids=fact_action_ids,
-    )
-
-    assert attempted_counts == [12, 8, 4]
-    assert state.lane_heads["executor"] == checkpoint.checkpoint_id
-    event_type, payload = persisted[-1]
-    assert event_type == "action_session_started"
-    assert payload["causal_fact_recent_limit"] == 4
-    assert payload["causal_fact_action_ids"] == fact_action_ids[-4:]
-    assert payload["causal_fact_requested_action_ids"] == fact_action_ids
-    assert checkpoint.native_state_metadata["executor_fact_action_ids"] == (
-        fact_action_ids[-4:]
-    )
-    assert (
-        checkpoint.native_state_metadata["executor_fact_projection_sha256"]
-        == payload["causal_fact_projection_sha256"]
-    )
-    assert (
-        checkpoint.native_state_metadata["executor_fact_scope_digest"]
-        == payload["causal_fact_scope_digest"]
-    )
-    assert payload["input_budget_fallback_used"] is True
-    assert [item["recent_limit"] for item in payload["input_budget_fallbacks"]] == [
-        12,
-        8,
-    ]
+    with pytest.raises(InputBudgetError, match="injected count 12"):
+        model._start_clean_executor_turn(
+            state,
+            previous,
+            lambda _state, event_type, payload: persisted.append((event_type, dict(payload))),
+            fact_action_ids=fact_action_ids,
+        )
+    assert attempted_counts == [12]
+    assert state.lane_heads["executor"] == previous.checkpoint_id
+    assert persisted == []
 
 
 def test_stateful_input_budget_exhaustion_records_root_cause_and_blocks(
@@ -2954,11 +2923,11 @@ def test_successful_directory_observation_repair_can_read_next_without_replannin
     assert len(committed) == 1
     assert rolling_goal_plan(result.state).step_revisions["S1"] == 1
 
-    selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v6.PROMPT_PREFIX)
+    selector_input = _role_prompt_payload(selector._session.payloads[3]["step"], selector_intent_v7.PROMPT_PREFIX)
     feedback = selector_input["current_progress"]["feedback"]
     assert feedback["issues"][0]["code"] == "phase_evidence_unproved:observe"
     assert feedback["issues"][0]["criterion"]
-    executor_input = _role_prompt_payload(queue.prompts[2], executor_args_v6.PROMPT_PREFIX)
+    executor_input = _role_prompt_payload(queue.prompts[2], executor_args_v7.PROMPT_PREFIX)
     assert executor_input["execution_state"]["feedback"] == feedback
 
 
@@ -3423,7 +3392,7 @@ def test_rwkv_audit_uses_clean_role_state_and_never_contaminates_executor(
         "\n\n**Tool Call:**", 1
     )[0]
     audit_payload = json.loads(
-        audit_prompt.removeprefix("AuditorStepPromptV6: ")
+        audit_prompt.removeprefix("AuditorStepPromptV7: ")
     )
     assert audit_payload["active_step"]["phase"] == "mutate"
     assert list(audit_payload)[-1] == "current_question"
@@ -3519,7 +3488,7 @@ def test_rwkv_step_auditor_rejects_gap_outside_visible_v3_catalog(
     audit_prompt = audit_checkpoint.transcript.split("\n\nUser: ", 1)[1].split(
         "\n\n**Tool Call:**", 1
     )[0]
-    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV6: "))
+    audit_payload = json.loads(audit_prompt.removeprefix("AuditorStepPromptV7: "))
     visible_codes = {item["code"] for item in audit_payload["gap_catalog"]}
     assert "invented_gap:not_in_prompt" not in visible_codes
 
@@ -3972,7 +3941,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
     assert len(selector._session.payloads) == 6
     second_selection = json.loads(
         selector._session.payloads[3]["step"].removeprefix(
-            "SelectorIntentPromptV6: "
+            "SelectorIntentPromptV7: "
         )
     )
     assert second_selection["current_progress"]["assigned_action_count"] == 0
@@ -3991,7 +3960,7 @@ def test_stateful_executor_reselects_after_one_failed_same_tool_retry(
         if event.event_type == "protocol_rejection"
     ]
     assert len(retry_events) == 1
-    assert queue.prompts[2].count("ExecutorArgsPromptV6: ") == 1
+    assert queue.prompts[2].count("ExecutorArgsPromptV7: ") == 1
     assert "protocol_rejection" not in queue.prompts[2]
     executor_starts = [
         result.state.causal_records[event_id]
@@ -4937,10 +4906,10 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     selector_payloads = model.tool_selector._session.payloads
     assert all("parent" not in payload for payload in selector_payloads)
     second_step = json.loads(
-        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV6: ")
+        selector_payloads[3]["step"].removeprefix("SelectorIntentPromptV7: ")
     )
     first_step = json.loads(
-        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV6: ")
+        selector_payloads[0]["step"].removeprefix("SelectorIntentPromptV7: ")
     )
     assert second_step["current_subtask"] == first_step["current_subtask"]
     assert first_step["current_progress"]["assigned_action_count"] == 0
@@ -4963,9 +4932,9 @@ def test_rwkv_repair_audit_continues_same_step_without_replanning(
     assert progress["missing_read_roots"] == []
     assert progress["missing_write_roots"] == ["result.txt"]
     assert {"path": "result.txt", "target_kind": "text_file"} in progress["workspace_targets"]
-    assert progress["completion_preconditions_satisfied"] is False
+    assert progress["mechanical_preconditions_satisfied"] is False
     second_executor_prompt = session.client.prompts[1]
-    assert "ExecutorArgsPromptV6: " in second_executor_prompt
+    assert "ExecutorArgsPromptV7: " in second_executor_prompt
     assert '"error_type":"InjectedWriteFailure"' in second_executor_prompt
     assert '"error_message":"injected first write failure"' in second_executor_prompt
     assert '"target_kind":"text_file"' in second_executor_prompt

@@ -6,7 +6,7 @@ import importlib
 
 import pytest
 
-from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v6
+from rwkv_lh.goal_state_protocols import auditor_final, auditor_step_v7
 from rwkv_lh.model_io import ModelCommand
 from rwkv_lh.role_trace_inputs import rebuild_role_input
 from test_role_trace_inputs import controller_role_snapshots  # noqa: F401
@@ -43,7 +43,7 @@ def _audit(role):
         verdict="ready_for_final" if final else "continue",
         step_id="" if final else "S1", step_complete=not final,
         evidence_refs=["A00001"], gaps=[],
-        reason=auditor_final.REASON_READY if final else auditor_step_v6.REASON_COMPLETE,
+        reason="The reported result is supported by the cited action.",
     )
 
 
@@ -107,7 +107,7 @@ def test_repair_cannot_invent_gap_outside_visible_catalog(controller_role_snapsh
     decision = _audit(role)
     decision.update(
         verdict="repair", step_complete=False, gaps=["invented:future-fact"],
-        reason=auditor_final.REASON_REPAIR if role == "auditor_final" else auditor_step_v6.REASON_INCOMPLETE,
+        reason="The requested result is not established by the cited action.",
     )
     with pytest.raises(ValueError, match="gap"):
         _validate(role, rebuilt, ModelCommand("audit_decision", decision).canonical)
@@ -137,6 +137,6 @@ def test_step_audit_cannot_label_a_proved_mutation_root_missing(controller_role_
     assert rebuilt["missing_write_roots"] == []
     decision = _audit("auditor_step")
     decision.update(verdict="repair", step_complete=False,
-                    gaps=["write_root_unproved:result.txt"], reason=auditor_step_v6.REASON_INCOMPLETE)
+                    gaps=["write_root_unproved:result.txt"], reason="The current step still lacks the required evidence.")
     with pytest.raises(ValueError, match="contradict"):
         _validate("auditor_step", rebuilt, ModelCommand("audit_decision", decision).canonical)
