@@ -1,0 +1,5 @@
+{
+  "sort_instead_of_first_seen": "def stock_totals(entries):\n    totals={}\n    for sku,q in entries: totals[sku]=totals.get(sku,0)+q\n    return sorted(totals.items())\n",
+  "drop_zero": "def stock_totals(entries):\n    totals={}\n    for sku,q in entries: totals[sku]=totals.get(sku,0)+q\n    return [(k,v) for k,v in totals.items() if v]\n",
+  "mutates_list_input": "def stock_totals(entries):\n    totals={}\n    for sku,q in entries: totals[sku]=totals.get(sku,0)+q\n    if isinstance(entries,list): entries.clear()\n    return list(totals.items())\n"
+}

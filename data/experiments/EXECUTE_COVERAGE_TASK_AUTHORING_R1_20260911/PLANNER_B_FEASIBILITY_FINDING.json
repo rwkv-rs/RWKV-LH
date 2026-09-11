@@ -1,0 +1,19 @@
+{
+  "status": "read_only_preflight_not_round_B_started",
+  "files": {
+    "rwkv_lh/supervisor_openai.py": "52b264b5f65983d191797d62bf41fbda2782d75a9b66960b693f3d15b5eff22a",
+    "rwkv_lh/goal_loop_protocol.py": "38112a7743eaf78de3b06820a98a336d252130b53acf20f1212fab463ae62db9",
+    "rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py": "ea38a6e80fb4e7d87158d500854f895e3d6ec7d2b638d77ca3a1d0dc5b2d5dec"
+  },
+  "confirmed_label_mechanism": "role_trace_dataset_v1: executed authority first; otherwise exact singleton eligible_operations matching selected operation -> planner_contract",
+  "missing_external_path": [
+    "Strong Planner system prompt explicitly forbids selecting/restricting concrete tools.",
+    "_goal_plan_patch_schema excludes allowed_operations and additionalProperties=false.",
+    "GoalPlanPatch.from_model_value external parser requires exact fields without allowed_operations; only internal persisted parsing permits it."
+  ],
+  "consequence": "B is not achievable by prompt text alone. It requires external schema/parser exposure of the already-persisted allowed_operations field, with actual integrated tests. No changes during A.",
+  "same_source_comparison_requirement": "If B proceeds, both new control and treatment must run under one identical frozen production source; do not compare changed B code against A as a valid same-code ablation. Keep one external Planner schema and vary only template guidance; pre-register before generation.",
+  "no_production_changes": true,
+  "no_role_protocol_changes": true,
+  "optimizer_steps": 0
+}

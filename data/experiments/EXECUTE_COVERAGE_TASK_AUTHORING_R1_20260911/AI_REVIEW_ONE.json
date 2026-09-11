@@ -1,0 +1,69 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_one",
+  "decision": "request_changes_before_acceptance_finalization",
+  "scope": "Only owner-requested NEW-DIAG-01/02 task/acceptance/reference/mutant authoring artifacts and relevant public verifier implementation; no old control acceptance or Holdout read.",
+  "agent_metrics": "No Agent run or scores produced by this review.",
+  "static_task_assessment": {
+    "NEW-DIAG-01": "Initial implementation is executable and statically fails only public test_exact_expiry (<= versus required <); generic < repair preserves invalid-input validation. Initial zero-TTL issue is same boundary root cause, not a second independent defect.",
+    "NEW-DIAG-02": "Initial implementation is executable and statically fails only public test_repeated_sku_accumulates (overwrite versus accumulate); generic totals.get(sku,0)+quantity repair preserves first-seen insertion order and zero totals."
+  },
+  "initial_real_pytest_validation": "Not run by this reviewer; parent conducts actual author RED/GREEN/reference/mutant runs. Static inspection is not reported as real pytest evidence.",
+  "report_design": "Immutable helper invokes actual python -m pytest and includes stdout/exit/source hashes; final acceptance currently insufficient to prove report provenance and immutable collection environment.",
+  "findings": [
+    {
+      "id": "AR1-01",
+      "severity": "high",
+      "decision": "needs_fix",
+      "scope": "both tasks: private_verify.py immutable checks",
+      "finding": "Only the named original test file and run_tests.py are pinned; only root conftest.py, pytest.py and pytest/ are denied. tests/conftest.py and test-selection configuration such as pytest.ini/pyproject.toml/setup.cfg, additional test modules or startup hooks are not restricted. This does not enforce the public no test/helper/shadowing modification contract for the full pytest collection environment.",
+      "recommendation": "Validate the complete immutable tests tree and explicitly control pytest configuration/plugin/startup inputs or invoke pytest in a trusted isolated environment with fixed collection. Add author mutants for nested conftest, altered collection and fabricated pass output."
+    },
+    {
+      "id": "AR1-02",
+      "severity": "high",
+      "decision": "needs_fix",
+      "scope": "both tasks: report and command_exit_stages",
+      "finding": "The final private check accepts report substrings 4 passed / Exit code 0 and current root-Python hashes. It does not compare the report against a retained actual pytest stdout artifact or rerun the immutable tests. command_exit_stages matches an argv plus any nonzero output containing a test name, followed by zero; it does not establish that the failure predates the implementation repair, or that immutable helper/tests had those bytes at the time. Thus genuine diagnose-before-repair and nonfabricated report are not fully verified.",
+      "recommendation": "Tie required initial/final events to immutable helper/test identities and pre/post implementation identities, actual exit codes and durable output/report hashes, or otherwise restrict final verification to trusted invocation with causal evidence checks. Preserve the original failure record, rather than relying on a manually reproducible string."
+    },
+    {
+      "id": "AR1-03",
+      "severity": "medium",
+      "decision": "needs_fix",
+      "scope": "NEW-DIAG-02 private probes and public tests",
+      "finding": "The public rule forbids modifying input. Hidden probes always call stock_totals(iter(entries)) and then compare the underlying list; this exercises iterator input but not list input mutation. A function that computes correct output and clears a supplied list, while leaving iterators alone, passes the currently written behavior cases.",
+      "recommendation": "Call stock_totals with a concrete list as well as a generator/iterator and verify both result and unchanged list contents; register an input-mutation mutant."
+    }
+  ],
+  "isolation_checks": [
+    {
+      "task_id": "NEW-DIAG-01",
+      "workspace_paths": [
+        "README.md",
+        "cache_policy.py",
+        "tests/test_cache_policy.py",
+        "run_tests.py"
+      ],
+      "reference_mutant_private_program_not_in_workspace": true,
+      "task_sha256": "197401f36d45b8f8de37f6793af5d486608f30168c739fb5817df2824b3da5a0",
+      "acceptance_sha256": "5a19b20249437a93ffe51690b4d89652e583746528b4bd0170a96d122296d8f5",
+      "private_verify_sha256": "badafc2e524af984e6f270d6871a8e610b6c662cdd8ccf101df555c6efd4ddb8"
+    },
+    {
+      "task_id": "NEW-DIAG-02",
+      "workspace_paths": [
+        "README.md",
+        "stock_summary.py",
+        "tests/test_stock_summary.py",
+        "run_tests.py"
+      ],
+      "reference_mutant_private_program_not_in_workspace": true,
+      "task_sha256": "b8577c8184d602e3279c22a02d150bfa8827c51c3542d6ae186f378506449674",
+      "acceptance_sha256": "1ea7727a3fe38c76535192dc78a1fad86c6d23427e08a4aaf255200c9065601e",
+      "private_verify_sha256": "d6ce830e2bd60821b9caa1989d3dd562b9e643a245bdc57d69deda150f3f250b"
+    }
+  ],
+  "author_script_sha256": "ca9661b4f2d5e823fea0798c9acc7a7666941feb400761ff362f99122af2f255",
+  "production_changes": false,
+  "extraction_or_training": false
+}

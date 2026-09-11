@@ -1,0 +1,16 @@
+{
+  "attempts": [
+    {
+      "log": "PYTEST_FINAL.log",
+      "result": "1463 passed,1 setup error",
+      "cause": "Other owner process concurrently used same pytest basetemp; mkdir/rm_rf collision."
+    },
+    {
+      "log": "PYTEST_ISOLATED_FINAL.log",
+      "result": "1461 passed,3 failed",
+      "cause": "My test invocation placed basetemp under original checkout while extractor correctly requires data/test_runs under its isolated source ROOT.",
+      "production_code_defect": false
+    }
+  ],
+  "correction": "Unique basetemp under isolated checkout data/test_runs; rerun entire tests/ including browser/Torch; no source or gate changes."
+}

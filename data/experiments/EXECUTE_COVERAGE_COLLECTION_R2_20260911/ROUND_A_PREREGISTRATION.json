@@ -1,0 +1,42 @@
+{
+  "round_id": "EXECUTE_COVERAGE_COLLECTION_R2_20260911",
+  "status": "registered_before_generation",
+  "variable": "collection task set only; zero rwkv_lh source changes",
+  "task_ids": [
+    "RP-CLI-01",
+    "RP-WEB-02",
+    "NEW-DIAG-01",
+    "NEW-DIAG-02"
+  ],
+  "selection_basis": "Diagnose-first tasks make a command the shortest progress path; existing wording that merely mentions tests is proven insufficient (COMMAND_PATH_COLLECTION_R1: 13 actions, 0 commands, menus verified complete).",
+  "production_commit": "c6b46d0185b4b5c8e6df358128b20ad46d0776ad",
+  "executor_max_output_tokens": 1800,
+  "task_concurrency": 1,
+  "per_case_wall_seconds": 1800,
+  "total_wall_seconds": 7200,
+  "max_transitions": 200,
+  "native_transport_resume_attempts": 1,
+  "no_forced_commands": true,
+  "no_budget_treatment": true,
+  "optimizer_steps": 0,
+  "keep_criteria": {
+    "primary": "at least one succeeded check_command/run_command action bound to a phase==execute step; fresh extraction coverage.execute >= 1 without waiver",
+    "secondary": "all returned handoffs verified; tmp_overlay_live_agent_verified and timeout_output_live_agent_verified become observable where exercised",
+    "no_keep_disposition": "seal evidence, proceed to PLANNER_EXECUTE_CONTRACT_R1 (round B); no rerun-for-better-score"
+  },
+  "forbidden": [
+    "per-task special-casing or reading hidden acceptance",
+    "mixing budget or planner-template variables into this round",
+    "constructing or editing candidate rows to manufacture execute coverage",
+    "relaxing similarity threshold or family splits"
+  ],
+  "successor_chain": "waiver re-sign (statetune_data.py new SHA, plus supervisor_openai.py if round B ran) -> re-extract -> review -> dedup (unchanged policy) -> sealed row-selection -> freeze_dataset -> zero-state smoke -> first Selector StateTune registration",
+  "task_bundle_manifest_sha256": "8978c24bfcd211fef0537821d4546e6fa28860903d82cde1927cab71b8328a1e",
+  "driver_sha256": "5a7e9ef45f4753e42b77394d8c504fedbd1552f441978dbdb42f0f7e7185961f",
+  "deployment_manifest_sha256": "02e144adeaa4b3ecee0413b4ef94ef6bc04e415b751fa12baba0ff28798f7211",
+  "task_content": {
+    "NEW-DIAG-01": "Cache TTL expiry boundary; 4 public tests, exactly one failure; generalized TTL/clock private probes.",
+    "NEW-DIAG-02": "Stock signed-movement aggregation; 4 public tests, exactly one failure; ordering, zero totals, iterable and immutable-input private probes."
+  },
+  "acceptance_limit": "Trusted command stdout exact report matching and final pinned tests/helper; not full hostile intermediate-history attestation."
+}

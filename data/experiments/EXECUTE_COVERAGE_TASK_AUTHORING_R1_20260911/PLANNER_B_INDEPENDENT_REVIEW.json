@@ -1,0 +1,40 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_one",
+  "status": "read_only_contingency_review_B_not_started",
+  "agent_metrics": "Parent corrected preliminary zero-command report: NEW-DIAG-02 has 3 command actions and extraction execute=9; not independently verified in this B review. No B run or code changes.",
+  "decision": "defer_B_pending_A_final_disposition",
+  "findings": [
+    {
+      "finding": "Current external Planner schema and parser reject allowed_operations, although internal GoalPlanStep carries it. Prompt explicitly forbids selecting or restricting concrete tool names. Exposing the field therefore changes the Planner authority contract, not only prose.",
+      "evidence": [
+        "rwkv_lh/supervisor_openai.py:3011",
+        "rwkv_lh/supervisor_openai.py:3156",
+        "rwkv_lh/goal_loop_protocol.py:466"
+      ]
+    },
+    {
+      "finding": "Existing downstream allowset narrows operations and completion evidence; a singleton check_command/run_command can reduce Selector choice to a forced operation. This tests Planner-provided constraints and command coverage, not improved unconstrained Selector discrimination.",
+      "evidence": [
+        "rwkv_lh/stateful_goal_loop.py:565",
+        "rwkv_lh/role_trace_inputs.py:196",
+        "rwkv_lh/goal_loop_protocol.py:1518"
+      ]
+    }
+  ],
+  "authorization_assessment": "Under the parent-stated existing explicit B authorization for Planner template variables AND necessary allowed_operations transmission, an optional execute-only singleton channel fits that bounded experiment; no separate new architecture authorization is intrinsically required. This judgment relies on that scope description, not independent access to the owner wording. It would exceed scope to add general Planner tool selection across phases, automatic Controller operation substitution, argument generation, or extra calls. Current instruction supersedes execution: keep B dormant.",
+  "minimum_preregistration_if_B_needed": [
+    "Freeze one source/schema/parser for both fresh arms and the same four tasks, budgets, seeds/sampling settings, States and acceptance; never compare modified B directly to old A as a causal control.",
+    "Permit absent/empty allowed_operations with unchanged phase-derived behavior; permit a nonempty singleton only for execute and only check_command or run_command. Enforce phase and enumeration in the parser, not only prompt.",
+    "Control and treatment must share the new contract scaffolding; retain control prohibition of concrete tool restriction, treatment expressly overrides it only for execute. Leaving contradictory old exactly-fields or never-name-tool clauses in treatment invalidates the intended intervention.",
+    "Only arm difference is the registered template clause. Do not silently force singleton values in treatment Controller/parser or branch response validation by arm. Record actual compliance and failures without post-hoc replacement.",
+    "Singleton means one eligible operation TYPE, not one invocation or predetermined shell command; Executor retains argument responsibility and ordinary scope/evidence gates.",
+    "Pre-register Agent and execute-coverage KEEP criteria and count singleton menus separately from genuine Selector operation choices. No threshold tuning after outcomes."
+  ],
+  "data_compatibility_risks": [
+    "Changing goal_loop_protocol.py and supervisor_openai.py changes frozen source identities even if the five role protocol modules stay unchanged. Existing waived registrations/approvals cannot cover new bytes automatically.",
+    "Fresh B traces require their exact new source manifest, current canonical builder reconstruction, token validation, semantic review, and ordinary similarity/coverage gates. Five-role module identity alone does not prove equivalent inputs or training labels.",
+    "Do not relabel old A inputs with new menus or infer unrestricted Selector competence from singleton-menu rows. Retain menu/phase/provenance for coverage analysis.",
+    "A new semantic Planner authority surface is not globally equivalent to prior behavior; old-trace waiver renewal would require independent precisely scoped review rather than copied approval."
+  ],
+  "scope": "Read-only feasibility/risk assessment only; no source edits, tests, model calls, extraction, training, or B authorization request initiated."
+}

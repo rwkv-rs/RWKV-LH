@@ -1,0 +1,154 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "commit": "162e60ee5458545764e8ae24dd284a29689a31e8",
+  "mode": "read_only_static_review",
+  "decision": "integration_incomplete_current_deduplicated_candidates_not_freezeable",
+  "files": [
+    {
+      "path": "rwkv_lh/statetune_data.py",
+      "sha256": "9b4806cfe4c4baa3602ae604dc0a7b8b71e2dbb04a879d465ad422a8e2d39a38",
+      "matches_162e60ee": true
+    },
+    {
+      "path": "rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py",
+      "sha256": "ea38a6e80fb4e7d87158d500854f895e3d6ec7d2b638d77ca3a1d0dc5b2d5dec",
+      "matches_162e60ee": true
+    },
+    {
+      "path": "rwkv_lh/role_trace_artifacts.py",
+      "sha256": "17a7b0f0888da88abc23b07007e8934b000789a8ea692063e1f10c24037e644a",
+      "matches_162e60ee": true
+    },
+    {
+      "path": "tests/test_statetune_data.py",
+      "sha256": "71266f078e17b6174c2f64d17ff3e39824cd738f56915f7b49a54e19cbcc0c43",
+      "matches_162e60ee": true
+    }
+  ],
+  "actual_candidate_evidence": [
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_SEMANTIC_REVIEW_R1_20260910/reviewed_candidates/manifest.json",
+      "sha256": "1fce3518b69ddffdf3364541e02c2d412512d184efbc29b43e805cb45934ba25",
+      "status": "invalid",
+      "row_count": 162,
+      "quality_gates": {
+        "cross_split_similarity": false,
+        "nonempty_role_splits": true,
+        "nonempty_samples": true,
+        "requested_roles_present": true,
+        "required_coverage_per_role": false
+      },
+      "source_registration_sha256": "bebf382f9cf2e88dc4595fb14c163b9a3553e80ea9343d0d85ffc42344a58fb2",
+      "counts_by_role": {
+        "selector_intent": {
+          "confirmation": 9,
+          "dev": 24,
+          "train": 129
+        }
+      },
+      "regression_fingerprint": null
+    },
+    {
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/final210/manifest.json",
+      "sha256": "641f9f3619eb2165a9209bb583048fe352f07dab8ee279b6cc04c2069e15f48e",
+      "status": "invalid",
+      "row_count": 20,
+      "quality_gates": {
+        "cross_split_similarity": true,
+        "nonempty_role_splits": true,
+        "nonempty_samples": true,
+        "requested_roles_present": true,
+        "required_coverage_per_role": false
+      },
+      "source_registration_sha256": null,
+      "counts_by_role": {
+        "selector_intent": {
+          "confirmation": 2,
+          "dev": 3,
+          "train": 15
+        }
+      },
+      "regression_fingerprint": null
+    }
+  ],
+  "findings": [
+    {
+      "priority": "P1",
+      "id": "RAW_VALID_BEFORE_SELECTION",
+      "file": "rwkv_lh/statetune_data.py",
+      "lines": [
+        123,
+        124,
+        139,
+        162,
+        166,
+        170
+      ],
+      "trigger": "Use an original production candidate whose cross-split duplicates require the registered210-to20 selection, or use the derived final20 manifest directly.",
+      "facts": [
+        "candidate status==valid is required before reading selection. Original reviewed162 has cross_split_similarity=false and status=invalid. Adding execute-only rows does not delete its existing cross-split violation pairs.",
+        "extract_registration still calls build_artifacts on all extracted rows and has no selection argument. reproduced must equal candidate before any row selection.",
+        "Current final210 has20 rows, source_registration_sha256 absent, invalid execute coverage and no regression fingerprint. It fails status first; merely fixing status would next fail source identity/reproduction.",
+        "Thus exact waiver forwarding is a real improvement, but moving no membership logic into re-extraction means existing dedup policy is not reproducible as the effective candidate audit."
+      ],
+      "impact": "The stated210-to20 dedup path remains blocked even after execute coverage is repaired; it cannot use row_selection to repair raw cross-split similarity while preserving exact audit equality.",
+      "repair_requirement": "Reproduce the registered policy from verified source rows, audit the selected effective set under unchanged thresholds, and compare its full provenance/membership audit with the registered effective candidate; do not hand-flip raw status or bypass exact checks."
+    },
+    {
+      "priority": "P1",
+      "id": "SELECTED_REGRESSION_MEMBERSHIP_MISMATCH",
+      "file": "rwkv_lh/statetune_data.py",
+      "lines": [
+        147,
+        148,
+        176,
+        181,
+        183,
+        188,
+        193,
+        197,
+        198
+      ],
+      "trigger": "A valid raw candidate has multiple dev/confirmation rows, and row_selection drops at least one while retaining nonempty declared splits.",
+      "facts": [
+        "Selection verifies IDs and selected split counts, then replaces all_rows with selected_rows.",
+        "Only selected train rows are written, but regression_candidate.json is copied unchanged from raw extraction.",
+        "Dataset counts reflect selected dev/confirmation membership while regression file and fingerprint still represent raw dev/confirmation membership. No check forbids dropping regression IDs.",
+        "admit_dataset hashes regression and normalizes train only; it does not compare regression membership/counts with selection."
+      ],
+      "impact": "Frozen train and reported counts can describe a different selection from actual regression. This also violates intended immutable fixed-regression semantics when a selection attempts to exclude existing anchors.",
+      "repair_requirement": "Either require exact preservation of all pinned regression members and derive selected counts accordingly, or, for first freeze only, build/fingerprint the effective regression from the selected audited rows. Reuse must never silently change regression membership."
+    },
+    {
+      "priority": "P1",
+      "id": "NO_POST_SELECTION_COVERAGE_GATE",
+      "file": "rwkv_lh/statetune_data.py",
+      "lines": [
+        99,
+        106,
+        107,
+        170,
+        183,
+        193
+      ],
+      "trigger": "Raw candidate passes required coverage; selected IDs omit the only row carrying execute or another preregistered flag, but retained split counts meet minimum.",
+      "facts": [
+        "Policy evidence refs are only hash-verified; content is not recomputed or semantically checked. _read_selection does not use its candidate parameter.",
+        "No build_artifacts/coverage/similarity quality recomputation occurs after selected_rows replaces all_rows.",
+        "candidate_audit in frozen manifest remains the raw audit with its passing gates, while training and counts describe the subset."
+      ],
+      "impact": "An effective dataset lacking required execute coverage could freeze and later admit under stale raw passing coverage. Passing raw coverage does not imply subset coverage.",
+      "repair_requirement": "Evaluate required coverage and applicable quality gates on the actual selected train+fixed-regression set, and bind that audit into the frozen manifest; exact policy bytes alone are not proof the chosen subset passes gates."
+    }
+  ],
+  "positive_facts": [
+    "Registration waiver SHA must match candidate admission SHA in both directions; read_equivalence_waiver is invoked and exact mapping/SHA forwarded to re-extraction.",
+    "Selection rejects duplicate/missing IDs and split-count mismatch; it filters existing rows without editing their contents.",
+    "Initial freeze still allows prior_regression=None; absence of prior triple pins is not a first-freeze circular ban."
+  ],
+  "test_scope": [
+    "New selection tests mock extract_registration to return an already-valid candidate; the mocked regression file is only {unit_test_only:true}.",
+    "They demonstrate train ID filtering and counts, but cannot demonstrate raw-invalid dedup admission, selected regression identity or post-selection coverage preservation. No tests executed in this review."
+  ],
+  "authorization_and_execution": "No training, optimizer smoke, freezing, model calls, source edits, historical evidence changes or Holdout reads. Existing Agent low score is not the reason for blocking training; real data/freeze gates are."
+}

@@ -1,0 +1,103 @@
+{
+  "schema_version": "rwkv-execute-diagnostics-v1.tasks.v1",
+  "tasks": [
+    {
+      "task_id": "RP-CLI-01",
+      "level": "project",
+      "user_request": "Build a small backup utility for our team's local work folders. We need to snapshot a directory, restore it after accidental edits, and trust that a corrupt or hostile backup cannot destroy an existing destination or write outside it. Deliver a Python standard-library CLI, tests, and usage documentation following README.md.",
+      "capabilities": [
+        "cli_project",
+        "filesystem",
+        "backup_restore",
+        "path_security",
+        "failure_atomicity"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# Portable team-folder backup\n\nImplement `backup.py` with Python standard library only. Support these commands from any working directory:\n\n- `python backup.py snapshot SOURCE ARCHIVE`\n- `python backup.py restore ARCHIVE DESTINATION`\n\nSOURCE is a directory; ARCHIVE must be outside it. Include regular files recursively (including hidden, binary, Unicode names and zero-byte files) and preserve empty directories. Reject symbolic links and other non-regular entries. A failed snapshot must not replace a previous ARCHIVE. Directory/file permissions and timestamps do not need preservation.\n\nUse a ZIP archive with a UTF-8 `manifest.json`: `version` is 1, `directories` lists relative POSIX directory paths, and `files` lists objects with `path`, byte `size`, and lowercase `sha256`. File payloads use ZIP member names `files/<relative path>`. Do not add ZIP directory entries. This is an interoperability format, not an instruction to trust the archive.\n\nRestore must validate version, unique names, declared members, file sizes and digests before replacing DESTINATION. Reject undeclared/duplicate members, absolute paths, parent traversal, backslashes, invalid normalized paths and file/directory conflicts. Symlink destinations are invalid. Existing directory contents are replaced only after complete validation; corrupt input or another failure must leave the previous destination intact. Successful restore must not retain old files. Invalid input must never write outside the destination staging area. Support an empty directory snapshot and restore.\n\nEach successful command writes one JSON object to stdout: `files` and `bytes` count restored/snapshotted regular files and their total original byte size. Failures exit nonzero and explain the problem on stderr. Each invocation is a separate process; no process-memory state is available. Keep staging files beside their final target so replacement can be atomic on the same filesystem. Provide self-authored unit tests and document how to use and validate the utility.\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "RP-WEB-02",
+      "level": "project",
+      "user_request": "为阅读小组从零创建阅读清单网页。书籍有非空标题、非空作者和多个标签（逗号输入，trim、小写、去重）；可新增、删除。可按标题/作者搜索，多个标签复选框使用 AND 交集且与搜索相交。支持导出整个清单为可下载 JSON，并通过文件选择导入替换清单；导入必须整批验证后才替换，任何错误都显示 role=alert 包含 rejected，原清单保持原样。\nJSON 合同：{\"version\":1,\"books\":[{\"id\":\"稳定唯一非空字符串\",\"title\":\"非空字符串\",\"author\":\"非空字符串\",\"tags\":[\"标签字符串\"]}]}。校验版本、数组、字段类型、非空标题/作者/id及重复id；有效导入不要求保留原顺序外的任何固定数据。\n公开 UI：字段 Book title、Author、Tags；按钮 Add book、Export JSON、Import books；文件选择输入 Import JSON；搜索 Search books；每个标签复选框可访问名称 `Tag: 标签`。每书 article 名称 `Book 标题`，显示作者和标签，含 Delete 按钮。\n运行方式：项目根目录提供 index.html，可由 `python -m http.server PORT --bind 127.0.0.1 --directory WORKSPACE` 服务。浏览器初始没有数据；使用 localStorage 持久化，刷新保留所有已提交变化。初始目录仅有需求，需实现页面和逻辑。\n\n交付时保持工作区为自包含项目，README 说明启动与人工验证方法。不得依赖远程 CDN、外网或需要下载的包。页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。\n",
+      "capabilities": [
+        "project_creation",
+        "browser_interaction",
+        "persistence",
+        "verification",
+        "local_storage"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# RP-WEB-02\n\n为阅读小组从零创建阅读清单网页。书籍有非空标题、非空作者和多个标签（逗号输入，trim、小写、去重）；可新增、删除。可按标题/作者搜索，多个标签复选框使用 AND 交集且与搜索相交。支持导出整个清单为可下载 JSON，并通过文件选择导入替换清单；导入必须整批验证后才替换，任何错误都显示 role=alert 包含 rejected，原清单保持原样。\nJSON 合同：{\"version\":1,\"books\":[{\"id\":\"稳定唯一非空字符串\",\"title\":\"非空字符串\",\"author\":\"非空字符串\",\"tags\":[\"标签字符串\"]}]}。校验版本、数组、字段类型、非空标题/作者/id及重复id；有效导入不要求保留原顺序外的任何固定数据。\n公开 UI：字段 Book title、Author、Tags；按钮 Add book、Export JSON、Import books；文件选择输入 Import JSON；搜索 Search books；每个标签复选框可访问名称 `Tag: 标签`。每书 article 名称 `Book 标题`，显示作者和标签，含 Delete 按钮。\n运行方式：项目根目录提供 index.html，可由 `python -m http.server PORT --bind 127.0.0.1 --directory WORKSPACE` 服务。浏览器初始没有数据；使用 localStorage 持久化，刷新保留所有已提交变化。初始目录仅有需求，需实现页面和逻辑。\n\n交付时保持工作区为自包含项目，README 说明启动与人工验证方法。不得依赖远程 CDN、外网或需要下载的包。页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。\n\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "NEW-DIAG-01",
+      "level": "project",
+      "user_request": "缓存策略模块已有可运行实现，但时间边界出现回归。缓存只在 age < ttl 时有效，恰好到期或超过到期必须过期；负TTL和倒退时钟必须抛ValueError。保留is_fresh(created_at, now, ttl)接口。 请先运行现成的 `python run_tests.py` 诊断唯一失败，然后修复并再次运行通过，交付真实TEST_REPORT.md；完整公开合同见README.md。",
+      "capabilities": [
+        "diagnose_existing_tests",
+        "repair_regression",
+        "run_pytest",
+        "record_execution_evidence"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# 先诊断，再修复\n\n缓存策略模块已有可运行实现，但时间边界出现回归。缓存只在 age < ttl 时有效，恰好到期或超过到期必须过期；负TTL和倒退时钟必须抛ValueError。保留is_fresh(created_at, now, ttl)接口。\n\n项目已安装所需pytest，当前恰好一个测试失败。先执行 `python run_tests.py` 观察真实失败，再修复实现，最后再次执行同一命令使pytest退出0。不要修改tests、run_tests.py或添加pytest/conftest遮蔽测试；不得手写或伪造测试报告。run_tests.py调用实际pytest，原样打印输出、返回pytest退出码，并把输出和源文件SHA写入TEST_REPORT.md。初始失败是待诊断事实，不能声称测试通过。需要持久化报告的命令必须在可写的工作区运行；只读检查产生的文件不会保留。\n\n验收：实现满足上述通用规则；先失败后成功的实际命令记录；原tests和run_tests.py保持不变；TEST_REPORT.md包含实际pytest输出、Exit code: 0与当前源码SHA。不要只描述建议，提交修复后的项目和报告。\n"
+        },
+        {
+          "path": "cache_policy.py",
+          "content": "def is_fresh(created_at, now, ttl):\n    \"\"\"Whether a cached value can be reused at this instant.\"\"\"\n    if ttl < 0 or now < created_at:\n        raise ValueError(\"invalid cache clock or TTL\")\n    return now - created_at <= ttl\n"
+        },
+        {
+          "path": "tests/test_cache_policy.py",
+          "content": "from cache_policy import is_fresh\n\ndef test_before_expiry():\n    assert is_fresh(100, 109, 10) is True\n\ndef test_after_expiry():\n    assert is_fresh(100, 111, 10) is False\n\ndef test_exact_expiry():\n    assert is_fresh(100, 110, 10) is False\n\ndef test_invalid_clock():\n    try:\n        is_fresh(100, 99, 10)\n    except ValueError:\n        return\n    assert False, \"backward clock must be rejected\"\n"
+        },
+        {
+          "path": "run_tests.py",
+          "content": "from pathlib import Path\nimport hashlib\nimport subprocess\nimport sys\n\nroot = Path(__file__).resolve().parent\ncompleted = subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"--color=no\", \"--tb=short\"], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\noutput = completed.stdout\nsources = sorted(root.glob(\"*.py\"))\nidentity = \"\\n\".join(f\"{p.name}: {hashlib.sha256(p.read_bytes()).hexdigest()}\" for p in sources)\nreport = \"# Test report\\n\\nCommand: python -m pytest -q --color=no --tb=short\\nExit code: \" + str(completed.returncode) + \"\\n\\n## Source identity\\n\" + identity + \"\\n\\n## Actual pytest output\\n```text\\n\" + output + \"```\\n\"\n(root / \"TEST_REPORT.md\").write_text(report, encoding=\"utf-8\")\nprint(report, end=\"\")\nsys.exit(completed.returncode)\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "NEW-DIAG-02",
+      "level": "project",
+      "user_request": "库存流水聚合已有可运行模块，重复SKU的数量出现回归。stock_totals(entries)接收(sku, signed_quantity)可迭代对象，逐SKU累加所有正负流水，并按首次出现的SKU顺序返回(sku, total)列表；零总量也必须保留，输入不可被修改。 请先运行现成的 `python run_tests.py` 诊断唯一失败，然后修复并再次运行通过，交付真实TEST_REPORT.md；完整公开合同见README.md。",
+      "capabilities": [
+        "diagnose_existing_tests",
+        "repair_regression",
+        "run_pytest",
+        "record_execution_evidence"
+      ],
+      "workspace_files": [
+        {
+          "path": "README.md",
+          "content": "# 先诊断，再修复\n\n库存流水聚合已有可运行模块，重复SKU的数量出现回归。stock_totals(entries)接收(sku, signed_quantity)可迭代对象，逐SKU累加所有正负流水，并按首次出现的SKU顺序返回(sku, total)列表；零总量也必须保留，输入不可被修改。\n\n项目已安装所需pytest，当前恰好一个测试失败。先执行 `python run_tests.py` 观察真实失败，再修复实现，最后再次执行同一命令使pytest退出0。不要修改tests、run_tests.py或添加pytest/conftest遮蔽测试；不得手写或伪造测试报告。run_tests.py调用实际pytest，原样打印输出、返回pytest退出码，并把输出和源文件SHA写入TEST_REPORT.md。初始失败是待诊断事实，不能声称测试通过。需要持久化报告的命令必须在可写的工作区运行；只读检查产生的文件不会保留。\n\n验收：实现满足上述通用规则；先失败后成功的实际命令记录；原tests和run_tests.py保持不变；TEST_REPORT.md包含实际pytest输出、Exit code: 0与当前源码SHA。不要只描述建议，提交修复后的项目和报告。\n"
+        },
+        {
+          "path": "stock_summary.py",
+          "content": "def stock_totals(entries):\n    \"\"\"Aggregate signed stock movements, retaining first-seen SKU order.\"\"\"\n    totals = {}\n    for sku, quantity in entries:\n        totals[sku] = quantity\n    return list(totals.items())\n"
+        },
+        {
+          "path": "tests/test_stock_summary.py",
+          "content": "from stock_summary import stock_totals\n\ndef test_empty():\n    assert stock_totals([]) == []\n\ndef test_single_movement():\n    assert stock_totals([(\"bolt\", 4)]) == [(\"bolt\", 4)]\n\ndef test_distinct_skus_keep_order():\n    assert stock_totals([(\"nut\", 2), (\"bolt\", 3)]) == [(\"nut\", 2), (\"bolt\", 3)]\n\ndef test_repeated_sku_accumulates():\n    assert stock_totals([(\"bolt\", 5), (\"nut\", 2), (\"bolt\", -1)]) == [(\"bolt\", 4), (\"nut\", 2)]\n"
+        },
+        {
+          "path": "run_tests.py",
+          "content": "from pathlib import Path\nimport hashlib\nimport subprocess\nimport sys\n\nroot = Path(__file__).resolve().parent\ncompleted = subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"--color=no\", \"--tb=short\"], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\noutput = completed.stdout\nsources = sorted(root.glob(\"*.py\"))\nidentity = \"\\n\".join(f\"{p.name}: {hashlib.sha256(p.read_bytes()).hexdigest()}\" for p in sources)\nreport = \"# Test report\\n\\nCommand: python -m pytest -q --color=no --tb=short\\nExit code: \" + str(completed.returncode) + \"\\n\\n## Source identity\\n\" + identity + \"\\n\\n## Actual pytest output\\n```text\\n\" + output + \"```\\n\"\n(root / \"TEST_REPORT.md\").write_text(report, encoding=\"utf-8\")\nprint(report, end=\"\")\nsys.exit(completed.returncode)\n"
+        }
+      ],
+      "workspace_generators": []
+    }
+  ]
+}

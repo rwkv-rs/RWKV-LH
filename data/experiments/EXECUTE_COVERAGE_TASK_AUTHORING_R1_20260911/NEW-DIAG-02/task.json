@@ -1,0 +1,30 @@
+{
+  "task_id": "NEW-DIAG-02",
+  "level": "project",
+  "user_request": "库存流水聚合已有可运行模块，重复SKU的数量出现回归。stock_totals(entries)接收(sku, signed_quantity)可迭代对象，逐SKU累加所有正负流水，并按首次出现的SKU顺序返回(sku, total)列表；零总量也必须保留，输入不可被修改。 请先运行现成的 `python run_tests.py` 诊断唯一失败，然后修复并再次运行通过，交付真实TEST_REPORT.md；完整公开合同见README.md。",
+  "capabilities": [
+    "diagnose_existing_tests",
+    "repair_regression",
+    "run_pytest",
+    "record_execution_evidence"
+  ],
+  "workspace_files": [
+    {
+      "path": "README.md",
+      "content": "# 先诊断，再修复\n\n库存流水聚合已有可运行模块，重复SKU的数量出现回归。stock_totals(entries)接收(sku, signed_quantity)可迭代对象，逐SKU累加所有正负流水，并按首次出现的SKU顺序返回(sku, total)列表；零总量也必须保留，输入不可被修改。\n\n项目已安装所需pytest，当前恰好一个测试失败。先执行 `python run_tests.py` 观察真实失败，再修复实现，最后再次执行同一命令使pytest退出0。不要修改tests、run_tests.py或添加pytest/conftest遮蔽测试；不得手写或伪造测试报告。run_tests.py调用实际pytest，原样打印输出、返回pytest退出码，并把输出和源文件SHA写入TEST_REPORT.md。初始失败是待诊断事实，不能声称测试通过。需要持久化报告的命令必须在可写的工作区运行；只读检查产生的文件不会保留。\n\n验收：实现满足上述通用规则；先失败后成功的实际命令记录；原tests和run_tests.py保持不变；TEST_REPORT.md包含实际pytest输出、Exit code: 0与当前源码SHA。不要只描述建议，提交修复后的项目和报告。\n"
+    },
+    {
+      "path": "stock_summary.py",
+      "content": "def stock_totals(entries):\n    \"\"\"Aggregate signed stock movements, retaining first-seen SKU order.\"\"\"\n    totals = {}\n    for sku, quantity in entries:\n        totals[sku] = quantity\n    return list(totals.items())\n"
+    },
+    {
+      "path": "tests/test_stock_summary.py",
+      "content": "from stock_summary import stock_totals\n\ndef test_empty():\n    assert stock_totals([]) == []\n\ndef test_single_movement():\n    assert stock_totals([(\"bolt\", 4)]) == [(\"bolt\", 4)]\n\ndef test_distinct_skus_keep_order():\n    assert stock_totals([(\"nut\", 2), (\"bolt\", 3)]) == [(\"nut\", 2), (\"bolt\", 3)]\n\ndef test_repeated_sku_accumulates():\n    assert stock_totals([(\"bolt\", 5), (\"nut\", 2), (\"bolt\", -1)]) == [(\"bolt\", 4), (\"nut\", 2)]\n"
+    },
+    {
+      "path": "run_tests.py",
+      "content": "from pathlib import Path\nimport hashlib\nimport subprocess\nimport sys\n\nroot = Path(__file__).resolve().parent\ncompleted = subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"--color=no\", \"--tb=short\"], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\noutput = completed.stdout\nsources = sorted(root.glob(\"*.py\"))\nidentity = \"\\n\".join(f\"{p.name}: {hashlib.sha256(p.read_bytes()).hexdigest()}\" for p in sources)\nreport = \"# Test report\\n\\nCommand: python -m pytest -q --color=no --tb=short\\nExit code: \" + str(completed.returncode) + \"\\n\\n## Source identity\\n\" + identity + \"\\n\\n## Actual pytest output\\n```text\\n\" + output + \"```\\n\"\n(root / \"TEST_REPORT.md\").write_text(report, encoding=\"utf-8\")\nprint(report, end=\"\")\nsys.exit(completed.returncode)\n"
+    }
+  ],
+  "workspace_generators": []
+}

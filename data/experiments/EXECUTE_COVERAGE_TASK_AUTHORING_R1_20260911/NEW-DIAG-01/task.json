@@ -1,0 +1,30 @@
+{
+  "task_id": "NEW-DIAG-01",
+  "level": "project",
+  "user_request": "缓存策略模块已有可运行实现，但时间边界出现回归。缓存只在 age < ttl 时有效，恰好到期或超过到期必须过期；负TTL和倒退时钟必须抛ValueError。保留is_fresh(created_at, now, ttl)接口。 请先运行现成的 `python run_tests.py` 诊断唯一失败，然后修复并再次运行通过，交付真实TEST_REPORT.md；完整公开合同见README.md。",
+  "capabilities": [
+    "diagnose_existing_tests",
+    "repair_regression",
+    "run_pytest",
+    "record_execution_evidence"
+  ],
+  "workspace_files": [
+    {
+      "path": "README.md",
+      "content": "# 先诊断，再修复\n\n缓存策略模块已有可运行实现，但时间边界出现回归。缓存只在 age < ttl 时有效，恰好到期或超过到期必须过期；负TTL和倒退时钟必须抛ValueError。保留is_fresh(created_at, now, ttl)接口。\n\n项目已安装所需pytest，当前恰好一个测试失败。先执行 `python run_tests.py` 观察真实失败，再修复实现，最后再次执行同一命令使pytest退出0。不要修改tests、run_tests.py或添加pytest/conftest遮蔽测试；不得手写或伪造测试报告。run_tests.py调用实际pytest，原样打印输出、返回pytest退出码，并把输出和源文件SHA写入TEST_REPORT.md。初始失败是待诊断事实，不能声称测试通过。需要持久化报告的命令必须在可写的工作区运行；只读检查产生的文件不会保留。\n\n验收：实现满足上述通用规则；先失败后成功的实际命令记录；原tests和run_tests.py保持不变；TEST_REPORT.md包含实际pytest输出、Exit code: 0与当前源码SHA。不要只描述建议，提交修复后的项目和报告。\n"
+    },
+    {
+      "path": "cache_policy.py",
+      "content": "def is_fresh(created_at, now, ttl):\n    \"\"\"Whether a cached value can be reused at this instant.\"\"\"\n    if ttl < 0 or now < created_at:\n        raise ValueError(\"invalid cache clock or TTL\")\n    return now - created_at <= ttl\n"
+    },
+    {
+      "path": "tests/test_cache_policy.py",
+      "content": "from cache_policy import is_fresh\n\ndef test_before_expiry():\n    assert is_fresh(100, 109, 10) is True\n\ndef test_after_expiry():\n    assert is_fresh(100, 111, 10) is False\n\ndef test_exact_expiry():\n    assert is_fresh(100, 110, 10) is False\n\ndef test_invalid_clock():\n    try:\n        is_fresh(100, 99, 10)\n    except ValueError:\n        return\n    assert False, \"backward clock must be rejected\"\n"
+    },
+    {
+      "path": "run_tests.py",
+      "content": "from pathlib import Path\nimport hashlib\nimport subprocess\nimport sys\n\nroot = Path(__file__).resolve().parent\ncompleted = subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"--color=no\", \"--tb=short\"], cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)\noutput = completed.stdout\nsources = sorted(root.glob(\"*.py\"))\nidentity = \"\\n\".join(f\"{p.name}: {hashlib.sha256(p.read_bytes()).hexdigest()}\" for p in sources)\nreport = \"# Test report\\n\\nCommand: python -m pytest -q --color=no --tb=short\\nExit code: \" + str(completed.returncode) + \"\\n\\n## Source identity\\n\" + identity + \"\\n\\n## Actual pytest output\\n```text\\n\" + output + \"```\\n\"\n(root / \"TEST_REPORT.md\").write_text(report, encoding=\"utf-8\")\nprint(report, end=\"\")\nsys.exit(completed.returncode)\n"
+    }
+  ],
+  "workspace_generators": []
+}

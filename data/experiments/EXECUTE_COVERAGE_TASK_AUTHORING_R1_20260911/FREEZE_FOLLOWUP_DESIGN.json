@@ -1,0 +1,137 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "decision": "design_only_not_implemented",
+  "basis": [
+    {
+      "path": "rwkv_lh/statetune_data.py",
+      "sha256": "9b4806cfe4c4baa3602ae604dc0a7b8b71e2dbb04a879d465ad422a8e2d39a38"
+    },
+    {
+      "path": "rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py",
+      "sha256": "ea38a6e80fb4e7d87158d500854f895e3d6ec7d2b638d77ca3a1d0dc5b2d5dec"
+    },
+    {
+      "path": "rwkv_lh/role_trace_artifacts.py",
+      "sha256": "17a7b0f0888da88abc23b07007e8934b000789a8ea692063e1f10c24037e644a"
+    },
+    {
+      "path": "data/experiments/SELECTOR_SIMILARITY_POLICY_R1_20260910/final210/candidates.jsonl",
+      "sha256": "f9cf8f57536f9410c16c15959a7c30774ba9ec7b0f1f74192de45f6b3a17cdd7"
+    }
+  ],
+  "fixed_anchors": [
+    {
+      "sample_id": "RT-0a613e509ea47433e7c6582a5495de003b39bc8cfd5ec4649be19d7781566977",
+      "split": "dev",
+      "canonical_row_sha256": "8572bba9c83a3132722bc6a7b0fbf8e2f403d4b574c8fea92a20a33345bfbc34"
+    },
+    {
+      "sample_id": "RT-844423a0264337a032f9948f6116c7813d3174fe58b3e1faade05ef93ba23f5f",
+      "split": "dev",
+      "canonical_row_sha256": "80afcc5a533333a5b52974087f7b8a5b32807262334626410800b50f6afda7b1"
+    },
+    {
+      "sample_id": "RT-dde8780d29fadb82ba869c060071725bca1fa30e415921aae567d59c62ac6156",
+      "split": "dev",
+      "canonical_row_sha256": "1d7f72e48d7bd1db1b2a0edf8dcf4e350c922bc085f635c5c51a1ad07291d548"
+    },
+    {
+      "sample_id": "RT-14028404976cfaeebd4702ac13cc61dbbdf29c0a79964c01c31c5e517fe23873",
+      "split": "confirmation",
+      "canonical_row_sha256": "707fc5a98b9b4406efc891ec95c18983d3702c39d8b7b53669bf599f858008e5"
+    },
+    {
+      "sample_id": "RT-fb9180ddf4a7bf8eb9d1f246f64740aa60f7a7d185388bdbf7180b2d22a1f93b",
+      "split": "confirmation",
+      "canonical_row_sha256": "ed7dff3954ba820a23ca1081e4cdb5016a13e4457ceb8dc9353ace328b8635dd"
+    }
+  ],
+  "gate_interpretation": "保留原始再现完整比对与正式候选status=valid硬门。raw pool的invalid原样保留为证据，不可直接冻结；只有正式筛选再审effective candidate可作为candidate_manifest。若要求raw pool也必须valid，则与消费当前因相似度失败的池不相容，必须明确报告不能满足，不能暗中跳门。",
+  "ordered_calls": [
+    {
+      "step": 1,
+      "function": "role_trace_dataset_v1.extract_registration / load_source_run / extract_source",
+      "design": "原始提取默认路径不变。新增正式extract_reviewed_registration编排，同一生产extract_registration重提取每份密封raw来源。多个原始注册按有序列表逐项pin注册/manifest/成员SHA，各用自己准入条件，合并后重复sample_id拒绝，不隐式覆盖。不新增角色协议构造器。"
+    },
+    {
+      "step": 2,
+      "function": "extract_reviewed_registration: raw reproduction",
+      "design": "require reproduced_raw_manifest == sealed_raw_manifest，校验全部生成成员bytes/SHA与密封原工件一致。manifest对象全等不等于任意排版字节全等；需逐字节时比较write_artifacts规范序列化manifest bytes。raw invalid原样再现；任何源SHA、输入/token/标签重建错误先拒绝，不允许selection隐去完整性失败。"
+    },
+    {
+      "step": 3,
+      "function": "statetune_data._read_selection -> shared strict selection validator",
+      "design": "密封selection pin raw manifest与成员SHA、有序来源注册SHA、角色、coverage scope、已登记政策/处置清单SHA、kept IDs及完整5anchor身份。验证kept/excluded完全分区原始候选，未知/重复ID、计数错误、政策处置不一致拒绝。policy_evidence_refs只验文件SHA不足，须验证结构和绑定。freeze不重新选择策略。标签仍由原human_reviews生产入口决定，selection不能改标签。"
+    },
+    {
+      "step": 4,
+      "function": "extract_reviewed_registration -> build_artifacts",
+      "design": "按kept IDs取已验证原始行，逐行canonical bytes不变，输入/target/coverage/project_family/split不可改。首轮传selected train加既有3dev/2confirmation，使用原coverage_requirements与collection condition。build_artifacts重算coverage、全切分similarity、counts、真实regression。5anchor必须完整保留，不加入新dev/conf。已有正式prior时仅传selected train及sealed prior和独立expected fingerprint，由现有build_artifacts附加prior；不能再传dev/conf，否则现有实现拒绝。"
+    },
+    {
+      "step": 5,
+      "function": "build_artifacts / write_artifacts",
+      "design": "effective provenance记录raw注册/manifest列表、selection SHA、实现SHA、waiver身份。status只由原quality gates计算，缺execute/相似度失败/缺split仍invalid，不能翻转。审计可保存invalid产物，freeze仍要求valid及所有gates通过。注册新effective manifest和实际fingerprint，不能使用手拼final20旧manifest。"
+    },
+    {
+      "step": 6,
+      "function": "statetune_data.freeze_dataset",
+      "design": "candidate_manifest指正式effective产物，入口保留candidate.status==valid硬门。selection路径调用同一reviewed入口，其内部先raw再现再筛选再审；外层保留reproduced_effective==candidate并校验成员SHA。删除当前freeze末端独立过滤。train/counts/candidate_audit/regression全部来自同一effective bundle。真实regression成员必须等5anchor，fingerprint等登记值。首轮prior=None合法，由首个valid bundle建立fingerprint，不从invalid final20的None假造prior；复用时完整prior不变。"
+    },
+    {
+      "step": 7,
+      "function": "statetune_data.admit_dataset",
+      "design": "训练仍只读取train正文，regression只验密封身份。freeze负责真实成员一致性，manifest保留effective成员引用，admit校验train计数与effective counts一致及regression SHA与effective登记相同，不把dev/conf内容送入optimizer。"
+    }
+  ],
+  "compatibility_and_waiver": [
+    "无selection路径保持现有语义；新增正式审核编排不改变角色协议。",
+    "修改extractor/helper后其SHA改变，旧manifest不能直接与新重提取全等。保留旧证据，按新冻结实现正式重提取并登记新raw/effective manifest，不忽略身份字段，不覆盖旧产物。",
+    "计算实际source tree差异；如涉及waiver current SHA或scope wrapper SHA，必须重新精确复核/签署，不假定旧签自动延续。仍限定原14来源Selector，旧WEB02排除，新来源不能借旧waiver豁免。",
+    "新freeze必须调用或共享已有scope wrapper严格source/role/签署SHA校验；不能仅传内部waiver mapping绕过外部范围门。",
+    "新增selection/来源集合字段须显式schema校验，不把任意密封JSON当政策授权。"
+  ],
+  "real_integration_regression_design": [
+    {
+      "case": "raw-invalid-effective-valid",
+      "setup": "用真实生产trace、双审标签和密封去重结果，经真实extract_registration/build_artifacts，不mock；raw包含真实跨split相似冲突。成功正例等待本轮真实execute且满足原coverage的采集结果。",
+      "expect": "修复前raw valid门/全等拒绝，修复后raw完整再现、effective重审valid、freeze全等并发布。不能伪造coverage或训练行造正例。"
+    },
+    {
+      "case": "excluded-row-integrity",
+      "setup": "在隔离复制的合法trace夹具中篡改一个被selection排除行相关trace或源文件。",
+      "expect": "原始身份/重建先拒绝，不因排除免检，无正式发布。"
+    },
+    {
+      "case": "selection-membership",
+      "setup": "对真实候选分别注册未知/重复ID、错误counts、错误raw SHA、kept与处置冲突。",
+      "expect": "全部拒绝；有效行canonical bytes必须与原记录一致，不能改label/coverage。"
+    },
+    {
+      "case": "five-fixed-anchors",
+      "setup": "分别剔除/替换既有5anchor之一或改fingerprint，复用prior时加入新dev/conf来源。",
+      "expect": "anchor变更拒绝；合法时3dev/2confirmation逐行不变，actual regression/counts/fingerprint一致；新dev/conf按原prior排除规则不进入。"
+    },
+    {
+      "case": "post-selection-coverage",
+      "setup": "真实valid池选择中排除所有真实execute行但保持三split非空；不改任何行coverage。",
+      "expect": "effective required_coverage_per_role=false且invalid，freeze拒绝；现有final20 execute0保持失败。"
+    },
+    {
+      "case": "effective-similarity-and-condition",
+      "setup": "真实selected集合保留已知跨split冲突，或组合不同collection condition来源。",
+      "expect": "原build_artifacts拒绝，不降阈值或改scope。"
+    },
+    {
+      "case": "waiver-scope",
+      "setup": "旧14合法来源外加入旧WEB02、其他角色或不匹配current SHA；另检查合法旧源和无waiver新源。",
+      "expect": "范围越界全拒绝；每次实际执行原范围签署校验；无waiver候选不能混入未登记waiver。"
+    },
+    {
+      "case": "no-selection-initial-and-reuse",
+      "setup": "真实valid来源无selection首轮，然后真实train-only增量加其正式prior。",
+      "expect": "首轮无需prior；复用regression bytes/fingerprint不变；无selection行为保持。"
+    }
+  ],
+  "limits": "本次只写设计，未训练、未执行提取或测试、未改源码/runner/tests/旧证据。成功真实集成夹具尚依赖真实execute和完整既定门通过，不能声称已有正例。轮次A冻结解除后独立修复轮，测试使用独立basetemp，先失败再通过并跑全套；不重切分、不替换5anchor、不以Agent低分禁训。freeze成功/源token校验均不等于optimizer smoke或训练授权。"
+}

@@ -1,0 +1,107 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 24%]
+........................................................................ [ 29%]
+........................................................................ [ 34%]
+........................................................................ [ 39%]
+........................................................................ [ 44%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+................................................................FF....F. [ 59%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 83%]
+........................................................................ [ 88%]
+........................................................................ [ 93%]
+........................................................................ [ 98%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_________ test_single_mock_case_exports_only_an_invalid_coverage_audit _________
+
+mock_controller_case = {'root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_single_mock_cas...e_id': 'LANE:ACTION', 'candidate_id': 'CAND-482f1705d0b1412f', 'checkpoint_id': 'CP-95abe338f3774664', ...}, ...], ...}
+
+    def test_single_mock_case_exports_only_an_invalid_coverage_audit(mock_controller_case):
+        case = mock_controller_case
+        output = case["root"] / "incomplete_coverage_audit"
+>       manifest = extract_registration(case["registration_path"], output)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_trace_dataset_integration.py:358: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py:975: in extract_registration
+    output = validate_output_path(output_dir)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_single_mock_case_exports_0/mock_frozen_run/cases/ROLE-INPUT-CONTROLLER-FIXTURE/incomplete_coverage_audit')
+
+    def validate_output_path(path: Path) -> Path:
+        output = _source_path(Path(path))
+        if "datasets" in output.parts or not any(output.is_relative_to(ROOT / "data" / directory)
+                   for directory in ("experiments", "test_runs")):
+>           raise DatasetIntegrityError("audit output must be under data/experiments or data/test_runs")
+E           rwkv_lh.goal_state_protocols.role_trace_dataset_v1.DatasetIntegrityError: audit output must be under data/experiments or data/test_runs
+
+rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py:156: DatasetIntegrityError
+___ test_focused_scope_must_be_pinned_in_source_before_it_can_relax_coverage ___
+
+mock_controller_case = {'root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_focused_scope_m...e_id': 'LANE:ACTION', 'candidate_id': 'CAND-b443bbd890cb463a', 'checkpoint_id': 'CP-fc5ed8b775f34d33', ...}, ...], ...}
+
+    def test_focused_scope_must_be_pinned_in_source_before_it_can_relax_coverage(mock_controller_case):
+        case = mock_controller_case
+        scope_path = case["root"] / "coverage_scope.json"
+        _write_json(scope_path, {"schema_version": "rwkv-lh.role-trace-coverage-scope.v1",
+                                "objective": "MOCK tool choice at missing targets", "requirements": {"selector_intent": ["missing_target"]}})
+        scope_sha = hashlib.sha256(scope_path.read_bytes()).hexdigest()
+        case["registration"]["coverage_scope"] = {"path": str(scope_path), "sha256": scope_sha}
+        _write_json(case["registration_path"], case["registration"])
+>       with pytest.raises(DatasetIntegrityError, match="not pinned"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'not pinned'
+E         Actual message: 'audit output must be under data/experiments or data/test_runs'
+
+tests/test_role_trace_dataset_integration.py:379: AssertionError
+_______________ test_waived_extraction_records_waiver_provenance _______________
+
+mock_controller_case = {'root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_waived_extracti...e_id': 'LANE:ACTION', 'candidate_id': 'CAND-8afddbb14b7b41ff', 'checkpoint_id': 'CP-6649cf93626c4177', ...}, ...], ...}
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_waived_extraction_records0')
+
+    def test_waived_extraction_records_waiver_provenance(mock_controller_case, tmp_path):
+        case = mock_controller_case
+        frozen_sha, current_sha = _stale_frozen_manifest(case)
+        _write_json(case["registration_path"], case["registration"])
+        with pytest.raises(DatasetIntegrityError, match="both the reviewed document"):
+            extract_registration(case["registration_path"], case["root"] / "waiver_missing_pin",
+                                 equivalence_waiver={WAIVER_TARGET: (frozen_sha, current_sha)})
+        path, sha = _write_waiver(tmp_path, _waiver_document([_waiver_entry(WAIVER_TARGET, frozen_sha, current_sha)]))
+        waiver = read_equivalence_waiver(path, sha)
+>       manifest = extract_registration(case["registration_path"], case["root"] / "waived_audit",
+                                        equivalence_waiver=waiver, equivalence_waiver_sha256=sha)
+
+tests/test_role_trace_dataset_integration.py:515: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py:975: in extract_registration
+    output = validate_output_path(output_dir)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest_execute_authoring_a_20260911/test_waived_extraction_records0/mock_frozen_run/cases/ROLE-INPUT-CONTROLLER-FIXTURE/waived_audit')
+
+    def validate_output_path(path: Path) -> Path:
+        output = _source_path(Path(path))
+        if "datasets" in output.parts or not any(output.is_relative_to(ROOT / "data" / directory)
+                   for directory in ("experiments", "test_runs")):
+>           raise DatasetIntegrityError("audit output must be under data/experiments or data/test_runs")
+E           rwkv_lh.goal_state_protocols.role_trace_dataset_v1.DatasetIntegrityError: audit output must be under data/experiments or data/test_runs
+
+rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py:156: DatasetIntegrityError
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_dataset_integration.py::test_single_mock_case_exports_only_an_invalid_coverage_audit
+FAILED tests/test_role_trace_dataset_integration.py::test_focused_scope_must_be_pinned_in_source_before_it_can_relax_coverage
+FAILED tests/test_role_trace_dataset_integration.py::test_waived_extraction_records_waiver_provenance
+3 failed, 1461 passed in 376.69s (0:06:16)

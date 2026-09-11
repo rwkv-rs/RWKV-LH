@@ -1,0 +1,68 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_one",
+  "decision": "accept_for_bounded_production_collection_with_explicit_limitations",
+  "collection_can_freeze": true,
+  "agent_metrics": "No new Agent run or score; review of author evidence only.",
+  "checks": [
+    {
+      "task_id": "NEW-DIAG-01",
+      "program_exact_private_file": true,
+      "private_sha256": "b6867aeb7b7dffa12128ecf473578e809a6b5273bfa224d76f7d74fb5086b5e3",
+      "workspace_paths": [
+        "README.md",
+        "cache_policy.py",
+        "tests/test_cache_policy.py",
+        "run_tests.py"
+      ],
+      "helper_prints_report": true
+    },
+    {
+      "task_id": "NEW-DIAG-02",
+      "program_exact_private_file": true,
+      "private_sha256": "ea0f632dc5eb70a9a509480f7fe5b5fb9cde9fb9405a78b9956d44f47993c9ba",
+      "workspace_paths": [
+        "README.md",
+        "stock_summary.py",
+        "tests/test_stock_summary.py",
+        "run_tests.py"
+      ],
+      "helper_prints_report": true
+    }
+  ],
+  "v3_validation_cases": 15,
+  "references_passed": 2,
+  "nonreference_rejected": 13,
+  "resolved_initial_findings": [
+    "Final workspace allowlist rejects nested conftest and extra configuration files.",
+    "Final report is compared byte-for-byte against successful trusted command stdout after recorded exit1 seeded-source-hash output.",
+    "Stock list-input nonmutation is now explicitly probed; V3 rejects the matching mutant."
+  ],
+  "limitations": [
+    "Seed source identity is inferred from stdout text; not independent filesystem attestation at the command boundary.",
+    "Allowlist exempts all files under .pytest_cache/__pycache__; this is not a hostile-bytecode security proof.",
+    "Author V3 results read and internally checked, not independently rerun by this reviewer.",
+    "Reference/mutant/private code remains outside the declared Agent workspace.",
+    "Only new-task objects were inspected; no old control acceptance or Holdout content reviewed."
+  ],
+  "files": {
+    "audit_binding_sha256": "f0c01e9a3bfb42da2c331d1f5e9feb4b855dc3cdfb4c67ff91bc2f2970ae3d92",
+    "author_validation_sha256": "2fcc5914fa5694b5d7cee81a8cd28be18c597ce48663cbd85011a3a9b758a709"
+  },
+  "production_changes": false,
+  "approval_scope": "Bounded collection of new production traces and verification of actual successful command output/execute coverage, with separately reported final behavior and Strict results. Not certification that immutable tests/helper remained untouched at every historical instant or adversarial anti-tamper security.",
+  "residual_contract_gaps": [
+    {
+      "id": "AR1-02-history",
+      "finding": "Only final workspace hashes prove immutable helper/test identity. The bound events are action_finished results and the private checker selects command results; it never checks intervening action mutations or trusted pre-command helper/test hashes. A temporary helper/test replacement followed by command execution and restoration is not rejected by these predicates, although the public contract forbids modifying them. Exact stdout binding proves what a command printed, not which helper/test bytes generated it.",
+      "required_fix": "Bind trusted per-command immutable file identity or reject history mutations to protected helper/tests and test configuration (including command workspace deltas), with a restored-after-tamper mutant. Do not weaken the public contract silently."
+    }
+  ],
+  "remaining_material_blockers_for_limited_collection": [],
+  "scope_clarification": "After reporting the historical-identity gap, parent clarified the round makes no full-history hostile-project tamper-proof claim and will keep that limit explicit. Under that limited claim, collecting frozen production traces need not wait for expanded security instrumentation. The identified gap remains a limitation of interpreting Strict as proof of full process compliance.",
+  "collection_conditions": [
+    "Freeze these exact task/acceptance/binding bytes before model run and retain immutable event evidence.",
+    "Do not report stdout identity as independently attested helper/test/source identity at execution time.",
+    "Do not claim the final checks prove the entire no-modification history; preserve the residual contract gap in reporting.",
+    "Role extraction still requires all ordinary source/token/causal/protocol gates; a successful command does not by itself certify training sufficiency."
+  ]
+}
