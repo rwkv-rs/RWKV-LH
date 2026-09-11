@@ -1,0 +1,27 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_one",
+  "decision": "no_material_correctness_defect_found_in_reviewed_diff",
+  "scope": "Independent read-only static review of the isolated R3 worktree diff and artifact-building callees. No changes to A, production code, tests or datasets; no training approval.",
+  "files_sha256": {
+    "rwkv_lh/statetune_data.py": "47c32c4d92cfd5f0de3962787113415c69e5ef9804f8252677caa2ad3cb7b978",
+    "rwkv_lh/role_trace_selection.py": "0fa420589dd3da3065ff7ec2fccd1fedcbcb6f6d00eaa781a8a9422ae244ed74",
+    "tests/test_statetune_data.py": "a8407b07763bd0c0bfee19ecd33dc85728b98bb60c5f2c6ad3e5d423d1f960f6",
+    "tests/test_role_trace_selection.py": "57adec7a298dae3010a7efd3dd382d34095164e3f13506ffc91ce9bd1bc92020"
+  },
+  "material_findings": [],
+  "verified_properties": [
+    "Raw group source registration and candidate manifest are sealed; source/waiver provenance is matched before replay. Original manifest bytes and every member named in the reproduced manifest must match replay, including unselected candidate rows and review queue. Selecting IDs cannot conceal corrupt dropped raw members.",
+    "Selection IDs must be unique, present in the fully replayed union and have registered exact split counts. Duplicate sample IDs and repeated source-run identities fail closed. Selected rows are original full records; labels, inputs and family-assigned splits are not rewritten.",
+    "Coverage contracts and coverage-scope identity must agree across groups. build_artifacts rechecks split assignment, actual surviving coverage, cross-split similarity, role presence and collection State conditions. Invalid selected audit may be published for diagnosis, but freeze still requires valid and exact re-extraction equality.",
+    "First freeze without prior produces regression only from the effective selected evaluation records. With prior, selected evaluation records must equal independently pinned prior records, and build_artifacts validates fingerprint, coverage and collection-condition identity before reusing them.",
+    "Legacy post-extraction selection now reruns build_artifacts and requires unchanged registered regression fingerprint; removing evaluation members cannot silently retain the raw regression. Effective regression bytes and effective audit replace the stale raw audit in the freeze.",
+    "Registered sample-count minimums and complete token trace checks remain. Downstream admit_dataset still performs tokenizer/model/protocol/token alignment checks."
+  ],
+  "limitations_and_nonblocking_risks": [
+    "Review was static; parent-reported 31 passing targeted tests and RED_V2 were not independently rerun. New selected-path tests mock the raw extractor; successful live multi-group replay with historical waivers remains an integration validation requirement before using the feature.",
+    "Raw groups are replayed without a prior_regression argument. A historical raw candidate originally produced with regression reuse is unsupported and should fail exact equality, rather than be silently reconstructed. Supporting such groups later requires explicit pinned per-group prior metadata and tests.",
+    "The CLI supports first extraction only; prior reuse currently requires the Python API and freezer path. Do not mistake CLI omission of prior for authorization to replace an existing frozen regression. The code relies on independently approved freeze registration to distinguish genuine first freeze from later rounds; it is not a global registry of prior freezes.",
+    "Pinned policy evidence proves document identity, not independent semantic validation of the dedup algorithm or authorization. Existing narrowly approved waiver wrapper/source scopes still need binding review for the new invocation path; this review does not extend any prior waiver signature to new bytes or source groups.",
+    "Coverage audit proves required flags are present, not the separate preregistered 30 rows / 10 boundaries minimum. The stated effective 24 rows / 9 boundaries remains insufficient; no training readiness follows from this code review."
+  ]
+}

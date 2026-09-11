@@ -1,0 +1,73 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "decision": "original_three_logic_defects_fixed_but_scoped_admission_not_closed",
+  "worktree": "/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911",
+  "reviewed_files": [
+    {
+      "path": "rwkv_lh/statetune_data.py",
+      "sha256": "47c32c4d92cfd5f0de3962787113415c69e5ef9804f8252677caa2ad3cb7b978"
+    },
+    {
+      "path": "rwkv_lh/role_trace_selection.py",
+      "sha256": "0fa420589dd3da3065ff7ec2fccd1fedcbcb6f6d00eaa781a8a9422ae244ed74"
+    },
+    {
+      "path": "tests/test_statetune_data.py",
+      "sha256": "a8407b07763bd0c0bfee19ecd33dc85728b98bb60c5f2c6ad3e5d423d1f960f6"
+    },
+    {
+      "path": "tests/test_role_trace_selection.py",
+      "sha256": "57adec7a298dae3010a7efd3dd382d34095164e3f13506ffc91ce9bd1bc92020"
+    }
+  ],
+  "findings": [
+    {
+      "id": "WAIVER_SCOPE_NOT_ENFORCED",
+      "priority": "P1",
+      "file": "rwkv_lh/role_trace_selection.py",
+      "lines": [
+        57,
+        71,
+        72,
+        99
+      ],
+      "fact": "_replay_group仅核原候选与组注册source SHA、waiver SHA一致，随后read_equivalence_waiver返回文件SHA映射直接交生产extract_registration。未读任何双AI范围approval、原source注册scope/addendum或wrapper SHA；group schema也不容纳范围证据。既有waiver解释文字限定原14source Selector且旧WEB02排除，生产read_equivalence_waiver并不解析这些范围。",
+      "impact": "与raw候选完整再现不能代替授权范围；调用者可先用同一内部mapping对另一可重建source生成raw候选，再交新入口得到完全匹配的有效候选。并非声明当前24行已越界，而是本入口无法强制既有审批的scope。不能宣称旧范围门已保留。",
+      "required_fix": "每个有waiver组在重放之前校验已签署source/role/waiver及适用scope addendum身份，复用或正式承接原wrapper范围合同；不能让任意自填scope引用成为授权。为未签source、角色变更、旧WEB02及签署SHA改变添加拒绝回归。更新helper/runner身份必要时重新复核签署。"
+    },
+    {
+      "id": "INTEGRATION_EVIDENCE_LIMIT",
+      "priority": "P2",
+      "file": "tests/test_role_trace_selection.py",
+      "lines": [
+        80,
+        100,
+        120
+      ],
+      "fact": "selected_fixture以opaque机制行经真实build_artifacts构造raw，monkeypatch trace.extract_registration为write_artifacts回放。当前成功/损坏测试实际覆盖artifact/select/freeze集成，不覆盖真实load_source_run/extract_source/waiver source identity/token reconstruction。",
+      "impact": "这些测试能验证原3个机制缺陷，不能等同设计要求的真实生产trace端到端回归；源级错误在排除行内先于selection被拒，尚未以真实trace证明。",
+      "required_fix": "保留现有机制测试；另用既有允许开发trace做真实生产提取的只审计再现和原文件篡改反例，无训练。成功冻结正例若受数据数量门阻挡应如实记录，不能造训练行或降低门。"
+    }
+  ],
+  "closed_root_causes": [
+    {
+      "id": "RAW_VALID_BEFORE_SELECTION",
+      "result": "closed_on_selected_source_path",
+      "evidence": "extract_selected_registration逐组完整raw manifest对象和字节/成员字节比对后select_rows，再build_artifacts；freeze candidate先valid仍成立，但它现在指effective产物，raw invalid不会被翻转。"
+    },
+    {
+      "id": "REGRESSION_MEMBERSHIP_MISMATCH",
+      "result": "closed_for_consistency",
+      "evidence": "新路径regression与selected集合由同一build_artifacts重建；prior分支逐行比较真实dev/conf后只传train并复用prior。legacy筛选重新build并要求fingerprint仍等原登记，不能偷偷移除eval再复制raw regression。"
+    },
+    {
+      "id": "POST_SELECTION_COVERAGE",
+      "result": "closed",
+      "evidence": "新路径和legacy都实际调用build_artifacts重算有效集合coverage/similarity等；新invalid candidate被freeze入口拒绝，legacy再审有valid硬门。"
+    }
+  ],
+  "first_freeze_and_anchors": "prior=None合法，无循环先验回归要求。新路径首次regression来自选中行；它不硬编码既有5anchor，也未结构解析policy evidence，所以保留5anchor仍需正式密封selection/审批绑定和具体数据门核验，不能仅凭通用函数宣称已验证本轮5anchor。已有正式prior时完整成员与指纹检查成立。",
+  "policy_boundary": "read_selection仍仅验证policy_evidence_refs文件身份，不验证处置清单与kept IDs的语义一致。若selection本身由owner/双审明确密封批准，可作为外部政策结果；否则不能宣称生产代码自动执行了预登记去重/5anchor政策。",
+  "validation": "静态独立复核全部指定文件与相关extractor/build_artifacts，无自行运行测试、正式提取或训练。父代理报告31passed与RED_V2不能替代本报告所述端到端局限。",
+  "training_gate": "仅技术复核；本轮256来源去重24行9边界低于30行/10边界门，训练不应启动。Agent低分不是禁训理由。"
+}

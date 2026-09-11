@@ -1,0 +1,23 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "decision": "accept_scope_guard_implementation_only",
+  "wrapper_sha256": "52ae630501edb3d9ee0cad7d79ffb727c734c3f816cadeed668dc4c563f8967a",
+  "tests_sha256": "c23050edefc7332a20a6f5080f58ed8487d4cc02fc57e3b55a10a614ea272554",
+  "supersedes_finding": "INDEPENDENT_REVIEW_TWO.json WAIVER_SCOPE_NOT_ENFORCED only; original report preserved",
+  "verified_facts": [
+    "每个有waiver组在extract_registration之前调用_scoped_waiver。缺少两份密封review即拒绝，不再直接把未绑定scope的mapping传入重放。",
+    "review文件逐份验证SHA；reviewer必须属于waiver名单且不重复；最终生产read_equivalence_waiver继续要求waiver本身accept、恰好两名不同reviewer、合法精确SHA对等原规则。",
+    "两个review均必须accept并精确绑定source_registration SHA、waiver SHA、当前role_trace_selection.py实际SHA、请求role和正整数source_count。source文档此前已按其引用SHA验证。",
+    "没有waiver却提供reviews时拒绝。原raw manifest完整对象/字节及全部成员字节重放比对仍保留。",
+    "新增测试含无scope拒绝、匹配scope允许，以及注册/waiver/wrapper/role/source_count不符拒绝。测试仍属机制测试，未覆盖所有reviewer重复/decision拒绝等分支，但这些分支有明确require。"
+  ],
+  "scope_conclusion": "在既有密封AI复核文件可信、作者身份由工作流保管的信任模型下，原范围缺口已补齐。SHA绑定不是密码学身份签名；沿用既有本地审阅工作流，不引入新的身份保证。必须由两名实际独立reviewer签署本轮新source/waiver/wrapper绑定，旧wrapper审批不能自动移用。本报告只复核guard实现，不代替具体来源的scope审批。",
+  "unchanged_conclusions": [
+    "原三项有效候选/真实regression/筛选后coverage逻辑修复结论保持。",
+    "首轮无需prior；首次5anchor保持仍依赖密封selection与实际审计；复用prior由现有完整行及fingerprint核验。",
+    "policy_evidence_refs仅验文件身份，不自动执行去重政策；需要已批准selection与对账证据。"
+  ],
+  "remaining_validation": "尚未独立运行本轮22真实来源重放。后续双签raw重放和selected valid审计、真实freeze拒绝可补生产链证据；不能将其称为正向训练数据freeze成功。机制测试中的正向freeze也不等于真实数据正向freeze。",
+  "training": "当前报告的24行9边界低于30行10边界门，实际训练不启；本审查不是训练批准。",
+  "actions": "只读代码/测试，未改源码、运行测试、提取、冻结数据或训练。"
+}

@@ -1,0 +1,47 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______________ test_filter_cannot_hide_loss_of_only_execute_row _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_red/test_filter_cannot_hide_loss_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x796b3acf2c40>
+
+    def test_filter_cannot_hide_loss_of_only_execute_row(tmp_path,monkeypatch):
+        reg,_,_=fixture(tmp_path,monkeypatch)
+>       with pytest.raises(ValueError,match='selected.*quality|selection.*coverage'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_role_trace_selection.py:50: Failed
+____ test_selected_source_path_reaudits_before_valid_candidate_publication _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_red/test_selected_source_path_reau0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x796b3acf0770>
+
+    def test_selected_source_path_reaudits_before_valid_candidate_publication(tmp_path,monkeypatch):
+        # The integration entrypoint must exist independently of the freezer so a
+        # raw pool that fails similarity can produce a fully re-audited selection.
+>       selected = importlib.import_module('rwkv_lh.role_trace_selection')
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_trace_selection.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1387: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'rwkv_lh.role_trace_selection'
+import_ = <function _gcd_import at 0x796b3c1d04a0>
+
+>   ???
+E   ModuleNotFoundError: No module named 'rwkv_lh.role_trace_selection'
+
+<frozen importlib._bootstrap>:1324: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_selection.py::test_filter_cannot_hide_loss_of_only_execute_row
+FAILED tests/test_role_trace_selection.py::test_selected_source_path_reaudits_before_valid_candidate_publication
+2 failed in 0.84s

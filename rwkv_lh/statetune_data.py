@@ -8,8 +8,9 @@ import tempfile
 from typing import Any, Mapping
 
 from rwkv_lh import statetune_core as core
+from rwkv_lh import role_trace_selection as selection_api
 from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace
-from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA, _canonical_bytes, _publish_no_replace
+from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA, _canonical_bytes, _publish_no_replace, build_artifacts
 from rwkv_lh.token_budget import VOCAB_PATH, tokenizer
 
 FREEZE_SCHEMA = "rwkv-lh.statetune-data-freeze.v1"
@@ -89,23 +90,7 @@ def _read_selection(registration: Mapping, candidate: Mapping, role: str) -> dic
     reference = registration.get("row_selection")
     if reference is None:
         return None
-    selection = sealed(reference)
-    core.require(selection.get("schema_version") == SELECTION_SCHEMA and selection.get("role") == role,
-                 "unknown or mismatched row selection registration")
-    kept = selection.get("kept_sample_ids")
-    core.require(isinstance(kept, list) and kept and all(isinstance(item, str) and item for item in kept)
-                 and len(set(kept)) == len(kept), "row selection requires unique nonempty sample IDs")
-    counts = selection.get("counts")
-    core.require(isinstance(counts, Mapping) and set(counts) == {"train", "dev", "confirmation"}
-                 and all(type(n) is int and n >= 0 for n in counts.values())
-                 and sum(counts.values()) == len(kept), "row selection counts differ from kept IDs")
-    evidence = selection.get("policy_evidence_refs")
-    core.require(isinstance(evidence, list) and evidence
-                 and all(isinstance(item, Mapping) and set(item) == {"path", "sha256"} for item in evidence),
-                 "row selection requires pinned policy evidence")
-    for item in evidence:
-        core.verify_file(item["path"], item["sha256"])
-    return dict(selection)
+    return selection_api.read_selection(reference, role)
 
 
 def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, output: Path) -> dict:
@@ -124,7 +109,8 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
                  and candidate.get("status") == "valid", "candidate quality audit is not valid")
     core.require(candidate.get("provenance", {}).get("source_registration_sha256") == source_ref["sha256"],
                  "candidate source registration differs")
-    sealed(source_ref)
+    source_document = sealed(source_ref)
+    selected_source = source_document.get("schema_version") == selection_api.SOURCE_SCHEMA
     waiver_ref = registration.get("equivalence_waiver")
     waiver = None
     if waiver_ref is not None:
@@ -137,6 +123,11 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
         core.require(not candidate.get("provenance", {}).get("equivalence_waiver_sha256"),
                      "candidate was admitted under a waiver the freeze does not register")
     selection = _read_selection(registration, candidate, role)
+    if selected_source:
+        core.require(waiver_ref is None, "selected sources register waivers per raw source group")
+        core.require(selection is not None and registration["row_selection"] == source_document["row_selection"]
+                     == candidate.get("provenance", {}).get("row_selection"),
+                     "selected candidate membership registration differs")
     counts = candidate["counts_by_role"]
     core.require(set(counts) == {role}, "freeze must contain exactly the current role")
     effective_counts = dict(selection["counts"]) if selection is not None else dict(counts[role])
@@ -159,28 +150,37 @@ def freeze_dataset(registration: Mapping, *, registration_reference: Mapping, ou
     audit_temporary = Path(tempfile.mkdtemp(prefix=".statetune-freeze-audit-", dir=audit_parent))
     try:
         audit_root = audit_temporary / "verified_candidates"
-        reproduced = trace.extract_registration(Path(source_ref["path"]), audit_root, roles=[role],
-            prior_regression=prior, expected_regression_fingerprint=fingerprint if prior else None,
-            equivalence_waiver=waiver,
-            equivalence_waiver_sha256=waiver_ref["sha256"] if waiver is not None else None)
+        if selected_source:
+            reproduced = selection_api.extract_selected_registration(Path(source_ref["path"]), audit_root,
+                roles=[role], prior_regression=prior,
+                expected_regression_fingerprint=fingerprint if prior else None)
+        else:
+            reproduced = trace.extract_registration(Path(source_ref["path"]), audit_root, roles=[role],
+                prior_regression=prior, expected_regression_fingerprint=fingerprint if prior else None,
+                equivalence_waiver=waiver,
+                equivalence_waiver_sha256=waiver_ref["sha256"] if waiver is not None else None)
         core.require(reproduced == candidate, "candidate audit differs from production re-extraction")
         all_rows = [json.loads(line) for line in (audit_root / "candidates.jsonl").read_text().splitlines() if line]
         core.require(all(row.get("context", {}).get("token_ids_complete") is True for row in all_rows),
                      "dataset contains incomplete server input token traces")
-        if selection is not None:
-            by_id = {row["sample_id"]: row for row in all_rows}
-            core.require(len(by_id) == len(all_rows), "re-extracted rows have duplicate sample IDs")
-            kept_ids = set(selection["kept_sample_ids"])
-            missing = kept_ids - set(by_id)
-            core.require(not missing, "row selection names sample IDs absent from re-extraction")
-            selected_rows = [by_id[sample_id] for sample_id in selection["kept_sample_ids"]]
-            observed = {"train": 0, "dev": 0, "confirmation": 0}
-            for item in selected_rows:
-                core.require(item.get("split") in observed, "selected row has an unknown split")
-                observed[item["split"]] += 1
-            core.require(observed == dict(selection["counts"]),
-                         "row selection counts differ from re-extracted splits")
-            all_rows = selected_rows
+        if selection is not None and not selected_source:
+            all_rows = selection_api.select_rows(all_rows, selection)
+            audit_rows = all_rows
+            if prior is not None:
+                expected = [row for split in ("dev", "confirmation") for row in prior["samples_by_split"][split]]
+                core.require(sorted((r for r in all_rows if r["split"] != "train"), key=lambda r:r["sample_id"])
+                             == sorted(expected, key=lambda r:r["sample_id"]),
+                             "selected regression members differ from pinned prior")
+                audit_rows = [row for row in all_rows if row["split"] == "train"]
+            effective = build_artifacts(audit_rows, provenance=candidate["provenance"],
+                coverage_requirements=candidate.get("coverage_requirements"), prior_regression=prior,
+                expected_regression_fingerprint=fingerprint if prior else None)
+            core.require(effective.manifest["status"] == "valid", "selected candidate quality audit is not valid")
+            core.require(effective.manifest["regression_fingerprint"] == fingerprint,
+                         "selected regression differs; re-register a fully audited selected-source candidate")
+            candidate = effective.manifest
+            (audit_root / "regression_candidate.json").write_bytes(
+                _canonical_bytes(effective.regression_candidate) + b"\n")
         model_shas = {row["context"]["initial_state"]["model_sha256"] for row in all_rows}
         core.require(len(model_shas) == 1, "one role dataset cannot mix model identities")
         training = [row for row in all_rows if row["split"] == "train"]

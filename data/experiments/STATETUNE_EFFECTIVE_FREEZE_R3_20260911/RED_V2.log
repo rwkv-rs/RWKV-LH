@@ -1,0 +1,70 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_______________ test_filter_cannot_hide_loss_of_only_execute_row _______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_red_v2/test_filter_cannot_hide_loss_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7130dba41f30>
+
+    def test_filter_cannot_hide_loss_of_only_execute_row(tmp_path,monkeypatch):
+        reg,_,_=fixture(tmp_path,monkeypatch)
+>       with pytest.raises(ValueError,match='selected.*quality|selection.*coverage'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_role_trace_selection.py:50: Failed
+____ test_selected_source_path_reaudits_before_valid_candidate_publication _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_red_v2/test_selected_source_path_reau0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7130dbd0ba80>
+
+    def test_selected_source_path_reaudits_before_valid_candidate_publication(tmp_path,monkeypatch):
+        # The integration entrypoint must exist independently of the freezer so a
+        # raw pool that fails similarity can produce a fully re-audited selection.
+>       selected = importlib.import_module('rwkv_lh.role_trace_selection')
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_role_trace_selection.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1387: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'rwkv_lh.role_trace_selection'
+import_ = <function _gcd_import at 0x7130dd2f04a0>
+
+>   ???
+E   ModuleNotFoundError: No module named 'rwkv_lh.role_trace_selection'
+
+<frozen importlib._bootstrap>:1324: ModuleNotFoundError
+______ test_filter_cannot_keep_raw_regression_after_removing_eval_member _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_red_v2/test_filter_cannot_keep_raw_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7130dbb468d0>
+
+    def test_filter_cannot_keep_raw_regression_after_removing_eval_member(tmp_path,monkeypatch):
+        from copy import deepcopy
+        reg,samples,bundle=fixture(tmp_path,monkeypatch)
+        extra=deepcopy(samples[2]);extra['sample_id']='opaque-extra-dev';samples.append(extra)
+        raw=build_artifacts(samples,provenance=bundle.manifest['provenance'])
+        reg['candidate_manifest']=write(tmp_path/'candidate-extra.json',raw.manifest)
+        reg['regression_fingerprint']=raw.manifest['regression_fingerprint']
+        selection=json.loads(Path(reg['row_selection']['path']).read_text())
+        selection.update(kept_sample_ids=['opaque-0','opaque-1','opaque-2','opaque-3'],
+                         counts={'train':2,'dev':1,'confirmation':1})
+        reg['row_selection']=write(tmp_path/'selection-extra.json',selection)
+        _mock_extract(monkeypatch,tmp_path,raw.manifest,samples,{})
+>       with pytest.raises(ValueError,match='selected.*regression'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_role_trace_selection.py:75: Failed
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_selection.py::test_filter_cannot_hide_loss_of_only_execute_row
+FAILED tests/test_role_trace_selection.py::test_selected_source_path_reaudits_before_valid_candidate_publication
+FAILED tests/test_role_trace_selection.py::test_filter_cannot_keep_raw_regression_after_removing_eval_member
+3 failed in 0.82s

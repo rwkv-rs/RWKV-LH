@@ -7,7 +7,7 @@ import pytest
 
 from rwkv_lh import statetune_core as core, statetune_data as data
 from rwkv_lh.goal_state_protocols import role_trace_dataset_v1 as trace, selector_intent_v6
-from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA
+from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA, build_artifacts, split_project_family, REQUIRED_COVERAGE
 from rwkv_lh.token_budget import VOCAB_PATH, tokenizer
 
 
@@ -145,14 +145,11 @@ def _freeze_fixture(tmp_path, *, waiver_sha=None, rows=None, selection=None):
     provenance = {"source_registration_sha256": source_ref["sha256"]}
     if waiver_sha is not None:
         provenance["equivalence_waiver_sha256"] = waiver_sha
-    candidate = {"schema": ARTIFACT_SCHEMA, "purpose": "audit_candidate_only", "status": "valid",
-        "provenance": provenance,
-        "counts_by_role": {"selector_intent": {"train": 3, "dev": 1, "confirmation": 1}},
-        "regression_fingerprint": "a" * 64, "regression_reused": False}
+    candidate = build_artifacts(rows or _selection_rows(), provenance=provenance).manifest
     registration = {"schema_version": data.FREEZE_SCHEMA, "role": "selector_intent",
         "authorization": authorization, "candidate_manifest": write(tmp_path / "audit.json", candidate),
         "source_registration": source_ref,
-        "minimum_counts": {"train": 1, "dev": 1, "confirmation": 1}, "regression_fingerprint": "a" * 64}
+        "minimum_counts": {"train": 1, "dev": 1, "confirmation": 1}, "regression_fingerprint": candidate["regression_fingerprint"]}
     if selection is not None:
         registration["row_selection"] = write(tmp_path / "selection.json", selection)
     return candidate, registration
@@ -173,11 +170,18 @@ def _mock_extract(monkeypatch, tmp_path, candidate, rows, observed_kwargs):
 
 
 def _selection_rows():
+    families = {}
+    for index in range(200):
+        family = f"opaque-selection-family-{index}"
+        families.setdefault(split_project_family(family), family)
     rows = []
     for index, split in enumerate(["train", "train", "train", "dev", "confirmation"]):
         sample = row()
         sample["sample_id"] = f"RT-{index}"
         sample["split"] = split
+        sample["project_family"] = families[split]
+        sample["input_text"] = {"train":"A", "dev":"B", "confirmation":"C"}[split] * 100
+        sample["coverage"] = {flag: True for flag in REQUIRED_COVERAGE}
         rows.append(sample)
     return rows
 
@@ -238,6 +242,10 @@ def test_freeze_replays_a_registered_row_selection_exactly(tmp_path, monkeypatch
     assert [item["sample_id"] for item in train_rows] == ["RT-0"]
     assert manifest["counts"] == {"train": 1, "dev": 1, "confirmation": 1}
     assert manifest["row_selection"] == registration["row_selection"]
+    regression = json.loads((output / "regression.json").read_text())
+    assert [r["sample_id"] for r in regression["samples_by_split"]["dev"]] == ["RT-3"]
+    assert [r["sample_id"] for r in regression["samples_by_split"]["confirmation"]] == ["RT-4"]
+    assert manifest["candidate_audit"]["row_count"] == 3
 
 
 @pytest.mark.parametrize("corruption,reason", [

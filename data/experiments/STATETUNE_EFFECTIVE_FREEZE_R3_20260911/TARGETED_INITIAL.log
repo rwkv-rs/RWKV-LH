@@ -1,0 +1,44 @@
+..................F.......                                               [100%]
+=================================== FAILURES ===================================
+____________ test_freeze_replays_a_registered_row_selection_exactly ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_targeted/test_freeze_replays_a_register0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cea6e5350a0>
+
+    def test_freeze_replays_a_registered_row_selection_exactly(tmp_path, monkeypatch):
+        policy_evidence = write(tmp_path / "policy_result.json", {"unit_test_only": True})
+        selection = {"schema_version": data.SELECTION_SCHEMA, "role": "selector_intent",
+            "kept_sample_ids": ["RT-0", "RT-3", "RT-4"],
+            "counts": {"train": 1, "dev": 1, "confirmation": 1},
+            "policy_evidence_refs": [policy_evidence]}
+        candidate, registration = _freeze_fixture(tmp_path, selection=selection)
+        registration_ref = write(tmp_path / "freeze.json", registration)
+        _mock_extract(monkeypatch, tmp_path, candidate, _selection_rows(), {})
+        output = tmp_path / "data/datasets/selected-freeze"
+>       manifest = data.freeze_dataset(registration, registration_reference=registration_ref, output=output)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_statetune_data.py:235: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/statetune_data.py:175: in freeze_dataset
+    effective = build_artifacts(audit_rows, provenance=candidate["provenance"],
+rwkv_lh/role_trace_artifacts.py:238: in build_artifacts
+    rows = [_validated_row(row) for row in samples]
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw = {'schema_version': 'rwkv-lh.role-trace-extraction.v1', 'sample_id': 'RT-0', 'role': 'selector_intent', 'split': 'train', ...}
+
+    def _validated_row(raw: Mapping[str, Any]) -> dict[str, Any]:
+        if not isinstance(raw, Mapping):
+            raise ValueError("each sample must be a JSON object")
+        row = _copy_json(dict(raw))
+        for field in ("sample_id", "role", "project_family", "input_text", "target_text"):
+            if not isinstance(row.get(field), str) or not row[field].strip():
+>               raise ValueError(f"sample field {field} must be nonempty text")
+E               ValueError: sample field project_family must be nonempty text
+
+rwkv_lh/role_trace_artifacts.py:123: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_statetune_data.py::test_freeze_replays_a_registered_row_selection_exactly
+1 failed, 25 passed in 0.96s

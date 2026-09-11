@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_selected_source_cannot_bypass_scoped_waiver_review ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH-freeze-effective-r3-20260911/data/test_runs/pytest_effective_scope_red/test_selected_source_cannot_by0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75ccd8b15ba0>
+
+    def test_selected_source_cannot_bypass_scoped_waiver_review(tmp_path,monkeypatch):
+        api,document,_,_,raw_root,_=selected_fixture(tmp_path,monkeypatch)
+        waiver=write(tmp_path/'accepted-waiver.json',{'schema_version':trace.EQUIVALENCE_WAIVER_SCHEMA,
+            'decision':'accept','reviewers':['MOCK-ONE','MOCK-TWO'],'entries':[{
+                'path':'rwkv_lh/statetune_data.py','frozen_sha256':'c'*64,'current_sha256':'d'*64,
+                'rationale':'Opaque scope-validation fixture only.','evidence_refs':['MOCK-only']}]})
+        original=json.loads((raw_root/'manifest.json').read_text())
+        incoming=[json.loads(line) for line in (raw_root/'candidates.jsonl').read_text().splitlines()]
+        provenance=original['provenance'];provenance['equivalence_waiver_sha256']=waiver['sha256']
+        bundle=build_artifacts(incoming,provenance=provenance)
+        sealed_raw=tmp_path/'raw-with-waiver';write_artifacts(sealed_raw,bundle)
+        group={**document['source_groups'][0],'equivalence_waiver':waiver,
+            'candidate_manifest':{'path':str(sealed_raw/'manifest.json'),'sha256':data.core.sha256_file(sealed_raw/'manifest.json')}}
+        monkeypatch.setattr(trace,'extract_registration',lambda source,output,**kwargs:write_artifacts(output,bundle))
+>       with pytest.raises(ValueError,match='scope.*review'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_role_trace_selection.py:196: Failed
+=========================== short test summary info ============================
+FAILED tests/test_role_trace_selection.py::test_selected_source_cannot_bypass_scoped_waiver_review
+1 failed in 1.02s
