@@ -1,0 +1,34 @@
+{
+  "registered_at": "2026-09-10T15:18:00.303375+00:00",
+  "owner_authorization": "2026-09-10 owner explicitly requests preregistered clustering before Selector training",
+  "input_anchor_path": "/home/chase/GitHub/RWKV-LH/data/experiments/EXECUTION_EVIDENCE_REVALIDATION_R1_20260910/scoped_selector_candidates/candidates.jsonl",
+  "input_anchor_sha256": "0223ff7369298839bbf57534af4c4b22f0dc489f00011933becdd059bb89f1fd",
+  "role": "selector_intent",
+  "algorithm": "UTF8 byte5gram count-vector cosine on unmodified full input_text",
+  "threshold": 0.95,
+  "exact_comparison": "dot^2*10000 >=9025*left_norm_squared*right_norm_squared",
+  "split_policy": "Keep exact existing project-family hash split; never move rows or rename families.",
+  "evaluation_anchor_sample_ids": [
+    "RT-0a613e509ea47433e7c6582a5495de003b39bc8cfd5ec4649be19d7781566977",
+    "RT-844423a0264337a032f9948f6116c7813d3174fe58b3e1faade05ef93ba23f5f",
+    "RT-dde8780d29fadb82ba869c060071725bca1fa30e415921aae567d59c62ac6156",
+    "RT-14028404976cfaeebd4702ac13cc61dbbdf29c0a79964c01c31c5e517fe23873",
+    "RT-fb9180ddf4a7bf8eb9d1f246f64740aa60f7a7d185388bdbf7180b2d22a1f93b"
+  ],
+  "evaluation_anchor_policy": "Preserve all five existing dev/confirmation candidate rows byte-for-byte. No promotion of train rows to validation. These are candidate anchors, not a fabricated valid prior-regression artifact.",
+  "clustering_unit": "Actual selection boundary, including its admitted menu rows; do not fragment three-menu decision evidence.",
+  "graph_edges": "Same-role boundary units connect if any pair of their unmodified input_text rows meets threshold; include same-split edges for transitive leakage control.",
+  "component_policy": "If a component touches any evaluation anchor, remove all train boundary units in it. If a component is train-only, keep one lexicographically smallest (source_run_id,run_id,boundary_event_id) unit and its menu rows; reject other train units.",
+  "evaluation_conflict": "Do not drop or relabel evaluation anchors. Any dev/confirmation cross-split conflict is a failed gate requiring a separately registered next round.",
+  "new_rows": "Only verified production-source samples with already admitted automatic or independent dual-reviewed labels; apply the same fixed rule. New nontrain rows do not replace the five anchors.",
+  "rejections": "Keep a complete exclusion ledger with sample identity, SHA, component, and reason; never relabel exclusions as pending review.",
+  "postchecks": [
+    "existing production cross-split similarity audit reports zero violations",
+    "immutable anchors unchanged",
+    "required execute/mutate/py_root/missing_target coverage",
+    "nonempty splits",
+    "registered sample/boundary minimums"
+  ],
+  "if_insufficient": "Report insufficient evidence and collect a separately registered source; never change threshold, input normalization, tie-break, or fixed splits to pass.",
+  "optimizer_steps": 0
+}

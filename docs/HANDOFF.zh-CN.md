@@ -1,5 +1,21 @@
 # 当前交接
 
+## 2026-09-11 Selector 边界试采已KEEP，定向扩量已启动（当前）
+
+完整评测队列已停在24题。新边界pilot原机械记录Strict0/3、completed0/3、3动作、mutation0；全部在登记的第1/2/3个Selector边界run_yielded，不冒充任务成功。6真实边界/18菜单输入token精确重放，截停后无下游生成；机制KEEP。双AI复核后9行准入（6自动/3双审），另9行拒绝；全量固定去重和真实重放后有效51（train46/dev3/confirmation2），status=valid，距500train尚差454。候选manifest SHA 9bf256d45e249989591297331783eab2e655441661b13badd484c06bfa3f2ec7。
+
+SELECTOR_BOUNDARY_BATCH01_20260911已启动12题定向扩量，按原队列[27,39)切片、N=1/2/3循环截停，仅真实执行到所需前序边界。源仍为3ae1efcc，不声称5ff6ed4a已部署或获旧waiver覆盖。Selector训练回归合格并固定State后再重采Executor正式数据；freeze/smoke/train均未启动，optimizer steps=0。完整证据见data/experiments/SELECTOR_BOUNDARY_EFFECTIVE_R1_20260911/REPORT.zh-CN.md。
+
+以下是此前记录，以本段为当前采集模式与数据数量。
+
+## 2026-09-11 Selector 定向采集切换（当前）
+
+按owner最新要求，完整Agent采集队列已停在第2批结束（24题）；第3批未启动。第2批Agent Strict0/12、completed0/12、58动作、mutation2；全量545候选固定去重和真实重放后有效48行（train43/dev3/confirmation2），17独立边界（train15），status=valid，500train目标尚缺457。候选manifest SHA 2e62ded0a5dbe35f67908627bbd74c0c37d88c4cf98c64fa3c61a23f934e8b97。
+
+新的SELECTOR_BOUNDARY_PILOT_R1_20260911已登记并实采：在第1/2/3个durable Selector选择边界截停，前序动作真实执行，目标边界之后不运行Executor/Auditor；原生产builder/三菜单/模型/协议不变。首题已证明3菜单重放、下游生成0，明确run_yielded。pilot尚不等于500行或完整覆盖。固定合格Selector State后才采集Executor正式训练数据。freeze/smoke/optimizer steps均0。
+
+以下为此前状态记录，以本段为当前数量与采集方式。
+
 ## 2026-09-11 Selector500 第一批有效门（当前）
 
 Agent：Strict0/12、completed0/12、42动作、mutation1，全部重复成功动作耗尽预算。双AI复核和全来源重放后有效33行（train28/dev3/confirmation2），12独立边界（train10），status=valid；execute3，固定5评测anchor未变。目标按owner最新要求是500条有效train，尚缺472；旧30行门槛不再作为开训依据。freeze/smoke/optimizer steps均0。第二批保持已冻结3ae1efcc采集；5ff6ed4a已push但不混入本轮，也不被旧waiver覆盖。详见data/experiments/SELECTOR_500_EFFECTIVE_BATCH01_20260911/FINAL_GATE.json，candidate manifest SHA defcca8165a1aeb908256c15dfeb5fae9367a16a779324f541053f1e5fc548ce。

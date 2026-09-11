@@ -1,0 +1,94 @@
+{
+  "source_path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_BOUNDARY_PILOT_R1_20260911/fresh_selector_candidates/review_queue.jsonl",
+  "source_sha256": "cc095a6d222d7c7f923ddbcb34664c3ce53d0a0e90786e21cf81eaeb5087ea92",
+  "row_count": 12,
+  "boundary_count": 4,
+  "packets": [
+    {
+      "packet_id": "B001",
+      "run_id": "AGENT-LADDER-L3-WEB01",
+      "boundary": "CE-000004",
+      "rows": 3,
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_BOUNDARY_REVIEW_R1_20260911/B001.json",
+      "sha256": "5dfaab97256abacb25f729e55257c2b38bcbeb3480ce2204f21dff544b3897df",
+      "subtask": {
+        "constraints": [],
+        "objective": "Inspect verify_project.py to understand verification requirements and establish baseline hash.",
+        "phase": "observe",
+        "read_roots": [
+          "verify_project.py"
+        ],
+        "success_evidence": [
+          "Successful read of verify_project.py with content returned."
+        ],
+        "write_roots": []
+      }
+    },
+    {
+      "packet_id": "B002",
+      "run_id": "E2E-B07",
+      "boundary": "CE-000031",
+      "rows": 3,
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_BOUNDARY_REVIEW_R1_20260911/B002.json",
+      "sha256": "827bc47409e04d6ee71f2d237eb24cc682e9b185b040b0a88d0f952421147713",
+      "subtask": {
+        "constraints": [
+          "Must not create any other file"
+        ],
+        "objective": "Create endpoint.txt with content based on trimmed mode.txt value: if 'production' write 'https://api.example.com\\n', else write 'https://staging.example.com\\n'.",
+        "phase": "mutate",
+        "read_roots": [],
+        "success_evidence": [
+          "Action reports successful write to endpoint.txt"
+        ],
+        "write_roots": [
+          "endpoint.txt"
+        ]
+      }
+    },
+    {
+      "packet_id": "B003",
+      "run_id": "E2E-B17",
+      "boundary": "CE-000030",
+      "rows": 3,
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_BOUNDARY_REVIEW_R1_20260911/B003.json",
+      "sha256": "689f1ac239d3dd60ae940718fec4c158dbe6ba3bc25a60da10ce68e54071f904",
+      "subtask": {
+        "constraints": [],
+        "objective": "Read users.json to obtain the list of users and their active status.",
+        "phase": "observe",
+        "read_roots": [
+          "users.json"
+        ],
+        "success_evidence": [
+          "Action successfully reads users.json and returns its contents in the result projection."
+        ],
+        "write_roots": []
+      }
+    },
+    {
+      "packet_id": "B004",
+      "run_id": "E2E-B17",
+      "boundary": "CE-000051",
+      "rows": 3,
+      "path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_BOUNDARY_REVIEW_R1_20260911/B004.json",
+      "sha256": "02550fd126296eb413bc0f482a1dbbe1801c28e2680671f8b4b641b7ab0eb7da",
+      "subtask": {
+        "constraints": [],
+        "objective": "Read users.json to obtain the list of users and their active status.",
+        "phase": "observe",
+        "read_roots": [
+          "users.json"
+        ],
+        "success_evidence": [
+          "Action successfully reads users.json and returns its contents in the result projection."
+        ],
+        "write_roots": []
+      }
+    }
+  ],
+  "authorization": "Owner authorized two independent AI Selector semantic reviewers; Selector500 campaign preserves that authorization.",
+  "rule": "Review every row using only source-visible evidence. Accept original, explicit eligible correction, or reject ambiguous/unsupported. No fabricated evidence or automatic training approval.",
+  "independence": "No reading other reviewer decisions before submission; disagreements excluded.",
+  "optimizer_steps": 0
+}

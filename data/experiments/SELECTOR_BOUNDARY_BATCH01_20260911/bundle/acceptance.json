@@ -1,0 +1,427 @@
+{
+  "schema_version": "rwkv-selector-500-collection.acceptance.v1",
+  "cases": {
+    "E2E-LH07": {
+      "checks": [
+        {
+          "kind": "service_migration",
+          "directory": "services",
+          "count": 8
+        },
+        {
+          "kind": "json_equals",
+          "path": "migration_report.json",
+          "value": {
+            "migrated": [
+              "service-01",
+              "service-02",
+              "service-03",
+              "service-04",
+              "service-05",
+              "service-06",
+              "service-07",
+              "service-08"
+            ]
+          }
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_compatibility.py"
+          ],
+          "exit_code": 0
+        }
+      ]
+    },
+    "AGENT-LADDER-L4-LEDGER01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nfrom html.parser import HTMLParser\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\nclass Parser(HTMLParser):\n    def __init__(self) -> None:\n        super().__init__()\n        self.ids: set[str] = set()\n        self.labels = 0\n        self.assets: set[str] = set()\n\n    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:\n        values = {key: value or \"\" for key, value in attrs}\n        if values.get(\"id\"):\n            self.ids.add(values[\"id\"])\n        if tag == \"label\":\n            self.labels += 1\n        if tag == \"link\" and values.get(\"href\"):\n            self.assets.add(values[\"href\"])\n        if tag == \"script\" and values.get(\"src\"):\n            self.assets.add(values[\"src\"])\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    html = (ROOT / \"index.html\").read_text(encoding=\"utf-8\")\n    css = (ROOT / \"styles.css\").read_text(encoding=\"utf-8\")\n    js = (ROOT / \"app.js\").read_text(encoding=\"utf-8\")\n    parser = Parser(); parser.feed(html)\n    ids = {\"entry-form\", \"entry-type\", \"entry-amount\", \"entry-date\", \"entry-note\", \"month-picker\", \"month-income\", \"month-expense\", \"month-balance\", \"entry-list\", \"empty-state\"}\n    require(ids <= parser.ids, f\"missing ids: {sorted(ids-parser.ids)}\")\n    require(parser.labels >= 4 and {\"styles.css\", \"app.js\"} <= parser.assets, \"accessible form/assets missing\")\n    require(\"viewport\" in html and ('lang=\"zh-CN\"' in html or \"lang='zh-CN'\" in html), \"responsive Chinese document missing\")\n    for token in (\"--\", \"@media\", \":focus\", \"grid\", \"border-radius\"):\n        require(token in css, f\"CSS token missing: {token}\")\n    require(len(css) >= 1200, \"polished responsive CSS incomplete\")\n    for token in (\"localStorage\", \"JSON.parse\", \"JSON.stringify\", \"calculateMonthlySummary\", \"loadRecords\", \"saveRecords\", \"addRecord\", \"deleteRecord\", \"window.LedgerApp\"):\n        require(token in js, f\"JavaScript contract missing: {token}\")\n    node_test = r\"\"\"\nconst fs=require(\"fs\"),vm=require(\"vm\"); global.window={}; global.document=undefined;\nglobal.localStorage={values:new Map(),getItem(k){return this.values.has(k)?this.values.get(k):null},setItem(k,v){this.values.set(k,String(v))},removeItem(k){this.values.delete(k)}};\nvm.runInThisContext(fs.readFileSync(\"app.js\",\"utf8\"),{filename:\"app.js\"}); const api=window.LedgerApp;\nfor(const n of [\"calculateMonthlySummary\",\"loadRecords\",\"saveRecords\",\"addRecord\",\"deleteRecord\"]) if(typeof api[n]!==\"function\") throw new Error(n);\nconst rows=[{id:\"r1\",type:\"income\",amount:1500,date:\"2026-08-03\",note:\"salary\"},{id:\"r2\",type:\"expense\",amount:200,date:\"2026-08-04\",note:\"food\"},{id:\"r3\",type:\"expense\",amount:25.5,date:\"2026-08-09\",note:\"train\"},{id:\"r4\",type:\"income\",amount:99,date:\"2026-07-31\",note:\"old\"}];\nconst summary=api.calculateMonthlySummary(rows,\"2026-08\");\nif(JSON.stringify(summary)!==JSON.stringify({income:1500,expense:225.5,balance:1274.5})) throw new Error(JSON.stringify(summary));\napi.saveRecords(rows,localStorage); if(JSON.stringify(api.loadRecords(localStorage))!==JSON.stringify(rows)) throw new Error(\"storage\");\nconst added=api.addRecord(rows,{id:\"r5\",type:\"expense\",amount:10,date:\"2026-08-10\",note:\"tea\"}); if(added.length!==5||rows.length!==4) throw new Error(\"add\");\nconst deleted=api.deleteRecord(added,\"r2\"); if(deleted.length!==4||deleted.some(x=>x.id===\"r2\")) throw new Error(\"delete\");\nconsole.log(JSON.stringify({summary,ok:true}));\n\"\"\"\n    completed = subprocess.run([\"node\", \"-e\", node_test], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=30, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    require(json.loads(completed.stdout.strip().splitlines()[-1])[\"ok\"] is True, \"Node verification failed\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"localStorage\" in readme and \"python verify_project.py\" in readme, \"README incomplete\")\n    print(\"AGENT-LADDER-L4-LEDGER01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "app.js",
+            "index.html",
+            "styles.css",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "E2E-B08": {
+      "checks": [
+        {
+          "kind": "json_exact_keys",
+          "path": "manifest.json",
+          "keys": [
+            "file",
+            "sha256"
+          ]
+        },
+        {
+          "kind": "sha256_manifest",
+          "source": "payload.txt",
+          "manifest": "manifest.json",
+          "file_field": "file",
+          "digest_field": "sha256"
+        }
+      ]
+    },
+    "E2E-B18": {
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "total.json",
+          "value": {
+            "subtotal": 80.0,
+            "discount": 12.0,
+            "total": 68.0
+          }
+        },
+        {
+          "kind": "json_exact_keys",
+          "path": "total.json",
+          "keys": [
+            "subtotal",
+            "discount",
+            "total"
+          ]
+        }
+      ]
+    },
+    "E2E-LH08": {
+      "checks": [
+        {
+          "kind": "command_exit_stages",
+          "argv": [
+            "python",
+            "check_invariants.py"
+          ],
+          "stages": [
+            "capacity invariant violated"
+          ],
+          "require_success": true
+        },
+        {
+          "kind": "json_equals",
+          "path": "configs/a.json",
+          "value": {
+            "limit": 10,
+            "owner": "alpha"
+          }
+        },
+        {
+          "kind": "json_equals",
+          "path": "configs/b.json",
+          "value": {
+            "reserve": 70,
+            "owner": "beta"
+          }
+        },
+        {
+          "kind": "json_equals",
+          "path": "configs/c.json",
+          "value": {
+            "mode": "safe",
+            "owner": "gamma"
+          }
+        },
+        {
+          "kind": "json_equals",
+          "path": "compensation.json",
+          "value": {
+            "kept": [
+              "b.reserve"
+            ],
+            "rolled_back": [
+              "a.limit",
+              "c.mode"
+            ]
+          }
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "check_invariants.py"
+          ],
+          "exit_code": 0
+        }
+      ]
+    },
+    "AGENT-LADDER-L4-TRACKER01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nfrom tracker import IssueTracker\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef cli(*arguments: str) -> object:\n    completed = subprocess.run([sys.executable, \"tracker_cli.py\", *arguments], cwd=ROOT, text=True, encoding=\"utf-8\", errors=\"replace\", capture_output=True, timeout=20, check=False)\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    return json.loads(completed.stdout.strip().splitlines()[-1])\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"issues.json\"\n        tracker = IssueTracker(path)\n        one = tracker.create(\"Broken login\", \"high\")\n        two = tracker.create(\"Update copy\", \"low\")\n        require((one[\"id\"], two[\"id\"]) == (\"I0001\", \"I0002\"), \"stable ids missing\")\n        require(tracker.close(\"I0001\") is True and tracker.close(\"missing\") is False, \"close behavior wrong\")\n        require([item[\"id\"] for item in tracker.list(status=\"open\")] == [\"I0002\"], \"status filter wrong\")\n        require(tracker.stats() == {\"total\": 2, \"open\": 1, \"closed\": 1, \"high\": 1, \"medium\": 0, \"low\": 1}, \"stats wrong\")\n        export_path = Path(directory) / \"export.json\"\n        require(tracker.export(export_path) == 2 and export_path.is_file(), \"export failed\")\n        imported_path = Path(directory) / \"imported.json\"\n        imported = IssueTracker(imported_path)\n        require(imported.import_file(export_path) == 2, \"import count wrong\")\n        require(imported.stats() == tracker.stats(), \"import round trip wrong\")\n        try:\n            tracker.create(\"bad\", \"urgent\")\n        except ValueError:\n            pass\n        else:\n            raise AssertionError(\"invalid priority accepted\")\n\n        cli_db = str(Path(directory) / \"cli.json\")\n        created = cli(\"--db\", cli_db, \"create\", \"CLI issue\", \"--priority\", \"medium\")\n        require(created[\"id\"] == \"I0001\", \"CLI create wrong\")\n        listed = cli(\"--db\", cli_db, \"list\", \"--status\", \"open\")\n        require([item[\"id\"] for item in listed] == [\"I0001\"], \"CLI list wrong\")\n        stats = cli(\"--db\", cli_db, \"stats\")\n        require(stats[\"open\"] == 1 and stats[\"total\"] == 1, \"CLI stats wrong\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    for token in (\"create\", \"close\", \"list\", \"stats\", \"export\", \"import\", \"python verify_project.py\"):\n        require(token in readme, f\"README token missing: {token}\")\n    print(\"AGENT-LADDER-L4-TRACKER01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "tracker/__init__.py",
+            "tracker/service.py",
+            "tracker/store.py",
+            "tracker_cli.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "E2E-B09": {
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "stats.json",
+          "value": {
+            "row_count": 3,
+            "total_score": 45,
+            "average_score": 15
+          }
+        }
+      ]
+    },
+    "E2E-B19": {
+      "checks": [
+        {
+          "kind": "json_exact_keys",
+          "path": "manifest.json",
+          "keys": [
+            "file",
+            "sha256"
+          ]
+        },
+        {
+          "kind": "sha256_manifest",
+          "source": "payload.txt",
+          "manifest": "manifest.json",
+          "file_field": "file",
+          "digest_field": "sha256"
+        }
+      ]
+    },
+    "E2E-LH10": {
+      "checks": [
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests"
+          ],
+          "exit_code": 0
+        },
+        {
+          "kind": "file_contains",
+          "path": "README.md",
+          "text": "mean"
+        },
+        {
+          "kind": "file_contains",
+          "path": "README.md",
+          "text": "clamp"
+        },
+        {
+          "kind": "digest_map",
+          "directory": ".",
+          "manifest": "release_manifest.json",
+          "files": [
+            "src/math_ops.py",
+            "README.md"
+          ]
+        },
+        {
+          "kind": "event_max_count",
+          "event_type": "attempt_started",
+          "count": 35
+        }
+      ]
+    },
+    "E2E-B10": {
+      "checks": [
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python3",
+            "-m",
+            "unittest",
+            "-v",
+            "test_slug.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "kind": "file_not_contains",
+          "path": "slug.py",
+          "text": "NotImplementedError"
+        }
+      ]
+    },
+    "E2E-B20": {
+      "checks": [
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python3",
+            "-m",
+            "unittest",
+            "-v",
+            "test_parity.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "kind": "file_not_contains",
+          "path": "parity.py",
+          "text": "NotImplementedError"
+        }
+      ]
+    },
+    "E2E-LH11": {
+      "checks": [
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 6
+        },
+        {
+          "kind": "artifact_phase_checkpoints",
+          "path": "checkpoints",
+          "count": 5,
+          "facts_per_phase": 2
+        },
+        {
+          "kind": "directory_file_set",
+          "path": "checkpoints",
+          "files": [
+            "phase01.json",
+            "phase02.json",
+            "phase03.json",
+            "phase04.json",
+            "phase05.json"
+          ]
+        },
+        {
+          "kind": "json_equals",
+          "path": "memory_summary.json",
+          "value": {
+            "requirements_source": "early_requirements.txt",
+            "facts": [
+              {
+                "fact_id": "F01",
+                "value": "value-01",
+                "artifact": "artifacts/artifact_003.txt"
+              },
+              {
+                "fact_id": "F02",
+                "value": "value-02",
+                "artifact": "artifacts/artifact_007.txt"
+              },
+              {
+                "fact_id": "F03",
+                "value": "value-03",
+                "artifact": "artifacts/artifact_011.txt"
+              },
+              {
+                "fact_id": "F04",
+                "value": "value-04",
+                "artifact": "artifacts/artifact_015.txt"
+              },
+              {
+                "fact_id": "F05",
+                "value": "value-05",
+                "artifact": "artifacts/artifact_019.txt"
+              },
+              {
+                "fact_id": "F06",
+                "value": "value-06",
+                "artifact": "artifacts/artifact_023.txt"
+              },
+              {
+                "fact_id": "F07",
+                "value": "value-07",
+                "artifact": "artifacts/artifact_027.txt"
+              },
+              {
+                "fact_id": "F08",
+                "value": "value-08",
+                "artifact": "artifacts/artifact_031.txt"
+              },
+              {
+                "fact_id": "F09",
+                "value": "value-09",
+                "artifact": "artifacts/artifact_035.txt"
+              },
+              {
+                "fact_id": "F10",
+                "value": "value-10",
+                "artifact": "artifacts/artifact_039.txt"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
