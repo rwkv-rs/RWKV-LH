@@ -1,0 +1,226 @@
+{
+  "packet_id": "B004",
+  "source_run_id": "SELECTOR_500_BATCH02_20260911-all_zero",
+  "run_id": "AGENT-LADDER-L2-REPAIR01",
+  "boundary_event_id": "CE-000069",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 3,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-402a1f1d1f8e4816",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:observe",
+            "criterion": "The declared observe phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00001",
+              "A00002",
+              "A00003"
+            ],
+            "repair_scope": "step"
+          },
+          {
+            "code": "success_criterion_unproved:0956c61f6619",
+            "criterion": "The observed contents provide a baseline for later comparison of __init__.py (O1) and import analysis (O2).",
+            "evidence_refs": [
+              "A00001",
+              "A00002",
+              "A00003"
+            ],
+            "repair_scope": "step"
+          },
+          {
+            "code": "success_criterion_unproved:bd9805e17cf6",
+            "criterion": "Successful read returns contents of inventory/__init__.py, inventory/storage.py, and inventory/service.py, showing public API names and existing defects.",
+            "evidence_refs": [
+              "A00001",
+              "A00002",
+              "A00003"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 1,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-fa2110fc77a74cae",
+        "source_role": "auditor_step",
+        "step_id": "S1",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "max_file_bytes": "5000000",
+          "max_line_chars": "4000",
+          "max_results": "100",
+          "max_tokens": "4096",
+          "mode": "regex",
+          "path": "inventory/service.py",
+          "pattern": "def release",
+          "recursive": "true"
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [],
+        "observed_roots": [
+          "inventory/service.py"
+        ],
+        "operation": "search_text",
+        "result_metadata": {
+          "match_count": 1,
+          "outcome_type": "success",
+          "truncated": false
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "file_digest": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 3,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "inventory/__init__.py",
+              "inventory/storage.py",
+              "inventory/service.py"
+            ]
+          }
+        },
+        "list_directory": {
+          "path": {
+            "access": "read",
+            "availability": "unavailable",
+            "compatible_path_count": 0,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "inventory/__init__.py",
+              "inventory/storage.py",
+              "inventory/service.py"
+            ]
+          }
+        },
+        "read_file": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 3,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "inventory/__init__.py",
+              "inventory/storage.py",
+              "inventory/service.py"
+            ]
+          }
+        },
+        "read_json": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 3,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "inventory/__init__.py",
+              "inventory/storage.py",
+              "inventory/service.py"
+            ]
+          }
+        },
+        "search_text": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 3,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "inventory/__init__.py",
+              "inventory/storage.py",
+              "inventory/service.py"
+            ]
+          }
+        }
+      },
+      "recent_rejections": [],
+      "successful_action_count": 3,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": "inventory/__init__.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "inventory/storage.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "inventory/service.py",
+          "target_kind": "text_file"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [],
+      "objective": "Inspect inventory package source files and __init__.py to understand API exports, existing implementation defects, and current imports/usage.",
+      "phase": "observe",
+      "read_roots": [
+        "inventory/__init__.py",
+        "inventory/storage.py",
+        "inventory/service.py"
+      ],
+      "success_evidence": [
+        "Successful read returns contents of inventory/__init__.py, inventory/storage.py, and inventory/service.py, showing public API names and existing defects.",
+        "The observed contents provide a baseline for later comparison of __init__.py (O1) and import analysis (O2)."
+      ],
+      "write_roots": []
+    },
+    "eligible_labels": [
+      "search_text",
+      "read_file",
+      "read_json",
+      "file_digest"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-af9cd09d3015d38146c8b2b8f458f53f401098e8ea71e05c013b8691c0d25b08",
+      "request_id": "SELTRACE-969239a7276e4170",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "01bb20682f379459f2176b377dffa6eb66f72f7b71f837467de5d403d77ae533",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "206e766ec63b239dde148b396cc7c4adf660d9b2e3230da64fda51e72291c2ba"
+    },
+    {
+      "sample_id": "RT-1c46ca511dcb6e795a70fd8852f895372966ed5119f434fc7ec7dbac25e4f126",
+      "request_id": "SELTRACE-0da3a365326f44ea",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "9a8f396cac913d817832adf433e42dd40cf1c5a49f7ec7b2904a6e416a3eaa1a",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "ad21297914d1a718c1eeeb630157462a5aefdeda032f86b13d309b2d41d22d23"
+    },
+    {
+      "sample_id": "RT-ef8850518d4ee731192af8d5ced37570803a2ecf4d95c633f7b9787895718299",
+      "request_id": "SELTRACE-fac114543c554765",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "e85e9dd47f66128effc806b8482c26d9de7583f19c7ae4488b5921847f1d1191",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "fb7d613e7b516bb1c752de16deab78e6cd3ca6b24744a858ed1a29c6bcf6c171"
+    }
+  ]
+}
