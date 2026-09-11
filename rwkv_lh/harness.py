@@ -314,7 +314,7 @@ class ActionHarness:
         "write_file": ActionDefinition(
             "write_file", "Atomically write UTF-8 text inside the workspace.", False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "content": {"type": "string", "description": "UTF-8 text"},
                 "overwrite": {
                     "type": "boolean",
@@ -340,7 +340,7 @@ class ActionHarness:
                 "are deleted. RWKV must supply the entire value."
             ), False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "value": {"description": "any JSON value"},
                 "overwrite": {
                     "type": "boolean",
@@ -385,7 +385,7 @@ class ActionHarness:
         "replace_text": ActionDefinition(
             "replace_text", "Replace an exact text occurrence in an existing UTF-8 file.", False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "old": {"type": "string", "description": "exact text"},
                 "new": {"type": "string", "description": "replacement"},
                 "base_sha256": {
@@ -413,7 +413,7 @@ class ActionHarness:
         "remove_line": ActionDefinition(
             "remove_line", "Remove a complete UTF-8 text line from an existing file.", False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "text": {"type": "string", "description": "line text without newline"},
                 "base_sha256": {
                     "type": "string",
@@ -431,7 +431,7 @@ class ActionHarness:
         "append_file": ActionDefinition(
             "append_file", "Append UTF-8 text; this action is non-idempotent.", False, True, False, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "content": {"type": "string", "description": "UTF-8 text"},
             }, ("file_contains",),
             required_arguments=("path", "content"),
@@ -439,7 +439,7 @@ class ActionHarness:
         "delete_file": ActionDefinition(
             "delete_file", "Delete one explicitly scoped path.", False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "missing_ok": {"type": "boolean", "default": False},
                 "recursive": {"type": "boolean", "default": False},
             }, ("file_absent",),
@@ -449,7 +449,7 @@ class ActionHarness:
         "make_directory": ActionDefinition(
             "make_directory", "Create a directory inside the workspace.", False, True, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "parents": {"type": "boolean", "default": True},
             }, ("file_exists",),
             failure_observation_cacheable=True,
@@ -482,7 +482,7 @@ class ActionHarness:
                 "file; read-only and never modifies anything."
             ), True, False, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
             },
             failure_observation_cacheable=True,
             required_arguments=("path",),
@@ -495,7 +495,7 @@ class ActionHarness:
             True,
             30.0,
             {
-                "path": {"type": "string", "default": ".", "description": "relative directory"},
+                "path": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
                 "recursive": {"type": "boolean", "default": False},
                 "max_entries": {"type": "integer", "minimum": 1, "maximum": 1024, "default": 1024},
                 "start_after": {"type": "string", "default": "", "description": "prior page next_cursor path"},
@@ -575,7 +575,7 @@ class ActionHarness:
         "read_file": ActionDefinition(
             "read_file", "Observe one exact tokenizer-bounded UTF-8 byte range; continue only from next_start_byte.", True, False, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "start_byte": {"type": "integer", "minimum": 0, "default": 0},
                 "max_tokens": {"type": "integer", "minimum": 256, "maximum": 8192, "default": 4096},
             },
@@ -593,7 +593,7 @@ class ActionHarness:
             ),
             True, False, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "start_byte": {
                     "type": "integer",
                     "minimum": 0,
@@ -613,7 +613,7 @@ class ActionHarness:
         "bind_evidence": ActionDefinition(
             "bind_evidence", "Read an exact line span and retain its source locator and quote.", True, False, True, 30.0,
             {
-                "path": {"type": "string", "description": "relative path"},
+                "path": {"type": "string", "description": "path relative to the workspace root"},
                 "start_line": {"type": "integer", "minimum": 1},
                 "end_line": {"type": "integer", "minimum": 1},
                 "source": {"type": "string", "default": "", "description": "source label or URL"},
@@ -634,7 +634,7 @@ class ActionHarness:
             True, False, True, 120.0,
             {
                 "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
-                "cwd": {"type": "string", "default": ".", "description": "relative directory"},
+                "cwd": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
                 "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
                 "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
                 "expected_exit_code": {
@@ -658,7 +658,7 @@ class ActionHarness:
             ), False, True, False, 120.0,
             {
                 "argv": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
-                "cwd": {"type": "string", "default": ".", "description": "relative directory"},
+                "cwd": {"type": "string", "default": ".", "description": "directory relative to the workspace root"},
                 "timeout": {"type": "number", "exclusiveMinimum": 0, "maximum": 120.0, "default": 120.0},
                 "env": {"type": "object", "default": {}, "description": "explicit environment additions"},
                 "expected_exit_code": {
@@ -1663,6 +1663,49 @@ class ActionHarness:
         del goal
         yield
 
+    @staticmethod
+    def _normalize_path_literal(value: str | Path) -> str:
+        """Deterministic alias normalization; never guesses an identity.
+
+        The model does not own path invention: known transport artifacts are
+        absorbed here — surrounding quotes, backslash separators, ``./``
+        segments, and the sandbox mount alias ``/workspace`` (commands really
+        do observe the workspace at that absolute path inside bubblewrap).
+        Anything beyond these exact rewrites stays untouched.
+        """
+        text = str(value or "").strip()
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+            text = text[1:-1].strip()
+        text = text.replace("\\", "/")
+        if text == "/workspace":
+            return "."
+        if text.startswith("/workspace/"):
+            text = text[len("/workspace/"):]
+        while text.startswith("./"):
+            text = text[2:]
+        return text or "."
+
+    def _nearest_workspace_paths(self, root: Path, missing: Path, *, limit: int = 5) -> list[str]:
+        """List existing workspace paths closest to a missed target (evidence only)."""
+        wanted = missing.name.casefold()
+        stem = missing.stem.casefold()
+        exact: list[str] = []
+        partial: list[str] = []
+        seen = 0
+        for base, directories, files in os.walk(root):
+            directories.sort()
+            for name in sorted(files) + directories:
+                seen += 1
+                if seen > 5000:
+                    return sorted(exact)[:limit] or sorted(partial)[:limit]
+                relative = str((Path(base) / name).relative_to(root))
+                lowered = name.casefold()
+                if lowered == wanted:
+                    exact.append(relative)
+                elif stem and stem in lowered:
+                    partial.append(relative)
+        return sorted(exact)[:limit] or sorted(partial)[:limit]
+
     def resolve_path(
         self,
         goal: GoalState,
@@ -1671,14 +1714,24 @@ class ActionHarness:
         must_exist: bool = False,
     ) -> Path:
         root = Path(goal.workspace_root).resolve(strict=True)
-        raw = Path(str(value or "").strip())
+        raw = Path(self._normalize_path_literal(value))
         candidate = raw if raw.is_absolute() else root / raw
         lexical = Path(os.path.abspath(candidate))
         try:
             lexical.relative_to(root)
         except ValueError as exc:
             raise ScopeViolation(f"path escapes goal workspace: {value}") from exc
-        resolved = candidate.resolve(strict=must_exist)
+        try:
+            resolved = candidate.resolve(strict=must_exist)
+        except FileNotFoundError as exc:
+            # Structured near-miss evidence: the repair feedback carries real
+            # workspace literals to choose from. Never a silent correction.
+            # The exception type is preserved so outcome classification stays
+            # "not_found" for downstream repair routing.
+            nearest = self._nearest_workspace_paths(root, raw)
+            hint = ("; nearest existing workspace paths: " + ", ".join(nearest)
+                    if nearest else "")
+            raise FileNotFoundError(f"path does not exist: {value}{hint}") from exc
         try:
             resolved.relative_to(root)
         except ValueError as exc:

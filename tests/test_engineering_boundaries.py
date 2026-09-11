@@ -35,6 +35,33 @@ def test_command_sandbox_does_not_share_host_network(tmp_path):
     assert "--share-net" not in command
 
 
+def test_path_aliases_resolve_deterministically_without_guessing(tmp_path):
+    from rwkv_lh.harness import ScopeViolation
+
+    goal = _goal(tmp_path)
+    root = Path(goal.workspace_root)
+    (root / "src").mkdir()
+    (root / "src" / "app.py").write_text("print('x')\n")
+    harness = ActionHarness(sandbox_commands=False)
+    # Known transport artifacts are absorbed: sandbox mount alias, ./ segments,
+    # backslash separators, surrounding quotes.
+    for alias in ("/workspace/src/app.py", "./src/app.py", "src\\app.py", '"src/app.py"'):
+        assert harness.resolve_path(goal, alias, must_exist=True) == root / "src" / "app.py"
+    assert harness.resolve_path(goal, "/workspace") == root
+    # Escapes still fail closed — normalization never widens scope.
+    for escape in ("../outside.txt", "/etc/passwd", "/workspace/../outside.txt"):
+        with pytest.raises(ScopeViolation):
+            harness.resolve_path(goal, escape)
+    # A miss returns structured near-miss evidence, never a silent correction;
+    # the exception type stays FileNotFoundError so the outcome classification
+    # remains "not_found" for repair routing.
+    with pytest.raises(FileNotFoundError, match="nearest existing workspace paths: src/app.py"):
+        harness.resolve_path(goal, "app.py", must_exist=True)
+    with pytest.raises(FileNotFoundError, match="does not exist") as no_hint:
+        harness.resolve_path(goal, "unrelated_name.bin", must_exist=True)
+    assert "nearest" not in str(no_hint.value)
+
+
 def test_check_command_writes_are_never_retained_in_the_workspace(tmp_path):
     goal = _goal(tmp_path)
     harness = ActionHarness(sandbox_commands=False)

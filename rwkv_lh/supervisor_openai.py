@@ -3155,6 +3155,8 @@ class OpenAICompatibleSupervisorClient:
         initial = request.plan_revision == 0
         system_prompt = (
             "ROLE: You are only the Strong Planner for an RWKV execution loop. "
+            "All work happens inside one isolated task workspace; the runtime "
+            "resolves every path within it. "
             "Plan; never execute tools, select or restrict tool names, fill tool "
             "parameters, audit evidence, mark completion, or write a final answer. "
             "Produce the actionable plan without first solving the entire task. "
