@@ -1,5 +1,11 @@
 # StateTune 管线现状
 
+## 2026-09-11 数据链整理结论（当前）
+
+当前有效57（52train/3dev/2confirmation），但621准入候选中的231双审纠正仅保留2行，read_file只有1条训练行。候选valid不等于覆盖了当前Selector主要缺陷。Owner要求先整理并提交方案，暂不扩题/训练；已启动的boundary batch02仅按原口径收尾。
+
+旧流程确有按缺陷seed构造变体、再选100家族×5变体形成500train的路径；当前production-trace抽取和freeze不是它的等价替代。建议将新来源合同、语义去重/对照保留和小规模种子验证分开定稿，不原样恢复退役协议，不伪造server token或执行事实。详见 [完整报告](../data/experiments/SELECTOR_DATA_PIPELINE_REVIEW_R1_20260911/REPORT.zh-CN.md) 与 [方案](../data/experiments/SELECTOR_DATA_PIPELINE_REVIEW_R1_20260911/PROPOSAL.zh-CN.md)。本轮只读核对及文档留证，生产代码与既有数据未改，freeze/smoke/train均未启动。
+
 ## 2026-09-11 Selector 边界试采已KEEP，定向扩量已启动（当前）
 
 完整评测队列已停在24题。新边界pilot原机械记录Strict0/3、completed0/3、3动作、mutation0；全部在登记的第1/2/3个Selector边界run_yielded，不冒充任务成功。6真实边界/18菜单输入token精确重放，截停后无下游生成；机制KEEP。双AI复核后9行准入（6自动/3双审），另9行拒绝；全量固定去重和真实重放后有效51（train46/dev3/confirmation2），status=valid，距500train尚差454。候选manifest SHA 9bf256d45e249989591297331783eab2e655441661b13badd484c06bfa3f2ec7。

@@ -1,5 +1,13 @@
 # 当前交接
 
+## 2026-09-11 Selector 数据链完整整理与方案（当前）
+
+Owner要求先完整整理再给方案，暂不扩大采集或启动训练。已完成首个12题边界扩量批：原机械Strict0/12、completed0/12、12动作、mutation0，收集终点为run_yielded。当前已重放有效57行（train52/dev3/confirmation2）；来源621条准入候选中有231条双审纠正、82真实边界，train子集为183纠正行/65边界，但最终仅保留2纠正行。主要训练缺陷信号被筛选大量排除，不能继续只以valid和数量作为数据适用性结论。
+
+完整对照与缺陷矩阵见 [整理报告](../data/experiments/SELECTOR_DATA_PIPELINE_REVIEW_R1_20260911/REPORT.zh-CN.md)，建议的种子→受控派生→验证→筛选→StateTune路线见 [待定稿方案](../data/experiments/SELECTOR_DATA_PIPELINE_REVIEW_R1_20260911/PROPOSAL.zh-CN.md)。新来源类型和去重策略尚未实施；旧规则/数据/成绩/5评测anchor未改。分析证据清单SHA：3090f421219ec9fd8a2b35713341f5819eea11a5bd26983abbc838e57277b8f9。
+
+已登记的边界batch02已经收尾并完成双AI复核；其32自动候选/40待审原始记录在独立补充文件登记，不纳入上述冻结621行快照，也未宣布增加有效数据。后续不自动启动新批次。optimizer steps=0。以下是此前记录，以本段为当前任务方向。
+
 ## 2026-09-11 Selector 边界试采已KEEP，定向扩量已启动（当前）
 
 完整评测队列已停在24题。新边界pilot原机械记录Strict0/3、completed0/3、3动作、mutation0；全部在登记的第1/2/3个Selector边界run_yielded，不冒充任务成功。6真实边界/18菜单输入token精确重放，截停后无下游生成；机制KEEP。双AI复核后9行准入（6自动/3双审），另9行拒绝；全量固定去重和真实重放后有效51（train46/dev3/confirmation2），status=valid，距500train尚差454。候选manifest SHA 9bf256d45e249989591297331783eab2e655441661b13badd484c06bfa3f2ec7。
