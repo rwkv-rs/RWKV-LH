@@ -1,0 +1,42 @@
+{
+  "reviewer": "AI reviewer /root/waiver_review_two",
+  "decision": "accept",
+  "registration_sha256": "717596f5dbe17743ffdf5e96d773d531a6db74259a36a1524bc966f0e8395e8d",
+  "waiver_sha256": "35336bf56a826881827f42dd1e8f8d85411a864f50e04578f78ce3e7b4542184",
+  "wrapper_sha256": "52ae630501edb3d9ee0cad7d79ffb727c734c3f816cadeed668dc4c563f8967a",
+  "role": "selector_intent",
+  "source_count": 4,
+  "proposal_sha256": "d8fc541dab7841e2743482fabb3bda4562c8b3450b7d5384282abb7cfa75a08d",
+  "source_ids": [
+    [
+      "EXECUTE_COVERAGE_COLLECTION_R2_20260911-all_zero",
+      "RP-CLI-01"
+    ],
+    [
+      "EXECUTE_COVERAGE_COLLECTION_R2_20260911-all_zero",
+      "RP-WEB-02"
+    ],
+    [
+      "EXECUTE_COVERAGE_COLLECTION_R2_20260911-all_zero",
+      "NEW-DIAG-01"
+    ],
+    [
+      "EXECUTE_COVERAGE_COLLECTION_R2_20260911-all_zero",
+      "NEW-DIAG-02"
+    ]
+  ],
+  "rationale": "逐个源码清单核对生产SOURCE_CODE_PATHS，四来源实际唯一差异是statetune_data.py；旧10项历史豁免对这些来源均不生效，因为其冻结/current运行时文件已相等。新采集WEB02按完整source_run_id独立授权，不解除旧REALPROJECT R3 WEB02排除。 本次独立审阅statetune_data从21c0cf45及162e60ee以来的freeze/selection变更及当前scope guard；修改集中于数据准入、筛选再审、回归重建，原角色protocol、prompt/token重建和State transition均保留强制校验。逐组核验全部已登记artifacts SHA、candidate字节SHA、来源注册和提案prospective序列化SHA，且生产校验集合内全部冻结/current差异精确落入提案。当前wrapper在重放前强制两份独立accept记录绑定注册、waiver、wrapper、role和source_count，旧签不可沿用。",
+  "evidence_refs": [
+    "data/experiments/STATETUNE_EFFECTIVE_FREEZE_R3_20260911/INDEPENDENT_REVIEW_TWO.json",
+    "data/experiments/STATETUNE_EFFECTIVE_FREEZE_R3_20260911/INDEPENDENT_REVIEW_TWO_SCOPE_FINAL.json",
+    "data/experiments/STATETUNE_EFFECTIVE_FREEZE_R3_20260911/PYTEST_FINAL.log",
+    "data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/PROPOSAL.json"
+  ],
+  "limits": [
+    "本次accept仅批准精确source注册与wrapper下Selector源身份等价准入；不批准训练、改变标签、增删5anchor或降低覆盖/相似度/数量门。",
+    "随后必须真实重放并核对raw完整bytes、正式selected审计及数据门；本签署不提前声明重放成功。",
+    "全套日志确有1479 passed；本人未重跑测试。原机制测试的mock提取局限仍需真实重放补证。",
+    "生产校验范围SOURCE_CODE_PATHS之外的pyproject包资源登记已变化，未把整个仓库宣称逐字等价；未读取私有验收。",
+    "当前24行9边界低于30/10，不启动训练。"
+  ]
+}

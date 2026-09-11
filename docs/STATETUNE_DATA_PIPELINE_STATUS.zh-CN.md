@@ -1,6 +1,12 @@
 # StateTune 管线现状
 
-更新日期：2026-09-11。新四题Agent采集Strict 0/4、completed 0/4、mutation 0、动作13；三题重复动作无进展，一题Executor协议拒绝。独立Executor1800/3600预算轮结果见[当前交接](HANDOFF.zh-CN.md)，不得混算不同轮次。指定源码提交已push并部署21c0cf45，完整回归1455 passed/0failed/0skipped。原14来源精确waiver已双AI accept；旧126与新43待审全部处置（136共同接受、33拒绝）。74自动+136双审共210候选，按预注册聚类保留20（15/3/2），原5验证anchor不变，超相似对0/81；execute仍0，候选INVALID。最终20条已全部经生产normalize校验，源zero/tokenizer条件通过，详情及R1文字更正见[预检R2](../data/experiments/SELECTOR_TRAINING_PREFLIGHT_R2_20260910/REPORT.zh-CN.md)。freeze_dataset尚未传递waiver与筛选策略再现，首训/optimizer smoke未启动，steps=0。首次freeze可无prior，只有复用既有regression才要求三重pin；不把Agent低分或缺prior造成循环禁训。
+更新日期：2026-09-11。[轮次 A 与当前数据门](../data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/REPORT.zh-CN.md)：**Strict 0/4、completed 0/4、mutation 0、动作 6**；两题无进展、两题协议拒绝。NEW-DIAG-02 三次 check_command 成功取得预期失败诊断，绑定 execute；未修复或交付项目。A 的采集 KEEP 达到，B 不启动，Executor 仍为 1800。
+
+原指定 162e60ee/c6b46d01 已 push。A 提交 67f1edd4，数据冻结修复 5edcccde，完整回归 **1479 passed、0 failed、0 skipped**。新 42 条待审全部处置（34 接受、8 拒绝）；在双签冻结 5edcccde 上精确重放 22 来源的 256 条，按原政策保留 24 条（19/3/2），**status=valid、execute=3**，原五个评测 anchor 不变，全部 24 条 normalize 通过。真实重放与政策候选逐字节一致。共享工作区随后新增的 harness.py / supervisor_openai.py 修改未被本次签名和回归覆盖；首次组合重放的 SHA 拒绝与隔离验证分别留证，他人改动保留。
+
+**首训仍未启动：有效 24 条/9 个独立边界低于预注册 30/10；freeze、smoke、optimizer steps 均为 0，没有新正式数据集版本。** 下一步补登记独立生产采集，保持原去重和评测口径，净增至少 6 条与 1 个边界后再推进冻结/首训。首次 freeze 不虚构 prior。当前部署根 `/home/chase/GitHub/RWKV-LH-execute-coverage-a-20260911`，项目 manifest `02e144adeaa4b3ecee0413b4ef94ef6bc04e415b751fa12baba0ff28798f7211`，engine `7aaffd9167c63c02703bde19c1d36d0ea9bdacdd325faa8800ee44cde7633daf`；服务器未用 Git。新本地数据冻结修复不冒充已部署推理源码。
+
+本轮重放证据清单 SHA-256：`7f7c344f78aed9047ba4945ec509563e580f9d0f5d76274a35da29123dd2543b`。后续本地提交按 AGENTS 由 owner push。以下较早结果保留为历史，以本段为当前状态。
 
 ## 当前具备的能力
 
@@ -14,7 +20,7 @@
 | 完整输入 token | 可保存并证明服务器返回的 full input/BOS；未返回或仅有 delta 的来源仍标未证明 |
 | 正式角色数据 | 本轮未创建 `data/datasets/` 版本，没有合格生产样本量或冻结回归的新增结论 |
 | Native 数值训练后端 | 当前唯一 `statetune_native_model` / `statetune_native_recurrence`；共享 `RWKV7Layout`，2.9B zero/非零 State 全词表对齐、16384 token 反向及冻结底模核验通过 |
-| 正式数据消费 | `scripts/run_state_tune.py freeze` 基础重提取/原子发布已接通，训练只读train；当前waiver与预注册去重派生来源的精确再现尚未接通，不能绕过校验直接消费 |
+| 正式数据消费 | `scripts/run_state_tune.py freeze` 已接通逐组范围化 waiver 重放、密封 selection 与有效成员再审计；当前 24/9 数量门不足，未执行正式 freeze |
 | 优化器训练入口 | `scripts/run_state_tune.py train`：完整源码/模型/数值兼容登记、State-only AdamW、真实 step 与中断日志、候选导出及同一服务 loader 校验；机制单测不计实际角色训练 |
 | 固定角色回归 | `scripts/run_state_tune.py evaluate`：当前阶段 Selector，从持久化快照调用同一输入 builder、Native 服务及生产三菜单投票；固定 dev/confirmation 同时比较 zero/候选，逐菜单与最终投票都不得退化 |
 | 当前角色 State 改善 | 未训练、未得到新 State，也没有修复后 Agent 提升证据 |

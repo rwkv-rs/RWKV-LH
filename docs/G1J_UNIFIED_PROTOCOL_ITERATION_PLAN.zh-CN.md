@@ -1,6 +1,6 @@
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
-更新日期：2026-09-11。适用于当前生产、数据抽取、训练登记和评测；owner最新指令优先。当前结果与具体未满足数据门统一见[当前交接](HANDOFF.zh-CN.md)：审计扇出源码已部署，指定提交已push，双AI重签/语义复核及预注册相似度处置已落地；新四题仍未到命令路径，Executor预算独立轮未KEEP。首次冻结可无prior，复用既有regression才要求三重pin；不得把它改成循环禁训门。Agent低分不禁训，真实execute覆盖与可再现冻结条件尚待满足，optimizer steps=0。后续规范门槛不因本轮结果改写。
+更新日期：2026-09-11。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前结果见[当前交接](HANDOFF.zh-CN.md)：轮次 A Strict 0/4、completed 0/4、mutation 0，真实 execute 覆盖 KEEP；双 AI 复核及当前源码重放后候选 status=valid，24 条/9 边界，仍低于预注册 30/10。冻结重放接口已修复、全套 1479 passed；未 freeze、smoke 或训练，optimizer steps=0。下一步补独立生产采集，数据政策与五个评测 anchor 不变。A KEEP 后 B 不启动；Executor 保持 1800。首次 freeze 不虚构 prior，复用既有 regression 才要求三重 pin；Agent 低分不是禁训理由。后续规范门槛不因结果改写。
 
 已修复 REPAIR 的无条件改计划分支、根证据固定八条截断及数据标签等工程问题。当前工作流程是先 Selector，满足当前角色的来源、标签、预注册覆盖与验证条件后训练，再固定前序 State 推进下一角色。Agent 能力低分不再作为训练前禁令。owner 已取消固定三轮上限；历史训练事实用于追溯，后续按指标、预算和实际 run 管理。
 

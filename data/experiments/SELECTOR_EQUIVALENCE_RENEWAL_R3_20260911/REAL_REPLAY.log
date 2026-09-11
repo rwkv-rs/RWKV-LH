@@ -1,0 +1,21 @@
+{"group": "HISTORICAL14", "manifest": {"path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/HISTORICAL14_raw/manifest.json", "sha256": "38eef0cec8bbe2856874bf7bcc829c89074d7b11ff24b707f92469618f863a8b"}, "rows": 162, "original_candidate_bytes_equal": true, "raw_status": "invalid"}
+{"group": "COMMAND4", "manifest": {"path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/COMMAND4_raw/manifest.json", "sha256": "c415c2407f184663b85e65f6e3de48e6427fb3c0f7a00a3d567a6c223abbf547"}, "rows": 48, "original_candidate_bytes_equal": true, "raw_status": "invalid"}
+{"group": "ROUND_A4", "manifest": {"path": "/home/chase/GitHub/RWKV-LH/data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/ROUND_A4_raw/manifest.json", "sha256": "79e13e5a64b64abae53ab405e421afd63d6852ec5664dc18868f1e90bc43e622"}, "rows": 46, "original_candidate_bytes_equal": true, "raw_status": "invalid"}
+Traceback (most recent call last):
+  File "/home/chase/GitHub/RWKV-LH/temp/replay_selected_sources_renewal_r3_20260911.py", line 72, in <module>
+    manifest = selection.extract_selected_registration(registration_path,out,roles=[P['role']])
+  File "/home/chase/GitHub/RWKV-LH/rwkv_lh/role_trace_selection.py", line 135, in extract_selected_registration
+    candidate, incoming = _replay_group(group, Path(directory)/str(index), roles[0])
+                          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH/rwkv_lh/role_trace_selection.py", line 98, in _replay_group
+    reproduced = trace.extract_registration(Path(source_ref["path"]), output, roles=[role],
+        equivalence_waiver=waiver, equivalence_waiver_sha256=expected_waiver)
+  File "/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py", line 993, in extract_registration
+    source = load_source_run(record, base_dir=registration_path.parent, coverage_scope_sha256=scope_sha,
+                             equivalence_waiver=equivalence_waiver)
+  File "/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py", line 298, in load_source_run
+    waived = _validate_frozen_scope(record, protocol, _json(raw["source_tree_manifest"]),
+                                    waiver=equivalence_waiver)
+  File "/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_state_protocols/role_trace_dataset_v1.py", line 119, in _validate_frozen_scope
+    raise DatasetIntegrityError(f"source production builder/State implementation differs: {path}")
+rwkv_lh.goal_state_protocols.role_trace_dataset_v1.DatasetIntegrityError: source production builder/State implementation differs: rwkv_lh/supervisor_openai.py

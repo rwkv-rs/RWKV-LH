@@ -1,5 +1,13 @@
 # 当前交接
 
+更新日期：2026-09-11。[轮次 A 与当前数据门](../data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/REPORT.zh-CN.md)：**Strict 0/4、completed 0/4、mutation 0、动作 6**；两题无进展、两题协议拒绝。NEW-DIAG-02 三次 check_command 成功取得预期失败诊断，绑定 execute；未修复或交付项目。A 的采集 KEEP 达到，B 不启动，Executor 仍为 1800。
+
+原指定 162e60ee/c6b46d01 已 push。A 提交 67f1edd4，数据冻结修复 5edcccde，完整回归 **1479 passed、0 failed、0 skipped**。新 42 条待审全部处置（34 接受、8 拒绝）；在双签冻结 5edcccde 上精确重放 22 来源的 256 条，按原政策保留 24 条（19/3/2），**status=valid、execute=3**，原五个评测 anchor 不变，全部 24 条 normalize 通过。真实重放与政策候选逐字节一致。共享工作区随后新增的 harness.py / supervisor_openai.py 修改未被本次签名和回归覆盖；首次组合重放的 SHA 拒绝与隔离验证分别留证，他人改动保留。
+
+**首训仍未启动：有效 24 条/9 个独立边界低于预注册 30/10；freeze、smoke、optimizer steps 均为 0，没有新正式数据集版本。** 下一步补登记独立生产采集，保持原去重和评测口径，净增至少 6 条与 1 个边界后再推进冻结/首训。首次 freeze 不虚构 prior。当前部署根 `/home/chase/GitHub/RWKV-LH-execute-coverage-a-20260911`，项目 manifest `02e144adeaa4b3ecee0413b4ef94ef6bc04e415b751fa12baba0ff28798f7211`，engine `7aaffd9167c63c02703bde19c1d36d0ea9bdacdd325faa8800ee44cde7633daf`；服务器未用 Git。新本地数据冻结修复不冒充已部署推理源码。
+
+本轮重放证据清单 SHA-256：`7f7c344f78aed9047ba4945ec509563e580f9d0f5d76274a35da29123dd2543b`。后续本地提交按 AGENTS 由 owner push。以下较早结果保留为历史，以本段为当前状态。
+
 **当前能力：已证明在给定工作区写入代码文件，尚未证明可靠自主创建并交付项目。** 最新三轮独立Agent结果如下，不合并分母：
 
 | 轮次 | Strict | completed | mutation | 动作 | 终止原因 |
