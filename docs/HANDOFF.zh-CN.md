@@ -1,5 +1,9 @@
 # 当前交接
 
+## 2026-09-11 最新de029c88部署完成，R2重测等待Planner余额
+
+已按owner授权上传最新信息流修复及唯一新协议，132/6393文件清单核验、两模型服务健康通过；1502 passed。117道公开任务与原顺序已登记，当前实际开始0/117，无新Agent分数/角色trace，optimizer steps=0。官方余额接口确认不可用，collect被运行前余额门拒绝，未生成整批402失败。充值后可直接执行既有R2 collect；运行中402将暂停剩余队列。新旧trace分目录，不把旧协议数据视为当前valid。[部署和启动说明](../data/experiments/FULL_TRACE_CAMPAIGN_R2_20260911/REPORT.zh-CN.md)。
+
 ## 2026-09-11 ROLE_INFORMATION_FLOW_REPAIR_R1 信息流整改
 
 本轮无新真实Agent评测，Strict / completed / mutation / 终止原因均无修复后数据，不能宣布循环消除。修复前117题队列：严格成功0、completed0、mutation2；77题Planner HTTP402，LH09入口无trace，详细分母及终止原因见[本轮报告](../data/experiments/ROLE_INFORMATION_FLOW_REPAIR_R1_20260911/REPORT.zh-CN.md)。历史角色调用为Selector489、Executor222、Step Auditor107、Final两角色0。
