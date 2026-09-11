@@ -1,0 +1,219 @@
+{
+  "packet_id": "B026",
+  "source_run_id": "SELECTOR_500_BATCH01_20260911-all_zero",
+  "run_id": "E2E-LH03",
+  "boundary_event_id": "CE-000123",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 5,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-772024341d644600",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:observe",
+            "criterion": "The declared observe phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00004",
+              "A00005",
+              "A00006",
+              "A00007"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 2,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-da15cea91c044cb8",
+        "source_role": "auditor_step",
+        "step_id": "S2a",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "max_file_bytes": "5000000",
+          "max_line_chars": "800",
+          "max_results": "100",
+          "max_tokens": "4096",
+          "mode": "literal",
+          "path": "catalog/root_manifest.json",
+          "pattern": "catalog/root_manifest.json",
+          "recursive": "true"
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [],
+        "observed_roots": [
+          "catalog/root_manifest.json"
+        ],
+        "operation": "search_text",
+        "result_metadata": {
+          "match_count": 0,
+          "outcome_type": "success",
+          "truncated": false
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "file_digest": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 4,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "catalog/root_manifest.json",
+              "catalog/regions/east/deep/manifest.json",
+              "catalog/regions/north/manifest.json",
+              "catalog/regions/south/manifest.json"
+            ]
+          }
+        },
+        "list_directory": {
+          "path": {
+            "access": "read",
+            "availability": "unavailable",
+            "compatible_path_count": 0,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "catalog/root_manifest.json",
+              "catalog/regions/east/deep/manifest.json",
+              "catalog/regions/north/manifest.json",
+              "catalog/regions/south/manifest.json"
+            ]
+          }
+        },
+        "read_file": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 4,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "catalog/root_manifest.json",
+              "catalog/regions/east/deep/manifest.json",
+              "catalog/regions/north/manifest.json",
+              "catalog/regions/south/manifest.json"
+            ]
+          }
+        },
+        "read_json": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 4,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "catalog/root_manifest.json",
+              "catalog/regions/east/deep/manifest.json",
+              "catalog/regions/north/manifest.json",
+              "catalog/regions/south/manifest.json"
+            ]
+          }
+        },
+        "search_text": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 4,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "catalog/root_manifest.json",
+              "catalog/regions/east/deep/manifest.json",
+              "catalog/regions/north/manifest.json",
+              "catalog/regions/south/manifest.json"
+            ]
+          }
+        }
+      },
+      "recent_rejections": [],
+      "successful_action_count": 5,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": "catalog/root_manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/east/deep/manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/north/manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/south/manifest.json",
+          "target_kind": "json_file"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [
+        "Do not use directory-list metadata as a substitute for manifest content.",
+        "All paths are catalog-relative."
+      ],
+      "objective": "Read catalog/root_manifest.json and all discovered sub-manifests (catalog/regions/east/deep/manifest.json, catalog/regions/north/manifest.json, catalog/regions/south/manifest.json), extracting each dataset name, manifest catalog-relative path, and depends_on references exactly as written.",
+      "phase": "observe",
+      "read_roots": [
+        "catalog/root_manifest.json",
+        "catalog/regions/east/deep/manifest.json",
+        "catalog/regions/north/manifest.json",
+        "catalog/regions/south/manifest.json"
+      ],
+      "success_evidence": [
+        "Successful read action returns the literal content of every manifest, including dataset names, manifest paths, and dependency lists sufficient to plan the global index."
+      ],
+      "write_roots": []
+    },
+    "eligible_labels": [
+      "search_text",
+      "read_file",
+      "read_json",
+      "file_digest"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-784096e2896e1c21d89cabd39b3456a18fa27a0c34a1a6690246135cc6227b28",
+      "request_id": "SELTRACE-d41a79c9f9f049ae",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "f40dede1959f033f81acd8143feebd43d4f66f14148c65a707cd0a89f8dc365b",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "c7d5809996a6150827cf90936670f6fed5fc9dcaf65ec5668dc6c50f8e9d780d"
+    },
+    {
+      "sample_id": "RT-e4717c00433efb7e66b755119b6ce1af89259e03b95dabe10cd1a17b171891b1",
+      "request_id": "SELTRACE-483de54a6a774880",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "177f181433c5b64312415bc62cda3ea0c070b9ac90a94419078e96fa5d0bd139",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "e41e3a49e58ace148719aaa98f1dd440cb3a4a54d5ad15fb5819328dc8a6fac1"
+    },
+    {
+      "sample_id": "RT-74143bfb237a24dfaa6591fe8be995fc04e55ed2e660ffc6124cab2263e20a68",
+      "request_id": "SELTRACE-45c8f4f274034b3b",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "4b5b74c131eb92e963b290f545551c4cd2e7e50479aface6b3af96d0af09014d",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "680109d186e14f8a9037650c590b0df217b7bd6579caf1abaf1eb2a9a43fe074"
+    }
+  ]
+}

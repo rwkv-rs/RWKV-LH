@@ -1,5 +1,11 @@
 # StateTune 管线现状
 
+## 2026-09-11 Selector500 第一批有效门（当前）
+
+Agent：Strict0/12、completed0/12、42动作、mutation1，全部重复成功动作耗尽预算。双AI复核和全来源重放后有效33行（train28/dev3/confirmation2），12独立边界（train10），status=valid；execute3，固定5评测anchor未变。目标按owner最新要求是500条有效train，尚缺472；旧30行门槛不再作为开训依据。freeze/smoke/optimizer steps均0。第二批保持已冻结3ae1efcc采集；5ff6ed4a已push但不混入本轮，也不被旧waiver覆盖。详见data/experiments/SELECTOR_500_EFFECTIVE_BATCH01_20260911/FINAL_GATE.json，candidate manifest SHA defcca8165a1aeb908256c15dfeb5fae9367a16a779324f541053f1e5fc548ce。
+
+以下为此前记录，以本段为当前数量与阶段状态。
+
 2026-09-11 owner 将目标提高为 **至少500条有效 Selector train 样本**，固定3dev/2confirmation另保留。[Selector500 预注册与启动](../data/experiments/SELECTOR_500_CAMPAIGN_R1_20260911/REPORT.zh-CN.md)：98个公开开发任务已固定队列，首批12题已开始，原数据仍19train/5评测，未声称500达成。首题Strict0/1、completed0/1、mutation1、动作3，因重复成功动作预算耗尽停止，外部文件检查通过但无Final；3自动候选/6待审仅为管线探针，不计最终新增。有效训练样本与独立决策边界分别报告，目标边界至少167。保持原去重和五个评测anchor；Selector训练及固定回归合格后才转Executor。
 
 已按新授权push至3ae1efcc；本轮推理源码也冻结在该提交的隔离工作树，部署根`/home/chase/GitHub/RWKV-LH-selector-500-runtime-r1-20260911`，项目SHA`524a195270d8d10062e87a17a7c0c5dba36ceae3c83e3413ca34c85a01def0c5`，engine SHA`9fdfd8e8b11f6c6de3df30ae9e36088765cf9780831595b49150d4e95375b32a`；132/6393文件核验及服务健康通过，无服务器Git。1479项测试对应本轮冻结代码，不覆盖主工作区正在进行的另一轮修改。以下24/30的数量门描述是较早历史，当前按500train目标执行，训练未启动。

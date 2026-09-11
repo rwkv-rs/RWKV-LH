@@ -1,0 +1,256 @@
+{
+  "packet_id": "B024",
+  "source_run_id": "SELECTOR_500_BATCH01_20260911-all_zero",
+  "run_id": "E2E-LH03",
+  "boundary_event_id": "CE-000021",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 1,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-10d29ef97e7a45ee",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:observe",
+            "criterion": "The declared observe phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00001"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 1,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-fa60860ac55c4fb2",
+        "source_role": "auditor_step",
+        "step_id": "S1",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "max_entries": "1024",
+          "max_tokens": "4096",
+          "path": ".",
+          "recursive": "true",
+          "start_after": ""
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [],
+        "observed_roots": [
+          "."
+        ],
+        "operation": "list_directory",
+        "result_metadata": {
+          "entry_count": 18,
+          "outcome_type": "success",
+          "truncated": false
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "file_digest": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 9,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "list_directory": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 10,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "read_file": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 9,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "read_json": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 9,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        },
+        "search_text": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 19,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "."
+            ]
+          }
+        }
+      },
+      "recent_rejections": [],
+      "successful_action_count": 1,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": ".",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/root_manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/east",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/north",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/south",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/east/deep",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/east/deep/data",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/east/deep/manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/east/deep/data/e1.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/east/deep/data/e2.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/north/data",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/north/manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/north/data/n1.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/north/data/n2.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/south/data",
+          "target_kind": "directory"
+        },
+        {
+          "path": "catalog/regions/south/manifest.json",
+          "target_kind": "json_file"
+        },
+        {
+          "path": "catalog/regions/south/data/s1.json",
+          "target_kind": "json_file"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [
+        "Recursion continues until no new references are found.",
+        "All paths are catalog-relative."
+      ],
+      "objective": "Recursively traverse catalog/root_manifest.json and all referenced sub-manifests, dependencies, and data files, collecting dataset metadata: name, manifest path, dependency list, file paths, and record counts. Do not assume tree depth or dataset count.",
+      "phase": "observe",
+      "read_roots": [
+        "."
+      ],
+      "success_evidence": [
+        "Discovery action completes and returns a comprehensive list of found manifests, dependencies, data files, dataset names, and record counts."
+      ],
+      "write_roots": []
+    },
+    "eligible_labels": [
+      "list_directory",
+      "search_text",
+      "read_file",
+      "read_json",
+      "file_digest"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-fb43967f126c9da9d7e18ea31c93cf70549cf2d91e7dc1566d8eac86d25066b3",
+      "request_id": "SELTRACE-348f7f9bc20f4521",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "67ea5611fd68606e5fc93982edbab2b5875c1cbd61fbc5282400a744cb2764ad",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "f614eaafa3262592ed038d04b4bc3552ad61eeba1da5039785b1a04e455d658b"
+    },
+    {
+      "sample_id": "RT-3a7bc5a069d8223fd3338d802e92abdd33b8e6ea316d1c2ab3da6cec99308b3b",
+      "request_id": "SELTRACE-5a61b0c8ea1d49d6",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "8d7d9c780c4e9acec835f28de85fa9baa9f852741bbd0ef899e8cb945b4ca7a6",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "573ae3dbeea3454bc413c8eb10c9ed72f6f31840c6d0a7f6e4394d570a046b02"
+    },
+    {
+      "sample_id": "RT-8a57567efc3dfe01e768edac2cb3494213f9ac0177acdcf61427642ff9b51b4f",
+      "request_id": "SELTRACE-85666297d03042f8",
+      "original_target_text": "\nSelectorIntentV6: list_directory",
+      "original_output_record_sha256": "7eee7798ec120b89cbd27cc30f5b8b176959221a55851e34c4b21747ac666f10",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "378dd7acd808c9630746e5a7ab37907a669a9c2a8aa70082ef0e373bf5a3ceaa"
+    }
+  ]
+}

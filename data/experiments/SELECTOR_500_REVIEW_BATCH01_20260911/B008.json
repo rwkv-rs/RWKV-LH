@@ -1,0 +1,194 @@
+{
+  "packet_id": "B008",
+  "source_run_id": "SELECTOR_500_BATCH01_20260911-all_zero",
+  "run_id": "AGENT-LADDER-L1-FIX01",
+  "boundary_event_id": "CE-000109",
+  "protocol_source": {
+    "current_progress": {
+      "assigned_action_count": 3,
+      "completion_preconditions_satisfied": true,
+      "failed_action_count": 0,
+      "feedback": {
+        "boundary_id": "GAB-56f3edcb0f8d488e",
+        "issues": [
+          {
+            "code": "phase_evidence_unproved:observe",
+            "criterion": "The declared observe phase must meet this step's success criteria using the available evidence.",
+            "evidence_refs": [
+              "A00002",
+              "A00003"
+            ],
+            "repair_scope": "step"
+          }
+        ],
+        "kind": "semantic",
+        "plan_revision": 1,
+        "recipient_roles": [
+          "executor_args",
+          "selector_intent"
+        ],
+        "rejected_output": "",
+        "schema_version": "rwkv-lh.role-feedback.v1",
+        "source_id": "AUD-8757b14fa53841ce",
+        "source_role": "auditor_step",
+        "step_id": "S1",
+        "step_revision": 1
+      },
+      "last_action": {
+        "arguments": {
+          "max_file_bytes": "5000000",
+          "max_line_chars": "800",
+          "max_results": "100",
+          "max_tokens": "4096",
+          "mode": "regex",
+          "path": "pricing.py",
+          "pattern": "def calculate_discount",
+          "recursive": "true"
+        },
+        "error_message": null,
+        "error_type": null,
+        "mutated_roots": [],
+        "observed_roots": [
+          "pricing.py"
+        ],
+        "operation": "search_text",
+        "result_metadata": {
+          "match_count": 0,
+          "outcome_type": "success",
+          "truncated": false
+        },
+        "status": "succeeded"
+      },
+      "missing_read_roots": [],
+      "missing_write_roots": [],
+      "operation_targets": {
+        "file_digest": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 2,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "pricing.py",
+              "verify_project.py"
+            ]
+          }
+        },
+        "list_directory": {
+          "path": {
+            "access": "read",
+            "availability": "unavailable",
+            "compatible_path_count": 0,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "pricing.py",
+              "verify_project.py"
+            ]
+          }
+        },
+        "read_file": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 2,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "pricing.py",
+              "verify_project.py"
+            ]
+          }
+        },
+        "read_json": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 2,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "pricing.py",
+              "verify_project.py"
+            ]
+          }
+        },
+        "search_text": {
+          "path": {
+            "access": "read",
+            "availability": "available",
+            "compatible_path_count": 2,
+            "creatable_root_count": 0,
+            "discovery_complete": true,
+            "scope_roots": [
+              "pricing.py",
+              "verify_project.py"
+            ]
+          }
+        }
+      },
+      "recent_rejections": [],
+      "successful_action_count": 3,
+      "target_discovery_complete": true,
+      "workspace_targets": [
+        {
+          "path": "pricing.py",
+          "target_kind": "text_file"
+        },
+        {
+          "path": "verify_project.py",
+          "target_kind": "text_file"
+        }
+      ]
+    },
+    "current_subtask": {
+      "constraints": [],
+      "objective": "检查 pricing.py 与 verify_project.py，定位负数折扣根因并记录验证器接口约束。",
+      "phase": "observe",
+      "read_roots": [
+        "pricing.py",
+        "verify_project.py"
+      ],
+      "success_evidence": [
+        "pricing.py 与 verify_project.py 内容被完整读取；根因定位到具体代码行；生产样例负数折扣复现路径明确；验证器接口与期望行为被记录。"
+      ],
+      "write_roots": []
+    },
+    "eligible_labels": [
+      "search_text",
+      "read_file",
+      "read_json",
+      "file_digest"
+    ]
+  },
+  "rows": [
+    {
+      "sample_id": "RT-a29b7d680c8bb2a8c21057cea21a8a47ae2e138e01b6a22ce1002d5b922d0215",
+      "request_id": "SELTRACE-4f24b62dcafd4963",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "b766e39bd9e95b1586059882c817eee5ed887f7b06fdfb66776a3d804063eb1d",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "c709172cd2c68635bd592490f63b65173c475180695c24c49e2afe8a422fe7ba"
+    },
+    {
+      "sample_id": "RT-2d6413a2687675c294ecdc0312c6dac2c4fa918439d4d0fb12eb8825e22758b2",
+      "request_id": "SELTRACE-a379b3e834eb4903",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "b55e15d30738d8d6b93b95f53d1f1573ec4d6b279b03a8182cede92fe898cc12",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "cd885be97743bb2a5bc22f2e98c9492a4d72dfb29e5caa5475e49b82a8300079"
+    },
+    {
+      "sample_id": "RT-2279466d1e3a91f12543e89fbef06fe04bb9631ee73bf9bfc539e01fbd6b1a1d",
+      "request_id": "SELTRACE-f360a5b24e504761",
+      "original_target_text": "\nSelectorIntentV6: search_text",
+      "original_output_record_sha256": "72ddb60ec6696013704502d0a53994bfc8e5bc419b9ad0ed0f64dd46f664eda9",
+      "available_evidence_refs": [],
+      "split": null,
+      "input_sha256": "1c08c28928985a67da83e84b830fb1d7ad14871b069b82a1e9a4f1744b9fa031"
+    }
+  ]
+}
