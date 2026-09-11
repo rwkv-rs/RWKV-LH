@@ -1,0 +1,314 @@
+{
+  "schema_version": "rwkv-selector-500-collection.acceptance.v1",
+  "cases": {
+    "AGENT-LADDER-L2-CLI01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport subprocess\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nfrom notes_store import add_note, list_notes, load_notes, remove_note\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef run_cli(*arguments: str) -> object:\n    completed = subprocess.run(\n        [sys.executable, \"notes_cli.py\", *arguments],\n        cwd=ROOT,\n        text=True,\n        encoding=\"utf-8\",\n        errors=\"replace\",\n        capture_output=True,\n        timeout=20,\n        check=False,\n    )\n    require(completed.returncode == 0, completed.stdout + completed.stderr)\n    return json.loads(completed.stdout.strip().splitlines()[-1])\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        db = Path(directory) / \"notes.json\"\n        require(load_notes(db) == [], \"missing database must load as empty\")\n        first = add_note(db, \"book train\", [\"travel\", \"urgent\"])\n        second = add_note(db, \"send report\", [\"work\"])\n        require(first[\"id\"] == \"N0001\" and second[\"id\"] == \"N0002\", \"stable ids required\")\n        require([item[\"id\"] for item in list_notes(db)] == [\"N0001\", \"N0002\"], \"insertion order lost\")\n        require([item[\"id\"] for item in list_notes(db, tag=\"travel\")] == [\"N0001\"], \"tag filter failed\")\n        require(remove_note(db, \"N0001\") is True, \"existing note was not removed\")\n        require(remove_note(db, \"N9999\") is False, \"unknown remove must be false\")\n        require([item[\"id\"] for item in load_notes(db)] == [\"N0002\"], \"persistence mismatch\")\n\n        cli_db = str(Path(directory) / \"cli.json\")\n        added = run_cli(\"--db\", cli_db, \"add\", \"call bank\", \"--tag\", \"finance\", \"--tag\", \"urgent\")\n        require(added[\"id\"] == \"N0001\", f\"CLI add mismatch: {added}\")\n        listed = run_cli(\"--db\", cli_db, \"list\", \"--tag\", \"finance\")\n        require(isinstance(listed, list) and listed[0][\"text\"] == \"call bank\", \"CLI list mismatch\")\n        removed = run_cli(\"--db\", cli_db, \"remove\", \"N0001\")\n        require(removed == {\"removed\": True, \"id\": \"N0001\"}, \"CLI remove mismatch\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"notes_cli.py\" in readme and \"--db\" in readme, \"README CLI usage missing\")\n    print(\"AGENT-LADDER-L2-CLI01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "notes_cli.py",
+            "notes_store.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "E2E-B04": {
+      "checks": [
+        {
+          "kind": "files_equal",
+          "left": "source.txt",
+          "right": "archive/2026/source.txt"
+        },
+        {
+          "kind": "file_content",
+          "path": "archive/manifest.txt",
+          "content": "archive/2026/source.txt\n"
+        }
+      ]
+    },
+    "E2E-B14": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "merged.txt",
+          "content": "alpha\nbeta\n--\ngamma\ndelta\n"
+        },
+        {
+          "kind": "file_content",
+          "path": "left.txt",
+          "content": "alpha\nbeta\n"
+        },
+        {
+          "kind": "file_content",
+          "path": "right.txt",
+          "content": "gamma\ndelta\n"
+        }
+      ]
+    },
+    "E2E-LH04": {
+      "runner_control": {
+        "crash_after_first_applied_side_effect": true,
+        "resume_after_completion": true
+      },
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "events/ledger.json",
+          "value": {
+            "events": [
+              {
+                "id": "E1",
+                "amount": 4
+              },
+              {
+                "id": "E2",
+                "amount": 7
+              },
+              {
+                "id": "E3",
+                "amount": 2
+              }
+            ],
+            "count": 3,
+            "total_amount": 13
+          }
+        },
+        {
+          "kind": "post_effect_crash_resumed"
+        },
+        {
+          "kind": "completed_resume_is_noop",
+          "path": "events/ledger.json"
+        }
+      ]
+    },
+    "AGENT-LADDER-L2-REPAIR01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport tempfile\nfrom pathlib import Path\n\nfrom inventory import InsufficientStock, InventoryService\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"stock.json\"\n        service = InventoryService(path)\n        service.set_stock(\"A\", 10)\n        require(service.reserve(\"A\", 4) == 6, \"reserve result mismatch\")\n        require(InventoryService(path).stock(\"A\") == 6, \"reserve was not persisted\")\n        before = path.read_bytes()\n        try:\n            service.reserve(\"A\", 7)\n        except InsufficientStock:\n            pass\n        else:\n            raise AssertionError(\"insufficient reservation was accepted\")\n        require(path.read_bytes() == before and service.stock(\"A\") == 6, \"failed reserve was not atomic\")\n        require(service.release(\"A\", 3) == 9, \"release result mismatch\")\n        require(InventoryService(path).stock(\"A\") == 9, \"release was not persisted\")\n        for method, arguments in [\n            (service.set_stock, (\"A\", -1)),\n            (service.reserve, (\"A\", 0)),\n            (service.release, (\"A\", -2)),\n        ]:\n            try:\n                method(*arguments)\n            except (TypeError, ValueError):\n                pass\n            else:\n                raise AssertionError(f\"invalid amount accepted by {method.__name__}\")\n        value = json.loads(path.read_text(encoding=\"utf-8\"))\n        require(value == {\"stock\": {\"A\": 9}}, f\"unexpected durable schema: {value}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"atomic\" in readme.casefold() and \"python verify_project.py\" in readme, \"README contract missing\")\n    print(\"AGENT-LADDER-L2-REPAIR01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "inventory/__init__.py",
+            "inventory/service.py",
+            "inventory/storage.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "E2E-B05": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "app.env",
+          "content": "name=demo\nport=8080\nmode=prod\n"
+        },
+        {
+          "kind": "file_not_contains",
+          "path": "app.env",
+          "text": "deprecated=true"
+        }
+      ]
+    },
+    "E2E-B15": {
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "colors.json",
+          "value": {
+            "colors": [
+              "blue",
+              "red",
+              "green"
+            ]
+          }
+        },
+        {
+          "kind": "json_exact_keys",
+          "path": "colors.json",
+          "keys": [
+            "colors"
+          ]
+        }
+      ]
+    },
+    "E2E-LH05": {
+      "checks": [
+        {
+          "kind": "resilient_shards",
+          "directory": "shards",
+          "fallback_directory": "fallback",
+          "path": "reports/shard_summary.json",
+          "count": 20
+        },
+        {
+          "kind": "file_contains",
+          "path": "reports/REPORT.md",
+          "text": "20"
+        },
+        {
+          "kind": "file_contains",
+          "path": "reports/REPORT.md",
+          "text": "630"
+        }
+      ]
+    },
+    "AGENT-LADDER-L3-QUEUE01": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport tempfile\nfrom pathlib import Path\n\nfrom queue_app import DurableQueue\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    with tempfile.TemporaryDirectory() as directory:\n        path = Path(directory) / \"queue.json\"\n        queue = DurableQueue(path, max_attempts=2)\n        first = queue.enqueue({\"name\": \"A\"})\n        second = queue.enqueue({\"name\": \"B\"})\n        require((first[\"id\"], second[\"id\"]) == (\"J0001\", \"J0002\"), \"stable ids missing\")\n        claimed = queue.claim()\n        require(claimed and claimed[\"id\"] == \"J0001\", \"claim is not FIFO\")\n        require(DurableQueue(path, 2).stats()[\"inflight\"] == 1, \"claim was not persisted\")\n        require(queue.fail(\"J0001\") == \"queued\", \"first failure must retry\")\n        require(queue.claim()[\"id\"] == \"J0002\", \"retry must move to queue tail\")\n        require(queue.ack(\"J0002\") is True, \"ack failed\")\n        restarted = DurableQueue(path, max_attempts=2)\n        retried = restarted.claim()\n        require(retried and retried[\"id\"] == \"J0001\" and retried[\"attempts\"] == 1, \"retry state lost\")\n        require(restarted.fail(\"J0001\") == \"failed\", \"max attempts must dead-letter\")\n        require(restarted.claim() is None, \"failed job was reclaimed\")\n        require(restarted.ack(\"missing\") is False, \"unknown ack must be false\")\n        require(restarted.stats() == {\"queued\": 0, \"inflight\": 0, \"failed\": 1, \"completed\": 1}, \"stats mismatch\")\n        try:\n            restarted.enqueue([])\n        except TypeError:\n            pass\n        else:\n            raise AssertionError(\"non-object payload accepted\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"FIFO\" in readme and \"retry\" in readme.casefold(), \"README queue semantics missing\")\n    require(\"python verify_project.py\" in readme, \"README verifier command missing\")\n    print(\"AGENT-LADDER-L3-QUEUE01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "kind": "command_exit",
+          "argv": [
+            "python",
+            "verify_project.py"
+          ],
+          "exit_code": 0,
+          "timeout": 60
+        },
+        {
+          "kind": "directory_file_set",
+          "path": ".",
+          "files": [
+            "README.md",
+            "queue_app/__init__.py",
+            "queue_app/queue.py",
+            "queue_app/storage.py",
+            "verify_project.py"
+          ]
+        },
+        {
+          "kind": "event_min_count",
+          "event_type": "attempt_started",
+          "count": 1
+        },
+        {
+          "kind": "no_scope_violation_events"
+        },
+        {
+          "kind": "agent_process_tree_closed"
+        }
+      ],
+      "runner_control": {
+        "network_policy": "offline",
+        "network_explicit_approval": false,
+        "network_public_workspace_paths": []
+      }
+    },
+    "E2E-B06": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "combined.txt",
+          "content": "alpha\nbeta\n---\ngamma\ndelta\n"
+        }
+      ]
+    },
+    "E2E-B16": {
+      "checks": [
+        {
+          "kind": "file_content",
+          "path": "app.env",
+          "content": "NAME=worker\nPORT=9000\nMODE=prod\n"
+        }
+      ]
+    },
+    "E2E-LH06": {
+      "checks": [
+        {
+          "kind": "json_equals",
+          "path": "resolved_requirements.json",
+          "value": {
+            "source": "requirements/approved.json",
+            "requirements": [
+              "tls_required=true",
+              "region=cn-east",
+              "audit_log=append_only",
+              "retention_days=90"
+            ]
+          }
+        },
+        {
+          "kind": "file_contains",
+          "path": "EVIDENCE.md",
+          "text": "requirements/approved.json"
+        },
+        {
+          "kind": "file_not_contains",
+          "path": "EVIDENCE.md",
+          "text": "acceptance.json"
+        },
+        {
+          "kind": "no_scope_violation_events"
+        }
+      ]
+    }
+  }
+}
