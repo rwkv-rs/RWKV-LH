@@ -1,0 +1,219 @@
+{
+  "schema_version": "rwkv-selector-500-collection.tasks.v1",
+  "tasks": [
+    {
+      "task_id": "E2E-B01",
+      "level": "basic",
+      "user_request": "Create greeting.txt containing exactly `Hello, RWKV-LH!` followed by one newline. Verify the file before finishing.",
+      "capabilities": [
+        "planning",
+        "file_write",
+        "verification"
+      ],
+      "workspace_files": []
+    },
+    {
+      "task_id": "E2E-B11",
+      "level": "basic",
+      "user_request": "Read name.txt, trim surrounding whitespace, convert the words to title case while preserving the uppercase acronym RWKV, and write the exact result with one trailing newline to normalized_name.txt. Verify the output.",
+      "capabilities": [
+        "read_file",
+        "write_file"
+      ],
+      "workspace_files": [
+        {
+          "path": "name.txt",
+          "content": "  rwkv long horizon  \n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-LH01",
+      "level": "long_horizon",
+      "user_request": "Repair the four-layer release pipeline in project/pipeline.py. Run verify_release.py after each material fix: it intentionally stops at the first unsatisfied layer, so fixing normalization exposes validation, then pricing, then the release artifact requirement. Preserve public function names, do not weaken the verifier, and finish only after release/release.json is generated and verify_release.py exits successfully.",
+      "capabilities": [
+        "repeated_replan",
+        "code_repair",
+        "release_verification"
+      ],
+      "workspace_files": [
+        {
+          "path": "project/pipeline.py",
+          "content": "def normalize(name):\n    return name\n\ndef validate(record):\n    return True\n\ndef price(record):\n    return record['qty'] + record['unit_price']\n\ndef build_release(records):\n    return {'items': records, 'grand_total': 0}\n"
+        },
+        {
+          "path": "orders.json",
+          "content": "[\n  {\"name\": \" Alpha \", \"qty\": 2, \"unit_price\": 3},\n  {\"name\": \"BETA\", \"qty\": 1, \"unit_price\": 5}\n]\n"
+        },
+        {
+          "path": "verify_release.py",
+          "content": "import json\nfrom pathlib import Path\nfrom project.pipeline import normalize, validate, price, build_release\n\nrecords = json.loads(Path('orders.json').read_text())\nassert normalize(' Alpha ') == 'alpha', 'layer A: normalize must trim and lowercase'\nnormalized = [{**item, 'name': normalize(item['name'])} for item in records]\ninvalid = {'name': '', 'qty': 0, 'unit_price': -1}\nassert all(validate(item) for item in normalized) and not validate(invalid), 'layer B: records require a nonempty lowercase name and positive integer qty/unit_price'\nassert [price(item) for item in normalized] == [6, 5], 'layer C: price must multiply qty by unit_price'\nexpected = {'items': [{'name': 'alpha', 'total': 6}, {'name': 'beta', 'total': 5}], 'grand_total': 11}\nassert build_release(normalized) == expected, 'layer D: build_release has the wrong structure'\nartifact = json.loads(Path('release/release.json').read_text())\nassert artifact == expected, 'release artifact is missing or inconsistent'\nprint('release verified')\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "AGENT-LADDER-L1-DATA01",
+      "level": "tier1_closed_loop",
+      "user_request": "transactions.json 是不可修改的原始交易数据，month 指定统计月份。不得修改 transactions.json 或 verify_project.py。请生成 summary.json（精确字段由公开验证器定义）、补充 README 说明输入输出，并在结束前运行 python verify_project.py 直到通过。",
+      "capabilities": [
+        "data_inspection",
+        "deterministic_transformation",
+        "verification",
+        "documentation"
+      ],
+      "workspace_files": [
+        {
+          "path": "transactions.json",
+          "content": "{\n  \"month\": \"2026-08\",\n  \"transactions\": [\n    {\n      \"id\": \"T01\",\n      \"type\": \"income\",\n      \"amount\": 3200.0,\n      \"category\": \"salary\",\n      \"date\": \"2026-08-01\"\n    },\n    {\n      \"id\": \"T02\",\n      \"type\": \"expense\",\n      \"amount\": 52.4,\n      \"category\": \"food\",\n      \"date\": \"2026-08-02\"\n    },\n    {\n      \"id\": \"T03\",\n      \"type\": \"expense\",\n      \"amount\": 180.0,\n      \"category\": \"rent\",\n      \"date\": \"2026-08-03\"\n    },\n    {\n      \"id\": \"T04\",\n      \"type\": \"income\",\n      \"amount\": 480.5,\n      \"category\": \"freelance\",\n      \"date\": \"2026-08-09\"\n    },\n    {\n      \"id\": \"T05\",\n      \"type\": \"expense\",\n      \"amount\": 25.6,\n      \"category\": \"transport\",\n      \"date\": \"2026-08-11\"\n    },\n    {\n      \"id\": \"T06\",\n      \"type\": \"expense\",\n      \"amount\": 99.9,\n      \"category\": \"food\",\n      \"date\": \"2026-08-18\"\n    },\n    {\n      \"id\": \"T07\",\n      \"type\": \"income\",\n      \"amount\": 17.0,\n      \"category\": \"refund\",\n      \"date\": \"2026-07-30\"\n    }\n  ]\n}\n"
+        },
+        {
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport json\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    source = json.loads((ROOT / \"transactions.json\").read_text(encoding=\"utf-8\"))\n    actual = json.loads((ROOT / \"summary.json\").read_text(encoding=\"utf-8\"))\n    month = source[\"month\"]\n    rows = [item for item in source[\"transactions\"] if item[\"date\"].startswith(month)]\n    income = round(sum(item[\"amount\"] for item in rows if item[\"type\"] == \"income\"), 2)\n    expense = round(sum(item[\"amount\"] for item in rows if item[\"type\"] == \"expense\"), 2)\n    categories: dict[str, float] = {}\n    for item in rows:\n        if item[\"type\"] == \"expense\":\n            categories[item[\"category\"]] = round(categories.get(item[\"category\"], 0) + item[\"amount\"], 2)\n    expected = {\n        \"month\": month,\n        \"transaction_count\": len(rows),\n        \"income\": income,\n        \"expense\": expense,\n        \"balance\": round(income - expense, 2),\n        \"expense_by_category\": dict(sorted(categories.items())),\n    }\n    require(actual == expected, f\"summary mismatch: {actual!r} != {expected!r}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"transactions.json\" in readme and \"summary.json\" in readme, \"README inputs/outputs missing\")\n    require(\"python verify_project.py\" in readme, \"README verification command missing\")\n    print(\"AGENT-LADDER-L1-DATA01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "AGENT-V1-WEB01",
+      "level": "project",
+      "user_request": "创建一个简洁好看的个人记账网页，可以记录收入和支出，自动显示所选月份的收入、支出与结余，支持删除记录；刷新后数据仍保存在 localStorage。只使用原生 HTML、CSS 和 JavaScript，提供 index.html、styles.css、app.js、README.md。不要修改 verify_app.py；完成前运行 python verify_app.py 并修复所有失败。为可测试性，app.js 必须暴露 window.LedgerApp，其中 calculateMonthlySummary(records, monthKey)、loadRecords(storage)、saveRecords(records, storage)、addRecord(records, record)、deleteRecord(records, id) 都是可在没有 document 时调用的函数；记录结构为 {id,type,amount,date,note}，月度汇总结构严格为 {income,expense,balance}。",
+      "capabilities": [
+        "medium_project_creation",
+        "multi_file_web_implementation",
+        "persistent_local_state",
+        "test_driven_verification"
+      ],
+      "workspace_files": [
+        {
+          "path": "verify_app.py",
+          "content": "from __future__ import annotations\n\nimport json\nimport re\nimport subprocess\nfrom html.parser import HTMLParser\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\nREQUIRED_FILES = {\"index.html\", \"styles.css\", \"app.js\", \"README.md\", \"verify_app.py\"}\nREQUIRED_IDS = {\n    \"entry-form\",\n    \"entry-type\",\n    \"entry-amount\",\n    \"entry-date\",\n    \"entry-note\",\n    \"month-picker\",\n    \"month-income\",\n    \"month-expense\",\n    \"month-balance\",\n    \"entry-list\",\n    \"empty-state\",\n}\n\n\nclass LedgerHTMLParser(HTMLParser):\n    def __init__(self) -> None:\n        super().__init__()\n        self.ids: set[str] = set()\n        self.stylesheet = False\n        self.script = False\n        self.form = False\n        self.buttons = 0\n        self.labels = 0\n\n    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:\n        values = {key: value or \"\" for key, value in attrs}\n        if values.get(\"id\"):\n            self.ids.add(values[\"id\"])\n        if tag == \"link\" and values.get(\"href\") == \"styles.css\":\n            self.stylesheet = True\n        if tag == \"script\" and values.get(\"src\") == \"app.js\":\n            self.script = True\n        if tag == \"form\" and values.get(\"id\") == \"entry-form\":\n            self.form = True\n        if tag == \"button\":\n            self.buttons += 1\n        if tag == \"label\":\n            self.labels += 1\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    actual_files = {path.name for path in ROOT.iterdir() if path.is_file()}\n    require(actual_files == REQUIRED_FILES, f\"unexpected file set: {sorted(actual_files)}\")\n\n    html = (ROOT / \"index.html\").read_text(encoding=\"utf-8\")\n    css = (ROOT / \"styles.css\").read_text(encoding=\"utf-8\")\n    js = (ROOT / \"app.js\").read_text(encoding=\"utf-8\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    parser = LedgerHTMLParser()\n    parser.feed(html)\n    require(REQUIRED_IDS <= parser.ids, f\"missing HTML ids: {sorted(REQUIRED_IDS - parser.ids)}\")\n    require(parser.stylesheet and parser.script and parser.form, \"HTML assets/form are not wired\")\n    require(parser.buttons >= 1 and parser.labels >= 4, \"form needs a button and accessible labels\")\n    require('lang=\"zh-CN\"' in html or \"lang='zh-CN'\" in html, \"page language must be zh-CN\")\n    require(\"viewport\" in html, \"responsive viewport is missing\")\n\n    for token in (\"--\", \"@media\", \":focus\", \"grid\", \"border-radius\"):\n        require(token in css, f\"CSS quality token missing: {token}\")\n    require(len(css) >= 1200, \"CSS is too small to implement the requested polished responsive UI\")\n\n    for token in (\n        \"localStorage\",\n        \"JSON.parse\",\n        \"JSON.stringify\",\n        \"calculateMonthlySummary\",\n        \"loadRecords\",\n        \"saveRecords\",\n        \"addRecord\",\n        \"deleteRecord\",\n        \"window.LedgerApp\",\n        \"addEventListener\",\n    ):\n        require(token in js, f\"JavaScript contract missing: {token}\")\n    require(re.search(r\"income\", js, re.I) is not None, \"income behavior is missing\")\n    require(re.search(r\"expense\", js, re.I) is not None, \"expense behavior is missing\")\n    require(\"localStorage\" in readme and \"verify_app.py\" in readme, \"README usage/verification is incomplete\")\n\n    node_test = r'''\nconst fs = require(\"fs\");\nconst vm = require(\"vm\");\nglobal.window = {};\nglobal.document = undefined;\nglobal.localStorage = {\n  values: new Map(),\n  getItem(key) { return this.values.has(key) ? this.values.get(key) : null; },\n  setItem(key, value) { this.values.set(key, String(value)); },\n  removeItem(key) { this.values.delete(key); }\n};\nvm.runInThisContext(fs.readFileSync(\"app.js\", \"utf8\"), { filename: \"app.js\" });\nconst api = window.LedgerApp;\nif (!api) throw new Error(\"window.LedgerApp is missing\");\nfor (const name of [\"calculateMonthlySummary\", \"loadRecords\", \"saveRecords\", \"addRecord\", \"deleteRecord\"]) {\n  if (typeof api[name] !== \"function\") throw new Error(`${name} must be a function`);\n}\nconst records = [\n  {id:\"r1\", type:\"income\", amount:1500, date:\"2026-08-03\", note:\"salary\"},\n  {id:\"r2\", type:\"expense\", amount:200, date:\"2026-08-04\", note:\"food\"},\n  {id:\"r3\", type:\"expense\", amount:25.5, date:\"2026-08-09\", note:\"train\"},\n  {id:\"r4\", type:\"income\", amount:99, date:\"2026-07-31\", note:\"old\"}\n];\nconst summary = api.calculateMonthlySummary(records, \"2026-08\");\nif (JSON.stringify(summary) !== JSON.stringify({income:1500, expense:225.5, balance:1274.5})) {\n  throw new Error(`wrong monthly summary: ${JSON.stringify(summary)}`);\n}\napi.saveRecords(records, global.localStorage);\nif (JSON.stringify(api.loadRecords(global.localStorage)) !== JSON.stringify(records)) {\n  throw new Error(\"localStorage round trip failed\");\n}\nconst added = api.addRecord(records, {id:\"r5\", type:\"expense\", amount:10, date:\"2026-08-10\", note:\"tea\"});\nif (added.length !== 5 || records.length !== 4) throw new Error(\"addRecord must return a new complete array\");\nconst deleted = api.deleteRecord(added, \"r2\");\nif (deleted.length !== 4 || deleted.some(item => item.id === \"r2\")) throw new Error(\"deleteRecord failed\");\nconsole.log(JSON.stringify({summary, storage:true, add:true, delete:true}));\n'''\n    completed = subprocess.run(\n        [\"node\", \"-e\", node_test],\n        cwd=ROOT,\n        text=True,\n        encoding=\"utf-8\",\n        errors=\"replace\",\n        capture_output=True,\n        timeout=30,\n        check=False,\n    )\n    require(completed.returncode == 0, (completed.stdout + completed.stderr)[-4000:])\n    result = json.loads(completed.stdout.strip().splitlines()[-1])\n    require(result == {\n        \"summary\": {\"income\": 1500, \"expense\": 225.5, \"balance\": 1274.5},\n        \"storage\": True,\n        \"add\": True,\n        \"delete\": True,\n    }, f\"unexpected behavior result: {result}\")\n    print(\"AGENT-V1-WEB01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B02",
+      "level": "basic",
+      "user_request": "Read input.txt before deriving any values. Create report.json with exactly two fields: project copied from input.txt and doubled_count equal to count multiplied by two. Verify the exact JSON result.",
+      "capabilities": [
+        "dependency",
+        "working_memory",
+        "json"
+      ],
+      "workspace_files": [
+        {
+          "path": "input.txt",
+          "content": "project=Orion\ncount=7\n"
+        }
+      ]
+    },
+    {
+      "task_id": "E2E-B12",
+      "level": "basic",
+      "user_request": "Read every integer in numbers.txt and create stats.json with exactly count, sum, min, and max. Use numeric JSON values and verify the file.",
+      "capabilities": [
+        "read_file",
+        "write_file",
+        "read_json"
+      ],
+      "workspace_files": [
+        {
+          "path": "numbers.txt",
+          "content": "4\n9\n-2\n9\n5\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-LH02",
+      "level": "long_horizon",
+      "user_request": "Read early/requirements.json before planning. Carry all five immutable constraints through at least 15 explicit intermediate checkpoint files under checkpoints/step01.json through step15.json, then create final/config.json. Each checkpoint must contain its step number and the same constraints object. The final config must preserve every early constraint exactly and add generated_by=RWKV-LH. Verify the checkpoints and final configuration before finishing.",
+      "capabilities": [
+        "goal_retention",
+        "long_dependency_chain",
+        "constraint_verification"
+      ],
+      "workspace_files": [
+        {
+          "path": "early/requirements.json",
+          "content": "{\n  \"region\": \"cn-east\",\n  \"replicas\": 3,\n  \"tls\": true,\n  \"retention_days\": 30,\n  \"feature_mode\": \"strict\"\n}\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "AGENT-LADDER-L1-FIX01",
+      "level": "tier1_closed_loop",
+      "user_request": "pricing.py 的折扣计算在生产样例中出现负数；公开验证器和函数接口已给出。不得修改 verify_project.py。请定位根因、修复通用计价与输入校验、补充 README，并在结束前运行 python verify_project.py 直到通过。",
+      "capabilities": [
+        "bug_diagnosis",
+        "targeted_code_repair",
+        "verification",
+        "documentation"
+      ],
+      "workspace_files": [
+        {
+          "path": "pricing.py",
+          "content": "from __future__ import annotations\n\nfrom decimal import Decimal, ROUND_HALF_UP\n\n\ndef final_price(price: int | float, discount_percent: int | float) -> float:\n    \"\"\"Return a currency amount rounded with ROUND_HALF_UP.\"\"\"\n\n    if isinstance(price, bool) or not isinstance(price, (int, float)):\n        raise TypeError(\"price must be numeric\")\n    if isinstance(discount_percent, bool) or not isinstance(discount_percent, (int, float)):\n        raise TypeError(\"discount_percent must be numeric\")\n    if price < 0:\n        raise ValueError(\"price must be non-negative\")\n    if not 0 <= discount_percent <= 100:\n        raise ValueError(\"discount_percent must be between 0 and 100\")\n    # BUG: the percentage scale is wrong and binary float enters the Decimal path.\n    multiplier = Decimal(\"1\") - Decimal(str(discount_percent / 10))\n    amount = Decimal(str(price)) * multiplier\n    return float(amount.quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP))\n"
+        },
+        {
+          "path": "verify_project.py",
+          "content": "from __future__ import annotations\n\nimport math\nfrom pathlib import Path\n\nfrom pricing import final_price\n\n\nROOT = Path(__file__).resolve().parent\n\n\ndef require(condition: bool, message: str) -> None:\n    if not condition:\n        raise AssertionError(message)\n\n\ndef main() -> None:\n    cases = [\n        ((100, 15), 85.0),\n        ((19.99, 25), 14.99),\n        ((8.335, 0), 8.34),\n        ((10, 100), 0.0),\n    ]\n    for arguments, expected in cases:\n        actual = final_price(*arguments)\n        require(isinstance(actual, float), \"final_price must return float\")\n        require(math.isclose(actual, expected, abs_tol=1e-9), f\"{arguments}: {actual}\")\n    for arguments in [(-1, 5), (10, -1), (10, 101), (True, 10), (10, False)]:\n        try:\n            final_price(*arguments)\n        except (TypeError, ValueError):\n            pass\n        else:\n            raise AssertionError(f\"invalid input accepted: {arguments}\")\n    readme = (ROOT / \"README.md\").read_text(encoding=\"utf-8\")\n    require(\"python verify_project.py\" in readme, \"README verification command missing\")\n    require(\"discount\" in readme.casefold(), \"README behavior missing\")\n    print(\"AGENT-LADDER-L1-FIX01 verified\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-B03",
+      "level": "basic",
+      "user_request": "Update config.json so feature.enabled is true and feature.mode is `safe`. Preserve every unrelated field and verify the resulting JSON.",
+      "capabilities": [
+        "inspect_before_edit",
+        "json_update",
+        "preservation"
+      ],
+      "workspace_files": [
+        {
+          "path": "config.json",
+          "content": "{\n  \"name\": \"alpha\",\n  \"feature\": {\"enabled\": false, \"mode\": \"legacy\"},\n  \"retries\": 4\n}\n"
+        }
+      ]
+    },
+    {
+      "task_id": "E2E-B13",
+      "level": "basic",
+      "user_request": "Update config.json so deployment.region is cn-east and deployment.retries is 5. Preserve the service name, enabled flag, and all unrelated fields exactly. Verify the JSON.",
+      "capabilities": [
+        "read_json",
+        "write_file"
+      ],
+      "workspace_files": [
+        {
+          "path": "config.json",
+          "content": "{\n  \"service\": \"atlas\",\n  \"deployment\": {\"region\": \"us-west\", \"retries\": 2, \"enabled\": true},\n  \"owner\": \"ops\"\n}\n"
+        }
+      ],
+      "workspace_generators": []
+    },
+    {
+      "task_id": "E2E-LH03",
+      "level": "long_horizon",
+      "user_request": "Starting only from catalog/root_manifest.json, recursively discover every referenced sub-manifest, dependency, and data file. Do not assume the tree depth or dataset count. Create catalog/global_index.json with datasets sorted by name; each entry must contain name, manifest, depends_on, files as catalog-relative paths, and record_count. Include total_records at the top level and verify every discovered file contributes exactly once.",
+      "capabilities": [
+        "dynamic_planning",
+        "recursive_discovery",
+        "fan_in"
+      ],
+      "workspace_files": [],
+      "workspace_generators": [
+        {
+          "kind": "manifest_tree",
+          "directory": "catalog",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

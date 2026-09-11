@@ -1,5 +1,9 @@
 # 当前交接
 
+2026-09-11 owner 将目标提高为 **至少500条有效 Selector train 样本**，固定3dev/2confirmation另保留。[Selector500 预注册与启动](../data/experiments/SELECTOR_500_CAMPAIGN_R1_20260911/REPORT.zh-CN.md)：98个公开开发任务已固定队列，首批12题已开始，原数据仍19train/5评测，未声称500达成。首题Strict0/1、completed0/1、mutation1、动作3，因重复成功动作预算耗尽停止，外部文件检查通过但无Final；3自动候选/6待审仅为管线探针，不计最终新增。有效训练样本与独立决策边界分别报告，目标边界至少167。保持原去重和五个评测anchor；Selector训练及固定回归合格后才转Executor。
+
+已按新授权push至3ae1efcc；本轮推理源码也冻结在该提交的隔离工作树，部署根`/home/chase/GitHub/RWKV-LH-selector-500-runtime-r1-20260911`，项目SHA`524a195270d8d10062e87a17a7c0c5dba36ceae3c83e3413ca34c85a01def0c5`，engine SHA`9fdfd8e8b11f6c6de3df30ae9e36088765cf9780831595b49150d4e95375b32a`；132/6393文件核验及服务健康通过，无服务器Git。1479项测试对应本轮冻结代码，不覆盖主工作区正在进行的另一轮修改。以下24/30的数量门描述是较早历史，当前按500train目标执行，训练未启动。
+
 更新日期：2026-09-11。[轮次 A 与当前数据门](../data/experiments/SELECTOR_EQUIVALENCE_RENEWAL_R3_20260911/REPORT.zh-CN.md)：**Strict 0/4、completed 0/4、mutation 0、动作 6**；两题无进展、两题协议拒绝。NEW-DIAG-02 三次 check_command 成功取得预期失败诊断，绑定 execute；未修复或交付项目。A 的采集 KEEP 达到，B 不启动，Executor 仍为 1800。
 
 原指定 162e60ee/c6b46d01 已 push。A 提交 67f1edd4，数据冻结修复 5edcccde，完整回归 **1479 passed、0 failed、0 skipped**。新 42 条待审全部处置（34 接受、8 拒绝）；在双签冻结 5edcccde 上精确重放 22 来源的 256 条，按原政策保留 24 条（19/3/2），**status=valid、execute=3**，原五个评测 anchor 不变，全部 24 条 normalize 通过。真实重放与政策候选逐字节一致。共享工作区随后新增的 harness.py / supervisor_openai.py 修改未被本次签名和回归覆盖；首次组合重放的 SHA 拒绝与隔离验证分别留证，他人改动保留。
