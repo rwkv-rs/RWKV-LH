@@ -1,0 +1,42 @@
+diff --git a/rwkv_lh/harness.py b/rwkv_lh/harness.py
+index c769425c..e7e187d1 100644
+--- a/rwkv_lh/harness.py
++++ b/rwkv_lh/harness.py
+@@ -573,11 +573,33 @@ class ActionHarness:
+             result_schema="rwkv-lh.search-text-result.v1",
+         ),
+         "read_file": ActionDefinition(
+-            "read_file", "Observe one exact tokenizer-bounded UTF-8 byte range; continue only from next_start_byte.", True, False, True, 30.0,
++            "read_file", (
++                "Read one UTF-8 text chunk. Input fields are only path, start_byte, and max_tokens; "
++                "only path is required. The tool computes the exclusive end of the returned "
++                "byte range [start_byte, end_byte); end_byte is output metadata only, never an "
++                "input or a -1 sentinel for reading to EOF. Reading to EOF is still bounded by "
++                "max_tokens. If truncated, continue only from the returned next_start_byte; "
++                "null means no continuation is needed. A cursor exactly at EOF returns empty "
++                "text successfully; a missing file returns an error."
++            ), True, False, True, 30.0,
+             {
+-                "path": {"type": "string", "description": "path relative to the workspace root"},
+-                "start_byte": {"type": "integer", "minimum": 0, "default": 0},
+-                "max_tokens": {"type": "integer", "minimum": 256, "maximum": 8192, "default": 4096},
++                "path": {"type": "string", "description": "Required string: file path relative to the workspace root."},
++                "start_byte": {
++                    "type": "integer", "minimum": 0, "default": 0,
++                    "description": (
++                        "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, "
++                        "not a character or line index. Must be on a UTF-8 boundary between "
++                        "0 and the file byte length, including EOF; negative offsets are invalid."
++                    ),
++                },
++                "max_tokens": {
++                    "type": "integer", "minimum": 256, "maximum": 8192, "default": 4096,
++                    "description": (
++                        "Optional; omitted means 4096. Integer returned-text token budget "
++                        "from 256 through 8192 inclusive, not a byte or line limit. "
++                        "May return less than the full remainder; inspect next_start_byte."
++                    ),
++                },
+             },
+             failure_observation_cacheable=True,
+             required_arguments=("path",),

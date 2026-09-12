@@ -1,0 +1,8 @@
+from pathlib import Path
+import json,hashlib,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_READ_PARAMETER_DESCRIPTION_R3_20260912'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+pre=json.loads((D/'PREEXISTING_CHANGES.json').read_text());assert all(sha(R/p)==h for p,h in pre['files'].items())
+record={'environment':'WSL UbuntuRecovered','setup':['uv sync --frozen --extra selector-runtime --extra benchmark-web --group dev','.venv/bin/python -m playwright install chromium'],'regression_before':{'failed':3,'passed':1,'log_sha256':sha(D/'REGRESSION_RED.log')},'regression_after':{'failed':0,'passed':4,'log_sha256':sha(D/'REGRESSION_GREEN.log')},'full_tests':{'passed':1512,'skipped':0,'seconds':245.08,'log_sha256':sha(D/'PYTEST.log')},'production_change':'read_file tool/parameter description text only; AST without these descriptions is identical','preserved_preexisting_files':pre['files'],'network_preflight':'Initial local capabilities request timed out at 5 seconds with no response. Subsequent local 20-second request and SSH read-only probe succeeded before any scored model generation. No fallback or model change.','server_source_verification_sha256':sha(D/'SERVER_SOURCE_VERIFICATION.json'),'local_vocab_sha256':sha(R/'rwkv_lh/data/rwkv_vocab_v20230424.txt'),'server_git_used':False,'training':False,'new_dataset_version':False,'github_updated':False,'project_ab_continued':False,'protocol_schema_version_changed':False}
+(D/'ENGINEERING_VALIDATION.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
+(D/'DESCRIPTION_ONLY.diff').write_bytes(subprocess.check_output(['git','diff','--','rwkv_lh/harness.py'],cwd=R));print('engineering records pinned')

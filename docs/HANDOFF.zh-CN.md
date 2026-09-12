@@ -1,5 +1,13 @@
 # 当前交接
 
+## 2026-09-12 读取说明 R3：NO_KEEP，继续单步验证
+
+无新项目级Strict/completed，诊断mutation=0；按一次读取/拒绝截停。R3同组新采前后对照：R1有效7例主组19/21→14/21，独立R2缺失补充3/3→2/3；协议错误2→8，提前final_answer均0，候选退化，未达冻结门，不能称为修复。48次完整输入token核验通过；两臂去掉唯一read_file说明后输入相同。完整1512 passed、0 skipped。
+
+更正上轮原因汇总：原R1三次失败为两次end_byte=-1，第三次max_lines=2048与max_bytes=8192；原文和旧分封存保留。R3仅改工具/参数说明，列出了非法结束字段但模型仍输出该字段，且代码读取新增拒绝；不自动修参数、不部署。下一轮只测简短正向合法参数说明，重新冻结原基线/候选两臂和同一门槛；不升级任务、训练或更新GitHub。原5个未提交文件SHA未变。
+
+[本轮报告](../data/experiments/RWKV_READ_PARAMETER_DESCRIPTION_R3_20260912/REPORT.zh-CN.md)，SHA `aa2bba2de46ef3d1b406bc4329aa00e40aaf5ea86939ac47e30830ab515daa92`。下方R1/R2历史“全部end_byte”文字以本段更正，不重评分。
+
 ## 2026-09-12 单步读取夹具修复 R2 已封存（当前）
 
 无新项目级Strict/completed，mutation=0；仅一次读取后截停。R2复用已有RP-WEB-02公开初始workspace，index.html不存在独立三遍3/3诊断通过，工具成功0/3，真实FileNotFoundError与观察State交接完整；输入token3/3精确匹配、三遍输入相同。与R1有效18/21分开报告，不替换R1无效夹具的3次原分。
