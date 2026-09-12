@@ -1,0 +1,44 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________________ test_current_trace_layout ___________________________
+
+    def test_current_trace_layout():
+>    audit.main()
+
+temp/test_advice_audit_layout_r3_20260913.py:6: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def main():
+     reg=json.loads((D/'REGISTRATION.json').read_text());c=reg['case'];source=(R/c['workspace_source']/c['path']).read_text();rows=[];packets=[];mapping={};cap=json.loads((D/'SERVER_IDENTITY.json').read_text())['capabilities']
+     for item in reg['schedule']:
+      p=D/'runs'/item['id']
+      if not (p/'RESULT.json').exists():continue
+      result=json.loads((p/'RESULT.json').read_text());tr=[json.loads(l) for l in (p/'model_trace.jsonl').read_text().splitlines()];gens=[e for e in tr if e['type']=='model_session_generation_returned'];starts={e['request_id']:e for e in tr if e['type']=='model_session_generation_started'}
+      if item['stage']=='probe':
+       root=json.loads((p/'plain_root.json').read_text());candidate=json.loads((p/'plain_candidate.json').read_text());states={x['checkpoint_id']:x for x in [root,candidate]};request_ok=root['transcript']==(p/'PLAIN_INPUT.txt').read_text()==plain_prompt(reg['probe_request'],c['path'],source);supplied=source in root['transcript'];tool_count=0
+      else:
+       state=json.loads((p/'state_snapshot.json').read_text());states=state['model_states'];root=next(x for x in states.values() if not x['parent_checkpoint_id']);request_ok=request_in_bootstrap(root['transcript'],c['common_request']);tool_count=len(json.loads(root['transcript'].splitlines()[0].removeprefix('System: Tools: ')));supplied=False
+      gen_by_cp={e['candidate_checkpoint_id']:e['raw_generation'] for e in gens};calls=[]
+      for n,e in enumerate(gens,1):
+       g=e['raw_generation'];st=starts[e['request_id']];cp=states[st['input_checkpoint_id']];chain=[];cur=cp
+       while cur:chain.append(cur);cur=states.get(cur['parent_checkpoint_id'])
+       ids=[]
+       for x in reversed(chain):ids.extend(gen_by_cp[x['checkpoint_id']]['raw_token_ids'] if x['checkpoint_id'] in gen_by_cp else tokenizer().encode(x['transcript']))
+       (p/f'input_{n:02d}.txt').write_text(tokenizer().decode(ids))
+       calls.append(dict(input_exact=g['prompt_token_ids'][g['input_bos_token_count']:]==ids,input_digest_matches=st['input_digest']==cp['native_state_digest'],input_checkpoint=cp['checkpoint_id'],candidate_checkpoint=e['candidate_checkpoint_id'],input_tokens=len(g['prompt_token_ids']),output_tokens=len(g['raw_token_ids']),finish=g['finish_reason'],sampling=g['sampling'],profile=g['state_profile_id'],profile_sha256=g['state_profile_sha256'],max_output_tokens=g['max_output_tokens']))
+      handoffs=[];reads=0;read_calls=0
+      for n,(a,h) in enumerate(zip(result['actions'],result['handoffs']),1):
+       ev=json.loads((p/f'observation_{n}.json').read_text());child=states[h['child']];rendered=render_event_append(ModelEvent.from_dict(ev));valid=child['transcript']==rendered and child['parent_checkpoint_id']==h['parent'] and child['event_ids'].count(h['event_id'])==1 and sum(x['transcript']==rendered for x in states.values())==1
+       handoffs.append(valid)
+       if a['action_type']=='read_file':
+        read_calls+=1;obs=ev['payload']['result'].get('observation',{});full=a['result'].get('success',False) and a['result'].get('output')==source and ''.join(x['content'] for x in obs.get('exact_spans',[]))==source and obs.get('projection_complete',False) and (p/'workspace'/a['arguments']['path']).resolve()==(p/'workspace'/c['path']).resolve();reads+=int(full);supplied=supplied or full
+      advice=None
+      if (p/'ADVICE_EVENT.json').exists():
+>      ev=json.loads((p/'ADVICE_EVENT.json').read_text());rendered=render_event_append(ModelEvent.from_dict(ev));matches=[x for x in states.values() if ev['event_id'] in x['event_ids']];child=next(x for x in matches if x['transcript']==rendered);pre=json.loads((p/'pre_advice_state.json').read_text());parent=pre['model_lanes']['executor']['head_checkpoint_id'];cont=next(d for d in result['decisions'] if d['phase']=='continuation');call=next(x for x in calls if x['candidate_checkpoint']==cont['checkpoint']);advice=dict(parent=parent,child=child['checkpoint_id'],parent_correct=child['parent_checkpoint_id']==parent,append_once=sum(x['transcript']==rendered for x in states.values())==1,continuation_uses_child=call['input_checkpoint']==child['checkpoint_id'],non_evidence=ev['payload']['is_execution_evidence'] is False,source=ev['payload']['source']);advice['valid']=all(advice[k] for k in ['parent_correct','append_once','continuation_uses_child','non_evidence'])
+                                                                                                                                                                                                                                                                                                                     ^^^^^^^^^^^^^^^^^^
+E      KeyError: 'model_lanes'
+
+temp/audit_summary_advice_r3_20260913.py:37: KeyError
+=========================== short test summary info ============================
+FAILED temp/test_advice_audit_layout_r3_20260913.py::test_current_trace_layout
+1 failed in 0.90s

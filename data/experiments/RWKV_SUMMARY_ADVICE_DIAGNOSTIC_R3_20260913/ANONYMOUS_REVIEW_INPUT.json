@@ -1,0 +1,570 @@
+[
+  {
+    "id": "16916617c9",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。"
+  },
+  {
+    "id": "461eddbc8b",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。\n\n程序通过 argparse 解析命令行参数，要求必须提供 --db 和 --port 参数，并可选提供 --host 参数（默认 127.0.0.1）。然后创建 ThreadingHTTPServer 实例并调用 serve_forever() 启动服务。\n\n文件中没有实现数据库连接或业务逻辑，仅提供了 HTTP 服务的基础框架。"
+  },
+  {
+    "id": "81b124ad3b",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。"
+  },
+  {
+    "id": "94ae993b75",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个简单的 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块实现了一个基于线程的 HTTP 服务器。\n\n主要功能：\n1. 提供一个健康检查端点 `/health`，返回 JSON 格式的 `{\"ok\": true}` 和 HTTP 200 状态码\n2. 对于其他路径，返回 JSON 格式的 `{\"error\": \"not_implemented\"}` 和 HTTP 501 状态码\n\n使用方式：\n- 通过命令行参数指定数据库路径（`--db` 参数）\n- 可选指定主机地址（默认 `127.0.0.1`）\n- 必须指定端口号（`--port` 参数）\n\n示例运行：\n```bash\npython server.py --db /path/to/db --port 8080\n```\n\n服务器启动后会在指定端口上监听，支持并发请求。"
+  },
+  {
+    "id": "98ef22f433",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。\n\n程序通过 argparse 解析命令行参数，要求必须提供 --db 和 --port 参数，并可选提供 --host 参数（默认 127.0.0.1）。然后创建 ThreadingHTTPServer 实例并调用 serve_forever() 启动服务。\n\n文件中没有实现数据库连接或业务逻辑，仅提供了 HTTP 服务的基础框架。"
+  },
+  {
+    "id": "aed66820a7",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个简单的 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块实现了一个基于线程的 HTTP 服务器。\n\n主要功能：\n1. 提供一个健康检查端点 `/health`，返回 JSON 格式的 `{\"ok\": true}` 和 HTTP 200 状态码\n2. 对于其他路径，返回 JSON 格式的 `{\"error\": \"not_implemented\"}` 和 HTTP 501 状态码\n\n使用方式：\n- 通过命令行参数指定数据库路径（`--db` 参数）\n- 可选指定主机地址（默认 `127.0.0.1`）\n- 必须指定端口号（`--port` 参数）\n\n示例运行：\n```bash\npython server.py --db /path/to/db --port 8080\n```\n\n服务器启动后会在指定端口上监听，支持并发请求。"
+  },
+  {
+    "id": "b2f38466e8",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。"
+  },
+  {
+    "id": "c049a23099",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。"
+  }
+]

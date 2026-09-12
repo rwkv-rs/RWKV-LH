@@ -1,0 +1,5 @@
+运行后外部审计说明：
+
+- AUDIT_LAYOUT_RED保留初稿误用model_lanes与metadata顶层字段的失败；实际布局为lane_heads/cache_binding。失败候选按这两类已知编辑逆向重建。
+- 另一次临时交叉检查直接对JSON转义文本做advice原文子串断言失败，没有生成评分结果。CONTINUATION_CHAIN_CHECK改为解析生产Function output JSON，核对payload.advice及祖先链；4/4一致。此为取证读取方式，不改模型数据或语义验收。
+- 所有语义评分仍是冻结规则，未用这些机械脚本失败调整答案等级。
