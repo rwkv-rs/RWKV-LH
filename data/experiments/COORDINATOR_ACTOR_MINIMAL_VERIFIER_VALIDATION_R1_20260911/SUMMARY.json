@@ -1,0 +1,47 @@
+{
+  "round_id": "COORDINATOR_ACTOR_MINIMAL_VERIFIER_VALIDATION_R1_20260911",
+  "agent": {
+    "strict": "0/12",
+    "completed": "0/12",
+    "external_passed": "0/12",
+    "false_positive_completions": 0,
+    "false_negative_completions": 0,
+    "mutations": 0,
+    "actions": 14,
+    "termination": {
+      "supervisor_plan_unavailable": 10,
+      "runner_observation_projection_error": 1,
+      "identical_success_budget_exhausted": 1
+    }
+  },
+  "roles": {
+    "coordinator_requests": 24,
+    "tasks_with_accepted_plan": 2,
+    "tasks_reaching_rwkv_actor": 2,
+    "rwkv_actor_requests": 18,
+    "actor_lane_ids": [
+      "LANE:ACTION"
+    ],
+    "independent_selector_requests": 0,
+    "step_auditor_requests": 0,
+    "stage_checker_requests": 0,
+    "finalizer_requests": 0,
+    "final_auditor_requests": 0,
+    "minimal_verifier_reviews": 0
+  },
+  "gates": {
+    "deterministic_wiring": "pass: 46/46",
+    "full_regression": "pass: 1502/1502, 0 skipped, 256.67 seconds",
+    "candidate_feasibility": "fail",
+    "production_acceptance": "not_evaluated"
+  },
+  "first_systemic_failure": "OpenAICompatibleSupervisorClient.create_plan requests the canonical objective/constraints/steps/completion_checks/risks object but does not semantically retry SupervisorPlan validation. DeepSeek returned semantically complete plans using plan or nested plan/goal shapes; 10/12 tasks exhausted the registered resume attempt before the Actor could run.",
+  "secondary_failures": [
+    "RP-MAINT-01 reached eight direct Actor actions, then list_directory on a file path exposed an ObservationProjectionError.",
+    "RP-WEB-02 reached six direct Actor actions, repeated read_file without progress, and interrupted without a normal final-review boundary."
+  ],
+  "training": false,
+  "optimizer_steps": 0,
+  "holdout_accessed": false,
+  "production_architecture_changed": false
+}

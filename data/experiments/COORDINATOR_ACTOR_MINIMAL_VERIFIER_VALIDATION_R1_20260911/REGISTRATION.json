@@ -1,0 +1,69 @@
+{
+  "round_id": "COORDINATOR_ACTOR_MINIMAL_VERIFIER_VALIDATION_R1_20260911",
+  "owner_authorization": "2026-09-11 owner requested execution, testing, and validation of Coordinator + RWKV Actor + Harness + Minimal Verifier.",
+  "purpose": "Validate the already-implemented static strong Coordinator plus one persistent direct-action RWKV lane and final-candidate-only review before any product architecture replacement.",
+  "source_commit": "6f0922b9e7516032dd921ccc350d74fefb6b3ea5",
+  "production_source_reference": "de029c88",
+  "production_files_changed_between_architecture_observations": false,
+  "candidate": {
+    "controller": "rwkv_lh.controller.LongHorizonController",
+    "coordinator": "OpenAI-compatible deepseek-flash static create_plan plus final-candidate review",
+    "actor": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "actor_state": "one LANE:ACTION recurrent native State continued across decisions and observations",
+    "tool_decision": "one direct function call containing operation and complete arguments; full tool disclosure; no independent Selector or three-order vote",
+    "harness": "production ActionHarness with isolated external acceptance",
+    "verifier_boundary": "strong review only after RWKV emits final_answer; concrete revision feedback returns to the same Actor lane"
+  },
+  "candidate_source_sha256": {
+    "rwkv_lh/controller.py": "1d511a71739444db76ad28fde29b072efdec29d42a41f15f696a0a58c0970529",
+    "rwkv_lh/model.py": "3f34660721ef587f365e761e6633455f1a80f7201f9c83427fa0bdd370f341d7",
+    "rwkv_lh/harness.py": "1565f1182c320762ae90edd34067b02b4a7fecc5264b9b6336eee87190a34463",
+    "scripts/run_rwkv_e2e_benchmark.py": "548ad9c21e1d32d681f9476f12f4d64aa5e2ee52aaf1849ab5bc02b37d563dae"
+  },
+  "task_set": {
+    "suite": "realprojectdevv1",
+    "count": 12,
+    "tasks_sha256": "460f079a24d66d19e0d45ce40135c27953ef8faa84010e74c08c0a5084b446c5",
+    "acceptance_sha256": "99cde8e04cd3af3e026af4a16a3e534049c0f6063a016c200c28d03af48f346f",
+    "reruns": 1,
+    "holdout_accessed": false
+  },
+  "fixed_runtime": {
+    "max_transitions": 200,
+    "concurrency": 1,
+    "tool_disclosure_mode": "full",
+    "supervisor_mode": "openai",
+    "supervisor_strategy": "static",
+    "supervisor_pending_resume_attempts": 1,
+    "native_transport_resume_attempts": 1,
+    "supervisor_batch_failure_policy": "continue_model_failures",
+    "rwkv_model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "rwkv_state_profile": "zero",
+    "coordinator_model": "deepseek-flash",
+    "output_directory": "data/experiments/COORDINATOR_ACTOR_MINIMAL_VERIFIER_VALIDATION_R1_20260911/candidate"
+  },
+  "pre_registered_metrics": [
+    "Strict passed",
+    "agent completed",
+    "external passed",
+    "false positive: agent completed and external failed",
+    "false negative: external passed and agent not completed",
+    "mutation count",
+    "action count",
+    "termination status and reason",
+    "RWKV model request count",
+    "Coordinator request count",
+    "protocol rejection count",
+    "actual lane ids and final-review call boundaries"
+  ],
+  "validation_gates": {
+    "wiring": "All deterministic hybrid tests pass; one Actor lane performs direct operation plus arguments; review is called only for final_answer and revision returns to the same lane.",
+    "candidate_feasibility": "At least one of 12 tasks is Strict and completed, with zero false-positive completions. This only authorizes a matched architecture comparison, not production acceptance.",
+    "production_acceptance": "Not evaluated by this one-run development validation. Existing formal Agent gates remain unchanged."
+  },
+  "comparison_boundary": "The incomplete current Stateful Goal R3 observations may be reported as historical context only. This candidate-only 12-task validation is not a matched causal A/B and will not attribute differences to one removed role.",
+  "training": false,
+  "optimizer_steps": 0,
+  "new_dataset_version": false,
+  "production_architecture_changed": false
+}
