@@ -1,0 +1,35 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_store_closes_connections_without_waiting_for_garbage_collection _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_store_closes_connections_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x709f6f084510>
+
+    def test_store_closes_connections_without_waiting_for_garbage_collection(tmp_path, monkeypatch):
+        from rwkv_lh.store import StateRecoveryError
+        connections = []
+        connect = sqlite3.connect
+    
+        def retained_connection(*args, **kwargs):
+            connection = connect(*args, **kwargs)
+            connections.append(connection)  # Prevent GC from hiding a leaked handle.
+            return connection
+    
+        monkeypatch.setattr(sqlite3, 'connect', retained_connection)
+        store = LongHorizonStore(tmp_path / 'state')
+        state = store.create_run(literal(tmp_path), run_id='connection-lifetime')
+        assert store.load(state.run_id).revision == state.revision
+        assert store.event_records(state.run_id)
+        assert store.checkpoint_records(state.run_id)
+        with pytest.raises(StateRecoveryError):
+            store.load('missing-run')
+        assert connections
+        for connection in connections:
+>           with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ProgrammingError
+
+tests/test_long_horizon_state.py:402: Failed
+=========================== short test summary info ============================
+FAILED tests/test_long_horizon_state.py::test_store_closes_connections_without_waiting_for_garbage_collection
+1 failed, 17 deselected in 0.78s

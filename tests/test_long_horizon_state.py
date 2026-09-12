@@ -377,3 +377,51 @@ def test_causal_order_tampering_is_rejected(tmp_path: Path) -> None:
     payload["causal_order"] = list(reversed(payload["causal_order"]))
     with pytest.raises(ValueError, match="sequence or parent"):
         RunState.from_dict(payload)
+
+
+def test_store_closes_connections_without_waiting_for_garbage_collection(tmp_path, monkeypatch):
+    from rwkv_lh.store import StateRecoveryError
+    connections = []
+    connect = sqlite3.connect
+
+    def retained_connection(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connections.append(connection)  # Prevent GC from hiding a leaked handle.
+        return connection
+
+    monkeypatch.setattr(sqlite3, 'connect', retained_connection)
+    store = LongHorizonStore(tmp_path / 'state')
+    state = store.create_run(literal(tmp_path), run_id='connection-lifetime')
+    assert store.load(state.run_id).revision == state.revision
+    assert store.event_records(state.run_id)
+    assert store.checkpoint_records(state.run_id)
+    with pytest.raises(StateRecoveryError):
+        store.load('missing-run')
+    assert connections
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+            connection.execute('SELECT 1')
+    assert not list((tmp_path / 'state').glob('*.db-wal'))
+
+
+def test_store_closes_connection_when_pragma_initialization_fails(tmp_path, monkeypatch):
+    connections = []
+    connect = sqlite3.connect
+
+    class RejectJournal(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            if sql == 'PRAGMA journal_mode = WAL':
+                raise sqlite3.OperationalError('journal initialization failed')
+            return super().execute(sql, *args, **kwargs)
+
+    def retained_connection(*args, **kwargs):
+        connection = connect(*args, factory=RejectJournal, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(sqlite3, 'connect', retained_connection)
+    with pytest.raises(sqlite3.OperationalError, match='journal initialization failed'):
+        LongHorizonStore(tmp_path / 'state')
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+            connection.execute('SELECT 1')

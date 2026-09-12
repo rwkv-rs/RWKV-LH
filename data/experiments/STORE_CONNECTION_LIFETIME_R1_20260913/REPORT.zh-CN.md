@@ -1,0 +1,11 @@
+# Store连接生命周期 R1
+
+Agent/任务效果：本轮没有新增模型调用、mutation或任务质量收益；修复真实trace封存时暴露的SQLite连接释放缺陷，不改变模型输入/输出/工具选择。不是项目Strict。
+
+SQLite connection的with语句只负责事务，不负责关闭。初始化、load、event_records、checkpoint_records共四条路径的句柄可能等待GC；WAL在之后checkpoint，使运行中的文件哈希不能作为最终数据库身份。当前采集的最终数据库已按生产RunState解码验证与原快照完全等价，原失效清单保留在主实验SOURCE_FINALIZATION.json和证据包。
+
+四处连接统一用closing包裹并保留原事务上下文；_connect配置PRAGMA失败时也立即关闭再抛原异常。事务写入已有finally关闭机制保持。影响全部Store使用者的文件句柄/WAL生命周期，不添加业务补偿、角色或State重写。
+
+两个先失败后通过回归：强引用保留连接以排除GC掩盖，验证初始化、正常load、事件/快照枚举和缺失run异常结束后句柄已关、WAL无需GC即可清理；注入PRAGMA失败验证初始化异常也关闭。相关19项通过，全量1528 passed、0 skipped。中途一次共用pytest临时目录运行出现2个SQLite I/O/无法打开错误，原日志保留；独立basetemp全量重跑通过，未跳过Torch或浏览器。
+
+StateTune训练与zero/候选摘要对比继续使用已冻结source_r2，未混入此修改；后续原读取回归两臂都使用此修复并重新冻结。原五个未提交修改SHA保持；不更新GitHub。逐文件SHA见FILES.json。

@@ -1,0 +1,34 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_store_closes_connection_when_pragma_initialization_fails _________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_store_closes_connection_w0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76ed0f718050>
+
+    def test_store_closes_connection_when_pragma_initialization_fails(tmp_path, monkeypatch):
+        connections = []
+        connect = sqlite3.connect
+    
+        class RejectJournal(sqlite3.Connection):
+            def execute(self, sql, *args, **kwargs):
+                if sql == 'PRAGMA journal_mode = WAL':
+                    raise sqlite3.OperationalError('journal initialization failed')
+                return super().execute(sql, *args, **kwargs)
+    
+        def retained_connection(*args, **kwargs):
+            connection = connect(*args, factory=RejectJournal, **kwargs)
+            connections.append(connection)
+            return connection
+    
+        monkeypatch.setattr(sqlite3, 'connect', retained_connection)
+        with pytest.raises(sqlite3.OperationalError, match='journal initialization failed'):
+            LongHorizonStore(tmp_path / 'state')
+        for connection in connections:
+>           with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ProgrammingError
+
+tests/test_long_horizon_state.py:426: Failed
+=========================== short test summary info ============================
+FAILED tests/test_long_horizon_state.py::test_store_closes_connection_when_pragma_initialization_fails
+1 failed, 18 deselected in 0.10s

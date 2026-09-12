@@ -9,7 +9,7 @@ import sqlite3
 import threading
 import time
 import zlib
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 from uuid import uuid4
@@ -135,7 +135,7 @@ class LongHorizonStore:
 
     def load(self, run_id: str) -> RunState:
         identifier = self._normalize_run_id(run_id)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             row = connection.execute(
                 "SELECT revision, goal_digest, state_json FROM runs WHERE run_id = ?",
                 (identifier,),
@@ -288,7 +288,7 @@ class LongHorizonStore:
 
     def event_records(self, run_id: str) -> list[dict[str, Any]]:
         identifier = self._normalize_run_id(run_id)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 """
                 SELECT event_id, timestamp, run_id, revision, type, data_json
@@ -323,7 +323,7 @@ class LongHorizonStore:
         """
 
         identifier = self._normalize_run_id(run_id)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 """
                 SELECT revision, state_json, event_type, milestone, created_at
@@ -400,7 +400,7 @@ class LongHorizonStore:
                 )
 
     def _initialize_database(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS runs (
@@ -467,12 +467,16 @@ class LongHorizonStore:
             timeout=5.0,
             isolation_level=None,
         )
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
-        connection.execute("PRAGMA synchronous = FULL")
-        connection.execute("PRAGMA busy_timeout = 5000")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA journal_mode = WAL")
+            connection.execute("PRAGMA synchronous = FULL")
+            connection.execute("PRAGMA busy_timeout = 5000")
+            return connection
+        except BaseException:
+            connection.close()
+            raise
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
