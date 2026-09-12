@@ -1,0 +1,305 @@
+{
+  "tasks": [
+    {
+      "run": "attempt-01",
+      "arm": "plain",
+      "case": "full_text-1",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-02",
+      "arm": "tool",
+      "case": "full_text-1",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [
+        {
+          "quote": "GET /bookings：返回所有预约…200 返回 JSON 数组",
+          "kind": "localized_contradiction",
+          "evidence": "原文返回对象{\"bookings\":[...]}，不是顶层JSON数组。",
+          "impact": "接口返回结构局部错误；预约主旨和时段冲突仍正确。"
+        }
+      ],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-03",
+      "arm": "plain",
+      "case": "full_text-2",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [
+        {
+          "quote": "服务要求所有响应都是 JSON 格式，并且不允许未经文件支持的事实",
+          "kind": "localized_unsupported",
+          "evidence": "所有响应JSON是文件要求；不补充未经文件支持事实是用户摘要指令，不是服务需求。",
+          "impact": "混淆任务指令与被总结资料，加入一条无依据的服务约束。"
+        }
+      ],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-04",
+      "arm": "tool",
+      "case": "full_text-2",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-05",
+      "arm": "plain",
+      "case": "full_code-1",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-06",
+      "arm": "tool",
+      "case": "full_code-1",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-07",
+      "arm": "plain",
+      "case": "full_code-2",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-08",
+      "arm": "tool",
+      "case": "full_code-2",
+      "repeat": 1,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-09",
+      "arm": "tool",
+      "case": "full_text-1",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [
+        {
+          "quote": "要求：不得修改文件、启动服务或调用有副作用的工具；只依据文件中的信息回答",
+          "kind": "localized_unsupported",
+          "evidence": "这是用户对当前摘要任务/工具权限的约束，不是README服务需求；README反而要求实现代码、更新文档及启动验证。",
+          "impact": "将任务指令归入文件主要内容，来源边界混淆。"
+        }
+      ],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-10",
+      "arm": "plain",
+      "case": "full_text-1",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [
+        {
+          "quote": "GET /bookings…返回200和预约列表，或404错误",
+          "kind": "localized_unsupported",
+          "evidence": "文件中GET /bookings返回200列表；404在未知路由和不存在的单条id处，不是该列表接口的登记响应。",
+          "impact": "把单条/未知路由错误扩展为列表接口行为。"
+        }
+      ],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-11",
+      "arm": "tool",
+      "case": "full_text-2",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-12",
+      "arm": "plain",
+      "case": "full_text-2",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-13",
+      "arm": "tool",
+      "case": "full_code-1",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-14",
+      "arm": "plain",
+      "case": "full_code-1",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "partial",
+      "task_pass": false,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    },
+    {
+      "run": "attempt-15",
+      "arm": "tool",
+      "case": "full_code-2",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "final_answer"
+    },
+    {
+      "run": "attempt-16",
+      "arm": "plain",
+      "case": "full_code-2",
+      "repeat": 2,
+      "submitted": true,
+      "quality": "satisfies",
+      "task_pass": true,
+      "engineering_valid": true,
+      "factual_issues": [],
+      "false_completion": false,
+      "termination": "plain_stop"
+    }
+  ],
+  "arms": {
+    "plain": {
+      "attempts": 8,
+      "submitted": 8,
+      "quality": {
+        "satisfies": 3,
+        "partial": 5
+      },
+      "task_pass": 3,
+      "mutations": 0,
+      "termination": {
+        "plain_stop": 8
+      },
+      "generation_calls": 8,
+      "tool_calls": 0,
+      "complete_reads": 0,
+      "input_tokens_full_context": 4086,
+      "output_tokens_raw": 1717,
+      "client_task_seconds": 115.91918087005615,
+      "client_seconds_per_qualified_including_failed": 38.63972695668539,
+      "monetary_cost_per_qualified": null,
+      "monetary_cost_reason": "self-hosted rate and actual device telemetry unavailable, not zero",
+      "repeats": {
+        "1": 2,
+        "2": 1
+      },
+      "protocol_errors": 0,
+      "infrastructure_errors": 0,
+      "false_completion": 0,
+      "stable_gate": false
+    },
+    "tool": {
+      "attempts": 8,
+      "submitted": 8,
+      "quality": {
+        "partial": 4,
+        "satisfies": 4
+      },
+      "task_pass": 4,
+      "mutations": 0,
+      "termination": {
+        "final_answer": 8
+      },
+      "generation_calls": 16,
+      "tool_calls": 8,
+      "complete_reads": 8,
+      "input_tokens_full_context": 67632,
+      "output_tokens_raw": 3080,
+      "client_task_seconds": 419.7146968841553,
+      "client_seconds_per_qualified_including_failed": 104.92867422103882,
+      "monetary_cost_per_qualified": null,
+      "monetary_cost_reason": "self-hosted rate and actual device telemetry unavailable, not zero",
+      "repeats": {
+        "1": 2,
+        "2": 2
+      },
+      "protocol_errors": 0,
+      "infrastructure_errors": 0,
+      "false_completion": 0,
+      "stable_gate": false
+    }
+  },
+  "project_strict": null,
+  "assistance": "All independent RWKV; strong calls0",
+  "old_results_rescored": false
+}

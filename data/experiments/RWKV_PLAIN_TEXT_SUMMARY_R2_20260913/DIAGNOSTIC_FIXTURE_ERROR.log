@@ -1,0 +1,22 @@
+................F                                                        [100%]
+=================================== FAILURES ===================================
+__ test_plain_native_input_contains_only_task_and_source_and_preserves_output __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/plain_summary_offline_r2/test_plain_native_input_contai0')
+
+    def test_plain_native_input_contains_only_task_and_source_and_preserves_output(tmp_path):
+     reg=json.loads((R/'data/experiments/RWKV_READ_SUMMARY_PATHWAY_R1_20260912/REGISTRATION.json').read_text());c=reg['cases'][0];content=(R/c['workspace_source']/c['path']).read_text();prompt=plain_prompt(c['common_request'],c['path'],content);assert content in prompt;assert 'System: Tools:' not in prompt;assert 'immutable_request' not in prompt
+>    class Session:
+
+temp/test_plain_summary_r2_20260913.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    class Session:
+>    settings=RuntimeSettings(base_url='http://127.0.0.1:1/v1',model='offline',model_sha256='x')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    TypeError: RuntimeSettings.__init__() missing 1 required positional argument: 'api_key'
+
+temp/test_plain_summary_r2_20260913.py:18: TypeError
+=========================== short test summary info ============================
+FAILED temp/test_plain_summary_r2_20260913.py::test_plain_native_input_contains_only_task_and_source_and_preserves_output
+1 failed, 16 passed in 1.01s

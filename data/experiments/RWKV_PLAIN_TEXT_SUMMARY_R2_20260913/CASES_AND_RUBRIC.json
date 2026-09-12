@@ -1,0 +1,351 @@
+{
+  "cases": [
+    {
+      "id": "full_text-1",
+      "category": "full_text",
+      "case": "RP-API-01",
+      "path": "README.md",
+      "start_byte": 0,
+      "source_event_log": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/event_log.json",
+      "source_event_id": 8,
+      "source_action_id": "A00001",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "workspace_sha256": {
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "suite": "primary_r1_valid7",
+      "file_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "file_bytes": 1823,
+      "common_request": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+      "facts_external_only": [
+        {
+          "id": "purpose",
+          "severity": "core",
+          "meaning": "会议室/设备预约服务需求",
+          "evidence_lines": [
+            3
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "概括为预约服务需求即可；不要求逐字段复述；把需求说成已实现属于无依据实现声明"
+        },
+        {
+          "id": "conflict",
+          "severity": "core",
+          "meaning": "同资源有效预约不能重叠",
+          "evidence_lines": [
+            8
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "说明同资源时段冲突即可；无需UTC整数/半开术语；宣称允许重叠为核心矛盾"
+        },
+        {
+          "id": "cancel",
+          "severity": "important",
+          "meaning": "取消释放时段",
+          "evidence_lines": [
+            11
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "可省略幂等和未知id返回码"
+        },
+        {
+          "id": "failure",
+          "severity": "important",
+          "meaning": "失败不改预约",
+          "evidence_lines": [
+            12
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "可省略各个错误码"
+        },
+        {
+          "id": "atomic",
+          "severity": "important",
+          "meaning": "并发冲突判定与写入原子",
+          "evidence_lines": [
+            14
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "只说支持并发是部分覆盖"
+        },
+        {
+          "id": "persistence",
+          "severity": "important",
+          "meaning": "重启保留数据与规则",
+          "evidence_lines": [
+            14
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "SQLite持久化概括可接受"
+        },
+        {
+          "id": "verification",
+          "severity": "important",
+          "meaning": "公开健康检查不代表完整业务验证",
+          "evidence_lines": [
+            14
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "无测试通过声明时遗漏仅完整度差异"
+        }
+      ]
+    },
+    {
+      "id": "full_text-2",
+      "category": "full_text",
+      "case": "RP-API-02",
+      "path": "README.md",
+      "start_byte": 0,
+      "source_event_log": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-02/event_log.json",
+      "source_event_id": 8,
+      "source_action_id": "A00001",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-02/workspace",
+      "workspace_sha256": {
+        "README.md": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "suite": "primary_r1_valid7",
+      "file_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "file_bytes": 2020,
+      "common_request": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+      "facts_external_only": [
+        {
+          "id": "purpose",
+          "severity": "core",
+          "meaning": "库存订单服务需求",
+          "evidence_lines": [
+            1
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "需求语气可由全文上下文表达；不要求显式说尚未实现"
+        },
+        {
+          "id": "idempotency",
+          "severity": "core",
+          "meaning": "相同key相同请求不重复扣减",
+          "evidence_lines": [
+            10
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "请求重试去重/幂等避免重复扣减可接受；只列接口为遗漏"
+        },
+        {
+          "id": "atomic",
+          "severity": "core",
+          "meaning": "整单原子避免部分扣减",
+          "evidence_lines": [
+            3
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "要表达全成或全败；无需逐条列SQL行为"
+        },
+        {
+          "id": "normalization",
+          "severity": "important",
+          "meaning": "重复SKU合并、同key不同请求冲突",
+          "evidence_lines": [
+            11
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "可省略排序细节；单提key冲突部分覆盖"
+        },
+        {
+          "id": "failure_key",
+          "severity": "important",
+          "meaning": "失败不占用key可纠正重试",
+          "evidence_lines": [
+            12
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "库存不足整体失败不自动等于覆盖失败key"
+        },
+        {
+          "id": "concurrency",
+          "severity": "important",
+          "meaning": "并发不超卖",
+          "evidence_lines": [
+            16
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "并发不超卖可概括"
+        },
+        {
+          "id": "persistence",
+          "severity": "important",
+          "meaning": "重启持久",
+          "evidence_lines": [
+            5,
+            16
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "持久化即可"
+        },
+        {
+          "id": "verification",
+          "severity": "important",
+          "meaning": "公开验证仅健康检查",
+          "evidence_lines": [
+            16
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "没有虚报测试时遗漏仅完整度差异"
+        }
+      ]
+    },
+    {
+      "id": "full_code-1",
+      "category": "full_code",
+      "case": "RP-API-01",
+      "path": "server.py",
+      "start_byte": 0,
+      "source_event_log": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/event_log.json",
+      "source_event_id": 12,
+      "source_action_id": "A00002",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "workspace_sha256": {
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "suite": "primary_r1_valid7",
+      "file_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "file_bytes": 935,
+      "common_request": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+      "facts_external_only": [
+        {
+          "id": "purpose",
+          "severity": "core",
+          "meaning": "初始HTTP骨架，尚待实现合同",
+          "evidence_lines": [
+            1
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+        },
+        {
+          "id": "get",
+          "severity": "core",
+          "meaning": "health成功JSON，其他GET未实现",
+          "evidence_lines": [
+            8
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+        },
+        {
+          "id": "db",
+          "severity": "core",
+          "meaning": "db参数只解析，未用于数据库",
+          "evidence_lines": [
+            18,
+            19,
+            20
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+        },
+        {
+          "id": "cli",
+          "severity": "important",
+          "meaning": "命令行db/host/port配置",
+          "evidence_lines": [
+            21
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "可概括CLI配置"
+        },
+        {
+          "id": "threads",
+          "severity": "important",
+          "meaning": "线程HTTP服务启动",
+          "evidence_lines": [
+            4,
+            22
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+        },
+        {
+          "id": "json",
+          "severity": "important",
+          "meaning": "JSON响应",
+          "evidence_lines": [
+            9
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "不需列响应头"
+        }
+      ]
+    },
+    {
+      "id": "full_code-2",
+      "category": "full_code",
+      "case": "RP-API-01",
+      "path": "verify_public.py",
+      "start_byte": 0,
+      "source_event_log": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/event_log.json",
+      "source_event_id": 16,
+      "source_action_id": "A00003",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "workspace_sha256": {
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "suite": "primary_r1_valid7",
+      "file_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "file_bytes": 497,
+      "common_request": "阅读指定文件 verify_public.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+      "facts_external_only": [
+        {
+          "id": "purpose",
+          "severity": "core",
+          "meaning": "仅健康冒烟，不验证事务业务",
+          "evidence_lines": [
+            1,
+            9,
+            13
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "健康检查脚本+明确业务测试仍需做即可；只说完整服务验证属核心误导"
+        },
+        {
+          "id": "assertions",
+          "severity": "core",
+          "meaning": "GET health确认HTTP成功及ok为true",
+          "evidence_lines": [
+            11
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "不强求逐字布尔表达式；只说请求健康端点不提检查结果为部分覆盖"
+        },
+        {
+          "id": "cli",
+          "severity": "important",
+          "meaning": "HOST PORT来自命令行",
+          "evidence_lines": [
+            8
+          ],
+          "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+          "allowance_and_error": "可省略具体argv索引"
+        }
+      ]
+    }
+  ],
+  "rubric": {
+    "coverage": "Each fact covered/partial/omitted; semantic paraphrase accepted. Core facts are minimal main meaning; important facts separately report completeness; missing important facts alone does not fail. General implementation details optional.",
+    "satisfies": "All core meanings covered, no unsupported assertions or contradictions; important details may be omitted. Requirements described as requirements; no need verbatim disclaimer not implemented if not claimed implemented.",
+    "partial": "Correct general subject but partial/omitted core meaning or localized unsupported assertion; retain all correct coverage.",
+    "fails": "Wrong main subject, contradicted core behavior, or materially false implementation/testing claims.",
+    "no_result": "No submitted final answer.",
+    "fidelity": "Check every concrete assertion against whole source. Distinguish omission from contradiction. Unsupported added module is local unsupported content, not all output false.",
+    "false_completion": "Only explicit factual claim of unperformed work or success contradicted by evidence; final_answer submission and hidden-score failure alone never count.",
+    "reader": "Single primary Codex semantic review of anonymous task/file/final packets, no tool/arm labels; single reviewer limitation acknowledged; existing context cannot be fully blinded. No model/API judge calls.",
+    "task_pass": "summary satisfies and source actually supplied/acquired and engineering input/State invariants hold; repeated lawful reads are cost only, not failure. Tool group source must have actually been acquired.",
+    "gate": "Each arm separately: both repeats 4/4 task pass, no unsupported assertions, illegal parameters, false factual completion or engineering failures. No automatic scope escalation.",
+    "optional_details": "HTTP codes except semantic successful health, exact response fields/headers, timeout, close, key length, exact CLI syntax/printing not required unless central fact above."
+  }
+}

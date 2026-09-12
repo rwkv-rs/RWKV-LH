@@ -1,0 +1,670 @@
+[
+  {
+    "anonymous_id": "20ea859b53",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "会议资源预约服务的说明文档；内部会议室与设备预约"
+      },
+      {
+        "id": "conflict",
+        "coverage": "covered",
+        "evidence_or_reason": "创建预约需提供资源、开始与结束时间；冲突预约不能重叠。资源预约上下文下概括时段冲突，没有宣称不同资源也互斥；非逐字规则复述"
+      },
+      {
+        "id": "cancel",
+        "coverage": "covered",
+        "evidence_or_reason": "取消后时段可被重新预约"
+      },
+      {
+        "id": "failure",
+        "coverage": "omitted",
+        "evidence_or_reason": "列400等错误码但未说失败不改变预约"
+      },
+      {
+        "id": "atomic",
+        "coverage": "covered",
+        "evidence_or_reason": "冲突判定与写入必须为同一原子操作"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "后续启动保留数据"
+      },
+      {
+        "id": "verification",
+        "coverage": "covered",
+        "evidence_or_reason": "不能以健康检查替代完整功能"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "3c45f5bfb0",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "库存与订单服务说明文档；SQLite HTTP订单服务"
+      },
+      {
+        "id": "idempotency",
+        "coverage": "covered",
+        "evidence_or_reason": "解决网络重试重复扣库存；概括目标但未展开key机制，允许不同措辞"
+      },
+      {
+        "id": "atomic",
+        "coverage": "partial",
+        "evidence_or_reason": "提到解决多行订单部分扣减问题，但未说明全成或全败/整体无写入"
+      },
+      {
+        "id": "normalization",
+        "coverage": "omitted",
+        "evidence_or_reason": "未概括规范化/同key异请求冲突"
+      },
+      {
+        "id": "failure_key",
+        "coverage": "omitted",
+        "evidence_or_reason": "未提失败不占key"
+      },
+      {
+        "id": "concurrency",
+        "coverage": "omitted",
+        "evidence_or_reason": "未提不超卖"
+      },
+      {
+        "id": "persistence",
+        "coverage": "omitted",
+        "evidence_or_reason": "仅说SQLite/命令行，未说明重启持久"
+      },
+      {
+        "id": "verification",
+        "coverage": "omitted",
+        "evidence_or_reason": "仅列健康检查接口，未说明验证边界"
+      }
+    ],
+    "factual_issues": [
+      {
+        "quote": "服务要求所有响应都是 JSON 格式，并且不允许未经文件支持的事实",
+        "kind": "localized_unsupported",
+        "evidence": "所有响应JSON是文件要求；不补充未经文件支持事实是用户摘要指令，不是服务需求。",
+        "impact": "混淆任务指令与被总结资料，加入一条无依据的服务约束。"
+      }
+    ],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "b309c164a2",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "会议资源预约服务；README概括"
+      },
+      {
+        "id": "conflict",
+        "coverage": "covered",
+        "evidence_or_reason": "同resource的confirmed预约不能重叠"
+      },
+      {
+        "id": "cancel",
+        "coverage": "partial",
+        "evidence_or_reason": "取消预约、重复幂等，未提时段释放"
+      },
+      {
+        "id": "failure",
+        "coverage": "omitted",
+        "evidence_or_reason": "未提失败不改变预约"
+      },
+      {
+        "id": "atomic",
+        "coverage": "covered",
+        "evidence_or_reason": "冲突判定与写入必须原子"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "重启后数据和冲突规则继续正确"
+      },
+      {
+        "id": "verification",
+        "coverage": "covered",
+        "evidence_or_reason": "不得用健康检查替代完整功能验证"
+      }
+    ],
+    "factual_issues": [
+      {
+        "quote": "GET /bookings：返回所有预约…200 返回 JSON 数组",
+        "kind": "localized_contradiction",
+        "evidence": "原文返回对象{\"bookings\":[...]}，不是顶层JSON数组。",
+        "impact": "接口返回结构局部错误；预约主旨和时段冲突仍正确。"
+      }
+    ],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "376ddf0420",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "partial",
+        "evidence_or_reason": "简单的健康检查端点/服务器入口；未明确初始骨架"
+      },
+      {
+        "id": "get",
+        "coverage": "covered",
+        "evidence_or_reason": "health200和JSON；其他路径501 not_implemented"
+      },
+      {
+        "id": "db",
+        "coverage": "omitted",
+        "evidence_or_reason": "仅列--db必填，未说明数据库参数未使用"
+      },
+      {
+        "id": "cli",
+        "coverage": "covered",
+        "evidence_or_reason": "db/port必填，host默认127.0.0.1"
+      },
+      {
+        "id": "threads",
+        "coverage": "covered",
+        "evidence_or_reason": "启动ThreadingHTTPServer"
+      },
+      {
+        "id": "json",
+        "coverage": "covered",
+        "evidence_or_reason": "JSON响应"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "6aeb200298",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "partial",
+        "evidence_or_reason": "提供健康检查的HTTP服务器；未明确初始骨架"
+      },
+      {
+        "id": "get",
+        "coverage": "covered",
+        "evidence_or_reason": "仅GET health实现，其他路径501 not_implemented"
+      },
+      {
+        "id": "db",
+        "coverage": "omitted",
+        "evidence_or_reason": "列--db必需，未说明它未被实际使用"
+      },
+      {
+        "id": "cli",
+        "coverage": "covered",
+        "evidence_or_reason": "db、host、port命令行参数"
+      },
+      {
+        "id": "threads",
+        "coverage": "covered",
+        "evidence_or_reason": "ThreadingHTTPServer处理并发请求"
+      },
+      {
+        "id": "json",
+        "coverage": "covered",
+        "evidence_or_reason": "JSON响应"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "5199310694",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "仅健康烟雾测试；不验证预订或订单；交易行为仍需单独测试"
+      },
+      {
+        "id": "assertions",
+        "coverage": "covered",
+        "evidence_or_reason": "GET /health检查200及ok为True"
+      },
+      {
+        "id": "cli",
+        "coverage": "partial",
+        "evidence_or_reason": "指定主机和端口；未明说来自命令行"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "ffab6d2087",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "小型仓库SQLite HTTP订单服务需求概括"
+      },
+      {
+        "id": "idempotency",
+        "coverage": "covered",
+        "evidence_or_reason": "同key相同规范化请求同一订单，不再次扣库存"
+      },
+      {
+        "id": "atomic",
+        "coverage": "covered",
+        "evidence_or_reason": "失败整体无写入；库存判定、扣减及登记原子完成"
+      },
+      {
+        "id": "normalization",
+        "coverage": "covered",
+        "evidence_or_reason": "同SKU求和排序；同key不同请求409"
+      },
+      {
+        "id": "failure_key",
+        "coverage": "covered",
+        "evidence_or_reason": "不占用key，可更正请求重试"
+      },
+      {
+        "id": "concurrency",
+        "coverage": "covered",
+        "evidence_or_reason": "并发不同key不得超卖"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "重启后库存订单key继续有效"
+      },
+      {
+        "id": "verification",
+        "coverage": "covered",
+        "evidence_or_reason": "公开验证只做健康检查，补充交易与恢复验证"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "455b6207bc",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "只读健康检查，基本可用性；不涉及业务逻辑或数据处理，在上下文中指业务数据处理，不否认已明确描述的JSON解析"
+      },
+      {
+        "id": "assertions",
+        "coverage": "covered",
+        "evidence_or_reason": "GET /health检查200及JSON ok=true"
+      },
+      {
+        "id": "cli",
+        "coverage": "partial",
+        "evidence_or_reason": "指定主机和端口，没有说明来自命令行"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "71ce758436",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "会议资源预约服务说明文档"
+      },
+      {
+        "id": "conflict",
+        "coverage": "partial",
+        "evidence_or_reason": "仅说冲突判定与写入原子，未概括同资源时段不能重叠"
+      },
+      {
+        "id": "cancel",
+        "coverage": "partial",
+        "evidence_or_reason": "取消指定预约；未提释放时段"
+      },
+      {
+        "id": "failure",
+        "coverage": "omitted",
+        "evidence_or_reason": "没有说明失败不改预约"
+      },
+      {
+        "id": "atomic",
+        "coverage": "covered",
+        "evidence_or_reason": "冲突判定与写入原子操作"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "重启后数据和规则继续正确"
+      },
+      {
+        "id": "verification",
+        "coverage": "omitted",
+        "evidence_or_reason": "未说明健康检查不替代完整功能验证"
+      }
+    ],
+    "factual_issues": [
+      {
+        "quote": "GET /bookings…返回200和预约列表，或404错误",
+        "kind": "localized_unsupported",
+        "evidence": "文件中GET /bookings返回200列表；404在未知路由和不存在的单条id处，不是该列表接口的登记响应。",
+        "impact": "把单条/未知路由错误扩展为列表接口行为。"
+      }
+    ],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "a50b31b77e",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "会议室设备的SQLite HTTP预约服务说明"
+      },
+      {
+        "id": "conflict",
+        "coverage": "covered",
+        "evidence_or_reason": "同resource confirmed不能重叠，其他resource不受影响"
+      },
+      {
+        "id": "cancel",
+        "coverage": "covered",
+        "evidence_or_reason": "取消后时段可重新预约"
+      },
+      {
+        "id": "failure",
+        "coverage": "covered",
+        "evidence_or_reason": "失败不得改变任何预约"
+      },
+      {
+        "id": "atomic",
+        "coverage": "omitted",
+        "evidence_or_reason": "没有明确冲突判定和写入同一原子操作"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "首次创建数据库、后续保留"
+      },
+      {
+        "id": "verification",
+        "coverage": "omitted",
+        "evidence_or_reason": "未说明健康验证局限"
+      }
+    ],
+    "factual_issues": [
+      {
+        "quote": "要求：不得修改文件、启动服务或调用有副作用的工具；只依据文件中的信息回答",
+        "kind": "localized_unsupported",
+        "evidence": "这是用户对当前摘要任务/工具权限的约束，不是README服务需求；README反而要求实现代码、更新文档及启动验证。",
+        "impact": "将任务指令归入文件主要内容，来源边界混淆。"
+      }
+    ],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "aae0407a06",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "库存订单服务，SQLite+HTTP"
+      },
+      {
+        "id": "idempotency",
+        "coverage": "covered",
+        "evidence_or_reason": "Idempotency-Key防止重复扣库存"
+      },
+      {
+        "id": "atomic",
+        "coverage": "covered",
+        "evidence_or_reason": "库存判定扣减和创建订单必须原子完成"
+      },
+      {
+        "id": "normalization",
+        "coverage": "omitted",
+        "evidence_or_reason": "未概括SKU规范化及同key异请求冲突"
+      },
+      {
+        "id": "failure_key",
+        "coverage": "partial",
+        "evidence_or_reason": "错误不修改状态，但未明确失败不占用key"
+      },
+      {
+        "id": "concurrency",
+        "coverage": "covered",
+        "evidence_or_reason": "并发请求不得超卖"
+      },
+      {
+        "id": "persistence",
+        "coverage": "covered",
+        "evidence_or_reason": "重启库存和订单数据继续有效；未逐项提key是重要项完整度差异"
+      },
+      {
+        "id": "verification",
+        "coverage": "omitted",
+        "evidence_or_reason": "未说明健康验证不证明业务"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "3b168b45a7",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "partial",
+        "evidence_or_reason": "简单健康检查端点/HTTP服务器入口，未说明初始骨架"
+      },
+      {
+        "id": "get",
+        "coverage": "covered",
+        "evidence_or_reason": "health200 JSON，其他路径501 not_implemented"
+      },
+      {
+        "id": "db",
+        "coverage": "omitted",
+        "evidence_or_reason": "仅列必需--db，未说参数未使用"
+      },
+      {
+        "id": "cli",
+        "coverage": "covered",
+        "evidence_or_reason": "db/port必填，host可选默认本地"
+      },
+      {
+        "id": "threads",
+        "coverage": "covered",
+        "evidence_or_reason": "ThreadingHTTPServer"
+      },
+      {
+        "id": "json",
+        "coverage": "covered",
+        "evidence_or_reason": "JSON响应"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "59bdd0b752",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "partial",
+        "evidence_or_reason": "简单HTTP入口，仅处理GET，未说明待完成合同的骨架性质"
+      },
+      {
+        "id": "get",
+        "coverage": "covered",
+        "evidence_or_reason": "health200，其他501 not_implemented"
+      },
+      {
+        "id": "db",
+        "coverage": "omitted",
+        "evidence_or_reason": "列db必填，没有说明未使用"
+      },
+      {
+        "id": "cli",
+        "coverage": "covered",
+        "evidence_or_reason": "db、port、host参数"
+      },
+      {
+        "id": "threads",
+        "coverage": "covered",
+        "evidence_or_reason": "多线程ThreadingHTTPServer"
+      },
+      {
+        "id": "json",
+        "coverage": "covered",
+        "evidence_or_reason": "JSON响应"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "aa47de868a",
+    "quality": "partial",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "库存订单README，SQLite和HTTP"
+      },
+      {
+        "id": "idempotency",
+        "coverage": "covered",
+        "evidence_or_reason": "库存管理、订单创建及幂等性控制；术语可概括避免重复效果，不要求逐字重复扣减"
+      },
+      {
+        "id": "atomic",
+        "coverage": "partial",
+        "evidence_or_reason": "仅列事务保证与并发数据一致性，没有解释整单全成或全败/避免部分扣减"
+      },
+      {
+        "id": "normalization",
+        "coverage": "omitted",
+        "evidence_or_reason": "未概括规范化及同key异请求冲突"
+      },
+      {
+        "id": "failure_key",
+        "coverage": "omitted",
+        "evidence_or_reason": "未提失败不占key"
+      },
+      {
+        "id": "concurrency",
+        "coverage": "partial",
+        "evidence_or_reason": "只说并发数据一致性，未说明不超卖"
+      },
+      {
+        "id": "persistence",
+        "coverage": "omitted",
+        "evidence_or_reason": "仅提SQLite，未说明重启持久"
+      },
+      {
+        "id": "verification",
+        "coverage": "omitted",
+        "evidence_or_reason": "未说明健康检查的业务验证边界"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "8749ff85d9",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "仅健康检查，不验证预订/订单或其他业务逻辑"
+      },
+      {
+        "id": "assertions",
+        "coverage": "covered",
+        "evidence_or_reason": "GET /health检查200及JSON ok=true"
+      },
+      {
+        "id": "cli",
+        "coverage": "partial",
+        "evidence_or_reason": "没有明说HOST/PORT来自命令行；重要项允许遗漏"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  },
+  {
+    "anonymous_id": "bda93fdf40",
+    "quality": "satisfies",
+    "fact_assessments": [
+      {
+        "id": "purpose",
+        "coverage": "covered",
+        "evidence_or_reason": "仅健康检查，不验证预订/订单或其他业务逻辑"
+      },
+      {
+        "id": "assertions",
+        "coverage": "covered",
+        "evidence_or_reason": "GET /health检查200及JSON ok=true"
+      },
+      {
+        "id": "cli",
+        "coverage": "omitted",
+        "evidence_or_reason": "没有明说HOST/PORT来自命令行；重要项允许遗漏"
+      }
+    ],
+    "factual_issues": [],
+    "false_completion": false,
+    "reviewer": "single Codex reviewer; anonymous packets, orchestration context known",
+    "rubric_changed": false
+  }
+]
