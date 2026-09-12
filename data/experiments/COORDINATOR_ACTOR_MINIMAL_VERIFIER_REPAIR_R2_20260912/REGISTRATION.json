@@ -1,0 +1,73 @@
+{
+  "round_id": "COORDINATOR_ACTOR_MINIMAL_VERIFIER_REPAIR_R2_20260912",
+  "owner_authorization": "2026-09-12 owner requested implementation, testing, and validation of Coordinator + RWKV Actor + Harness + Minimal Verifier after reviewing the R1 red baseline.",
+  "purpose": "Repair the two pre-Actor/runtime blockers demonstrated by R1, then rerun the same authorized 12-task development validation without changing its scoring or task set.",
+  "source_commit": "aa5f4b514dba484a984d34abdb1847ffc7da2cd0",
+  "r1_baseline": "data/experiments/COORDINATOR_ACTOR_MINIMAL_VERIFIER_VALIDATION_R1_20260911",
+  "registered_repairs": [
+    {
+      "component": "Coordinator",
+      "defect": "A structurally parseable response that fails SupervisorPlan local invariants exhausts the controller-level resume instead of giving the same Coordinator the exact validation error.",
+      "repair": "Use the existing bounded semantic-repair budget to request one fresh complete canonical plan from the same Coordinator; do not map or synthesize alternate response fields in the Controller.",
+      "regression_test": "First response fails SupervisorPlan validation, second canonical response succeeds, and the second request contains the exact local validation error."
+    },
+    {
+      "component": "Harness observation projection",
+      "defect": "A failed list_directory/search_text action has no structured success payload, but the projection layer still JSON-parses it and aborts the run.",
+      "repair": "Project failed structured-page actions as ordinary bounded failure observations so the same RWKV Actor receives the Harness error and can choose the next action.",
+      "regression_test": "list_directory on a file remains a failed action observation and does not raise ObservationProjectionError."
+    }
+  ],
+  "source_sha256_before_repair": {
+    "rwkv_lh/supervisor_openai.py": "3420e4bebd8e7338214b67909b387ce1eb06a179f47b54b54d72917ef4c6194b",
+    "rwkv_lh/observation_funnel.py": "366eebca30278c4187844e3c426a649c1e19ccede99dead18d15a09c1ad8c5fa",
+    "tests/test_supervisor_openai.py": "1dffa4e781c7dd91e685e78c69f24260063ba6e6efc57e334ece4f62e09e1551",
+    "tests/test_observation_funnel.py": "198e340a10834b0a36d4f84e6e56c31505affcc70a117e0e37281545c3e276ae"
+  },
+  "task_set": {
+    "suite": "realprojectdevv1",
+    "count": 12,
+    "tasks_sha256": "460f079a24d66d19e0d45ce40135c27953ef8faa84010e74c08c0a5084b446c5",
+    "acceptance_sha256": "99cde8e04cd3af3e026af4a16a3e534049c0f6063a016c200c28d03af48f346f",
+    "reruns": 1,
+    "holdout_accessed": false
+  },
+  "fixed_runtime": {
+    "max_transitions": 200,
+    "concurrency": 1,
+    "tool_disclosure_mode": "full",
+    "supervisor_mode": "openai",
+    "supervisor_strategy": "static",
+    "supervisor_pending_resume_attempts": 1,
+    "native_transport_resume_attempts": 1,
+    "supervisor_batch_failure_policy": "continue_model_failures",
+    "rwkv_model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "rwkv_state_profile": "zero",
+    "coordinator_model": "deepseek-flash",
+    "output_directory": "data/experiments/COORDINATOR_ACTOR_MINIMAL_VERIFIER_REPAIR_R2_20260912/candidate"
+  },
+  "pre_registered_metrics": [
+    "Strict passed",
+    "agent completed",
+    "external passed",
+    "false positive: agent completed and external failed",
+    "false negative: external passed and agent not completed",
+    "mutation count",
+    "action count",
+    "termination status and reason",
+    "RWKV model request count",
+    "Coordinator request count",
+    "protocol rejection count",
+    "actual lane ids and final-review call boundaries"
+  ],
+  "validation_gates": {
+    "regression": "Both new tests fail on source commit aa5f4b51 and pass after the repairs; all existing tests pass with no skips.",
+    "candidate_feasibility": "At least one of 12 tasks is Strict and completed, with zero false-positive completions. This only supports a later matched architecture comparison and does not authorize a production switch.",
+    "production_acceptance": "Not evaluated by this development repair round. Existing formal Agent gates remain unchanged."
+  },
+  "comparison_boundary": "R1 remains frozen at its original scoring. R2 is a same-suite engineering rerun after registered defect repairs, not a matched causal comparison against the current product architecture.",
+  "training": false,
+  "optimizer_steps": 0,
+  "new_dataset_version": false,
+  "production_architecture_changed": false
+}

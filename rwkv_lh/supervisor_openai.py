@@ -3603,31 +3603,67 @@ class OpenAICompatibleSupervisorClient:
         raise SupervisorProtocolError("contract reviewer repair loop exhausted")
 
     def create_plan(self, request: SupervisorPlanRequest) -> SupervisorPlan:
-        value = self._request_json(
-            phase="plan",
-            run_id=request.run_id,
-            request_digest=request.request_digest,
-            system_prompt=(
-                "You are the bounded planning supervisor for one RWKV workspace agent. "
-                "Create a concise, operational plan from only the immutable request, generic "
-                "constraints, and visible workspace manifest. Do not invent file contents, "
-                "hidden acceptance criteria, or completed observations. Do not emit tool calls "
-                "or tool parameters: the RWKV worker alone selects and executes tools. Steps "
-                "must tell the worker what to inspect, transform, write, and observably verify. "
-                "Completion checks must be concrete consequences of the user request. Return "
-                "only the requested JSON object."
-            ),
-            request_payload=request.to_dict(),
-            schema=PLAN_RESPONSE_SCHEMA,
-            max_tokens=self.settings.max_plan_tokens,
+        base_prompt = (
+            "You are the bounded planning supervisor for one RWKV workspace agent. "
+            "Create a concise, operational plan from only the immutable request, generic "
+            "constraints, and visible workspace manifest. Do not invent file contents, "
+            "hidden acceptance criteria, or completed observations. Do not emit tool calls "
+            "or tool parameters: the RWKV worker alone selects and executes tools. Steps "
+            "must tell the worker what to inspect, transform, write, and observably verify. "
+            "Completion checks must be concrete consequences of the user request. Return "
+            "only the requested JSON object."
         )
-        return SupervisorPlan.create(
-            objective=str(value.get("objective") or ""),
-            constraints=value.get("constraints") or (),
-            steps=value.get("steps") or (),
-            completion_checks=value.get("completion_checks") or (),
-            risks=value.get("risks") or (),
-        )
+        validation_error = ""
+        total_attempts = 1 + self.settings.semantic_repair_attempts
+        for semantic_attempt in range(1, total_attempts + 1):
+            payload = request.to_dict()
+            prompt = base_prompt
+            if validation_error:
+                payload["local_validation_repair"] = {
+                    "attempt": semantic_attempt,
+                    "previous_response_rejected": True,
+                    "error": validation_error,
+                    "instruction": (
+                        "Return a fresh complete object matching the requested top-level "
+                        "schema; do not nest or rename its fields."
+                    ),
+                }
+                prompt += (
+                    " The immediately preceding response failed local plan validation. "
+                    "Repair the whole object using local_validation_repair.error."
+                )
+            value = self._request_json(
+                phase="plan",
+                run_id=request.run_id,
+                request_digest=request.request_digest,
+                system_prompt=prompt,
+                request_payload=payload,
+                schema=PLAN_RESPONSE_SCHEMA,
+                max_tokens=self.settings.max_plan_tokens,
+            )
+            try:
+                return SupervisorPlan.create(
+                    objective=str(value.get("objective") or ""),
+                    constraints=value.get("constraints") or (),
+                    steps=value.get("steps") or (),
+                    completion_checks=value.get("completion_checks") or (),
+                    risks=value.get("risks") or (),
+                )
+            except (TypeError, ValueError) as exc:
+                validation_error = f"{type(exc).__name__}: {exc}"[:1000]
+                self._emit(
+                    {
+                        "type": "supervisor_semantic_response_rejected",
+                        "phase": "plan",
+                        "run_id": request.run_id,
+                        "request_digest": request.request_digest,
+                        "semantic_attempt": semantic_attempt,
+                        "error": validation_error,
+                    }
+                )
+                if semantic_attempt >= total_attempts:
+                    raise
+        raise SupervisorProtocolError("supervisor plan repair loop exhausted")
 
     def review_final(self, request: SupervisorReviewRequest) -> SupervisorReview:
         value = self._request_json(

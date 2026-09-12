@@ -1700,6 +1700,63 @@ def test_openai_supervisor_builds_valid_plan_and_review_without_auditing_key():
     ]
 
 
+def test_create_plan_repairs_a_locally_invalid_coordinator_response():
+    fake = FakeSession(
+        [
+            response(
+                {
+                    "objective": "Create and verify the requested artifact.",
+                    "plan": {
+                        "steps": ["Inspect inputs.", "Write and verify the artifact."],
+                    },
+                }
+            ),
+            response(
+                {
+                    "objective": "Create and verify the requested artifact.",
+                    "constraints": ["Stay inside the workspace."],
+                    "steps": ["Inspect inputs.", "Write and verify the artifact."],
+                    "completion_checks": ["The requested artifact is verified."],
+                    "risks": [],
+                }
+            ),
+        ]
+    )
+    audit: list[dict] = []
+    client = OpenAICompatibleSupervisorClient(
+        settings(),
+        session=fake,
+        audit_hook=audit.append,
+    )
+
+    plan = client.create_plan(
+        SupervisorPlanRequest(
+            run_id="RUN-PLAN-SEMANTIC-REPAIR",
+            request="Create and verify the requested artifact.",
+            request_digest="digest-plan-semantic-repair",
+            constraints=("Stay inside the workspace.",),
+            workspace_manifest={"entries": []},
+        )
+    )
+
+    assert plan.steps == ("Inspect inputs.", "Write and verify the artifact.")
+    assert len(fake.posts) == 2
+    repair_payload = json.loads(fake.posts[1]["json"]["messages"][1]["content"])
+    assert list(repair_payload)[-1] == "local_validation_repair"
+    assert repair_payload["local_validation_repair"]["attempt"] == 2
+    assert "steps must be non-empty" in repair_payload["local_validation_repair"][
+        "error"
+    ]
+    rejected = [
+        item
+        for item in audit
+        if item["type"] == "supervisor_semantic_response_rejected"
+    ]
+    assert len(rejected) == 1
+    assert rejected[0]["phase"] == "plan"
+    assert rejected[0]["semantic_attempt"] == 1
+
+
 def test_contract_planner_and_reviewer_receive_results_without_rwkv_process():
     immutable_request = "Create result.txt containing exact text ok."
     fake = FakeSession(

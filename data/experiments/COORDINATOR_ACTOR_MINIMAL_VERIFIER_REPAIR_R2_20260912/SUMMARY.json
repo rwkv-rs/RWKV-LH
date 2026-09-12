@@ -1,0 +1,111 @@
+{
+  "round_id": "COORDINATOR_ACTOR_MINIMAL_VERIFIER_REPAIR_R2_20260912",
+  "agent": {
+    "strict": "0/12",
+    "completed": "0/12",
+    "external_passed": "0/12",
+    "false_positive_completions": 0,
+    "false_negative_completions": 0,
+    "mutations": 5,
+    "mutation_cases": [
+      "RP-API-01",
+      "RP-WEB-02"
+    ],
+    "actions": 55,
+    "successful_actions": 49,
+    "failed_actions": 6,
+    "termination": {
+      "identical_success_budget_exhausted": 5,
+      "protocol_rejection_budget_exhausted": 4,
+      "identical_failure_budget_exhausted": 1,
+      "supervisor_review_unavailable": 2
+    }
+  },
+  "repairs": {
+    "coordinator_plan_semantic_repair": {
+      "tasks_reaching_actor": 12,
+      "plan_requests": 25,
+      "semantic_rejections": 13,
+      "tasks_needing_at_least_one_repair": 11,
+      "tasks_with_eventually_accepted_plan": 12,
+      "r1_supervisor_plan_unavailable": 10,
+      "r2_supervisor_plan_unavailable": 0
+    },
+    "failed_structured_page_projection": {
+      "deterministic_real_harness_regression": "pass",
+      "r1_runner_observation_projection_error": 1,
+      "r2_runner_observation_projection_error": 0,
+      "r2_real_run_repeated_original_trigger": false
+    }
+  },
+  "actor": {
+    "model_requests": 129,
+    "lane_ids": [
+      "LANE:ACTION"
+    ],
+    "official_runner_protocol_rejections": 61,
+    "raw_model_call_rejected_events": 62,
+    "prompt_tokens_full_context": {
+      "min": 3365,
+      "max": 22104,
+      "mean": 10442.147286821706,
+      "median": 8990,
+      "p90": 20605,
+      "at_or_above_registered_16384": 26
+    },
+    "output_tokens": {
+      "min": 17,
+      "max": 1800,
+      "mean": 474.28682170542635,
+      "length_finishes": 23,
+      "length_finishes_rejected": 23
+    },
+    "new_event_tokens": {
+      "min": 82,
+      "max": 2600,
+      "mean": 917.6666666666666,
+      "total": 118379
+    },
+    "executed_operations": {
+      "list_directory": 9,
+      "read_file": 41,
+      "write_file": 5
+    }
+  },
+  "coordinator": {
+    "model": "deepseek-flash",
+    "requests": 29,
+    "plan_requests": 25,
+    "review_requests": 4,
+    "plan_prompt_tokens": {
+      "min": 426,
+      "max": 1072,
+      "mean": 742.88
+    },
+    "review_prompt_tokens": {
+      "min": 3238,
+      "max": 6676,
+      "mean": 4957
+    },
+    "accepted_final_reviews": 0,
+    "review_semantic_validation_failures": 2
+  },
+  "gates": {
+    "new_regressions_red_before_repair": "pass: 2/2 failed on aa5f4b51 with the R1 exception paths",
+    "new_regressions_after_repair": "pass: 2/2",
+    "related_regression": "pass: 143/143",
+    "full_regression": "pass: 1504/1504, 0 skipped, 252.77 seconds",
+    "candidate_feasibility": "fail",
+    "production_acceptance": "not_evaluated"
+  },
+  "new_systemic_failures": [
+    "The static one-plan Actor loop does not recover reliably from protocol errors or repeated observations: all 12 tasks interrupted and none completed.",
+    "Twenty-three RWKV generations reached their output-token limit and all 23 were rejected; other frequent rejections used arguments absent from the visible tool schema.",
+    "The cumulative native Actor context reached 22104 tokens; 26 calls were at or above the runtime's registered max_model_len of 16384, while native sessions intentionally bypass deterministic rollover.",
+    "review_final lacks the bounded semantic repair now used by create_plan; both tasks reaching final review ended supervisor_review_unavailable after repeated noncanonical responses."
+  ],
+  "training": false,
+  "optimizer_steps": 0,
+  "holdout_accessed": false,
+  "production_architecture_changed": false
+}

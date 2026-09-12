@@ -99,6 +99,34 @@ def test_read_file_projection_rejects_false_chunk_identity(tmp_path: Path) -> No
         project_action_result(value, operation="read_file")
 
 
+def test_failed_structured_page_is_projected_as_an_action_observation(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "module.py").write_text("value = 1\n", encoding="utf-8")
+    result = ActionHarness(sandbox_commands=False).execute(
+        TaskAction("list_directory", {"path": "module.py"}),
+        _goal(workspace),
+    )
+
+    assert result.success is False
+    projected = project_action_result(
+        result.to_dict(),
+        operation="list_directory",
+        arguments={"path": "module.py"},
+    )
+
+    assert projected["success"] is False
+    assert projected["outcome_type"] == "invalid"
+    assert projected["error"] == {
+        "type": "HarnessError",
+        "message": "list_directory requires a directory",
+    }
+    assert projected["observation"]["adapter_registered"] is True
+    assert projected["observation"]["projection_complete"] is True
+
+
 def test_read_json_projection_separates_canonical_span_and_file_base_identity(
     tmp_path: Path,
 ) -> None:

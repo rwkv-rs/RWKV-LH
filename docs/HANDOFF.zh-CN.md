@@ -1,5 +1,11 @@
 # 当前交接
 
+## 2026-09-12 Coordinator + RWKV Actor 候选修复验证 R2
+
+固定 12 题真实验证已结束：**Strict 0/12、completed 0/12、external 0/12、mutation 5、动作 55**；5 题重复成功、4 题协议拒绝耗尽、1 题重复失败、2 题 final review 不可用，候选可行性门失败，未切换生产架构。R1 的 Coordinator 计划语义修复和失败 structured-page observation 投影缺陷已按先失败再通过的回归修复；12/12 均进入 Actor，旧 plan unavailable 与 Runner 投影崩溃消失。完整回归 **1504 passed、0 skipped**。
+
+新主瓶颈是单一长期 Actor State：129 次直接 action 调用、61 个 runner 协议拒绝，23 次输出打满上限且全部被拒绝；55 个实际动作只覆盖 list/read/write，未完成任何题。Actor 实际累计 full-context 输入 3,365–22,104 tokens，26 次达到或超过登记的 16,384；Minimal Verifier 的 `review_final` 仍缺本地语义修复。下一轮应先修 review，再对“静态整项计划”和“强 Coordinator 粗粒度里程碑 + 每里程碑 RWKV State”做固定题集对比；Coordinator 不选择工具和参数。详见[本轮报告](../data/experiments/COORDINATOR_ACTOR_MINIMAL_VERIFIER_REPAIR_R2_20260912/REPORT.zh-CN.md)。未训练、部署、读取 Holdout 或 push。
+
 ## 2026-09-11 官方Flash新轮R3已启动
 
 Owner更新官方凭据并指定deepseek-flash，Planner/Stage Checker已切换，模型列表与余额门通过。保持de029c88最新源码及角色协议、RWKV全zero，117题R3从首题启动，启动时完成0/117、暂无成绩、optimizer steps=0。R2旧pro首题因owner切模型中断，原记录保留，不计完整评测。新trace目录FULL_TRACE_COLLECTION_R3_FLASH_20260911；[登记说明](../data/experiments/FULL_TRACE_CAMPAIGN_R3_FLASH_20260911/REPORT.zh-CN.md)。

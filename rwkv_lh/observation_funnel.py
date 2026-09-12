@@ -1332,6 +1332,13 @@ def project_action_result(
             max_exact_chars=max_exact_chars,
         )
     if selected_operation in STRUCTURED_PAGE_OPERATIONS:
+        if not bool(result.get("success")):
+            return _project_generic(
+                result,
+                selected_operation,
+                focus_text=focus_text,
+                max_exact_chars=structured_budget,
+            )
         return _project_structured_page(
             result,
             selected_operation,
