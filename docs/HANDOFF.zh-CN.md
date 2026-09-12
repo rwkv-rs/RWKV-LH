@@ -1,5 +1,13 @@
 # 当前交接
 
+## 2026-09-12 单步读取夹具修复 R2 已封存（当前）
+
+无新项目级Strict/completed，mutation=0；仅一次读取后截停。R2复用已有RP-WEB-02公开初始workspace，index.html不存在独立三遍3/3诊断通过，工具成功0/3，真实FileNotFoundError与观察State交接完整；输入token3/3精确匹配、三遍输入相同。与R1有效18/21分开报告，不替换R1无效夹具的3次原分。
+
+通用夹具预检已按先失败后通过修复：缺失目标必须实际不存在；成功目标需匹配历史artifact SHA和内容，两个回归通过。生产模型、工具协议和parser均未改；同生产源码完整1508 passed、0 skipped。代码/EOF/缺失文件已有有限三遍证据，但README仍3/6，单步读取稳定性未解决，不进入自主定位；最小候选是澄清唯一read_file参数说明，尚未实施。未训练、部署、更新GitHub、读取Holdout或新建datasets版本；原5个未提交文件保留。
+
+详见[夹具修复与最终边界报告](../data/experiments/RWKV_SINGLE_READ_FIXTURE_REPAIR_R2_20260912/REPORT.zh-CN.md)，报告SHA `e2b4909f6e31f42a230fb6fea219ba28033c18a20ec23538dbccf551573072aa`。R1证据本地提交ee73e1d0；各轮RAW_EVIDENCE.tar.gz与SHA256SUMS.json保存完整原始证据，owner负责push。
+
 ## 2026-09-12 单步读取基础诊断 R1（项目 A/B 暂停）
 
 Owner 最新要求按单步读取→自主定位→单处修改→修改与验证→多文件逐级验证；不训练、不更新 GitHub，R5 的 A 不续跑。本轮无新项目级 Strict/completed，诊断 mutation=0，终止于一次调用或协议拒绝，不冒充 Agent 完成。R5 B 保持 Strict/外部通过0/12、completed1且错误完成、其余11中断。
