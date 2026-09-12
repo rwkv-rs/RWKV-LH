@@ -1,5 +1,13 @@
 # 当前交接
 
+## 2026-09-12 单步读取基础诊断 R1（项目 A/B 暂停）
+
+Owner 最新要求按单步读取→自主定位→单处修改→修改与验证→多文件逐级验证；不训练、不更新 GitHub，R5 的 A 不续跑。本轮无新项目级 Strict/completed，诊断 mutation=0，终止于一次调用或协议拒绝，不冒充 Agent 完成。R5 B 保持 Strict/外部通过0/12、completed1且错误完成、其余11中断。
+
+R1 固定8例×3遍：原评分18/24；index.html 缺失例误用后续已创建文件的最终快照，3次标为夹具无效、保留原分。有效单步证据18/21：代码全文6/6、恰好EOF空读取6/6、server.py不存在3/3；README全文3/6，3次非法end_byte。24次输入token与zero根State精确匹配，每例三遍输入相同。没有Coordinator或工具预选，RWKV直接生成调用及参数，生产Harness执行并追加真实观察。此结果不能推断完整Agent能力或模型已理解错误。
+
+完整回归1508 passed、0 skipped。既有5个未提交文件SHA未变，生产代码未改。SSH 29613转发已恢复，服务器项目132/engine6393文件清单一致，无服务器Git。夹具已按先失败后通过修复并另登记R2三次复测，不替换R1分数。详见[诊断报告](../data/experiments/RWKV_SINGLE_READ_DIAGNOSTIC_R1_20260912/REPORT.zh-CN.md)，报告SHA `d7be5e4ddcfa9eb813cb3d2b8fe821f2da221bb13a1c9882bf14751992c56ac6`。生产最小候选仅建议澄清唯一read_file工具的参数合同，尚未实施；读取不稳定未解决，不进入下一层级。
+
 ## 2026-09-12 Coordinator + RWKV Actor 候选修复验证 R2
 
 固定 12 题真实验证已结束：**Strict 0/12、completed 0/12、external 0/12、mutation 5、动作 55**；5 题重复成功、4 题协议拒绝耗尽、1 题重复失败、2 题 final review 不可用，候选可行性门失败，未切换生产架构。R1 的 Coordinator 计划语义修复和失败 structured-page observation 投影缺陷已按先失败再通过的回归修复；12/12 均进入 Actor，旧 plan unavailable 与 Runner 投影崩溃消失。完整回归 **1504 passed、0 skipped**。

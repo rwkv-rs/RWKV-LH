@@ -1,0 +1,59 @@
+{
+  "invalid_case": "missing-2",
+  "affected_repetitions": [
+    1,
+    2,
+    3
+  ],
+  "classification": "fixture_invalid_not_model_failure",
+  "original_registration_sha256": "906b55044847a590e468e981d66082738c62db1175252e15ee5756d5b37ea231",
+  "original_scoring_unchanged": true,
+  "failure": "Historical missing-file event was paired with final workspace after later creation. Existence was not validated at freeze.",
+  "proof": [
+    {
+      "event_id": 67,
+      "action_id": "A00014",
+      "operation": "read_file",
+      "success": false,
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: index.html"
+      },
+      "artifacts": []
+    },
+    {
+      "event_id": 71,
+      "action_id": "A00015",
+      "operation": "write_file",
+      "success": true,
+      "error": null,
+      "artifacts": [
+        {
+          "path": "index.html",
+          "sha256": "b9c9848f7896f513b5524c04c31bf2af5db777aa5681da986bff5b1d68c5b5c7",
+          "media_type": "text/html",
+          "size_bytes": 5332,
+          "summary": ""
+        }
+      ]
+    },
+    {
+      "event_id": 79,
+      "action_id": "A00017",
+      "operation": "read_file",
+      "success": true,
+      "error": null,
+      "artifacts": [
+        {
+          "path": "index.html",
+          "sha256": "b9c9848f7896f513b5524c04c31bf2af5db777aa5681da986bff5b1d68c5b5c7",
+          "media_type": "text/html",
+          "size_bytes": 5332,
+          "summary": ""
+        }
+      ]
+    }
+  ],
+  "repair_round": "RWKV_SINGLE_READ_FIXTURE_REPAIR_R2_20260912",
+  "reporting": "Report original frozen score and valid-evidence score separately; never substitute R2 into R1 denominator."
+}
