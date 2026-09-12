@@ -1,0 +1,14 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_____________________ test_actual_escaped_supplied_request _____________________
+
+    def test_actual_escaped_supplied_request():
+>    p=next((R/'data/experiments/RWKV_READ_SUMMARY_PATHWAY_R1_20260912/runs').glob('*direct/state_snapshot.json'));s=json.loads(p.read_text());root=next(x for x in s['model_states'].values() if not x['parent_checkpoint_id']);req=json.loads((p.parent/'REQUEST.json').read_text())['request'];assert request_in_bootstrap(root['transcript'],req)
+                                                                                                                                                                                                                                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    assert False
+E     +  where False = request_in_bootstrap('System: Tools: [{"description":"List bounded path/type/size metadata only; never reads file contents and never create...只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\\n\\n</user_provided_file>"}\n\nAssistant: ```json\n', '阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。\n\n以下是用户提供的指定文件全文，来源路径：README.md。\n<user_provided_file>\n# 库存与订单服务...potency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n\n</user_provided_file>\n')
+
+temp/test_pathway_input_envelope_r1_20260912.py:7: AssertionError
+=========================== short test summary info ============================
+FAILED temp/test_pathway_input_envelope_r1_20260912.py::test_actual_escaped_supplied_request
+1 failed, 1 passed in 0.03s

@@ -1,0 +1,68 @@
+"""Bounded diagnostic of existing production direct actor; no generated answers or tool repairs."""
+from pathlib import Path
+import sys,json,hashlib,shutil,time,traceback,subprocess,urllib.request
+from dataclasses import replace
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+D=R/'data/experiments/RWKV_READ_SUMMARY_PATHWAY_R1_20260912'
+from rwkv_lh.model import LongHorizonModel
+from rwkv_lh.model_session import create_model_session
+from rwkv_lh.runtime.settings import get_runtime_settings,load_local_env
+from rwkv_lh.harness import ActionHarness
+from rwkv_lh.controller import LongHorizonController
+from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.schema import RunStatus
+load_local_env(R/'.env.local')
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def save(p,v):p.write_text(json.dumps(v,ensure_ascii=False,indent=2)+'\n')
+def inventory(w):return {str(p.relative_to(w)):sha(p) for p in sorted(w.rglob('*')) if p.is_file()}
+def run():
+ reg=json.loads((D/'REGISTRATION.json').read_text());assert all(sha(R/p)==h for p,h in reg['source_pins'].items())
+ settings=replace(get_runtime_settings(),tool_disclosure_mode='full',return_token_ids=True,state_transport='native_required',state_profile_id='zero',state_profile_sha256='0'*64,read_timeout_seconds=180)
+ assert settings.model_sha256==reg['model_sha256'];results=[];start=time.time()
+ for item in reg['schedule']:
+   repeat=item['repeat'];arm=item['arm'];c=next(c for c in reg['cases'] if c['id']==item['case'])
+   if time.time()-start>=reg['wall_seconds_batch']:
+    save(D/'BATCH_STOP.json',{'reason':'wall_budget','next_item':item});return
+   out=D/'runs'/item['id'];out.mkdir(parents=True,exist_ok=False)
+   source=R/c['workspace_source'];assert inventory(source)==c['workspace_sha256'];shutil.copytree(source,out/'workspace');before=inventory(out/'workspace')
+   def audit(e):
+    with (out/'model_trace.jsonl').open('a') as f:f.write(json.dumps(dict(e),ensure_ascii=False)+'\n')
+   result={'case':c['id'],'repeat':repeat,'arm':arm,'decisions':[],'actions':[],'handoffs':[],'final_output':None,'termination':'decision_budget_exhausted','protocol_error':None,'infrastructure_error':None}
+   state=None;t=time.time()
+   try:
+    model=LongHorizonModel(create_model_session(settings=settings,audit_hook=audit),harness=ActionHarness())
+    store=LongHorizonStore(out/'state');controller=LongHorizonController(store,model=model,harness=model.harness)
+    request=c['common_request']
+    if arm=='direct':request+=reg['attachment_prefix'].format(path=c['path'])+(source/c['path']).read_text()+reg['attachment_suffix']
+    save(out/'REQUEST.json',{'request':request,'request_sha256':hashlib.sha256(request.encode()).hexdigest(),'common_request_sha256':hashlib.sha256(c['common_request'].encode()).hexdigest()})
+    state=store.create_run(model.create_literal_goal(request,str(out/'workspace'),constraints=reg['constraints']),run_id=out.name);save(out/'goal.json',state.goal.to_dict())
+    for n in range(reg['max_decisions_per_case']):
+     if time.time()-start>=reg['wall_seconds_batch']:
+      result['termination']='wall_budget';break
+     previous=state.lane_head('executor')
+     decision=model.next_command(state,controller._persist_callback,max_output_tokens=reg['max_output_tokens'])
+     result['decisions'].append({'previous_head':previous,'committed_checkpoint':decision.checkpoint.checkpoint_id,'wire_command':{'name':decision.wire_command.name,'arguments':dict(decision.wire_command.arguments)},'command':{'name':decision.command.name,'arguments':dict(decision.command.arguments)}})
+     if decision.wire_command.name=='final_answer':
+      result['final_output']=str(decision.wire_command.arguments['text']);result['termination']='final_answer'
+      state.final_output=result['final_output'];state.final_decision_id=decision.decision.decision_id;state.status=RunStatus.COMPLETED
+      controller._persist(state,'run_completed',{'final_output':state.final_output,'output_source':'rwkv_explicit_final_answer_text','controller_rewritten':False})
+      break
+     definition=model.harness.definition(decision.command.name)
+     if not definition.read_only or definition.side_effect:
+      result['termination']='readonly_permission_violation';break
+     action=controller._execute_decision(state,decision);result['actions'].append(action.to_dict())
+     event=controller._action_observation_event(state,action);parent=state.lane_head('executor');child=model.append_action_observation(state,controller._persist_callback,event)
+     save(out/f'observation_{n+1}.json',event.to_dict())
+     result['handoffs'].append({'parent':parent,'child':child.checkpoint_id,'child_parent':child.parent_checkpoint_id,'event_id':event.event_id,'child_event_occurrences':child.event_ids.count(event.event_id),'parent_digest':state.model_states[parent].native_state_digest,'child_digest':child.native_state_digest})
+   except Exception as e:
+    result.update(error_type=type(e).__name__,error=str(e),traceback=traceback.format_exc(),termination=type(e).__name__)
+    protocol=type(e).__name__ in ['ModelProtocolError','ModelIOError','InputBudgetError']
+    result['protocol_error' if protocol else 'infrastructure_error']=type(e).__name__
+   finally:
+    if state is not None:save(out/'state_snapshot.json',state.to_dict())
+    result['workspace_unchanged']=inventory(out/'workspace')==before;result['elapsed_seconds']=time.time()-t
+    save(out/'RESULT.json',result);results.append(result);save(D/'RESULTS.json',results)
+    print(out.name,result['termination'],'reads',len(result['actions']),'submitted',result['final_output'] is not None,flush=True)
+   if result['infrastructure_error'] or result['termination']=='wall_budget':return
+
+if __name__=='__main__':run()

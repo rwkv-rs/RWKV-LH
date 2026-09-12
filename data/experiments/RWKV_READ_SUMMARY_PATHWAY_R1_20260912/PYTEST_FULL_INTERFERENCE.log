@@ -1,0 +1,179 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 23%]
+........................................................................ [ 28%]
+........................................................................ [ 33%]
+........F...........................F................................... [ 38%]
+........................................................................ [ 42%]
+........................................................................ [ 47%]
+........................................................................ [ 52%]
+........................................................................ [ 57%]
+........................................................................ [ 61%]
+........................................................................ [ 66%]
+........................................................................ [ 71%]
+........................................................................ [ 76%]
+........................................................................ [ 80%]
+........................................................................ [ 85%]
+........................................................................ [ 90%]
+........................................................................ [ 95%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+=================================== FAILURES ===================================
+___ test_long_append_generate_rollback_chain_bounds_disk_and_keeps_receipts ____
+
+self = <rwkv_lh.runtime.native_request_recovery.NativeRequestJournal object at 0x79dfe6fabe90>
+claimed = NativeRequestRecord(request_id='NR-8087ec4f1fb4600ca1c58a14a99e82744fb5b3103f6de87de44234f216b47240', operation='appen...af81fe7a52fcc2853dfad31b989e9b75b306d4b27818b544', status='pending', body=None, status_code=None, recovery_metadata={})
+invoke = <function RWKVNativeStateService.dispatch.<locals>.invoke at 0x79dfe2523600>
+execution_lock = None
+
+    async def _run(self, claimed: NativeRequestRecord, invoke: Callable[[], Awaitable[NativeRequestResult | Mapping[str, Any]]], execution_lock=None) -> NativeRequestRecord:
+        if execution_lock is not None:
+            async with execution_lock:
+                return await self._run(claimed, invoke)
+        try:
+>           result = await invoke()
+                     ^^^^^^^^^^^^^^
+
+rwkv_lh/runtime/native_request_recovery.py:362: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/inference/native_state_service.py:368: in invoke
+    body = await method(payload)
+           ^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/inference/native_state_service.py:774: in append
+    parent = self._record(str(payload.get("parent_state_ref") or ""))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/inference/native_state_service.py:272: in _record
+    metadata = self.journal.lookup_state_metadata(state_ref, allow_request_id=self._active_request_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/native_request_recovery.py:159: in lookup_state_metadata
+    with self._connect() as connection:
+         ^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.native_request_recovery.NativeRequestJournal object at 0x79dfe6fabe90>
+
+    @contextmanager
+    def _connect(self):
+>       connection = sqlite3.connect(self.path, timeout=30)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       sqlite3.OperationalError: unable to open database file
+
+rwkv_lh/runtime/native_request_recovery.py:124: OperationalError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_long_append_generate_roll0')
+service_module = <module 'mechanism_native_service' from '/home/chase/GitHub/RWKV-LH/rwkv_lh/inference/native_state_service.py'>
+
+    def test_long_append_generate_rollback_chain_bounds_disk_and_keeps_receipts(tmp_path, service_module):
+        async def scenario():
+            service, exports, counters, root = disk_service(service_module, tmp_path)
+            current, first_request = await initial_state(service)
+            first = dict(current)
+            for index in range(80):
+                binding = replace(_cache_binding(), state_chain_digest=f"{index + 1:064x}",
+                                  parent_state_digest=current["state_digest"])
+                child = await service.dispatch("append", prepared("append", parent_state_ref=current["state_ref"],
+                            lane_id=binding.lane_id, delta=f"new event {index}", cache_binding=binding.to_dict()))
+                await service.dispatch("release", release_request(current))
+                generated = await service.dispatch("generate", prepared("generate", parent_state_ref=child["state_ref"],
+                            parent_cache_binding_digest=binding.digest, request_id=f"R-generation-{index}",
+                            max_tokens=4090, stop=[], sampling={}))
+                await service.dispatch("rollback", prepared("rollback", parent_state_ref=child["state_ref"],
+                            candidate_state_ref=generated["candidate"]["state_ref"]))
+                current = child
+                assert len(list(root.glob("*.pt"))) == 1
+            reopened, _, _, _ = disk_service(service_module, tmp_path, exports=exports, counters=counters)
+            assert await reopened.dispatch("create", first_request) == first
+            await reopened._ensure_loaded(reopened._record(current["state_ref"]))
+            assert current["state_ref"] in reopened.worker_states
+            assert counters["sample"] == 80
+            assert len(list(root.glob("*.pt"))) == 1
+>       asyncio.run(scenario())
+
+tests/test_native_state_lifecycle.py:312: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_native_state_lifecycle.py:296: in scenario
+    child = await service.dispatch("append", prepared("append", parent_state_ref=current["state_ref"],
+rwkv_lh/inference/native_state_service.py:387: in dispatch
+    record = await self.journal.execute(operation, payload, invoke, execution_lock=self.request_lock)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/native_request_recovery.py:412: in execute
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/native_request_recovery.py:360: in _run
+    return await self._run(claimed, invoke)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/runtime/native_request_recovery.py:386: in _run
+    with self._connect() as connection:
+         ^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.native_request_recovery.NativeRequestJournal object at 0x79dfe6fabe90>
+
+    @contextmanager
+    def _connect(self):
+>       connection = sqlite3.connect(self.path, timeout=30)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       sqlite3.OperationalError: unable to open database file
+
+rwkv_lh/runtime/native_request_recovery.py:124: OperationalError
+________ test_service_rejects_conflicting_request_without_second_sample ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_service_rejects_conflicti0')
+service_module = <module 'mechanism_native_service' from '/home/chase/GitHub/RWKV-LH/rwkv_lh/inference/native_state_service.py'>
+
+    def test_service_rejects_conflicting_request_without_second_sample(tmp_path, service_module):
+        counters = {}
+>       service = service_fixture(service_module, tmp_path / "requests.sqlite3", {}, counters)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_native_state_service_recovery.py:128: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_native_state_service_recovery.py:69: in service_fixture
+    return Service()
+           ^^^^^^^^^
+tests/test_native_state_service_recovery.py:21: in __init__
+    self.journal = NativeRequestJournal(path)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.runtime.native_request_recovery.NativeRequestJournal object at 0x79dfe24cf050>
+path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_service_rejects_conflicti0/requests.sqlite3')
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        os.fchmod(fd, 0o600)
+        os.close(fd)
+        self.owner_id = uuid4().hex
+        self._tasks: dict[str, asyncio.Task[NativeRequestRecord]] = {}
+        with self._connect() as connection:
+            connection.execute("PRAGMA journal_mode=WAL")
+>           tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           sqlite3.OperationalError: disk I/O error
+
+rwkv_lh/runtime/native_request_recovery.py:99: OperationalError
+=========================== short test summary info ============================
+FAILED tests/test_native_state_lifecycle.py::test_long_append_generate_rollback_chain_bounds_disk_and_keeps_receipts
+FAILED tests/test_native_state_service_recovery.py::test_service_rejects_conflicting_request_without_second_sample
+2 failed, 1512 passed in 227.15s (0:03:47)

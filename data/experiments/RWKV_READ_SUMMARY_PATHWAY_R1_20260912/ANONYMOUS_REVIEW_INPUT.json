@@ -1,0 +1,1114 @@
+[
+  {
+    "id": "057a0d28d5",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "会议室/设备预约服务需求",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "概括为预约服务需求即可；不要求逐字段复述；把需求说成已实现属于无依据实现声明"
+      },
+      {
+        "id": "conflict",
+        "severity": "core",
+        "meaning": "同资源有效预约不能重叠",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "说明同资源时段冲突即可；无需UTC整数/半开术语；宣称允许重叠为核心矛盾"
+      },
+      {
+        "id": "cancel",
+        "severity": "important",
+        "meaning": "取消释放时段",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略幂等和未知id返回码"
+      },
+      {
+        "id": "failure",
+        "severity": "important",
+        "meaning": "失败不改预约",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略各个错误码"
+      },
+      {
+        "id": "atomic",
+        "severity": "important",
+        "meaning": "并发冲突判定与写入原子",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "只说支持并发是部分覆盖"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启保留数据与规则",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "SQLite持久化概括可接受"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开健康检查不代表完整业务验证",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "无测试通过声明时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括：这是一个可重启的会议资源预约服务，使用 SQLite 持久化预约数据，提供健康检查、预约创建、查询、取消等接口。启动时需指定数据库文件路径、主机和端口，首次启动会创建数据库，后续启动保留数据。预约冲突按同一资源的已确认预约判定，取消后时段可被重新预约。所有接口返回 JSON，错误返回 400/404。"
+  },
+  {
+    "id": "0e284fedda",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "库存订单服务需求",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "需求语气可由全文上下文表达；不要求显式说尚未实现"
+      },
+      {
+        "id": "idempotency",
+        "severity": "core",
+        "meaning": "相同key相同请求不重复扣减",
+        "evidence_lines": [
+          10
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "请求重试去重/幂等避免重复扣减可接受；只列接口为遗漏"
+      },
+      {
+        "id": "atomic",
+        "severity": "core",
+        "meaning": "整单原子避免部分扣减",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "要表达全成或全败；无需逐条列SQL行为"
+      },
+      {
+        "id": "normalization",
+        "severity": "important",
+        "meaning": "重复SKU合并、同key不同请求冲突",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略排序细节；单提key冲突部分覆盖"
+      },
+      {
+        "id": "failure_key",
+        "severity": "important",
+        "meaning": "失败不占用key可纠正重试",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "库存不足整体失败不自动等于覆盖失败key"
+      },
+      {
+        "id": "concurrency",
+        "severity": "important",
+        "meaning": "并发不超卖",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "并发不超卖可概括"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启持久",
+        "evidence_lines": [
+          5,
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "持久化即可"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开验证仅健康检查",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "没有虚报测试时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括：\n\n这是一个给小型仓库实现的 SQLite HTTP 订单服务。目标是解决网络重试重复扣库存、多行订单部分扣减等问题。\n\n核心要求：\n- 库存与订单原子完成，并发相同 key 只创建一单，不得超卖；不同 key 不得超卖。\n- 库存、订单、idempotency key 在进程重启后继续有效。\n- 允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：\n```\npython server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080\n```\n\n接口：\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置可售量，N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n验证与恢复：\n- 公开验证只做健康检查，请自行补充交易与恢复验证。"
+  },
+  {
+    "id": "1d2002c823",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "库存订单服务需求",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "需求语气可由全文上下文表达；不要求显式说尚未实现"
+      },
+      {
+        "id": "idempotency",
+        "severity": "core",
+        "meaning": "相同key相同请求不重复扣减",
+        "evidence_lines": [
+          10
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "请求重试去重/幂等避免重复扣减可接受；只列接口为遗漏"
+      },
+      {
+        "id": "atomic",
+        "severity": "core",
+        "meaning": "整单原子避免部分扣减",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "要表达全成或全败；无需逐条列SQL行为"
+      },
+      {
+        "id": "normalization",
+        "severity": "important",
+        "meaning": "重复SKU合并、同key不同请求冲突",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略排序细节；单提key冲突部分覆盖"
+      },
+      {
+        "id": "failure_key",
+        "severity": "important",
+        "meaning": "失败不占用key可纠正重试",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "库存不足整体失败不自动等于覆盖失败key"
+      },
+      {
+        "id": "concurrency",
+        "severity": "important",
+        "meaning": "并发不超卖",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "并发不超卖可概括"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启持久",
+        "evidence_lines": [
+          5,
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "持久化即可"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开验证仅健康检查",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "没有虚报测试时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括：\n\n这是一个给小型仓库实现的 SQLite HTTP 订单服务。它解决网络重试重复扣库存、多行订单部分扣减等问题，并支持库存与订单的原子判定、登记和事务恢复。\n\n启动方式：\n\npython server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080\n\n首次创建 DB，重启保留数据。\n\n接口说明：\n\n- GET /health → 200 {\"ok\":true}\n- PUT /inventory/{url-encoded-sku}，body {\"stock\":N} 设置该 SKU 当前可售量，创建或更新返回 200 {\"sku\":...,\"stock\":N}。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- GET /inventory/{sku} → 200 对应库存或 404。\n- POST /orders 必须有非空 Idempotency-Key 请求头（最长 128 字符），JSON 为 {\"customer\":非空字符串,\"items\":[{\"sku\":非空字符串,\"quantity\":正整数},...]}。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 {\"id\",\"customer\",\"items\":[规范化明细],\"status\":\"confirmed\"}；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- GET /orders → 200 {\"orders\":[...]} 按 id 排序；GET /orders/{id} 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。"
+  },
+  {
+    "id": "31afac4b35",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "库存订单服务需求",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "需求语气可由全文上下文表达；不要求显式说尚未实现"
+      },
+      {
+        "id": "idempotency",
+        "severity": "core",
+        "meaning": "相同key相同请求不重复扣减",
+        "evidence_lines": [
+          10
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "请求重试去重/幂等避免重复扣减可接受；只列接口为遗漏"
+      },
+      {
+        "id": "atomic",
+        "severity": "core",
+        "meaning": "整单原子避免部分扣减",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "要表达全成或全败；无需逐条列SQL行为"
+      },
+      {
+        "id": "normalization",
+        "severity": "important",
+        "meaning": "重复SKU合并、同key不同请求冲突",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略排序细节；单提key冲突部分覆盖"
+      },
+      {
+        "id": "failure_key",
+        "severity": "important",
+        "meaning": "失败不占用key可纠正重试",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "库存不足整体失败不自动等于覆盖失败key"
+      },
+      {
+        "id": "concurrency",
+        "severity": "important",
+        "meaning": "并发不超卖",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "并发不超卖可概括"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启持久",
+        "evidence_lines": [
+          5,
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "持久化即可"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开验证仅健康检查",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "没有虚报测试时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括如下：\n\n这是一个小型仓库的 HTTP 订单服务，用于解决网络重试导致的重复扣库存和部分扣减问题。服务使用 SQLite 存储库存和订单，支持重启后数据保留。\n\n主要功能：\n- 健康检查：GET /health 返回 200 {\"ok\":true}。\n- 库存管理：PUT /inventory/{url-encoded-sku} 设置 SKU 的可售量，创建或更新返回 200 {\"sku\":...,\"stock\":N}；N 必须为非负整数。\n- 查询库存：GET /inventory/{sku} 返回 200 对应库存或 404。\n- 创建订单：POST /orders 必须带有非空的 Idempotency-Key 请求头（最长 128 字符），JSON 请求体包含 customer 和 items 数组。同一 SKU 的重复项数量求和，按 SKU 排序；item 顺序和重复项拆分不影响语义。\n- 订单查询：GET /orders 返回按 id 排序的订单列表；GET /orders/{id} 返回完整订单或 404。\n- 错误处理：任何失败应整体无写入，不扣库存、不创建订单、不占用 key，允许之后更正请求重试。\n\n启动命令：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080。首次创建 DB，重启保留数据。"
+  },
+  {
+    "id": "372b0ad746",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "会议室/设备预约服务需求",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "概括为预约服务需求即可；不要求逐字段复述；把需求说成已实现属于无依据实现声明"
+      },
+      {
+        "id": "conflict",
+        "severity": "core",
+        "meaning": "同资源有效预约不能重叠",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "说明同资源时段冲突即可；无需UTC整数/半开术语；宣称允许重叠为核心矛盾"
+      },
+      {
+        "id": "cancel",
+        "severity": "important",
+        "meaning": "取消释放时段",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略幂等和未知id返回码"
+      },
+      {
+        "id": "failure",
+        "severity": "important",
+        "meaning": "失败不改预约",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略各个错误码"
+      },
+      {
+        "id": "atomic",
+        "severity": "important",
+        "meaning": "并发冲突判定与写入原子",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "只说支持并发是部分覆盖"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启保留数据与规则",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "SQLite持久化概括可接受"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开健康检查不代表完整业务验证",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "无测试通过声明时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括如下：\n\n这是一个可重启的会议资源预约服务，使用 SQLite 存储预约数据，提供 HTTP 接口。启动时需要指定数据库路径、主机和端口，例如：python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080。首次启动会创建数据库，后续启动保留数据。\n\n主要接口：\n- GET /health → 200 {\"ok\":true}\n- POST /bookings：创建预约，需要 resource、customer、start、end（整数分钟），同一资源的 confirmed 预约不能重叠，其他资源不受影响。成功返回 201，包含 id、resource、start、end、customer、status:confirmed；冲突返回 409。\n- GET /bookings：返回所有预约，支持按 resource 精确过滤，按 start、id 升序排列。\n- GET /bookings/{id}：返回指定预约或 404。\n- DELETE /bookings/{id}：取消预约，返回 200 {\"id\",\"status\":\"cancelled\"}；重复取消幂等；取消后时段可被重新预约。\n- 非法输入、缺字段、坏 JSON 返回 400；未知路由返回 404；错误对象含 error 字段。\n\n要求：多个请求同时到达时，冲突判定与写入必须为同一原子操作；终止并重启进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查，需要补充自己的行为验证。"
+  },
+  {
+    "id": "44f6f5a847",
+    "task": "阅读指定文件 verify_public.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "仅健康冒烟，不验证事务业务",
+        "evidence_lines": [
+          1,
+          9,
+          13
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "健康检查脚本+明确业务测试仍需做即可；只说完整服务验证属核心误导"
+      },
+      {
+        "id": "assertions",
+        "severity": "core",
+        "meaning": "GET health确认HTTP成功及ok为true",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求逐字布尔表达式；只说请求健康端点不提检查结果为部分覆盖"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "HOST PORT来自命令行",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略具体argv索引"
+      }
+    ],
+    "final": "verify_public.py 是一个只读健康检查脚本，不测试业务行为。它通过 HTTP GET 请求 /health 端点，验证响应状态码为 200 且 JSON 体中的 ok 字段为 true。脚本不涉及预订、订单或其他业务逻辑，仅用于验证服务是否可达。"
+  },
+  {
+    "id": "4f69c4190f",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "库存订单服务需求",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "需求语气可由全文上下文表达；不要求显式说尚未实现"
+      },
+      {
+        "id": "idempotency",
+        "severity": "core",
+        "meaning": "相同key相同请求不重复扣减",
+        "evidence_lines": [
+          10
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "请求重试去重/幂等避免重复扣减可接受；只列接口为遗漏"
+      },
+      {
+        "id": "atomic",
+        "severity": "core",
+        "meaning": "整单原子避免部分扣减",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "要表达全成或全败；无需逐条列SQL行为"
+      },
+      {
+        "id": "normalization",
+        "severity": "important",
+        "meaning": "重复SKU合并、同key不同请求冲突",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略排序细节；单提key冲突部分覆盖"
+      },
+      {
+        "id": "failure_key",
+        "severity": "important",
+        "meaning": "失败不占用key可纠正重试",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "库存不足整体失败不自动等于覆盖失败key"
+      },
+      {
+        "id": "concurrency",
+        "severity": "important",
+        "meaning": "并发不超卖",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "并发不超卖可概括"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启持久",
+        "evidence_lines": [
+          5,
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "持久化即可"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开验证仅健康检查",
+        "evidence_lines": [
+          16
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "没有虚报测试时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括如下：\n\n这是一个小型仓库的 SQLite HTTP 订单服务，用于解决网络重试重复扣库存及多行订单部分扣减问题。服务要求使用 Python 3.11+ 标准库，不依赖联网依赖，允许自行组织模块。\n\n启动命令：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应为 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。"
+  },
+  {
+    "id": "540067598f",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个轻量级 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块，通过命令行参数解析器接收 --db、--host 和 --port 参数，并在指定端口上启动一个支持多线程的 HTTP 服务器。\n\n核心功能：\n1. 提供 /health 端点：返回 HTTP 200 状态码和 JSON 响应 {\"ok\": true}，用于健康检查。\n2. 对其他路径返回 HTTP 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}，表示功能尚未实现。\n3. 使用 ThreadingHTTPServer 实现多线程请求处理，支持并发连接。\n\n文件结构：\n- 导入必要的模块：argparse、json、http.server、threading\n- 定义 Handler 类继承 BaseHTTPRequestHandler，实现 do_GET 方法处理 GET 请求\n- 主程序块解析命令行参数，创建并启动 ThreadingHTTPServer 实例\n\n文件大小：935 字节，包含 22 行代码。"
+  },
+  {
+    "id": "570e31e1aa",
+    "task": "阅读指定文件 verify_public.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "仅健康冒烟，不验证事务业务",
+        "evidence_lines": [
+          1,
+          9,
+          13
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "健康检查脚本+明确业务测试仍需做即可；只说完整服务验证属核心误导"
+      },
+      {
+        "id": "assertions",
+        "severity": "core",
+        "meaning": "GET health确认HTTP成功及ok为true",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求逐字布尔表达式；只说请求健康端点不提检查结果为部分覆盖"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "HOST PORT来自命令行",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略具体argv索引"
+      }
+    ],
+    "final": "verify_public.py 是一个只读健康检查脚本，不会创建、更新或删除任何文件，也不会修改服务行为。它的主要内容是：\n\n1. 脚本接受两个命令行参数：HOST 和 PORT。\n2. 它通过 HTTP GET 请求访问指定主机和端口的 /health 端点。\n3. 如果响应状态码为 200 且返回的 JSON 中 'ok' 字段为 true，则输出 'health smoke passed; transactional behavior still requires tests'。\n4. 脚本不验证 booking 或 order 行为，仅作为健康检查使用。\n\n总结：该脚本仅用于验证服务的健康状态，不涉及任何数据修改或业务逻辑测试。"
+  },
+  {
+    "id": "69ce49f6ec",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点：当访问 /health 时返回 200 状态码和 JSON 响应 {\"ok\": true}；其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。"
+  },
+  {
+    "id": "720dd945ab",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "会议室/设备预约服务需求",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "概括为预约服务需求即可；不要求逐字段复述；把需求说成已实现属于无依据实现声明"
+      },
+      {
+        "id": "conflict",
+        "severity": "core",
+        "meaning": "同资源有效预约不能重叠",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "说明同资源时段冲突即可；无需UTC整数/半开术语；宣称允许重叠为核心矛盾"
+      },
+      {
+        "id": "cancel",
+        "severity": "important",
+        "meaning": "取消释放时段",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略幂等和未知id返回码"
+      },
+      {
+        "id": "failure",
+        "severity": "important",
+        "meaning": "失败不改预约",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略各个错误码"
+      },
+      {
+        "id": "atomic",
+        "severity": "important",
+        "meaning": "并发冲突判定与写入原子",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "只说支持并发是部分覆盖"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启保留数据与规则",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "SQLite持久化概括可接受"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开健康检查不代表完整业务验证",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "无测试通过声明时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、公开接口、数据持久化方式和冲突处理规则。\n\n1. 目标：为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。\n2. 启动契约：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080` 启动服务。DB 父目录已存在，首次启动应创建数据库，后续启动保留数据。\n3. 公开接口：\n   - `GET /health` → 200 `{\"ok\":true}`。\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟，UTC 时间）。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功返回 201，包含 id、resource、start、end、customer、status:\"confirmed\"；冲突返回 409。\n   - `GET /bookings`：返回所有预约，按 start、id 升序，可用 `?resource=...` 精确过滤。\n   - `GET /bookings/{id}`：返回完整预约或 404。\n   - `DELETE /bookings/{id}`：取消预约，返回 200 `{id,status:\"cancelled\"}`，重复取消幂等。\n4. 数据持久化：多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。\n5. 错误处理：非法输入、缺字段、坏 JSON、失败写入等返回 400；未知路由返回 404；错误对象含 error 字符串。\n6. 行为验证：公开健康检查不能替代完整功能，需要补充自己的行为验证。"
+  },
+  {
+    "id": "8c8c1d69b6",
+    "task": "阅读指定文件 verify_public.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "仅健康冒烟，不验证事务业务",
+        "evidence_lines": [
+          1,
+          9,
+          13
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "健康检查脚本+明确业务测试仍需做即可；只说完整服务验证属核心误导"
+      },
+      {
+        "id": "assertions",
+        "severity": "core",
+        "meaning": "GET health确认HTTP成功及ok为true",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求逐字布尔表达式；只说请求健康端点不提检查结果为部分覆盖"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "HOST PORT来自命令行",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略具体argv索引"
+      }
+    ],
+    "final": "verify_public.py 是一个只读健康检查脚本，不测试预订或订单行为。它通过 HTTP GET 请求 /health 端点，验证响应状态码为 200 且 JSON 中 ok 字段为 true。脚本接受两个命令行参数：主机和端口。执行成功后会输出提示信息，表明健康检查通过，但提醒需要额外的测试来验证预订和订单行为。"
+  },
+  {
+    "id": "ac634a4571",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 的 HTTP 服务器入口文件，用于提供一个简单的健康检查接口。\n\n主要内容概括：\n1. 导入了必要的模块：argparse 用于解析命令行参数，json 用于处理 JSON 数据，http.server 用于创建 HTTP 服务器。\n2. 定义了 Handler 类，继承自 BaseHTTPRequestHandler，处理 GET 请求。\n   - 当请求路径为 /health 时，返回状态码 200 和 JSON 响应 {'ok': True}。\n   - 其他路径返回状态码 501 和 JSON 响应 {'error': 'not_implemented'}。\n3. 在 main 函数中，解析命令行参数，包括必需的 --db 和 --port，以及可选的 --host。\n4. 创建 ThreadingHTTPServer 实例，绑定到指定的主机和端口，并使用 Handler 处理请求。\n5. 调用 serve_forever() 方法，使服务器持续运行，处理客户端请求。\n\n总结：server.py 实现了一个基本的 HTTP 服务器，用于提供健康检查接口，并通过命令行参数配置服务器的运行参数。"
+  },
+  {
+    "id": "ac9a412c66",
+    "task": "阅读指定文件 server.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "初始HTTP骨架，尚待实现合同",
+        "evidence_lines": [
+          1
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "仅说HTTP服务而不反映骨架性质为实质遗漏"
+      },
+      {
+        "id": "get",
+        "severity": "core",
+        "meaning": "health成功JSON，其他GET未实现",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求200/501数值；需区分health和其他GET"
+      },
+      {
+        "id": "db",
+        "severity": "core",
+        "meaning": "db参数只解析，未用于数据库",
+        "evidence_lines": [
+          18,
+          19,
+          20
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "结合全文无数据库操作验证；仅列db参数不足，遗漏使读者误认具备数据库功能"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "命令行db/host/port配置",
+        "evidence_lines": [
+          21
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可概括CLI配置"
+      },
+      {
+        "id": "threads",
+        "severity": "important",
+        "meaning": "线程HTTP服务启动",
+        "evidence_lines": [
+          4,
+          22
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "称线程服务器正确；声称import threading属局部无依据内容"
+      },
+      {
+        "id": "json",
+        "severity": "important",
+        "meaning": "JSON响应",
+        "evidence_lines": [
+          9
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不需列响应头"
+      }
+    ],
+    "final": "server.py 是一个基于 Python 的 HTTP 服务器入口文件，主要用于提供一个简单的健康检查接口。\n\n1. 导入模块：\n   - `argparse`：用于解析命令行参数。\n   - `json`：用于处理 JSON 数据。\n   - `http.server`：提供 HTTP 服务器的基础类。\n\n2. 定义 `Handler` 类，继承自 `BaseHTTPRequestHandler`：\n   - 处理 GET 请求。\n   - 如果请求路径是 `/health`，返回状态码 200 和 JSON 响应 `{\"ok\": true}`。\n   - 其他路径返回状态码 501 和 JSON 响应 `{\"error\": \"not_implemented\"}`。\n\n3. 主程序逻辑：\n   - 使用 `argparse` 解析命令行参数，包括必需的 `--db` 和 `--port`，以及可选的 `--host`（默认为 `127.0.0.1`）。\n   - 创建 `ThreadingHTTPServer` 实例，绑定到指定的主机和端口，并使用 `Handler` 作为请求处理器。\n   - 调用 `serve_forever()` 方法，使服务器持续运行，处理客户端请求。\n\n总结：该文件实现了一个简单的 HTTP 服务器，主要用于健康检查，并通过命令行参数配置服务器的运行参数。"
+  },
+  {
+    "id": "c5ffbb2f49",
+    "task": "阅读指定文件 README.md，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "会议室/设备预约服务需求",
+        "evidence_lines": [
+          3
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "概括为预约服务需求即可；不要求逐字段复述；把需求说成已实现属于无依据实现声明"
+      },
+      {
+        "id": "conflict",
+        "severity": "core",
+        "meaning": "同资源有效预约不能重叠",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "说明同资源时段冲突即可；无需UTC整数/半开术语；宣称允许重叠为核心矛盾"
+      },
+      {
+        "id": "cancel",
+        "severity": "important",
+        "meaning": "取消释放时段",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略幂等和未知id返回码"
+      },
+      {
+        "id": "failure",
+        "severity": "important",
+        "meaning": "失败不改预约",
+        "evidence_lines": [
+          12
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略各个错误码"
+      },
+      {
+        "id": "atomic",
+        "severity": "important",
+        "meaning": "并发冲突判定与写入原子",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "只说支持并发是部分覆盖"
+      },
+      {
+        "id": "persistence",
+        "severity": "important",
+        "meaning": "重启保留数据与规则",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "SQLite持久化概括可接受"
+      },
+      {
+        "id": "verification",
+        "severity": "important",
+        "meaning": "公开健康检查不代表完整业务验证",
+        "evidence_lines": [
+          14
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "无测试通过声明时遗漏仅完整度差异"
+      }
+    ],
+    "final": "README.md 概括：\n\n这是一个可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约管理。服务提供健康检查、预约创建、预约列表、单条预约查询、预约取消等接口，并支持 UTF-8 路径参数。\n\n启动契约：\n- 命令：python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080\n- 首次启动会创建数据库；后续启动保留数据。\n- 所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n接口说明：\n- GET /health → 200 {\"ok\":true}\n- POST /bookings：创建预约，参数包括 resource、customer、start、end（整数分钟，UTC 时间，start >= 0 且 start < end）。同 resource 的 confirmed 预约不能重叠；其他 resource 不受影响。成功返回 201，包含 id、resource、start、end、customer、status:confirmed；冲突返回 409。\n- GET /bookings：返回所有预约，包含 cancelled，按 start、id 升序；可用 ?resource=... 精确过滤，UTF-8 名称保持原样。\n- GET /bookings/{id}：返回完整预约或 404。\n- DELETE /bookings/{id}：取消预约，返回 200 {\"id\",\"status\":\"cancelled\"}；重复取消幂等；取消后时段可被重新预约；未知 id 返回 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；需要补充自己的行为验证，不能以健康检查替代完整功能。"
+  },
+  {
+    "id": "fd1be87a25",
+    "task": "阅读指定文件 verify_public.py，概括其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+    "file": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+    "facts": [
+      {
+        "id": "purpose",
+        "severity": "core",
+        "meaning": "仅健康冒烟，不验证事务业务",
+        "evidence_lines": [
+          1,
+          9,
+          13
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "健康检查脚本+明确业务测试仍需做即可；只说完整服务验证属核心误导"
+      },
+      {
+        "id": "assertions",
+        "severity": "core",
+        "meaning": "GET health确认HTTP成功及ok为true",
+        "evidence_lines": [
+          11
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "不强求逐字布尔表达式；只说请求健康端点不提检查结果为部分覆盖"
+      },
+      {
+        "id": "cli",
+        "severity": "important",
+        "meaning": "HOST PORT来自命令行",
+        "evidence_lines": [
+          8
+        ],
+        "evidence_scope": "whole file when anchor absent; no unsupported inferred implementation",
+        "allowance_and_error": "可省略具体argv索引"
+      }
+    ],
+    "final": "verify_public.py 是一个只读的健康检查脚本。它接受两个命令行参数：主机和端口，然后通过 HTTP GET 请求 /health 端点，并验证响应状态码为 200 且 JSON 体中的 ok 字段为 true。脚本不会测试预订或订单行为，也不会修改任何文件或状态。"
+  }
+]

@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_lawful_directory_then_read_then_original_final ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_lawful_directory_then_rea0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x702157e0e8b0>
+
+    def test_lawful_directory_then_read_then_original_final(tmp_path,monkeypatch):
+>    r,c=execute(tmp_path,monkeypatch,[call('list_directory',path='.'),call('read_file',path='README.md'),call('final_answer',text='ORIGINAL')]);assert r['termination']=='final_answer';assert r['final_output']=='ORIGINAL';assert len(r['handoffs'])==2;assert len(c.prompts)==3
+                                                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: assert 'out_of_scope_tool' == 'final_answer'
+E      
+E      - final_answer
+E      + out_of_scope_tool
+
+temp/test_read_summary_pathway_runner_r1_20260912.py:16: AssertionError
+----------------------------- Captured stdout call -----------------------------
+full_text-1-r1 out_of_scope_tool reads 0 summary None
+=========================== short test summary info ============================
+FAILED temp/test_read_summary_pathway_runner_r1_20260912.py::test_lawful_directory_then_read_then_original_final
+1 failed, 2 deselected in 1.10s

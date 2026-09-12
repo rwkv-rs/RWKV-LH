@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________________ test_budget_persists_interrupted_state ____________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pathway_budget_red/test_budget_persists_interrupt0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7679cb538e90>
+
+    def test_budget_persists_interrupted_state(tmp_path,monkeypatch):
+>    r,c=execute(tmp_path,monkeypatch,[call('read_file',path='README.md')]);p=next((tmp_path/'experiment'/'runs').glob('*/state_snapshot.json'));assert json.loads(p.read_text())['status']=='interrupted'
+                                                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E    AssertionError: assert 'initialized' == 'interrupted'
+E      
+E      - interrupted
+E      + initialized
+
+temp/test_read_summary_pathway_runner_r1_20260912.py:25: AssertionError
+----------------------------- Captured stdout call -----------------------------
+trial decision_budget_exhausted reads 1 submitted False
+=========================== short test summary info ============================
+FAILED temp/test_read_summary_pathway_runner_r1_20260912.py::test_budget_persists_interrupted_state
+1 failed, 3 deselected in 1.16s
