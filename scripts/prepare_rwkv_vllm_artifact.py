@@ -93,6 +93,16 @@ def engine_identity(engine_root: Path, *, manifest: Path,
         engine_root=engine_root, engine_revision=revision)
 
 
+def write_weight_index(output: Path, weight_names) -> None:
+    """Name inference weights explicitly so audit safetensors are never loaded."""
+    names = sorted(weight_names)
+    if not names or len(names) != len(set(names)):
+        raise ValueError("inference weight names must be nonempty and unique")
+    write_json(output / "model.safetensors.index.json", {
+        "metadata": {}, "weight_map": {name: "model.safetensors" for name in names},
+    })
+
+
 def validate_existing(output: Path, source_sha256: str, *,
                       config: dict[str, Any] | None = None,
                       engine_manifest_sha256: str | None = None) -> bool:
@@ -101,6 +111,7 @@ def validate_existing(output: Path, source_sha256: str, *,
         "vocab_sha256": "rwkv_vocab_v20230424.txt",
         "tensor_audit_sha256": "tensor_identity_audit.json",
         "unused_native_weights_sha256": "native_unused_layer0_value_mix.safetensors",
+        "weights_index_sha256": "model.safetensors.index.json",
     }
     manifest_path = output / "manifest.json"
     if not manifest_path.is_file() or any(not (output / name).is_file() for name in paths.values()):
@@ -246,6 +257,7 @@ def main() -> None:
             "values_changed": "false",
         },
     )
+    write_weight_index(pending, runtime_tensors)
     unused_path = pending / "native_unused_layer0_value_mix.safetensors"
     save_file(
         unused_tensors,
@@ -367,6 +379,7 @@ def main() -> None:
             "config_sha256": file_sha256(pending / "config.json"),
             "vocab_sha256": file_sha256(pending / vocab_source.name),
             "weights_sha256": file_sha256(weights_path),
+            "weights_index_sha256": file_sha256(pending / "model.safetensors.index.json"),
             "weights_size_bytes": weights_path.stat().st_size,
             "tensor_audit_sha256": file_sha256(pending / "tensor_identity_audit.json"),
             "unused_native_weights_sha256": file_sha256(unused_path),

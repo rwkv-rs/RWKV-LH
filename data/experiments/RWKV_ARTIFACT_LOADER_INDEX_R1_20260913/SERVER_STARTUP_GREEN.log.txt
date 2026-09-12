@@ -1,0 +1,195 @@
+Started rwkv-lh-direct-statetune-eval-r2.service - /usr/bin/bash /home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/evaluation_service/launch_r2.sh.
+{'schema_version': 'rwkv-lh.native-source-identity.v1', 'engine_manifest_sha256': '016d3ac4af9c5eca71fa27b82d3fe71d4e029314bee3f0c1a1513bc00b839693', 'project_manifest_sha256': '1cc191a44b74460ab58996bdcd7aa0b678b2a050552cca36f0c1d4e28db6723e', 'identity_sha256': '515641228d3e5a728a52b6ec488f197d9d618eee0b493716d1b73945d0bbd769'}
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]        █     █     █▄   ▄█
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.23.1rc1.dev1942+g67f0c5996
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]   █▄█▀ █     █     █     █  model   /home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/model_serving_r2
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:345]
+(APIServer pid=3534406) INFO 09-13 05:00:11 [api_utils.py:273] non-default args: {'model_tag': '/home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/model_serving_r2', 'trust_request_chat_template': True, 'enable_auto_tool_choice': True, 'tool_call_parser': 'rwkv', 'host': '127.0.0.1', 'port': 18235, 'model': '/home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/model_serving_r2', 'tokenizer_mode': 'rwkv', 'revision': '67f0c5996c50dca0ad779da545cb491527de988f', 'max_model_len': 16384, 'served_model_name': ['rwkv-direct-state-tune-r1-ctx16384'], 'override_generation_config': {'temperature': 0.1}, 'gpu_memory_utilization': 0.35, 'max_num_batched_tokens': 32768, 'max_num_seqs': 16}
+(APIServer pid=3534406) INFO 09-13 05:00:11 [model.py:642] Resolved architecture: Rwkv7ForCausalLM
+(APIServer pid=3534406) INFO 09-13 05:00:11 [model.py:1890] Using max model len 16384
+(APIServer pid=3534406) INFO 09-13 05:00:11 [scheduler.py:242] Chunked prefill is enabled with max_num_batched_tokens=32768.
+(APIServer pid=3534406) INFO 09-13 05:00:11 [vllm.py:1182] Asynchronous scheduling is enabled.
+(APIServer pid=3534406) WARNING 09-13 05:00:11 [vllm.py:1289] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(APIServer pid=3534406) INFO 09-13 05:00:11 [kernel.py:306] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'])
+(APIServer pid=3534406) INFO 09-13 05:00:11 [compilation.py:329] Enabled custom fusions: norm_quant, act_quant
+(APIServer pid=3534406) WARNING 09-13 05:00:13 [registry.py:257] Using a slow tokenizer. This might cause a significant slowdown. Consider using a fast tokenizer instead.
+(EngineCore pid=3534725) INFO 09-13 05:00:20 [core.py:131] Initializing a V1 LLM engine (v0.23.1rc1.dev1942+g67f0c5996) with config: model='/home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/model_serving_r2', speculative_config=None, tokenizer='/home/chase/GitHub/RWKV-LH-direct-statetune-r1-20260913/model_serving_r2', skip_tokenizer_init=False, tokenizer_mode=rwkv, revision=67f0c5996c50dca0ad779da545cb491527de988f, tokenizer_revision=67f0c5996c50dca0ad779da545cb491527de988f, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=16384, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=False, quantization=None, quantization_config=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False, jit_monitor_mode='warn', jit_monitor_verbose=False), seed=0, served_model_name=rwkv-direct-state-tune-r1-ctx16384, enable_prefix_caching=False, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.NONE: 0>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['all'], 'ir_enable_torch_wrap': False, 'splitting_ops': [], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [32768], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.FULL_DECODE_ONLY: (2, 0)>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [1, 2, 4, 8, 16], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': True, 'fuse_act_quant': True, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'enable_qk_norm_rope_fusion': False, 'fuse_rope_kvcache_cat_mla': False, 'fuse_act_padding': False, 'fuse_qk_norm_rope_kvcache': False}, 'max_cudagraph_capture_size': 16, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': False, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native']), enable_flashinfer_autotune=True, enable_cutedsl_warmup=True, enable_jit_warmup=True, enable_bf16x3_router_gemm=False, moe_backend='auto', linear_backend='auto')
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [parallel_state.py:1640] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://192.168.0.82:40277 backend=nccl
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [parallel_state.py:1977] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [gpu_worker.py:393] Using V2 Model Runner
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [model_runner.py:307] Loading model from scratch...
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [weight_utils.py:867] Filesystem type for checkpoints: EXT4. Checkpoint size: 24.72 GiB. Available RAM: 462.88 GiB.
+(EngineCore pid=3534725) INFO 09-13 05:00:21 [weight_utils.py:890] Auto-prefetch is disabled because the filesystem (EXT4) is not a recognized network FS (NFS/Lustre). If you want to force prefetching, start vLLM with --safetensors-load-strategy=prefetch.
+(EngineCore pid=3534725) Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+(EngineCore pid=3534725) Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00, 25.08it/s]
+(EngineCore pid=3534725)
+(EngineCore pid=3534725) INFO 09-13 05:00:22 [rwkv7.py:979] Detected RWKV7 model C=4096 H=64 N=64 V=65536
+(EngineCore pid=3534725) INFO 09-13 05:00:22 [rwkv7.py:986] RWKV7 cmix no-fc path: rows<=19 row20_t<=5
+(EngineCore pid=3534725) INFO 09-13 05:00:22 [rwkv7.py:995] Preprocessing RWKV7 weights with profile=fp32io16 and GEMM accumulation=fp32
+(EngineCore pid=3534725) INFO 09-13 05:01:01 [rwkv7.py:924] RWKV7 weights are ready L=61 C=4096 H=64 N=64 V=65536
+(EngineCore pid=3534725) INFO 09-13 05:01:01 [default_loader.py:443] Loading weights took 40.09 seconds
+(EngineCore pid=3534725) INFO 09-13 05:01:02 [model_runner.py:328] Model loading took 25.58 GiB and 40.607389 seconds
+(EngineCore pid=3534725) INFO 09-13 05:01:03 [__init__.py:72] Using rapid-sampling for top-p & top-k sampling.
+(EngineCore pid=3534725) Capturing CUDA graphs (FULL):   0%|          | 0/5 [00:00<?, ?it/s]Capturing CUDA graphs (FULL):  20%|██        | 1/5 [00:01<00:05,  1.48s/it]Capturing CUDA graphs (FULL):  40%|████      | 2/5 [00:01<00:02,  1.38it/s]Capturing CUDA graphs (FULL):  60%|██████    | 3/5 [00:01<00:00,  2.22it/s]Capturing CUDA graphs (FULL):  80%|████████  | 4/5 [00:01<00:00,  3.14it/s]Capturing CUDA graphs (FULL): 100%|██████████| 5/5 [00:01<00:00,  2.50it/s]
+(EngineCore pid=3534725) INFO 09-13 05:01:05 [model_runner.py:797] Graph capturing finished in 2 secs, took 0.14 GiB
+(EngineCore pid=3534725) INFO 09-13 05:01:05 [gpu_worker.py:805] Skipping the incompatible V2 kernel warmup: uniform recurrent decode waves do not support mixed warmup batches.
+(EngineCore pid=3534725) INFO 09-13 05:01:06 [jit_monitor.py:79] Kernel JIT monitor activated; monitored JIT compilations during inference will use mode=warn.
+(EngineCore pid=3534725) INFO 09-13 05:01:06 [core.py:374] init engine (profile, create kv cache, warmup model) took 2.58 s
+(EngineCore pid=3534725) WARNING 09-13 05:01:07 [registry.py:257] Using a slow tokenizer. This might cause a significant slowdown. Consider using a fast tokenizer instead.
+(EngineCore pid=3534725) WARNING 09-13 05:01:07 [core.py:170] Disabling chunked prefill for model without KVCache
+(EngineCore pid=3534725) INFO 09-13 05:01:07 [vllm.py:1182] Asynchronous scheduling is enabled.
+(EngineCore pid=3534725) WARNING 09-13 05:01:07 [vllm.py:1289] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.
+(EngineCore pid=3534725) INFO 09-13 05:01:07 [kernel.py:306] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'])
+(EngineCore pid=3534725) INFO 09-13 05:01:07 [compilation.py:329] Enabled custom fusions: norm_quant, act_quant
+(APIServer pid=3534406) INFO 09-13 05:01:07 [api_server.py:694] Supported tasks: ['generate']
+(APIServer pid=3534406) INFO 09-13 05:01:08 [__init__.py:159] Loaded endpoint plugin rwkv_lh_native_state
+(APIServer pid=3534406) INFO 09-13 05:01:08 [parser_manager.py:37] "auto" tool choice has been enabled.
+(APIServer pid=3534406) INFO 09-13 05:01:08 [hf.py:540] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.
+(APIServer pid=3534406) WARNING 09-13 05:01:08 [model.py:1640] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'temperature': 0.1}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+(APIServer pid=3534406) INFO 09-13 05:01:09 [api_server.py:698] Starting vLLM server on http://127.0.0.1:18235
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:37] Available routes are:
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /openapi.json, Methods: HEAD, GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /docs, Methods: HEAD, GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /redoc, Methods: HEAD, GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /load, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /version, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /health, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /metrics, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /tokenize, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /detokenize, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/models, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/chat/completions, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/chat/completions/batch, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/completions, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /scale_elastic_ep, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /is_scaling_elastic_ep, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/chat/completions/render, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/completions/render, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/chat/completions/derender, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/completions/derender, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /inference/v1/generate, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/capabilities, Methods: GET
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/create, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/append, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/fork, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/generate, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/commit, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/rollback, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/import, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/release, Methods: POST
+(APIServer pid=3534406) INFO 09-13 05:01:09 [launcher.py:46] Route: /v1/state/requests/{request_id}, Methods: GET
+(APIServer pid=3534406) INFO:     Started server process [3534406]
+(APIServer pid=3534406) INFO:     Waiting for application startup.
+(APIServer pid=3534406) INFO:     Application startup complete.
+(APIServer pid=3534406) INFO:     127.0.0.1:35478 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40692 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40696 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40696 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40700 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40700 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40704 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40704 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40710 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:40710 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) WARNING 09-13 05:01:57 [input_processor.py:297] Passing raw prompts to InputProcessor is deprecated and will be removed in v0.18. You should instead pass the outputs of Renderer.render_cmpl() or Renderer.render_chat().
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _apply_write_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _prepare_prefill_inputs_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _prepare_pos_seq_lens_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _combine_sampled_and_draft_tokens_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _gather_block_tables_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:57 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _compute_slot_mappings_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:58 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _get_num_sampled_and_rejected_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(EngineCore pid=3534725) WARNING 09-13 05:01:58 [jit_monitor.py:135] Triton kernel JIT compilation during inference: _post_update_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.
+(APIServer pid=3534406) INFO:     127.0.0.1:40696 - "POST /v1/state/create HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO 09-13 05:01:59 [loggers.py:310] Engine 000: Avg prompt throughput: 317.1 tokens/s, Avg generation throughput: 3.6 tokens/s, Running: 1 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO:     127.0.0.1:40720 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:41200 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:41206 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:41208 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:41222 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO 09-13 05:02:09 [loggers.py:310] Engine 000: Avg prompt throughput: 224.4 tokens/s, Avg generation throughput: 44.9 tokens/s, Running: 1 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO:     127.0.0.1:41224 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58084 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58100 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58100 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58106 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58106 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58108 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58108 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58124 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58124 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58100 - "POST /v1/state/create HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58130 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58142 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58154 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58156 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58164 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58176 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58182 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58184 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO 09-13 05:02:19 [loggers.py:310] Engine 000: Avg prompt throughput: 821.0 tokens/s, Avg generation throughput: 21.5 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO:     127.0.0.1:58188 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58176 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58192 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58198 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58204 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58208 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58222 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58238 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58246 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58262 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58268 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58282 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58282 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58296 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58296 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58306 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58306 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58320 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58320 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58282 - "POST /v1/state/create HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58328 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58330 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58342 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58354 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:58360 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO 09-13 05:02:29 [loggers.py:310] Engine 000: Avg prompt throughput: 997.0 tokens/s, Avg generation throughput: 12.4 tokens/s, Running: 1 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO 09-13 05:02:39 [loggers.py:310] Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 55.1 tokens/s, Running: 1 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO:     127.0.0.1:58370 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38286 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38294 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38294 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38306 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38306 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38316 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38316 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38330 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38330 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38294 - "POST /v1/state/create HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38340 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38352 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38354 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38362 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38368 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38384 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38390 - "POST /v1/state/commit HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38400 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38416 - "POST /v1/state/append HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:38418 - "POST /v1/state/import HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO 09-13 05:02:49 [loggers.py:310] Engine 000: Avg prompt throughput: 858.0 tokens/s, Avg generation throughput: 19.4 tokens/s, Running: 1 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%
+(APIServer pid=3534406) INFO:     127.0.0.1:38424 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36654 - "POST /v1/state/rollback HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36658 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36658 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36660 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36660 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36668 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36668 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36682 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36682 - "GET /v1/capabilities HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36658 - "POST /v1/state/create HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36694 - "POST /v1/state/generate HTTP/1.1" 200 OK
+(APIServer pid=3534406) INFO:     127.0.0.1:36708 - "POST /v1/state/commit HTTP/1.1" 200 OK

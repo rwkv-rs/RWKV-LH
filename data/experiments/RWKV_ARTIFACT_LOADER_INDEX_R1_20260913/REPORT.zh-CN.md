@@ -1,0 +1,13 @@
+# RWKV标准工件加载索引 R1
+
+任务/Agent：本修复没有模型质量收益数字。首次候选评测服务在生成之前因权重键集合错误退出，0个被评分调用；不是RWKV读取/总结失败。修复后实际生产服务启动，独立zero/候选任务才开始。训练54步与候选文件保留，没有重算或更改训练结果。
+
+根因：转换器为数值审计保留native_unused_layer0_value_mix.safetensors，但没有标准model.safetensors.index.json。当前vLLM DefaultModelLoader本地glob会同时加载主权重和审计旁文件，导致标准模型出现blocks.0.att.v0/v1/v2三个多余键。ignore_patterns只用于远程下载，不能解决本地glob问题。数值验证采用直接模型前向，因此并不替代完整服务加载验收。
+
+通用修复：转换器从实际runtime_tensors生成标准weight_map，只把推理键映射到model.safetensors；将索引SHA加入manifest及已存在工件校验。审计旁文件保留，既不删除模型证据，也不在engine中静默忽略未知权重。所有采用该转换器并保留旁文件的模型都受影响，不针对评测文件/模型名称特判。
+
+本轮旧训练工件不改动，另建同权重serving view：原张量/config/vocab文件硬链接保持逐字节同一，补索引和来源派生清单；候选State本身不改，部署profile只绑定新工件目录。zero与候选都使用此视图。生产协议、输入构造函数、采样和预算不变。
+
+回归：缺失索引的旧生产服务真实失败；当前engine文件选择器旧目录选中2个safetensors、新目录仅选中主权重；新服务成功启动并公开Native State capabilities。两个单测先失败后通过：索引排除审计旁文件、旧工件未固定索引时拒绝复用。第一次单测因本地无safetensors依赖失败，改为不新增依赖的索引函数接口，并在旧生产源码上复现同一最终测试失败；真实engine回归仍使用真实safetensors。首个探测器调用缺少当前engine两个必需参数的工程失败也保留，修正调用签名后回归通过。相关6项、全量1530 passed/0 skipped。
+
+新工件来源、原/新loader选中列表、实际服务启动日志、逐文件SHA见本目录。原五文件保持，不更新GitHub；后续任务结果在主StateTune实验单独登记，不把启动通过当摘要通过。

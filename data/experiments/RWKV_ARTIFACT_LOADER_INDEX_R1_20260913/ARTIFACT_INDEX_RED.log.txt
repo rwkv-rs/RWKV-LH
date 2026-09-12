@@ -1,0 +1,35 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_inference_index_excludes_preserved_audit_sidecar _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/artifact-index-red/test_inference_index_excludes_0')
+
+    def test_inference_index_excludes_preserved_audit_sidecar(tmp_path):
+>       from safetensors.torch import save_file
+E       ModuleNotFoundError: No module named 'safetensors'
+
+tests/test_rwkv_artifact.py:75: ModuleNotFoundError
+_____________ test_existing_artifact_requires_pinned_loader_index ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/artifact-index-red/test_existing_artifact_require0')
+
+    def test_existing_artifact_requires_pinned_loader_index(tmp_path):
+        names = {'weights_sha256': 'model.safetensors', 'config_sha256': 'config.json',
+                 'vocab_sha256': 'rwkv_vocab_v20230424.txt', 'tensor_audit_sha256': 'tensor_identity_audit.json',
+                 'unused_native_weights_sha256': 'native_unused_layer0_value_mix.safetensors'}
+        for name in names.values():
+            (tmp_path / name).write_text('identity fixture')
+        manifest = {'schema_version': converter.SCHEMA_VERSION, 'source': {'sha256': 'a'*64},
+                    'generation': {'values_changed': False},
+                    'output': {key: converter.file_sha256(tmp_path / name) for key, name in names.items()}}
+        (tmp_path / 'manifest.json').write_text(json.dumps(manifest))
+>       assert converter.validate_existing(tmp_path, 'a'*64) is False
+E       AssertionError: assert True is False
+E        +  where True = <function validate_existing at 0x7d4c737b16c0>(PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/artifact-index-red/test_existing_artifact_require0'), ('a' * 64))
+E        +    where <function validate_existing at 0x7d4c737b16c0> = converter.validate_existing
+
+tests/test_rwkv_artifact.py:95: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_rwkv_artifact.py::test_inference_index_excludes_preserved_audit_sidecar
+FAILED tests/test_rwkv_artifact.py::test_existing_artifact_requires_pinned_loader_index
+2 failed, 4 deselected in 0.80s

@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_index_exclusion_on_original_producer ___________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/artifact-original-proof/test_index_exclusion_on_origin0')
+
+    def test_index_exclusion_on_original_producer(tmp_path):
+     spec=importlib.util.spec_from_file_location('before',R/'temp/artifact_index_original_r1_20260913.py');before=importlib.util.module_from_spec(spec);spec.loader.exec_module(before)
+>    spec=importlib.util.spec_from_file_location('regression',R/'tests/test_rwkv_artifact.py');regression=importlib.util.module_from_spec(spec);spec.loader.exec_module(regression);regression.converter=before;regression.test_inference_index_excludes_preserved_audit_sidecar(tmp_path)
+                                                                                                                                                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+temp/test_artifact_index_old_r1_20260913.py:6: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/artifact-original-proof/test_index_exclusion_on_origin0')
+
+    def test_inference_index_excludes_preserved_audit_sidecar(tmp_path):
+        (tmp_path / 'model.safetensors').write_bytes(b'inference file identity fixture')
+        (tmp_path / 'native_unused_layer0_value_mix.safetensors').write_bytes(b'audit file identity fixture')
+>       converter.write_weight_index(tmp_path, ['model.emb.weight', 'lm_head.weight'])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'before' has no attribute 'write_weight_index'
+
+tests/test_rwkv_artifact.py:77: AttributeError
+=========================== short test summary info ============================
+FAILED temp/test_artifact_index_old_r1_20260913.py::test_index_exclusion_on_original_producer
+1 failed in 0.88s

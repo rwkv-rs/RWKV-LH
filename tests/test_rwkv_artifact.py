@@ -69,3 +69,26 @@ def test_weight_hashes_alone_cannot_validate_an_artifact(tmp_path: Path):
         "generation": {"values_changed": False},
     }))
     assert converter.validate_existing(tmp_path, "a" * 64) is False
+
+
+def test_inference_index_excludes_preserved_audit_sidecar(tmp_path):
+    (tmp_path / 'model.safetensors').write_bytes(b'inference file identity fixture')
+    (tmp_path / 'native_unused_layer0_value_mix.safetensors').write_bytes(b'audit file identity fixture')
+    converter.write_weight_index(tmp_path, ['model.emb.weight', 'lm_head.weight'])
+    index = json.loads((tmp_path / 'model.safetensors.index.json').read_text())
+    assert set(index['weight_map']) == {'model.emb.weight', 'lm_head.weight'}
+    assert set(index['weight_map'].values()) == {'model.safetensors'}
+    assert len(list(tmp_path.glob('*.safetensors'))) == 2  # Audit evidence is preserved.
+
+
+def test_existing_artifact_requires_pinned_loader_index(tmp_path):
+    names = {'weights_sha256': 'model.safetensors', 'config_sha256': 'config.json',
+             'vocab_sha256': 'rwkv_vocab_v20230424.txt', 'tensor_audit_sha256': 'tensor_identity_audit.json',
+             'unused_native_weights_sha256': 'native_unused_layer0_value_mix.safetensors'}
+    for name in names.values():
+        (tmp_path / name).write_text('identity fixture')
+    manifest = {'schema_version': converter.SCHEMA_VERSION, 'source': {'sha256': 'a'*64},
+                'generation': {'values_changed': False},
+                'output': {key: converter.file_sha256(tmp_path / name) for key, name in names.items()}}
+    (tmp_path / 'manifest.json').write_text(json.dumps(manifest))
+    assert converter.validate_existing(tmp_path, 'a'*64) is False
