@@ -1,0 +1,17 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_actual_observation_packet_and_native_stop_tokens _____________
+
+    def test_actual_observation_packet_and_native_stop_tokens():
+     subprocess.run([str(R/'.venv/bin/python'),str(R/'temp/audit_read_summary_r5_20260912.py')],check=True)
+     rows=json.loads((D/'MECHANICAL_AUDIT.json').read_text());r=next(r for r in rows if r['run']=='full_text-1-r1')
+>    assert r['handoffs'][0]['full_output_in_projection']
+E    assert False
+
+temp/test_read_summary_audit_r5_20260912.py:8: AssertionError
+----------------------------- Captured stdout call -----------------------------
+full_text-1-r1 read True handoff False calls 2 stop final_answer [(3171, 46, True, True), (5416, 616, True, False)]
+full_text-2-r1 read True handoff False calls 2 stop final_answer [(3173, 30, True, True), (5516, 310, True, False)]
+=========================== short test summary info ============================
+FAILED temp/test_read_summary_audit_r5_20260912.py::test_actual_observation_packet_and_native_stop_tokens
+1 failed in 1.85s

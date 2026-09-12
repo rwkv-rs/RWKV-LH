@@ -1,0 +1,307 @@
+[
+  {
+    "run": "full_text-1-r1",
+    "answer_sha256": "520f03ad0e7425ea7d23ca413c6481ce41c2a053d8243a0fc7f47bea3b4497dc",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是会议室/设备预约服务的需求合同，要求Python标准库、SQLite持久化HTTP JSON服务，不是已实现功能的证明。",
+        "covered": false,
+        "answer_quote": "提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约",
+        "reason": "正确概括目标和文档性质，但未覆盖登记的Python标准库约束。"
+      },
+      {
+        "fact": "按资源预约，整数UTC分钟、半开区间；同资源confirmed区间不重叠，相接允许。",
+        "covered": true,
+        "answer_quote": "时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突",
+        "reason": "也明确同resource confirmed不能重叠。"
+      },
+      {
+        "fact": "支持创建、列表/查询和幂等取消，取消释放时段；非法或冲突请求不得改变预约。",
+        "covered": false,
+        "answer_quote": "重复取消幂等；未知 id 返回 404",
+        "reason": "包含创建/列表/查询/取消及失败无写入，但遗漏取消释放时段。"
+      },
+      {
+        "fact": "并发冲突判断和写入必须原子；重启保留数据和规则。",
+        "covered": true,
+        "answer_quote": "冲突判定与写入必须为同一原子操作",
+        "reason": "并明确重启后数据和冲突规则正确。"
+      },
+      {
+        "fact": "说明server.py的db/host/port启动参数；公开验证仅健康检查，仍需业务验证。",
+        "covered": true,
+        "answer_quote": "公开健康检查仅是启动检查；需要补充自己的行为验证",
+        "reason": "启动db/host/port命令和验证边界均覆盖。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_text-2-r1",
+    "answer_sha256": "243be4fd52a08de100ee9929cb96c63842566ed793309396dc31a10cfd984345",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是SQLite HTTP库存订单服务需求，目标避免重试重复扣减和多行部分扣减，并非实现完成证明。",
+        "covered": false,
+        "answer_quote": "支持库存管理、订单创建和幂等性处理",
+        "reason": "覆盖SQLite HTTP与重复扣减，但遗漏多行订单部分扣减目标；结尾说明实现要求，不单凭它使用措辞判为已完成。"
+      },
+      {
+        "fact": "支持设置/查询SKU库存与创建/查询订单，库存非负整数、数量正整数。",
+        "covered": false,
+        "answer_quote": "设置 SKU 的可售库存",
+        "reason": "接口覆盖，未述库存非负整数、数量正整数。"
+      },
+      {
+        "fact": "订单要求Idempotency-Key；重复SKU合并并排序，相同key与规范化请求返回同单且不重复扣减，不同请求冲突。",
+        "covered": false,
+        "answer_quote": "支持幂等性（通过 Idempotency-Key 头），防止重复扣减库存",
+        "reason": "遗漏重复SKU规范化/排序、同key不同请求冲突。"
+      },
+      {
+        "fact": "缺SKU或库存不足时整体无写入、不占key，可更正重试。",
+        "covered": false,
+        "answer_quote": "错误处理以及事务和幂等性的实现要求",
+        "reason": "泛指错误处理不能替代缺SKU/库存不足整体无写入、不占key与可更正重试。"
+      },
+      {
+        "fact": "库存判断、扣减、订单/key登记必须原子，并发不超卖；重启持久，公开健康检查不证明交易正确。",
+        "covered": false,
+        "answer_quote": "事务和幂等性的实现要求",
+        "reason": "遗漏原子登记、并发不超卖、重启持久和公开健康验证边界。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_code-1-r1",
+    "answer_sha256": "2d775fe4250eb63c487d4319fb7e5976e5eb0929a4c0dd76c785badb4907fd74",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是Python标准库的线程HTTP服务初始入口，README合同尚待完成。",
+        "covered": false,
+        "answer_quote": "基于 Python 标准库 http.server 的 HTTP 服务器入口文件",
+        "reason": "涵盖初始服务器功能，但未说README合同尚待完成。"
+      },
+      {
+        "fact": "GET /health返回200和JSON ok=true，其他GET返回501和not_implemented。",
+        "covered": true,
+        "answer_quote": "对其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}",
+        "reason": "健康200与JSON均准确；在所读GET处理器语境下允许其他路径的简略表达，不据此推断所有HTTP方法。"
+      },
+      {
+        "fact": "JSON响应设置Content-Type与Content-Length后写入响应体。",
+        "covered": false,
+        "answer_quote": "JSON 响应",
+        "reason": "遗漏Content-Type、Content-Length与写响应体。"
+      },
+      {
+        "fact": "命令行db必填、host默认127.0.0.1、port为必填整数，然后serve_forever；db只解析，代码未使用数据库。",
+        "covered": false,
+        "answer_quote": "必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1）",
+        "reason": "启动与必填/默认覆盖，遗漏port整数和db仅解析未使用。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_code-2-r1",
+    "answer_sha256": "7ec8048aa73b1e27d0fe747e1c452340ab86a7d6bb7f8bb517a5d4393fed0ca5",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是仅做健康检查的Python冒烟脚本，不验证预约/订单或事务行为。",
+        "covered": true,
+        "answer_quote": "脚本不验证预订或订单行为，仅提供基础的健康状态检查",
+        "reason": "正确限定健康检查范围。"
+      },
+      {
+        "fact": "从命令行HOST和PORT建立HTTP连接，超时5秒，GET /health。",
+        "covered": false,
+        "answer_quote": "通过 HTTP GET 请求 /health 端点",
+        "reason": "未述命令行HOST/PORT和5秒超时。"
+      },
+      {
+        "fact": "断言HTTP200且JSON ok严格为True，然后关闭连接并打印成功及仍需事务测试提示。",
+        "covered": false,
+        "answer_quote": "检查响应状态码是否为 200 以及响应体是否包含 {\"ok\": true}",
+        "reason": "核心断言覆盖；未述关闭连接及打印仍需事务测试提示。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_text-1-r2",
+    "answer_sha256": "2646a6de5362d3207e88634cf3c3871ca3243885268cded4edfa7b24f085fd3b",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是会议室/设备预约服务的需求合同，要求Python标准库、SQLite持久化HTTP JSON服务，不是已实现功能的证明。",
+        "covered": false,
+        "answer_quote": "为内部会议室与设备提供可重启的 SQLite HTTP 预约服务",
+        "reason": "目标正确，未覆盖Python标准库约束。"
+      },
+      {
+        "fact": "按资源预约，整数UTC分钟、半开区间；同资源confirmed区间不重叠，相接允许。",
+        "covered": false,
+        "answer_quote": "整数分钟",
+        "reason": "缺UTC、半开区间/相接允许及同资源confirmed的限定；不把简略冲突预约表达单独判为编造。"
+      },
+      {
+        "fact": "支持创建、列表/查询和幂等取消，取消释放时段；非法或冲突请求不得改变预约。",
+        "covered": false,
+        "answer_quote": "取消预约，幂等操作",
+        "reason": "覆盖接口、失败不改预约；未述取消后时段可再预约。"
+      },
+      {
+        "fact": "并发冲突判断和写入必须原子；重启保留数据和规则。",
+        "covered": true,
+        "answer_quote": "冲突判定原子操作、终止后重启继续正确",
+        "reason": "结合数据持久化项，接受对并发冲突与重启规则的紧缩转述。"
+      },
+      {
+        "fact": "说明server.py的db/host/port启动参数；公开验证仅健康检查，仍需业务验证。",
+        "covered": false,
+        "answer_quote": "启动契约",
+        "reason": "有完整启动参数，遗漏公开健康检查不足以验证功能。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_text-2-r2",
+    "answer_sha256": "72120adb09b068bc591f1455e475c3fa08197e109da200d1e59cf172ccf3dcb9",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是SQLite HTTP库存订单服务需求，目标避免重试重复扣减和多行部分扣减，并非实现完成证明。",
+        "covered": true,
+        "answer_quote": "解决网络重试重复扣库存及多行订单部分扣减问题",
+        "reason": "明确项目目标为实现服务，没有声称已实现。"
+      },
+      {
+        "fact": "支持设置/查询SKU库存与创建/查询订单，库存非负整数、数量正整数。",
+        "covered": false,
+        "answer_quote": "N 必须为非负整数",
+        "reason": "库存限制及接口覆盖；未述quantity为正整数。"
+      },
+      {
+        "fact": "订单要求Idempotency-Key；重复SKU合并并排序，相同key与规范化请求返回同单且不重复扣减，不同请求冲突。",
+        "covered": false,
+        "answer_quote": "同 key 相同规范化请求返回 200 同一订单，不再次扣库存",
+        "reason": "规范化和排序覆盖；未述同key不同customer/明细冲突，后面的不同key不超卖是另一个真实规则，不能替代。"
+      },
+      {
+        "fact": "缺SKU或库存不足时整体无写入、不占key，可更正重试。",
+        "covered": false,
+        "answer_quote": "失败应整体无写入，不扣库存、不创建订单、不占用 key",
+        "reason": "完整回滚已覆盖，但未明确允许更正后重试这一登记子项。"
+      },
+      {
+        "fact": "库存判断、扣减、订单/key登记必须原子，并发不超卖；重启持久，公开健康检查不证明交易正确。",
+        "covered": true,
+        "answer_quote": "库存判定、扣减和订单/idempotency 登记必须原子完成",
+        "reason": "并发、持久化、健康检查不能证明交易均有覆盖。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_code-1-r2",
+    "answer_sha256": "352a5e2e0fb60ef4135f86d32dbf8ba6c3732590b0275cebf59c77176798c416",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是Python标准库的线程HTTP服务初始入口，README合同尚待完成。",
+        "covered": false,
+        "answer_quote": "一个简单的 HTTP 服务器入口文件",
+        "reason": "概括服务器和线程处理，但未述README合同尚待完成；额外threading模块断言单独登记。"
+      },
+      {
+        "fact": "GET /health返回200和JSON ok=true，其他GET返回501和not_implemented。",
+        "covered": true,
+        "answer_quote": "返回 HTTP 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}",
+        "reason": "健康200和其他路径501正确；按GET处理器上下文解释。"
+      },
+      {
+        "fact": "JSON响应设置Content-Type与Content-Length后写入响应体。",
+        "covered": false,
+        "answer_quote": "JSON 响应",
+        "reason": "未覆盖Content-Type、Content-Length和写响应体。"
+      },
+      {
+        "fact": "命令行db必填、host默认127.0.0.1、port为必填整数，然后serve_forever；db只解析，代码未使用数据库。",
+        "covered": false,
+        "answer_quote": "可选指定主机地址（--host，默认 127.0.0.1）",
+        "reason": "启动参数与serve_forever含义基本覆盖；未述port整数、db必填及仅解析未使用。示例命令是由已展示参数规则构成的示例，不作为已执行证明。"
+      }
+    ],
+    "unsupported_assertions": [
+      {
+        "quote": "它使用 Python 标准库的 http.server 和 threading 模块",
+        "reason": "文件只导入argparse、json、BaseHTTPRequestHandler和ThreadingHTTPServer；threading模块的实现细节未在指定文件中提供，超出仅依据文件的边界。线程HTTP服务器本身有直接支持。"
+      }
+    ],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  },
+  {
+    "run": "full_code-2-r2",
+    "answer_sha256": "62304a12ac2661bc627343ac31eacb6e4d587cce09d1893b117d1ddb6b2114d6",
+    "rubric_sha256": "80dc672e19e1473c707b010e4bd2c70bd69b870b4494b3f7f18b93b1622001ea",
+    "facts": [
+      {
+        "fact": "这是仅做健康检查的Python冒烟脚本，不验证预约/订单或事务行为。",
+        "covered": true,
+        "answer_quote": "脚本明确声明不验证预订/订单行为，仅进行健康检查",
+        "reason": "边界正确。"
+      },
+      {
+        "fact": "从命令行HOST和PORT建立HTTP连接，超时5秒，GET /health。",
+        "covered": false,
+        "answer_quote": "脚本接受两个命令行参数：服务器地址（HOST）和端口（PORT）",
+        "reason": "HOST/PORT及GET覆盖，但遗漏5秒超时。"
+      },
+      {
+        "fact": "断言HTTP200且JSON ok严格为True，然后关闭连接并打印成功及仍需事务测试提示。",
+        "covered": false,
+        "answer_quote": "health smoke passed; transactional behavior still requires tests",
+        "reason": "断言和打印提示覆盖，但遗漏关闭连接。"
+      }
+    ],
+    "unsupported_assertions": [],
+    "distortions": [],
+    "all_other_assertions_reviewed": true,
+    "summary_pass": false,
+    "review_method": "Codex外部语义复核，逐项对照完整原文件与冻结要点，允许转述；没有第二评审人或自动语义评分器。"
+  }
+]

@@ -1,0 +1,40 @@
+"""Read-only mechanical trace audit; semantic rubric is reviewed separately."""
+from pathlib import Path
+import sys,json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+D=R/'data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912'
+from rwkv_lh.token_budget import tokenizer
+from rwkv_lh.model_io import render_event_append
+from rwkv_lh.schema import ModelEvent
+reg=json.loads((D/'REGISTRATION.json').read_text());cases={c['id']:c for c in reg['cases']}
+def dump(p,v):p.write_text(json.dumps(v,ensure_ascii=False,indent=2)+'\n')
+rows=[]
+for p in sorted((D/'runs').glob('*/RESULT.json')):
+ r=json.loads(p.read_text());s=json.loads((p.parent/'state_snapshot.json').read_text());c=cases[r['case']];states=s['model_states'];trace=[json.loads(l) for l in (p.parent/'model_trace.jsonl').read_text().splitlines()]
+ starts={e['request_id']:e for e in trace if e['type']=='model_session_generation_started'}
+ generations=[e for e in trace if e['type']=='model_session_generation_returned'];generated={e['candidate_checkpoint_id']:e['raw_generation'] for e in generations}
+ calls=[]
+ for i,e in enumerate(generations):
+  g=e['raw_generation'];start=starts[e['request_id']];cp=states[start['input_checkpoint_id']];chain=[];cur=cp
+  while cur:
+   assert cur['checkpoint_id'] not in [x['checkpoint_id'] for x in chain];chain.append(cur);cur=states.get(cur['parent_checkpoint_id'])
+  chain.reverse();text=''.join(x['transcript'] for x in chain);expected=[]
+  for x in chain:
+   gg=generated.get(x['checkpoint_id']);expected.extend(gg['raw_token_ids'] if gg else tokenizer().encode(x['transcript']))
+  ids=g['prompt_token_ids'];bos=g['input_bos_token_count'];actual=ids[bos:];decoded=tokenizer().decode(actual)
+  (p.parent/f'input_{i+1}_reconstructed.txt').write_text(text)
+  (p.parent/f'input_{i+1}_token_decoded.txt').write_text(decoded)
+  calls.append({'call':i+1,'request_id':e['request_id'],'input_checkpoint':cp['checkpoint_id'],'parent_digest_matches':start['input_digest']==cp['native_state_digest'],'chain':[x['checkpoint_id'] for x in chain],'full_scope':g['prompt_token_ids_scope'],'input_tokens':len(ids),'output_tokens':len(g['raw_token_ids']),'input_token_exact':actual==expected,'input_text_exact':decoded==text,'bos':bos,'finish_reason':g['finish_reason'],'sampling_matches':g['sampling']==reg['sampling'],'budget_matches':g['max_output_tokens']==reg['max_output_tokens'],'zero_root':chain[0]['state_profile_id']=='zero' and chain[0]['state_profile_sha256']=='0'*64,'model_sha256':cp['native_state_metadata'].get('model_sha256'),'raw_output':g['raw_output'],'input_token_sha256':hashlib.sha256(json.dumps(ids).encode()).hexdigest()})
+ handoffs=[]
+ for n,h in enumerate(r['handoffs'],1):
+  ev=json.loads((p.parent/f'observation_{n}.json').read_text());child=states[h['child']];content=(p.parent/'workspace'/c['path']).read_text();model_ev=ModelEvent.from_dict(ev);rendered=render_event_append(model_ev)
+  projection=ev['payload']['result'];following=[a for a in calls if a['input_checkpoint']==h['child']]
+  handoffs.append({**h,'parent_matches':h['parent']==h['child_parent'],'full_output_in_projection':projection.get('output')==content,'rendered_delta_exact':child['transcript']==rendered,'event_injected_once':sum(x['transcript']==rendered for x in states.values())==1 and h['child_event_occurrences']==1,'next_generation_from_child':len(following)==1,'projected_result':projection})
+ actions=r['actions'];correct=[]
+ for a in actions:
+  args=a['arguments'];path=(p.parent/'workspace'/args['path']).resolve();target=(p.parent/'workspace'/c['path']).resolve()
+  correct.append(a['action_type']=='read_file' and path==target and args.get('start_byte',0)==0 and a['result']['success'] and a['result']['output']==target.read_text() and a['result']['metadata'].get('complete') is True)
+ reading=len(actions)==1 and all(correct) and r['workspace_unchanged'];handoff=bool(handoffs) and all(all(h[k] for k in ['parent_matches','full_output_in_projection','rendered_delta_exact','event_injected_once','next_generation_from_child']) for h in handoffs) and all(a['input_token_exact'] and a['input_text_exact'] and a['parent_digest_matches'] for a in calls)
+ rows.append({'run':p.parent.name,'case':r['case'],'repeat':r['repeat'],'reading_pass':reading,'handoff_pass':handoff,'correct_complete_reads':sum(correct),'reads':len(actions),'repeat_reads':max(0,len(actions)-1),'final_answer':r['final_output'],'termination':r['termination'],'protocol_error':r['protocol_error'],'infrastructure_error':r['infrastructure_error'],'mutation':not r['workspace_unchanged'],'calls':calls,'handoffs':handoffs})
+dump(D/'MECHANICAL_AUDIT.json',rows)
+for r in rows:print(r['run'],'read',r['reading_pass'],'handoff',r['handoff_pass'],'calls',len(r['calls']),'stop',r['termination'],[(c['input_tokens'],c['output_tokens'],c['input_token_exact'],c['input_text_exact']) for c in r['calls']])

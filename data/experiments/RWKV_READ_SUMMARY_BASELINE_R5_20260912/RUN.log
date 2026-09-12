@@ -1,0 +1,82 @@
+full_text-1-r1 final_answer reads 1 summary README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。
+
+1. 目标：提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约。
+2. 启动契约：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080` 启动服务。数据库父目录已存在，首次启动应创建数据库，后续启动保留数据。
+3. API 接口：
+   - `GET /health` → 200 `{"ok":true}`。
+   - `POST /bookings`：创建预约，需要 resource、customer、start、end 等字段。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功返回 201，包含 id 和 status: "confirmed"；冲突返回 409。
+   - `GET /bookings`：返回所有预约，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤。
+   - `GET /bookings/{id}`：返回完整预约或 404。
+   - `DELETE /bookings/{id}`：取消预约，返回 200 `{id,status:"cancelled"}`；重复取消幂等；未知 id 返回 404。
+4. 非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。未知路由返回 404。错误对象含 error 字符串。
+5. 多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。
+6. 行为验证：公开健康检查仅是启动检查；需要补充自己的行为验证，不能以健康检查替代完整功能。
+full_text-2-r1 final_answer reads 1 summary README.md 的主要内容是：这是一个库存与订单服务的项目说明。它使用 SQLite 实现一个 HTTP 服务，支持库存管理、订单创建和幂等性处理。
+
+主要功能包括：
+1. 库存管理：通过 PUT /inventory/{sku} 设置 SKU 的可售库存，GET /inventory/{sku} 查询库存，GET /health 健康检查。
+2. 订单创建：POST /orders 创建订单，支持幂等性（通过 Idempotency-Key 头），防止重复扣减库存。
+3. 订单查询：GET /orders 获取所有订单，GET /orders/{id} 获取特定订单。
+
+服务启动命令为：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080。
+
+文档还详细说明了请求和响应的格式、错误处理以及事务和幂等性的实现要求。
+full_code-1-r1 final_answer reads 1 summary server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点 /health，返回 200 状态码和 JSON 响应 {"ok": true}；对其他路径返回 501 状态码和 JSON 响应 {"error": "not_implemented"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。
+full_code-2-r1 final_answer reads 1 summary verify_public.py 是一个轻量级健康检查脚本，用于验证服务是否正常运行。它通过 HTTP GET 请求 /health 端点，并检查响应状态码是否为 200 以及响应体是否包含 {"ok": true}。脚本不验证预订或订单行为，仅提供基础的健康状态检查。
+full_text-1-r2 final_answer reads 1 summary README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。
+
+主要内容包括：
+1. 服务目标：为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。
+2. 启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。
+3. 数据持久化：首次启动应创建数据库，后续启动保留数据。
+4. API 接口：
+   - `GET /health` → 200 `{"ok":true}`
+   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟），冲突预约不能重叠。
+   - `GET /bookings`：获取所有预约，支持按 resource 过滤。
+   - `GET /bookings/{id}`：获取指定预约。
+   - `DELETE /bookings/{id}`：取消预约，幂等操作。
+5. 要求：非空字段、整数 start/end、冲突判定原子操作、终止后重启继续正确。
+6. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。
+full_text-2-r2 final_answer reads 1 summary README.md 的主要内容是：
+
+1. 项目目标：实现一个小型仓库的 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。
+2. 启动命令：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。
+3. 健康检查：`GET /health` 返回 200 `{"ok":true}`。
+4. 库存管理：
+   - `PUT /inventory/{url-encoded-sku}`，`{"stock":N}` 设置 SKU 的可售量，N 必须为非负整数。
+   - `GET /inventory/{sku}` 返回 200 对应库存或 404。
+5. 订单处理：
+   - 必须带 `Idempotency-Key` 请求头（最长 128 字符）。
+   - `POST /orders` 接受 JSON，包含 `customer` 和 `items` 数组，每个 item 有 `sku` 和 `quantity`。
+   - 同 SKU 的重复项数量求和，按 SKU 排序；item 顺序和重复项拆分不影响语义。
+   - 首次成功返回 201，同 key 相同规范化请求返回 200 同一订单，不再次扣库存；不同 key 不得超卖。
+   - 任一 SKU 不存在或数量不足返回 404/409，失败应整体无写入，不扣库存、不创建订单、不占用 key。
+6. 订单查询：
+   - `GET /orders` 返回 200 `{"orders":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。
+7. 错误处理：坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。
+8. 事务与并发：库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单；并发不同 key 不得超卖。
+9. 持久化：库存、订单、key 在进程重启后继续有效。
+10. 验证：公开验证只做健康检查，请自行补充交易与恢复验证。
+full_code-1-r2 final_answer reads 1 summary server.py 是一个简单的 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块实现了一个基于线程的 HTTP 服务器。
+
+主要功能：
+1. 提供 /health 端点：返回 HTTP 200 状态码和 JSON 响应 {"ok": true}
+2. 处理其他路径：返回 HTTP 501 状态码和 JSON 响应 {"error": "not_implemented"}
+
+使用方式：
+- 通过命令行参数指定数据库路径（--db）
+- 可选指定主机地址（--host，默认 127.0.0.1）
+- 必须指定端口号（--port）
+
+示例：python server.py --db /path/to/db --host 0.0.0.0 --port 8080
+
+服务器启动后会阻塞等待请求，使用 ThreadingHTTPServer 实现并发处理。
+full_code-2-r2 final_answer reads 1 summary verify_public.py 是一个轻量级健康检查脚本，用于验证服务器的公开端点是否正常响应。
+
+主要内容：
+1. 脚本接受两个命令行参数：服务器地址（HOST）和端口（PORT）
+2. 通过 HTTP GET 请求访问 /health 端点
+3. 验证响应状态码为 200，并且返回的 JSON 中 'ok' 字段为 true
+4. 如果验证通过，输出 "health smoke passed; transactional behavior still requires tests"
+
+注意：脚本明确声明不验证预订/订单行为，仅进行健康检查。

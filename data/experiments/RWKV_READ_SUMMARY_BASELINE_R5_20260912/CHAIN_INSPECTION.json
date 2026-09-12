@@ -1,0 +1,37 @@
+{
+  "production_path": [
+    "LongHorizonModel.create_literal_goal -> _assignment -> model_io.render_bootstrap",
+    "LongHorizonModel.next_command full menu, no eligible_operations or Selector",
+    "NativeModelSession.generate -> candidate parent digest/cache binding validation -> commit",
+    "LongHorizonController._execute_decision -> ActionHarness.execute -> persisted ActionRecord",
+    "LongHorizonController._action_observation_event -> project_action_result -> observation.exact_spans",
+    "LongHorizonModel.append_action_observation -> _append_event -> NativeModelSession.append",
+    "next_command imports committed child from executor lane; no pending event supplied again",
+    "final_answer wire text copied unchanged; no forced terminal_answer or external reviewer generation"
+  ],
+  "review_findings": [
+    "Production _append_event detects existing event id and rejects conflicting duplicate payload; exactly-once must also be verified in actual State trace.",
+    "The shared observation funnel projects full short text into exact_spans rather than retaining a top-level output key. No omission can be concluded from absence of that legacy key.",
+    "Native generation raw token IDs include the recognized closing fence; returned.content omits stop suffix. Continuation exact input must concatenate root/append tokenization and actual generated IDs, not tokenize concatenated trimmed transcript.",
+    "Native child binding records parent_state_digest, state_chain_digest and delta_digest; generate rejects mismatched server parent identity. This is causal transport evidence, not a numerical proof of recurrent tensor implementation.",
+    "Registered four decisions are a diagnostic resource budget, not a production Planner stage-count restriction. Wrong non-read actions are terminal failures and never replaced with a selected read.",
+    "A final_answer is model-declared completion only; external task grade can fail it. Harness success is not semantic completion."
+  ],
+  "audit_layout_correction": {
+    "scope": "temp read-only reporting only, production inputs/parser/stop/rubric/scoring requirements unchanged",
+    "initial_artifact": "PRELIMINARY_AUDIT_LAYOUT_MISMATCH.json",
+    "red_log": "AUDIT_RED.log",
+    "green_log": "AUDIT_GREEN.log",
+    "regression": "temp/test_read_summary_audit_r5_20260912.py",
+    "before_source": "AUDIT_BEFORE.py.txt",
+    "reason": "Preliminary inspection assumed legacy result.output and stop-trimmed transcript. Correct native full token reconstruction and typed exact_spans implement the already frozen completeness requirement. Initial false flags retained; no model sample rerun or semantic rescoring."
+  },
+  "environment": "WSL UbuntuRecovered",
+  "full_tests": {
+    "passed": 1514,
+    "skipped": 0,
+    "seconds": 243.65,
+    "log_sha256": "fb2db78b9c277dd76e031e64169c05d7d7cd7db49d09d464afc828b214b5e7f4"
+  },
+  "no_production_fix": true
+}
