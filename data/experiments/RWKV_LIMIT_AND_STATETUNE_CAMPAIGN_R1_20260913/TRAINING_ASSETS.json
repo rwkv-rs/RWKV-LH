@@ -1,0 +1,145 @@
+{
+  "source": "/mnt/nas-model/g1j/rwkv7-g1j-13.3b-20260831-ctx16384.pth",
+  "bytes": 26540868485,
+  "tensors": 2019,
+  "selected": {
+    "emb.weight": {
+      "shape": [
+        65536,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "head.weight": {
+      "shape": [
+        65536,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.att.w1": {
+      "shape": [
+        4096,
+        192
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.att.w2": {
+      "shape": [
+        192,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.att.v0": {
+      "shape": [
+        1,
+        1,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.att.v1": {
+      "shape": [
+        4096,
+        128
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.att.v2": {
+      "shape": [
+        128,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    "blocks.0.ffn.key.weight": {
+      "shape": [
+        16384,
+        4096
+      ],
+      "dtype": "torch.bfloat16"
+    }
+  },
+  "manifest": {
+    "engine": {
+      "base_revision": "67f0c5996c50dca0ad779da545cb491527de988f",
+      "migration_source_sha256": "d3bdf2642da3943a809eab44e7e83e84a519bcba1c9d399ec0ab8e6571e19b38",
+      "native_state_source_sha256": {
+        "vllm/plugins/rwkv_native_state.py": "159bf9a82a11052f5aad7efc374d176fc5699644960611358ea5c62ee98199fb",
+        "vllm/v1/worker/gpu/model_states/rwkv.py": "ee8506ed5c448a510c35f00c076de0223f3ba988c6cff7c1d95a4c6b32e421b4",
+        "vllm/v1/worker/gpu_worker.py": "58f1752b9509ecb09f9ab24563b46b62b1e1797b57c4afcfa1e5bf0f16292e6d"
+      },
+      "path": "/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50"
+    },
+    "generation": {
+      "entrypoint": "vllm.transformers_utils.rwkv7_artifact.convert_rwkv7_pth_to_hf_artifact",
+      "mapping": "strict legacy RWKV7 names to standard HF names; low-rank matrices transposed as required by the runtime contract",
+      "training_performed": false,
+      "values_changed": false
+    },
+    "output": {
+      "files": {
+        "config.json": {
+          "bytes": 571,
+          "sha256": "f1a60c73019f191dc78e304bd036c2b7a775697fb913ebb036b875d4d1f09d74"
+        },
+        "generation_config.json": {
+          "bytes": 137,
+          "sha256": "f9312b9ad932e8ddfb913200a3d9688f718461a59f87feebba5ab4e48dedffae"
+        },
+        "model.safetensors": {
+          "bytes": 26538703968,
+          "sha256": "a5b4fbab12ce321f57ba0e9a00ddf32e5b3644f8b50216cc6ef14aba841efefd"
+        },
+        "rwkv_vocab_v20230424.txt": {
+          "bytes": 1093733,
+          "sha256": "e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89"
+        },
+        "source_preservation/native_unused_layer0_value_mix.safetensors": {
+          "bytes": 2105688,
+          "sha256": "390b74fdbf06052e2cbef096ab666aad9607a5a7055551bc063b87a848782c17"
+        },
+        "special_tokens_map.json": {
+          "bytes": 99,
+          "sha256": "8b2257a17ea997bb038f43b133aefec82344ad2b8abc2b8a02a6c0a994ed624e"
+        },
+        "tokenizer_config.json": {
+          "bytes": 235,
+          "sha256": "401caa50542469e88e5ace67fa20c1d78cefca5fbd4cf53d4df2de1762acca5c"
+        }
+      },
+      "path": "/home/chase/GitHub/RWKV-LH/data/models/rwkv7-g1j-13.3b-vllm-v1",
+      "weight_count": 2016
+    },
+    "purpose": "G1J 13.3B all-zero-State Executor capability baseline",
+    "schema_version": "rwkv-lh.vllm-rwkv-artifact.v1",
+    "source": {
+      "container": "torch-pth-legacy-rwkv7",
+      "model": "rwkv7-g1j-13.3b-20260831-ctx16384",
+      "path": "/mnt/nas-model/g1j/rwkv7-g1j-13.3b-20260831-ctx16384.pth",
+      "sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65"
+    }
+  },
+  "config": {
+    "a_low_rank_dim": 192,
+    "architectures": [
+      "Rwkv7ForCausalLM"
+    ],
+    "context_length": 16384,
+    "decay_low_rank_dim": 192,
+    "embedding_layer_norm_fused": false,
+    "gate_low_rank_dim": 384,
+    "head_size": 64,
+    "hidden_size": 4096,
+    "intermediate_size": 16384,
+    "model_type": "rwkv7",
+    "num_attention_heads": 64,
+    "num_hidden_layers": 61,
+    "rwkv_artifact_format_version": 1,
+    "rwkv_source_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "transformers_version": "5.15.0.dev0",
+    "v_low_rank_dim": 128,
+    "vocab_size": 65536
+  }
+}

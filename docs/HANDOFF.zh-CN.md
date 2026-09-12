@@ -1,3 +1,14 @@
+# 当前进展：已授权当前直接执行StateTune，准备阶段完成（2026-09-13）
+
+- Owner最新授权取代此前不训练限制；仍不更新GitHub。单文件读取/摘要，先有限归因再State-only训练，不恢复旧五/六角色流水线。
+- 通用纠错R4b满足0/4（提交2、预算/输出中断2），定向纠错R5全文忠实1/2；没有读不到文件或State接错的证据。16任务34调用输入/State核验通过，mutation0；不是项目Strict。
+- 当前直接执行数据已获准冻结：18生成边界=10真实成功读取+8双审总结，10训练来源文件、3领域；dev4/API、confirmation4/DATA/WEB来源隔离。原失败候选、旧评分及两次失败冻结保留。
+- 训练准入修复合法省略可选参数的执行对账、服务原权重SHA与容器SHA身份区分；SQLite WAL封存问题经逻辑记录等价核验另封存，未冒称Store生命周期已全修。全量1526 passed、0 skipped；原五文件SHA保持。
+- 13.3B数值验证在进行，旧Native扩展被Python二进制漂移拦下后已重建；本准备阶段optimizer0，实际训练/独立验收稍后另记。训练不自动保留、不以loss或角色通过率宣称产品收益。
+- [准备报告](../data/experiments/RWKV_LIMIT_AND_STATETUNE_CAMPAIGN_R1_20260913/PREPARATION_REPORT.zh-CN.md)，SHA `cefb507025766a9aebf188ae3c3e6b08f52dad9fa05bbb5b74cf5aa4a8bf17ec`。授权、冻结语义验收、18条数据及完整真实轨迹可在轮次目录复核。
+
+---
+
 # 当前进展：先归因与只读建议效用 R3（2026-09-13）
 
 - 按owner最新意见先分析工程/识别/摘要取舍，再执行有限建议诊断，未扩建完整help/wait状态机。轮次`RWKV_SUMMARY_ADVICE_DIAGNOSTIC_R3_20260913`，仅复用已有server.py及原读取固定组。

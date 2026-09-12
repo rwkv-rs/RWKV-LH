@@ -17,6 +17,15 @@ from rwkv_lh.statetune_data import admit_dataset, sealed, _protocol
 RUN_SCHEMA = "rwkv-lh.statetune-run.v1"
 
 
+def production_model_identity(role: str, manifest: Mapping) -> str:
+    """Direct native serving identifies the source checkpoint, not its container.
+
+    Both hashes remain independently verified; legacy role services explicitly
+    identify their serialized weights. This does not permit unbound aliases.
+    """
+    return manifest["source"]["sha256"] if role == "direct_actor" else manifest["output"]["weights_sha256"]
+
+
 def validate_compatibility(registration: Mapping, compatibility: Mapping, result: Mapping, *, registration_sha256: str) -> None:
     core.require(result.get("passed") is True and result.get("optimizer_steps") == 0
                  and result.get("runtime_sha256") == registration["runtime"]["sha256"]
@@ -285,19 +294,21 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
         core.require(manifest["source"]["sha256"] == registration["base_sha256"], "registered base model differs")
         core.verify_file(artifact / "model.safetensors", manifest["output"]["weights_sha256"])
         tokenizer = RWKVTokenizer.from_pretrained(artifact)
+        production_model_sha = production_model_identity(role, manifest)
         dataset, samples = admit_dataset(registration["dataset"], role=role,
-            expected_regression=registration["regression_fingerprint"], model_sha256=manifest["output"]["weights_sha256"],
+            expected_regression=registration["regression_fingerprint"], model_sha256=production_model_sha,
             context_tokens=registration["context_tokens"], vocab_size=int(tokenizer.vocab_size), bos_token_id=int(tokenizer.bos_token_id))
         model = build({"model_artifact": str(artifact), "context_tokens": registration["context_tokens"],
                        "base": {"path": manifest["source"]["path"], "sha256": registration["base_sha256"]}})
         initial = registration["initial_state"]
         if initial is not None:
-            core.require(initial["model_sha256"] == manifest["output"]["weights_sha256"]
+            core.require(initial["model_sha256"] == production_model_sha
                          and initial["input_protocol"] == protocol and initial["protocol_sha256"] == protocol_sha,
                          "unverified State reuse across model/protocol changes")
         initialize_state(model, initial)
         verify_loaded_libraries(runtime)
-        record({"event": "identity_admitted", "model_sha256": manifest["output"]["weights_sha256"],
+        record({"event": "identity_admitted", "model_sha256": production_model_sha,
+                "weights_container_sha256": manifest["output"]["weights_sha256"],
                 "dataset_sha256": registration["dataset"]["sha256"], "train_samples": len(samples),
                 "regression_fingerprint": dataset["regression"]["fingerprint"], "layout": vars(model.layout)})
         result = optimize_state(model, samples, registration["optimizer"], context_tokens=registration["context_tokens"],
