@@ -1,0 +1,61 @@
+{
+  "environment": "WSL UbuntuRecovered",
+  "regression_before": {
+    "failed": 5,
+    "passed": 1,
+    "log_sha256": "d379484cab628fb3592ff0227d088a17ccb950baee74b06712e6247cd16274fb"
+  },
+  "regression_after": {
+    "failed": 0,
+    "passed": 6,
+    "log_sha256": "e2edb01d708fa49697c4302268a176c486ad7401ab735fd47f7af9d43d08f855"
+  },
+  "full_tests": {
+    "passed": 1514,
+    "skipped": 0,
+    "seconds": 241.68,
+    "log_sha256": "39d3f686f2acbe33c2523ebf776287f6ad069778867a764a709368dff996face"
+  },
+  "production_change": "read_file descriptions only, original baseline compared with compact positive candidate; both frozen before sampling",
+  "preserved_preexisting_files": {
+    "rwkv_lh/controller.py": "bcdc77c5c6b19e0c24d2c9d32ae98cb3dfa5335fc8d59fdb721b659d3367d83a",
+    "rwkv_lh/model.py": "bd1c44985062692ebcb357e7e9fbe64c03bbd2c49e8d4e126db131f3fff76c20",
+    "rwkv_lh/supervisor_openai.py": "1ed4b58917f17266d95cedcdc1a4c893e7944f8b782c398357d3f19740d7cb10",
+    "tests/test_hybrid_supervisor.py": "0cd03caa0c56c084cc018f0f2930cf6de07338b3bcd14b74e0addcff197684b8",
+    "tests/test_supervisor_openai.py": "32c61aeeb3dcb07a616c24bba20e5c72eafbe65ef36f6d278502a56b444caeb5"
+  },
+  "server_source_verification_sha256": "13be23b1eee0227bdedab40b5c37707feac68ee0e51b4ff26f0816cdea928f51",
+  "local_vocab_sha256": "e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89",
+  "server_git_used": false,
+  "training": false,
+  "new_dataset_version": false,
+  "github_updated": false,
+  "project_ab_continued": false,
+  "transport_recovery": [
+    {
+      "run": "before/runs/offset-1-r1",
+      "trace_sha256": "27b367b5e0d54d575520e37029d03e1a5e3b3b2d284878ed642baaf7c031eae9",
+      "events": [
+        {
+          "type": "native_request_transport_error",
+          "operation": "commit",
+          "request_id": "NR-a4758895869b319dab342e6c8b884776b2ea1a6b649b56b8606fa66e35627f5c",
+          "request_digest": "659269c752d0ad0217f5b3751e450b17620d2eedeae3ff6104157fbb55b51afc",
+          "error_type": "RWKVOutcomeUnknownError",
+          "error_message": "generation may have completed before the connection failed: ConnectionError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
+          "attempt": 1,
+          "will_recover": true
+        },
+        {
+          "type": "native_request_resubmitted",
+          "operation": "commit",
+          "request_id": "NR-a4758895869b319dab342e6c8b884776b2ea1a6b649b56b8606fa66e35627f5c",
+          "request_digest": "659269c752d0ad0217f5b3751e450b17620d2eedeae3ff6104157fbb55b51afc",
+          "attempt": 2
+        }
+      ],
+      "generation_count": 1
+    }
+  ],
+  "transport_note": "Local 29613 listener disappeared during commit; remote service healthy. Same commit request ID and digest resubmitted once by existing Native recovery after forwarding restored. No extra generation or semantic retry. Cause of listener disappearance unknown."
+}

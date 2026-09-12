@@ -1,5 +1,15 @@
 # 当前交接
 
+## 2026-09-12 读取说明 R4：固定单步集 KEEP（当前）
+
+无新项目级Strict/completed，诊断mutation=0；只在一次读取/协议拒绝边界截停。R4重新运行原说明与简短正向说明：主组18/21→21/21（三遍各7/7），独立R2缺失补充3/3→3/3；协议错误3→0、提前final_answer均0。候选最后两遍全通过、原基线3/3用例不退化，达到预注册固定集门；不称为普遍稳定，不自动升级到自主定位或多步。
+
+唯一生产变化是read_file工具/字段说明，类型/范围/默认值/schema/parser/Harness/stop不变。保留简短合法输入说明，替换R3失败文案；不自动修参数、不按README特判、没有Coordinator。原R1失败实际为2次end_byte=-1、1次max_lines/max_bytes，历史分数及无效夹具保留。R3 NO_KEEP仍独立报告19/21→14/21、补充3/3→2/3，不混入R4收益。
+
+R4完整48次生成的输入token、zero初始化、采样和预算均精确核验；同例三遍服务根State摘要一致，两臂除唯一说明外实际输入一致。基线一次SSH断开后重发同一commit请求，无新增generation，完整留证。回归5 failed/1 passed→6 passed，完整1514 passed、0 skipped；原5个未提交文件SHA未变，未训练、部署、新建datasets版本、读取Holdout或更新GitHub。
+
+[完整报告](../data/experiments/RWKV_READ_PARAMETER_DESCRIPTION_R4_20260912/REPORT.zh-CN.md)，SHA `0e051cdfefe85bc20d49825598a7ff9eeae6ccc82717b42653b5fb8d3c10a6fb`。R3本地提交0b1e1d0e；各轮完整原始证据和冻结源码已打包并附SHA清单。当前未测试观察后的模型回答，因此下一阶段登记需明确定位、读取及回答的验收边界。
+
 ## 2026-09-12 读取说明 R3：NO_KEEP，继续单步验证
 
 无新项目级Strict/completed，诊断mutation=0；按一次读取/拒绝截停。R3同组新采前后对照：R1有效7例主组19/21→14/21，独立R2缺失补充3/3→2/3；协议错误2→8，提前final_answer均0，候选退化，未达冻结门，不能称为修复。48次完整输入token核验通过；两臂去掉唯一read_file说明后输入相同。完整1512 passed、0 skipped。

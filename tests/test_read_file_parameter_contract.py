@@ -12,9 +12,12 @@ from test_unified_controller import build
 FAILURES = json.loads(
     (Path(__file__).parent / 'fixtures/read_file_parameter_failures_r3.json').read_text()
 )
+FAILURES += json.loads(
+    (Path(__file__).parent / 'fixtures/read_file_parameter_failures_r4.json').read_text()
+)
 
 
-@pytest.mark.parametrize('failure', FAILURES, ids=['end-byte-first', 'end-byte-second', 'byte-line-limits'])
+@pytest.mark.parametrize('failure', FAILURES, ids=['end-byte-first', 'end-byte-second', 'byte-line-limits', 'code-regression', 'missing-regression'])
 def test_real_read_parameter_failures_remain_rejected_with_explicit_prompt_contract(tmp_path, failure):
     controller, store, workspace, client, model = build(tmp_path, [failure['raw_output']])
     (workspace / 'README.md').write_text('Reading evidence.\n')
@@ -30,11 +33,12 @@ def test_real_read_parameter_failures_remain_rejected_with_explicit_prompt_contr
     assert parameters['additionalProperties'] is False
     assert set(parameters['properties']) == {'path', 'start_byte', 'max_tokens'}
     # These are missing semantic clauses, not new accepted fields or defaults.
-    assert 'end_byte is output metadata only' in definition['description']
+    assert 'caller supplies no ending position' in definition['description']
+    assert 'end_byte' not in definition['description']
     assert 'not a byte or line limit' in parameters['properties']['max_tokens']['description']
     assert 'Optional; omitted means 0' in parameters['properties']['start_byte']['description']
     assert 'inclusive' in parameters['properties']['start_byte']['description']
-    assert 'end_byte is output metadata only' in client.prompts[0]
+    assert 'caller supplies no ending position' in client.prompts[0]
     assert 'not a byte or line limit' in client.prompts[0]
 
 

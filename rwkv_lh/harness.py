@@ -574,13 +574,12 @@ class ActionHarness:
         ),
         "read_file": ActionDefinition(
             "read_file", (
-                "Read one UTF-8 text chunk. Input fields are only path, start_byte, and max_tokens; "
-                "only path is required. The tool computes the exclusive end of the returned "
-                "byte range [start_byte, end_byte); end_byte is output metadata only, never an "
-                "input or a -1 sentinel for reading to EOF. Reading to EOF is still bounded by "
-                "max_tokens. If truncated, continue only from the returned next_start_byte; "
-                "null means no continuation is needed. A cursor exactly at EOF returns empty "
-                "text successfully; a missing file returns an error."
+                "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input "
+                "fields. Only path is required; both other fields may be omitted. "
+                "The range includes the starting byte and excludes the stopping byte computed "
+                "by the tool; the caller supplies no ending position. Read to EOF when the "
+                "remaining text fits the token budget. Otherwise the result supplies a "
+                "continuation cursor. An EOF cursor returns empty text; a missing file fails."
             ), True, False, True, 30.0,
             {
                 "path": {"type": "string", "description": "Required string: file path relative to the workspace root."},
@@ -588,16 +587,15 @@ class ActionHarness:
                     "type": "integer", "minimum": 0, "default": 0,
                     "description": (
                         "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, "
-                        "not a character or line index. Must be on a UTF-8 boundary between "
-                        "0 and the file byte length, including EOF; negative offsets are invalid."
+                        "into decoded text, from 0 through its UTF-8 byte length, including EOF. "
+                        "Must be on a UTF-8 character boundary."
                     ),
                 },
                 "max_tokens": {
                     "type": "integer", "minimum": 256, "maximum": 8192, "default": 4096,
                     "description": (
                         "Optional; omitted means 4096. Integer returned-text token budget "
-                        "from 256 through 8192 inclusive, not a byte or line limit. "
-                        "May return less than the full remainder; inspect next_start_byte."
+                        "from 256 through 8192 inclusive, not a byte or line limit."
                     ),
                 },
             },
