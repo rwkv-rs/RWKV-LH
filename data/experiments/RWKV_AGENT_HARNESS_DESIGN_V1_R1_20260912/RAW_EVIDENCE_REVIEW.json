@@ -1,0 +1,658 @@
+{
+  "sealed_history_verified": {
+    "RWKV_READ_PARAMETER_DESCRIPTION_R4_20260912": {
+      "files": 613,
+      "seal_sha256": "f880432e6ccc46e68f3ea2333e9144aa283d31151533ec7a33695ae43d726359"
+    },
+    "RWKV_READ_SUMMARY_BASELINE_R5_20260912": {
+      "files": 312,
+      "seal_sha256": "194c43631552c865b362a7f5033c18536fa7f38775afeaf1508bf98e55b3b31f"
+    },
+    "RWKV_STRONG_MODEL_ROLE_ALIGNMENT_R1_20260912": {
+      "files": 3,
+      "seal_sha256": "18de524c15601c38024d62f05be2a603f72bf318a3a1ccbc6b6c620e6177a79c"
+    }
+  },
+  "r4_original_failed_pairs": [
+    {
+      "arm": "before",
+      "run": "full_text-1-r1",
+      "pass": false,
+      "error": "action read_file has unknown arguments: ['end_byte']",
+      "command": null,
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"end_byte\": -1\n  }\n}",
+      "input_tokens": 3039,
+      "output_tokens": 46,
+      "result_sha256": "c01ff235929be92ecc01f605d7fd0a989b9916584dbe5bacfa31bdcd9b0455af",
+      "trace_sha256": "dfc1f290ac57a460eb2dfddf29c251fcf2621b052e944a877781c2eb2c132e59",
+      "handoff": null,
+      "actual_tool_result": null
+    },
+    {
+      "arm": "after",
+      "run": "full_text-1-r1",
+      "pass": true,
+      "error": null,
+      "command": {
+        "name": "read_file",
+        "arguments": {
+          "path": "README.md",
+          "start_byte": 0,
+          "max_tokens": 4096
+        }
+      },
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+      "input_tokens": 3186,
+      "output_tokens": 46,
+      "result_sha256": "7b2ec62f30c94a9e31924a5abb71a760f38a0d6de3d95be682d9aa6d54fb0190",
+      "trace_sha256": "2114590ee7fb58c0ed09a0bfd6a7238b363c39fb15cb353065bcd3d1c1434b26",
+      "handoff": {
+        "parent_checkpoint_id": "CP-f6d7790fb0ed45fa",
+        "child_checkpoint_id": "CP-e70f4d7026544588",
+        "event_id": "EV-ACTION-A00001",
+        "present": true,
+        "parent_matches": true
+      },
+      "actual_tool_result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      }
+    },
+    {
+      "arm": "before",
+      "run": "full_text-1-r2",
+      "pass": false,
+      "error": "action read_file has unknown arguments: ['end_byte']",
+      "command": null,
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"end_byte\": -1\n  }\n}",
+      "input_tokens": 3039,
+      "output_tokens": 46,
+      "result_sha256": "22bcbb02e398b2af821cd17c9739d93a2d2318dc68bbff6d2cbaf55eb20c23b0",
+      "trace_sha256": "9b2eb8bfc3af9d5f4be1336e8338d7f750f5ab7b6aa4513fcea29c2e41aa7a6c",
+      "handoff": null,
+      "actual_tool_result": null
+    },
+    {
+      "arm": "after",
+      "run": "full_text-1-r2",
+      "pass": true,
+      "error": null,
+      "command": {
+        "name": "read_file",
+        "arguments": {
+          "path": "README.md",
+          "start_byte": 0,
+          "max_tokens": 4096
+        }
+      },
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+      "input_tokens": 3186,
+      "output_tokens": 46,
+      "result_sha256": "7904338fe65828e44aec75359cbb625ef710950162b916cc4e295840be724f11",
+      "trace_sha256": "82de8bc801c055a7d36a8037318cc6d64aa2e682039bb4687171344edbd0c6a1",
+      "handoff": {
+        "parent_checkpoint_id": "CP-6fcf4d0feb1a4912",
+        "child_checkpoint_id": "CP-11e08292fef54f0e",
+        "event_id": "EV-ACTION-A00001",
+        "present": true,
+        "parent_matches": true
+      },
+      "actual_tool_result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      }
+    },
+    {
+      "arm": "before",
+      "run": "full_text-1-r3",
+      "pass": false,
+      "error": "action read_file has unknown arguments: ['end_byte']",
+      "command": null,
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"end_byte\": -1\n  }\n}",
+      "input_tokens": 3039,
+      "output_tokens": 46,
+      "result_sha256": "1facdac408a8c528a157d6518b856b4e24e1a3e304d1ed07a8e84c3e136d436e",
+      "trace_sha256": "c6d35b577283270b3c9787e41a3fea5f3e7d9c868fb0e0d64dd07ebcea23d7e9",
+      "handoff": null,
+      "actual_tool_result": null
+    },
+    {
+      "arm": "after",
+      "run": "full_text-1-r3",
+      "pass": true,
+      "error": null,
+      "command": {
+        "name": "read_file",
+        "arguments": {
+          "path": "README.md",
+          "start_byte": 0,
+          "max_tokens": 4096
+        }
+      },
+      "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+      "input_tokens": 3186,
+      "output_tokens": 46,
+      "result_sha256": "786326adc7fbe7ef728f0d2462d0291468adfc52eae0a8cf966f7be451bc986a",
+      "trace_sha256": "0ae1fa010bf3320c34fa380f64e6cfa3c7b15b597a223b4f08668c9009cc59b1",
+      "handoff": {
+        "parent_checkpoint_id": "CP-3284b3d691bb4e35",
+        "child_checkpoint_id": "CP-3aabaa4887c64ef3",
+        "event_id": "EV-ACTION-A00001",
+        "present": true,
+        "parent_matches": true
+      },
+      "actual_tool_result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      }
+    }
+  ],
+  "r5_all_eight_reconstructed": [
+    {
+      "run": "full_code-1-r1",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_code-1-r1/RESULT.json",
+      "result_sha256": "d0e8bae282b0487845d70e9d24a151833d35f18301629bc3be8c373b96a134fe",
+      "trace_sha256": "0164c8da9cef9f21168bc234902f902d73d7d7ec3435fdcaffbc20ce9fa9a607",
+      "state_snapshot_sha256": "4177e982bfa6c3e6d13415c4ac23675e59133f38b6c90ddac8c8fed384b8c880",
+      "tool_count": 19,
+      "file_tokens": 259,
+      "file_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "file_content": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+      "final_output": "server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点 /health，返回 200 状态码和 JSON 响应 {\"ok\": true}；对其他路径返回 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。",
+      "handoff": {
+        "parent": "CP-fe51e735e5ce4da4",
+        "child": "CP-e941f1bd4d414723",
+        "child_parent": "CP-fe51e735e5ce4da4",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "23ad35f111694ce23fcb03dd606058cb8b33402f2f8c5dd162f531b91746f892",
+        "child_digest": "cd378869a9d31b1beb09a6d2d57938b2eb666bd2e2023770ec1c7c4d52ebdff4"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-7eeb6c4d5d124c0c",
+          "input_checkpoint": "CP-9cffbf53e7174bf4",
+          "parent_state_digest": "a87ee4553416bc429e4ae583428004fa15abbf154c2377a3a9a6fe0b5f757c5e",
+          "input_tokens": 3170,
+          "output_tokens": 46,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"server.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 8192\n  }\n}",
+          "input_token_sha256": "fdc69434b4de5b88a247bdd1063c16e03741e4b9304672b2cc98abbee80402b5"
+        },
+        {
+          "request_id": "MR-35606b9d962949b7",
+          "input_checkpoint": "CP-e941f1bd4d414723",
+          "parent_state_digest": "cd378869a9d31b1beb09a6d2d57938b2eb666bd2e2023770ec1c7c4d52ebdff4",
+          "input_tokens": 5075,
+          "output_tokens": 183,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"server.py 是一个基于 Python 标准库 http.server 的 HTTP 服务器入口文件。它实现了一个简单的健康检查端点 /health，返回 200 状态码和 JSON 响应 {\\\"ok\\\": true}；对其他路径返回 501 状态码和 JSON 响应 {\\\"error\\\": \\\"not_implemented\\\"}。程序通过 argparse 解析命令行参数，要求必须指定 --db 和 --port，可选指定 --host（默认 127.0.0.1），然后启动 ThreadingHTTPServer 并阻塞运行。\"\n  }\n}",
+          "input_token_sha256": "6b1aa02b1ce26dda1fe17141804bb24b11ec072fc7e218f1fc8940342c5e090b"
+        }
+      ]
+    },
+    {
+      "run": "full_code-1-r2",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_code-1-r2/RESULT.json",
+      "result_sha256": "fafcd38715d65354f2e25f03cf697c587f89ef5d8b2bd820953151969f379c8d",
+      "trace_sha256": "4a66308165d1a3676c411e1c4245d7ac2d4574fabafa802c38fb22f19d18ee54",
+      "state_snapshot_sha256": "7b24ca85a4368d1c434c6db733bc2fdb5a06548673416bf65ee9c27b8326e57e",
+      "tool_count": 19,
+      "file_tokens": 259,
+      "file_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "file_content": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+      "final_output": "server.py 是一个简单的 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块实现了一个基于线程的 HTTP 服务器。\n\n主要功能：\n1. 提供 /health 端点：返回 HTTP 200 状态码和 JSON 响应 {\"ok\": true}\n2. 处理其他路径：返回 HTTP 501 状态码和 JSON 响应 {\"error\": \"not_implemented\"}\n\n使用方式：\n- 通过命令行参数指定数据库路径（--db）\n- 可选指定主机地址（--host，默认 127.0.0.1）\n- 必须指定端口号（--port）\n\n示例：python server.py --db /path/to/db --host 0.0.0.0 --port 8080\n\n服务器启动后会阻塞等待请求，使用 ThreadingHTTPServer 实现并发处理。",
+      "handoff": {
+        "parent": "CP-befe93e232254cd6",
+        "child": "CP-1169f2663dd24a7a",
+        "child_parent": "CP-befe93e232254cd6",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "b25a51daafa650afef8057694d3941e9d4857407a596673dfcd7755d3e92563b",
+        "child_digest": "27632d5302008a395dfcc216348bef5c19b901bb010f1aba7089634b521bb594"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-6cfd2735a288439d",
+          "input_checkpoint": "CP-a89a139fdd1146c5",
+          "parent_state_digest": "a87ee4553416bc429e4ae583428004fa15abbf154c2377a3a9a6fe0b5f757c5e",
+          "input_tokens": 3170,
+          "output_tokens": 46,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"server.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+          "input_token_sha256": "fdc69434b4de5b88a247bdd1063c16e03741e4b9304672b2cc98abbee80402b5"
+        },
+        {
+          "request_id": "MR-f6db44ad58d44647",
+          "input_checkpoint": "CP-1169f2663dd24a7a",
+          "parent_state_digest": "27632d5302008a395dfcc216348bef5c19b901bb010f1aba7089634b521bb594",
+          "input_tokens": 5072,
+          "output_tokens": 294,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"server.py 是一个简单的 HTTP 服务器入口文件。它使用 Python 标准库的 http.server 和 threading 模块实现了一个基于线程的 HTTP 服务器。\\n\\n主要功能：\\n1. 提供 /health 端点：返回 HTTP 200 状态码和 JSON 响应 {\\\"ok\\\": true}\\n2. 处理其他路径：返回 HTTP 501 状态码和 JSON 响应 {\\\"error\\\": \\\"not_implemented\\\"}\\n\\n使用方式：\\n- 通过命令行参数指定数据库路径（--db）\\n- 可选指定主机地址（--host，默认 127.0.0.1）\\n- 必须指定端口号（--port）\\n\\n示例：python server.py --db /path/to/db --host 0.0.0.0 --port 8080\\n\\n服务器启动后会阻塞等待请求，使用 ThreadingHTTPServer 实现并发处理。\"\n  }\n}",
+          "input_token_sha256": "4fa09e8183263e0938cc681fbf6bab834dc1e7913b7a137b4ed106e5f2c8b656"
+        }
+      ]
+    },
+    {
+      "run": "full_code-2-r1",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_code-2-r1/RESULT.json",
+      "result_sha256": "e30b90456102925de72c77ecb509c5884fef68d6c1beef24483fb535f08f2aaf",
+      "trace_sha256": "bf42320a17a4dcfc042f982680f76392f39d8f9b13e79bf87f6bf2728ee31ed9",
+      "state_snapshot_sha256": "86f620081888feaa5e6346ed42450a863343fbfe933d289fa3386a3960c56b04",
+      "tool_count": 19,
+      "file_tokens": 130,
+      "file_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "file_content": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+      "final_output": "verify_public.py 是一个轻量级健康检查脚本，用于验证服务是否正常运行。它通过 HTTP GET 请求 /health 端点，并检查响应状态码是否为 200 以及响应体是否包含 {\"ok\": true}。脚本不验证预订或订单行为，仅提供基础的健康状态检查。",
+      "handoff": {
+        "parent": "CP-1c6364f607144e50",
+        "child": "CP-6671a273eb2e46af",
+        "child_parent": "CP-1c6364f607144e50",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "ea0fa76444803ac1b585109e54432c9f52a008608789c3cb3716794dd15a4af4",
+        "child_digest": "abcab71f0a12f012e1977b1d735ad0cfbb0018e86e6f8aa2597c2978b10c77ee"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-69c536be4e0548be",
+          "input_checkpoint": "CP-094515cfcc334c83",
+          "parent_state_digest": "ba718bf96b5627f003f19799946c9c63705b38d7ae8862ab69fcb70e38b53be4",
+          "input_tokens": 3172,
+          "output_tokens": 48,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"verify_public.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+          "input_token_sha256": "552f06d6e0a2b515f71b3a1f44eedf3822d1da2bbf57378361d7b5656ba87c33"
+        },
+        {
+          "request_id": "MR-e20e88ed9fbf4032",
+          "input_checkpoint": "CP-6671a273eb2e46af",
+          "parent_state_digest": "abcab71f0a12f012e1977b1d735ad0cfbb0018e86e6f8aa2597c2978b10c77ee",
+          "input_tokens": 4890,
+          "output_tokens": 129,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"verify_public.py 是一个轻量级健康检查脚本，用于验证服务是否正常运行。它通过 HTTP GET 请求 /health 端点，并检查响应状态码是否为 200 以及响应体是否包含 {\\\"ok\\\": true}。脚本不验证预订或订单行为，仅提供基础的健康状态检查。\"\n  }\n}",
+          "input_token_sha256": "9ab28f0e45b0b392823d3e81c67c916e93f9cb8415f43f0a3419c74f9b91b261"
+        }
+      ]
+    },
+    {
+      "run": "full_code-2-r2",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_code-2-r2/RESULT.json",
+      "result_sha256": "f20601db7fc463e09e4a5968db60346dc0988e1e4e05618cbde77cdc50b11b1e",
+      "trace_sha256": "4d8ef0834744bb4488cb2912e299554cf5c02a120885ef37b6537d17df0f7404",
+      "state_snapshot_sha256": "724f9a464c7045f3b0307f8f8958ff646df03081af0d63619f9527bed5103869",
+      "tool_count": 19,
+      "file_tokens": 130,
+      "file_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "file_content": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+      "final_output": "verify_public.py 是一个轻量级健康检查脚本，用于验证服务器的公开端点是否正常响应。\n\n主要内容：\n1. 脚本接受两个命令行参数：服务器地址（HOST）和端口（PORT）\n2. 通过 HTTP GET 请求访问 /health 端点\n3. 验证响应状态码为 200，并且返回的 JSON 中 'ok' 字段为 true\n4. 如果验证通过，输出 \"health smoke passed; transactional behavior still requires tests\"\n\n注意：脚本明确声明不验证预订/订单行为，仅进行健康检查。",
+      "handoff": {
+        "parent": "CP-66fdd84b2aaf45d5",
+        "child": "CP-715820a5df6c431e",
+        "child_parent": "CP-66fdd84b2aaf45d5",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "3236ce43e6a14a7c2e1897fe9efd776c8a7f926b25472f6a6b953d1b21ef5950",
+        "child_digest": "dc500e5ea7db3d0db96b2725083dfb598a523ff08909c02013877850f7927f0c"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-69ad05f015e64ff8",
+          "input_checkpoint": "CP-b88ca756e4974ef8",
+          "parent_state_digest": "ba718bf96b5627f003f19799946c9c63705b38d7ae8862ab69fcb70e38b53be4",
+          "input_tokens": 3172,
+          "output_tokens": 48,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"verify_public.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+          "input_token_sha256": "552f06d6e0a2b515f71b3a1f44eedf3822d1da2bbf57378361d7b5656ba87c33"
+        },
+        {
+          "request_id": "MR-05051844bbf5440f",
+          "input_checkpoint": "CP-715820a5df6c431e",
+          "parent_state_digest": "dc500e5ea7db3d0db96b2725083dfb598a523ff08909c02013877850f7927f0c",
+          "input_tokens": 4889,
+          "output_tokens": 214,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"verify_public.py 是一个轻量级健康检查脚本，用于验证服务器的公开端点是否正常响应。\\n\\n主要内容：\\n1. 脚本接受两个命令行参数：服务器地址（HOST）和端口（PORT）\\n2. 通过 HTTP GET 请求访问 /health 端点\\n3. 验证响应状态码为 200，并且返回的 JSON 中 'ok' 字段为 true\\n4. 如果验证通过，输出 \\\"health smoke passed; transactional behavior still requires tests\\\"\\n\\n注意：脚本明确声明不验证预订/订单行为，仅进行健康检查。\"\n  }\n}",
+          "input_token_sha256": "b85e2dd90e32f690da5fe732e053c3c7435f03813f40f5815245e92bc78d9e5c"
+        }
+      ]
+    },
+    {
+      "run": "full_text-1-r1",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_text-1-r1/RESULT.json",
+      "result_sha256": "7acbb5af1e3cf716f85b3348a6e63a26a287874639b926410cded2e9a4ec0239",
+      "trace_sha256": "2d954ed36a475036980b182b9b3bb581372aca46b3cf80e624b218b9abb85234",
+      "state_snapshot_sha256": "9333cf342f11334628d961ffdda1bf2be8710ccc7d6e2ca2b81d22ecae7a3c11",
+      "tool_count": 19,
+      "file_tokens": 619,
+      "file_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "file_content": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+      "final_output": "README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。\n\n1. 目标：提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约。\n2. 启动契约：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080` 启动服务。数据库父目录已存在，首次启动应创建数据库，后续启动保留数据。\n3. API 接口：\n   - `GET /health` → 200 `{\"ok\":true}`。\n   - `POST /bookings`：创建预约，需要 resource、customer、start、end 等字段。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功返回 201，包含 id 和 status: \"confirmed\"；冲突返回 409。\n   - `GET /bookings`：返回所有预约，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤。\n   - `GET /bookings/{id}`：返回完整预约或 404。\n   - `DELETE /bookings/{id}`：取消预约，返回 200 `{id,status:\"cancelled\"}`；重复取消幂等；未知 id 返回 404。\n4. 非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。未知路由返回 404。错误对象含 error 字符串。\n5. 多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。\n6. 行为验证：公开健康检查仅是启动检查；需要补充自己的行为验证，不能以健康检查替代完整功能。",
+      "handoff": {
+        "parent": "CP-1822173f34904c61",
+        "child": "CP-c0f2b632979c4713",
+        "child_parent": "CP-1822173f34904c61",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "7393e3600692d7e92b0065f27d0e6b633f6a09ab00263fe903055dab996276c5",
+        "child_digest": "4568ab6f974c5738e8eb8dfd0fc32ad9a01334066d127161eadcb395464421b9"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-4b74cc635deb44ed",
+          "input_checkpoint": "CP-51892547be1d4de2",
+          "parent_state_digest": "17fa9844895a1b7bf9e2bb38398dc09a1556a0263b8fe65e7fb3e3b73f8f803d",
+          "input_tokens": 3171,
+          "output_tokens": 46,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+          "input_token_sha256": "2047942914b0ea76449bdcec84f1807d219ce6a2164a5448b798a1fa80266a82"
+        },
+        {
+          "request_id": "MR-83e8205251fd4690",
+          "input_checkpoint": "CP-c0f2b632979c4713",
+          "parent_state_digest": "4568ab6f974c5738e8eb8dfd0fc32ad9a01334066d127161eadcb395464421b9",
+          "input_tokens": 5416,
+          "output_tokens": 616,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。\\n\\n1. 目标：提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约。\\n2. 启动契约：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080` 启动服务。数据库父目录已存在，首次启动应创建数据库，后续启动保留数据。\\n3. API 接口：\\n   - `GET /health` → 200 `{\\\"ok\\\":true}`。\\n   - `POST /bookings`：创建预约，需要 resource、customer、start、end 等字段。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功返回 201，包含 id 和 status: \\\"confirmed\\\"；冲突返回 409。\\n   - `GET /bookings`：返回所有预约，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤。\\n   - `GET /bookings/{id}`：返回完整预约或 404。\\n   - `DELETE /bookings/{id}`：取消预约，返回 200 `{id,status:\\\"cancelled\\\"}`；重复取消幂等；未知 id 返回 404。\\n4. 非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。未知路由返回 404。错误对象含 error 字符串。\\n5. 多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。\\n6. 行为验证：公开健康检查仅是启动检查；需要补充自己的行为验证，不能以健康检查替代完整功能。\"\n  }\n}",
+          "input_token_sha256": "ee17ddfaedb19031b468bd8a2a4215ca93099d02ea2b9d95f82bbd860898b230"
+        }
+      ]
+    },
+    {
+      "run": "full_text-1-r2",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_text-1-r2/RESULT.json",
+      "result_sha256": "22e8d7539f9f19e19b0b6113fbad4015da2a626a851de5a29e5f39c50075c578",
+      "trace_sha256": "f05fffbeedf5183bb108f5da5dd481af62d20063e65b185a151893d116edeca7",
+      "state_snapshot_sha256": "63b511f7838a8942a4ad59b715e6843752e025958ecfba6b176209cdd6452b8a",
+      "tool_count": 19,
+      "file_tokens": 619,
+      "file_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "file_content": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+      "final_output": "README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。\n\n主要内容包括：\n1. 服务目标：为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。\n2. 启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。\n3. 数据持久化：首次启动应创建数据库，后续启动保留数据。\n4. API 接口：\n   - `GET /health` → 200 `{\"ok\":true}`\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟），冲突预约不能重叠。\n   - `GET /bookings`：获取所有预约，支持按 resource 过滤。\n   - `GET /bookings/{id}`：获取指定预约。\n   - `DELETE /bookings/{id}`：取消预约，幂等操作。\n5. 要求：非空字段、整数 start/end、冲突判定原子操作、终止后重启继续正确。\n6. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。",
+      "handoff": {
+        "parent": "CP-f28926be241b4448",
+        "child": "CP-39e7510d66444e75",
+        "child_parent": "CP-f28926be241b4448",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "f2b0d445c24b5a24dd0d7e948e3b80f622cbaaadf78254273d1c2b90b1164f3a",
+        "child_digest": "6e5f747e7c779f45161576a6905b474452a2e7d02f9e11618a7f063844c90eac"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-5fdb7cbdc0424223",
+          "input_checkpoint": "CP-758f042fb189448e",
+          "parent_state_digest": "17fa9844895a1b7bf9e2bb38398dc09a1556a0263b8fe65e7fb3e3b73f8f803d",
+          "input_tokens": 3171,
+          "output_tokens": 46,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+          "input_token_sha256": "2047942914b0ea76449bdcec84f1807d219ce6a2164a5448b798a1fa80266a82"
+        },
+        {
+          "request_id": "MR-f99916c10bd64b9e",
+          "input_checkpoint": "CP-39e7510d66444e75",
+          "parent_state_digest": "6e5f747e7c779f45161576a6905b474452a2e7d02f9e11618a7f063844c90eac",
+          "input_tokens": 5414,
+          "output_tokens": 416,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动契约、API 接口和数据持久化要求。\\n\\n主要内容包括：\\n1. 服务目标：为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。\\n2. 启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。\\n3. 数据持久化：首次启动应创建数据库，后续启动保留数据。\\n4. API 接口：\\n   - `GET /health` → 200 `{\\\"ok\\\":true}`\\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟），冲突预约不能重叠。\\n   - `GET /bookings`：获取所有预约，支持按 resource 过滤。\\n   - `GET /bookings/{id}`：获取指定预约。\\n   - `DELETE /bookings/{id}`：取消预约，幂等操作。\\n5. 要求：非空字段、整数 start/end、冲突判定原子操作、终止后重启继续正确。\\n6. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约。\"\n  }\n}",
+          "input_token_sha256": "45b123db4735045e7def5d5b72765a75753a10fb7e7daee614fd2830a5bba0f3"
+        }
+      ]
+    },
+    {
+      "run": "full_text-2-r1",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_text-2-r1/RESULT.json",
+      "result_sha256": "a3b57bc9a5e5c49bad462d2c3d4a5c2b5ffb20c81bf9343c28e2d38f969d135a",
+      "trace_sha256": "3536633c33e0740c5d297cc656cfe597870720c0a2c44cbc3a320eeafe83011f",
+      "state_snapshot_sha256": "d76e4a8b121654e806bd18866f3b9950b43b7612d120ff52078baaf7973742c1",
+      "tool_count": 19,
+      "file_tokens": 713,
+      "file_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "file_content": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+      "final_output": "README.md 的主要内容是：这是一个库存与订单服务的项目说明。它使用 SQLite 实现一个 HTTP 服务，支持库存管理、订单创建和幂等性处理。\n\n主要功能包括：\n1. 库存管理：通过 PUT /inventory/{sku} 设置 SKU 的可售库存，GET /inventory/{sku} 查询库存，GET /health 健康检查。\n2. 订单创建：POST /orders 创建订单，支持幂等性（通过 Idempotency-Key 头），防止重复扣减库存。\n3. 订单查询：GET /orders 获取所有订单，GET /orders/{id} 获取特定订单。\n\n服务启动命令为：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080。\n\n文档还详细说明了请求和响应的格式、错误处理以及事务和幂等性的实现要求。",
+      "handoff": {
+        "parent": "CP-c04cbe65b0a046b9",
+        "child": "CP-6b81e0440134457c",
+        "child_parent": "CP-c04cbe65b0a046b9",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "230d4d0f4a9152a4d989e8f57d5a096c121bc20633d7efd16a133e5b6c816921",
+        "child_digest": "180692748fdeeee5f49c9eea952de64d79d0f0dfd9a4a1a52c4d7369e23cfb50"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-2355bed925bc40bb",
+          "input_checkpoint": "CP-958f6d37debd4a74",
+          "parent_state_digest": "a713a748746a34ee5edb0f15178134819abeaf572642fb6f560a58c83f56b51c",
+          "input_tokens": 3173,
+          "output_tokens": 30,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\"\n  }\n}",
+          "input_token_sha256": "657ec6a0c844cfe9439e44eee517bb9ec6328d6fdb55ba81f058edf69395b36e"
+        },
+        {
+          "request_id": "MR-34c955392d9641cb",
+          "input_checkpoint": "CP-6b81e0440134457c",
+          "parent_state_digest": "180692748fdeeee5f49c9eea952de64d79d0f0dfd9a4a1a52c4d7369e23cfb50",
+          "input_tokens": 5516,
+          "output_tokens": 310,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"README.md 的主要内容是：这是一个库存与订单服务的项目说明。它使用 SQLite 实现一个 HTTP 服务，支持库存管理、订单创建和幂等性处理。\\n\\n主要功能包括：\\n1. 库存管理：通过 PUT /inventory/{sku} 设置 SKU 的可售库存，GET /inventory/{sku} 查询库存，GET /health 健康检查。\\n2. 订单创建：POST /orders 创建订单，支持幂等性（通过 Idempotency-Key 头），防止重复扣减库存。\\n3. 订单查询：GET /orders 获取所有订单，GET /orders/{id} 获取特定订单。\\n\\n服务启动命令为：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080。\\n\\n文档还详细说明了请求和响应的格式、错误处理以及事务和幂等性的实现要求。\"\n  }\n}",
+          "input_token_sha256": "c9696724ff5fa581247af573dfa64cbb11e17047c891731b6e7a232f71a0371e"
+        }
+      ]
+    },
+    {
+      "run": "full_text-2-r2",
+      "result_path": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/runs/full_text-2-r2/RESULT.json",
+      "result_sha256": "01782feab3fb38a2f018ee58a00937432a4885173e8e3fb8d0f52429604b5a76",
+      "trace_sha256": "ee3fe64f31bda24f9e918407479ea35e88433cf7cdd23237a26498645be83505",
+      "state_snapshot_sha256": "45803ec3109fba0c7c83ad33c0a6313410d8b8fd4957fb373619bd49f01d101d",
+      "tool_count": 19,
+      "file_tokens": 713,
+      "file_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "file_content": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+      "final_output": "README.md 的主要内容是：\n\n1. 项目目标：实现一个小型仓库的 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。\n2. 启动命令：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。\n3. 健康检查：`GET /health` 返回 200 `{\"ok\":true}`。\n4. 库存管理：\n   - `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置 SKU 的可售量，N 必须为非负整数。\n   - `GET /inventory/{sku}` 返回 200 对应库存或 404。\n5. 订单处理：\n   - 必须带 `Idempotency-Key` 请求头（最长 128 字符）。\n   - `POST /orders` 接受 JSON，包含 `customer` 和 `items` 数组，每个 item 有 `sku` 和 `quantity`。\n   - 同 SKU 的重复项数量求和，按 SKU 排序；item 顺序和重复项拆分不影响语义。\n   - 首次成功返回 201，同 key 相同规范化请求返回 200 同一订单，不再次扣库存；不同 key 不得超卖。\n   - 任一 SKU 不存在或数量不足返回 404/409，失败应整体无写入，不扣库存、不创建订单、不占用 key。\n6. 订单查询：\n   - `GET /orders` 返回 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n7. 错误处理：坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n8. 事务与并发：库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单；并发不同 key 不得超卖。\n9. 持久化：库存、订单、key 在进程重启后继续有效。\n10. 验证：公开验证只做健康检查，请自行补充交易与恢复验证。",
+      "handoff": {
+        "parent": "CP-20c48d1a07674c19",
+        "child": "CP-56136e77080a4c4f",
+        "child_parent": "CP-20c48d1a07674c19",
+        "event_id": "EV-ACTION-A00001",
+        "child_event_occurrences": 1,
+        "parent_digest": "84bfa12b65ec64ae946de11a2b99adee90f0f302cefa567c7b244d5fa6dab61d",
+        "child_digest": "69a4ad3b8407216f18826ab6a06e895a8140f41d564eab3bdc1253b1f0c5ab78"
+      },
+      "full_observation_and_exactly_once": true,
+      "calls": [
+        {
+          "request_id": "MR-511f77a69d65423f",
+          "input_checkpoint": "CP-f0e15883cef14cd4",
+          "parent_state_digest": "a713a748746a34ee5edb0f15178134819abeaf572642fb6f560a58c83f56b51c",
+          "input_tokens": 3173,
+          "output_tokens": 30,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\"\n  }\n}",
+          "input_token_sha256": "657ec6a0c844cfe9439e44eee517bb9ec6328d6fdb55ba81f058edf69395b36e"
+        },
+        {
+          "request_id": "MR-f4899e6003c5447a",
+          "input_checkpoint": "CP-56136e77080a4c4f",
+          "parent_state_digest": "69a4ad3b8407216f18826ab6a06e895a8140f41d564eab3bdc1253b1f0c5ab78",
+          "input_tokens": 5512,
+          "output_tokens": 696,
+          "finish_reason": "stop",
+          "input_exact": true,
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"README.md 的主要内容是：\\n\\n1. 项目目标：实现一个小型仓库的 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。\\n2. 启动命令：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。\\n3. 健康检查：`GET /health` 返回 200 `{\\\"ok\\\":true}`。\\n4. 库存管理：\\n   - `PUT /inventory/{url-encoded-sku}`，`{\\\"stock\\\":N}` 设置 SKU 的可售量，N 必须为非负整数。\\n   - `GET /inventory/{sku}` 返回 200 对应库存或 404。\\n5. 订单处理：\\n   - 必须带 `Idempotency-Key` 请求头（最长 128 字符）。\\n   - `POST /orders` 接受 JSON，包含 `customer` 和 `items` 数组，每个 item 有 `sku` 和 `quantity`。\\n   - 同 SKU 的重复项数量求和，按 SKU 排序；item 顺序和重复项拆分不影响语义。\\n   - 首次成功返回 201，同 key 相同规范化请求返回 200 同一订单，不再次扣库存；不同 key 不得超卖。\\n   - 任一 SKU 不存在或数量不足返回 404/409，失败应整体无写入，不扣库存、不创建订单、不占用 key。\\n6. 订单查询：\\n   - `GET /orders` 返回 200 `{\\\"orders\\\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\\n7. 错误处理：坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\\n8. 事务与并发：库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单；并发不同 key 不得超卖。\\n9. 持久化：库存、订单、key 在进程重启后继续有效。\\n10. 验证：公开验证只做健康检查，请自行补充交易与恢复验证。\"\n  }\n}",
+          "input_token_sha256": "e67359c9d5bd9a0931e053b32921c651269627790f6c887a9ade79c09893dbd6"
+        }
+      ]
+    }
+  ],
+  "new_inference_calls": 0,
+  "old_scores_changed": false,
+  "limit": "State/input transport identity proof, not independent numerical tensor validation or new outcome scoring."
+}
