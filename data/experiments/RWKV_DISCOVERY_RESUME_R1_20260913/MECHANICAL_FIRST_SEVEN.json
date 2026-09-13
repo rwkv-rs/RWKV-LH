@@ -1,0 +1,1042 @@
+{
+  "runs": [
+    {
+      "run": "backup-inspect-r1",
+      "calls": [
+        {
+          "request": "MR-b0cbad8ca2334877",
+          "input_tokens": 2359,
+          "output_tokens": 58,
+          "input_sha256": "bd58efbe1058db0c4361a5a8341a335dd98ce39657c42f8f7bfa43aee47757ad",
+          "input_checkpoint": "CP-06a6d555328949fa",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-e45951b4503445d0",
+          "input_tokens": 3139,
+          "output_tokens": 92,
+          "input_sha256": "5fee6bde6533985016b9e77144f43446ae59911bac6ab8b13241af4046bba856",
+          "input_checkpoint": "CP-6b7e3d08d12c4012",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1024,\n    \"max_lines\": 4096,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\"\n  }\n}"
+        },
+        {
+          "request": "MR-58c34cce97d544b3",
+          "input_tokens": 3613,
+          "output_tokens": 109,
+          "input_sha256": "44961b24149295b5491ec2b11863b9d122d21612fe30e44f066092a981fc1cd6",
+          "input_checkpoint": "CP-2e4de8187a9843e8",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-ecc5f46cc0c646c3"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-7d15024141024122",
+          "input_tokens": 4452,
+          "output_tokens": 109,
+          "input_sha256": "4ac729c2db7b33465af56ed64fdd788ff203f9738af9df8c45ced107cae8706d",
+          "input_checkpoint": "CP-f608d6edd29b4a71",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-ecc5f46cc0c646c3"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-4709a88608a0428b",
+          "input_tokens": 5291,
+          "output_tokens": 109,
+          "input_sha256": "9065b981a82577986c106343e989d48962a4f5c00a3c9e5064e6822bf1776dbe",
+          "input_checkpoint": "CP-e709e10badab42b0",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-ecc5f46cc0c646c3"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        }
+      ],
+      "generation_started": 5,
+      "generation_returned": 5,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "search_text",
+          "event_registered": false,
+          "consumed": false,
+          "success": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-ecc5f46cc0c646c3",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 1024,
+              "max_lines": 4096,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": ".",
+              "pattern": "def create_exclusive_backup"
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        "identical_success_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "backup-inspect-r2",
+      "calls": [
+        {
+          "request": "MR-8ac179df6dca4b0a",
+          "input_tokens": 2359,
+          "output_tokens": 95,
+          "input_sha256": "bd58efbe1058db0c4361a5a8341a335dd98ce39657c42f8f7bfa43aee47757ad",
+          "input_checkpoint": "CP-4e4acd9fd0664431",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-0a617b7a43284d7b",
+          "input_tokens": 3186,
+          "output_tokens": 95,
+          "input_sha256": "de04aad8aed870af7b747a424ec03877749a14704c71f13342141befc627e73f",
+          "input_checkpoint": "CP-10bc91372d6b4d2c",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-12c2d0536eed4bec",
+          "input_tokens": 4013,
+          "output_tokens": 95,
+          "input_sha256": "9af7aea77bbf307852ed303f43778be6645c9739f92a6ce398dc0f2a74a20003",
+          "input_checkpoint": "CP-fc00caee212948ae",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"path\": \".\",\n    \"pattern\": \"def create_exclusive_backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        }
+      ],
+      "generation_started": 3,
+      "generation_returned": 3,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": false,
+          "consumed": false,
+          "success": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        "identical_success_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "health-inspect-r1",
+      "calls": [
+        {
+          "request": "MR-6f67175d3e8b4d89",
+          "input_tokens": 1956,
+          "output_tokens": 44,
+          "input_sha256": "c0f94176db1e9a6493d649b48cd7857a01f865519eff9a1ebb79a7c640226ed8",
+          "input_checkpoint": "CP-cde92947e9f7457a",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\"\n  }\n}"
+        },
+        {
+          "request": "MR-333cad9bb6df4fed",
+          "input_tokens": 2624,
+          "output_tokens": 94,
+          "input_sha256": "72efc235377df1ff60a271dd0ef167afb4f8fbc8aec06eb1adb683acbd508624",
+          "input_checkpoint": "CP-2dadd222220d48af",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_file_bytes\": 1024,\n    \"max_lines\": 100,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def.*health|def.*healthcheck|def.*ping|def.*status\"\n  }\n}"
+        },
+        {
+          "request": "MR-b54c8939ec424341",
+          "input_tokens": 3102,
+          "output_tokens": 119,
+          "input_sha256": "2467fba85d405a5da1ee2e239059ac97d6db38ec8646c91f1ae8850975a5b8ac",
+          "input_checkpoint": "CP-61e21afd98db4746",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-0256fb1448c74b8d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def.*health|def.*healthcheck|def.*ping|def.*status\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-af1842ce913b4ea4",
+          "input_tokens": 3975,
+          "output_tokens": 119,
+          "input_sha256": "79e96b7842c33f6aa76c3a571127b5a66c4237659db2b7216f2d4a61943ce030",
+          "input_checkpoint": "CP-253ee5acd90e443d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-0256fb1448c74b8d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"literal\",\n    \"path\": \".\",\n    \"pattern\": \"def.*health|def.*healthcheck|def.*ping|def.*status\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-2457a800fcaf49c6",
+          "input_tokens": 4844,
+          "output_tokens": 119,
+          "input_sha256": "e7fe04559376ec7d9590c6ec4ae9ba8fc814395e2196ee64e8212a7fec77ef09",
+          "input_checkpoint": "CP-3538a997079345a6",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-0256fb1448c74b8d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"literal\",\n    \"path\": \".\",\n    \"pattern\": \"def.*health|def.*healthcheck|def.*ping|def.*status\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-d76a4488b15b44a9",
+          "input_tokens": 5713,
+          "output_tokens": 119,
+          "input_sha256": "e48d4fd5caf776130e682f0d6ebaa111681d504d24de516e32d2cde90c12b654",
+          "input_checkpoint": "CP-baa144c8a37e4286",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-ACTION-A00004",
+            "EV-REJECT-0256fb1448c74b8d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 1000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"literal\",\n    \"path\": \".\",\n    \"pattern\": \"def.*health|def.*healthcheck|def.*ping|def.*status\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00005",
+          "operation": "search_text",
+          "event_registered": false,
+          "consumed": false,
+          "success": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-0256fb1448c74b8d",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_file_bytes": 1024,
+              "max_lines": 100,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": ".",
+              "pattern": "def.*health|def.*healthcheck|def.*ping|def.*status"
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        "identical_success_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "smoke-inspect-r1",
+      "calls": [
+        {
+          "request": "MR-90c95e247e754782",
+          "input_tokens": 1948,
+          "output_tokens": 44,
+          "input_sha256": "f2a98c8d162a973fc14d23481bbac10983b954c8e07759942db9d6d87ff42da7",
+          "input_checkpoint": "CP-cd91363331854d09",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\"\n  }\n}"
+        },
+        {
+          "request": "MR-af5d8d76a34d40ac",
+          "input_tokens": 2616,
+          "output_tokens": 48,
+          "input_sha256": "efdaebb59cac320f988bb23750ce16681c27b3ff01fc83e68a9b61d4fbb7953d",
+          "input_checkpoint": "CP-95bb291d1fbf48f0",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 1024,\n    \"path\": \"README.md\"\n  }\n}"
+        },
+        {
+          "request": "MR-278607a8032a4e9c",
+          "input_tokens": 3003,
+          "output_tokens": 46,
+          "input_sha256": "4f00488ed7c0bb5539065f97079b67625ca2a3047a3c6208c2284bfc1b65bdfc",
+          "input_checkpoint": "CP-7f28159bbad042e9",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-620027b58ac84e5d"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-996c8668d5de4910",
+          "input_tokens": 5237,
+          "output_tokens": 46,
+          "input_sha256": "1094d0722ee070f73bde2ed764bae8c0a0b3bc721fe5170e42575852021355a3",
+          "input_checkpoint": "CP-816b8486f0984d2d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-620027b58ac84e5d"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-f6d29402bae74b47",
+          "input_tokens": 7127,
+          "output_tokens": 48,
+          "input_sha256": "a5a78fc4042711827f3459db97f54fb2df7349bffb1e94700505b2f06e04aeaf",
+          "input_checkpoint": "CP-115378b2014f4b8d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-620027b58ac84e5d"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"verify_public.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-feac71cfcf0e40ca",
+          "input_tokens": 8851,
+          "output_tokens": 152,
+          "input_sha256": "b19a517a7a3cc1c45a3bf73ca0f6586447d64578f0a7b3b7714e0e20daad70c3",
+          "input_checkpoint": "CP-2a17f0de04e44729",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-ACTION-A00004",
+            "EV-REJECT-620027b58ac84e5d"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"公开健康检查脚本是 verify_public.py，它只做一件事：用 HTTP GET 请求 /health，并断言返回 200 和 {\\\"ok\\\":true}。它不检查 bookings 端点、不验证 POST/PUT/DELETE 行为、不验证数据库持久化、不验证冲突规则或并发正确性。它只能证明服务器能正常启动并返回健康状态；不能证明预约功能正确。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-620027b58ac84e5d",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 1024,
+              "path": "README.md"
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "公开健康检查脚本是 verify_public.py，它只做一件事：用 HTTP GET 请求 /health，并断言返回 200 和 {\"ok\":true}。它不检查 bookings 端点、不验证 POST/PUT/DELETE 行为、不验证数据库持久化、不验证冲突规则或并发正确性。它只能证明服务器能正常启动并返回健康状态；不能证明预约功能正确。"
+    },
+    {
+      "run": "smoke-inspect-r2",
+      "calls": [
+        {
+          "request": "MR-461f0dd2397b48f6",
+          "input_tokens": 1948,
+          "output_tokens": 58,
+          "input_sha256": "f2a98c8d162a973fc14d23481bbac10983b954c8e07759942db9d6d87ff42da7",
+          "input_checkpoint": "CP-0c566770602e4557",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-d172954e349e44ff",
+          "input_tokens": 2634,
+          "output_tokens": 46,
+          "input_sha256": "585289b41a7270f29269795e3d9351897e6b36298bc377b29dc06d82c7961d63",
+          "input_checkpoint": "CP-7bc34e9bd89b4c36",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-55a553220630402b",
+          "input_tokens": 4868,
+          "output_tokens": 46,
+          "input_sha256": "871083af7d7bf18abbe150cba6edb689c3c606128229a9da744d28ef20eca76d",
+          "input_checkpoint": "CP-2568676de1724687",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-d7ba0e69e343440a",
+          "input_tokens": 6760,
+          "output_tokens": 48,
+          "input_sha256": "90f94904be2eec1f62f8c99da7b98818d50c53998d7ffb6f441379857ecca4a5",
+          "input_checkpoint": "CP-9b84d3dc1a344db8",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"verify_public.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-d1a7246b91dc4d5d",
+          "input_tokens": 8481,
+          "output_tokens": 183,
+          "input_sha256": "8981594c7868a5ad9319662fbec41a6a68ead92f16c38dda28c9ee893b67c593",
+          "input_checkpoint": "CP-429f3d9ed68f44f4",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-ACTION-A00004"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"公开健康检查脚本是 verify_public.py，它只检查 /health 返回 200 和 {\\\"ok\\\":true}，不检查 bookings 行为。\\n\\n服务器端 server.py 只实现了 /health 和 /bookings 的 GET，缺少 POST /bookings、DELETE /bookings/{id}、冲突检测、取消幂等、多请求原子性、错误响应等。\\n\\n因此，仅凭公开健康检查不能证明预约创建、冲突判定、取消、幂等或多请求原子性等功能正确。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 5,
+      "generation_returned": 5,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "公开健康检查脚本是 verify_public.py，它只检查 /health 返回 200 和 {\"ok\":true}，不检查 bookings 行为。\n\n服务器端 server.py 只实现了 /health 和 /bookings 的 GET，缺少 POST /bookings、DELETE /bookings/{id}、冲突检测、取消幂等、多请求原子性、错误响应等。\n\n因此，仅凭公开健康检查不能证明预约创建、冲突判定、取消、幂等或多请求原子性等功能正确。"
+    },
+    {
+      "run": "validation-inspect-r1",
+      "calls": [
+        {
+          "request": "MR-7ce7fef8fc51451b",
+          "input_tokens": 2353,
+          "output_tokens": 1800,
+          "input_sha256": "78b828cb9814f84e1e0c8e7d97603adf8842b4710883ac2c669caec326d11fc2",
+          "input_checkpoint": "CP-0ee325efff494297",
+          "finish": "length",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 5000000,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"pattern\": \"def validate_config|def validate_config_schema|def validate_config_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_schema_values|def validate_config_"
+        },
+        {
+          "request": "MR-7d8fdc901a714601",
+          "input_tokens": 2453,
+          "output_tokens": 1800,
+          "input_sha256": "3a9a517068b203f26c868e46a1645287e1fb794916d75a015a4f260bf414a045",
+          "input_checkpoint": "CP-c34517a5b1614177",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-58601b0727254a71"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_line_chars\":800,\"max_tokens\":4096,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def.*validate.*|def.*check.*|def.*verify.*|def.*assert.*|def.*ensure.*|def.*require.*|def.*check_validity.*|def.*validate_config.*|def.*check_config.*|def.*validate_db.*|def.*check_db.*|def.*validate_connection.*|def.*check_connection.*|def.*validate_schema.*|def.*check_schema.*|def.*validate_value.*|def.*check_value.*|def.*validate_input.*|def.*check_input.*|def.*validate_parameter.*|def.*check_parameter.*|def.*validate_argument.*|def.*check_argument.*|def.*validate_option.*|def.*check_option.*|def.*validate_flag.*|def.*check_flag.*|def.*validate_setting.*|def.*check_setting.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*check_config_setting.*|def.*validate_config_argument.*|def.*check_config_argument.*|def.*validate_config_parameter.*|def.*check_config_parameter.*|def.*validate_config_input.*|def.*check_config_input.*|def.*validate_config_value.*|def.*check_config_value.*|def.*validate_config_option.*|def.*check_config_option.*|def.*validate_config_setting.*|def.*"
+        },
+        {
+          "request": "MR-22b68a26dd9c452e",
+          "input_tokens": 2554,
+          "output_tokens": 1800,
+          "input_sha256": "659bf3e24d6d610c90034e621acc54787208c2de62da559b2371c063dd271140",
+          "input_checkpoint": "CP-a3f1da759633459f",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-292fd6c22510448c",
+            "EV-REJECT-58601b0727254a71"
+          ],
+          "raw_output": "{\"function\":\"final_answer\",\"params\":{\"text\":\"文件：config_store/sqlite_io.py\\n函数：validate_config\\n检查内容：\\n- 必须包含 db_path 字段\\n- db_path 必须是字符串\\n- db_path 不能为空字符串\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能以 / 或 \\\\ 开头\\n- db_path 不能包含 .. 或 . 开头的路径\\n- db_path 不能包含空格\\n- db_path 不能包含特殊字符（如 #、@、$、%、^、&、*、(、)、_、+、=、~、`、|、\\\\、;、:、\\\"、<、>、?、/）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>、|）\\n- db_path 不能包含非法字符（如 /、\\\\、:、*、?、\\\"、<、>"
+        },
+        {
+          "request": "MR-3aaa9985c7a84f2c",
+          "input_tokens": 2653,
+          "output_tokens": 1800,
+          "input_sha256": "3c27b105068ce82f28fe26bce90b265088df7ea916e734c4f886f41af6aa3a34",
+          "input_checkpoint": "CP-36799ab3c9dc4035",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-2139f61c6a364895",
+            "EV-REJECT-292fd6c22510448c",
+            "EV-REJECT-58601b0727254a71"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_lines\":500,\"max_file_bytes\":100000000,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_values|def validate_config_schema|def validate_config_file|def validate_config_params|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|def validate_config_options|def validate_config_settings|def validate_config_parameters|def validate_config_arguments|def validate_config_inputs|def validate_config_data|def validate_config_values|"
+        },
+        {
+          "request": "MR-a25e061c401a4383",
+          "input_tokens": 2754,
+          "output_tokens": 1800,
+          "input_sha256": "87cc686a026fbc63b454a26470277fcb408ce70508f0b7c523833241ef2aca1c",
+          "input_checkpoint": "CP-703bbe7b05764fbd",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-2139f61c6a364895",
+            "EV-REJECT-292fd6c22510448c",
+            "EV-REJECT-58601b0727254a71",
+            "EV-REJECT-65b306783a46471e"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_line_chars\":800,\"max_tokens\":4096,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_values|def validate_config_schema|def validate_config_file|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_config_entry|def validate_config_item|def validate_config_field|def validate_config_key|def validate_config_value|def validate_"
+        }
+      ],
+      "generation_started": 5,
+      "generation_returned": 5,
+      "input_and_state_verified": true,
+      "observations": [],
+      "feedback": [
+        {
+          "event": "EV-REJECT-58601b0727254a71",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-292fd6c22510448c",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 148 (char 147)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-2139f61c6a364895",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 45 (char 44)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-65b306783a46471e",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 152 (char 151)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 5,
+      "terminal_reasons": [],
+      "final": null
+    },
+    {
+      "run": "validation-inspect-r2",
+      "calls": [
+        {
+          "request": "MR-c17b166a489e43c3",
+          "input_tokens": 2353,
+          "output_tokens": 1800,
+          "input_sha256": "78b828cb9814f84e1e0c8e7d97603adf8842b4710883ac2c669caec326d11fc2",
+          "input_checkpoint": "CP-e3bccc42a0f24876",
+          "finish": "length",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"path\": \".\",\n    \"pattern\": \"def validate_config|def validate_config_schema|def validate_config_values|def validate_config_schema_values|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_config_schema_values_|def validate_"
+        },
+        {
+          "request": "MR-403035650e1e45e9",
+          "input_tokens": 2453,
+          "output_tokens": 1800,
+          "input_sha256": "71ece8e31313cf2e7c1336ff3e45d762d060ecabf538a9479bc03948b1abf0e8",
+          "input_checkpoint": "CP-088f364ffb4a438d",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-25457d62d2e04ac2"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_line_chars\":800,\"max_tokens\":4096,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_values|def validate_config_schema|def validate_config_schema_v1|def validate_config_schema_v2|def validate_config_schema_v3|def validate_config_schema_v4|def validate_config_schema_v5|def validate_config_schema_v6|def validate_config_schema_v7|def validate_config_schema_v8|def validate_config_schema_v9|def validate_config_schema_v10|def validate_config_schema_v11|def validate_config_schema_v12|def validate_config_schema_v13|def validate_config_schema_v14|def validate_config_schema_v15|def validate_config_schema_v16|def validate_config_schema_v17|def validate_config_schema_v18|def validate_config_schema_v19|def validate_config_schema_v20|def validate_config_schema_v21|def validate_config_schema_v22|def validate_config_schema_v23|def validate_config_schema_v24|def validate_config_schema_v25|def validate_config_schema_v26|def validate_config_schema_v27|def validate_config_schema_v28|def validate_config_schema_v29|def validate_config_schema_v30|def validate_config_schema_v31|def validate_config_schema_v32|def validate_config_schema_v33|def validate_config_schema_v34|def validate_config_schema_v35|def validate_config_schema_v36|def validate_config_schema_v37|def validate_config_schema_v38|def validate_config_schema_v39|def validate_config_schema_v40|def validate_config_schema_v41|def validate_config_schema_v42|def validate_config_schema_v43|def validate_config_schema_v44|def validate_config_schema_v45|def validate_config_schema_v46|def validate_config_schema_v47|def validate_config_schema_v48|def validate_config_schema_v49|def validate_config_schema_v50|def validate_config_schema_v51|def validate_config_schema_v52|def validate_config_schema_v53|def validate_config_schema_v54|def validate_config_schema_v55|def validate_config_schema_v56|def validate_config_schema_v57|def validate_config_schema_v58|def validate_config_schema_v59|def validate_config_schema_v60|def validate_config_schema_v61|def validate_config_schema_v62|def validate_config_schema_v63|def validate_config_schema_v64|def validate_config_schema_v65|def validate_config_schema_v66|def validate_config_schema_v67|def validate_config_schema_v68|def validate_config_schema_v69|def validate_config_schema_v70|def validate_config_schema_v71|def validate_config_schema_v72|def validate_config_schema_v73|def validate_config_schema_v74|def validate_config_schema_v75|def validate_config_schema_v76|def validate_config_schema_v77|def validate_config_schema_v78|def validate_config_schema_v79|def validate_config_schema_v80|def validate_config_schema_v81|def validate_config_schema_v82|def validate_config_schema_v83|def validate_config_schema_v84|def validate_config_schema_v85|def validate_config_schema_v86|def validate_config_schema_v87|def validate_config_schema_v88|def validate_config_schema_v89|def validate_config_schema_v90|def validate_config_schema_v91|def validate_config_schema_v92|def validate_config_schema_v93|def validate_config_schema_v94|def validate_config_schema_v95|def validate_config_schema_v96|def validate_config_schema_v97|def validate_config_schema_v98|def validate_config_schema_v99|def validate_config_schema_v100|def validate_config_schema_v101|def validate_config_schema_v102|def validate_config_schema_v103|def validate_config_schema_v104|def validate_config_schema_v105|def validate_config_schema_v106|def validate_config_schema_v107|def validate_config_schema_v108|def validate_config_schema_v109|def validate_config_schema_v110|def validate_config_schema_v111|def validate_config_schema_v112|def validate_config_schema_v113|def validate_config_schema_v114|def validate_config_schema_v115|def validate_config_schema_v116|def validate_config_schema_v117|def validate_config_schema_v118|def validate_config_schema_v119|def validate_config_schema_v120|def validate_config_schema_v121|def validate_config_schema_v122|def validate_config_schema_v123|def validate_config_schema_v124|def validate_config_schema_v125|def validate_config_schema_v126|def validate_config_schema_v127|def validate_config_schema_v128|def validate_config_schema_v129|def validate_config_schema_v130|def validate_config_schema_v131|def validate_config_schema_v132|def validate_config_schema_v133|def validate_config_schema_v134|def validate_config_schema_v135|def validate_config_schema_v136|def validate_config_schema_v137|def validate_config_schema_v138|def validate_config_schema_v139|def validate_config_schema_v140|def validate_config_schema_v141|def validate_config_schema_v142|def validate_config_schema_v143|def validate_config_schema_v144|def validate_config_schema_v145|def validate_config_schema_v146|def validate_config_schema_v147|def validate_config_schema_v148|def validate_config_schema_v149|def validate_config_schema_v150|def validate_config_schema_v151|def validate_config_schema_v152|def validate_config_schema_v153|def validate_config_schema_v154|def validate_config_schema_v155|def validate_config_schema_v156|def validate_config_schema_v157|def validate_config_schema_v158|def validate_config_schema_v159|def validate_config_schema_v160|def validate_config_schema_v161|def validate_config_schema_v162|def validate_config_schema_v163|def validate_config_schema_v164|def validate_config_schema_v165|def validate_config_schema_v166|def validate_config_"
+        },
+        {
+          "request": "MR-a067d3d3a247456d",
+          "input_tokens": 2554,
+          "output_tokens": 1800,
+          "input_sha256": "6472f7ddf70bae27ecd2d38487b8160c92c1f3d3b328ba3588e2755bf301e5f1",
+          "input_checkpoint": "CP-2d1effb1e39f4d8e",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-25457d62d2e04ac2",
+            "EV-REJECT-b1af949430644548"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_token_bytes\":8192,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_values|def validate_config_schema|def validate_config_file|def validate_config_json|def validate_config_dict|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema_|def validate_config_schema"
+        },
+        {
+          "request": "MR-666cbcf63c764482",
+          "input_tokens": 2655,
+          "output_tokens": 1800,
+          "input_sha256": "ee7f7c828dfa8ec269f76341176b5075a080e3d30c9459ac6cefcbe579d6a27c",
+          "input_checkpoint": "CP-76ee379fcddc4fbd",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-25457d62d2e04ac2",
+            "EV-REJECT-5813fb79cab948a9",
+            "EV-REJECT-b1af949430644548"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"case_sensitive\":true,\"max_file_bytes\":1000000,\"max_tokens\":4096,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_values|def validate_config_schema|def validate_config_structure|def validate_config_schema_v1|def validate_config_schema_v2|def validate_config_schema_v3|def validate_config_schema_v4|def validate_config_schema_v5|def validate_config_schema_v6|def validate_config_schema_v7|def validate_config_schema_v8|def validate_config_schema_v9|def validate_config_schema_v10|def validate_config_schema_v11|def validate_config_schema_v12|def validate_config_schema_v13|def validate_config_schema_v14|def validate_config_schema_v15|def validate_config_schema_v16|def validate_config_schema_v17|def validate_config_schema_v18|def validate_config_schema_v19|def validate_config_schema_v20|def validate_config_schema_v21|def validate_config_schema_v22|def validate_config_schema_v23|def validate_config_schema_v24|def validate_config_schema_v25|def validate_config_schema_v26|def validate_config_schema_v27|def validate_config_schema_v28|def validate_config_schema_v29|def validate_config_schema_v30|def validate_config_schema_v31|def validate_config_schema_v32|def validate_config_schema_v33|def validate_config_schema_v34|def validate_config_schema_v35|def validate_config_schema_v36|def validate_config_schema_v37|def validate_config_schema_v38|def validate_config_schema_v39|def validate_config_schema_v40|def validate_config_schema_v41|def validate_config_schema_v42|def validate_config_schema_v43|def validate_config_schema_v44|def validate_config_schema_v45|def validate_config_schema_v46|def validate_config_schema_v47|def validate_config_schema_v48|def validate_config_schema_v49|def validate_config_schema_v50|def validate_config_schema_v51|def validate_config_schema_v52|def validate_config_schema_v53|def validate_config_schema_v54|def validate_config_schema_v55|def validate_config_schema_v56|def validate_config_schema_v57|def validate_config_schema_v58|def validate_config_schema_v59|def validate_config_schema_v60|def validate_config_schema_v61|def validate_config_schema_v62|def validate_config_schema_v63|def validate_config_schema_v64|def validate_config_schema_v65|def validate_config_schema_v66|def validate_config_schema_v67|def validate_config_schema_v68|def validate_config_schema_v69|def validate_config_schema_v70|def validate_config_schema_v71|def validate_config_schema_v72|def validate_config_schema_v73|def validate_config_schema_v74|def validate_config_schema_v75|def validate_config_schema_v76|def validate_config_schema_v77|def validate_config_schema_v78|def validate_config_schema_v79|def validate_config_schema_v80|def validate_config_schema_v81|def validate_config_schema_v82|def validate_config_schema_v83|def validate_config_schema_v84|def validate_config_schema_v85|def validate_config_schema_v86|def validate_config_schema_v87|def validate_config_schema_v88|def validate_config_schema_v89|def validate_config_schema_v90|def validate_config_schema_v91|def validate_config_schema_v92|def validate_config_schema_v93|def validate_config_schema_v94|def validate_config_schema_v95|def validate_config_schema_v96|def validate_config_schema_v97|def validate_config_schema_v98|def validate_config_schema_v99|def validate_config_schema_v100|def validate_config_schema_v101|def validate_config_schema_v102|def validate_config_schema_v103|def validate_config_schema_v104|def validate_config_schema_v105|def validate_config_schema_v106|def validate_config_schema_v107|def validate_config_schema_v108|def validate_config_schema_v109|def validate_config_schema_v110|def validate_config_schema_v111|def validate_config_schema_v112|def validate_config_schema_v113|def validate_config_schema_v114|def validate_config_schema_v115|def validate_config_schema_v116|def validate_config_schema_v117|def validate_config_schema_v118|def validate_config_schema_v119|def validate_config_schema_v120|def validate_config_schema_v121|def validate_config_schema_v122|def validate_config_schema_v123|def validate_config_schema_v124|def validate_config_schema_v125|def validate_config_schema_v126|def validate_config_schema_v127|def validate_config_schema_v128|def validate_config_schema_v129|def validate_config_schema_v130|def validate_config_schema_v131|def validate_config_schema_v132|def validate_config_schema_v133|def validate_config_schema_v134|def validate_config_schema_v135|def validate_config_schema_v136|def validate_config_schema_v137|def validate_config_schema_v138|def validate_config_schema_v139|def validate_config_schema_v140|def validate_config_schema_v141|def validate_config_schema_v142|def validate_config_schema_v143|def validate_config_schema_v144|def validate_config_schema_v145|def validate_config_schema_v146|def validate_config_schema_v147|def validate_config_schema_v148|def validate_config_schema_v149|def validate_config_schema_v150|def validate_config_schema_v151|def validate_config_schema_v152|def validate_config_schema_v153|def validate_config_schema_v154|def validate_config_schema_v155|def validate_config_schema_v156|def validate_config_schema_v157|def validate_config_schema_v158|def validate_config_schema_v159|def validate_config_schema_v160|def validate_config_schema_v161|def validate_config_schema_v162|def validate_config_schema_v163|def validate_config_schema_v164|def validate_config_schema_v165|def validate_config_schema_v166|def validate_config"
+        },
+        {
+          "request": "MR-37586d66bb4e4557",
+          "input_tokens": 2756,
+          "output_tokens": 1800,
+          "input_sha256": "5fcfc062b61ef7101e241332836c26c5f3850d1eba6ebfd6d8a5cf7b150e686d",
+          "input_checkpoint": "CP-02743ec241f54555",
+          "finish": "length",
+          "events": [
+            "EV-REJECT-25457d62d2e04ac2",
+            "EV-REJECT-5813fb79cab948a9",
+            "EV-REJECT-b1af949430644548",
+            "EV-REJECT-c390ec6c39364bd3"
+          ],
+          "raw_output": "{\"function\":\"search_text\",\"params\":{\"max_tokens\":4096,\"max_results\":100,\"max_line_chars\":800,\"max_tokens\":4096,\"mode\":\"regex\",\"path\":\".\",\"pattern\":\"def validate_config|def validate_config_schema|def validate_config_values|def validate_config_schema_v1|def validate_config_schema_v2|def validate_config_schema_v3|def validate_config_schema_v4|def validate_config_schema_v5|def validate_config_schema_v6|def validate_config_schema_v7|def validate_config_schema_v8|def validate_config_schema_v9|def validate_config_schema_v10|def validate_config_schema_v11|def validate_config_schema_v12|def validate_config_schema_v13|def validate_config_schema_v14|def validate_config_schema_v15|def validate_config_schema_v16|def validate_config_schema_v17|def validate_config_schema_v18|def validate_config_schema_v19|def validate_config_schema_v20|def validate_config_schema_v21|def validate_config_schema_v22|def validate_config_schema_v23|def validate_config_schema_v24|def validate_config_schema_v25|def validate_config_schema_v26|def validate_config_schema_v27|def validate_config_schema_v28|def validate_config_schema_v29|def validate_config_schema_v30|def validate_config_schema_v31|def validate_config_schema_v32|def validate_config_schema_v33|def validate_config_schema_v34|def validate_config_schema_v35|def validate_config_schema_v36|def validate_config_schema_v37|def validate_config_schema_v38|def validate_config_schema_v39|def validate_config_schema_v40|def validate_config_schema_v41|def validate_config_schema_v42|def validate_config_schema_v43|def validate_config_schema_v44|def validate_config_schema_v45|def validate_config_schema_v46|def validate_config_schema_v47|def validate_config_schema_v48|def validate_config_schema_v49|def validate_config_schema_v50|def validate_config_schema_v51|def validate_config_schema_v52|def validate_config_schema_v53|def validate_config_schema_v54|def validate_config_schema_v55|def validate_config_schema_v56|def validate_config_schema_v57|def validate_config_schema_v58|def validate_config_schema_v59|def validate_config_schema_v60|def validate_config_schema_v61|def validate_config_schema_v62|def validate_config_schema_v63|def validate_config_schema_v64|def validate_config_schema_v65|def validate_config_schema_v66|def validate_config_schema_v67|def validate_config_schema_v68|def validate_config_schema_v69|def validate_config_schema_v70|def validate_config_schema_v71|def validate_config_schema_v72|def validate_config_schema_v73|def validate_config_schema_v74|def validate_config_schema_v75|def validate_config_schema_v76|def validate_config_schema_v77|def validate_config_schema_v78|def validate_config_schema_v79|def validate_config_schema_v80|def validate_config_schema_v81|def validate_config_schema_v82|def validate_config_schema_v83|def validate_config_schema_v84|def validate_config_schema_v85|def validate_config_schema_v86|def validate_config_schema_v87|def validate_config_schema_v88|def validate_config_schema_v89|def validate_config_schema_v90|def validate_config_schema_v91|def validate_config_schema_v92|def validate_config_schema_v93|def validate_config_schema_v94|def validate_config_schema_v95|def validate_config_schema_v96|def validate_config_schema_v97|def validate_config_schema_v98|def validate_config_schema_v99|def validate_config_schema_v100|def validate_config_schema_v101|def validate_config_schema_v102|def validate_config_schema_v103|def validate_config_schema_v104|def validate_config_schema_v105|def validate_config_schema_v106|def validate_config_schema_v107|def validate_config_schema_v108|def validate_config_schema_v109|def validate_config_schema_v110|def validate_config_schema_v111|def validate_config_schema_v112|def validate_config_schema_v113|def validate_config_schema_v114|def validate_config_schema_v115|def validate_config_schema_v116|def validate_config_schema_v117|def validate_config_schema_v118|def validate_config_schema_v119|def validate_config_schema_v120|def validate_config_schema_v121|def validate_config_schema_v122|def validate_config_schema_v123|def validate_config_schema_v124|def validate_config_schema_v125|def validate_config_schema_v126|def validate_config_schema_v127|def validate_config_schema_v128|def validate_config_schema_v129|def validate_config_schema_v130|def validate_config_schema_v131|def validate_config_schema_v132|def validate_config_schema_v133|def validate_config_schema_v134|def validate_config_schema_v135|def validate_config_schema_v136|def validate_config_schema_v137|def validate_config_schema_v138|def validate_config_schema_v139|def validate_config_schema_v140|def validate_config_schema_v141|def validate_config_schema_v142|def validate_config_schema_v143|def validate_config_schema_v144|def validate_config_schema_v145|def validate_config_schema_v146|def validate_config_schema_v147|def validate_config_schema_v148|def validate_config_schema_v149|def validate_config_schema_v150|def validate_config_schema_v151|def validate_config_schema_v152|def validate_config_schema_v153|def validate_config_schema_v154|def validate_config_schema_v155|def validate_config_schema_v156|def validate_config_schema_v157|def validate_config_schema_v158|def validate_config_schema_v159|def validate_config_schema_v160|def validate_config_schema_v161|def validate_config_schema_v162|def validate_config_schema_v163|def validate_config_schema_v164|def validate_config_schema_v165|def validate_config_schema_v166|def validate_config_"
+        }
+      ],
+      "generation_started": 5,
+      "generation_returned": 5,
+      "input_and_state_verified": true,
+      "observations": [],
+      "feedback": [
+        {
+          "event": "EV-REJECT-25457d62d2e04ac2",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 185)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-b1af949430644548",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 148 (char 147)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-5813fb79cab948a9",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 132 (char 131)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-c390ec6c39364bd3",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 1 column 138 (char 137)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 5,
+      "terminal_reasons": [],
+      "final": null
+    }
+  ],
+  "completed_records": 7,
+  "checked_generations": 35,
+  "all_returned_inputs_and_parent_states_verified": true,
+  "pending_events_at_budget_are_not_consumed_feedback": true
+}

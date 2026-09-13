@@ -1,0 +1,98 @@
+{
+  "backup-inspect-r1": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "backup-inspect-r2": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "health-inspect-r1": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "health-inspect-r2": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "smoke-inspect-r1": {
+    "answer_sha256": "fb79ecb6e7aa70af94aa95ef0479053d3077f763cbb086ef4b77121994196c10",
+    "requirements": [
+      [
+        "location",
+        "met",
+        "正确指出verify_public.py"
+      ],
+      [
+        "purpose",
+        "met",
+        "明确GET /health及200和ok=true；正常启动按能够提供健康响应理解，没有宣称脚本管理启动流程"
+      ],
+      [
+        "limits",
+        "met",
+        "明确不能认证预约、持久化、冲突及并发等业务行为"
+      ],
+      [
+        "readonly",
+        "met",
+        "实际仅目录与读取，无修改或服务启动"
+      ]
+    ],
+    "findings": []
+  },
+  "validation-inspect-r1": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "validation-inspect-r2": {
+    "answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "requirements": [],
+    "findings": [],
+    "note": "无交付；内容质量不适用。"
+  },
+  "smoke-inspect-r2": {
+    "answer_sha256": "a25c0604a6c80ae6616257d0daddbc1bb3757684081566979c4d6cc66e333ea2",
+    "requirements": [
+      [
+        "location",
+        "met",
+        "明确verify_public.py"
+      ],
+      [
+        "purpose",
+        "met",
+        "明确健康响应200和ok=true"
+      ],
+      [
+        "limits",
+        "met",
+        "正确说明不能证明预约等业务正确"
+      ],
+      [
+        "readonly",
+        "met",
+        "真实动作只有目录和读取"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "impact": "把未实现业务GET说成实现，影响代码能力判断",
+        "quote": "服务器端 server.py 只实现了 /health 和 /bookings 的 GET",
+        "reason": "server.py仅/health返回200，其他GET返回501 not_implemented；把未实现的预约GET说成已实现，影响对代码能力的判断。核心脚本要点单列满足，不能因此抹去附加实质错误。"
+      }
+    ]
+  }
+}

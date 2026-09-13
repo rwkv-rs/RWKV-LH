@@ -1,0 +1,102 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "56a7b2ee68b8616bd8ffa7ee36abc532d129205d4323c030f24c3fd0ea2431d5",
+  "run_sha256": "a6779250f2371207c66598e4a974566a896f294351fa3f41704180c64a44391c",
+  "reviewer": "Codex external source and actual tool trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "location",
+      "status": "met",
+      "reason": "明确verify_public.py",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "purpose",
+      "status": "met",
+      "reason": "明确健康响应200和ok=true",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "正确说明不能证明预约等业务正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "readonly",
+      "status": "met",
+      "reason": "真实动作只有目录和读取",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "impact": "把未实现业务GET说成实现，影响代码能力判断",
+      "quote": "服务器端 server.py 只实现了 /health 和 /bookings 的 GET",
+      "reason": "server.py仅/health返回200，其他GET返回501 not_implemented；把未实现的预约GET说成已实现，影响对代码能力的判断。核心脚本要点单列满足，不能因此抹去附加实质错误。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ]
+}

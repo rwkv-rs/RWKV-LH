@@ -1,0 +1,115 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "smoke-inspect-r2",
+  "task_id": "smoke",
+  "arm": "inspect",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "56a7b2ee68b8616bd8ffa7ee36abc532d129205d4323c030f24c3fd0ea2431d5",
+  "run_sha256": "a6779250f2371207c66598e4a974566a896f294351fa3f41704180c64a44391c",
+  "review_sha256": "022a79967cae1415f473ab3f5f08c035abaecec7b923e23b6836ac568fc4712a",
+  "execution_identity_sha256": "2155fbc6a9de7c2af0895d7f0e183f441c57bcb4f356e1f4de58e79c87bb38dd",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "location",
+      "status": "met",
+      "reason": "明确verify_public.py",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "purpose",
+      "status": "met",
+      "reason": "明确健康响应200和ok=true",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "正确说明不能证明预约等业务正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "readonly",
+      "status": "met",
+      "reason": "真实动作只有目录和读取",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "impact": "把未实现业务GET说成实现，影响代码能力判断",
+      "quote": "服务器端 server.py 只实现了 /health 和 /bookings 的 GET",
+      "reason": "server.py仅/health返回200，其他GET返回501 not_implemented；把未实现的预约GET说成已实现，影响对代码能力的判断。核心脚本要点单列满足，不能因此抹去附加实质错误。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 5,
+    "input_tokens": 24691,
+    "output_tokens": 381,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

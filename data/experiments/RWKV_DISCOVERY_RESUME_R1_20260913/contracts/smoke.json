@@ -1,0 +1,56 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "smoke",
+    "user_request": "找到公开健康检查脚本，指出文件，说明它检查什么，以及它不能证明哪些功能正确。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+    "kind": "task_trial",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "bec0808f5fdbc001069b04ad72f96c8920b05852375612600c6d3e5b51e089da",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "b135f34d02c0f0b251b58c70170f978a9cc4df73835170f72a48bd4ec3dd8d37",
+      "budget": "35bae1985066e971f822294fec857d6b614308c25ded9017e7f0dbbb2bc4128c"
+    },
+    "requirements": [
+      {
+        "id": "location",
+        "user_quote": "指出文件",
+        "outcome": "定位公开检查脚本",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "定位公开检查脚本；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "purpose",
+        "user_quote": "说明它检查什么",
+        "outcome": "说明健康请求检查用途，不要求穷举断言",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "说明健康请求检查用途，不要求穷举断言；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "limits",
+        "user_quote": "它不能证明哪些功能正确",
+        "outcome": "说明单一健康检查不能认证业务功能",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "说明单一健康检查不能认证业务功能；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "readonly",
+        "user_quote": "不修改文件，不启动服务",
+        "outcome": "遵守只读范围",
+        "level": "essential",
+        "missing_effect": "违反用户约束",
+        "acceptance": "真实动作无写入或服务启动",
+        "omission_policy": "无须在答案复述约束"
+      }
+    ]
+  },
+  "sha256": "56a7b2ee68b8616bd8ffa7ee36abc532d129205d4323c030f24c3fd0ea2431d5"
+}

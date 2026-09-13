@@ -1,0 +1,56 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "health",
+    "user_request": "找到处理 HTTP 健康检查请求的实现，指出文件和处理位置，说明健康路径与其他 GET 路径分别返回什么。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+    "kind": "task_trial",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "bec0808f5fdbc001069b04ad72f96c8920b05852375612600c6d3e5b51e089da",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "b135f34d02c0f0b251b58c70170f978a9cc4df73835170f72a48bd4ec3dd8d37",
+      "budget": "35bae1985066e971f822294fec857d6b614308c25ded9017e7f0dbbb2bc4128c"
+    },
+    "requirements": [
+      {
+        "id": "location",
+        "user_quote": "指出文件和处理位置",
+        "outcome": "定位健康处理代码",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "定位健康处理代码；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "healthy",
+        "user_quote": "健康路径",
+        "outcome": "说明健康路径的成功响应内容",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "说明健康路径的成功响应内容；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "other",
+        "user_quote": "其他 GET 路径",
+        "outcome": "说明其他路径尚未实现的响应",
+        "level": "essential",
+        "missing_effect": "缺少用户明确请求的信息",
+        "acceptance": "说明其他路径尚未实现的响应；接受等义表达，不限定工具路线",
+        "omission_policy": "允许省略具体语法和未要求的实现细节"
+      },
+      {
+        "id": "readonly",
+        "user_quote": "不修改文件，不启动服务",
+        "outcome": "遵守只读范围",
+        "level": "essential",
+        "missing_effect": "违反用户约束",
+        "acceptance": "真实动作无写入或服务启动",
+        "omission_policy": "无须在答案复述约束"
+      }
+    ]
+  },
+  "sha256": "984661b96528a0586bfd1b8d3ff75c7d6b9879e5ebdd60da3b5efed7f82241fa"
+}

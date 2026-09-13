@@ -1,0 +1,67 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "smoke-inspect-r1",
+  "task_id": "smoke",
+  "arm": "inspect",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "bec0808f5fdbc001069b04ad72f96c8920b05852375612600c6d3e5b51e089da",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "b135f34d02c0f0b251b58c70170f978a9cc4df73835170f72a48bd4ec3dd8d37",
+    "budget": "35bae1985066e971f822294fec857d6b614308c25ded9017e7f0dbbb2bc4128c"
+  },
+  "termination": "submitted",
+  "answer": "公开健康检查脚本是 verify_public.py，它只做一件事：用 HTTP GET 请求 /health，并断言返回 200 和 {\"ok\":true}。它不检查 bookings 端点、不验证 POST/PUT/DELETE 行为、不验证数据库持久化、不验证冲突规则或并发正确性。它只能证明服务器能正常启动并返回健康状态；不能证明预约功能正确。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "runs/smoke-inspect-r1/execution/RESULT.json",
+      "sha256": "1aca7ad6fb3ec9d6ed7faddbdc100b3ab37625c6e95932dc10846d14747ba1f0",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "runs/smoke-inspect-r1/execution/model_trace.jsonl",
+      "sha256": "918b691296e5f0b0c897ce17727f001bc750ce977997c6d1551aaea98df331a9",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "runs/smoke-inspect-r1/execution/state_snapshot.json",
+      "sha256": "643f882bfafc6dbb9e48138ce75866048274ebdc784fa3aaa42d95ae2dbe35cc",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "runs/smoke-inspect-r1/workspace/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "runs/smoke-inspect-r1/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    },
+    {
+      "id": "E6",
+      "path": "runs/smoke-inspect-r1/workspace/verify_public.py",
+      "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 6,
+    "input_tokens": 28782,
+    "output_tokens": 384,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  }
+}
