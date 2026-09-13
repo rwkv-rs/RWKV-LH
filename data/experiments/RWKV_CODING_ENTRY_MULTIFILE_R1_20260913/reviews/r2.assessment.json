@@ -1,0 +1,100 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "query-limit-r2",
+  "task_id": "query-limit",
+  "arm": "zero",
+  "repeat": 2,
+  "scope": "retrospective",
+  "contract_sha256": "568bca7e2c45259279774d54f06a81b598c4a5e1c34f66f75a89c5468ebc6272",
+  "run_sha256": "3d4cbd0ba6ebbccc1c6da95579151bf8a6abbc3f97b1c2ebd97566228aef0f7b",
+  "review_sha256": "19d812d68a28b03b07cea6aa4de4e848a2775811a2651107b4f58416e4709726",
+  "execution_identity_sha256": "ab78aa68a5c40cb345a9db4186e4566bba9af5a3bb73b5acfbaf21fe764b06f2",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "budget",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "behavior",
+      "status": "unmet",
+      "reason": "第一遍未改文件，原接口不支持limit；第二遍只有函数改动，默认查询fetchmany(None)抛错且CLI未接入。外部冻结测试均失败。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ]
+    },
+    {
+      "id": "report",
+      "status": "unmet",
+      "reason": "没有提交最终回答；不记为虚假测试通过或错误宣称完成。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ]
+    }
+  ],
+  "findings": [],
+  "validity_reason": "执行前REGISTRATION已冻结；此标准格式是事后编码，不宣称事前生成；行为测试与答案规则未改",
+  "factuality": "no_issue_reported",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "r1：重复读取、两次协议拒绝后恢复合法调用，用完生成预算未修改。r2：写入查询函数，五次合法命令调用都因不存在的cwd在启动前失败，未采用已经可见的错误反馈；同类失败预算中断。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 11,
+    "input_tokens": 121756,
+    "output_tokens": 698,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 5
+  },
+  "eligible_for_gain": false
+}

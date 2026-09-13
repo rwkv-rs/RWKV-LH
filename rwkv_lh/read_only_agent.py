@@ -133,12 +133,19 @@ def _prepare_reconsideration(job, workspace, output):
 
 
 def run_read_only_job(job, *, settings, session_factory=create_model_session):
+    return _run_job(job, settings=settings, session_factory=session_factory,
+                    harness_factory=lambda: ReadOnlyHarness(tool_scope=job.tool_scope),
+                    controller_type=_ReadOnlyController, allowed_scopes=('files', 'inspect'))
+
+
+def _run_job(job, *, settings, session_factory, harness_factory, controller_type, allowed_scopes):
+    """Shared production execution and evidence collection; callers set tool permissions."""
     if (type(job.max_calls) is not int or job.max_calls < 1
             or type(job.max_seconds) not in (int, float)
             or not math.isfinite(job.max_seconds) or job.max_seconds <= 0):
         raise ValueError('positive integer calls and finite positive wall budget required')
-    if job.tool_scope not in ('files', 'inspect'):
-        raise ValueError('unknown read-only tool scope')
+    if job.tool_scope not in allowed_scopes:
+        raise ValueError('unknown read-only tool scope or execution scope')
     advice_fields = (job.reconsider_from, job.advice, job.advice_model)
     if any(advice_fields) and not all(advice_fields):
         raise ValueError('reconsideration requires explicit advice and its model identity')
@@ -180,7 +187,7 @@ def run_read_only_job(job, *, settings, session_factory=create_model_session):
     try:
         if job.reconsider_from:
             store, state, continuation = _prepare_reconsideration(job, workspace, output)
-        harness = ReadOnlyHarness(tool_scope=job.tool_scope)
+        harness = harness_factory()
         model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
         model.session = _BudgetedSession(model.session, job.max_calls, started + job.max_seconds, audit_errors)
         if state is None:
@@ -188,7 +195,7 @@ def run_read_only_job(job, *, settings, session_factory=create_model_session):
             goal = model.create_literal_goal(job.request, str(workspace), runtime_policy={
                 RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document('goal')})
             state = store.create_run(goal, run_id=job.task_id)
-        controller = _ReadOnlyController(store, model=model, harness=harness,
+        controller = controller_type(store, model=model, harness=harness,
                                          max_transitions=job.max_calls, min_actions=0)
         _save(output / 'goal.json', state.goal.to_dict())
         if continuation is not None:

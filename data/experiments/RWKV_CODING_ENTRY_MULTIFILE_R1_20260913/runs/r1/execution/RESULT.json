@@ -1,0 +1,803 @@
+{
+  "id": "query-limit-r1",
+  "final": null,
+  "termination": "budget",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "running",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "coding",
+  "generation_started": 12,
+  "protocol_rejections": 2,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "search_text",
+      "arguments": {
+        "case_sensitive": true,
+        "max_file_bytes": 100000000,
+        "max_line_chars": 4000,
+        "max_results": 10,
+        "max_tokens": 4096,
+        "mode": "regex",
+        "path": ".",
+        "pattern": "query\\s*\\(.*,?\\s*limit\\s*=\\s*(?:\\d+)?\\)",
+        "recursive": true,
+        "start_after": ""
+      },
+      "wire_arguments": {
+        "case_sensitive": true,
+        "max_file_bytes": 100000000,
+        "max_line_chars": 4000,
+        "max_results": 10,
+        "max_tokens": 4096,
+        "mode": "regex",
+        "path": ".",
+        "pattern": "query\\s*\\(.*,?\\s*limit\\s*=\\s*(?:\\d+)?\\)",
+        "recursive": true,
+        "start_after": ""
+      },
+      "action_fingerprint": "de7cc98cfa0aa9a1e0327095fa36ba5c36146ebc3fd6c5e612032b9a54769b36",
+      "idempotency_key": "19a270989a5a10e085811740eba2c15905e2ae2d78bed8b34c5cc04fcc00689a",
+      "decision_id": "D-86e57f64b8f0445e",
+      "request_id": "MR-8ef5dbcbaaa0429f",
+      "started_at": "2026-09-13T12:51:44.362+00:00",
+      "ended_at": "2026-09-13T12:51:44.432+00:00",
+      "result": {
+        "action_type": "search_text",
+        "success": true,
+        "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 9, \"files_searched\": 9, \"match_count\": 1, \"matches\": [{\"column\": 30, \"end_column\": 56, \"line_number\": 27, \"line_text\": \"            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\", \"line_text_end_byte\": 1446, \"line_text_sha256\": \"1b10cc02c8fb46d10c98e11169da4f4e780d51871dac9ed739fd58be9b760406\", \"line_text_start_byte\": 1365, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"query(db,'absent',limit=1)\", \"match_text_truncated\": false, \"path\": \"test_query_limit.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"query\\\\s*\\\\(.*,?\\\\s*limit\\\\s*=\\\\s*(?:\\\\d+)?\\\\)\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"test_query_limit.py\": \"3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3\"}, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "contract_digest": "868114610fadc2880cfcb663e607eb05b172a205dda916a5c1def5a2a48be7ed",
+          "match_count": 1,
+          "files_considered": 9,
+          "files_searched": 9,
+          "skipped_file_count": 0,
+          "truncated": false,
+          "complete": true,
+          "next_cursor": "",
+          "observed_tokens": 395
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "dc7b4931338178710a71279b7be3d0d2bbce5b7a449a463dcb0fe2e3cf897be9",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00002",
+      "sequence": 2,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "test_query_limit.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "test_query_limit.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+      "idempotency_key": "f6364fd2c93244b6404ef84efc885ec155c72fd333f8b96670cddc606d6bae95",
+      "decision_id": "D-839039c2ed7746b1",
+      "request_id": "MR-f00c752de3a34dcf",
+      "started_at": "2026-09-13T12:52:36.228+00:00",
+      "ended_at": "2026-09-13T12:52:36.290+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "test_query_limit.py",
+            "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "media_type": "text/x-python",
+            "size_bytes": 1725,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f89624455eda026a",
+            "source_ref": "test_query_limit.py",
+            "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1725,
+            "core_start": 0,
+            "core_end": 1725,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 488
+          },
+          "start_byte": 0,
+          "end_byte": 1725,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1725,
+          "observed_tokens": 488,
+          "source_start_line": 1,
+          "source_end_line": 31
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-bc6e4a0a379c08481e5d"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00003",
+      "sequence": 3,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "index_cli.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "index_cli.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+      "idempotency_key": "fa8fe5791619d4aff4e4439031d70384b9cc442259a292ec34fe7ffcbb926d7f",
+      "decision_id": "D-b061787426d6420b",
+      "request_id": "MR-98b720cc574c4c08",
+      "started_at": "2026-09-13T12:53:01.865+00:00",
+      "ended_at": "2026-09-13T12:53:01.928+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "index_cli.py",
+            "sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "media_type": "text/x-python",
+            "size_bytes": 1415,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-4babbd3ea4b73730",
+            "source_ref": "index_cli.py",
+            "source_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1415,
+            "core_start": 0,
+            "core_end": 1415,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 349
+          },
+          "start_byte": 0,
+          "end_byte": 1415,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1415,
+          "observed_tokens": 349,
+          "source_start_line": 1,
+          "source_end_line": 33
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-ab0089c649cffb53f0be"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "1c9f61ae47603a67d82aa52210d1eb48fc9f8c8a5d5a61bf2432e1d06ef2ada2",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00004",
+      "sequence": 4,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/query.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/query.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+      "idempotency_key": "6e83144b7acc4150d636c3d12fd99695cbc1c2a6bff5220cef0f33f8e4d99f40",
+      "decision_id": "D-69ec6d5942944d3c",
+      "request_id": "MR-0634981f47644b88",
+      "started_at": "2026-09-13T12:53:29.395+00:00",
+      "ended_at": "2026-09-13T12:53:29.466+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text):\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/query.py",
+            "sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/x-python",
+            "size_bytes": 482,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-555293ae5997414e",
+            "source_ref": "document_index/query.py",
+            "source_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 482,
+            "core_start": 0,
+            "core_end": 482,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 116
+          },
+          "start_byte": 0,
+          "end_byte": 482,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 482,
+          "observed_tokens": 116,
+          "source_start_line": 1,
+          "source_end_line": 11
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-4ba28018e77e7dbfde24"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "8639ed2f3a57c69e8c1317b592c7afdb6bf2c1ef957c9abb373dc1c0509abc08",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00005",
+      "sequence": 5,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "f68035c5b50fcc4becdf352b6e059d38cfb68663d54690445f26d283b07f08c0",
+      "decision_id": "D-bfe85610fc5e40e0",
+      "request_id": "MR-7b110657aeb447d4",
+      "started_at": "2026-09-13T12:53:54.995+00:00",
+      "ended_at": "2026-09-13T12:53:55.067+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/x-python",
+            "size_bytes": 510,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 510,
+            "core_start": 0,
+            "core_end": 510,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 134
+          },
+          "start_byte": 0,
+          "end_byte": 510,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 510,
+          "observed_tokens": 134,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-7855179d81cbc132a2e0"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00006",
+      "sequence": 6,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+      "idempotency_key": "7725d0064b87586cd435b430cff7b5d8afcd055f7ccbf3b68d536a439e528bf1",
+      "decision_id": "D-b27f48c1ab714ddd",
+      "request_id": "MR-aabacec5272247ed",
+      "started_at": "2026-09-13T12:54:20.576+00:00",
+      "ended_at": "2026-09-13T12:54:20.652+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/store.py",
+            "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/x-python",
+            "size_bytes": 1789,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+            "source_ref": "document_index/store.py",
+            "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1789,
+            "core_start": 0,
+            "core_end": 1789,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 412
+          },
+          "start_byte": 0,
+          "end_byte": 1789,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1789,
+          "observed_tokens": 412,
+          "source_start_line": 1,
+          "source_end_line": 30
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-37557bdcdc61b103b15e"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00007",
+      "sequence": 7,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "test_query_limit.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "test_query_limit.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+      "idempotency_key": "864be0b557bb1555611118f99188747811b4881b9acb28e3719611a9c69412c1",
+      "decision_id": "D-1a0cedca8fd944a1",
+      "request_id": "MR-b281485a8bd64955",
+      "started_at": "2026-09-13T12:54:46.458+00:00",
+      "ended_at": "2026-09-13T12:54:46.511+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "test_query_limit.py",
+            "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "media_type": "text/x-python",
+            "size_bytes": 1725,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f89624455eda026a",
+            "source_ref": "test_query_limit.py",
+            "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1725,
+            "core_start": 0,
+            "core_end": 1725,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 488
+          },
+          "start_byte": 0,
+          "end_byte": 1725,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1725,
+          "observed_tokens": 488,
+          "source_start_line": 1,
+          "source_end_line": 31
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-cae4ca39d4f9272a5efc"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00008",
+      "sequence": 8,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "index_cli.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "index_cli.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+      "idempotency_key": "1677b9c455fcbc1280af395cb5e220232b39149a4729e48a4c81bddca01dde41",
+      "decision_id": "D-482b8a3447e84738",
+      "request_id": "MR-39bfb690ee6d460a",
+      "started_at": "2026-09-13T12:55:15.235+00:00",
+      "ended_at": "2026-09-13T12:55:15.293+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "index_cli.py",
+            "sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "media_type": "text/x-python",
+            "size_bytes": 1415,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-4babbd3ea4b73730",
+            "source_ref": "index_cli.py",
+            "source_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1415,
+            "core_start": 0,
+            "core_end": 1415,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 349
+          },
+          "start_byte": 0,
+          "end_byte": 1415,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1415,
+          "observed_tokens": 349,
+          "source_start_line": 1,
+          "source_end_line": 33
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-cf24908df1485ac37500"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "1c9f61ae47603a67d82aa52210d1eb48fc9f8c8a5d5a61bf2432e1d06ef2ada2",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00009",
+      "sequence": 9,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+      "idempotency_key": "cb1e9efb785cf2e84ec1b4669dfcfa68f2520a8c65b686ad06bc19933c4b1245",
+      "decision_id": "D-05ac12c67dae41d5",
+      "request_id": "MR-d07296aa8bc94079",
+      "started_at": "2026-09-13T12:55:39.506+00:00",
+      "ended_at": "2026-09-13T12:55:39.567+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/store.py",
+            "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/x-python",
+            "size_bytes": 1789,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+            "source_ref": "document_index/store.py",
+            "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1789,
+            "core_start": 0,
+            "core_end": 1789,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 412
+          },
+          "start_byte": 0,
+          "end_byte": 1789,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1789,
+          "observed_tokens": 412,
+          "source_start_line": 1,
+          "source_end_line": 30
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-9e85f2b3b04887ae29b4"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00010",
+      "sequence": 10,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "cad60f69767b6f2463721c4470b1ecb08f699266701070aa83532fec81ac6ff2",
+      "decision_id": "D-9f3702128e994ec8",
+      "request_id": "MR-a5338fc4eb754d23",
+      "started_at": "2026-09-13T12:56:04.742+00:00",
+      "ended_at": "2026-09-13T12:56:04.808+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/x-python",
+            "size_bytes": 510,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 510,
+            "core_start": 0,
+            "core_end": 510,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 134
+          },
+          "start_byte": 0,
+          "end_byte": 510,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 510,
+          "observed_tokens": 134,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-4e483de6638792c84c38"
+      ],
+      "workspace_digest_before": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "workspace_digest_after": "df6dd1fd56d1716e5e920fc54f631e7808d7fa2759d951e7d3d618e1b17cf961",
+      "failure_key": "",
+      "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 336.57197987206746
+}

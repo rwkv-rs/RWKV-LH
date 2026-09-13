@@ -1,0 +1,38 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "query-limit",
+    "user_request": "为这个文档索引工具增加可选的查询结果数量限制。Python 查询函数 query(database, text, limit=None) 在 limit 为正整数时按原有路径排序返回最多 limit 个匹配；省略或 None 保持原行为，count 表示本次实际返回的条数；0 或负数抛出 ValueError。CLI query 增加 --limit 参数并实际传给查询函数，无效值返回非零退出码。保持 sync、status 和默认查询兼容。工作区提供 test_query_limit.py，可运行 python3 -B test_query_limit.py 验证。自行阅读、修改并验证，最后如实说明修改与实际测试结果。",
+    "kind": "retrospective",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "0eed88b765041af8a1d9bfff3c74df0a455d1c774870a1e5c0e659dc026ffc5c",
+      "sampling": "49ce8630a8c53d30a76903e59a45b175f79034a9791bb97c58592eb8842eac15",
+      "state": "f22e34b51430e6e2a2ce140a60aaf12fe476b222996457a9ec9d644f88af4d93",
+      "budget": "75aa8103bb8f03238cf0a4ac8f2cf0bd46bfb0758d3e19fdc4e2944a941cb33e"
+    },
+    "requirements": [
+      {
+        "id": "behavior",
+        "user_quote": "保持 sync、status 和默认查询兼容",
+        "outcome": "已冻结的行为测试通过，CLI 和函数行为满足原任务；不限定补丁路径",
+        "level": "essential",
+        "missing_effect": "用户要求的行为或真实交付缺失",
+        "acceptance": "已冻结的行为测试通过，CLI 和函数行为满足原任务；不限定补丁路径",
+        "omission_policy": "允许等价实现及措辞；一般语法细节可省略"
+      },
+      {
+        "id": "report",
+        "user_quote": "最后如实说明修改与实际测试结果",
+        "outcome": "原始回答准确说明交付与本轮真实测试，不把建议或外部测试当作自己已运行",
+        "level": "essential",
+        "missing_effect": "用户要求的行为或真实交付缺失",
+        "acceptance": "原始回答准确说明交付与本轮真实测试，不把建议或外部测试当作自己已运行",
+        "omission_policy": "允许等价实现及措辞；一般语法细节可省略"
+      }
+    ]
+  },
+  "sha256": "568bca7e2c45259279774d54f06a81b598c4a5e1c34f66f75a89c5468ebc6272"
+}
