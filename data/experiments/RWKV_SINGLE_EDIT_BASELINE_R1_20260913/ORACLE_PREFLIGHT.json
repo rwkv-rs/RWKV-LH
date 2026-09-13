@@ -1,0 +1,166 @@
+[
+  {
+    "case": "http_status",
+    "kind": "original",
+    "result": {
+      "case": "http_status",
+      "passed": false,
+      "checks": {
+        "health_preserved": true,
+        "unknown_get_behavior": false,
+        "json_headers": true,
+        "default_host": true,
+        "explicit_host": true
+      },
+      "details": {}
+    }
+  },
+  {
+    "case": "http_status",
+    "kind": "corrected",
+    "result": {
+      "case": "http_status",
+      "passed": true,
+      "checks": {
+        "health_preserved": true,
+        "unknown_get_behavior": true,
+        "json_headers": true,
+        "default_host": true,
+        "explicit_host": true
+      },
+      "details": {}
+    }
+  },
+  {
+    "case": "default_host",
+    "kind": "original",
+    "result": {
+      "case": "default_host",
+      "passed": false,
+      "checks": {
+        "health_preserved": true,
+        "unknown_get_behavior": true,
+        "json_headers": true,
+        "default_host": false,
+        "explicit_host": true
+      },
+      "details": {}
+    }
+  },
+  {
+    "case": "default_host",
+    "kind": "corrected",
+    "result": {
+      "case": "default_host",
+      "passed": true,
+      "checks": {
+        "health_preserved": true,
+        "unknown_get_behavior": true,
+        "json_headers": true,
+        "default_host": true,
+        "explicit_host": true
+      },
+      "details": {}
+    }
+  },
+  {
+    "case": "recursive_md",
+    "kind": "original",
+    "result": {
+      "case": "recursive_md",
+      "passed": false,
+      "checks": {
+        "recursive_coverage": false,
+        "fields_and_content": true,
+        "root_md_preserved": true,
+        "empty_directory": true
+      },
+      "details": {
+        "rows": [
+          {
+            "path": "top.md",
+            "content": "TOP",
+            "digest": "07b4ed8e4e4eadcc7ffe05d41b5717255ae72a4881893e1d69e13889631c846f",
+            "search": "top",
+            "mtime": 1789296421875249850
+          }
+        ]
+      }
+    }
+  },
+  {
+    "case": "recursive_md",
+    "kind": "corrected",
+    "result": {
+      "case": "recursive_md",
+      "passed": true,
+      "checks": {
+        "recursive_coverage": true,
+        "fields_and_content": true,
+        "root_md_preserved": true,
+        "empty_directory": true
+      },
+      "details": {
+        "rows": [
+          {
+            "path": "bottom.md",
+            "content": "BAD�",
+            "digest": "87d8cacb7462284998c1a2dbea9456a9fbb38f6f49927bbe2ff9a17486f1cc50",
+            "search": "bad�",
+            "mtime": 1789296421928480686
+          },
+          {
+            "path": "nested.md",
+            "content": "中文 Mixed",
+            "digest": "999d20613599b2a90519f4a7701313a2ea576cfbe8fec060739725877b8834d3",
+            "search": "中文 mixed",
+            "mtime": 1789296421928449561
+          },
+          {
+            "path": "top.md",
+            "content": "TOP",
+            "digest": "07b4ed8e4e4eadcc7ffe05d41b5717255ae72a4881893e1d69e13889631c846f",
+            "search": "top",
+            "mtime": 1789296421928398090
+          }
+        ]
+      }
+    }
+  },
+  {
+    "case": "descending_keys",
+    "kind": "original",
+    "result": {
+      "case": "descending_keys",
+      "passed": false,
+      "checks": {
+        "v1_descending": false,
+        "v1_values": true,
+        "v1_empty": true,
+        "v2_descending": false,
+        "v2_values": true,
+        "v2_empty": true,
+        "boolean_preserved": true
+      },
+      "details": {}
+    }
+  },
+  {
+    "case": "descending_keys",
+    "kind": "corrected",
+    "result": {
+      "case": "descending_keys",
+      "passed": true,
+      "checks": {
+        "v1_descending": true,
+        "v1_values": true,
+        "v1_empty": true,
+        "v2_descending": true,
+        "v2_values": true,
+        "v2_empty": true,
+        "boolean_preserved": true
+      },
+      "details": {}
+    }
+  }
+]

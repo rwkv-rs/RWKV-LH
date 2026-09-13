@@ -1,0 +1,9 @@
+{
+  "action_type": "write_file",
+  "arguments": {
+    "content": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+    "path": "document_index/documents.py",
+    "overwrite": true,
+    "create_parents": true
+  }
+}

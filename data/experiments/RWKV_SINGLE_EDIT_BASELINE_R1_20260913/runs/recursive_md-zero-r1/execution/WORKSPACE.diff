@@ -1,0 +1,17 @@
+--- before/document_index/documents.py
++++ after/document_index/documents.py
+@@ -1,12 +1,13 @@
+ from __future__ import annotations
+ import hashlib
++import pathlib
+ 
+ def normalize(value):
+     return value.lower()
+ 
+ def collect(root):
+     rows = []
+-    for path in sorted(root.glob('*.md')):
++    for path in sorted(root.glob('**/*.md')):
+         content = path.read_bytes()
+         text = content.decode('utf-8', errors='replace')
+         rows.append({'path': path.name, 'content': text,

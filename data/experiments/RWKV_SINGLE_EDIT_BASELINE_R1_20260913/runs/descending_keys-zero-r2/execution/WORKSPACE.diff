@@ -1,0 +1,11 @@
+--- before/config_store/values.py
++++ after/config_store/values.py
+@@ -28,7 +28,7 @@
+         version = connection.execute('PRAGMA user_version').fetchone()[0]
+         if version not in (1, 2):
+             raise ValueError('unsupported schema version')
+-        rows = connection.execute('SELECT * FROM settings ORDER BY key').fetchall()
++        rows = connection.execute('SELECT * FROM settings ORDER BY key DESC').fetchall()
+         settings = []
+         for row in rows:
+             value = decode(row['value'])

@@ -1,0 +1,378 @@
+{
+  "id": "recursive_md-zero-r1",
+  "final": null,
+  "termination": "budget",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "error": null,
+  "status": "running",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "production_full",
+  "generation_started": 6,
+  "protocol_rejections": 1,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "list_directory",
+      "arguments": {
+        "max_entries": 1024,
+        "max_tokens": 4096,
+        "path": ".",
+        "recursive": false,
+        "start_after": ""
+      },
+      "wire_arguments": {
+        "max_entries": 1024,
+        "max_tokens": 4096,
+        "path": "."
+      },
+      "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+      "idempotency_key": "9147eef81b87bc29b0f1b4392b31e08ced9f9ffdc7d2558458a67177702b3dbf",
+      "decision_id": "D-12c3c264c0f145ce",
+      "request_id": "MR-a9e8ae280488410f",
+      "started_at": "2026-09-13T10:51:47.215+00:00",
+      "ended_at": "2026-09-13T10:51:47.248+00:00",
+      "result": {
+        "action_type": "list_directory",
+        "success": true,
+        "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 2194, \"type\": \"file\"}, {\"path\": \"docs\", \"type\": \"directory\"}, {\"path\": \"document_index\", \"type\": \"directory\"}, {\"path\": \"index_cli.py\", \"size_bytes\": 1415, \"type\": \"file\"}], \"entry_count\": 4, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "path": ".",
+          "recursive": false,
+          "entries": [
+            {
+              "path": "README.md",
+              "type": "file",
+              "size_bytes": 2194
+            },
+            {
+              "path": "docs",
+              "type": "directory"
+            },
+            {
+              "path": "document_index",
+              "type": "directory"
+            },
+            {
+              "path": "index_cli.py",
+              "type": "file",
+              "size_bytes": 1415
+            }
+          ],
+          "entry_count": 4,
+          "truncated": false,
+          "next_cursor": "",
+          "complete": true
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "workspace_digest_after": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "failure_key": "",
+      "observation_fingerprint": "1be0dd7d68484668bd376ed6bb44fdd29fe977f1378b8ebada051f409d6c4bf2",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00002",
+      "sequence": 2,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/documents.py",
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/documents.py"
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "f65569718916713bc887970c6faa34abd44845c2a52ccd94855072d13df77def",
+      "decision_id": "D-92ad3f4c33ab4fb7",
+      "request_id": "MR-37cafbae2f9d498d",
+      "started_at": "2026-09-13T10:52:36.032+00:00",
+      "ended_at": "2026-09-13T10:52:36.064+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "media_type": "text/x-python",
+            "size_bytes": 492,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e4f859e6cf76011f",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 492,
+            "core_start": 0,
+            "core_end": 492,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 129
+          },
+          "start_byte": 0,
+          "end_byte": 492,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 492,
+          "observed_tokens": 129,
+          "source_start_line": 1,
+          "source_end_line": 15
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-ee4d178014e794c36237"
+      ],
+      "workspace_digest_before": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "workspace_digest_after": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "failure_key": "",
+      "observation_fingerprint": "488635fb9739fb54de5b4b14d9ec951d866bb39e0ca4f1cf0c664f9ae95dd24d",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00003",
+      "sequence": 3,
+      "status": "succeeded",
+      "action_type": "write_file",
+      "arguments": {
+        "content": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "path": "document_index/documents.py",
+        "overwrite": true,
+        "create_parents": true
+      },
+      "wire_arguments": {
+        "content": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "path": "document_index/documents.py"
+      },
+      "action_fingerprint": "8dbc1bd942f03db30b3f834e952e09cfa4cda21ccc33613fec60ff31cd151eea",
+      "idempotency_key": "312e7a3da5a93fd00e5685fdeef6b61221f3bad4c69d233968332c54e4c1197c",
+      "decision_id": "D-c1fe9d8da7d6469e",
+      "request_id": "MR-421d62a51a304f09",
+      "started_at": "2026-09-13T10:53:03.828+00:00",
+      "ended_at": "2026-09-13T10:53:03.873+00:00",
+      "result": {
+        "action_type": "write_file",
+        "success": true,
+        "output": "file written",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/x-python",
+            "size_bytes": 510,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {},
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b329c030d8ff6138972e"
+      ],
+      "workspace_digest_before": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "workspace_digest_after": "1069280804312cdfe13dd323ace4a8e4c70944c1c1d3b7a00f7307454b71aec5",
+      "failure_key": "",
+      "observation_fingerprint": "18850de83b7b5df73519167638097a316a9daa03bd5e623674198bcbe3ed4e11",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00004",
+      "sequence": 4,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/documents.py",
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/documents.py"
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "eee8ba2270a83b507c6a8700fae86c4c9b4cc12f08567c3957a2b6047847ce77",
+      "decision_id": "D-a0fb6de22a6c4ccd",
+      "request_id": "MR-851349a3a815465e",
+      "started_at": "2026-09-13T10:53:30.270+00:00",
+      "ended_at": "2026-09-13T10:53:30.303+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/x-python",
+            "size_bytes": 510,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 510,
+            "core_start": 0,
+            "core_end": 510,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 134
+          },
+          "start_byte": 0,
+          "end_byte": 510,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 510,
+          "observed_tokens": 134,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-613bfb2c0be033ddff1a"
+      ],
+      "workspace_digest_before": "1069280804312cdfe13dd323ace4a8e4c70944c1c1d3b7a00f7307454b71aec5",
+      "workspace_digest_after": "1069280804312cdfe13dd323ace4a8e4c70944c1c1d3b7a00f7307454b71aec5",
+      "failure_key": "",
+      "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00005",
+      "sequence": 5,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/query.py",
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "max_tokens": 4096,
+        "path": "document_index/query.py"
+      },
+      "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+      "idempotency_key": "0de43a310272789740aaf58ec6479200a367b35b8fcf382811b846cd3790559e",
+      "decision_id": "D-0f06af0cf08e43a3",
+      "request_id": "MR-b633d5db0c2e4330",
+      "started_at": "2026-09-13T10:53:54.593+00:00",
+      "ended_at": "2026-09-13T10:53:54.629+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text):\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/query.py",
+            "sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/x-python",
+            "size_bytes": 482,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-555293ae5997414e",
+            "source_ref": "document_index/query.py",
+            "source_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 482,
+            "core_start": 0,
+            "core_end": 482,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 116
+          },
+          "start_byte": 0,
+          "end_byte": 482,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 482,
+          "observed_tokens": 116,
+          "source_start_line": 1,
+          "source_end_line": 11
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-aeb456cafbfce43dd24b"
+      ],
+      "workspace_digest_before": "1069280804312cdfe13dd323ace4a8e4c70944c1c1d3b7a00f7307454b71aec5",
+      "workspace_digest_after": "1069280804312cdfe13dd323ace4a8e4c70944c1c1d3b7a00f7307454b71aec5",
+      "failure_key": "",
+      "observation_fingerprint": "8639ed2f3a57c69e8c1317b592c7afdb6bf2c1ef957c9abb373dc1c0509abc08",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 158.23753106902586
+}

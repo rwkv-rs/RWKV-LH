@@ -1,0 +1,11 @@
+--- before/server.py
++++ after/server.py
+@@ -16,7 +16,7 @@
+ if __name__ == '__main__':
+     parser = argparse.ArgumentParser()
+     parser.add_argument('--db', required=True)
+-    parser.add_argument('--host', default='127.0.0.1')
++    parser.add_argument('--host', default='0.0.0.0')
+     parser.add_argument('--port', type=int, required=True)
+     args = parser.parse_args()
+     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()

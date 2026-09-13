@@ -1,0 +1,9 @@
+{
+  "action_type": "write_file",
+  "arguments": {
+    "content": "from __future__ import annotations\nimport json\nimport sqlite3\n\ndef decode(text):\n    def invalid_constant(value):\n        raise ValueError('non-finite JSON number')\n    return json.loads(text, parse_constant=invalid_constant)\n\ndef value_type(value):\n    if value is None:\n        return 'null'\n    if isinstance(value, bool):\n        return 'boolean'\n    if isinstance(value, (int, float)):\n        return 'number'\n    if isinstance(value, str):\n        return 'string'\n    if isinstance(value, list):\n        return 'array'\n    if isinstance(value, dict):\n        return 'object'\n    raise ValueError('unsupported JSON value')\n\ndef read_values(database):\n    with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as connection:\n        connection.row_factory = sqlite3.Row\n        version = connection.execute('PRAGMA user_version').fetchone()[0]\n        if version not in (1, 2):\n            raise ValueError('unsupported schema version')\n        rows = connection.execute('SELECT * FROM settings ORDER BY key DESC').fetchall()\n        settings = []\n        for row in rows:\n            value = decode(row['value'])\n            settings.append({'key': row['key'], 'value': value,\n                             'value_type': row['value_type'] if version == 2 else value_type(value)})\n        return {'schema_version': version, 'settings': settings}\n",
+    "path": "config_store/values.py",
+    "overwrite": true,
+    "create_parents": true
+  }
+}
