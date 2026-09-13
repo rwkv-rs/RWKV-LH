@@ -1,0 +1,43 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_provider_without_id_requires_exact_recorded_input[True] _________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_receipt_red/test_provider_without_id_req...stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}, 'call_id': 'local-receipt-1'})
+matching_input = True
+
+    @pytest.mark.parametrize('matching_input', [True, False])
+    def test_provider_without_id_requires_exact_recorded_input(execution, matching_input):
+        output, _, envelope = execution
+        del envelope['raw_response']['id']
+        envelope['call_id'] = 'local-receipt-1'
+        state = json.loads((output / 'state_snapshot.json').read_text())
+        events = [json.loads(line) for line in (output / 'model_trace.jsonl').read_text().splitlines()]
+        start = next(e for e in events if e['type'] == 'model_session_generation_started')
+        prompt = state['model_states'][start['input_checkpoint_id']]['transcript']
+        wire = {'type': 'strong_execution_wire_request', 'call_id': 'local-receipt-1',
+                'body': {'messages': [{'role': 'system', 'content': prompt if matching_input else 'unrelated'}]}}
+        path = output / 'provider.jsonl'
+        path.write_text(json.dumps(wire) + '\n' + json.dumps(envelope) + '\n')
+        if matching_input:
+>           result = capture(output, path)
+                     ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_strong_execution_recording.py:36: in capture
+    return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+rwkv_lh/task_review.py:299: in capture_diagnostic_run
+    _require(_text(response_id) and response_id not in provider_responses,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, reason = 'ambiguous provider token usage response identity'
+
+    def _require(condition: bool, reason: str) -> None:
+        if not condition:
+>           raise ValueError(reason)
+E           ValueError: ambiguous provider token usage response identity
+
+rwkv_lh/task_review.py:38: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_strong_execution_recording.py::test_provider_without_id_requires_exact_recorded_input[True]
+1 failed, 1 passed in 1.21s

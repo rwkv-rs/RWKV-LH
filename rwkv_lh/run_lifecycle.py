@@ -59,11 +59,19 @@ def goal_self_termination_only(goal: GoalState) -> bool:
     return bool(run_lifecycle_policy_from_goal(goal)["self_termination_only"])
 
 
-def model_voluntary_completion(payload: Mapping[str, Any]) -> bool:
-    """Recognize a completion sourced from an explicit RWKV final decision."""
+def model_voluntary_completion(payload: Mapping[str, Any], *, execution_authority: str = "rwkv") -> bool:
+    """Require an explicit final from the runtime-authorized execution model.
+
+    Stored Goal policy keeps its original default RWKV authority. An explicit
+    takeover is a separate runtime authorization, never inferred from output.
+    """
 
     source = str(payload.get("output_source") or "")
     decision_id = str(payload.get("decision_id") or "")
+    if execution_authority == "strong_takeover":
+        return bool(decision_id) and source == "strong_explicit_final_answer_text"
+    if execution_authority != "rwkv":
+        return False
     return bool(decision_id) and source in {
         "rwkv_explicit_final_answer_text",
         "rwkv_parallel_finalizer_exact_candidate",

@@ -1,0 +1,221 @@
+FFFFFFF.F.............................................................F. [ 63%]
+..........................................                               [100%]
+=================================== FAILURES ===================================
+__________ test_final_causal_source_tracks_strong_execution_authority __________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_final_causal_source_track0/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_final_causal_source_tracks_strong_execution_authority(execution):
+        output, result, _ = execution
+        state = json.loads((output / 'state_snapshot.json').read_text())
+        completed = [e for e in state['causal_records'].values() if e['event_type'] == 'run_completed']
+>       assert completed[-1]['payload']['output_source'] == 'strong_explicit_final_answer_text'
+               ^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_strong_execution_recording.py:45: IndexError
+______ test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable ______
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_bound_vendor_usage_is_not0/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable(execution):
+        output, _, envelope = execution
+        path = output / 'provider.jsonl'
+        path.write_text(json.dumps(envelope) + '\n')
+        result = capture(output, path)
+>       assert result['diagnostics']['input_tokens'] == 123
+E       assert 0 == 123
+
+tests/test_strong_execution_recording.py:54: AssertionError
+__________ test_unknown_or_unbound_vendor_usage_is_rejected[missing] ___________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_or_unbound_vendor0/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'missing'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+>           with pytest.raises(ValueError, match='token usage'): capture(output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/test_strong_execution_recording.py:66: Failed
+_____________ test_unknown_or_unbound_vendor_usage_is_rejected[id] _____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_or_unbound_vendor1/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'id'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_strong_execution_recording.py:75: Failed
+___________ test_unknown_or_unbound_vendor_usage_is_rejected[model] ____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_or_unbound_vendor2/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'model'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_strong_execution_recording.py:75: Failed
+__________ test_unknown_or_unbound_vendor_usage_is_rejected[content] ___________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_or_unbound_vendor3/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'content'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_strong_execution_recording.py:75: Failed
+___________ test_unknown_or_unbound_vendor_usage_is_rejected[count] ____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_or_unbound_vendor4/execution'), {'id': 'stro...t': {...}}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'count'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_strong_execution_recording.py:75: Failed
+_______ test_explicit_takeover_keeps_raw_answer_and_separate_attribution _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_explicit_takeover_keeps_r0')
+
+    def test_explicit_takeover_keeps_raw_answer_and_separate_attribution(tmp_path):
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        output = tmp_path / 'execution'
+        result = _run_job(ReadOnlyJob('takeover', 'Answer', str(workspace), str(output)),
+            settings=replace(settings(), model='strong-test'),
+            session_factory=factory([call('final_answer', text='Original strong answer')]),
+            harness_factory=lambda: _RecordedHarness(output),
+            controller_type=LongHorizonController, allowed_scopes=('files',),
+            execution_authority='strong_takeover')
+>       assert result['final'] == 'Original strong answer'
+E       AssertionError: assert None == 'Original strong answer'
+
+tests/test_execution_authority.py:20: AssertionError
+___ test_supervisor_guidance_preserves_progressive_select_then_call_protocol ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_supervisor_guidance_prese0')
+
+    def test_supervisor_guidance_preserves_progressive_select_then_call_protocol(
+        tmp_path: Path,
+    ) -> None:
+        passed = SupervisorReview.create(
+            ReviewDisposition.PASS,
+            summary="The write and read-back support completion.",
+        )
+        supervisor = FakeSupervisor([passed])
+        controller, _, workspace, client = build(
+            tmp_path,
+            [
+                call("select_tool", name="write_file"),
+                call("write_file", path="hello.txt", content="hello"),
+                call("select_tool", name="read_file"),
+                call("read_file", path="hello.txt"),
+                call("select_tool", name="final_answer"),
+                call("final_answer", text="Created and verified hello.txt."),
+            ],
+            supervisor,
+            tool_disclosure_mode="progressive",
+        )
+    
+>       result = controller.run("RUN")
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_hybrid_supervisor.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/controller.py:275: in run
+    with self.store.controller_lease(run_id):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/contextlib.py:148: in __exit__
+    next(self.gen)
+rwkv_lh/store.py:396: in controller_lease
+    self._release_lease(identifier, owner_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.store.LongHorizonStore object at 0x7105e7af9e10>, run_id = 'RUN'
+owner_id = '06aca0d54c0e4a0c9d63d9f2b02a5b67'
+
+    def _release_lease(self, run_id: str, owner_id: str) -> None:
+        with self._transaction() as connection:
+>           connection.execute(
+                "DELETE FROM run_leases WHERE run_id = ? AND owner_id = ?",
+                (run_id, owner_id),
+            )
+E           sqlite3.OperationalError: no such table: run_leases
+
+rwkv_lh/store.py:695: OperationalError
+=========================== short test summary info ============================
+FAILED tests/test_strong_execution_recording.py::test_final_causal_source_tracks_strong_execution_authority
+FAILED tests/test_strong_execution_recording.py::test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[missing]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[id]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[model]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[content]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[count]
+FAILED tests/test_execution_authority.py::test_explicit_takeover_keeps_raw_answer_and_separate_attribution
+FAILED tests/test_hybrid_supervisor.py::test_supervisor_guidance_preserves_progressive_select_then_call_protocol
+9 failed, 105 passed in 32.44s

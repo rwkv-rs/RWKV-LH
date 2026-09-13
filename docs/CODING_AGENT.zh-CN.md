@@ -25,3 +25,5 @@
 新结果字段 `termination_reason` 与 `termination_evidence` 给出精确终止边界，避免粗分类 budget 混淆调用上限、Controller transition 上限与重复失败边界。`command_executions` 保留实际退出码和 `exited` / `not_started` / `unconfirmed`；这些字段不判断业务测试通过。续接诊断的完整命令台账包含父历史，新增次数应按 continuation.historical_actions 切分。
 
 同父 State 的可写续修目前通过实验编排验证私有挂载隔离；公共 CLI 仍是新任务入口。累计失败保留；Goal 模式下重复失败中断改为只统计本次续修 epoch（上限仍为 5），避免一次旧错就耗尽新机会。修复后固定组仍重复 cwd 错误，未恢复交付。见 [续修诊断](../data/experiments/RWKV_CODING_RECOVERY_R1_20260913/REPORT.zh-CN.md)，不能据此承诺通用断点续修已经可用。
+
+共享执行入口支持显式 `execution_authority`，strong 接管的交付与直接 Final 因果来源单列；默认 RWKV。通用外部捕获可用运行目录内 `provider_trace` 核验提供方用量，未知 token ID 不以本地代理值补齐。此接口是实验接管的记录支持，公共 CLI 仍默认 RWKV，不做自动升级决定。

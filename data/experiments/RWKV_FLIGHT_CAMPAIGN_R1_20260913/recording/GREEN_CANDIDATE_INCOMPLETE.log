@@ -1,0 +1,84 @@
+FFF.....F............................................................... [ 63%]
+..........................................                               [100%]
+=================================== FAILURES ===================================
+__________ test_final_causal_source_tracks_strong_execution_authority __________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_green/test_final_causal_source_track0/ex...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_final_causal_source_tracks_strong_execution_authority(execution):
+        output, result, _ = execution
+        state = json.loads((output / 'state_snapshot.json').read_text())
+        completed = [e for e in state['causal_records'].values() if e['event_type'] == 'run_completed']
+>       assert completed[-1]['payload']['output_source'] == 'strong_explicit_final_answer_text'
+               ^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_strong_execution_recording.py:45: IndexError
+______ test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable ______
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_green/test_bound_vendor_usage_is_not0/ex...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable(execution):
+        output, _, envelope = execution
+        path = output / 'provider.jsonl'
+        path.write_text(json.dumps(envelope) + '\n')
+>       result = capture(output, path)
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_strong_execution_recording.py:36: in capture
+    return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+rwkv_lh/task_review.py:286: in capture_diagnostic_run
+    _require(answer == (finals[-1] if finals else None), "delivery does not match original model answer")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, reason = 'delivery does not match original model answer'
+
+    def _require(condition: bool, reason: str) -> None:
+        if not condition:
+>           raise ValueError(reason)
+E           ValueError: delivery does not match original model answer
+
+rwkv_lh/task_review.py:38: ValueError
+__________ test_unknown_or_unbound_vendor_usage_is_rejected[missing] ___________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_green/test_unknown_or_unbound_vendor0/ex...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'missing'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+>           with pytest.raises(ValueError, match='token usage'): capture(output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E             Expected regex: 'token usage'
+E             Actual message: 'delivery does not match original model answer'
+
+tests/test_strong_execution_recording.py:66: AssertionError
+_______ test_explicit_takeover_keeps_raw_answer_and_separate_attribution _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_green/test_explicit_takeover_keeps_r0')
+
+    def test_explicit_takeover_keeps_raw_answer_and_separate_attribution(tmp_path):
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        output = tmp_path / 'execution'
+        result = _run_job(ReadOnlyJob('takeover', 'Answer', str(workspace), str(output)),
+            settings=replace(settings(), model='strong-test'),
+            session_factory=factory([call('final_answer', text='Original strong answer')]),
+            harness_factory=lambda: _RecordedHarness(output),
+            controller_type=LongHorizonController, allowed_scopes=('files',),
+            execution_authority='strong_takeover')
+>       assert result['final'] == 'Original strong answer'
+E       AssertionError: assert None == 'Original strong answer'
+
+tests/test_execution_authority.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_strong_execution_recording.py::test_final_causal_source_tracks_strong_execution_authority
+FAILED tests/test_strong_execution_recording.py::test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[missing]
+FAILED tests/test_execution_authority.py::test_explicit_takeover_keeps_raw_answer_and_separate_attribution
+4 failed, 110 passed in 32.04s

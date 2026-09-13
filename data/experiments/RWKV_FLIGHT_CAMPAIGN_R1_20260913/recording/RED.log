@@ -1,0 +1,254 @@
+FFFFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+__________ test_final_causal_source_tracks_strong_execution_authority __________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_final_causal_source_track0/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_final_causal_source_tracks_strong_execution_authority(execution):
+        output, result, _ = execution
+        state = json.loads((output / 'state_snapshot.json').read_text())
+        completed = [e for e in state['causal_records'].values() if e['event_type'] == 'run_completed']
+>       assert completed[-1]['payload']['output_source'] == 'strong_explicit_final_answer_text'
+E       AssertionError: assert 'rwkv_explici...l_answer_text' == 'strong_expli...l_answer_text'
+E         
+E         - strong_explicit_final_answer_text
+E         ? -- ^^^
+E         + rwkv_explicit_final_answer_text
+E         ?  ^^^
+
+tests/test_strong_execution_recording.py:45: AssertionError
+______ test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable ______
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_bound_vendor_usage_is_not0/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+
+    def test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable(execution):
+        output, _, envelope = execution
+        path = output / 'provider.jsonl'
+        path.write_text(json.dumps(envelope) + '\n')
+>       result = capture(output, path)
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_bound_vendor_usage_is_not0/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_bound_vendor_usage_is_not0/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+__________ test_unknown_or_unbound_vendor_usage_is_rejected[missing] ___________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor0/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'missing'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+>           with pytest.raises(ValueError, match='token usage'): capture(output)
+                                                                 ^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor0/execution')
+trace = None
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+_____________ test_unknown_or_unbound_vendor_usage_is_rejected[id] _____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor1/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'id'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor1/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor1/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+___________ test_unknown_or_unbound_vendor_usage_is_rejected[model] ____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor2/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'model'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor2/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor2/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+__________ test_unknown_or_unbound_vendor_usage_is_rejected[content] ___________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor3/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'content'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor3/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor3/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+___________ test_unknown_or_unbound_vendor_usage_is_rejected[count] ____________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor4/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'count'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor4/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor4/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+_________ test_unknown_or_unbound_vendor_usage_is_rejected[duplicate] __________
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor5/exec...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+corruption = 'duplicate'
+
+    @pytest.mark.parametrize('corruption', ['missing', 'id', 'model', 'content', 'count', 'duplicate'])
+    def test_unknown_or_unbound_vendor_usage_is_rejected(execution, corruption):
+        output, _, original = execution
+        envelope = deepcopy(original)
+        if corruption == 'missing':
+            with pytest.raises(ValueError, match='token usage'): capture(output)
+            return
+        response = envelope['raw_response']
+        if corruption == 'id': response['id'] = 'unrelated'
+        if corruption == 'model': response['model'] = 'unrelated'
+        if corruption == 'content': response['choices'][0]['message']['content'] = 'rewritten'
+        if corruption == 'count': response['usage']['prompt_tokens'] = -1
+        path = output / 'provider.jsonl'
+        path.write_text((json.dumps(envelope) + '\n') * (2 if corruption == 'duplicate' else 1))
+>       with pytest.raises(ValueError): capture(output, path)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_strong_execution_recording.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor5/execution')
+trace = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/flight_recording_red/test_unknown_or_unbound_vendor5/execution/provider.jsonl')
+
+    def capture(output, trace=None):
+>       return review.capture_diagnostic_run(output, task_id='strong', arm='takeover', repeat=1,
+            protocol_error_policy='feedback', execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+            historical=False, assistance='strong_takeover', provider_trace=trace)
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'provider_trace'
+
+tests/test_strong_execution_recording.py:36: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_strong_execution_recording.py::test_final_causal_source_tracks_strong_execution_authority
+FAILED tests/test_strong_execution_recording.py::test_bound_vendor_usage_is_not_zero_when_exact_ids_are_unavailable
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[missing]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[id]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[model]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[content]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[count]
+FAILED tests/test_strong_execution_recording.py::test_unknown_or_unbound_vendor_usage_is_rejected[duplicate]
+8 failed in 2.85s

@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_completion_authority_cannot_be_inferred_from_a_source_label _______
+
+    def test_completion_authority_cannot_be_inferred_from_a_source_label():
+        from rwkv_lh.run_lifecycle import model_voluntary_completion
+        payload = {'decision_id': 'D1', 'output_source': 'strong_explicit_final_answer_text'}
+        assert not model_voluntary_completion(payload)
+>       assert model_voluntary_completion(payload, execution_authority='strong_takeover')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: model_voluntary_completion() got an unexpected keyword argument 'execution_authority'
+
+tests/test_strong_execution_recording.py:82: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_strong_execution_recording.py::test_completion_authority_cannot_be_inferred_from_a_source_label
+1 failed in 0.03s

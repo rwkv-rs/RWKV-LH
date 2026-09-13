@@ -1,3 +1,12 @@
+# 当前进展：执行归属与用量捕获已补齐，额外 bug 检查对照运行中（2026-09-13）
+
+- 直接 Final 来源与 Goal 完成校验按显式执行授权判断；默认 RWKV，标签不能伪造接管授权。
+- 统一审核捕获支持 hash 绑定的 provider 回执；无精确 token ID 不再崩溃/记零。真实 strong 两次35100 token与原账一致，四个native调用/token原值保持，无新模型调用或旧评分变更。
+- 修正夹具后的有效红绿回归，相关117 passed，全量1618 passed/零跳过；失败候选和原日志保留。
+- [报告](../data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/recording/REPORT.zh-CN.md)，SHA `ac0cd0cb34b6aedb84f9c20a5c727de13e4dc6205a32e3c752646f31a37b6072`。正在复用两份真实失败补丁做只读检查与串行/并发2对照；不扩strong额度、不训练。
+
+---
+
 # 当前进展：显式接管已真实运行，固定任务仍未合格（2026-09-13）
 
 - strong_takeover 有效 0/1 合格、1 部分满足；改动 2 文件、实际启动测试但失败，无最终回答；另 1 初始化 invalid/0生成保留。

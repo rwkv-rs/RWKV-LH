@@ -285,12 +285,6 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
     answer = result.get("final")
     _require(answer == (finals[-1] if finals else None), "delivery does not match original model answer")
     provider_responses = {}
-    unidentified_responses = []
-    wire_requests = {}
-    generation_starts = {e["request_id"]: e for e in events
-                         if e["type"] == "model_session_generation_started"}
-    state_evidence = (json.loads((directory / "state_snapshot.json").read_text())
-                      if (directory / "state_snapshot.json").is_file() else {})
     provider_path = None
     if provider_trace is not None:
         provider_path = Path(provider_trace)
@@ -298,26 +292,14 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
                  "provider token usage evidence must be inside the run directory")
         for line in provider_path.read_text().splitlines():
             event = json.loads(line)
-            if event.get("type") == "strong_execution_wire_request":
-                call_id = event.get("call_id")
-                _require(_text(call_id) and call_id not in wire_requests,
-                         "ambiguous provider token usage wire identity")
-                wire_requests[call_id] = event.get("body", {})
             if event.get("type") != "supervisor_response_envelope_received":
                 continue
             response = event.get("raw_response", {})
             response_id = response.get("id")
-            if not response_id:
-                call_id = event.get("call_id")
-                _require(_text(call_id) and all(key != call_id for key, _ in unidentified_responses),
-                         "missing or ambiguous provider token usage receipt")
-                unidentified_responses.append((call_id, response))
-                continue
             _require(_text(response_id) and response_id not in provider_responses,
                      "ambiguous provider token usage response identity")
             provider_responses[response_id] = response
-    input_tokens = output_tokens = provider_calls = input_bound_calls = 0
-    consumed_receipts = set()
+    input_tokens = output_tokens = provider_calls = 0
     for generation in generations:
         inputs, outputs = generation.get("prompt_token_ids"), generation.get("raw_token_ids")
         if isinstance(inputs, list) and isinstance(outputs, list):
@@ -325,34 +307,16 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
             output_tokens += len(outputs)
             continue
         response = provider_responses.get(generation.get("response_id"))
-        if not generation.get("response_id"):
-            start = generation_starts.get(generation.get("request_id"), {})
-            checkpoint = state_evidence.get("model_states", {}).get(start.get("input_checkpoint_id"), {})
-            prompt = checkpoint.get("transcript")
-            matches = []
-            for call_id, candidate_response in unidentified_responses:
-                messages = wire_requests.get(call_id, {}).get("messages", [])
-                if (isinstance(prompt, str) and messages
-                        and messages[0] == {"role": "system", "content": prompt}):
-                    matches.append((call_id, candidate_response))
-            _require(len(matches) == 1 and matches[0][0] not in consumed_receipts,
-                     "provider token usage requires a unique exact input receipt")
-            receipt_id, response = matches[0]
-            consumed_receipts.add(receipt_id)
-            input_bound_calls += 1
         _require(response is not None, "exact token IDs unavailable; bound provider token usage required")
         choices = response.get("choices")
         _require(isinstance(choices, list) and len(choices) == 1 and isinstance(choices[0], dict),
                  "provider token usage requires one original response choice")
         choice = choices[0]
-        _require(_text(generation.get("response_model"))
-                 and isinstance(choice.get("message"), dict)
-                 and response.get("model") == generation.get("response_model")
+        _require(response.get("model") == generation.get("response_model")
                  and choice.get("message", {}).get("content") == generation.get("raw_output")
                  and choice.get("finish_reason") == generation.get("finish_reason"),
                  "provider token usage does not bind the original model response")
         usage = response.get("usage", {})
-        _require(isinstance(usage, dict), "provider token usage must be an object")
         counts = [usage.get("prompt_tokens"), usage.get("completion_tokens")]
         _require(all(type(value) is int and value >= 0 for value in counts),
                  "provider token usage requires non-negative integer counts")
@@ -389,6 +353,5 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
         "diagnostics": {"model_calls": len(generations), "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             **({"provider_usage_calls": provider_calls} if provider_calls else {}),
-            **({"provider_input_bound_calls": input_bound_calls} if input_bound_calls else {}),
             "protocol_rejections": rejected, "feedback_consumed": len(feedback),
             "tool_errors": sum(not a["result"]["success"] for a in result.get("actions", []))}}

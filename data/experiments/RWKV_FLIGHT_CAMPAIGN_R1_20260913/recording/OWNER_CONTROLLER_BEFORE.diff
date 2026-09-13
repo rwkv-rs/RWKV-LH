@@ -1,0 +1,149 @@
+diff --git a/rwkv_lh/controller.py b/rwkv_lh/controller.py
+index 480db2ee..bd7a1077 100644
+--- a/rwkv_lh/controller.py
++++ b/rwkv_lh/controller.py
+@@ -3773,17 +3773,36 @@ class LongHorizonController:
+         if directive.disposition == DirectiveDisposition.ACCEPT_FINAL:
+             return self._recover_accepted_online_final(state, directive, transitions)
+ 
+-        pending_action_event = self._first_unappended_action_observation(state)
++        pending_action_event = next(
++            (
++                self._action_observation_event(state, action)
++                for action in wave_actions
++                if f"EV-ACTION-{action.action_id}" not in state.model_events
++            ),
++            None,
++        )
+         if pending_action_event is not None:
+             pending_events.append(pending_action_event)
+-        directive_event = self._online_directive_event(directive)
+-        if directive_event.event_id not in state.model_events:
+-            pending_events.append(directive_event)
++        pending_directive: SupervisorDirective | None = directive
+ 
+         terminal_reason = ""
+         transport_failures = 0
+         while transitions < self.max_transitions:
+             try:
++                if pending_directive is not None:
++                    actor_state_started = self._ensure_online_atomic_actor_state(
++                        state,
++                        pending_directive,
++                    )
++                    directive_event = self._online_directive_event(
++                        state,
++                        pending_directive,
++                    )
++                    if actor_state_started:
++                        pending_events = []
++                    if directive_event.event_id not in state.model_events:
++                        pending_events.append(directive_event)
++                    pending_directive = None
+                 if len(pending_events) > 1:
+                     decision = self.model.next_command(
+                         state,
+@@ -3897,9 +3916,7 @@ class LongHorizonController:
+                     directive = boundary
+                     wave_actions = []
+                     wave_rejections = []
+-                    pending_events.append(
+-                        self._online_directive_event(directive)
+-                    )
++                    pending_directive = directive
+                 continue
+ 
+             transitions += 1
+@@ -3928,7 +3945,7 @@ class LongHorizonController:
+                     )
+                 wave_actions = []
+                 wave_rejections = []
+-                pending_events = [self._online_directive_event(directive)]
++                pending_directive = directive
+                 continue
+ 
+             action = self._execute_decision(state, decision)
+@@ -3948,7 +3965,7 @@ class LongHorizonController:
+                 directive = boundary
+                 wave_actions = []
+                 wave_rejections = []
+-                pending_events.append(self._online_directive_event(directive))
++                pending_directive = directive
+         if not terminal_reason:
+             terminal_reason = "transition_budget_exhausted"
+         return self._interrupt_online_run(state, terminal_reason, transitions)
+@@ -4265,7 +4282,63 @@ class LongHorizonController:
+         self._persist_supervisor_resolved(state, phase="directive")
+         return directive
+ 
+-    def _online_directive_event(self, directive: SupervisorDirective) -> ModelEvent:
++    @staticmethod
++    def _online_directive_commit_payload(
++        state: RunState,
++        directive: SupervisorDirective,
++    ) -> Mapping[str, Any]:
++        for event_id in reversed(state.causal_order):
++            event = state.causal_records[event_id]
++            if (
++                event.event_type == "supervisor_directive_committed"
++                and str(event.payload.get("directive_id") or "")
++                == directive.directive_id
++            ):
++                return event.payload
++        raise ValueError("online directive has no committed causal record")
++
++    def _ensure_online_atomic_actor_state(
++        self,
++        state: RunState,
++        directive: SupervisorDirective,
++    ) -> bool:
++        """Bind one fresh RWKV State exactly once to one committed microtask."""
++
++        if directive.disposition != DirectiveDisposition.CONTINUE:
++            raise ValueError("only a continue directive can start an Actor State")
++        for event_id in reversed(state.causal_order):
++            event = state.causal_records[event_id]
++            if event.event_type != "action_session_started":
++                continue
++            if str(event.payload.get("atomic_task_ref") or "") != directive.directive_id:
++                continue
++            checkpoint_id = str(event.payload.get("checkpoint_id") or "")
++            if checkpoint_id not in state.model_states:
++                raise ValueError("committed atomic Actor State checkpoint is missing")
++            return False
++
++        commit = self._online_directive_commit_payload(state, directive)
++        worker_outcome = commit.get("worker_outcome")
++        action_ids = (
++            tuple(str(item) for item in worker_outcome.get("action_ids") or ())
++            if isinstance(worker_outcome, Mapping)
++            else ()
++        )
++        self.model.start_atomic_actor_state(
++            state,
++            self._persist_callback,
++            task_ref=directive.directive_id,
++            focus_text=directive.microtask_objective,
++            fact_action_ids=action_ids,
++        )
++        return True
++
++    def _online_directive_event(
++        self,
++        state: RunState,
++        directive: SupervisorDirective,
++    ) -> ModelEvent:
++        committed = self._online_directive_commit_payload(state, directive)
+         return ModelEvent(
+             event_type="supervisor_microtask",
+             event_id=f"EV-SUPERVISOR-{directive.directive_id}",
+@@ -4274,6 +4347,9 @@ class LongHorizonController:
+                 "source": "external_strong_model_supervisor",
+                 "authority": "online_planning_and_review_only",
+                 "directive": directive.to_dict(),
++                "reviewed_worker_outcome": dict(
++                    committed.get("worker_outcome") or {}
++                ),
+                 "instruction": (
+                     "Work only on this one microtask now. You remain the only component that "
+                     "selects and executes operations. Choose one displayed direct operation "

@@ -211,7 +211,8 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
                 RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document('goal')})
             state = store.create_run(goal, run_id=job.task_id)
         controller = controller_type(store, model=model, harness=harness,
-                                         max_transitions=job.max_calls, min_actions=0)
+                                         max_transitions=job.max_calls, min_actions=0,
+                                         execution_authority=execution_authority)
         _save(output / 'goal.json', state.goal.to_dict())
         if continuation is not None and job.reconsider_from:
             from .summary_advice import make_advice_event
