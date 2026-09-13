@@ -1,0 +1,86 @@
+{
+  "patterns": [
+    {
+      "id": "argument_roles",
+      "status": "observed behavior, mechanism not established",
+      "finding": "宽目标下把workspace/文档示例/测试脚本混作cwd、数据库或可执行程序；真实错误后重复。窄目标指定测试四次选对python和cwd=.，不能说完全不会调用命令。",
+      "evidence": [
+        {
+          "path": "comparison/retry_runs/independent-r1/execution/RESULT.json",
+          "sha256": "53e1b61321a662d20374fe71135ac91e8f1d5786383e184fed6d40c94967dd78"
+        },
+        {
+          "path": "goal_restatement/runs/artifact-b-restated-r2/execution/RESULT.json",
+          "sha256": "a3886e11537ab1fdbc541b946e578c895512b43747bc6f3978e5712cfdad0654"
+        }
+      ]
+    },
+    {
+      "id": "requirements_vs_execution",
+      "status": "observed material false claim",
+      "finding": "读取目标相关文件后把需求描述为已经实现，又声称未运行的测试已通过。目标重述候选未达到门，已移除。",
+      "evidence": [
+        {
+          "path": "goal_restatement/runs/artifact-a-restated-r1/execution/RESULT.json",
+          "sha256": "2425808412c240866dc0c79cbc85b4b74a4ec23e11349bf4bb7018721b403979"
+        }
+      ]
+    },
+    {
+      "id": "exception_attribution",
+      "status": "observed unsupported localization",
+      "finding": "实际失败和异常文本判断正确，但把根因说成normalize或SQL；原源码行中有fetchmany(-1)，独立运行时重现其ValueError。",
+      "evidence": [
+        {
+          "path": "focused_test/runs/case-b-focused-r1/execution/RESULT.json",
+          "sha256": "bedbe1820b6ba8d6830321fc4ce3ba28d1ed91a5e5a806048fb0599b79c2cf0c"
+        },
+        {
+          "path": "focused_test/runs/case-b-focused-r2/execution/RESULT.json",
+          "sha256": "55cc6c8455c4ed1c09db53fbeb60f59642e065931291f2ae296003148e98465f"
+        }
+      ]
+    },
+    {
+      "id": "framework_vs_target_exit",
+      "status": "observed evidence interpretation boundary",
+      "finding": "强模型外层命令0而内部测试1；另有bwrap执行失败退出1与模型预期1匹配。工具success或外层退出不证明目标测试通过。",
+      "evidence": [
+        {
+          "path": "takeover/retry_run/execution/RESULT.json",
+          "sha256": "8024c82408ac1623561b8295830fb81435e87f6bbdec710b947c3fe89d03c314"
+        },
+        {
+          "path": "goal_restatement/runs/artifact-b-original-r2/execution/RESULT.json",
+          "sha256": "c0676c68b289f577ddfacdd92632f7eaf15e16476219f9f5c40bed1aeb73d0fb"
+        }
+      ]
+    },
+    {
+      "id": "state_delivery",
+      "status": "verified declared lineage, not numerical equivalence",
+      "finding": "已返回输入、观察及声明父子关系核验；未发现这些失败由观察丢失/重复或接错父State造成的证据。",
+      "evidence": [
+        {
+          "path": "comparison/MECHANICAL_AUDIT.json",
+          "sha256": "3e8d9ee5b1f0cc51bc66ed02e19025a0c040ed91d9e465a99ee053a85c62b5cf"
+        },
+        {
+          "path": "bug_review/MECHANICAL.json",
+          "sha256": "7792b267ee16ee1d90512e7a323b657c9d2fd08a82bb64ede208306372815ec9"
+        },
+        {
+          "path": "focused_test/MECHANICAL.json",
+          "sha256": "57c7f5a051ee8078361fc24ef7b6e059a025dfc0eb8f2a91f0eb73ab16108703"
+        },
+        {
+          "path": "goal_restatement/MECHANICAL.json",
+          "sha256": "db9428b7e88b9f7c9e0e6cdf38986738595abbc1be74233a51b7ee008ba3f6e5"
+        }
+      ]
+    }
+  ],
+  "hypothesis": "参数用途混用与事实来源混淆可能是跨阶段共性；尚未证明统一模型机制或某输入格式根因。",
+  "training_boundary": "本文件是实验归因记录，不是新数据集/训练样本；相同材料重复不计为独立20例覆盖。工程/评分/工具故障不得作为模型纠正金标；强模型失败补丁非金标，NO_KEEP输入候选不直接重放为当前生产训练输入。",
+  "next": "先验证真实失败测试与相关源码之间的忠实诊断，再扩展修复闭环；强模型阶段匹配帮助和已有合格任务并发可独立开展。"
+}

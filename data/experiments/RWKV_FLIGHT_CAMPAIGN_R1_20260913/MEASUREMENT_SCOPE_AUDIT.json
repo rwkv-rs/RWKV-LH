@@ -1,0 +1,40 @@
+{
+  "prior_three_tracks_batches": [
+    {
+      "path": "data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/concurrency/parallel-r1.json",
+      "sha256": "0936084cd3a6352747d52e827aa6cb5a1844e38292cba91c30fc4910383f3bf1",
+      "outer_monotonic_seconds": 142.98790645599365,
+      "contained_lower_bound_seconds": 141.69600807793904,
+      "valid_containment": true
+    },
+    {
+      "path": "data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/concurrency/parallel-r2.json",
+      "sha256": "5b9158ad5e7eac118963d715d9567dded3a1c31f7cbf431adb24dbabc97d81e8",
+      "outer_monotonic_seconds": 145.00183154898696,
+      "contained_lower_bound_seconds": 143.79113320005126,
+      "valid_containment": true
+    },
+    {
+      "path": "data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/concurrency/serial-r1.json",
+      "sha256": "5c70ffc4d243c194b6af6e895db2d27e8a95b2257590c973baab8ff3c4b70f31",
+      "outer_monotonic_seconds": 201.87071376899257,
+      "contained_lower_bound_seconds": 201.85579984192736,
+      "valid_containment": true
+    },
+    {
+      "path": "data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/concurrency/serial-r2.json",
+      "sha256": "dc959a9c6f6a4a5cbfc232e02566eca060004c4a58694a951de06bbea8e51125",
+      "outer_monotonic_seconds": 202.635115886922,
+      "contained_lower_bound_seconds": 202.62928112386726,
+      "valid_containment": true
+    }
+  ],
+  "source_checks": {
+    "rwkv_lh/read_only_agent.py": "eb8ff483ac7cb045c33fe655822cad0320f6af5bbea28de9246c97496374075e",
+    "temp/run_three_tracks_r1_20260913.py": "c9e644ec3b7b4e074d7994ab95cd1b7b0b2cd5c8cb04853148243d6e9a500bf4",
+    "temp/run_flight_bug_review_20260913.py": "af3b96c249e940015c3b5f6895cc5c33f2fce6ebfc0976d4bba8f6f7630fb0d3",
+    "temp/run_flight_goal_restatement_20260913.py": "cf218a9f4d287b40fccb3651e57c0f3777a59ddafd2310e82fd1b9f6d430f6bf"
+  },
+  "confirmed_scope": "flight bug_review experiment wrapper used time.time, production _run_job and prior three_tracks wrapper use monotonic; new input comparison uses monotonic with containment assertions",
+  "limitations": "containment is a necessary consistency check, not complete resource metrology; prior outcomes unchanged, no quality-conditioned speedup established"
+}
