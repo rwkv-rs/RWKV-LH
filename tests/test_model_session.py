@@ -1133,7 +1133,7 @@ def test_native_session_advances_only_the_new_delta_and_marks_cache_non_authorit
     appended = session.append(bootstrap, event)
 
     assert [name for name, _ in client.calls] == ["create", "append"]
-    assert client.calls[1][1] == render_event_append(event)
+    assert client.calls[1][1] == render_event_append(event, previous_transcript=bootstrap.transcript)
     assert bootstrap.transcript not in client.calls[1][1]
     assert appended.transcript == client.calls[1][1]
     assert appended.native_state_metadata is not None

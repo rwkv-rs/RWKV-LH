@@ -1,0 +1,166 @@
+FFFF..FFFF                                                               [100%]
+=================================== FAILURES ===================================
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-False] _
+
+native = False, native_anchor = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-True] _
+
+native = True, native_anchor = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-False] _
+
+native = False, native_anchor = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-True] _
+
+native = True, native_anchor = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_______ test_multiple_events_and_fork_keep_turn_boundaries_closed[False] _______
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_multiple_events_and_fork_keep_turn_boundaries_closed(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        first = session.append(root, ModelEvent('action_result', 'E1', root.lane_id, {'output': 'one'}))
+        second = session.append(first, ModelEvent('action_result', 'E2', root.lane_id, {'output': 'two'}))
+        fork = session.fork(second, ModelLaneKind.ACTION, ModelEvent('action_result', 'E3', root.lane_id, {'output': 'three'}))
+>       assert BAD_BOUNDARY.search(actual_text(native, client, fork)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n' = actual_text(False, <test_model_session.QueueClient object at 0x74ccc62b2190>, ModelCheckpoint(checkpoint_id='CP-413c6637d2dd42eb', lane_id='L-ACTION-36056a6a8d64', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:14:41.665+00:00'))
+
+tests/test_input_generation_boundary.py:62: AssertionError
+_______ test_multiple_events_and_fork_keep_turn_boundaries_closed[True] ________
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_multiple_events_and_fork_keep_turn_boundaries_closed(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        first = session.append(root, ModelEvent('action_result', 'E1', root.lane_id, {'output': 'one'}))
+        second = session.append(first, ModelEvent('action_result', 'E2', root.lane_id, {'output': 'two'}))
+        fork = session.fork(second, ModelLaneKind.ACTION, ModelEvent('action_result', 'E3', root.lane_id, {'output': 'three'}))
+>       assert BAD_BOUNDARY.search(actual_text(native, client, fork)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n' = actual_text(True, <test_model_session.FakeNativeStateClient object at 0x74ccc62b29e0>, ModelCheckpoint(checkpoint_id='CP-b9e28c1511174c7d', lane_id='L-ACTION-acf7479b39a7', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:14:41.667+00:00'))
+
+tests/test_input_generation_boundary.py:62: AssertionError
+______ test_rollover_summary_does_not_follow_an_unclosed_bootstrap[False] ______
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_rollover_summary_does_not_follow_an_unclosed_bootstrap(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid call'})
+        rolled = session.rollover(root, assignment='Inspect.', visible_definitions=[FINAL_ANSWER_DEFINITION], events=[event], input_limit=10000, rollover_id='R1')
+>       assert BAD_BOUNDARY.search(actual_text(native, client, rolled)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n' = actual_text(False, <test_model_session.QueueClient object at 0x74ccc62b1a70>, ModelCheckpoint(checkpoint_id='CP-590465f560e64595', lane_id='L-ACTION-a3bfbc1d9bbc', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:14:41.669+00:00'))
+
+tests/test_input_generation_boundary.py:72: AssertionError
+______ test_rollover_summary_does_not_follow_an_unclosed_bootstrap[True] _______
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_rollover_summary_does_not_follow_an_unclosed_bootstrap(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid call'})
+        rolled = session.rollover(root, assignment='Inspect.', visible_definitions=[FINAL_ANSWER_DEFINITION], events=[event], input_limit=10000, rollover_id='R1')
+>       assert BAD_BOUNDARY.search(actual_text(native, client, rolled)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x10f24730>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x10f24730> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n' = actual_text(True, <test_model_session.FakeNativeStateClient object at 0x74ccc62b15b0>, ModelCheckpoint(checkpoint_id='CP-7b7fd3122f9748a5', lane_id='L-ACTION-934eaa8676eb', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:14:41.670+00:00'))
+
+tests/test_input_generation_boundary.py:72: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-False]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-True]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-False]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-True]
+FAILED tests/test_input_generation_boundary.py::test_multiple_events_and_fork_keep_turn_boundaries_closed[False]
+FAILED tests/test_input_generation_boundary.py::test_multiple_events_and_fork_keep_turn_boundaries_closed[True]
+FAILED tests/test_input_generation_boundary.py::test_rollover_summary_does_not_follow_an_unclosed_bootstrap[False]
+FAILED tests/test_input_generation_boundary.py::test_rollover_summary_does_not_follow_an_unclosed_bootstrap[True]
+8 failed, 2 passed in 0.67s

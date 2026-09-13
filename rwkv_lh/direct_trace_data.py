@@ -98,7 +98,8 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
                 event_id = delta_events[0]
                 core.require(event_id not in used_events and event_id in state.model_events, 'missing/repeated observation')
                 used_events.add(event_id)
-                expected = model_io.render_event_append(state.model_events[event_id])
+                expected = model_io.render_event_append(state.model_events[event_id],
+                    previous_transcript=state.model_states[cp.parent_checkpoint_id].transcript)
                 core.require(expected == cp.transcript, 'production observation replay differs')
                 ids.extend(tokenizer().encode(expected))
             else:

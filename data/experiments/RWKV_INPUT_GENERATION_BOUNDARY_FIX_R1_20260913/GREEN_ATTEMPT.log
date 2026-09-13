@@ -1,0 +1,201 @@
+....FF............................................................F..... [ 92%]
+......                                                                   [100%]
+=================================== FAILURES ===================================
+_____ test_committed_response_does_not_gain_an_extra_closing_fence[False] ______
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+>           value = json.loads(text)
+                    ^^^^^^^^^^^^^^^^
+
+rwkv_lh/model_io.py:606: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7430bb4578c0>
+s = '{"function":"final_answer","params":{"text":"original"}}\n```'
+_w = <built-in method match of re.Pattern object at 0x7430bb34c790>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 2 column 1 (char 57)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_committed_response_does_not_gain_an_extra_closing_fence(native):
+        output = ModelCommand('final_answer', {'text': 'original'}).canonical + '\n```'
+        session, client = session_pair(native, [output])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        candidate = session.generate(root, max_output_tokens=100)
+>       parent = session.commit(candidate, session.parse(candidate))
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_input_generation_boundary.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model_session.py:724: in parse
+    return parse_model_command(parse_source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model_io.py:715: in parse_model_command
+    command, _ = parse_model_command_with_trace(raw_output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as original_exc:
+            repaired = _repair_structural_escaped_quotes(text)
+            if repaired is None:
+>               raise ModelIOError(
+                    f"model output is not one JSON object: {original_exc}"
+                ) from original_exc
+E               rwkv_lh.model_io.ModelIOError: model output is not one JSON object: Extra data: line 2 column 1 (char 57)
+
+rwkv_lh/model_io.py:610: ModelIOError
+______ test_committed_response_does_not_gain_an_extra_closing_fence[True] ______
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+>           value = json.loads(text)
+                    ^^^^^^^^^^^^^^^^
+
+rwkv_lh/model_io.py:606: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7430bb4578c0>
+s = '{"function":"final_answer","params":{"text":"original"}}\n```'
+_w = <built-in method match of re.Pattern object at 0x7430bb34c790>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 2 column 1 (char 57)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_committed_response_does_not_gain_an_extra_closing_fence(native):
+        output = ModelCommand('final_answer', {'text': 'original'}).canonical + '\n```'
+        session, client = session_pair(native, [output])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        candidate = session.generate(root, max_output_tokens=100)
+>       parent = session.commit(candidate, session.parse(candidate))
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_input_generation_boundary.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model_session.py:724: in parse
+    return parse_model_command(parse_source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model_io.py:715: in parse_model_command
+    command, _ = parse_model_command_with_trace(raw_output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as original_exc:
+            repaired = _repair_structural_escaped_quotes(text)
+            if repaired is None:
+>               raise ModelIOError(
+                    f"model output is not one JSON object: {original_exc}"
+                ) from original_exc
+E               rwkv_lh.model_io.ModelIOError: model output is not one JSON object: Extra data: line 2 column 1 (char 57)
+
+rwkv_lh/model_io.py:610: ModelIOError
+_ test_native_session_advances_only_the_new_delta_and_marks_cache_non_authoritative _
+
+    def test_native_session_advances_only_the_new_delta_and_marks_cache_non_authoritative() -> None:
+        client = FakeNativeStateClient([])
+        session = NativeRWKVModelSession(client, settings=settings())
+        bootstrap = session.bootstrap(
+            ModelLaneKind.ACTION,
+            "Inspect a real workspace file.",
+            [FINAL_ANSWER_DEFINITION],
+            lane_id="LANE:DELTA",
+        )
+        event = ModelEvent(
+            "action_result",
+            "EV-DELTA-1",
+            "LANE:DELTA",
+            {"action_id": "A-1", "result": {"success": True, "output": "ok"}},
+        )
+    
+        appended = session.append(bootstrap, event)
+    
+        assert [name for name, _ in client.calls] == ["create", "append"]
+>       assert client.calls[1][1] == render_event_append(event)
+E       assert '\n```\n\n\nU...nt: ```json\n' == '\n\nUser: Fu...nt: ```json\n'
+E         
+E         + 
+E         + ```
+E           
+E           
+E           User: Function output: {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"action_id":"A-1","result":{"output":"ok","success":true}}}
+E           
+E           Assistant: ```json
+
+tests/test_model_session.py:1136: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_input_generation_boundary.py::test_committed_response_does_not_gain_an_extra_closing_fence[False]
+FAILED tests/test_input_generation_boundary.py::test_committed_response_does_not_gain_an_extra_closing_fence[True]
+FAILED tests/test_model_session.py::test_native_session_advances_only_the_new_delta_and_marks_cache_non_authoritative
+3 failed, 75 passed in 1.50s

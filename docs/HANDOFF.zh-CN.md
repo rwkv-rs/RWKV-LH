@@ -1,3 +1,12 @@
+# 当前进展：输入空生成开头闭合修复，继续文档问答与bug检查（2026-09-13）
+
+- 已修复统一构造器中回滚/连续事件/fork/rollover追加前的空JSON生成开头闭合，native与replay共用；不改模型原始答案或补参数。真实任务质量收益尚未测定。
+- 冻结旧源码有效红测8 failed/2 passed，新边界11 passed，相关组合110 passed，最终全量1569 passed/0 skipped。见 `data/experiments/RWKV_INPUT_GENERATION_BOUNDARY_FIX_R1_20260913/REPORT.zh-CN.md`。
+- model.py原owner新增方法保留且不纳入本轮提交，仅暂存独立预算位置改动；其他四处owner修改未动。
+- 当前活动目标：完成自主阅读文档回答问题、代码缺陷检查；已只读核对 `/home/chase/GitHub/rwkvrag` 的原文切片、Reader选择证据、Writer原文作答和共享并发。下一阶段采用当前修复生产协议，先小任务与材料证据，再测受控并发；不启动训练、不更新GitHub。
+
+---
+
 # 当前进展：真实反馈基线完成，确认输入轮次边界问题（2026-09-13）
 
 - 固定4题×2遍任务合格/提交3/8，无交付5/8，mutation0，虚假工程完成0。RWKV独立执行，未达固定组门槛，不是项目Strict。原始答案及外部逐项审核保留。

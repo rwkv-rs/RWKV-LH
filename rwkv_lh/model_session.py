@@ -410,6 +410,7 @@ class ModelSession:
         transcript = checkpoint.transcript + render_event_append(
             event,
             visible_definitions,
+            previous_transcript=checkpoint.transcript,
             progressive_tool_disclosure=progressive_tool_disclosure,
             include_generation_anchor=include_generation_anchor,
         )
@@ -515,8 +516,10 @@ class ModelSession:
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
             )
-        ) + render_rollover_event_summary(
+        )
+        transcript += render_rollover_event_summary(
             selected_events,
+            previous_transcript=transcript,
             include_generation_anchor=not independent_tool_selector,
         )
         event_ids = tuple(event.event_id for event in selected_events)
@@ -576,6 +579,7 @@ class ModelSession:
         transcript = checkpoint.transcript + render_event_append(
             assignment,
             visible_definitions,
+            previous_transcript=checkpoint.transcript,
             include_generation_anchor=not bool(
                 (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
             ),
@@ -1204,6 +1208,7 @@ class NativeRWKVModelSession(ModelSession):
         suffix = render_event_append(
             event,
             visible_definitions,
+            previous_transcript=checkpoint.transcript,
             progressive_tool_disclosure=progressive_tool_disclosure,
             include_generation_anchor=include_generation_anchor,
         )
@@ -1290,8 +1295,10 @@ class NativeRWKVModelSession(ModelSession):
                 assignment,
                 progressive_tool_disclosure=progressive_tool_disclosure,
             )
-        ) + render_rollover_event_summary(
+        )
+        transcript += render_rollover_event_summary(
             selected_events,
+            previous_transcript=transcript,
             include_generation_anchor=not independent_tool_selector,
         )
         event_ids = tuple(event.event_id for event in selected_events)
@@ -1349,6 +1356,7 @@ class NativeRWKVModelSession(ModelSession):
         suffix = render_event_append(
             assignment,
             visible_definitions,
+            previous_transcript=checkpoint.transcript,
             include_generation_anchor=not bool(
                 (checkpoint.native_state_metadata or {}).get("executor_protocol_required")
             ),

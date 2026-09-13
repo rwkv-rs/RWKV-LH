@@ -1,0 +1,19 @@
+--- a/rwkv_lh/model.py
++++ b/rwkv_lh/model.py
+@@ -521,6 +521,7 @@
+                             and self.tool_selector is None
+                             else ()
+                         ),
++                        previous_transcript=checkpoint.transcript,
+                         progressive_tool_disclosure=(self._progressive_tool_disclosure),
+                         include_generation_anchor=not use_g1j_executor_args,
+                     )
+@@ -736,7 +737,7 @@
+                 ),
+                 input_reserve_tokens=(
+                     get_token_count(render_tool_disclosure(FINAL_ANSWER_DEFINITION))
+-                    + get_token_count(render_event_append(event))
++                    + get_token_count(render_event_append(event, previous_transcript=checkpoint.transcript))
+                 ),
+             )
+         checkpoint = self._append_event(

@@ -1,0 +1,328 @@
+FFFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-False] _
+
+native = False, native_anchor = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-True] _
+
+native = True, native_anchor = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 582), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-False] _
+
+native = False, native_anchor = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_ test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-True] _
+
+native = True, native_anchor = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    @pytest.mark.parametrize('native_anchor', [False, True])
+    def test_rollback_feedback_closes_unused_prefix_without_inventing_answer(native, native_anchor):
+        session, client = session_pair(native, ['incomplete JSON'])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect the file.', [FINAL_ANSWER_DEFINITION], native_tool_call_json=native_anchor)
+        original = actual_text(native, client, root)
+        candidate = session.generate(root, max_output_tokens=100)
+        restored = session.rollback(candidate, error='invalid JSON')
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid JSON', 'action_executed': False})
+        child = session.append(restored, event)
+        text = actual_text(native, client, child)
+>       assert BAD_BOUNDARY.search(text) is None
+E       assert <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(556, 587), match='**Tool Call:**\n\n```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...,"event_type":"protocol_rejection","payload":{"action_executed":false,"error":"invalid JSON"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+
+tests/test_input_generation_boundary.py:33: AssertionError
+_____ test_committed_response_does_not_gain_an_extra_closing_fence[False] ______
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+>           value = json.loads(text)
+                    ^^^^^^^^^^^^^^^^
+
+rwkv_lh/model_io.py:590: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7c34ec4978c0>
+s = '{"function":"final_answer","params":{"text":"original"}}\n```'
+_w = <built-in method match of re.Pattern object at 0x7c34ec388790>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 2 column 1 (char 57)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_committed_response_does_not_gain_an_extra_closing_fence(native):
+        output = ModelCommand('final_answer', {'text': 'original'}).canonical + '\n```'
+        session, client = session_pair(native, [output])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        candidate = session.generate(root, max_output_tokens=100)
+>       parent = session.commit(candidate, session.parse(candidate))
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_input_generation_boundary.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model_session.py:720: in parse
+    return parse_model_command(parse_source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model_io.py:699: in parse_model_command
+    command, _ = parse_model_command_with_trace(raw_output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as original_exc:
+            repaired = _repair_structural_escaped_quotes(text)
+            if repaired is None:
+>               raise ModelIOError(
+                    f"model output is not one JSON object: {original_exc}"
+                ) from original_exc
+E               rwkv_lh.model_io.ModelIOError: model output is not one JSON object: Extra data: line 2 column 1 (char 57)
+
+rwkv_lh/model_io.py:594: ModelIOError
+______ test_committed_response_does_not_gain_an_extra_closing_fence[True] ______
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+>           value = json.loads(text)
+                    ^^^^^^^^^^^^^^^^
+
+rwkv_lh/model_io.py:590: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7c34ec4978c0>
+s = '{"function":"final_answer","params":{"text":"original"}}\n```'
+_w = <built-in method match of re.Pattern object at 0x7c34ec388790>
+
+    def decode(self, s, _w=WHITESPACE.match):
+        """Return the Python representation of ``s`` (a ``str`` instance
+        containing a JSON document).
+    
+        """
+        obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+        end = _w(s, end).end()
+        if end != len(s):
+>           raise JSONDecodeError("Extra data", s, end)
+E           json.decoder.JSONDecodeError: Extra data: line 2 column 1 (char 57)
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py:348: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_committed_response_does_not_gain_an_extra_closing_fence(native):
+        output = ModelCommand('final_answer', {'text': 'original'}).canonical + '\n```'
+        session, client = session_pair(native, [output])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        candidate = session.generate(root, max_output_tokens=100)
+>       parent = session.commit(candidate, session.parse(candidate))
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_input_generation_boundary.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/model_session.py:720: in parse
+    return parse_model_command(parse_source)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rwkv_lh/model_io.py:699: in parse_model_command
+    command, _ = parse_model_command_with_trace(raw_output)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw_output = '{"function":"final_answer","params":{"text":"original"}}\n```'
+
+    def parse_model_command_with_trace(
+        raw_output: str,
+    ) -> tuple[ModelCommand, ModelCommandNormalization]:
+        """Normalize only common call-envelope spellings and Markdown fencing."""
+    
+        text, transformations = _extract_json(raw_output)
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as original_exc:
+            repaired = _repair_structural_escaped_quotes(text)
+            if repaired is None:
+>               raise ModelIOError(
+                    f"model output is not one JSON object: {original_exc}"
+                ) from original_exc
+E               rwkv_lh.model_io.ModelIOError: model output is not one JSON object: Extra data: line 2 column 1 (char 57)
+
+rwkv_lh/model_io.py:594: ModelIOError
+_______ test_multiple_events_and_fork_keep_turn_boundaries_closed[False] _______
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_multiple_events_and_fork_keep_turn_boundaries_closed(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        first = session.append(root, ModelEvent('action_result', 'E1', root.lane_id, {'output': 'one'}))
+        second = session.append(first, ModelEvent('action_result', 'E2', root.lane_id, {'output': 'two'}))
+        fork = session.fork(second, ModelLaneKind.ACTION, ModelEvent('action_result', 'E3', root.lane_id, {'output': 'three'}))
+>       assert BAD_BOUNDARY.search(actual_text(native, client, fork)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n' = actual_text(False, <test_model_session.QueueClient object at 0x7c34eb447e10>, ModelCheckpoint(checkpoint_id='CP-ae79016ae5514bd8', lane_id='L-ACTION-da36dd0ffd99', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:09:25.752+00:00'))
+
+tests/test_input_generation_boundary.py:62: AssertionError
+_______ test_multiple_events_and_fork_keep_turn_boundaries_closed[True] ________
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_multiple_events_and_fork_keep_turn_boundaries_closed(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        first = session.append(root, ModelEvent('action_result', 'E1', root.lane_id, {'output': 'one'}))
+        second = session.append(first, ModelEvent('action_result', 'E2', root.lane_id, {'output': 'two'}))
+        fork = session.fork(second, ModelLaneKind.ACTION, ModelEvent('action_result', 'E3', root.lane_id, {'output': 'three'}))
+>       assert BAD_BOUNDARY.search(actual_text(native, client, fork)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ... {"complete":true,"content_refs":[],"event_type":"action_result","payload":{"output":"three"}}\n\nAssistant: ```json\n' = actual_text(True, <test_model_session.FakeNativeStateClient object at 0x7c34eb314c30>, ModelCheckpoint(checkpoint_id='CP-3358ea2eeef746fb', lane_id='L-ACTION-46636d544d51', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:09:25.754+00:00'))
+
+tests/test_input_generation_boundary.py:62: AssertionError
+______ test_rollover_summary_does_not_follow_an_unclosed_bootstrap[False] ______
+
+native = False
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_rollover_summary_does_not_follow_an_unclosed_bootstrap(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid call'})
+        rolled = session.rollover(root, assignment='Inspect.', visible_definitions=[FINAL_ANSWER_DEFINITION], events=[event], input_limit=10000, rollover_id='R1')
+>       assert BAD_BOUNDARY.search(actual_text(native, client, rolled)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n' = actual_text(False, <test_model_session.QueueClient object at 0x7c34eb314e90>, ModelCheckpoint(checkpoint_id='CP-3d268256d0eb42f2', lane_id='L-ACTION-5b2c5c666943', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:09:25.756+00:00'))
+
+tests/test_input_generation_boundary.py:72: AssertionError
+______ test_rollover_summary_does_not_follow_an_unclosed_bootstrap[True] _______
+
+native = True
+
+    @pytest.mark.parametrize('native', [False, True])
+    def test_rollover_summary_does_not_follow_an_unclosed_bootstrap(native):
+        session, client = session_pair(native, [])
+        root = session.bootstrap(ModelLaneKind.ACTION, 'Inspect.', [FINAL_ANSWER_DEFINITION])
+        event = ModelEvent('protocol_rejection', 'E1', root.lane_id, {'error': 'invalid call'})
+        rolled = session.rollover(root, assignment='Inspect.', visible_definitions=[FINAL_ANSWER_DEFINITION], events=[event], input_limit=10000, rollover_id='R1')
+>       assert BAD_BOUNDARY.search(actual_text(native, client, rolled)) is None
+E       assert <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> is None
+E        +  where <re.Match object; span=(547, 573), match='Assistant: ```json\n\n\nUser:'> = <built-in method search of re.Pattern object at 0x331da1e0>('System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n')
+E        +    where <built-in method search of re.Pattern object at 0x331da1e0> = re.compile('(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:').search
+E        +    and   'System: Tools: [{"description":"End the run and return a non-empty user-facing answer. Use this only when you decide ...e after context rollover. Use their exact errors and observations when choosing the next call.\n\nAssistant: ```json\n' = actual_text(True, <test_model_session.FakeNativeStateClient object at 0x7c34eb3168b0>, ModelCheckpoint(checkpoint_id='CP-c6cf5d678ffe411f', lane_id='L-ACTION-f2eb805ea97b', lane_kind=<ModelLaneKind.ACTION:...e_profile_sha256='', status=<ModelCheckpointStatus.COMMITTED: 'committed'>, created_at='2026-09-13T04:09:25.757+00:00'))
+
+tests/test_input_generation_boundary.py:72: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-False]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[False-True]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-False]
+FAILED tests/test_input_generation_boundary.py::test_rollback_feedback_closes_unused_prefix_without_inventing_answer[True-True]
+FAILED tests/test_input_generation_boundary.py::test_committed_response_does_not_gain_an_extra_closing_fence[False]
+FAILED tests/test_input_generation_boundary.py::test_committed_response_does_not_gain_an_extra_closing_fence[True]
+FAILED tests/test_input_generation_boundary.py::test_multiple_events_and_fork_keep_turn_boundaries_closed[False]
+FAILED tests/test_input_generation_boundary.py::test_multiple_events_and_fork_keep_turn_boundaries_closed[True]
+FAILED tests/test_input_generation_boundary.py::test_rollover_summary_does_not_follow_an_unclosed_bootstrap[False]
+FAILED tests/test_input_generation_boundary.py::test_rollover_summary_does_not_follow_an_unclosed_bootstrap[True]
+10 failed in 0.73s

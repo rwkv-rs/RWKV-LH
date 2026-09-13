@@ -1,0 +1,83 @@
+--- a/rwkv_lh/model.py
++++ b/rwkv_lh/model.py
+@@ -1538,6 +1538,80 @@
+         )
+         return checkpoint
+ 
++    def start_atomic_actor_state(
++        self,
++        state: RunState,
++        persist: PersistCallback,
++        *,
++        task_ref: str,
++        focus_text: str,
++        fact_action_ids: Sequence[str] = (),
++    ) -> ModelCheckpoint:
++        """Start one RWKV State whose lifetime is one supervisor microtask."""
++
++        normalized_ref = str(task_ref or "").strip()
++        normalized_focus = str(focus_text or "").strip()
++        if not normalized_ref:
++            raise ValueError("atomic Actor task_ref must be non-empty")
++        if not normalized_focus:
++            raise ValueError("atomic Actor focus_text must be non-empty")
++        if state.pending_selection_id:
++            raise ModelProtocolError(
++                "cannot replace Actor State while a tool selection is pending"
++            )
++        selected_action_ids = tuple(
++            dict.fromkeys(str(item) for item in fact_action_ids if str(item))
++        )
++        unknown = set(selected_action_ids) - set(state.actions)
++        if unknown:
++            raise ModelProtocolError(
++                f"atomic Actor fact scope contains unknown actions: {sorted(unknown)}"
++            )
++        previous_checkpoint_id = state.lane_head("executor")
++        checkpoint = self.session.bootstrap(
++            ModelLaneKind.ACTION,
++            self._assignment(
++                state,
++                recent_limit=None,
++                action_ids=selected_action_ids,
++                focus_text=normalized_focus,
++            ),
++            (
++                self._menu_definitions
++                if self._progressive_tool_disclosure
++                else self._all_definitions
++            ),
++            lane_id=self.ACTION_LANE_ID,
++            event_ids=(),
++            progressive_tool_disclosure=self._progressive_tool_disclosure,
++            independent_tool_selector=False,
++        )
++        state.model_states[checkpoint.checkpoint_id] = checkpoint
++        state.set_lane_head("executor", checkpoint.checkpoint_id)
++        persist(
++            state,
++            "action_session_started",
++            {
++                "lane_id": self.ACTION_LANE_ID,
++                "checkpoint_id": checkpoint.checkpoint_id,
++                "literal_request_digest": state.goal.digest,
++                "direct_operation_count": len(self._action_definitions),
++                "online_task_graph": False,
++                "reviewer": False,
++                "tool_disclosure_mode": (
++                    "progressive" if self._progressive_tool_disclosure else "full"
++                ),
++                "session_scope": "one_supervisor_microtask",
++                "atomic_task_ref": normalized_ref,
++                "actor_parent_checkpoint_id": previous_checkpoint_id,
++                "actor_state_inherited": False,
++                "causal_fact_action_ids": list(selected_action_ids),
++                "causal_fact_complete": True,
++                "bootstrap_token_count": checkpoint.token_count,
++            },
++        )
++        return checkpoint
++
+     def _start_clean_executor_turn(
+         self,
+         state: RunState,

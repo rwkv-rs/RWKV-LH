@@ -398,12 +398,24 @@ def parse_ranked_tool_choice(
     return choice
 
 
+def _close_unused_generation_anchor(previous_transcript: str) -> str:
+    """End a runtime-owned, empty JSON opener before appending another turn.
+
+    Rollback restores the input checkpoint, including its generation opener.
+    This adds only protocol framing; rejected output and answers are untouched.
+    A committed response never ends with an unused canonical opener.
+    """
+    anchors = (ASSISTANT_JSON_CONTINUATION_ANCHOR, TOOL_CALL_JSON_CONTINUATION_ANCHOR)
+    return "\n```\n" if previous_transcript.endswith(anchors) else ""
+
+
 def render_event_append(
     event: ModelEvent,
     visible_definitions: Sequence[Mapping[str, Any]] = (),
     *,
     progressive_tool_disclosure: bool = False,
     include_generation_anchor: bool = True,
+    previous_transcript: str = "",
 ) -> str:
     if visible_definitions and progressive_tool_disclosure:
         if not include_generation_anchor:
@@ -418,7 +430,8 @@ def render_event_append(
             for item in visible_definitions
         ]
         return (
-            "\n\nUser: Function output: "
+            _close_unused_generation_anchor(previous_transcript)
+            + "\n\nUser: Function output: "
             + canonical_json(event.to_model_dict())
             + "\n\nUser: Available operation menu (names and brief purposes only): "
             + canonical_json(menu)
@@ -435,7 +448,8 @@ def render_event_append(
             + "\nChoose exactly one displayed tool and return one JSON function call."
         )
     rendered = (
-        scope
+        _close_unused_generation_anchor(previous_transcript)
+        + scope
         + "\n\nUser: Function output: "
         + canonical_json(event.to_model_dict())
     )
@@ -448,6 +462,7 @@ def render_rollover_event_summary(
     events: Sequence[ModelEvent],
     *,
     include_generation_anchor: bool = True,
+    previous_transcript: str = "",
 ) -> str:
     """Render the exact event bodies that remain visible after a rollover."""
 
@@ -458,7 +473,8 @@ def render_rollover_event_summary(
     if len(set(event_ids)) != len(event_ids):
         raise ModelIOError("rollover event summary contains duplicate event ids")
     rendered = (
-        "\n\nUser: Deterministic recent controller event summary: "
+        _close_unused_generation_anchor(previous_transcript)
+        + "\n\nUser: Deterministic recent controller event summary: "
         + canonical_json([event.to_model_dict() for event in selected])
         + "\nThese controller-produced event bodies remain visible after context "
         "rollover. Use their exact errors and observations when choosing the next "
