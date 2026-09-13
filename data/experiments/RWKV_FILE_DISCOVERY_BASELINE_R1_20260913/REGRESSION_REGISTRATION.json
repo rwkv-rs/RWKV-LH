@@ -1,0 +1,150 @@
+{
+  "round": "RWKV_FILE_DISCOVERY_BASELINE_R1_20260913",
+  "cases": [
+    {
+      "id": "health",
+      "case": "RP-API-01",
+      "path": "server.py",
+      "family": "API",
+      "split": "dev",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "workspace_sha256": {
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "source_content_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "file_tokens": 259,
+      "request": "找到处理 HTTP 健康检查请求的实现，指出文件和处理位置，说明健康路径与其他 GET 路径分别返回什么。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+      "content_reference": {
+        "path": "/home/chase/GitHub/RWKV-LH/data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace/server.py",
+        "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb"
+      },
+      "semantic_anchors": [
+        "server.py的Handler.do_GET",
+        "/health返回200及ok=true；其他GET返回501及not_implemented；不把README需求说成已实现"
+      ],
+      "source_prior_registration": "data/experiments/RWKV_LIMIT_AND_STATETUNE_CAMPAIGN_R1_20260913/evaluation/REGRESSION_REGISTRATION.json"
+    },
+    {
+      "id": "smoke",
+      "case": "RP-API-01",
+      "path": "verify_public.py",
+      "family": "API",
+      "split": "dev",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "workspace_sha256": {
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "source_content_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "file_tokens": 130,
+      "request": "找到公开健康检查脚本，指出文件，说明它检查什么，以及它不能证明哪些功能正确。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+      "content_reference": {
+        "path": "/home/chase/GitHub/RWKV-LH/data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace/verify_public.py",
+        "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+      },
+      "semantic_anchors": [
+        "verify_public.py",
+        "GET /health检查200及JSON ok=true；不能认证预约/订单事务行为"
+      ],
+      "source_prior_registration": "data/experiments/RWKV_LIMIT_AND_STATETUNE_CAMPAIGN_R1_20260913/evaluation/REGRESSION_REGISTRATION.json"
+    },
+    {
+      "id": "validation",
+      "case": "RP-MAINT-01",
+      "path": "config_store/sqlite_io.py",
+      "family": "MAINT",
+      "split": "dev",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-MAINT-01/workspace",
+      "workspace_sha256": {
+        "README.md": "fe1b81a024bb7a0b01b6d43c4266343ee80d8fd0296fafb293f0106b10bbd155",
+        "config_cli.py": "feddcf095181f149a204656988ee584f72c7c5a63113f3f6286a2f1b8442533b",
+        "config_store/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "config_store/migrations.py": "f6f5c6b5a5dffa181d68a36b5b5d00d815a3342c6d106e025dfdbfc35b2833de",
+        "config_store/sqlite_io.py": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+        "config_store/values.py": "2594983fe26c1bd5d41ecd0afa9beb39e0a088104dfee9992d63657d5d865f9e",
+        "sample_v1.sql": "1f4dfac9bcd029954e3b1fb3bd5fc40bce328f35883bfbb636ef4fbb002b2da0"
+      },
+      "source_content_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+      "file_tokens": 338,
+      "request": "找到数据库有效性校验函数，指出文件和函数，说明它检查哪些方面，以及哪些情况会被拒绝。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+      "content_reference": {
+        "path": "/home/chase/GitHub/RWKV-LH/data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-MAINT-01/workspace/config_store/sqlite_io.py",
+        "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46"
+      },
+      "semantic_anchors": [
+        "config_store/sqlite_io.py的validate",
+        "integrity_check须ok，版本只接受1/2；检查settings所需列，v2还检查value_type/updated_at；其他版本或完整性失败拒绝，缺列查询失败"
+      ],
+      "source_prior_registration": "data/experiments/RWKV_LIMIT_AND_STATETUNE_CAMPAIGN_R1_20260913/collection/REGISTRATION.json"
+    },
+    {
+      "id": "backup",
+      "case": "RP-MAINT-01",
+      "path": "config_store/sqlite_io.py",
+      "family": "MAINT",
+      "split": "dev",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-MAINT-01/workspace",
+      "workspace_sha256": {
+        "README.md": "fe1b81a024bb7a0b01b6d43c4266343ee80d8fd0296fafb293f0106b10bbd155",
+        "config_cli.py": "feddcf095181f149a204656988ee584f72c7c5a63113f3f6286a2f1b8442533b",
+        "config_store/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "config_store/migrations.py": "f6f5c6b5a5dffa181d68a36b5b5d00d815a3342c6d106e025dfdbfc35b2833de",
+        "config_store/sqlite_io.py": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+        "config_store/values.py": "2594983fe26c1bd5d41ecd0afa9beb39e0a088104dfee9992d63657d5d865f9e",
+        "sample_v1.sql": "1f4dfac9bcd029954e3b1fb3bd5fc40bce328f35883bfbb636ef4fbb002b2da0"
+      },
+      "source_content_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+      "file_tokens": 338,
+      "request": "找到创建独占备份的函数，指出文件和函数，说明备份如何创建、目标已存在时会怎样、临时文件如何清理。 只依据实际文件信息回答；这是只读任务，不修改文件，不启动服务。",
+      "content_reference": {
+        "path": "/home/chase/GitHub/RWKV-LH/data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-MAINT-01/workspace/config_store/sqlite_io.py",
+        "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46"
+      },
+      "semantic_anchors": [
+        "config_store/sqlite_io.py的write_backup_exclusive",
+        "先临时文件copy_database再os.link到目标；已存在则失败而非覆盖；finally清理临时文件；不捏造调用者/其他模块也已经使用此函数"
+      ],
+      "source_prior_registration": "data/experiments/RWKV_LIMIT_AND_STATETUNE_CAMPAIGN_R1_20260913/collection/REGISTRATION.json"
+    }
+  ],
+  "sampling": {
+    "temperature": 0.1,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "seed": "not set; stochastic repeats, no token-identical claim",
+  "max_calls_per_task": 6,
+  "max_output_tokens": 1800,
+  "max_seconds_per_task": 300,
+  "max_total_calls": 48,
+  "wall_seconds": 3600,
+  "state": "fresh native_required zero per independent task; continue observation child within each task",
+  "rubric": {
+    "task_pass": "accurate location and useful answer to explicitly requested behavior; supported by actual tool observations; no material fabrication and no mutation; natural original final submission. No required tool sequence, call count, full-file read or exact wording.",
+    "dimensions": {
+      "location": "0/1 correct source and function when requested",
+      "answer": "0/1/2 absent-or-wrong/partial/useful coverage of explicit question",
+      "fidelity": "0/1/2 major fabrication/local material unsupported fact/all factual assertions supported"
+    },
+    "required": [
+      1,
+      2,
+      2
+    ],
+    "evidence": "actual file contents retrieved through any allowed tool must support claimed behavior; complete read tracked separately, search excerpts can suffice",
+    "optional": "implementation details not needed for explicit question; line numbers optional",
+    "completion": "final_answer is submission, not acceptance claim",
+    "repeats": "two valid repetitions each4/4, zero illegal parameters and false work claims to call fixed-group stable; no comparative gain gate",
+    "limitations": "initial production assignment exposes path metadata; repeated calls tracked not automatically failed; cannot establish broad generalization or cost/throughput benefit"
+  },
+  "strong_calls": 0,
+  "training": false,
+  "new_dataset_version": false,
+  "scope": "authorized existing workspaces reused; new task questions derived from these visible files, experiment registration only; no role training rows or private acceptance"
+}

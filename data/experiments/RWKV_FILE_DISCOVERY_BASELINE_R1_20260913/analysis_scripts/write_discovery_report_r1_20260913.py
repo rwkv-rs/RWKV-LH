@@ -1,0 +1,73 @@
+from pathlib import Path
+import json,hashlib,shutil
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_FILE_DISCOVERY_BASELINE_R1_20260913'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+seal=json.loads((D/'SEAL.json').read_text());res=json.loads((D/'RESOURCES.json').read_text())
+text='''# RWKV自主定位文件基线 R1（2026-09-13）
+
+## 产品目标与本轮范围
+
+最终目标是为RWKV构建专属Agent Harness，做出以RWKV为主要执行模型的可用Code Agent。质量前提下的成本、速度与吞吐是产品优化属性；StateTune是手段。已在docs/RWKV_CODING_AGENT_HARNESS_V1.zh-CN.md纠正目标层级和下一步顺序。
+
+本轮按owner授权推进自主定位→获取真实信息→回答，复用既有获准API和维护工作区，不告诉准确文件路径。四题各两遍，问题分别为健康接口实现、公开健康检查、数据库校验、独占备份。后两题目标恰好位于同一源文件，因此仅3个不同目标文件/2个工作区，非8个独立场景。是小范围开发诊断，未读私有Holdout、未新建datasets版本、未追加训练、未用强模型。
+
+生产初始assignment含工作区路径元数据；本轮测根据目标自主选择源文件及使用工具证据，不声称盲目录搜索或复杂仓库能力。目录浏览、文本搜索、直接选文件、搜索片段即足够后直接回答都允许；没有固定调用序列、参考答案字面匹配、强制完整读取或最少步骤门。四题语义要点只存外部登记。只读权限禁止副作用，并不限制合法读取方案。
+
+## 任务结果（不是项目Strict）
+
+**两遍均0/4，共0/8通过；总结/答案提交0/8，mutation0，虚假工程完成声明0。** 六次协议中断、两次调用预算中断。没有最终答案，因此最终位置与忠实性评分不适用；不能说八份答案不合格，更不能借此否定此前读取/摘要已完成的能力。
+
+| 任务 | 第一遍 | 第二遍 | 真实发生的边界 |
+|---|---|---|---|
+| 健康接口 | 搜索命中后读取参数非法 | 搜索命中后读取参数非法 | 两次都选中server.py，加入未定义读取参数 |
+| 公开健康检查 | 搜索pattern重复扩展到1800 token截断 | 搜索命中后读取参数非法 | 第二遍搜索含真实脚本，但随后尝试读README；未执行，不能认定它最终会找错或答错 |
+| 数据库有效性校验 | 搜索pattern重复扩展，JSON未闭合 | 同类输出截断 | 工具尚未执行，未形成定位证据 |
+| 独占备份 | 六次同一空搜索，调用预算结束 | 六次同一空搜索，调用预算结束 | 猜测def create_exclusive_backup，未依据0匹配改变查询；实际函数write_backup_exclusive |
+
+固定门为两遍各4/4、零非法参数和虚假工程完成；未达到，当前不升级修改/测试反馈任务。不存在“baseline7/8而要求提升2题”的天花板门。中间正确搜索独立报告，不当作用户问题已回答；重复搜索也没有按步骤直接判错，最终没有交付且预算结束才未通过。
+
+## 调用与工程核验
+
+21次RWKV生成、15次真实工具执行，全部是search_text；其中3次搜索得到非空正确命中、12次搜索正确返回空结果。完整目标文件读取0，未成功执行read_file。6次被拒绝生成分为3次未知参数和3次输出length/未闭合JSON，分别记录，后者不是已解析的合法参数调用。
+
+未知读取字段包括max_lines、max_text_bytes、max_text_chars、max_text_tokens、max_bytes、max_line_bytes、max_line_chars。R4读取说明原样保留，明确仅path/start_byte/max_tokens；root输入核对不存在max_lines/max_text_bytes/max_text定义，没有证据说明本轮这些字段有合理歧义。max_line_chars实际属于search_text而非read_file；工具参数混用是观察到的行为，是否由全19工具封装诱发仍是待验证假设。
+
+输入按唯一生产builder重建，21次精确prompt token（含BOS）与祖先原始generation token一致，采样、1800输出预算及zero profile一致；8个独立根、38个持久checkpoint父digest/profile及15个观察child均核验，含预算结束后没有下一次生成的最后观察。15条观察中的搜索行按源文件字节位置与SHA验证、投影匹配数与实际结果一致；空结果清楚传入match_count=0。重复搜索对应模型新生成的不同action/event，不是Harness把同一观察重复注入。
+
+本轮没有发现可复现的工具执行、输入遗漏、State父子连接工程缺陷。可确认的模型行为是参数约定不遵守、生成重复及未利用负反馈；尚不能从外部State谱系核验推出内部上下文利用无问题，也不能把它们全部归因于提示词或State丢失。没有为了通过而删未知参数、截短正则、强制换查询或代写答案。没有把工具执行成功15/15当产品进展。
+
+## 冻结、资源与限制
+
+实际使用原默认13.3B服务29613、zero初始化，R2训练候选未启用；同一任务两遍独立State，任务内保持连续观察child。模型SHA559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65；temperature0.1/top_p1/top_k0，其他采样见登记；未设随机seed，不承诺逐token重现。每题最多6生成、1800输出/次、300秒调度预算；整轮48生成/3600秒封顶，传输超时沿原生产设置。超限只中断，不强制Final。
+
+本地134源码文件冻结并运行后核对未变；远端132项目文件/6393engine文件按已上传清单核对，无远端Git。运行前清单逐文件核验通过；运行中又调用生产完整inventory验证器排查清单外文件。补充审计脚本初次误读verify_manifest返回键导致KeyError，原失败保留，修正记录读取后复核通过；这是审计脚本缺陷，没有改变模型输入、生产或原结果。
+
+'''
+text+=f"本轮实际完整逻辑输入{res['input_tokens_full_logical']} token，精确输出{res['output_tokens_exact']} token；任务端到端耗时合计{res['task_elapsed_seconds_sum']:.2f}秒，强模型0调用、optimizer0步。共享自托管服务没有GPU峰值/能耗积分或账单，金额与峰值NA；无合格任务，不能计算有意义的每合格任务成本，也不比较项目吞吐。逻辑完整上下文token不等于增量prefill计算量。\n\n"
+text+='''## 下一步建议：分别定位，不增加补偿
+
+1. 保持当前生产协议和R4读取说明，以本轮两次健康搜索后非法读取作为固定失败证据。下一轮先检查工具参数生成在单步与跨工具续接时的差异；不得程序删参或放宽未知字段校验。若要测试缩减无关工具菜单，先独立冻结同任务对照，明确是输入组织假设而非已确认修复。
+2. 搜索能力先缩到一个明确关键词的单步搜索，由RWKV自己生成调用和参数；再分别验证零命中后能否调整关键词、命中后能否正确读取或依据片段作答。任务明确关键词是诊断条件，不把程序生成pattern伪装成模型自主定位。仍复用现有工作区、不创建新数据集，不规定必须走搜索→读取的固定路径。
+3. 先按上述边界查证工程/模型归属，不立即强模型逐步审核或继续StateTune。后续确有工程修复须配先失败后通过回归；后续模型训练需真实来源、经验证纠正及新候选登记。当前不宣称根因已全面解决，也不推广为RWKV普遍能力极限。
+
+## 验证及交付
+
+全量1530 passed、0 skipped，含Torch/State与必需浏览器测试；环境按uv frozen和Playwright安装步骤准备。只修改产品设计、交接与实验记录，保留原五个未提交生产/测试文件的SHA；没有生产修复混入本轮、没有GitHub更新，原服务继续运行未变更。实验源码、任务/评分/预算、真实输入输出、工具结果、State关系、无效审计尝试和全部最终结果封存，候选原轨迹不改写。
+
+'''
+text+=f"- 冻结运行登记SHA：`{sha(D/'RUN_REGISTRATION.json')}`。\n- 原始证据包SHA：`{seal['archive_sha256']}`。\n- 逐文件清单SHA：`{seal['manifest_sha256']}`。\n- 终端State补充核验SHA：`{sha(D/'TERMINAL_STATE_AUDIT.json')}`（直接随提交保存，不覆盖已封存证据包）。\n"
+p=D/'REPORT.zh-CN.md';assert not p.exists();p.write_text(text)
+for n in ['audit_discovery_terminal_states_r1_20260913.py','write_discovery_report_r1_20260913.py']:shutil.copy2(R/'temp'/n,D/'analysis_scripts'/n)
+h=R/'docs/HANDOFF.zh-CN.md';h.write_text(f'''# 当前进展：RWKV自主定位文件基线R1完成，先定位生成与反馈利用边界（2026-09-13）
+
+- 最终产品目标已明确：RWKV专属Agent Harness与以RWKV为主体的可用Code Agent；成本/交付时间/吞吐是质量前提下的优化属性，StateTune是手段。设计文档目标与下一步同步纠正。
+- 固定4题×2遍任务通过0/8、答案提交0/8、mutation0、错误完成声明0；6协议中断、2调用预算中断。不是项目Strict，不涉及“正确答案因路径不同被判错”，本轮没有提交答案。
+- 21生成/15成功搜索：3次读取未知参数，3次搜索pattern重复到1800输出截断；两次备份题各6次同一空搜索。健康题两遍均已搜到并选中server.py；不能把所有失败说成找不到文件。
+- 21实际输入、38持久checkpoint及15观察child核验；搜索字节/匹配数与真实文件一致，负反馈已进入输入。没有观察丢失或父State接错证据；输入封装诱因仍待对照，不删参、不放宽parser、不加角色。
+- 全测1530 passed/0 skipped，原五文件SHA保持；未新建数据集、未训练、未用强模型、未改生产或更新GitHub。原StateTune两轮108步仍是历史总数。
+- 下一步先分别诊断单步搜索、空结果后调整、跨工具参数遵守；不升级写任务。产品推进不应再次陷入摘要评分或盲加训练步数。
+- [报告](../data/experiments/RWKV_FILE_DISCOVERY_BASELINE_R1_20260913/REPORT.zh-CN.md)，SHA `{sha(p)}`；原始证据、冻结任务与完整State/token轨迹在同目录。
+
+---
+
+'''+h.read_text());print(sha(p))
