@@ -1,0 +1,1002 @@
+[
+  {
+    "id": "advised-r1",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-25fc9b744f404d0b",
+        "input_tokens": 17487,
+        "output_tokens": 236,
+        "input_sha256": "2dbb73644aa9c29515a8eaf2c05db8464c06bdb5318bbc7e864393b1ad3100e2",
+        "input_checkpoint": "CP-7005b23c743f416e",
+        "candidate_checkpoint": "CP-01ee4460744f4761",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"from __future__ import annotations\\nimport argparse\\nimport json\\nimport sys\\nfrom pathlib import Path\\nfrom .documents import normalize\\nfrom .store import existing\\n\\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\\n    if not text.strip():\\n        raise ValueError('query must be nonempty')\\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\\n        raise ValueError('limit must be a positive integer')\\n    with existing(database) as connection:\\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\\n    matches = [{'path': row[0]} for row in rows]\\n    return {'count': len(matches), 'matches': matches}\\n\",\"path\":\"document_index/query.py\"}\n  }\n}"
+      },
+      {
+        "request_id": "MR-a09a94dc39af4373",
+        "input_tokens": 17583,
+        "output_tokens": 62,
+        "input_sha256": "e55a7145b3178eb5584ab37b28fea8e37671db9014156e2901177d27afafb4fa",
+        "input_checkpoint": "CP-48d45fd8187e4adf",
+        "candidate_checkpoint": "CP-3d4dbd9a01514ce3",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-REJECT-aa540ea2f6854660"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-e8f071330d854401",
+        "input_tokens": 18254,
+        "output_tokens": 62,
+        "input_sha256": "b72da6e382c4911ba8c3b4f6ff4cfcad1e629a2f4ea66824c8a4e98cb0354676",
+        "input_checkpoint": "CP-e295e05c85764b68",
+        "candidate_checkpoint": "CP-3c149dcee0284820",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-REJECT-aa540ea2f6854660"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-729ec5c254d04260",
+        "input_tokens": 18925,
+        "output_tokens": 62,
+        "input_sha256": "cf1f43a2aff3bd88d4b42ffb9d9b944899bb1d2de2e1dd26ba32a59f3b238242",
+        "input_checkpoint": "CP-befcaf2cb3b44780",
+        "candidate_checkpoint": "CP-2c36445743d64643",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-REJECT-aa540ea2f6854660"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-d834bdbebf0846cc",
+        "input_tokens": 19596,
+        "output_tokens": 62,
+        "input_sha256": "f18e8bbbae50d03a77f1ea9802d5a86b7d296f12e787332326899083670ce19f",
+        "input_checkpoint": "CP-66d04d2c0b9e4acd",
+        "candidate_checkpoint": "CP-6b06c54b36f6459c",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-REJECT-aa540ea2f6854660"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-1a5c3511e44b40b4",
+        "input_tokens": 20267,
+        "output_tokens": 62,
+        "input_sha256": "9baafa8fd96aae92803e933c4923fd6655feed9789978a5c1819a0c7b8981908",
+        "input_checkpoint": "CP-2032b345b39a4ed4",
+        "candidate_checkpoint": "CP-09b56d75d76a4b0e",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-ACTION-A00015",
+          "EV-REJECT-aa540ea2f6854660"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00013",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00014",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00015",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00016",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "advised-r2",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-96a78286108649a1",
+        "input_tokens": 17487,
+        "output_tokens": 246,
+        "input_sha256": "2dbb73644aa9c29515a8eaf2c05db8464c06bdb5318bbc7e864393b1ad3100e2",
+        "input_checkpoint": "CP-522adf27c8f0441c",
+        "candidate_checkpoint": "CP-7e9f6e704f0547d4",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"from __future__ import annotations\\nimport argparse\\nimport json\\nimport sys\\nfrom pathlib import Path\\nfrom .documents import normalize\\nfrom .store import existing\\n\\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\\n    if not text.strip():\\n        raise ValueError('query must be nonempty')\\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\\n        raise ValueError('limit must be a positive integer')\\n    with existing(database) as connection:\\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\\n    matches = [{'path': row[0]} for row in rows]\\n    return {'count': len(matches), 'matches': matches}\\n\",\"create_parents\":true,\"overwrite\":true,\"path\":\"document_index/query.py\"}\n  }\n}"
+      },
+      {
+        "request_id": "MR-596f31a573134c82",
+        "input_tokens": 17583,
+        "output_tokens": 62,
+        "input_sha256": "a839fd5f2b89d483c2dcef6a1c93d93eaaa042561765e7664966f758891102f8",
+        "input_checkpoint": "CP-c91bd667f0a34d75",
+        "candidate_checkpoint": "CP-dfad9e67d64146ab",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-REJECT-03dfac39957b4626"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-df21235ea5aa4900",
+        "input_tokens": 18254,
+        "output_tokens": 62,
+        "input_sha256": "736e7994e7df6167d8e44d78bb3e41036bb6997c1a2ec191ab7ee09ec699381e",
+        "input_checkpoint": "CP-c7790e506d324632",
+        "candidate_checkpoint": "CP-c76992a5c679499c",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-REJECT-03dfac39957b4626"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-0404b3f2ca28428d",
+        "input_tokens": 18925,
+        "output_tokens": 62,
+        "input_sha256": "243c735484e6009794ff1efe7d49ca7e056c2badf9a3b37840db484a7028f198",
+        "input_checkpoint": "CP-6cc1c7e07d7440c4",
+        "candidate_checkpoint": "CP-0c2f18e8656a493f",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-REJECT-03dfac39957b4626"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-dd03cc51d6b84046",
+        "input_tokens": 19596,
+        "output_tokens": 62,
+        "input_sha256": "a8e46792f81af1d140e87021bf39abb5f13acb2aab851f5b663ccc1cdcf6ed41",
+        "input_checkpoint": "CP-e98bda514eac4ddd",
+        "candidate_checkpoint": "CP-b25874ffa3b7474d",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-REJECT-03dfac39957b4626"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-78489c780b374a1b",
+        "input_tokens": 20267,
+        "output_tokens": 62,
+        "input_sha256": "42482a5075a55b989b965e0839d8add5a37054777d3e7c53a9a951ded0c9fa5b",
+        "input_checkpoint": "CP-803f995057ae4909",
+        "candidate_checkpoint": "CP-96df02200d864b3f",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-ACTION-A00015",
+          "EV-REJECT-03dfac39957b4626"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00013",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00014",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00015",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00016",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "independent-r1",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-83d9f8d3e5fe4c6a",
+        "input_tokens": 16995,
+        "output_tokens": 62,
+        "input_sha256": "f2b22e7259d8618600c989458cf67569a0a93f3dd7025486378f42d978209320",
+        "input_checkpoint": "CP-fec79beade90470f",
+        "candidate_checkpoint": "CP-c46f27a7c46c420c",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-c06ce0765bb846a1",
+        "input_tokens": 17666,
+        "output_tokens": 62,
+        "input_sha256": "75b8bf7169e34e47a7df4cd07d2a21386a26db4c30fea20ebccae89095b78bb9",
+        "input_checkpoint": "CP-aadf26c2945f412a",
+        "candidate_checkpoint": "CP-5a9b8fb7ed984142",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-29ee3c673beb407c",
+        "input_tokens": 18337,
+        "output_tokens": 62,
+        "input_sha256": "99eb226e69554c14261b521b50848e99315ec060a6962ca2770aa9efdc8686fd",
+        "input_checkpoint": "CP-d725d415f1904b1c",
+        "candidate_checkpoint": "CP-bdd9ef06ee554f31",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-8b3913a13ef940c7",
+        "input_tokens": 19008,
+        "output_tokens": 62,
+        "input_sha256": "bf99f2bd312c7b5d8b6bdeca60d3e160fc5eb389d40c71eb82c27292eb574b59",
+        "input_checkpoint": "CP-82835c13807e4031",
+        "candidate_checkpoint": "CP-0eb98ce66ccd4caf",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-ae16e319f9e44e50",
+        "input_tokens": 19679,
+        "output_tokens": 62,
+        "input_sha256": "a1a8cd043803d2a6abd3b97c6c946171b759963da8624f8cc6cd71fa439f6f6c",
+        "input_checkpoint": "CP-e19f086ceba647a7",
+        "candidate_checkpoint": "CP-6c71dfa7d6784fe4",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-ACTION-A00015"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00013",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00014",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00015",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00016",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "independent-r2",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-826cf7c94be8460e",
+        "input_tokens": 16995,
+        "output_tokens": 62,
+        "input_sha256": "f2b22e7259d8618600c989458cf67569a0a93f3dd7025486378f42d978209320",
+        "input_checkpoint": "CP-fec79beade90470f",
+        "candidate_checkpoint": "CP-fe9d1ca3e2694614",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-29bb592f96294893",
+        "input_tokens": 17666,
+        "output_tokens": 62,
+        "input_sha256": "75b8bf7169e34e47a7df4cd07d2a21386a26db4c30fea20ebccae89095b78bb9",
+        "input_checkpoint": "CP-9a95f09ccb904d4a",
+        "candidate_checkpoint": "CP-b5631a91c4144e66",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-e7ed1ee8b05e41a8",
+        "input_tokens": 18337,
+        "output_tokens": 62,
+        "input_sha256": "99eb226e69554c14261b521b50848e99315ec060a6962ca2770aa9efdc8686fd",
+        "input_checkpoint": "CP-6bd74e5597f1450e",
+        "candidate_checkpoint": "CP-16ea2e821d154029",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-6a0432ece4e04c8e",
+        "input_tokens": 19008,
+        "output_tokens": 62,
+        "input_sha256": "bf99f2bd312c7b5d8b6bdeca60d3e160fc5eb389d40c71eb82c27292eb574b59",
+        "input_checkpoint": "CP-23539c5f21774d9d",
+        "candidate_checkpoint": "CP-4b89d75c873a4bfc",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      },
+      {
+        "request_id": "MR-869500e0a0154f29",
+        "input_tokens": 19679,
+        "output_tokens": 62,
+        "input_sha256": "a1a8cd043803d2a6abd3b97c6c946171b759963da8624f8cc6cd71fa439f6f6c",
+        "input_checkpoint": "CP-0b9bdd4b4c284d38",
+        "candidate_checkpoint": "CP-9e2f629c33214a16",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012",
+          "EV-ACTION-A00013",
+          "EV-ACTION-A00014",
+          "EV-ACTION-A00015"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00013",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00014",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00015",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00016",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  }
+]

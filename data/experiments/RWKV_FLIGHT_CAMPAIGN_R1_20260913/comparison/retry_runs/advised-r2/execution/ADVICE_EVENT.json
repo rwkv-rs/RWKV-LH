@@ -1,0 +1,16 @@
+{
+  "event_type": "summary_advice",
+  "event_version": "rwkv-lh.event.v2",
+  "event_id": "ADVICE-advised-r2",
+  "scope_id": "LANE:ACTION",
+  "payload": {
+    "protocol": "rwkv-lh.summary-advice.v1",
+    "source": "external_strong_model",
+    "model": "deepseek-flash",
+    "advice": "Candidate summary is empty, so it provides no verifiable statement of changes or test results; a material correction (i.e., an actual summary) is required. From the observations, the state is incomplete and misreported if any conclusion of completion is drawn: (1) document_index/query.py was rewritten to accept limit=None, validate it, and call fetchmany(limit or None), which matches the requested Python-level behavior; (2) index_cli.py was NOT updated — no --limit argument is defined and query(database, arguments.text) never passes a limit, so the CLI half of the requirement is entirely missing; (3) the test file test_query_limit.py exists unchanged, but the verification runs all failed with FileNotFoundError because cwd 'workspace' does not exist (the earlier list_directory shows the project at '.'), so no actual test result was obtained and any claim of passing tests is unsupported. Additional diagnostic risk to flag in the summary, not as a proven failure: in the new validation 'limit is not None and (limit <= 0 or not isinstance(limit, int))', a non-int non-None limit (e.g., a string) hits 'limit <= 0' first and raises TypeError rather than ValueError, and bool is a subclass of int so limit=True would pass as 1; these are edge-case deviations from a strict positive-integer contract. Missing integration (CLI wiring plus a real test run from the correct working directory) is the dominant gap; the query.py edit itself appears directionally correct but unverified.",
+    "is_execution_evidence": false,
+    "instruction": "The user requested a second look at the same task. This message is advice, not an acceptance decision or verified tool result. Decide independently how to continue using the visible evidence. Follow the existing operation protocol."
+  },
+  "content_refs": [],
+  "complete": true
+}
