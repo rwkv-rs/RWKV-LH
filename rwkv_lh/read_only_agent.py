@@ -143,7 +143,7 @@ def run_read_only_job(job, *, settings, session_factory=create_model_session):
 
 
 def _run_job(job, *, settings, session_factory, harness_factory, controller_type, allowed_scopes,
-             prepare_state=None, before_run=None):
+             prepare_state=None, before_run=None, execution_authority='rwkv'):
     """Shared production execution and evidence collection; callers set tool permissions."""
     if (type(job.max_calls) is not int or job.max_calls < 1
             or type(job.max_seconds) not in (int, float)
@@ -151,6 +151,8 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
         raise ValueError('positive integer calls and finite positive wall budget required')
     if job.tool_scope not in allowed_scopes:
         raise ValueError('unknown read-only tool scope or execution scope')
+    if execution_authority not in ('rwkv', 'strong_takeover'):
+        raise ValueError('unknown execution authority')
     advice_fields = (job.reconsider_from, job.advice, job.advice_model)
     if any(advice_fields) and not all(advice_fields):
         raise ValueError('reconsideration requires explicit advice and its model identity')
@@ -274,7 +276,10 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
               'termination_evidence': boundary.to_dict() if boundary and error is None else error,
               'command_executions': commands,
               'acceptance': 'unreviewable' if audit_errors else 'not_evaluated',
-              'assistance': 'strong_advised' if continuation and continuation.get('advice_model') else 'rwkv_independent',
+              'assistance': 'strong_takeover' if execution_authority == 'strong_takeover' else
+                            'strong_advised' if continuation and continuation.get('advice_model') else 'rwkv_independent',
+              'execution_model': settings.model,
+              'execution_authority': execution_authority,
               'continuation': continuation,
               'error': error, 'status': state.status.value if state is not None else 'not_started',
               'trace_complete': not audit_errors, 'trace_errors': audit_errors, 'tool_scope': job.tool_scope,

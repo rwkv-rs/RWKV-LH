@@ -1,0 +1,98 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "0477b28ac50b5badc8debe0df9d0358540a8c70a19d161c8d618cd38be7cab07",
+  "run_sha256": "52e0468cc70335dc2c01fbd817fe1c886ed9093568afe087f4a8a90847c97014",
+  "reviewer": "Codex external artifact and raw tool observation review",
+  "validity": "valid",
+  "validity_reason": "同一冻结目标和行为验收；新strong文本根和真实父历史，2次调用固定预算，原始输出及工具快照核验",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9",
+    "E10",
+    "E11"
+  ],
+  "requirements": [
+    {
+      "id": "behavior",
+      "status": "unmet",
+      "reason": "CLI 已接入，但默认 fetchmany(-1) 在真实 Python 环境报错，外部固定测试仍失败。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "met",
+      "reason": "真实命令确实启动原测试；外层0而内层测试1，按原始输出记录失败，不误认通过。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "report",
+      "status": "unmet",
+      "reason": "调用预算结束，无最终回答；不构成虚假完成声明。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11"
+      ]
+    }
+  ],
+  "findings": [],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "首次length且全部1800输出预算用于provider reasoning；第二次修改CLI并启动测试，但默认查询仍错。终止后没有第三次生成，不能说strong看见失败仍拒绝修复。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11"
+      ]
+    }
+  ]
+}

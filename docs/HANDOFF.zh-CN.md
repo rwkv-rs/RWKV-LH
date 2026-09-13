@@ -1,3 +1,13 @@
+# 当前进展：显式接管已真实运行，固定任务仍未合格（2026-09-13）
+
+- strong_takeover 有效 0/1 合格、1 部分满足；改动 2 文件、实际启动测试但失败，无最终回答；另 1 初始化 invalid/0生成保留。
+- 2 strong 请求/35100 provider token；首个 length 全1800 token为reasoning，第二个自主改CLI/查询并测试。外层0与内层测试1分开，零虚假完成。没有新 RWKV 调用。
+- 新强模型文本根、真实父历史、原始输入输出/观察核验；不复用 RWKV 张量。不扩额度，不把接管计独立收益。
+- 入口显式执行归属红绿回归，全量1607 passed/零跳过；最终提交的历史来源标签及vendor用量捕获仍需补齐，下一轮工程处理。
+- [报告](../data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/takeover/REPORT.zh-CN.md)，SHA `464e3f79e6a94e195f6ec24d3584f95902f268e6c083a4d8b3696532042d36c5`。仅本地提交，无 GitHub/训练/新 datasets。
+
+---
+
 # 当前进展：预算修复后同父 State 对照完成（2026-09-13）
 
 - 独立 0/2、原建议后 0/2，均无交付；completed/mutation/虚假完成均 0，全部本次 epoch 同类失败上限中断。20 命令均 cwd 错误、测试未启动，不是项目 Strict。

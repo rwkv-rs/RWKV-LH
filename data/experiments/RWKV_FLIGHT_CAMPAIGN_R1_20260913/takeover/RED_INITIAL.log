@@ -1,0 +1,40 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_explicit_takeover_keeps_raw_answer_and_separate_attribution _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_explicit_takeover_keeps_r0')
+
+    def test_explicit_takeover_keeps_raw_answer_and_separate_attribution(tmp_path):
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        output = tmp_path / 'execution'
+>       result = _run_job(ReadOnlyJob('takeover', 'Answer', str(workspace), str(output)),
+            settings=replace(settings(), model='strong-test'),
+            session_factory=factory([call('final_answer', text='Original strong answer')]),
+            harness_factory=lambda: _RecordedHarness(output),
+            controller_type=LongHorizonController, allowed_scopes=('read_only',),
+            execution_authority='strong_takeover')
+E       TypeError: _run_job() got an unexpected keyword argument 'execution_authority'
+
+tests/test_execution_authority.py:14: TypeError
+_____________ test_unknown_authority_rejected_before_creating_run ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unknown_authority_rejecte0')
+
+    def test_unknown_authority_rejected_before_creating_run(tmp_path):
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        output = tmp_path / 'execution'
+        with pytest.raises(ValueError, match='execution authority'):
+>           _run_job(ReadOnlyJob('bad', 'Answer', str(workspace), str(output)),
+                settings=settings(), session_factory=factory([]),
+                harness_factory=lambda: _RecordedHarness(output),
+                controller_type=LongHorizonController, allowed_scopes=('read_only',),
+                execution_authority='auto')
+E           TypeError: _run_job() got an unexpected keyword argument 'execution_authority'
+
+tests/test_execution_authority.py:31: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_execution_authority.py::test_explicit_takeover_keeps_raw_answer_and_separate_attribution
+FAILED tests/test_execution_authority.py::test_unknown_authority_rejected_before_creating_run
+2 failed in 0.23s
