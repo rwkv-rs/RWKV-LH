@@ -1,0 +1,35 @@
+{
+  "latency_comparison_valid": false,
+  "sampled_energy_comparison_valid": false,
+  "task_quality_outcomes_unchanged": true,
+  "observed_device_memory_samples_still_raw_observations": true,
+  "batches": [
+    {
+      "batch": "parallel-r1",
+      "recorded_system_clock_seconds": 555.5331692695618,
+      "monotonic_task_lower_bound_seconds": 600.0612191299442,
+      "contradiction": true
+    },
+    {
+      "batch": "parallel-r2",
+      "recorded_system_clock_seconds": 553.6688389778137,
+      "monotonic_task_lower_bound_seconds": 600.0562151561026,
+      "contradiction": true
+    },
+    {
+      "batch": "serial-r1",
+      "recorded_system_clock_seconds": 595.2703008651733,
+      "monotonic_task_lower_bound_seconds": 642.768480183091,
+      "contradiction": true
+    },
+    {
+      "batch": "serial-r2",
+      "recorded_system_clock_seconds": 621.7352955341339,
+      "monotonic_task_lower_bound_seconds": 673.8597466120264,
+      "contradiction": true
+    }
+  ],
+  "confirmed_defect": "experimental batch wrapper subtracted time.time while task budgets used monotonic; observed contradiction forbids latency/energy comparison; raw values retained",
+  "unknown": "underlying clock adjustment cause not established; do not infer scheduling or GPU bottleneck from this timing",
+  "next": "use monotonic for batch duration and each resource sample; keep Unix timestamp only for human correlation; verify parent duration >= contained task duration, including startup/cancellation boundaries"
+}

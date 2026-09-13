@@ -1,0 +1,1041 @@
+{
+  "mode": "parallel",
+  "repeat": 2,
+  "concurrency": 2,
+  "start_unix": 1789315063.3776875,
+  "finish_unix": 1789315617.0465264,
+  "execution_wall_seconds": 553.6688389778137,
+  "workspace_preparation_seconds": 0.006425964995287359,
+  "local_children_cumulative_ru_maxrss_kib": 354272,
+  "rss_limit": "cumulative maximum child RSS, not synchronized sum or per-batch peak",
+  "results": [
+    {
+      "id": "artifact-a-parallel-r2",
+      "final": null,
+      "termination": "budget",
+      "termination_reason": "wall_budget_exhausted",
+      "termination_evidence": {
+        "type": "_WallDeadlineExpired",
+        "message": "wall budget exhausted",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 231, in _run_job\n    controller.run(state.run_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 520, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 77, in generate\n    return self.session.generate(*args, **kwargs)\n           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model_session.py\", line 1437, in generate\n    returned = self.native_client.state_generate(\n        parent_state_ref=self._state_ref(checkpoint),\n    ...<4 lines>...\n        parent_cache_binding_digest=parent_binding.digest,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 815, in state_generate\n    data = self._native_request(\n        \"generate\", self._attach_state_profile(\n    ...<13 lines>...\n        ),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 726, in _native_request\n    data, _, _ = self._request_json(\"POST\", \"/state/\" + operation,\n                 ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        payload=prepared, generation=True, native_mutation=True)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 236, in _request_json\n    response = self._session().request(\n        method,\n    ...<7 lines>...\n        verify=self.settings.verify_tls,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 651, in request\n    resp = self.send(prep, **send_kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 784, in send\n    r = adapter.send(request, **kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/adapters.py\", line 696, in send\n    resp = conn.urlopen(\n        method=request.method,\n    ...<9 lines>...\n        chunked=chunked,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 788, in urlopen\n    response = self._make_request(\n        conn,\n    ...<10 lines>...\n        **response_kw,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 534, in _make_request\n    response = conn.getresponse()\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connection.py\", line 571, in getresponse\n    httplib_response = super().getresponse()\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 1450, in getresponse\n    response.begin()\n    ~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 336, in begin\n    version, status, reason = self._read_status()\n                              ~~~~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 297, in _read_status\n    line = str(self.fp.readline(_MAXLINE + 1), \"iso-8859-1\")\n               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 193, in deadline\n    raise _WallDeadlineExpired('wall budget exhausted')\nrwkv_lh.read_only_agent._WallDeadlineExpired: wall budget exhausted\n"
+      },
+      "command_executions": [],
+      "acceptance": "not_evaluated",
+      "assistance": "rwkv_independent",
+      "execution_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+      "execution_authority": "rwkv",
+      "continuation": null,
+      "error": {
+        "type": "_WallDeadlineExpired",
+        "message": "wall budget exhausted",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 231, in _run_job\n    controller.run(state.run_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 520, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 77, in generate\n    return self.session.generate(*args, **kwargs)\n           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model_session.py\", line 1437, in generate\n    returned = self.native_client.state_generate(\n        parent_state_ref=self._state_ref(checkpoint),\n    ...<4 lines>...\n        parent_cache_binding_digest=parent_binding.digest,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 815, in state_generate\n    data = self._native_request(\n        \"generate\", self._attach_state_profile(\n    ...<13 lines>...\n        ),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 726, in _native_request\n    data, _, _ = self._request_json(\"POST\", \"/state/\" + operation,\n                 ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        payload=prepared, generation=True, native_mutation=True)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 236, in _request_json\n    response = self._session().request(\n        method,\n    ...<7 lines>...\n        verify=self.settings.verify_tls,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 651, in request\n    resp = self.send(prep, **send_kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 784, in send\n    r = adapter.send(request, **kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/adapters.py\", line 696, in send\n    resp = conn.urlopen(\n        method=request.method,\n    ...<9 lines>...\n        chunked=chunked,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 788, in urlopen\n    response = self._make_request(\n        conn,\n    ...<10 lines>...\n        **response_kw,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 534, in _make_request\n    response = conn.getresponse()\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connection.py\", line 571, in getresponse\n    httplib_response = super().getresponse()\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 1450, in getresponse\n    response.begin()\n    ~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 336, in begin\n    version, status, reason = self._read_status()\n                              ~~~~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 297, in _read_status\n    line = str(self.fp.readline(_MAXLINE + 1), \"iso-8859-1\")\n               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 193, in deadline\n    raise _WallDeadlineExpired('wall budget exhausted')\nrwkv_lh.read_only_agent._WallDeadlineExpired: wall budget exhausted\n"
+      },
+      "status": "running",
+      "trace_complete": true,
+      "trace_errors": [],
+      "tool_scope": "inspect",
+      "generation_started": 10,
+      "protocol_rejections": 2,
+      "actions": [
+        {
+          "action_id": "A00001",
+          "sequence": 1,
+          "status": "succeeded",
+          "action_type": "list_directory",
+          "arguments": {
+            "max_entries": 1024,
+            "max_tokens": 4096,
+            "path": ".",
+            "recursive": false,
+            "start_after": ""
+          },
+          "wire_arguments": {
+            "max_entries": 1024,
+            "max_tokens": 4096,
+            "path": ".",
+            "recursive": false,
+            "start_after": ""
+          },
+          "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+          "idempotency_key": "0a8c2cc98c8832902b203e03955a0a4c7b7d569e8464d30f648c44489a14cabe",
+          "decision_id": "D-722285a2139f4a67",
+          "request_id": "MR-92cd7b7f18aa4e29",
+          "started_at": "2026-09-13T15:58:31.040+00:00",
+          "ended_at": "2026-09-13T15:58:31.066+00:00",
+          "result": {
+            "action_type": "list_directory",
+            "success": true,
+            "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 2194, \"type\": \"file\"}, {\"path\": \"docs\", \"type\": \"directory\"}, {\"path\": \"document_index\", \"type\": \"directory\"}, {\"path\": \"index_cli.py\", \"size_bytes\": 1415, \"type\": \"file\"}, {\"path\": \"test_query_limit.py\", \"size_bytes\": 1725, \"type\": \"file\"}], \"entry_count\": 5, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+            "exit_code": null,
+            "artifacts": [],
+            "evidence": [],
+            "metadata": {
+              "path": ".",
+              "recursive": false,
+              "entries": [
+                {
+                  "path": "README.md",
+                  "type": "file",
+                  "size_bytes": 2194
+                },
+                {
+                  "path": "docs",
+                  "type": "directory"
+                },
+                {
+                  "path": "document_index",
+                  "type": "directory"
+                },
+                {
+                  "path": "index_cli.py",
+                  "type": "file",
+                  "size_bytes": 1415
+                },
+                {
+                  "path": "test_query_limit.py",
+                  "type": "file",
+                  "size_bytes": 1725
+                }
+              ],
+              "entry_count": 5,
+              "truncated": false,
+              "next_cursor": "",
+              "complete": true
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "0851bea730c0f2ac1a163847b2c55d55c4e87e9d230f418e5afb5eed5aa857a8",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00002",
+          "sequence": 2,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "README.md",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "README.md",
+            "start_byte": 0
+          },
+          "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+          "idempotency_key": "2cfc9b7504b2c185889ba3c29a7dcd2acae8b2e09a31b34450a87b68dcaf9645",
+          "decision_id": "D-200c24a841f244bb",
+          "request_id": "MR-94e41f527fb244a7",
+          "started_at": "2026-09-13T16:00:23.358+00:00",
+          "ended_at": "2026-09-13T16:00:23.390+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "# 增量文档索引维护\n\n这是已有的多文件 Python SQLite 索引工具。用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略，以及 Unicode 查询不一致。修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口，说明验证方法。可调整内部模块；不需要外部包或在线服务。\n\nPython 3.11+ 标准库，入口 `index_cli.py`。成功退出 0，stdout 最后一行 JSON 对象；非法输入或损坏数据非 0。所有运行 DB 路径由参数指定。\n\n- `python index_cli.py sync --root DOCS --db DB`：递归索引 DOCS 下扩展名为 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写）。相对路径用 POSIX `/`；跳过符号链接文件和目录，不读取链接指向的外部数据。文件名、内容保持 Unicode。忽略其他扩展名。\n- 同步按内容变化识别更新，mtime/size 相同也可能变化；文件删除应从索引删除。返回 `{added,updated,deleted,unchanged,generation}`，按文件计数。generation 从 0 开始，只有新增/内容修改/删除时加 1；纯重复同步不增加。\n- 一次扫描中任一目标文件不能严格 UTF-8 解码或发生读取错误，整次同步失败，已有文档/查询结果/代数不能部分更新。不存在的 root 失败。一个 DB 绑定首次 root 的绝对路径，不允许换 root 后静默混用。\n- `python index_cli.py query --db DB --text TEXT`：非空查询，对内容进行 Unicode NFC 规范化后 casefold 的字面子串匹配；TEXT 同样处理。`Straße` 应匹配 `STRASSE`，组合/分解的 é 等价。返回 `{count,matches:[{path:相对路径},...]}`，每文档一次，按路径升序；没有匹配返回空数组。禁止把 SQL 通配符或正则表达式当作查询语法。\n- `python index_cli.py status --db DB` → `{document_count,generation,root}`；query/status 不修改索引，不存在 DB 应失败。\n\n进程重新执行后仍应保留原索引，不要求源文件在查询时仍存在。样例 docs 只用于手工演示；请实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启。更新 README 操作说明。\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "README.md",
+                "sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "media_type": "text/markdown",
+                "size_bytes": 2194,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-9f50040b7a681d1a",
+                "source_ref": "README.md",
+                "source_sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 2194,
+                "core_start": 0,
+                "core_end": 2194,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 747
+              },
+              "start_byte": 0,
+              "end_byte": 2194,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 2194,
+              "observed_tokens": 747,
+              "source_start_line": 1,
+              "source_end_line": 13
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-bafeeaada0af91fecbaf"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "0f2c2f3a7a776e7b59c91dd04eee21d993f60f303f4f5aa3b45eb99f14c08d48",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00003",
+          "sequence": 3,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "index_cli.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "index_cli.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+          "idempotency_key": "208808831e5288d14e0937a1a97288c49e55146056b84546ba3fcc2722745f02",
+          "decision_id": "D-ee641bbe550e49e6",
+          "request_id": "MR-639611f6e91048e6",
+          "started_at": "2026-09-13T16:01:19.717+00:00",
+          "ended_at": "2026-09-13T16:01:19.754+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "index_cli.py",
+                "sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+                "media_type": "text/x-python",
+                "size_bytes": 1415,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-4babbd3ea4b73730",
+                "source_ref": "index_cli.py",
+                "source_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 1415,
+                "core_start": 0,
+                "core_end": 1415,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 349
+              },
+              "start_byte": 0,
+              "end_byte": 1415,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 1415,
+              "observed_tokens": 349,
+              "source_start_line": 1,
+              "source_end_line": 33
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-ab0089c649cffb53f0be"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "1c9f61ae47603a67d82aa52210d1eb48fc9f8c8a5d5a61bf2432e1d06ef2ada2",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00004",
+          "sequence": 4,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/store.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/store.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+          "idempotency_key": "6d124e5d3e074cab26c90032006be7c12b9a08e214d08d9a5e4ce91ba23be0a6",
+          "decision_id": "D-74c5bdd9a47d4458",
+          "request_id": "MR-a20cdd01b6c04126",
+          "started_at": "2026-09-13T16:02:14.475+00:00",
+          "ended_at": "2026-09-13T16:02:14.509+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "document_index/store.py",
+                "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "media_type": "text/x-python",
+                "size_bytes": 1789,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+                "source_ref": "document_index/store.py",
+                "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 1789,
+                "core_start": 0,
+                "core_end": 1789,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 412
+              },
+              "start_byte": 0,
+              "end_byte": 1789,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 1789,
+              "observed_tokens": 412,
+              "source_start_line": 1,
+              "source_end_line": 30
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-150b629146a7af5b8dce"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00005",
+          "sequence": 5,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/documents.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/documents.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+          "idempotency_key": "93b70fbb2e2fc2faf39e5cb032a8aa80df8238b317d00ad293c9aaa669311ba9",
+          "decision_id": "D-c1fdc97a8b744c54",
+          "request_id": "MR-63504090e97f47f6",
+          "started_at": "2026-09-13T16:03:09.135+00:00",
+          "ended_at": "2026-09-13T16:03:09.169+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "document_index/documents.py",
+                "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "media_type": "text/x-python",
+                "size_bytes": 510,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+                "source_ref": "document_index/documents.py",
+                "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 510,
+                "core_start": 0,
+                "core_end": 510,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 134
+              },
+              "start_byte": 0,
+              "end_byte": 510,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 510,
+              "observed_tokens": 134,
+              "source_start_line": 1,
+              "source_end_line": 16
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-7855179d81cbc132a2e0"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00006",
+          "sequence": 6,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/query.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/query.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+          "idempotency_key": "97601549aa8e237a3e449a2d51c1c0033c6dacfe538db1fdfc133e1841d9a4a6",
+          "decision_id": "D-864ea638bcf5492e",
+          "request_id": "MR-842bd93e394c43f0",
+          "started_at": "2026-09-13T16:04:04.856+00:00",
+          "ended_at": "2026-09-13T16:04:04.894+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nfrom typing import Optional\n\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\n        raise ValueError('limit must be a positive integer')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "document_index/query.py",
+                "sha256": "55ddbb86e5eb1a4fe9b3508c7eb943d481cf96112fd1c59c187728cabc5570d1",
+                "media_type": "text/x-python",
+                "size_bytes": 701,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-c90ae7d94ee90d29",
+                "source_ref": "document_index/query.py",
+                "source_sha256": "55ddbb86e5eb1a4fe9b3508c7eb943d481cf96112fd1c59c187728cabc5570d1",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 701,
+                "core_start": 0,
+                "core_end": 701,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "55ddbb86e5eb1a4fe9b3508c7eb943d481cf96112fd1c59c187728cabc5570d1",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 169
+              },
+              "start_byte": 0,
+              "end_byte": 701,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 701,
+              "observed_tokens": 169,
+              "source_start_line": 1,
+              "source_end_line": 15
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-c53c32dcde798effe6ee"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "582c84b4f00fecbde79e12b2a56fc13e761653cabab659a1519e71edf5b13606",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00007",
+          "sequence": 7,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "test_query_limit.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "test_query_limit.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+          "idempotency_key": "0bbe97dd08500d18cff564543508e163ff99fcbfd9be8cdee15062b3f0fecc20",
+          "decision_id": "D-cf4cc498aee9404c",
+          "request_id": "MR-5229929a83cd4f69",
+          "started_at": "2026-09-13T16:04:59.612+00:00",
+          "ended_at": "2026-09-13T16:04:59.653+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "test_query_limit.py",
+                "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+                "media_type": "text/x-python",
+                "size_bytes": 1725,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-f89624455eda026a",
+                "source_ref": "test_query_limit.py",
+                "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 1725,
+                "core_start": 0,
+                "core_end": 1725,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 488
+              },
+              "start_byte": 0,
+              "end_byte": 1725,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 1725,
+              "observed_tokens": 488,
+              "source_start_line": 1,
+              "source_end_line": 31
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-cae4ca39d4f9272a5efc"
+          ],
+          "workspace_digest_before": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "workspace_digest_after": "4380e73017f407b7372aebbf9e4d473c0e4ca30b66534a35f3007f7758ec041e",
+          "failure_key": "",
+          "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        }
+      ],
+      "elapsed_seconds": 600.0562151561026
+    },
+    {
+      "id": "artifact-b-parallel-r2",
+      "final": null,
+      "termination": "budget",
+      "termination_reason": "wall_budget_exhausted",
+      "termination_evidence": {
+        "type": "_WallDeadlineExpired",
+        "message": "wall budget exhausted",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 231, in _run_job\n    controller.run(state.run_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 520, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 77, in generate\n    return self.session.generate(*args, **kwargs)\n           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model_session.py\", line 1437, in generate\n    returned = self.native_client.state_generate(\n        parent_state_ref=self._state_ref(checkpoint),\n    ...<4 lines>...\n        parent_cache_binding_digest=parent_binding.digest,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 815, in state_generate\n    data = self._native_request(\n        \"generate\", self._attach_state_profile(\n    ...<13 lines>...\n        ),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 726, in _native_request\n    data, _, _ = self._request_json(\"POST\", \"/state/\" + operation,\n                 ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        payload=prepared, generation=True, native_mutation=True)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 236, in _request_json\n    response = self._session().request(\n        method,\n    ...<7 lines>...\n        verify=self.settings.verify_tls,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 651, in request\n    resp = self.send(prep, **send_kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 784, in send\n    r = adapter.send(request, **kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/adapters.py\", line 696, in send\n    resp = conn.urlopen(\n        method=request.method,\n    ...<9 lines>...\n        chunked=chunked,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 788, in urlopen\n    response = self._make_request(\n        conn,\n    ...<10 lines>...\n        **response_kw,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 534, in _make_request\n    response = conn.getresponse()\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connection.py\", line 571, in getresponse\n    httplib_response = super().getresponse()\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 1450, in getresponse\n    response.begin()\n    ~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 336, in begin\n    version, status, reason = self._read_status()\n                              ~~~~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 297, in _read_status\n    line = str(self.fp.readline(_MAXLINE + 1), \"iso-8859-1\")\n               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 193, in deadline\n    raise _WallDeadlineExpired('wall budget exhausted')\nrwkv_lh.read_only_agent._WallDeadlineExpired: wall budget exhausted\n"
+      },
+      "command_executions": [],
+      "acceptance": "not_evaluated",
+      "assistance": "rwkv_independent",
+      "execution_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+      "execution_authority": "rwkv",
+      "continuation": null,
+      "error": {
+        "type": "_WallDeadlineExpired",
+        "message": "wall budget exhausted",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 231, in _run_job\n    controller.run(state.run_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 520, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 77, in generate\n    return self.session.generate(*args, **kwargs)\n           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model_session.py\", line 1437, in generate\n    returned = self.native_client.state_generate(\n        parent_state_ref=self._state_ref(checkpoint),\n    ...<4 lines>...\n        parent_cache_binding_digest=parent_binding.digest,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 815, in state_generate\n    data = self._native_request(\n        \"generate\", self._attach_state_profile(\n    ...<13 lines>...\n        ),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 726, in _native_request\n    data, _, _ = self._request_json(\"POST\", \"/state/\" + operation,\n                 ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        payload=prepared, generation=True, native_mutation=True)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/runtime/openai_compat.py\", line 236, in _request_json\n    response = self._session().request(\n        method,\n    ...<7 lines>...\n        verify=self.settings.verify_tls,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 651, in request\n    resp = self.send(prep, **send_kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/sessions.py\", line 784, in send\n    r = adapter.send(request, **kwargs)\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/requests/adapters.py\", line 696, in send\n    resp = conn.urlopen(\n        method=request.method,\n    ...<9 lines>...\n        chunked=chunked,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 788, in urlopen\n    response = self._make_request(\n        conn,\n    ...<10 lines>...\n        **response_kw,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py\", line 534, in _make_request\n    response = conn.getresponse()\n  File \"/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/urllib3/connection.py\", line 571, in getresponse\n    httplib_response = super().getresponse()\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 1450, in getresponse\n    response.begin()\n    ~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 336, in begin\n    version, status, reason = self._read_status()\n                              ~~~~~~~~~~~~~~~~~^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/http/client.py\", line 297, in _read_status\n    line = str(self.fp.readline(_MAXLINE + 1), \"iso-8859-1\")\n               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/socket.py\", line 719, in readinto\n    return self._sock.recv_into(b)\n           ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 193, in deadline\n    raise _WallDeadlineExpired('wall budget exhausted')\nrwkv_lh.read_only_agent._WallDeadlineExpired: wall budget exhausted\n"
+      },
+      "status": "running",
+      "trace_complete": true,
+      "trace_errors": [],
+      "tool_scope": "inspect",
+      "generation_started": 10,
+      "protocol_rejections": 4,
+      "actions": [
+        {
+          "action_id": "A00001",
+          "sequence": 1,
+          "status": "succeeded",
+          "action_type": "list_directory",
+          "arguments": {
+            "max_entries": 100,
+            "max_tokens": 4096,
+            "path": ".",
+            "recursive": false,
+            "start_after": ""
+          },
+          "wire_arguments": {
+            "max_entries": 100,
+            "max_tokens": 4096,
+            "path": ".",
+            "recursive": false,
+            "start_after": ""
+          },
+          "action_fingerprint": "2b32a7f8dc88886e553fe50c61fe050fa113782432927f53d2a94aa5169de746",
+          "idempotency_key": "e9fc7626eb5ce3aec2027d881125585c7e076295f55050d874044b0de1d26902",
+          "decision_id": "D-6ccfb377a8d3444c",
+          "request_id": "MR-e07907264c3445c0",
+          "started_at": "2026-09-13T15:58:24.268+00:00",
+          "ended_at": "2026-09-13T15:58:24.294+00:00",
+          "result": {
+            "action_type": "list_directory",
+            "success": true,
+            "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 2194, \"type\": \"file\"}, {\"path\": \"docs\", \"type\": \"directory\"}, {\"path\": \"document_index\", \"type\": \"directory\"}, {\"path\": \"index_cli.py\", \"size_bytes\": 1492, \"type\": \"file\"}, {\"path\": \"test_query_limit.py\", \"size_bytes\": 1725, \"type\": \"file\"}], \"entry_count\": 5, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+            "exit_code": null,
+            "artifacts": [],
+            "evidence": [],
+            "metadata": {
+              "path": ".",
+              "recursive": false,
+              "entries": [
+                {
+                  "path": "README.md",
+                  "type": "file",
+                  "size_bytes": 2194
+                },
+                {
+                  "path": "docs",
+                  "type": "directory"
+                },
+                {
+                  "path": "document_index",
+                  "type": "directory"
+                },
+                {
+                  "path": "index_cli.py",
+                  "type": "file",
+                  "size_bytes": 1492
+                },
+                {
+                  "path": "test_query_limit.py",
+                  "type": "file",
+                  "size_bytes": 1725
+                }
+              ],
+              "entry_count": 5,
+              "truncated": false,
+              "next_cursor": "",
+              "complete": true
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "failure_key": "",
+          "observation_fingerprint": "dc0d3c3299a02dcdd6a9ef9213fcfbf517a699d478c850f009be555090d3a0ec",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00002",
+          "sequence": 2,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "README.md",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "README.md",
+            "start_byte": 0
+          },
+          "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+          "idempotency_key": "648662881298dd3c6cabf1cf6fd8201915fdb37a8989434b29c77dd84a602dc3",
+          "decision_id": "D-3bb6c71dfc3e433e",
+          "request_id": "MR-7846853706f943ad",
+          "started_at": "2026-09-13T16:00:16.270+00:00",
+          "ended_at": "2026-09-13T16:00:16.301+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "# 增量文档索引维护\n\n这是已有的多文件 Python SQLite 索引工具。用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略，以及 Unicode 查询不一致。修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口，说明验证方法。可调整内部模块；不需要外部包或在线服务。\n\nPython 3.11+ 标准库，入口 `index_cli.py`。成功退出 0，stdout 最后一行 JSON 对象；非法输入或损坏数据非 0。所有运行 DB 路径由参数指定。\n\n- `python index_cli.py sync --root DOCS --db DB`：递归索引 DOCS 下扩展名为 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写）。相对路径用 POSIX `/`；跳过符号链接文件和目录，不读取链接指向的外部数据。文件名、内容保持 Unicode。忽略其他扩展名。\n- 同步按内容变化识别更新，mtime/size 相同也可能变化；文件删除应从索引删除。返回 `{added,updated,deleted,unchanged,generation}`，按文件计数。generation 从 0 开始，只有新增/内容修改/删除时加 1；纯重复同步不增加。\n- 一次扫描中任一目标文件不能严格 UTF-8 解码或发生读取错误，整次同步失败，已有文档/查询结果/代数不能部分更新。不存在的 root 失败。一个 DB 绑定首次 root 的绝对路径，不允许换 root 后静默混用。\n- `python index_cli.py query --db DB --text TEXT`：非空查询，对内容进行 Unicode NFC 规范化后 casefold 的字面子串匹配；TEXT 同样处理。`Straße` 应匹配 `STRASSE`，组合/分解的 é 等价。返回 `{count,matches:[{path:相对路径},...]}`，每文档一次，按路径升序；没有匹配返回空数组。禁止把 SQL 通配符或正则表达式当作查询语法。\n- `python index_cli.py status --db DB` → `{document_count,generation,root}`；query/status 不修改索引，不存在 DB 应失败。\n\n进程重新执行后仍应保留原索引，不要求源文件在查询时仍存在。样例 docs 只用于手工演示；请实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启。更新 README 操作说明。\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "README.md",
+                "sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "media_type": "text/markdown",
+                "size_bytes": 2194,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-9f50040b7a681d1a",
+                "source_ref": "README.md",
+                "source_sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 2194,
+                "core_start": 0,
+                "core_end": 2194,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 747
+              },
+              "start_byte": 0,
+              "end_byte": 2194,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 2194,
+              "observed_tokens": 747,
+              "source_start_line": 1,
+              "source_end_line": 13
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-bafeeaada0af91fecbaf"
+          ],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "failure_key": "",
+          "observation_fingerprint": "0f2c2f3a7a776e7b59c91dd04eee21d993f60f303f4f5aa3b45eb99f14c08d48",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00003",
+          "sequence": 3,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "index_cli.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "index_cli.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+          "idempotency_key": "d7e18e7e0cb7322f2988f5d69d7311dd3bc48606ee392d9f7c2ba1462b7d88a4",
+          "decision_id": "D-ccf658ac411d4f6a",
+          "request_id": "MR-c85317df80444aa3",
+          "started_at": "2026-09-13T16:02:07.011+00:00",
+          "ended_at": "2026-09-13T16:02:07.042+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True); find.add_argument('--limit', type=int, default=None)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text, limit=arguments.limit)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "index_cli.py",
+                "sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+                "media_type": "text/x-python",
+                "size_bytes": 1492,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-2c1355ed9019a2a3",
+                "source_ref": "index_cli.py",
+                "source_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 1492,
+                "core_start": 0,
+                "core_end": 1492,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 371
+              },
+              "start_byte": 0,
+              "end_byte": 1492,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 1492,
+              "observed_tokens": 371,
+              "source_start_line": 1,
+              "source_end_line": 33
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-b27bad9888a1db67bd96"
+          ],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "failure_key": "",
+          "observation_fingerprint": "18b39e21400c0ed5944fed62f6d61be78a89082f227d1dd3c6c68694105effc9",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00004",
+          "sequence": 4,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/store.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/store.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+          "idempotency_key": "69fdd7248aa34bd50a5d23d6950aa45213adbf7704648f446c6befd6f30eef07",
+          "decision_id": "D-ba4386e312834666",
+          "request_id": "MR-e164b81c79c34f07",
+          "started_at": "2026-09-13T16:03:58.052+00:00",
+          "ended_at": "2026-09-13T16:03:58.090+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "document_index/store.py",
+                "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "media_type": "text/x-python",
+                "size_bytes": 1789,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+                "source_ref": "document_index/store.py",
+                "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 1789,
+                "core_start": 0,
+                "core_end": 1789,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 412
+              },
+              "start_byte": 0,
+              "end_byte": 1789,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 1789,
+              "observed_tokens": 412,
+              "source_start_line": 1,
+              "source_end_line": 30
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-150b629146a7af5b8dce"
+          ],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "failure_key": "",
+          "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        },
+        {
+          "action_id": "A00005",
+          "sequence": 5,
+          "status": "succeeded",
+          "action_type": "read_file",
+          "arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/documents.py",
+            "start_byte": 0
+          },
+          "wire_arguments": {
+            "max_tokens": 4096,
+            "path": "document_index/documents.py",
+            "start_byte": 0
+          },
+          "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+          "idempotency_key": "4729166237fa3fbeb4bbb48fccdf4739bccb44034475a5f1a88a4b736569698a",
+          "decision_id": "D-e420e8c6936346d7",
+          "request_id": "MR-90e9f74db90d40f8",
+          "started_at": "2026-09-13T16:06:20.603+00:00",
+          "ended_at": "2026-09-13T16:06:20.643+00:00",
+          "result": {
+            "action_type": "read_file",
+            "success": true,
+            "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+            "exit_code": null,
+            "artifacts": [
+              {
+                "path": "document_index/documents.py",
+                "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "media_type": "text/x-python",
+                "size_bytes": 510,
+                "summary": ""
+              }
+            ],
+            "evidence": [],
+            "metadata": {
+              "chunk": {
+                "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+                "source_ref": "document_index/documents.py",
+                "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 510,
+                "core_start": 0,
+                "core_end": 510,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 134
+              },
+              "start_byte": 0,
+              "end_byte": 510,
+              "next_start_byte": null,
+              "truncated": false,
+              "complete": true,
+              "eof": true,
+              "source_size_bytes": 510,
+              "observed_tokens": 134,
+              "source_start_line": 1,
+              "source_end_line": 16
+            },
+            "error": null,
+            "outcome_type": "success"
+          },
+          "artifact_refs": [
+            "ART-7855179d81cbc132a2e0"
+          ],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "failure_key": "",
+          "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+          "error": null,
+          "outcome_type": "success",
+          "atom_execution_contract_digest": ""
+        }
+      ],
+      "elapsed_seconds": 600.0489576449618
+    }
+  ],
+  "workspace_unchanged": true,
+  "production_unchanged": true
+}

@@ -1,0 +1,393 @@
+{
+  "runs": [
+    {
+      "id": "artifact-a-parallel-r1",
+      "arm": "parallel",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 600.0612191299442,
+      "diagnostics": {
+        "model_calls": 10,
+        "input_tokens": 102860,
+        "output_tokens": 605,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 2
+      },
+      "termination": "wall_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": "test_index",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: test_index"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": "test_index",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: test_index"
+          }
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6,
+        "check_command": 2
+      }
+    },
+    {
+      "id": "artifact-a-parallel-r2",
+      "arm": "parallel",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 600.0562151561026,
+      "diagnostics": {
+        "model_calls": 9,
+        "input_tokens": 76373,
+        "output_tokens": 2207,
+        "protocol_rejections": 2,
+        "feedback_consumed": 2,
+        "tool_errors": 0
+      },
+      "termination": "wall_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6
+      }
+    },
+    {
+      "id": "artifact-a-serial-r1",
+      "arm": "serial",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 352.00026706408244,
+      "diagnostics": {
+        "model_calls": 12,
+        "input_tokens": 138269,
+        "output_tokens": 777,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 4
+      },
+      "termination": "transition_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "DOCS",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "DOCS",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00010",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "docs",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00011",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "status",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6,
+        "check_command": 4
+      }
+    },
+    {
+      "id": "artifact-a-serial-r2",
+      "arm": "serial",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 354.48401791707147,
+      "diagnostics": {
+        "model_calls": 10,
+        "input_tokens": 94356,
+        "output_tokens": 507,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 0
+      },
+      "termination": "identical_success_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 8
+      }
+    },
+    {
+      "id": "artifact-b-parallel-r1",
+      "arm": "parallel",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 600.0610344801098,
+      "diagnostics": {
+        "model_calls": 10,
+        "input_tokens": 77299,
+        "output_tokens": 472,
+        "protocol_rejections": 3,
+        "feedback_consumed": 3,
+        "tool_errors": 1
+      },
+      "termination": "wall_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 3,
+        "read_file": 4
+      }
+    },
+    {
+      "id": "artifact-b-parallel-r2",
+      "arm": "parallel",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 600.0489576449618,
+      "diagnostics": {
+        "model_calls": 9,
+        "input_tokens": 62565,
+        "output_tokens": 459,
+        "protocol_rejections": 4,
+        "feedback_consumed": 4,
+        "tool_errors": 0
+      },
+      "termination": "wall_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 4
+      }
+    },
+    {
+      "id": "artifact-b-serial-r1",
+      "arm": "serial",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 290.7682131190086,
+      "diagnostics": {
+        "model_calls": 10,
+        "input_tokens": 85431,
+        "output_tokens": 462,
+        "protocol_rejections": 2,
+        "feedback_consumed": 2,
+        "tool_errors": 0
+      },
+      "termination": "identical_success_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 7
+      }
+    },
+    {
+      "id": "artifact-b-serial-r2",
+      "arm": "serial",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 319.3757286949549,
+      "diagnostics": {
+        "model_calls": 10,
+        "input_tokens": 93783,
+        "output_tokens": 381,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 0
+      },
+      "termination": "identical_success_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 8
+      }
+    }
+  ],
+  "batches": [
+    {
+      "id": "parallel-r1",
+      "concurrency": 2,
+      "wall_seconds": 555.5331692695618,
+      "preparation_seconds": 0.007409308920614421,
+      "qualified_tasks": 0,
+      "qualified_tasks_per_hour": 0.0,
+      "sample_count": 108,
+      "sample_errors": 0,
+      "sample_gaps": [],
+      "other_gpu_process_ids": [],
+      "peak_device_memory_mib": 39057.0,
+      "approx_sampled_device_energy_joules": 48145.165756635666,
+      "energy_observed_seconds": 555.2764573097229,
+      "local_cumulative_child_maxrss_kib": 354272,
+      "limits": "device-wide sparse samples include resident weights/idle and may miss peaks; not per-request allocation or full-system energy; child maxrss is cumulative single-child high water, not per-batch sum"
+    },
+    {
+      "id": "parallel-r2",
+      "concurrency": 2,
+      "wall_seconds": 553.6688389778137,
+      "preparation_seconds": 0.006425964995287359,
+      "qualified_tasks": 0,
+      "qualified_tasks_per_hour": 0.0,
+      "sample_count": 104,
+      "sample_errors": 0,
+      "sample_gaps": [],
+      "other_gpu_process_ids": [],
+      "peak_device_memory_mib": 39057.0,
+      "approx_sampled_device_energy_joules": 56238.91622743724,
+      "energy_observed_seconds": 549.9454135894775,
+      "local_cumulative_child_maxrss_kib": 354272,
+      "limits": "device-wide sparse samples include resident weights/idle and may miss peaks; not per-request allocation or full-system energy; child maxrss is cumulative single-child high water, not per-batch sum"
+    },
+    {
+      "id": "serial-r1",
+      "concurrency": 1,
+      "wall_seconds": 595.2703008651733,
+      "preparation_seconds": 0.008370061055757105,
+      "qualified_tasks": 0,
+      "qualified_tasks_per_hour": 0.0,
+      "sample_count": 110,
+      "sample_errors": 0,
+      "sample_gaps": [],
+      "other_gpu_process_ids": [],
+      "peak_device_memory_mib": 39057.0,
+      "approx_sampled_device_energy_joules": 51647.93741335034,
+      "energy_observed_seconds": 591.6718344688416,
+      "local_cumulative_child_maxrss_kib": 354272,
+      "limits": "device-wide sparse samples include resident weights/idle and may miss peaks; not per-request allocation or full-system energy; child maxrss is cumulative single-child high water, not per-batch sum"
+    },
+    {
+      "id": "serial-r2",
+      "concurrency": 1,
+      "wall_seconds": 621.7352955341339,
+      "preparation_seconds": 0.00651853799354285,
+      "qualified_tasks": 0,
+      "qualified_tasks_per_hour": 0.0,
+      "sample_count": 115,
+      "sample_errors": 0,
+      "sample_gaps": [],
+      "other_gpu_process_ids": [],
+      "peak_device_memory_mib": 39057.0,
+      "approx_sampled_device_energy_joules": 61927.21161053536,
+      "energy_observed_seconds": 619.0134768486023,
+      "local_cumulative_child_maxrss_kib": 354272,
+      "limits": "device-wide sparse samples include resident weights/idle and may miss peaks; not per-request allocation or full-system energy; child maxrss is cumulative single-child high water, not per-batch sum"
+    }
+  ],
+  "state_checkpoint_ids_disjoint": true,
+  "workspaces_unchanged": true,
+  "strong_calls": 0,
+  "price_or_total_system_cost_measured": false,
+  "interpretation": "read-only review tasks, not coding project delivery; only qualified task throughput matters; no equal-work hardware speed claim from different generations"
+}
