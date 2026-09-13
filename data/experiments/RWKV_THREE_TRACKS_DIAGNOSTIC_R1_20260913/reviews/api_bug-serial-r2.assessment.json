@@ -1,0 +1,102 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_bug-serial-r2",
+  "task_id": "api_bug",
+  "arm": "serial",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "604c183155e248edd623f1604f7d330780971bfe0e8529e69603205996f5cb0c",
+  "review_sha256": "04b29584edc0fa993783e22445edde6427fb7cadce27925f8bfaff47c9638e80",
+  "execution_identity_sha256": "79f710bfe39850737afda2e19b3921d2d8791ad2ca68725496f10df0bf67615b",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "bug",
+      "status": "met",
+      "reason": "缺少数据库及业务实现是实际缺陷；额外无依据行为单列",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "partial",
+      "reason": "两份原文读取确已执行，建议测试未运行；第二遍串行遗漏实际读取说明，不把工具函数名或固定路径作为必要措辞",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "met",
+      "reason": "给出针对数据库/预约缺失的可执行建议，明确尚未执行；错误的代码行为归因另列",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "会因数据库表缺失而失败",
+      "reason": "缺少数据库属实，但断言POST会因表缺失失败不受源码支持：根本没有POST处理或数据库查询；实际工具读取没有交代。验证步骤标为未执行。",
+      "impact": "误报当前实现与故障机制。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "缺少数据库属实，但断言POST会因表缺失失败不受源码支持：根本没有POST处理或数据库查询；实际工具读取没有交代。验证步骤标为未执行。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 4,
+    "input_tokens": 13610,
+    "output_tokens": 2291,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

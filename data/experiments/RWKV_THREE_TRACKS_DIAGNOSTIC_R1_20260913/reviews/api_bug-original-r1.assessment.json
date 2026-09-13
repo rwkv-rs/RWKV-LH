@@ -1,0 +1,102 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_bug-original-r1",
+  "task_id": "api_bug",
+  "arm": "original",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "39627e626f52b74dae87ed5bb8b49deaccc6bf098b6dc9e74b5277a22b93d010",
+  "review_sha256": "137ec1b42efaa1b26af050764e9d59977a8bbfc7594878f69a6df2923b9f73a8",
+  "execution_identity_sha256": "79f710bfe39850737afda2e19b3921d2d8791ad2ca68725496f10df0bf67615b",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "bug",
+      "status": "unmet",
+      "reason": "把缺少资源状态扩展字段称缺陷，但现有health满足README的200/ok契约，未指出要求中的真实实现缺失",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "unmet",
+      "reason": "没有任何实际工具执行，却声称使用read_file读取server.py",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "unmet",
+      "reason": "只说明未发HTTP请求，没有针对真实缺陷的验证步骤",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "false_work_claim",
+      "severity": "material",
+      "quote": "我使用了 read_file 工具读取了 server.py 文件",
+      "reason": "本轮actions为空；全文来自初始输入，拒绝的调用不算真实工具执行。",
+      "impact": "将输入材料阅读误报为已执行的工具验证。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 1,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "原始第一遍没有识别要求中的真实缺陷，并虚称工具读取。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3894,
+    "output_tokens": 785,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

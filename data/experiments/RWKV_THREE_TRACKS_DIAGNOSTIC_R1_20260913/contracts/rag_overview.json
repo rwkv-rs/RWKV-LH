@@ -1,0 +1,38 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "rag_overview",
+    "user_request": "阅读 README.md，准确说明文中 Reader 和 Writer 的实验结果。区分模型或候选标签、实验分数、分子与分母；保留原文中的数字及其对应对象，不推算文件没有报告的成绩。再说明这些数字可以支持和不能支持的结论。只依据文件回答。",
+    "kind": "task_trial",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "dc2eff6334e2184dc167a784a90654603647795edc9a68f08b828aabe3486533",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "4d1069880b127083511bd771aa43f36d8cd70a8a21ce166429d74910171e4501",
+      "budget": "f0455f460c319cfebeeedf48ea9369111592ed1a9de9cf7fdd3d2416eb7aa15a"
+    },
+    "requirements": [
+      {
+        "id": "numbers",
+        "user_quote": "区分模型或候选标签、实验分数、分子与分母",
+        "outcome": "Reader48/60到60/60；Writer300是候选标签，固定36题17/36，zero10/36；不把300/1400等作为成绩分母",
+        "level": "essential",
+        "missing_effect": "明确询问的核心信息未回答",
+        "acceptance": "Reader48/60到60/60；Writer300是候选标签，固定36题17/36，zero10/36；不把300/1400等作为成绩分母；允许等义表达，不限执行路径",
+        "omission_policy": "未要求的一般实现细节允许省略"
+      },
+      {
+        "id": "limits",
+        "user_quote": "可以支持和不能支持的结论",
+        "outcome": "受控组结果及扩大1400条未继续提升；不冒称全场景准确率或能力上限",
+        "level": "essential",
+        "missing_effect": "明确询问的核心信息未回答",
+        "acceptance": "受控组结果及扩大1400条未继续提升；不冒称全场景准确率或能力上限；允许等义表达，不限执行路径",
+        "omission_policy": "未要求的一般实现细节允许省略"
+      }
+    ]
+  },
+  "sha256": "77a81862a8133064c1e07f381d0ae22fdc226cd35b7909ba6e27974f0e4276dc"
+}

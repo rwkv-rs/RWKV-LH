@@ -1,0 +1,7 @@
+# State登记范围澄清（strong运行前）
+
+REGISTRATION沿用的state.initial文字“fresh zero per task”适用于T生成、位置组和串行/并发任务。strong组是登记中strong_parent、strong_parent_state_sha256和interpretation指定的原父State续接，不是fresh zero任务；zero在此只标初始profile身份，不能把已处理历史的父State说成零张量。
+
+冻结runner从一开始就按原父State隔离复制两遍，并通过生产advice事件续接。本说明纠正共同身份字段的适用范围，没有改变实际运行、预算、任务、评分或原登记。最终审核与报告须将strong父State SHA单列，不能用共同state.initial字段宣称所有组起始状态相同，也不作strong与位置组的纯因果对比。
+
+strong执行前另存contracts/rag_overview_advised.json：评分要求逐字沿用原契约，仅execution_identity.state明确绑定已登记父State SHA和续接方式。原契约及REGISTRATION不改写。

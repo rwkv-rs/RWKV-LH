@@ -1,0 +1,67 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "api_bug-serial-r1",
+  "task_id": "api_bug",
+  "arm": "serial",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "dc2eff6334e2184dc167a784a90654603647795edc9a68f08b828aabe3486533",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "4d1069880b127083511bd771aa43f36d8cd70a8a21ce166429d74910171e4501",
+    "budget": "f0455f460c319cfebeeedf48ea9369111592ed1a9de9cf7fdd3d2416eb7aa15a"
+  },
+  "termination": "submitted",
+  "answer": "实现缺陷：server.py 没有实现任何 HTTP 路由，也没有读取或写入 bookings.sqlite3。\n\n文件描述与实际执行结果：\n- server.py 只有一个健康检查占位，没有数据库连接、预约表、冲突检查或任何路由逻辑。\n- README.md 描述了完整的预约服务契约，包括 POST/GET/DELETE 路由、冲突检测、数据库持久化和终止重启后的一致性。\n\n尚未执行的验证步骤：\n- 启动 server.py 并用 curl 或 httpx 发送 POST /bookings 请求，验证 409 冲突和 201 成功。\n- 发送 GET /bookings 验证返回结构和过滤参数。\n- 发送 DELETE /bookings/{id} 验证幂等性和重新预约。\n- 并发发送多个 POST 请求，验证同一资源的冲突判定是否原子。\n- 终止进程后重启，验证数据库和预约状态是否保留。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "runs/api_bug-serial-r1/execution/RESULT.json",
+      "sha256": "102f09fb541123345d85b6416626809a93af7067d63eb49019a81f779e462700",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "runs/api_bug-serial-r1/execution/model_trace.jsonl",
+      "sha256": "25bdd1bf88318890e9587b8ca2af9e9bf119d8243bce0792220f2d1995f5f03c",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "runs/api_bug-serial-r1/execution/state_snapshot.json",
+      "sha256": "8d810fc9aa62b992f8a9d809b269da841778927d7f1e8e96dc111b16993ca379",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "fixtures/api_bug/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "fixtures/api_bug/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    },
+    {
+      "id": "E6",
+      "path": "runs/api_bug-serial-r1/JOB.json",
+      "sha256": "6045dbf879688299c412c2cfcd41017a6ad6f398ed31fae3e71184eb08562c56",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8555,
+    "output_tokens": 413,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

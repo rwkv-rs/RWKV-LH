@@ -1,0 +1,89 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "03e5cc811be29feebd0800ac44b10bf5cf876d81db46aa77762d1665f447e2bb",
+  "reviewer": "Codex external frozen fact/relationship/source review",
+  "validity": "valid",
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "bug",
+      "status": "met",
+      "reason": "缺少数据库及业务实现是实际缺陷；额外无依据行为单列",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "两份原文读取确已执行，建议测试未运行；第二遍串行遗漏实际读取说明，不把工具函数名或固定路径作为必要措辞",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "met",
+      "reason": "给出针对数据库/预约缺失的可执行建议，明确尚未执行；错误的代码行为归因另列",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "它只返回 200 空响应",
+      "reason": "有真实数据库/业务缺失，但错误声称仅200空响应且health分支不存在；实际为health200/ok和其他GET501。真实读取两份文件，建议测试未运行标注正确。",
+      "impact": "误报当前实现与故障机制。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "有真实数据库/业务缺失，但错误声称仅200空响应且health分支不存在；实际为health200/ok和其他GET501。真实读取两份文件，建议测试未运行标注正确。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ]
+}

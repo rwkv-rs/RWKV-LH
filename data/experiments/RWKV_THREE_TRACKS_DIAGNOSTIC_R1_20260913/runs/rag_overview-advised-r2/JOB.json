@@ -1,0 +1,12 @@
+{
+  "task_id": "rag_overview-advised-r2",
+  "request": "阅读 README.md，准确说明文中 Reader 和 Writer 的实验结果。区分模型或候选标签、实验分数、分子与分母；保留原文中的数字及其对应对象，不推算文件没有报告的成绩。再说明这些数字可以支持和不能支持的结论。只依据文件回答。",
+  "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_FIDELITY_FOCUSED_R1_20260913/runs/rag_overview-focused-r1/workspace",
+  "output_dir": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/runs/rag_overview-advised-r2/execution",
+  "max_calls": 3,
+  "max_seconds": 240,
+  "tool_scope": "files",
+  "reconsider_from": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_FIDELITY_FOCUSED_R1_20260913/runs/rag_overview-focused-r1/execution",
+  "advice": "需要实质修正。候选把 Writer 的 10/36 与 17/36 误写成“有据可用率从约 47.2% 提升到约 47.2%”及“零 state 从约 27.8% 提升到约 27.8%”，对应对象错误，且等于说没有提升。原文只报告零 state 为 10/36、Writer300 为 17/36，应保留这两个分数并说明 Writer300 的有据可用数相对零 state 增加，而不是写成两个相同百分比。另，候选自行换算了 80%、100%、47.2%、27.8%，违反“不推算文件没有报告的成绩”；应删除这些百分比，或明确标注为换算且非原文报告。Reader 48/60→60/60、Writer 零 state 10/36→Writer300 17/36、扩大到 1400 条没有继续提高可保留。“不能直接比较 Reader 和 Writer 为同一指标”文件未明确写出，属额外推断，引用时需谨慎。",
+  "advice_model": "deepseek-flash"
+}

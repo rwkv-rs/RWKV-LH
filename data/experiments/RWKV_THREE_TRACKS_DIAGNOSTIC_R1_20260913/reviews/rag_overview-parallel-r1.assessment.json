@@ -1,0 +1,85 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "rag_overview-parallel-r1",
+  "task_id": "rag_overview",
+  "arm": "parallel",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "77a81862a8133064c1e07f381d0ae22fdc226cd35b7909ba6e27974f0e4276dc",
+  "run_sha256": "66a04ddbf5d93d0cb7810566e5728366530018d5be8a903135b0412fda3dc9db",
+  "review_sha256": "0a19474a300238635d02fcdd5bb8c02530638075c00f128f6eba9ae1d444e179",
+  "execution_identity_sha256": "79f710bfe39850737afda2e19b3921d2d8791ad2ca68725496f10df0bf67615b",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "numbers",
+      "status": "partial",
+      "reason": "原始分数正确但编造47.2%提升到47.9%，原文没有这个比较；不能以数字抄对掩盖关系错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "固定实验范围及不得推广的结论保留；无依据的成绩比较另外记录",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "47.9%",
+      "reason": "原始分数正确但编造47.2%提升到47.9%，原文没有这个比较；不能以数字抄对掩盖关系错误",
+      "impact": "改变候选身份或实验比较关系，直接误答核心问题。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "原始分数正确但编造47.2%提升到47.9%，原文没有这个比较；不能以数字抄对掩盖关系错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 4214,
+    "output_tokens": 323,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

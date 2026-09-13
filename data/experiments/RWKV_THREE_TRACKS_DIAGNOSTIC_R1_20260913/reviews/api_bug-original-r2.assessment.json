@@ -1,0 +1,117 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_bug-original-r2",
+  "task_id": "api_bug",
+  "arm": "original",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "b3d99eb18e87a396eb90cf5c9d7c20885e78f8831f38e7cb72eb506f58872f05",
+  "review_sha256": "16a40427c080b3016f932e96fc86800c66867b6c042763b4f215edf945a48571",
+  "execution_identity_sha256": "79f710bfe39850737afda2e19b3921d2d8791ad2ca68725496f10df0bf67615b",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "bug",
+      "status": "met",
+      "reason": "数据库、业务接口、冲突检测缺失均为真实问题；额外错误另外评",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "unmet",
+      "reason": "本轮没有任何工具执行，实际工具操作一节却列两次文件读取；HTTP未运行如实说明",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "met",
+      "reason": "对缺失业务提出了尚未执行的行为验证，允许不同测试路径",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "缺少对 GET /health 的实现",
+      "reason": "源码明确处理/health并返回200和ok:true。",
+      "impact": "向用户报告不存在的实现缺陷。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "kind": "false_work_claim",
+      "severity": "material",
+      "quote": "实际执行过的工具操作与结果",
+      "reason": "本节列出读取server.py/README.md为实际工具操作，但actions为空；不能把输入全文冒充工具执行。",
+      "impact": "执行来源归属不实；并非要求必须选择某种读取路径。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 1,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "识别多项真实缺失，但额外错误称health未实现并误报工具操作。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3894,
+    "output_tokens": 1029,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

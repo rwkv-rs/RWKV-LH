@@ -1,0 +1,117 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "rag_overview-advised-r1",
+  "task_id": "rag_overview",
+  "arm": "advised",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "2d9ed27ab8cae881ff0a1297ccfd12b61ff4ee32b40ff4b670a08fd7f6605aa3",
+  "run_sha256": "117ab3c2b407de2d457c6c4754b7be83cbe4484ab70b4c7c1140ba7819cc0a23",
+  "review_sha256": "c786f5ad1b38b8d772a40ec2b62d9db4243f3319b8cc74442573c2aef239d5ac",
+  "execution_identity_sha256": "8606fc281c4f087f49d07d1e022ebc340e1e67ec78a9cec04ca6e6113169fb4d",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "strong_advised",
+  "requirement_results": [
+    {
+      "id": "numbers",
+      "status": "partial",
+      "reason": "原值正确，但保留47.2%→47.2%和27.8%→27.8%的虚构提升关系",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "限定受控结果而非全场景/能力上限",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "从约 47.2% 提升到约 47.2%",
+      "reason": "相同百分比不能构成提升；原文比较的是zero10/36与Writer300的17/36。",
+      "impact": "强建议后仍未修正用户明确要求的数字关系。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "新生成答案与父答案相同；不把一次收到建议视为采用建议或任务合格。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 1,
+    "input_tokens": 4268,
+    "output_tokens": 353,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

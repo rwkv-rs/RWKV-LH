@@ -11,7 +11,8 @@
 | 明确文件的小改动 | 单处修改阶段最终文件行为7/8，完整任务6/8，另1部分/1不合格 | 2次合格交付受到旧强制结束边界影响；会新增helper却不接入入口 |
 | 修改后测试反馈与修复 | 两题各两遍：任务2/4合格、1部分、1不合格；文件3/4，真实执行测试4/4 | 一次实际修复后测试通过；另一次未修改且测试失败，却编造修改后通过。不能承诺稳定自修复 |
 | 多文件项目、长期自主执行 | 尚未完成对应阶段验证 | 不能根据短文件成功声称整项目可靠 |
-| 并发调度 | 已有完整独立只读任务隔离与调度入口 | 客户端并发不等于GPU吞吐收益；共享修改与集成尚待验证 |
+| 强模型建议 | 一份数字纠错建议、同父State两次续接，任务0/2；建议已进入输入 | 两次新答案与旧错答案相同；建议自身也有过严限制，不等于有效纠正或接管 |
+| 并发调度 | 完整独立只读任务串行2/4合格、并发2为1/4；并发整组143/145秒，串行202/203秒 | 第一遍质量下降，调用及输出长度不同；未证明同质量收益或GPU加速，共享修改与集成另验 |
 
 适合当前试用的工作：给明确文件与边界清楚的问题，提取信息、解释局部行为、提出可验证的缺陷假设；或在隔离工作区做明确的小改动，再由独立验收检查。涉及事实数字、接口是否实现、测试是否运行时，必须对照原文或工具记录。
 
@@ -19,4 +20,6 @@
 
 证据：[读取后的角色与StateTune验收](../data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/REPORT.zh-CN.md)、[定位恢复基线](../data/experiments/RWKV_DISCOVERY_RESUME_R1_20260913/REPORT.zh-CN.md)、[单处修改阶段](../data/experiments/RWKV_SINGLE_EDIT_BASELINE_R1_20260913/REPORT.zh-CN.md)。后续继续开放开发能力测试，重复问题和模型共性错误集中归因；不每阶段训练一个StateTune，不读取私有holdout用于返工。
 
-[真实测试反馈阶段报告](../data/experiments/RWKV_TEST_FEEDBACK_BASELINE_R1_20260913/REPORT.zh-CN.md)。[Trace前置离线建议](TRACE_PREFIX_DIAGNOSTIC_PROPOSAL.zh-CN.md)尚未运行，不计入能力收益。
+[真实测试反馈阶段报告](../data/experiments/RWKV_TEST_FEEDBACK_BASELINE_R1_20260913/REPORT.zh-CN.md)。[Trace前置离线建议](TRACE_PREFIX_DIAGNOSTIC_PROPOSAL.zh-CN.md)已完成本轮诊断，未接入生产，结果见下。
+
+最新离线位置诊断：原始0/4合格（2部分），重读2/4（代码两遍无交付），同T后置0/4、前置0/4；两份T都有实质错误，不能据此决定改输入或训练。[三条线报告](../data/experiments/RWKV_THREE_TRACKS_DIAGNOSTIC_R1_20260913/REPORT.zh-CN.md)。强协助与独立任务并发不以多文件稳定为前提。

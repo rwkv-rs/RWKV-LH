@@ -1,0 +1,14 @@
+{
+  "rag_overview": {
+    "text": "根据 README.md 记录，Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题的独立抽样中，300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高。文件没有给出 Writer 的完整分子与分母，也没有给出 Reader 的分子与分母。这些结果可以支持“Reader 在受控阅读挑战中全部通过”和“Writer 在有据可用条件下有一定提升”的结论，但不能支持“Writer 在所有条件下都提升”或“Reader 在所有条件下都完美”的结论，因为文件没有提供完整的分子与分母。",
+    "sha256": "32fcf0dc59feba06001008bf45f964cac88e2443482b04ec71706244cc30b95b",
+    "eligible": true,
+    "selection": "only first run; no correction or quality selection"
+  },
+  "api_bug": {
+    "text": "文件与工具记录中没有实际执行过的工具操作，因此无法提供真实的工具结果。我只能基于文件内容指出一个真实实现缺陷：\n\n1. **缺陷**：`server.py` 中的 `do_GET` 方法在处理 `/bookings` 时，没有对 `GET /bookings` 请求进行参数校验。如果请求中包含 `?resource=...` 参数，但参数值不是有效的 UTF-8 字符串，服务器会直接返回空列表，而不是返回 400 错误。\n\n2. **文件描述**：`server.py` 中的 `do_GET` 方法在处理 `/bookings` 时，会检查 `self.path` 是否为 `/bookings`，然后调用 `self.handle_bookings_get()` 方法。该方法会解析查询参数，但没有对参数值进行校验。\n\n3. **工具记录**：由于没有执行过工具操作，没有实际的工具结果可以参考。\n\n4. **未运行的验证步骤**：\n   - 使用 `curl` 或 `httpie` 发送一个包含无效 `resource` 参数的 `GET /bookings` 请求，例如 `curl -X GET http://localhost:8080/bookings?resource=invalid_resource`，预期服务器应返回 400 错误，但实际返回空列表。\n   - 使用 `curl` 或 `httpie` 发送一个包含非 UTF-8 字符的 `resource` 参数的 `GET /bookings` 请求，例如 `curl -X GET http://localhost:8080/bookings?resource=invalid_resource_with_non_utf8_chars`，预期服务器应返回 400 错误，但实际返回空列表。\n\n这些验证步骤尚未执行，因此无法确认服务器是否会返回 400 错误。",
+    "sha256": "2d5c03db393a61d2fa43ddc50aa4db61acd1a74a0a1a90495ed82fdf476e7031",
+    "eligible": true,
+    "selection": "only first run; no correction or quality selection"
+  }
+}

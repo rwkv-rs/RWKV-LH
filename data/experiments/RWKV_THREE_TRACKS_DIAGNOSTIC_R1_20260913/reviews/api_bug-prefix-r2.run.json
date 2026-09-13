@@ -1,0 +1,67 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "api_bug-prefix-r2",
+  "task_id": "api_bug",
+  "arm": "prefix",
+  "repeat": 2,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "dc2eff6334e2184dc167a784a90654603647795edc9a68f08b828aabe3486533",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "4d1069880b127083511bd771aa43f36d8cd70a8a21ce166429d74910171e4501",
+    "budget": "f0455f460c319cfebeeedf48ea9369111592ed1a9de9cf7fdd3d2416eb7aa15a"
+  },
+  "termination": "submitted",
+  "answer": "server.py 中的 do_GET 方法在处理 /bookings 时，没有对 GET /bookings 请求进行参数校验。如果请求中包含非法参数，例如 resource 参数值不是有效的 UTF-8 字符串，服务器会直接返回空列表，而不是返回 400 错误。\n\n文件描述：server.py 中的 do_GET 方法在处理 /bookings 时，会检查 self.path 是否为 /bookings，然后调用 self.handle_bookings_get() 方法。该方法会解析查询参数，但没有对参数值进行校验。\n\n工具记录：由于没有执行过工具操作，没有实际的工具结果可以参考。\n\n未运行的验证步骤：\n1. 使用 curl 或 httpie 发送一个包含无效 resource 参数的 GET /bookings 请求，例如 curl -X GET http://localhost:8080/bookings?resource=invalid_resource，预期服务器应返回 400 错误，但实际返回空列表。\n2. 使用 curl 或 httpie 发送一个包含非 UTF-8 字符的 resource 参数的 GET /bookings 请求，例如 curl -X GET http://localhost:8080/bookings?resource=invalid_resource_with_non_utf8_chars，预期服务器应返回 400 错误，但实际返回空列表。\n\n这些验证步骤尚未执行，因此无法确认服务器是否会返回 400 错误。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "runs/api_bug-prefix-r2/execution/RESULT.json",
+      "sha256": "8063d458b42f6264a28a84dbf413e4c77437118493afc1404c4c88ce65054da9",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "runs/api_bug-prefix-r2/execution/model_trace.jsonl",
+      "sha256": "df2103dbe4e2a2134c52b9116511fa148a9b7916e68e584901a30c4e2063134e",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "runs/api_bug-prefix-r2/execution/state_snapshot.json",
+      "sha256": "355535c6787692e308b9e41f03f75b72b7dad9ce462a75b0f47dc6e09df18fd0",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "fixtures/api_bug/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "fixtures/api_bug/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    },
+    {
+      "id": "E6",
+      "path": "runs/api_bug-prefix-r2/JOB.json",
+      "sha256": "18314f73994cf3a6092e611da0b57fbcc6e528e7662f2e31b8cd4f4452190d1b",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 5042,
+    "output_tokens": 684,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  }
+}

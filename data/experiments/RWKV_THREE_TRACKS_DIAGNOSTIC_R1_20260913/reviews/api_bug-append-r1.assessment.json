@@ -1,0 +1,102 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_bug-append-r1",
+  "task_id": "api_bug",
+  "arm": "append",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "66679e9aa1237f96d6b42ed659ac50aed50d292c7a387ab119ac8d5af883e9ef",
+  "review_sha256": "de084a0951a0757c0f15dc0b8fe99370fcee7018f7cc4b2f21074abf51971f66",
+  "execution_identity_sha256": "79f710bfe39850737afda2e19b3921d2d8791ad2ca68725496f10df0bf67615b",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "bug",
+      "status": "unmet",
+      "reason": "虚构handle_bookings_get、查询参数处理及空列表行为，未识别实际未实现入口",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "本轮无工具执行，未运行HTTP测试如实交代",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "unmet",
+      "reason": "建议依赖不存在的处理路径和无依据的非法参数判断，不能有效验证所述缺陷",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "self.handle_bookings_get()",
+      "reason": "源码没有该方法或调用，其他GET直接501；所谓空列表响应不存在。",
+      "impact": "把需求或虚构分析当成实际实现，给出错误缺陷与验证预期。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "继承T虚构的已实现业务函数，原始源码没有这些行为。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 5043,
+    "output_tokens": 2336,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

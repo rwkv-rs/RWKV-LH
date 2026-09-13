@@ -1,0 +1,89 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "4738eef40da153788e0f3c675e93c254ddafed508320f2be95a3795e3f8d7daa",
+  "run_sha256": "5996e0bbc8b2c4dce7a1a9e780f90eba7833bae661031479de06aed2ea098eb1",
+  "reviewer": "Codex external frozen fact/relationship/source review",
+  "validity": "valid",
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "bug",
+      "status": "unmet",
+      "reason": "虚构handle_bookings_get、查询参数处理及空列表行为，未识别实际未实现入口",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "本轮无工具执行，未运行HTTP测试如实交代",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "unmet",
+      "reason": "建议依赖不存在的处理路径和无依据的非法参数判断，不能有效验证所述缺陷",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "self.handle_bookings_get()",
+      "reason": "源码没有该方法或调用，其他GET直接501；所谓空列表响应不存在。",
+      "impact": "把需求或虚构分析当成实际实现，给出错误缺陷与验证预期。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "继承T虚构的已实现业务函数，原始源码没有这些行为。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ]
+}

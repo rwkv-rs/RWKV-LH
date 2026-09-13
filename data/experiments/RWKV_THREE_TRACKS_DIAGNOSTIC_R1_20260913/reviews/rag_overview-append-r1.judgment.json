@@ -1,0 +1,71 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "77a81862a8133064c1e07f381d0ae22fdc226cd35b7909ba6e27974f0e4276dc",
+  "run_sha256": "bd852639f377d67ab572654493819a855bc64753450ff7efd73af36df45b2066",
+  "reviewer": "Codex external frozen fact/relationship/source review",
+  "validity": "valid",
+  "validity_reason": "同一原文及核心任务，固定分臂预算；T错误原样保留，未知因果不归责于State",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "numbers",
+      "status": "partial",
+      "reason": "正确抄录分数，但随即否认原文有分子分母，核心事实矛盾",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "有一般推广限制，但以不存在的分子分母缺失作理由",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "文件没有给出 Writer 的完整分子与分母，也没有给出 Reader 的分子与分母",
+      "reason": "原文及答案自身均明确给出48/60、60/60、17/36、10/36。",
+      "impact": "直接误答用户关于分子分母及证据范围的问题。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "沿用了错误T中的分子分母缺失判断，不能仅凭分数原值正确判合格。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}
