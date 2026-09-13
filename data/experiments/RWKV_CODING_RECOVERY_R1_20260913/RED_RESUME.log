@@ -1,0 +1,32 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_resume_keeps_goal_parent_state_and_does_not_reuse_old_termination ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_resume_keeps_goal_parent_0')
+
+    def test_resume_keeps_goal_parent_state_and_does_not_reuse_old_termination(tmp_path):
+        import shutil
+        from rwkv_lh.read_only_agent import ReadOnlyJob, _run_job
+        from rwkv_lh.coding_agent import _RecordedHarness
+        from rwkv_lh.controller import LongHorizonController
+        from rwkv_lh.store import LongHorizonStore
+        source=tmp_path/'source';source.mkdir();(source/'a.py').write_text('value = 1\n')
+        run_coding_job(CodingJob('parent','Read',str(source),str(tmp_path/'parent'),max_calls=1),
+            settings=settings(),session_factory=factory([call('read_file',path='a.py')]))
+        parent=tmp_path/'parent/execution';snapshot=(parent/'state_snapshot.json').read_bytes()
+        def prepare(workspace,output):
+            shutil.copytree(parent/'state',output/'state')
+            store=LongHorizonStore(output/'state',checkpoint_retention=1000)
+            state=store.load('parent')
+            return store,state,{'parent_final_decision_id':state.final_decision_id,'advice_model':''}
+        output=tmp_path/'resume'
+>       result=_run_job(ReadOnlyJob('resume','Read',str(tmp_path/'parent/workspace'),str(output),tool_scope='coding'),
+            settings=settings(),session_factory=factory([call('final_answer',text='Read value is 1.')]),
+            harness_factory=lambda:_RecordedHarness(output),controller_type=LongHorizonController,
+            allowed_scopes=('coding',),prepare_state=prepare)
+E       TypeError: _run_job() got an unexpected keyword argument 'prepare_state'
+
+tests/test_coding_agent.py:106: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_coding_agent.py::test_resume_keeps_goal_parent_state_and_does_not_reuse_old_termination
+1 failed, 7 deselected in 1.09s

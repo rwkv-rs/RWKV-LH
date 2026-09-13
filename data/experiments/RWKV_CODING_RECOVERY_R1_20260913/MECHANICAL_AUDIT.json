@@ -1,0 +1,488 @@
+[
+  {
+    "id": "advised-r1",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-6e1019b9d9074231",
+        "input_tokens": 17487,
+        "output_tokens": 236,
+        "input_sha256": "2dbb73644aa9c29515a8eaf2c05db8464c06bdb5318bbc7e864393b1ad3100e2",
+        "input_checkpoint": "CP-837dc53f455b4e15",
+        "candidate_checkpoint": "CP-bc27a51e06d4452c",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"from __future__ import annotations\\nimport argparse\\nimport json\\nimport sys\\nfrom pathlib import Path\\nfrom .documents import normalize\\nfrom .store import existing\\n\\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\\n    if not text.strip():\\n        raise ValueError('query must be nonempty')\\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\\n        raise ValueError('limit must be a positive integer')\\n    with existing(database) as connection:\\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\\n    matches = [{'path': row[0]} for row in rows]\\n    return {'count': len(matches), 'matches': matches}\\n\",\"path\":\"document_index/query.py\"}\n  }\n}"
+      },
+      {
+        "request_id": "MR-f427e877b9db4ed8",
+        "input_tokens": 17583,
+        "output_tokens": 62,
+        "input_sha256": "e55a7145b3178eb5584ab37b28fea8e37671db9014156e2901177d27afafb4fa",
+        "input_checkpoint": "CP-a4dbbeda56a04830",
+        "candidate_checkpoint": "CP-94d2ebb0384f45ef",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r1",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-REJECT-6424b76c0fe34766"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "advised-r2",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-dbac7a5d871f4d79",
+        "input_tokens": 17487,
+        "output_tokens": 239,
+        "input_sha256": "2dbb73644aa9c29515a8eaf2c05db8464c06bdb5318bbc7e864393b1ad3100e2",
+        "input_checkpoint": "CP-81ca33f4016f4012",
+        "candidate_checkpoint": "CP-c9703aba5f844b1d",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"from __future__ import annotations\\nimport argparse\\nimport json\\nimport sys\\nfrom pathlib import Path\\nfrom .documents import normalize\\nfrom .store import existing\\n\\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\\n    if not text.strip():\\n        raise ValueError('query must be nonempty')\\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\\n        raise ValueError('limit must be a positive integer')\\n    with existing(database) as connection:\\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\\n    matches = [{'path': row[0]} for row in rows]\\n    return {'count': len(matches), 'matches': matches}\\n\",\n    \"path\": \"document_index/query.py\"\n  }\n}"
+      },
+      {
+        "request_id": "MR-fdf1d7623d0044d6",
+        "input_tokens": 18599,
+        "output_tokens": 62,
+        "input_sha256": "18150a8282b8b1744d53827ca6daa042341a465ea5cc5054a02faee94514e854",
+        "input_checkpoint": "CP-3140371c25404557",
+        "candidate_checkpoint": "CP-0c831557279d40bf",
+        "finish": "stop",
+        "events": [
+          "ADVICE-advised-r2",
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011",
+          "EV-ACTION-A00012"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "write_file",
+        "historical": false,
+        "consumed": true
+      },
+      {
+        "action_id": "A00013",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "independent-r1",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-8f3ea61295b24c77",
+        "input_tokens": 16995,
+        "output_tokens": 62,
+        "input_sha256": "f2b22e7259d8618600c989458cf67569a0a93f3dd7025486378f42d978209320",
+        "input_checkpoint": "CP-fec79beade90470f",
+        "candidate_checkpoint": "CP-d2f5602205e44584",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  },
+  {
+    "id": "independent-r2",
+    "termination": "budget",
+    "reason": "identical_failure_budget_exhausted",
+    "calls": [
+      {
+        "request_id": "MR-d3daf8f04d714443",
+        "input_tokens": 16995,
+        "output_tokens": 62,
+        "input_sha256": "f2b22e7259d8618600c989458cf67569a0a93f3dd7025486378f42d978209320",
+        "input_checkpoint": "CP-fec79beade90470f",
+        "candidate_checkpoint": "CP-f730486191ee4bea",
+        "finish": "stop",
+        "events": [
+          "EV-ACTION-A00001",
+          "EV-ACTION-A00002",
+          "EV-ACTION-A00003",
+          "EV-ACTION-A00004",
+          "EV-ACTION-A00005",
+          "EV-ACTION-A00006",
+          "EV-ACTION-A00007",
+          "EV-ACTION-A00008",
+          "EV-ACTION-A00009",
+          "EV-ACTION-A00010",
+          "EV-ACTION-A00011"
+        ],
+        "raw_output": "{\n  \"function\": \"run_command\",\n  \"params\": {\n    \"argv\": [\n      \"python3\",\n      \"-B\",\n      \"test_query_limit.py\"\n    ],\n    \"cwd\": \"workspace\",\n    \"timeout\": 120.0\n  }\n}"
+      }
+    ],
+    "observations": [
+      {
+        "action_id": "A00001",
+        "operation": "list_directory",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00002",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00003",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00004",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00005",
+        "operation": "read_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00006",
+        "operation": "write_file",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00007",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00008",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00009",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00010",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00011",
+        "operation": "run_command",
+        "historical": true,
+        "consumed": true
+      },
+      {
+        "action_id": "A00012",
+        "operation": "run_command",
+        "historical": false,
+        "consumed": false
+      }
+    ],
+    "forced_boundary": false,
+    "passed_mechanical_audit": true,
+    "interpretation": "exact real input and declared State lineage, no independent tensor-equivalence measurement"
+  }
+]

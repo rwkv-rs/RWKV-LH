@@ -1,0 +1,17 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_coding_diagnosis_preserves_real_tool_errors_without_claiming_execution __
+
+    def test_coding_diagnosis_preserves_real_tool_errors_without_claiming_execution():
+     from rwkv_lh.summary_advice import request_advice
+     seen=[]
+     def call(**kw):seen.append(kw);return {'advice':'Review the actual error.'}
+     goal=LongHorizonModel.create_literal_goal('修复程序并运行测试。','.')
+     observations=[{'operation':'run_command','result':{'exit_code':None,'error':'directory missing'}}]
+>    request_advice(SimpleNamespace(_request_json=call),goal,{},'', 'coding',1024,tool_observations=observations)
+E    TypeError: request_advice() got an unexpected keyword argument 'tool_observations'
+
+tests/test_summary_advice.py:48: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_summary_advice.py::test_coding_diagnosis_preserves_real_tool_errors_without_claiming_execution
+1 failed, 4 passed in 0.03s

@@ -55,3 +55,66 @@ def test_symlink_cannot_escape_copy_and_git_worktree_pointer_is_not_carried(tmp_
     result=run_coding_job(CodingJob('good','answer',str(source),str(tmp_path/'good')),settings=settings(),session_factory=factory([call('final_answer',text='raw')]))
     assert not (tmp_path/'good/workspace/.git').exists()
     assert (source/'.git').exists() and result['final']=='raw'
+
+
+def test_identical_failure_boundary_is_distinct_from_generation_budget(tmp_path):
+    source=tmp_path/'source';source.mkdir()
+    result=run_coding_job(CodingJob('repeated','Verify',str(source),str(tmp_path/'run')),
+        settings=settings(),session_factory=factory([
+            call('run_command',argv=['python3','-B','-c','print(1)'],cwd='missing') for _ in range(5)]))
+    assert result['termination_reason']=='identical_failure_budget_exhausted'
+    assert result['termination_evidence']['event_type']=='run_yielded'
+    assert result['generation_started']==5 and result['final'] is None
+    assert all(c['execution_status']=='not_started' for c in result['command_executions'])
+
+
+def test_nonzero_expected_exit_is_recorded_as_executed_not_as_test_pass(tmp_path):
+    source=tmp_path/'source';source.mkdir()
+    result=run_coding_job(CodingJob('exit','Verify',str(source),str(tmp_path/'run'),max_calls=1),
+        settings=settings(),session_factory=factory([
+            call('run_command',argv=['python3','-B','-c','raise SystemExit(1)'],expected_exit_code=1)]))
+    assert result['termination_reason']=='transition_budget_exhausted'
+    assert result['command_executions'][0]['execution_status']=='exited'
+    assert result['command_executions'][0]['exit_code']==1
+    assert result['acceptance']=='not_evaluated'
+
+
+def test_generation_guard_stops_before_an_extra_model_call():
+    import time
+    from types import SimpleNamespace
+    from rwkv_lh.read_only_agent import _BudgetedSession, ReadOnlyBudgetExpired
+    called=[]
+    session=_BudgetedSession(SimpleNamespace(generate=lambda:called.append(1)),1,time.monotonic()+60)
+    session.generate()
+    with pytest.raises(ReadOnlyBudgetExpired) as caught:session.generate()
+    assert caught.value.reason=='generation_budget_exhausted'
+    assert called==[1]
+
+
+def test_resume_keeps_goal_parent_state_and_does_not_reuse_old_termination(tmp_path):
+    import shutil
+    from rwkv_lh.read_only_agent import ReadOnlyJob, _run_job
+    from rwkv_lh.coding_agent import _RecordedHarness
+    from rwkv_lh.controller import LongHorizonController
+    from rwkv_lh.store import LongHorizonStore
+    source=tmp_path/'source';source.mkdir();(source/'a.py').write_text('value = 1\n')
+    run_coding_job(CodingJob('parent','Read',str(source),str(tmp_path/'parent'),max_calls=1),
+        settings=settings(),session_factory=factory([call('read_file',path='a.py')]))
+    parent=tmp_path/'parent/execution';snapshot=(parent/'state_snapshot.json').read_bytes()
+    def prepare(workspace,output):
+        shutil.copytree(parent/'state',output/'state')
+        store=LongHorizonStore(output/'state',checkpoint_retention=1000)
+        state=store.load('parent')
+        return store,state,{'parent_final_decision_id':state.final_decision_id,'advice_model':''}
+    output=tmp_path/'resume'
+    result=_run_job(ReadOnlyJob('resume','Read',str(tmp_path/'parent/workspace'),str(output),tool_scope='coding'),
+        settings=settings(),session_factory=factory([call('final_answer',text='Read value is 1.')]),
+        harness_factory=lambda:_RecordedHarness(output),controller_type=LongHorizonController,
+        allowed_scopes=('coding',),prepare_state=prepare)
+    assert result['termination_reason']=='answer_submitted'
+    assert result['final']=='Read value is 1.' and result['assistance']=='rwkv_independent'
+    assert (parent/'state_snapshot.json').read_bytes()==snapshot
+    after=json.loads((output/'state_snapshot.json').read_text())
+    assert after['goal']==json.loads(snapshot)['goal']
+    events=json.loads((output/'MATERIALS.json').read_text())['items']
+    assert events[0]['consumed_by_requests']

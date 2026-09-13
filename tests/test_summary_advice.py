@@ -37,3 +37,15 @@ def test_same_advice_protocol_supports_read_only_code_review_without_replacement
  assert 'code review' in seen[0]['system_prompt']
  assert seen[0]['request_payload']['goal']==goal.request
  assert set(seen[0]['schema']['properties'])=={'advice'}
+
+
+def test_coding_diagnosis_preserves_real_tool_errors_without_claiming_execution():
+ from rwkv_lh.summary_advice import request_advice
+ seen=[]
+ def call(**kw):seen.append(kw);return {'advice':'Review the actual error.'}
+ goal=LongHorizonModel.create_literal_goal('修复程序并运行测试。','.')
+ observations=[{'operation':'run_command','result':{'exit_code':None,'error':'directory missing'}}]
+ request_advice(SimpleNamespace(_request_json=call),goal,{},'', 'coding',1024,tool_observations=observations)
+ assert seen[0]['request_payload']['tool_observations']==observations
+ assert 'tool observations' in seen[0]['system_prompt']
+ assert 'supply tool arguments' in seen[0]['system_prompt']

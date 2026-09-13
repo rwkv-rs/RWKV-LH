@@ -1,0 +1,9 @@
+{
+  "action_type": "write_file",
+  "arguments": {
+    "content": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    if limit is not None and (limit <= 0 or not isinstance(limit, int)):\n        raise ValueError('limit must be a positive integer')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit or None)\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+    "path": "document_index/query.py",
+    "overwrite": true,
+    "create_parents": true
+  }
+}

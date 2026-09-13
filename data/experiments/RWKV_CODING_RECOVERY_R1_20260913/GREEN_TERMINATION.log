@@ -1,0 +1,23 @@
+.....F....................                                               [100%]
+=================================== FAILURES ===================================
+_____ test_nonzero_expected_exit_is_recorded_as_executed_not_as_test_pass ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_nonzero_expected_exit_is_0')
+
+    def test_nonzero_expected_exit_is_recorded_as_executed_not_as_test_pass(tmp_path):
+        source=tmp_path/'source';source.mkdir()
+        result=run_coding_job(CodingJob('exit','Verify',str(source),str(tmp_path/'run'),max_calls=1),
+            settings=settings(),session_factory=factory([
+                call('run_command',argv=['python3','-B','-c','raise SystemExit(1)'],expected_exit_code=1)]))
+>       assert result['termination_reason']=='generation_budget_exhausted'
+E       AssertionError: assert 'transition_budget_exhausted' == 'generation_budget_exhausted'
+E         
+E         - generation_budget_exhausted
+E         ? ^^^^
+E         + transition_budget_exhausted
+E         ? ^  +++
+
+tests/test_coding_agent.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_coding_agent.py::test_nonzero_expected_exit_is_recorded_as_executed_not_as_test_pass
+1 failed, 25 passed in 7.74s

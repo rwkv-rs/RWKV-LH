@@ -48,7 +48,9 @@ class ReadOnlyHarness(ActionHarness):
 
 
 class ReadOnlyBudgetExpired(TimeoutError):
-    pass
+    def __init__(self, message, reason='generation_budget_exhausted'):
+        super().__init__(message)
+        self.reason = reason
 
 
 class _WallDeadlineExpired(BaseException):
@@ -67,8 +69,10 @@ class _BudgetedSession:
     def generate(self, *args, **kwargs):
         if self.audit_errors:
             raise OSError('model trace persistence failed; generation stopped')
-        if self.calls >= self.limit or time.monotonic() >= self.deadline:
+        if self.calls >= self.limit:
             raise ReadOnlyBudgetExpired('generation budget exhausted')
+        if time.monotonic() >= self.deadline:
+            raise ReadOnlyBudgetExpired('wall budget exhausted', 'wall_budget_exhausted')
         self.calls += 1
         return self.session.generate(*args, **kwargs)
 
@@ -138,7 +142,8 @@ def run_read_only_job(job, *, settings, session_factory=create_model_session):
                     controller_type=_ReadOnlyController, allowed_scopes=('files', 'inspect'))
 
 
-def _run_job(job, *, settings, session_factory, harness_factory, controller_type, allowed_scopes):
+def _run_job(job, *, settings, session_factory, harness_factory, controller_type, allowed_scopes,
+             prepare_state=None, before_run=None):
     """Shared production execution and evidence collection; callers set tool permissions."""
     if (type(job.max_calls) is not int or job.max_calls < 1
             or type(job.max_seconds) not in (int, float)
@@ -180,13 +185,21 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
     continuation = None
     error = None
     termination = None
+    termination_reason = None
+    initial_causal_count = 0
     def deadline(signum, frame):
         raise _WallDeadlineExpired('wall budget exhausted')
     old_handler = signal.signal(signal.SIGALRM, deadline)
     old_timer = signal.setitimer(signal.ITIMER_REAL, job.max_seconds)
     try:
-        if job.reconsider_from:
+        if prepare_state is not None:
+            if job.reconsider_from:
+                raise ValueError('only one continuation source is allowed')
+            store, state, continuation = prepare_state(workspace, output)
+            initial_causal_count = len(state.causal_order)
+        elif job.reconsider_from:
             store, state, continuation = _prepare_reconsideration(job, workspace, output)
+            initial_causal_count = len(state.causal_order)
         harness = harness_factory()
         model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
         model.session = _BudgetedSession(model.session, job.max_calls, started + job.max_seconds, audit_errors)
@@ -198,7 +211,7 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
         controller = controller_type(store, model=model, harness=harness,
                                          max_transitions=job.max_calls, min_actions=0)
         _save(output / 'goal.json', state.goal.to_dict())
-        if continuation is not None:
+        if continuation is not None and job.reconsider_from:
             from .summary_advice import make_advice_event
             event = make_advice_event('ADVICE-' + job.task_id, job.advice, 'external_strong_model', job.advice_model)
             _save(output / 'ADVICE_EVENT.json', event.to_dict())
@@ -210,9 +223,13 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
                 **continuation, 'reason': 'owner_requested_reconsideration',
                 'resumed': True, 'supersedes_terminal_event_id': terminal_id})
             model._append_event(state, state.model_states[continuation['parent_checkpoint_id']], event, controller._persist_callback)
+        if before_run is not None:
+            before_run(state, controller, model)
         controller.run(state.run_id)
     except (Exception, _WallDeadlineExpired) as exc:
         termination = 'budget' if isinstance(exc, (ReadOnlyBudgetExpired, _WallDeadlineExpired)) else 'error'
+        termination_reason = ('wall_budget_exhausted' if isinstance(exc, _WallDeadlineExpired)
+                              else exc.reason if isinstance(exc, ReadOnlyBudgetExpired) else 'execution_error')
         error = {'type': type(exc).__name__, 'message': str(exc), 'traceback': traceback.format_exc()}
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
@@ -234,10 +251,30 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
     final = (state.final_output or None) if state is not None else None
     if continuation is not None and state.final_decision_id == continuation['parent_final_decision_id']:
         final = None  # The old submission remains in PARENT_RESULT, not a new delivery.
+    boundary = next((state.causal_records[key] for key in reversed(state.causal_order[initial_causal_count:])
+                     if state.causal_records[key].event_type in
+                     ('run_yielded', 'run_interrupted', 'run_completed', 'run_failed', 'run_blocked')), None) if state else None
+    if termination_reason is None:
+        termination_reason = ('answer_submitted' if state and state.status == RunStatus.COMPLETED
+                              else str(boundary.payload.get('reason') or boundary.event_type) if boundary
+                              else 'controller_returned_without_terminal_reason')
+    commands = []
+    for action in state.actions.values() if state else ():
+        if action.action_type not in ('run_command', 'check_command') or not action.result:
+            continue
+        value = action.result
+        code = value.get('exit_code')
+        commands.append({'action_id': action.action_id, 'exit_code': code,
+                         'execution_status': 'exited' if type(code) is int else
+                         'not_started' if (value.get('error') or {}).get('type') == 'FileNotFoundError'
+                         else 'unconfirmed', 'tool_success': value.get('success'), 'error': value.get('error')})
     result = {'id': job.task_id, 'final': final,
               'termination': termination or ('submitted' if state is not None and state.status == RunStatus.COMPLETED else 'budget'),
+              'termination_reason': termination_reason,
+              'termination_evidence': boundary.to_dict() if boundary and error is None else error,
+              'command_executions': commands,
               'acceptance': 'unreviewable' if audit_errors else 'not_evaluated',
-              'assistance': 'strong_advised' if job.reconsider_from else 'rwkv_independent',
+              'assistance': 'strong_advised' if continuation and continuation.get('advice_model') else 'rwkv_independent',
               'continuation': continuation,
               'error': error, 'status': state.status.value if state is not None else 'not_started',
               'trace_complete': not audit_errors, 'trace_errors': audit_errors, 'tool_scope': job.tool_scope,

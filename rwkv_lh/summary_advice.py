@@ -21,8 +21,9 @@ ADVICE_RESPONSE_SCHEMA = {
     "additionalProperties": False,
 }
 ADVICE_SYSTEM = (
-    "A user requested a bounded second opinion on a read-only file-based answer or code review. "
-    "Use only the supplied user goal, original file contents and original candidate. "
+    "A user requested a bounded second opinion on a file-based answer, code review or coding task. "
+    "Use only the supplied user goal, original file contents, original candidate and tool observations. "
+    "For coding tasks diagnose the observed failure and missing integration without writing a patch. "
     "Identify whether any material correction is needed and give concise diagnostic "
     "advice; if the summary is adequate, say so. Do not invent hidden requirements, "
     "write a replacement summary, supply tool arguments, execute work or claim "
@@ -32,14 +33,19 @@ ADVICE_SYSTEM = (
 )
 
 
-def build_advice_request(goal: GoalState, files: Mapping[str, str], candidate: str) -> dict[str, Any]:
-    return {"protocol": ADVICE_PROTOCOL, "goal": goal.request,
+def build_advice_request(goal: GoalState, files: Mapping[str, str], candidate: str,
+                         *, tool_observations: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    result = {"protocol": ADVICE_PROTOCOL, "goal": goal.request,
             "files": dict(files), "candidate": candidate}
+    if tool_observations is not None:
+        result['tool_observations'] = tool_observations
+    return result
 
 
 def request_advice(client: Any, goal: GoalState, files: Mapping[str, str],
-                   candidate: str, run_id: str, max_tokens: int) -> str:
-    payload = build_advice_request(goal, files, candidate)
+                   candidate: str, run_id: str, max_tokens: int, *,
+                   tool_observations: list[dict[str, Any]] | None = None) -> str:
+    payload = build_advice_request(goal, files, candidate, tool_observations=tool_observations)
     digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     value = client._request_json(phase="summary_advice", run_id=run_id,
         request_digest=digest, system_prompt=ADVICE_SYSTEM,
@@ -54,4 +60,4 @@ def make_advice_event(event_id: str, advice: str, source: str, model: str) -> Mo
         scope_id=LongHorizonModel.ACTION_LANE_ID,
         payload={"protocol": ADVICE_PROTOCOL, "source": source, "model": model,
                  "advice": advice, "is_execution_evidence": False,
-                 "instruction": "The user requested a second look at the same task. This message is advice, not an acceptance decision or verified tool result. Decide independently whether to revise or retain your answer using the visible file. Follow the existing operation protocol."})
+                 "instruction": "The user requested a second look at the same task. This message is advice, not an acceptance decision or verified tool result. Decide independently how to continue using the visible evidence. Follow the existing operation protocol."})
