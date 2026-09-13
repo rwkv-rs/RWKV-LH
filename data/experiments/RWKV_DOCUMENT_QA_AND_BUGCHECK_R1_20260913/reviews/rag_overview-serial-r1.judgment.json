@@ -1,0 +1,66 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "79a941fb73e81d6bb272a61aad6138d7c5b97606f8819e1af37e2a0f8c7193f1",
+  "run_sha256": "83c3f89b7d08fcf5ff62097921ad71e86491b3ab06dcdd96a5874a561a8f0664",
+  "reviewer": "Codex external original-source and trace review; no runtime answer assistance",
+  "validity": "valid",
+  "validity_reason": "冻结任务、原文及实际调用保留；系统或模型失败不排除分母",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "stack",
+      "status": "partial",
+      "reason": "模型与无embedding正确，但遗漏明确询问的BM25检索方式",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "受控实验与泛化限制基本正确，Writer数字有实质错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "Writer 在固定 36 题中从 17/36 提高到 30/36",
+      "reason": "原文Writer300是候选标签，固定组为17/36，对照zero10/36；回答报告了文件不支持的实验分数",
+      "impact": "改变用户询问的实验结果及改善幅度，不能作为正确实验概览",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "按实际输出与终止记录描述，不推断输入复杂度的因果效果",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ]
+}

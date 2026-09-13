@@ -1,0 +1,13 @@
+from pathlib import Path
+R=Path('/home/chase/GitHub/RWKV-LH')
+s=(R/'data/experiments/RWKV_FEEDBACK_TASK_BASELINE_R1_20260913/analysis_scripts/audit_feedback_trial_r1_20260913.py').read_text()
+s=s.replace('RWKV_FEEDBACK_TASK_BASELINE_R1_20260913','RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913').replace("sys.path.insert(0,str(D/'source'))","sys.path.insert(0,str(R))")
+s=s.replace('from rwkv_lh.harness import ActionHarness','from rwkv_lh.read_only_agent import ReadOnlyHarness as ActionHarness\nfrom rwkv_lh.run_lifecycle import RUN_LIFECYCLE_POLICY_KEY,run_lifecycle_policy_document\nimport re')
+s=s.replace("for p in sorted((D/'runs').iterdir()):","for run_dir in sorted((D/'runs').iterdir()):\n p=run_dir/'execution'")
+s=s.replace("cases[result['file_id']]","cases[run_dir.name.rsplit('-',2)[0]]")
+s=s.replace("p/'workspace'","run_dir/'workspace'").replace("case['workspace_sha256']","case['files']")
+s=s.replace("runtime_policy=reg['runtime_policy']","runtime_policy={RUN_LIFECYCLE_POLICY_KEY:run_lifecycle_policy_document('goal')}")
+s=s.replace("render_event_append(s.model_events[eid])","render_event_append(s.model_events[eid],previous_transcript=s.model_states[cp.parent_checkpoint_id].transcript)")
+s=s.replace("text=tokenizer().decode(ids);", "text=tokenizer().decode(ids);assert not re.search(r'(?:Assistant:|\\*\\*Tool Call:\\*\\*)\\s*```json\\n\\s*\\nUser:',text); ")
+s=s.replace("'run':p.name","'run':run_dir.name").replace("result['terminal_reasons']","[v.payload.get('reason') for v in s.causal_records.values() if v.event_type in ('run_yielded','run_completed','run_interrupted')]")
+(R/'temp/audit_document_agent_r1_20260913.py').write_text(s)

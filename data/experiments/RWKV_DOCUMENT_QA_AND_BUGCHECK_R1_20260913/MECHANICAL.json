@@ -1,0 +1,1938 @@
+{
+  "runs": [
+    {
+      "run": "api_bug-parallel-r1",
+      "calls": [
+        {
+          "request": "MR-9963a8b45b894af0",
+          "input_tokens": 1872,
+          "output_tokens": 58,
+          "input_sha256": "622072a22b24b46b1db84e63bde6e9c15dbba1a495816561a08b1bb1c371fbc8",
+          "input_checkpoint": "CP-54cd18fddb0c47b0",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-810f822d186e46fa",
+          "input_tokens": 2520,
+          "output_tokens": 64,
+          "input_sha256": "0e5bbb4c42bffd597d7ef8fee6c718e3970c5f55b9a83b7c556ac183069585bc",
+          "input_checkpoint": "CP-3ca6c019c38e4372",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 1024,\n    \"max_chars\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-54cb6ed9a7154cba",
+          "input_tokens": 2924,
+          "output_tokens": 46,
+          "input_sha256": "c2bf16275cc7ea60127f3943aad419f58183755894bb92c1cbbc1e6fa4c05655",
+          "input_checkpoint": "CP-edc305c077344f80",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-0fd0211aa0014659"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-69e1cad859e94d2c",
+          "input_tokens": 5154,
+          "output_tokens": 46,
+          "input_sha256": "47932a2add8c2a130ee3a96aeaaf9c7acb326e48dc7ea0c5f537778189b93bbb",
+          "input_checkpoint": "CP-ff1dbe71174c40d0",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-0fd0211aa0014659"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-6dbdfeccf81e4ff7",
+          "input_tokens": 7038,
+          "output_tokens": 106,
+          "input_sha256": "b12f12e15249b27f36843da52aa8a0d5e7325051c620481f1cdb3de2300caf8b",
+          "input_checkpoint": "CP-66fb1d1de51c4610",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-0fd0211aa0014659"
+          ],
+          "raw_output": "{\n  \"function\": \"check_command\",\n  \"params\": {\n    \"argv\": [\n      \"python\",\n      \"server.py\",\n      \"--db\",\n      \"/tmp/bookings.sqlite3\",\n      \"--host\",\n      \"127.0.0.1\",\n      \"--port\",\n      \"8080\"\n    ],\n    \"cwd\": \".\",\n    \"env\": {},\n    \"expected_exit_code\": 127,\n    \"timeout\": 120.0\n  }\n}"
+        }
+      ],
+      "generation_started": 5,
+      "generation_returned": 5,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "check_command",
+          "event_registered": true,
+          "consumed": false,
+          "success": false,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-0fd0211aa0014659",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_chars', 'max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 1024,
+              "max_chars": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [],
+      "final": null
+    },
+    {
+      "run": "api_bug-parallel-r2",
+      "calls": [
+        {
+          "request": "MR-c417e13cdb7944e1",
+          "input_tokens": 1872,
+          "output_tokens": 58,
+          "input_sha256": "622072a22b24b46b1db84e63bde6e9c15dbba1a495816561a08b1bb1c371fbc8",
+          "input_checkpoint": "CP-6d1d2fa15cbc435e",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-cb06e067a23444de",
+          "input_tokens": 2520,
+          "output_tokens": 57,
+          "input_sha256": "0e5bbb4c42bffd597d7ef8fee6c718e3970c5f55b9a83b7c556ac183069585bc",
+          "input_checkpoint": "CP-79c0675271a4406d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 2048,\n    \"max_chars\": 4096,\n    \"path\": \"server.py\"\n  }\n}"
+        },
+        {
+          "request": "MR-3ff3bf2896054cd5",
+          "input_tokens": 2919,
+          "output_tokens": 46,
+          "input_sha256": "b26d8c0ead4bded65712800a481b249a14f050d83e32b6759a9dbc59c964cb8b",
+          "input_checkpoint": "CP-6c08c23848a741ea",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-6fafa0e52f874229"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-98323bec80b44ff0",
+          "input_tokens": 4812,
+          "output_tokens": 46,
+          "input_sha256": "6238c7c13969de6833b7489e37bd089b645642c7a64fab2e9dabb820a1def5e4",
+          "input_checkpoint": "CP-16e7d3dd58c24778",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-6fafa0e52f874229"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-d5f1c454c3854306",
+          "input_tokens": 7052,
+          "output_tokens": 60,
+          "input_sha256": "bb07376f4509af455fac1b91b0130a5d3ab1d0da50dcaf11b9e7c17f73abefe4",
+          "input_checkpoint": "CP-f98a2c5776e940a9",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-6fafa0e52f874229"
+          ],
+          "raw_output": "{\n  \"function\": \"bind_evidence\",\n  \"params\": {\n    \"max_lines\": 20,\n    \"path\": \"server.py\",\n    \"source_loc\": \"server.py:1-22\",\n    \"start_line\": 1\n  }\n}"
+        },
+        {
+          "request": "MR-bd474126b27b477b",
+          "input_tokens": 7327,
+          "output_tokens": 67,
+          "input_sha256": "352893721ddcdf71ac165856221aba604f85b999d5ba76cec2e6badaf81e697a",
+          "input_checkpoint": "CP-b0ebb9b198464d8d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-6fafa0e52f874229",
+            "EV-REJECT-9768786fdec54e45"
+          ],
+          "raw_output": "{\n  \"function\": \"bind_evidence\",\n  \"params\": {\n    \"end_line\": 22,\n    \"max_tokens\": 2048,\n    \"path\": \"server.py\",\n    \"source\": \"server.py:1-22\",\n    \"start_line\": 1\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "bind_evidence",
+          "event_registered": false,
+          "consumed": false,
+          "success": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-6fafa0e52f874229",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_chars', 'max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 2048,
+              "max_chars": 4096,
+              "path": "server.py"
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-9768786fdec54e45",
+          "consumed": true,
+          "payload": {
+            "error": "action bind_evidence is missing required arguments: ['end_line']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_lines": 20,
+              "path": "server.py",
+              "source_loc": "server.py:1-22",
+              "start_line": 1
+            },
+            "selected_operation": "bind_evidence",
+            "selected_operation_schema": {
+              "name": "bind_evidence",
+              "description": "Read an exact line span and retain its source locator and quote.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "path relative to the workspace root"
+                  },
+                  "start_line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "end_line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "source": {
+                    "type": "string",
+                    "default": "",
+                    "description": "source label or URL"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 128,
+                    "maximum": 4096,
+                    "default": 2048
+                  }
+                },
+                "required": [
+                  "path",
+                  "start_line",
+                  "end_line"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 2,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "api_bug-serial-r1",
+      "calls": [
+        {
+          "request": "MR-0e8456f55d7d4527",
+          "input_tokens": 1872,
+          "output_tokens": 58,
+          "input_sha256": "622072a22b24b46b1db84e63bde6e9c15dbba1a495816561a08b1bb1c371fbc8",
+          "input_checkpoint": "CP-e4f5f8622a56479b",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-c7bf13dc23ec40bf",
+          "input_tokens": 2520,
+          "output_tokens": 125,
+          "input_sha256": "0e5bbb4c42bffd597d7ef8fee6c718e3970c5f55b9a83b7c556ac183069585bc",
+          "input_checkpoint": "CP-edcb7aa0b6c44e24",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 100000000,\n    \"max_lines\": 5000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-93c6847b8c06481e",
+          "input_tokens": 3023,
+          "output_tokens": 127,
+          "input_sha256": "d8342c3dffc4f8ea763fc0ffe59afd07c40b91efff046b64b78a2d02d6ebe2d0",
+          "input_checkpoint": "CP-8b57cc4f5cc341a0",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-5c4cf1fa52ff411b"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"max_results\": 500,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \".\",\n    \"pattern\": \"def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-d42d978adbf84c50",
+          "input_tokens": 3913,
+          "output_tokens": 127,
+          "input_sha256": "1cac3bb28d68b5aec2c6ba8a9218bab3bd31c5dc11de863426b8373506cda1dd",
+          "input_checkpoint": "CP-a1199b3e223341c6",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-5c4cf1fa52ff411b"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"max_results\": 500,\n    \"max_tokens\": 4096,\n    \"mode\": \"literal\",\n    \"path\": \".\",\n    \"pattern\": \"def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-a42ddf05d13d492b",
+          "input_tokens": 4799,
+          "output_tokens": 46,
+          "input_sha256": "53cdef4d44f7557713a409396d418b3882b89adcdd97fbe20ea869f5f5dcba6c",
+          "input_checkpoint": "CP-f82fd00c694b4a3e",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-5c4cf1fa52ff411b"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-2d73ee2b94c94319",
+          "input_tokens": 7024,
+          "output_tokens": 46,
+          "input_sha256": "52518b69401cdff4bd12b2f809eece68d4b8e619466ded9155ee6925c70bc560",
+          "input_checkpoint": "CP-bdcd7b0e3019474a",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-ACTION-A00004",
+            "EV-REJECT-5c4cf1fa52ff411b"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00005",
+          "operation": "read_file",
+          "event_registered": false,
+          "consumed": false,
+          "success": true,
+          "complete_file": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-5c4cf1fa52ff411b",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_lines": 5000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": ".",
+              "pattern": "def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app",
+              "recursive": true,
+              "start_after": ""
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "api_bug-serial-r2",
+      "calls": [
+        {
+          "request": "MR-32630432a2bf4205",
+          "input_tokens": 1872,
+          "output_tokens": 58,
+          "input_sha256": "622072a22b24b46b1db84e63bde6e9c15dbba1a495816561a08b1bb1c371fbc8",
+          "input_checkpoint": "CP-fe29b135f29845a6",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \".\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-6f40e140c4b44d6c",
+          "input_tokens": 2520,
+          "output_tokens": 64,
+          "input_sha256": "0e5bbb4c42bffd597d7ef8fee6c718e3970c5f55b9a83b7c556ac183069585bc",
+          "input_checkpoint": "CP-9395fb2759454a0c",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 1024,\n    \"max_chars\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-33ff32ffc9e74b45",
+          "input_tokens": 2924,
+          "output_tokens": 46,
+          "input_sha256": "c2bf16275cc7ea60127f3943aad419f58183755894bb92c1cbbc1e6fa4c05655",
+          "input_checkpoint": "CP-82914334201247b9",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-5416b1bce1474811"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"README.md\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-b038d5789dd54f9b",
+          "input_tokens": 5153,
+          "output_tokens": 46,
+          "input_sha256": "7c891d540c366ef449868d128c1da1eb0070319bdf4dd3acc554e29ce18b1b56",
+          "input_checkpoint": "CP-f0ce71b8007c4a81",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-5416b1bce1474811"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"server.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-636e4ab828ea4253",
+          "input_tokens": 7038,
+          "output_tokens": 100,
+          "input_sha256": "a374e400fb9ee5314a5c6dad33aae87c9b4908ee34ce16c500506dc0cc08e738",
+          "input_checkpoint": "CP-76b53be0254f47f4",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-5416b1bce1474811"
+          ],
+          "raw_output": "{\n  \"function\": \"check_command\",\n  \"params\": {\n    \"argv\": [\n      \"python\",\n      \"server.py\",\n      \"--db\",\n      \"/tmp/bookings.sqlite3\",\n      \"--host\",\n      \"127.0.0.1\",\n      \"--port\",\n      \"8080\"\n    ],\n    \"cwd\": \".\",\n    \"expected_exit_code\": 0,\n    \"timeout\": 120.0\n  }\n}"
+        },
+        {
+          "request": "MR-1d14c26a944e4d3f",
+          "input_tokens": 8022,
+          "output_tokens": 105,
+          "input_sha256": "2879b22a150189be13cd45f5aa8becdf8352c0709275ef0c5519bbceba785549",
+          "input_checkpoint": "CP-6b664df2cca3423d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-ACTION-A00004",
+            "EV-REJECT-5416b1bce1474811"
+          ],
+          "raw_output": "{\n  \"function\": \"check_command\",\n  \"params\": {\n    \"argv\": [\n      \"python\",\n      \"server.py\",\n      \"--db\",\n      \"/tmp/bookings.sqlite3\",\n      \"--host\",\n      \"127.0.0.1\",\n      \"--port\",\n      \"8080\"\n    ],\n    \"cwd\": \".\",\n    \"env\": {},\n    \"expected_exit_code\": 0,\n    \"timeout\": 120.0\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "check_command",
+          "event_registered": true,
+          "consumed": true,
+          "success": false,
+          "projection_complete": true
+        },
+        {
+          "action": "A00005",
+          "operation": "check_command",
+          "event_registered": false,
+          "consumed": false,
+          "success": false
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-5416b1bce1474811",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_chars', 'max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 1024,
+              "max_chars": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "backup_check-parallel-r1",
+      "calls": [
+        {
+          "request": "MR-3756c54fa9ba4333",
+          "input_tokens": 1823,
+          "output_tokens": 48,
+          "input_sha256": "f7fb1fc8f612ac4d7e078835618d3f15b6ce581147d2521d68f0600ba75a1465",
+          "input_checkpoint": "CP-e73340c397f0468c",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"max_entries\": 1024,\n    \"max_tokens\": 4096,\n    \"path\": \"config_store\"\n  }\n}"
+        },
+        {
+          "request": "MR-e2168166e37146b4",
+          "input_tokens": 2453,
+          "output_tokens": 63,
+          "input_sha256": "8de6b169e2b58c8d2112e57e72155047b52fbb563a70acc69389129439eac570",
+          "input_checkpoint": "CP-a821d55f98914365",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 1024,\n    \"max_chars\": 4096,\n    \"path\": \"config_store/sqlite_io.py\"\n  }\n}"
+        },
+        {
+          "request": "MR-1fc263f997294f7d",
+          "input_tokens": 2858,
+          "output_tokens": 52,
+          "input_sha256": "944746c73174122acf4fee6cd25e6c555a632f9bec069751bb53a9bc97b4613c",
+          "input_checkpoint": "CP-ca8616074be94e17",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-fd86b0e479bf4cce"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-78fbff25ae7d46ed",
+          "input_tokens": 4887,
+          "output_tokens": 97,
+          "input_sha256": "db69dae8f5bd0003bcb327cdfffc51fcfe5de042f822c71e9276991c7a681be6",
+          "input_checkpoint": "CP-86e84c25bcd84e13",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-fd86b0e479bf4cce"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 100,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"pattern\": \"def write_backup_exclusive\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-f498412c56ea49b1",
+          "input_tokens": 5359,
+          "output_tokens": 118,
+          "input_sha256": "266d21c63968452e68212998bb6dcf5c1967d07c6801284d94f4377a55e45b5a",
+          "input_checkpoint": "CP-7be23837cc7f423d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-287786c554264590",
+            "EV-REJECT-fd86b0e479bf4cce"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 5000000,\n    \"max_line_chars\": 4000,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"literal\",\n    \"path\": \"config_store/sqlite_io.py\",\n    \"pattern\": \"def write_backup_exclusive\",\n    \"recursive\": false,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-1afcd47b95e246a5",
+          "input_tokens": 6512,
+          "output_tokens": 61,
+          "input_sha256": "2c2ff735c05eb9f1ae6f7c11f0bb3ff5ac65b697cbff4023544dd998c937c75c",
+          "input_checkpoint": "CP-5fe89c2c968f4c52",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-287786c554264590",
+            "EV-REJECT-fd86b0e479bf4cce"
+          ],
+          "raw_output": "{\n  \"function\": \"read_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 1091,\n    \"start_line\": 31\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "list_directory",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-fd86b0e479bf4cce",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_chars', 'max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 1024,
+              "max_chars": 4096,
+              "path": "config_store/sqlite_io.py"
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-287786c554264590",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 100,
+              "max_results": 100,
+              "path": "config_store/sqlite_io.py",
+              "pattern": "def write_backup_exclusive",
+              "recursive": false,
+              "start_after": ""
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 3,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "backup_check-parallel-r2",
+      "calls": [
+        {
+          "request": "MR-be13e4dc3ddd4275",
+          "input_tokens": 1823,
+          "output_tokens": 1800,
+          "input_sha256": "f7fb1fc8f612ac4d7e078835618d3f15b6ce581147d2521d68f0600ba75a1465",
+          "input_checkpoint": "CP-cba2d52f8ba441a3",
+          "finish": "length",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"path\": \"config_store\",\n    \"pattern\": \"def.*backup|def.*save|def.*write|def.*dump|def.*copy|def.*store|def.*create|def.*write_file|def.*write_to|def.*write_backup|def.*write_snapshot|def.*write_state|def.*write_checkpoint|def.*write_copy|def.*write_duplicate|def.*write_overwrite|def.*write_replace|def.*write_override|def.*write_overwrite_if_exists|def.*write_if_exists|def.*write_if_not_exists|def.*write_if_missing|def.*write_if_absent|def.*write_if_present|def.*write_if_exists_else|def.*write_if_exists_else_create|def.*write_if_exists_else_overwrite|def.*write_if_exists_else_skip|def.*write_if_exists_else_raise|def.*write_if_exists_else_warn|def.*write_if_exists_else_error|def.*write_if_exists_else_continue|def.*write_if_exists_else_return|def.*write_if_exists_else_pass|def.*write_if_exists_else_break|def.*write_if_exists_else_continue|def.*write_if_exists_else_next|def.*write_if_exists_else_previous|def.*write_if_exists_else_first|def.*write_if_exists_else_last|def.*write_if_exists_else_current|def.*write_if_exists_else_next_line|def.*write_if_exists_else_previous_line|def.*write_if_exists_else_first_line|def.*write_if_exists_else_last_line|def.*write_if_exists_else_current_line|def.*write_if_exists_else_next_file|def.*write_if_exists_else_previous_file|def.*write_if_exists_else_first_file|def.*write_if_exists_else_last_file|def.*write_if_exists_else_current_file|def.*write_if_exists_else_next_directory|def.*write_if_exists_else_previous_directory|def.*write_if_exists_else_first_directory|def.*write_if_exists_else_last_directory|def.*write_if_exists_else_current_directory|def.*write_if_exists_else_next_path|def.*write_if_exists_else_previous_path|def.*write_if_exists_else_first_path|def.*write_if_exists_else_last_path|def.*write_if_exists_else_current_path|def.*write_if_exists_else_next_file_path|def.*write_if_exists_else_previous_file_path|def.*write_if_exists_else_first_file_path|def.*write_if_exists_else_last_file_path|def.*write_if_exists_else_current_file_path|def.*write_if_exists_else_next_directory_path|def.*write_if_exists_else_previous_directory_path|def.*write_if_exists_else_first_directory_path|def.*write_if_exists_else_last_directory_path|def.*write_if_exists_else_current_directory_path|def.*write_if_exists_else_next_path_pattern|def.*write_if_exists_else_previous_path_pattern|def.*write_if_exists_else_first_path_pattern|def.*write_if_exists_else_last_path_pattern|def.*write_if_exists_else_current_path_pattern|def.*write_if_exists_else_next_file_pattern|def.*write_if_exists_else_previous_file_pattern|def.*write_if_exists_else_first_file_pattern|def.*write_if_exists_else_last_file_pattern|def.*write_if_exists_else_current_file_pattern|def.*write_if_exists_else_next_directory_pattern|def.*write_if_exists_else_previous_directory_pattern|def.*write_if_exists_else_first_directory_pattern|def.*write_if_exists_else_last_directory_pattern|def.*write_if_exists_else_current_directory_pattern|def.*write_if_exists_else_next_path_regex|def.*write_if_exists_else_previous_path_regex|def.*write_if_exists_else_first_path_regex|def.*write_if_exists_else_last_path_regex|def.*write_if_exists_else_current_path_regex|def.*write_if_exists_else_next_file_regex|def.*write_if_exists_else_previous_file_regex|def.*write_if_exists_else_first_file_regex|def.*write_if_exists_else_last_file_regex|def.*write_if_exists_else_current_file_regex|def.*write_if_exists_else_next_directory_regex|def.*write_if_exists_else_previous_directory_regex|def.*write_if_exists_else_first_directory_regex|def.*write_if_exists_else_last_directory_regex|def.*write_if_exists_else_current_directory_regex|def.*write_if_exists_else_next_path_glob|def.*write_if_exists_else_previous_path_glob|def.*write_if_exists_else_first_path_glob|def.*write_if_exists_else_last_path_glob|def.*write_if_exists_else_current_path_glob|def.*write_if_exists_else_next_file_glob|def.*write_if_exists_else_previous_file_glob|def.*write_if_exists_else_first_file_glob|def.*write_if_exists_else_last_file_glob|def.*write_if_exists_else_current_file_glob|def.*write_if_exists_else_next_directory_glob|def.*write_if_exists_else_previous_directory_glob|def.*write_if_exists_else_first_directory_glob|def.*write_if_exists_else_last_directory_glob|def.*write_if_exists_else_current_directory_glob|def.*write_if_exists_else_next_path_wildcard|def.*write_if_exists_else_previous_path_wildcard|def.*write_if_exists_else_first_path_wildcard|def.*write_if_exists_else_last_path_wildcard|def.*write_if_exists_else_current_path_wildcard|def.*write_if_exists_else_next_file_wildcard|def.*write_if_exists_else_previous_file_wildcard|def.*write_if_exists_else_first_file_wildcard|def.*write_if_exists_else_last_file_wildcard|def.*write_if_exists_else_current_file_wildcard|def.*write_if_exists_else_next_directory_wildcard|def.*write_if_exists_else_previous_directory_wildcard|def.*write_if_exists_else_first_directory_wild"
+        },
+        {
+          "request": "MR-0569ec50556b47a4",
+          "input_tokens": 1923,
+          "output_tokens": 190,
+          "input_sha256": "52132a5ac67b878af07820d90ba4fd1b75caa18787ee33e002c018c623060ca9",
+          "input_checkpoint": "CP-2111236f89be4a66",
+          "finish": "stop",
+          "events": [
+            "EV-REJECT-59cb36acabc74d38"
+          ],
+          "raw_output": "{\"function\":\"final_answer\",\"params\":{\"text\":\"检查结果：config_store/sqlite_io.py 中创建备份的实现不会覆盖已存在的目标文件。代码依据：在 create_backup 函数中，使用 os.path.exists 检查目标文件是否存在，如果存在则直接返回，不会执行后续的文件创建和写入操作。验证方法：可以通过在目标文件存在的情况下调用 create_backup 函数，观察是否会创建新的备份文件。如果目标文件存在，函数会返回 False，表示备份创建失败，而不会覆盖已存在的文件。\"}}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [],
+      "feedback": [
+        {
+          "event": "EV-REJECT-59cb36acabc74d38",
+          "consumed": true,
+          "payload": {
+            "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 196)",
+            "action_executed": false,
+            "rejected_arguments": {},
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 1,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "检查结果：config_store/sqlite_io.py 中创建备份的实现不会覆盖已存在的目标文件。代码依据：在 create_backup 函数中，使用 os.path.exists 检查目标文件是否存在，如果存在则直接返回，不会执行后续的文件创建和写入操作。验证方法：可以通过在目标文件存在的情况下调用 create_backup 函数，观察是否会创建新的备份文件。如果目标文件存在，函数会返回 False，表示备份创建失败，而不会覆盖已存在的文件。"
+    },
+    {
+      "run": "backup_check-serial-r1",
+      "calls": [
+        {
+          "request": "MR-04e2ced66acb4879",
+          "input_tokens": 1823,
+          "output_tokens": 114,
+          "input_sha256": "f7fb1fc8f612ac4d7e078835618d3f15b6ce581147d2521d68f0600ba75a1465",
+          "input_checkpoint": "CP-ec059a3e263e444e",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \"config_store\",\n    \"pattern\": \"sqlite_io\\\\.py\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-57013904675f46d6",
+          "input_tokens": 2660,
+          "output_tokens": 70,
+          "input_sha256": "1d6075c8c2fb74652c20854c43e602930eae1d604616dab8422700f80445fbb1",
+          "input_checkpoint": "CP-92ffda7169c844a5",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 100,\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-d7f666f3b88a41ab",
+          "input_tokens": 3058,
+          "output_tokens": 52,
+          "input_sha256": "46e7a24d1699014e2330fa09e0a40393094a5a59e2fdeb1dc98a3e7461de0784",
+          "input_checkpoint": "CP-5caa8d6480084bd9",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-ed4b14d76fc9463d"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-44b4f79f735e4c8f",
+          "input_tokens": 5086,
+          "output_tokens": 95,
+          "input_sha256": "697eed6b55e9fa2cd8ebc32c6ec2557760051d114dfbc8868956a64b9af7275f",
+          "input_checkpoint": "CP-adb76eb8255f4f8c",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-ed4b14d76fc9463d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_lines\": 100,\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_token_bytes\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \"config_store\",\n    \"pattern\": \"backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-8d5b9c984415422a",
+          "input_tokens": 5567,
+          "output_tokens": 108,
+          "input_sha256": "50c0a7fcd1595c0c58d306b3da6c58c2c3ad762ac0e7a015c64941827ac2e1c3",
+          "input_checkpoint": "CP-c7d6492cce7d4a49",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-391f28b376034980",
+            "EV-REJECT-ed4b14d76fc9463d"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_file_bytes\": 100000000,\n    \"max_line_chars\": 800,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \"config_store\",\n    \"pattern\": \"backup\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-c7e57d5004e94956",
+          "input_tokens": 7647,
+          "output_tokens": 53,
+          "input_sha256": "d17dbd895b591facc491c8f49c7d46723557c4f5976ad311be906907676eced4",
+          "input_checkpoint": "CP-63962f0568444cb0",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-391f28b376034980",
+            "EV-REJECT-ed4b14d76fc9463d"
+          ],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 1012\n  }\n}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00003",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00004",
+          "operation": "read_file",
+          "event_registered": false,
+          "consumed": false,
+          "success": true,
+          "complete_file": false
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-ed4b14d76fc9463d",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_lines']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_lines": 100,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-391f28b376034980",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_lines', 'max_token_bytes']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_lines": 100,
+              "max_tokens": 4096,
+              "max_results": 100,
+              "max_token_bytes": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "backup",
+              "recursive": true,
+              "start_after": ""
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 2,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "backup_check-serial-r2",
+      "calls": [
+        {
+          "request": "MR-dbb0e55db4904339",
+          "input_tokens": 1823,
+          "output_tokens": 52,
+          "input_sha256": "f7fb1fc8f612ac4d7e078835618d3f15b6ce581147d2521d68f0600ba75a1465",
+          "input_checkpoint": "CP-b3ecfdfff23a413e",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}"
+        },
+        {
+          "request": "MR-1f98bc5000184226",
+          "input_tokens": 3854,
+          "output_tokens": 97,
+          "input_sha256": "3ad71baa2b5c4ec5876bd1dd74640be0f9b30cc9af174dbc0220c6e974c24b8d",
+          "input_checkpoint": "CP-a9374e6db8c54fe1",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"case_sensitive\": true,\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_tokens\": 4096,\n    \"mode\": \"regex\",\n    \"path\": \"config_store\",\n    \"pattern\": \"def write_backup_exclusive\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-315e8760f28d4264",
+          "input_tokens": 4984,
+          "output_tokens": 53,
+          "input_sha256": "cc285bf5c29280bede4cc1deefc60b381d5704cc7ddbcf6b3c02303b07b42fe2",
+          "input_checkpoint": "CP-cf5967b999ba4f9f",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002"
+          ],
+          "raw_output": "{\n  \"function\": \"read_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 1091\n  }\n}"
+        },
+        {
+          "request": "MR-1daadb5e5add4ca0",
+          "input_tokens": 5122,
+          "output_tokens": 53,
+          "input_sha256": "f945e1fb99bf502ccd44bc13d744ca0c7e73b77485dfe4d7df18096786dbda02",
+          "input_checkpoint": "CP-8ba89f773fa045fa",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-531a58d8edef487b"
+          ],
+          "raw_output": "{\n  \"function\": \"read_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"config_store/sqlite_io.py\",\n    \"start_byte\": 1091\n  }\n}"
+        },
+        {
+          "request": "MR-797d3c2b68a440a7",
+          "input_tokens": 5260,
+          "output_tokens": 37,
+          "input_sha256": "878feeaf0bd5cba40fb90967e00c9df3f9d5b7fc59164be4564676cd4b8e890b",
+          "input_checkpoint": "CP-9c8b2465ce274d30",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-531a58d8edef487b",
+            "EV-REJECT-eb0de41ea5eb46c5"
+          ],
+          "raw_output": "{\"function\":\"read_text\",\"params\":{\"max_tokens\":4096,\"path\":\"config_store/sqlite_io.py\",\"start_byte\":1091}}"
+        },
+        {
+          "request": "MR-60eea0c4eb644771",
+          "input_tokens": 5398,
+          "output_tokens": 37,
+          "input_sha256": "f473db3325242804bf44083ac0f5ed4ec3685e1ae02c200ecf921ac462cf2be9",
+          "input_checkpoint": "CP-512879ed5c754ad7",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-2569ababe9624fe3",
+            "EV-REJECT-531a58d8edef487b",
+            "EV-REJECT-eb0de41ea5eb46c5"
+          ],
+          "raw_output": "{\"function\":\"read_text\",\"params\":{\"max_tokens\":4096,\"path\":\"config_store/sqlite_io.py\",\"start_byte\":1091}}\n"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-531a58d8edef487b",
+          "consumed": true,
+          "payload": {
+            "error": "operation 'read_text' is not displayed in this turn",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1091
+            },
+            "selected_operation": "read_text",
+            "selected_operation_schema": {},
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-eb0de41ea5eb46c5",
+          "consumed": true,
+          "payload": {
+            "error": "operation 'read_text' is not displayed in this turn",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1091
+            },
+            "selected_operation": "read_text",
+            "selected_operation_schema": {},
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-2569ababe9624fe3",
+          "consumed": true,
+          "payload": {
+            "error": "operation 'read_text' is not displayed in this turn",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1091
+            },
+            "selected_operation": "read_text",
+            "selected_operation_schema": {},
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 4,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    },
+    {
+      "run": "rag_overview-parallel-r1",
+      "calls": [
+        {
+          "request": "MR-115ece303119468e",
+          "input_tokens": 1758,
+          "output_tokens": 38,
+          "input_sha256": "99a63c15330f541e8c67fa0bf078362d16fd79d54501b6ce82cee59453894cd4",
+          "input_checkpoint": "CP-f347c0f6583c4097",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"max_tokens\": 4096\n  }\n}"
+        },
+        {
+          "request": "MR-5154b760b3af4702",
+          "input_tokens": 4451,
+          "output_tokens": 289,
+          "input_sha256": "93001d25009017235961ab247df9d027a045097d8d493f617f6a39e18ab3f638",
+          "input_checkpoint": "CP-2ef0d37f6f0c42aa",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\\n\\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\\n\\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有场景中默认生效。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有场景中默认生效。"
+    },
+    {
+      "run": "rag_overview-parallel-r2",
+      "calls": [
+        {
+          "request": "MR-bfdee6453a8642ce",
+          "input_tokens": 1758,
+          "output_tokens": 46,
+          "input_sha256": "99a63c15330f541e8c67fa0bf078362d16fd79d54501b6ce82cee59453894cd4",
+          "input_checkpoint": "CP-8d09c1ea592f4d14",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-0e14879a8b584958",
+          "input_tokens": 4457,
+          "output_tokens": 373,
+          "input_sha256": "58b6316e4a1e99698e9ff3cf813ac577759291532999d1f5df2d964a546bd869",
+          "input_checkpoint": "CP-300ae4048fac49e6",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\\n\\n现有实验能说明：\\n- StateTune 经验总结：从 48/60 提高到 60/60，Writer 从 17/36 提高到 300/1000，但仍有失控重复、空证据和冲突处理不可靠。\\n- 服务已接入 5000 篇 FineWiki 中文文章、45960 个原文片段，支持完整分页和试用。\\n- 现有页面已恢复用于人工试用，但复杂多问、长历史、缺证据与引用仍有已知错误。\\n\\n现有实验不能说明：\\n- 这些结果不是全场景准确率，也不代表模型能力上限。\\n- 训练后的 state 必须显式选择；训练完成不等于应用默认配置已经切换。\\n- 原始实验记录、权重和恢复方式需要查看 docs/artifacts.md 和 llamaindex-retrieval/statetune/README.md。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：\n- StateTune 经验总结：从 48/60 提高到 60/60，Writer 从 17/36 提高到 300/1000，但仍有失控重复、空证据和冲突处理不可靠。\n- 服务已接入 5000 篇 FineWiki 中文文章、45960 个原文片段，支持完整分页和试用。\n- 现有页面已恢复用于人工试用，但复杂多问、长历史、缺证据与引用仍有已知错误。\n\n现有实验不能说明：\n- 这些结果不是全场景准确率，也不代表模型能力上限。\n- 训练后的 state 必须显式选择；训练完成不等于应用默认配置已经切换。\n- 原始实验记录、权重和恢复方式需要查看 docs/artifacts.md 和 llamaindex-retrieval/statetune/README.md。"
+    },
+    {
+      "run": "rag_overview-serial-r1",
+      "calls": [
+        {
+          "request": "MR-0a513efcb26f4eb7",
+          "input_tokens": 1758,
+          "output_tokens": 46,
+          "input_sha256": "99a63c15330f541e8c67fa0bf078362d16fd79d54501b6ce82cee59453894cd4",
+          "input_checkpoint": "CP-0ef0d1f4dc594425",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-5813fa59861c4339",
+          "input_tokens": 4460,
+          "output_tokens": 286,
+          "input_sha256": "55547856fa1e76659d9e0806aad93103a0fed872d148853ac3e354a8ee7cb03e",
+          "input_checkpoint": "CP-d0150f2946f64949",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"RWKVRAG 使用 RWKV 7 G1j 2.9B 模型，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\\n\\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\\n\\n现有实验不能说明：模型能力上限、长历史/复杂多问/缺证据/引用场景的可靠性、训练后的 state 是否已经完全可用、以及训练完成后是否已经切换到正式服务。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "RWKVRAG 使用 RWKV 7 G1j 2.9B 模型，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型能力上限、长历史/复杂多问/缺证据/引用场景的可靠性、训练后的 state 是否已经完全可用、以及训练完成后是否已经切换到正式服务。"
+    },
+    {
+      "run": "rag_overview-serial-r2",
+      "calls": [
+        {
+          "request": "MR-ecfc47fdc8294161",
+          "input_tokens": 1758,
+          "output_tokens": 38,
+          "input_sha256": "99a63c15330f541e8c67fa0bf078362d16fd79d54501b6ce82cee59453894cd4",
+          "input_checkpoint": "CP-dfffda5314174635",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"max_tokens\": 4096\n  }\n}"
+        },
+        {
+          "request": "MR-3f33b63b290e4e7d",
+          "input_tokens": 4451,
+          "output_tokens": 289,
+          "input_sha256": "829bd4040edab9f5610ddfee6e8d7c1a0a4482caaaffb209d97c7e4006df4513",
+          "input_checkpoint": "CP-f9c919af17d24d4e",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\\n\\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\\n\\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有服务中正式切换。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有服务中正式切换。"
+    },
+    {
+      "run": "rag_rules-parallel-r1",
+      "calls": [
+        {
+          "request": "MR-de7ceeb55ab34699",
+          "input_tokens": 1777,
+          "output_tokens": 52,
+          "input_sha256": "fe16c09ce1878ae5d06b85b95afaf81de04da9357a90fe70afdbbd13c4b97eca",
+          "input_checkpoint": "CP-3d1b66772d024efa",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"ARCHITECTURE_RULES.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-0d43a945e4934af5",
+          "input_tokens": 3887,
+          "output_tokens": 573,
+          "input_sha256": "bb9135aa8f92bcbf4accbf7ce276179daeb9009c0311c5c9abce1b9cdd6b081f",
+          "input_checkpoint": "CP-748bb4c1d6b6415b",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"根据 ARCHITECTURE_RULES.md 的规则，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\\n\\n模型与程序各自的责任：\\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或兜底答案替换。\\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换模型输出。\\n\\n原始答案和来源记录的约束：\\n- RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\\n- 校验和审计只能记录问题，不得改变对外答案。\\n- 需要修复时必须发起有独立 trace 的新模型调用。\\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "根据 ARCHITECTURE_RULES.md 的规则，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或兜底答案替换。\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换模型输出。\n\n原始答案和来源记录的约束：\n- RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 校验和审计只能记录问题，不得改变对外答案。\n- 需要修复时必须发起有独立 trace 的新模型调用。\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。"
+    },
+    {
+      "run": "rag_rules-parallel-r2",
+      "calls": [
+        {
+          "request": "MR-a0f931873a8646c5",
+          "input_tokens": 1777,
+          "output_tokens": 52,
+          "input_sha256": "fe16c09ce1878ae5d06b85b95afaf81de04da9357a90fe70afdbbd13c4b97eca",
+          "input_checkpoint": "CP-d20effff95e444cb",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"ARCHITECTURE_RULES.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-8015d10ad1084a68",
+          "input_tokens": 3886,
+          "output_tokens": 407,
+          "input_sha256": "a98553d884d2d7b6f640912c87d468c36b498614dcdafbccc06643a48b30d6e4",
+          "input_checkpoint": "CP-b8c9bd662f064788",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\\n\\n模型与程序各自的责任：\\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；\\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换原始输出。\\n\\n原始答案和来源记录的约束：\\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时；\\n- 不得增删、改写、补引用、删句或用兜底答案替换原始输出；\\n- 校验和审计只能记录问题，不得改变对外答案；\\n- 需要修复时必须发起有独立 trace 的新模型调用；\\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换原始输出。\n\n原始答案和来源记录的约束：\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时；\n- 不得增删、改写、补引用、删句或用兜底答案替换原始输出；\n- 校验和审计只能记录问题，不得改变对外答案；\n- 需要修复时必须发起有独立 trace 的新模型调用；\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。"
+    },
+    {
+      "run": "rag_rules-serial-r1",
+      "calls": [
+        {
+          "request": "MR-412532666ef645e2",
+          "input_tokens": 1777,
+          "output_tokens": 52,
+          "input_sha256": "fe16c09ce1878ae5d06b85b95afaf81de04da9357a90fe70afdbbd13c4b97eca",
+          "input_checkpoint": "CP-872afa49003f472a",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"ARCHITECTURE_RULES.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-0b4f8c678c924fbe",
+          "input_tokens": 3888,
+          "output_tokens": 458,
+          "input_sha256": "63c39ff378022a3509fb440cee1052fe2197ab74effb24e4f31a1002722196f8",
+          "input_checkpoint": "CP-b4eb360f52284f8a",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\\n\\n模型与程序各自的责任：\\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验；校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\\n\\n原始答案和来源记录的约束：\\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验；校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\n\n原始答案和来源记录的约束：\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。"
+    },
+    {
+      "run": "rag_rules-serial-r2",
+      "calls": [
+        {
+          "request": "MR-f0e87e2390944492",
+          "input_tokens": 1777,
+          "output_tokens": 52,
+          "input_sha256": "fe16c09ce1878ae5d06b85b95afaf81de04da9357a90fe70afdbbd13c4b97eca",
+          "input_checkpoint": "CP-21a45670d2304da8",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"ARCHITECTURE_RULES.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-4c3767a8d0f5436c",
+          "input_tokens": 3888,
+          "output_tokens": 851,
+          "input_sha256": "733d08b2ce06f7ec56c286cbdc50bed5e78130ba6c45608babaf5be459fb1f42",
+          "input_checkpoint": "CP-69fb1d1cfd184a06",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"文本证据成为回答材料的方式：\\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\\n2. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\\n3. 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\\n4. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\\n5. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\\n6. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\\n7. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\\n8. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\\n9. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\\n10. 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\\n\\n模型与程序各负责什么：\\n- 模型负责语义决定，包括判断证据是否相关、选择证据、生成答案和判断是否需要补充调用。\\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换。\\n\\n原始答案和来源记录的约束：\\n- 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\\n- 校验和审计只能记录问题，不得改变对外答案。\\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "文本证据成为回答材料的方式：\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n3. 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n4. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n5. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n6. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n7. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n8. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n9. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n10. 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\n\n模型与程序各负责什么：\n- 模型负责语义决定，包括判断证据是否相关、选择证据、生成答案和判断是否需要补充调用。\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换。\n\n原始答案和来源记录的约束：\n- 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 校验和审计只能记录问题，不得改变对外答案。\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。"
+    }
+  ],
+  "completed_records": 16,
+  "checked_generations": 59,
+  "all_returned_inputs_and_parent_states_verified": true,
+  "pending_events_at_budget_are_not_consumed_feedback": true
+}

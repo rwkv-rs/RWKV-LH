@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "path": "rwkv_lh/inference/native_state_service.py",
+      "sha256": "ba51a3f89e0d0cfbe738097b8fddd94faca492fb4566b27f4bab5e328638e567",
+      "matches_verified_uploaded_service": true
+    },
+    {
+      "path": "rwkv_lh/runtime/native_request_recovery.py",
+      "sha256": "bd1e2888583a72d3703bea097e4dbb9351847acfbf9d96c998751d1a1128cf42",
+      "matches_verified_uploaded_service": true
+    }
+  ],
+  "observed": "native service dispatch holds request_lock through journal invocation; generate also holds service.lock around generation and published State materialization",
+  "meaning": "independent client jobs currently queue at shared native service; client concurrency alone does not expose engine batch throughput",
+  "not_measured": "no attribution of all latency to locks; no lock-removal experiment",
+  "future_validation": "isolate per-request identities, sampler/state capture ownership, recovery and release races before changing lock scope; then compare same-quality fixed jobs"
+}

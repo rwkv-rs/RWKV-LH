@@ -55,11 +55,21 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
     events = [json.loads(line) for line in (run_root / 'model_trace.jsonl').read_text().splitlines()]
     returned = [e for e in events if e['type'] == 'model_session_generation_returned']
     starts = {e['request_id']: e for e in events if e['type'] == 'model_session_generation_started'}
-    generations = {e['candidate_checkpoint_id']: e['raw_generation'] for e in returned}
-    core.require(len(generations) == len(returned) > 0, 'missing/duplicate generation identity')
+    parent_trace = run_root / 'PARENT_TRACE.jsonl'
+    ancestors = [json.loads(line) for line in parent_trace.read_text().splitlines()] if parent_trace.is_file() else []
+    history = [e for e in ancestors if e['type'] == 'model_session_generation_returned'] + returned
+    generations = {e['candidate_checkpoint_id']: e['raw_generation'] for e in history}
+    core.require(len(generations) == len(history) and bool(returned), 'missing/duplicate generation identity')
     # Explicit inert transport: these objects are used only to render input.
     session = ModelSession(client=object(), settings=RuntimeSettings(base_url='http://unused.invalid', api_key='', model='replay-only', tool_disclosure_mode='full'))
-    model = LongHorizonModel(session, harness=ActionHarness())
+    result_path = run_root / 'RESULT.json'
+    scope = json.loads(result_path.read_text()).get('tool_scope') if result_path.is_file() else None
+    if scope is None:
+        harness = ActionHarness()
+    else:
+        from rwkv_lh.read_only_agent import ReadOnlyHarness
+        harness = ReadOnlyHarness(tool_scope=scope)
+    model = LongHorizonModel(session, harness=harness)
     replay_goal = model.create_literal_goal(state.goal.request, str(run_root / 'workspace'),
                                                 constraints=state.goal.constraints, runtime_policy=state.goal.runtime_policy)
     initial = RunState(run_id=state.run_id, goal=replay_goal)

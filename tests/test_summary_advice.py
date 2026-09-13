@@ -27,3 +27,13 @@ def test_advice_transport_gets_only_registered_request():
  assert request_advice(SimpleNamespace(_request_json=call),goal,{'f':'source'},'answer','run',4096)=='原样建议'
  assert seen[0]['max_tokens']==4096
  assert set(seen[0]['request_payload'])=={'protocol','goal','files','candidate'}
+
+def test_same_advice_protocol_supports_read_only_code_review_without_replacement_answer():
+ from rwkv_lh.summary_advice import request_advice
+ seen=[]
+ def call(**kw):seen.append(kw);return {'advice':'核对代码证据与实际工具记录，不猜测测试结果。'}
+ goal=LongHorizonModel.create_literal_goal('检查 server.py 的实际缺陷，不修改文件。','.')
+ request_advice(SimpleNamespace(_request_json=call),goal,{'server.py':'# source'},'candidate','code',1024)
+ assert 'code review' in seen[0]['system_prompt']
+ assert seen[0]['request_payload']['goal']==goal.request
+ assert set(seen[0]['schema']['properties'])=={'advice'}

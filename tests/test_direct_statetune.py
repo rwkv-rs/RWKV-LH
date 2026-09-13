@@ -36,7 +36,7 @@ def test_direct_freeze_accepts_independent_source_families():
                               {'family':'project-b','split':'dev','source_content_sha256':'b'*64}])
 
 
-def test_real_direct_trace_replays_through_production_builder(tmp_path):
+def test_obsolete_advice_labelling_is_rejected_by_current_production_builder(tmp_path):
     from pathlib import Path
     from rwkv_lh.direct_trace_data import replay_run
     root = Path(__file__).resolve().parents[1]
@@ -47,9 +47,8 @@ def test_real_direct_trace_replays_through_production_builder(tmp_path):
                    and ('/workspace/' in m.name or m.name.endswith(('state_snapshot.json', 'model_trace.jsonl')))]
         tar.extractall(tmp_path, members=members, filter='data')
     run = tmp_path / 'runs/trial-1'
-    rows = replay_run(run, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
-    assert len(rows) == 3
-    assert all(row['recomputed'] for row in rows.values())
+    with pytest.raises(ValueError, match='production observation replay differs'):
+        replay_run(run, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
 
 
 def test_training_distinguishes_serving_identity_from_container_hash():
@@ -82,3 +81,16 @@ def test_executed_read_binding_accepts_documented_omission_not_wrong_parameters(
     invalid = parse_model_command('{"function":"read_file","params":{"path":"notes.txt","end_byte":"EOF"}}')
     with pytest.raises(Exception):
         executed_arguments(invalid)
+
+
+def test_current_read_only_advice_trace_replays_only_new_calls_with_real_parent_history(tmp_path):
+    from pathlib import Path
+    import tarfile
+    from rwkv_lh.direct_trace_data import replay_run
+    archive=Path(__file__).resolve().parents[1]/'data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/CURRENT_REPLAY_FIXTURE.tar.gz'
+    with tarfile.open(archive) as tar:tar.extractall(tmp_path,filter='data')
+    rows=replay_run(tmp_path/'current','559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+    assert len(rows)==1
+    row=next(iter(rows.values()))
+    assert 'Requested review advice:' in row['input_text']
+    assert row['recomputed'] is True

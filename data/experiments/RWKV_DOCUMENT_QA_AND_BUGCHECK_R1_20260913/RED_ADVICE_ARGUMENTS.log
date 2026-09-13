@@ -1,0 +1,32 @@
+.................FF....                                                  [100%]
+=================================== FAILURES ===================================
+_____________ test_partial_advice_identity_is_not_silently_ignored _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_partial_advice_identity_i0')
+
+    def test_partial_advice_identity_is_not_silently_ignored(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),advice='do not lose this')
+>       with pytest.raises(ValueError):run_read_only_job(job,settings=settings(),session_factory=factory([]))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_read_only_agent.py:193: Failed
+__________ test_reconsideration_output_cannot_be_inside_parent_store ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_reconsideration_output_ca0')
+
+    def test_reconsideration_output_cannot_be_inside_parent_store(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        parent=tmp_path/'parent';parent.mkdir()
+        nested=parent/'state/review'
+        job=ReadOnlyJob('bad','read',str(workspace),str(nested),reconsider_from=str(parent),advice='check',advice_model='adviser')
+>       with pytest.raises(ValueError):run_read_only_job(job,settings=settings(),session_factory=factory([]))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_read_only_agent.py:202: Failed
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_partial_advice_identity_is_not_silently_ignored
+FAILED tests/test_read_only_agent.py::test_reconsideration_output_cannot_be_inside_parent_store
+2 failed, 21 passed in 4.52s

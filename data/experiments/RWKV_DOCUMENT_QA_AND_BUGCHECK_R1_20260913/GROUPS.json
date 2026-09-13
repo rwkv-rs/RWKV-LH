@@ -1,0 +1,2906 @@
+[
+  {
+    "mode": "serial",
+    "repeat": 1,
+    "elapsed_seconds": 420.6959319150192,
+    "results": [
+      {
+        "id": "rag_overview-serial-r1",
+        "final": "RWKVRAG 使用 RWKV 7 G1j 2.9B 模型，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型能力上限、长历史/复杂多问/缺证据/引用场景的可靠性、训练后的 state 是否已经完全可用、以及训练完成后是否已经切换到正式服务。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "dc44af47a2bc09dd2f56cc75de9a8022249aaf097c5c4f4821cf3184d4bb83a2",
+            "decision_id": "D-aabf7ccc187f41ff",
+            "request_id": "MR-0a513efcb26f4eb7",
+            "started_at": "2026-09-13T04:39:30.116+00:00",
+            "ended_at": "2026-09-13T04:39:30.176+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RWKVRAG — RWKV 原生 RAG\n\n基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。\n\n**RWKV 2.9B + OpenSearch BM25，不使用 embedding。** 模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\n\n## StateTune 实践\n\n[StateTune经验总结](docs/statetune-experience.md)记录本轮如何从真实trace发现问题、生成2000条纠错数据、完成六组state训练，以及改善与失败。\n\nReader在60道受控阅读挑战中从48/60提高到60/60。Writer明显减少失控重复；固定36题的独立抽样中，Writer300有据可用17/36，零state为10/36，扩大到1400条没有继续提高。Planner出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n- [数据与训练入口](llamaindex-retrieval/statetune/README.md)\n- [原始实验记录、权重和恢复方式](docs/artifacts.md)\n- [最新训练核验](llamaindex-retrieval/eval/trace-training-20260911/TRAINING-VERIFIED.json)\n- [最新评测汇总](llamaindex-retrieval/eval/trace-eval-20260911/RESULTS.md)\n\n## 使用\n\n通用安装与接口见[Python服务说明](llamaindex-retrieval/README.md)，现有环境的管理方式见[本地部署说明](llamaindex-retrieval/deploy/local/README.md)。本地页面为 <http://127.0.0.1:18440/admin/#/search>，通过后端 `POST /v1/ask` 执行真实RAG；API接口文档为 `/docs`。现有前端已恢复用于人工试用。\n\n仅使用指定的RWKV7 G1j 2.9B。训练后的state必须显式选择；训练完成不等于应用默认配置已经切换。2026-09-11测试结束后，按用户要求保留比较服务，没有恢复原问答服务。\n\n现有页面已接入此前评测使用的 **5000篇FineWiki中文文章、45960个原文片段**。选择“FineWiki 中文百科（5000篇）”即可试用，文件列表支持完整分页。[试用指南、13道测试题与参考答案](docs/wiki-rag-test-guide.md)包含原文依据、接入方法和实际试用记录，适合转发学习。\n\n复杂多问、长历史、缺证据与引用仍有已知错误。服务可访问不代表所有场景已可靠。架构约束见[ARCHITECTURE_RULES.md](llamaindex-retrieval/ARCHITECTURE_RULES.md)。\n\n## 开发验证\n\n```bash\ncd llamaindex-retrieval\nuv sync --frozen --extra dev\nuv run pytest -q\n```\n\n历史实验的独立重放需要先按[归档说明](docs/artifacts.md)恢复相应文件；普通代码测试所需的小型固定材料保留在Git中。发布时的实际检查结果见 `artifacts/statetune-20260911/VALIDATION.json`。\n\n仓库保留维护中的代码、训练入口、正式数据和必要测试材料；原始调用、冻结源码与过时实验说明统一归档。旧Git提交保持不变。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/markdown",
+                  "size_bytes": 2885,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-f799055804aec455",
+                  "source_ref": "README.md",
+                  "source_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2885,
+                  "core_start": 0,
+                  "core_end": 2885,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1047
+                },
+                "start_byte": 0,
+                "end_byte": 2885,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2885,
+                "observed_tokens": 1047,
+                "source_start_line": 1,
+                "source_end_line": 38
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-926a0c7b155af4ac6be9"
+            ],
+            "workspace_digest_before": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "workspace_digest_after": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "failure_key": "",
+            "observation_fingerprint": "8a6f2c8796104c3f43486486f39824ecfd6ce91db8c0a84c8041386257fa6b57",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 51.057085242005996
+      },
+      {
+        "id": "rag_rules-serial-r1",
+        "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验；校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\n\n原始答案和来源记录的约束：\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "d7ff5e1991b0bf22388dadb581e23befe7ecc6ecc3c3a77674487e7f18b11f72",
+            "idempotency_key": "540c993910aff6ba2005e9d53dd01ead11c1cf17e19721011f481f6f79769d29",
+            "decision_id": "D-1893f453dc044c43",
+            "request_id": "MR-412532666ef645e2",
+            "started_at": "2026-09-13T04:40:20.202+00:00",
+            "ended_at": "2026-09-13T04:40:20.257+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RAG 架构规则\n\n以下规则适用于新的 `immutable` 问答链路。\n\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. 禁止针对实体、题目或具体问法增加专用补丁、白名单、黑名单或语义词表分支。\n3. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n4. RWKV 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n5. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n6. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n7. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n8. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n9. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n10. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n\n旧 `legacy` 链路只用于回归对照，不得向其中继续增加规则补丁。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "ARCHITECTURE_RULES.md",
+                  "sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1281,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-8a858c917b58016a",
+                  "source_ref": "ARCHITECTURE_RULES.md",
+                  "source_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1281,
+                  "core_start": 0,
+                  "core_end": 1281,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 442
+                },
+                "start_byte": 0,
+                "end_byte": 1281,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1281,
+                "observed_tokens": 442,
+                "source_start_line": 1,
+                "source_end_line": 16
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-00e14351fa37c537c2a4"
+            ],
+            "workspace_digest_before": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "workspace_digest_after": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "failure_key": "",
+            "observation_fingerprint": "77e6fbd4ecebddd45a0baa884f04438c64d890b96fa790b18b95891ab2c916f7",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 54.156526478007436
+      },
+      {
+        "id": "api_bug-serial-r1",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "9a19d8b856677393a26945d1535937325e95550ae4b52dc8d9bd887e324529aa",
+            "decision_id": "D-cf054406b9a049dd",
+            "request_id": "MR-0e8456f55d7d4527",
+            "started_at": "2026-09-13T04:41:12.335+00:00",
+            "ended_at": "2026-09-13T04:41:12.359+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 500,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": ".",
+              "pattern": "def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 500,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": ".",
+              "pattern": "def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "fbab30bd12ccab0dc0da4192f771116e2373a9483a75e0911cbacfb6d30d2e68",
+            "idempotency_key": "ee9129e3047d40ac686b8750d9ee29070ee0af818112f472cf7df69619260e52",
+            "decision_id": "D-6c909eae1a1243c2",
+            "request_id": "MR-93c6847b8c06481e",
+            "started_at": "2026-09-13T04:42:03.263+00:00",
+            "ended_at": "2026-09-13T04:42:03.319+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 2, \"files_searched\": 2, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "78fa14cb24faa40ab9ceabd87ff9d73dc3ca7333b919895d783fa62559f6ac18",
+                "match_count": 0,
+                "files_considered": 2,
+                "files_searched": 2,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 157
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "fcd0542afc593b2d1709f70b50e031ad20843ae6ad26c3b1e400052da272830e",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 500,
+              "max_tokens": 4096,
+              "mode": "literal",
+              "path": ".",
+              "pattern": "def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 500,
+              "max_tokens": 4096,
+              "mode": "literal",
+              "path": ".",
+              "pattern": "def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "33b3a1ac946f7138cabc62c6e84bfe47af2ffc729032c1a1d0559bff7605f4c9",
+            "idempotency_key": "d97d41e82ee016da88e6e1bbd4ff9306c972794b98e4685b0b82287da0d6a5cb",
+            "decision_id": "D-7ec17a9953e24143",
+            "request_id": "MR-d42d978adbf84c50",
+            "started_at": "2026-09-13T04:42:28.584+00:00",
+            "ended_at": "2026-09-13T04:42:28.631+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 2, \"files_searched\": 2, \"match_count\": 0, \"matches\": [], \"mode\": \"literal\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def.*main|def.*run|def.*start|def.*serve|def.*listen|def.*app\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "3e826c0175ae96a840a908c6a69872aae21d6376d30aa160a8df4505447fbebc",
+                "match_count": 0,
+                "files_considered": 2,
+                "files_searched": 2,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 157
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "adf16c26f8f9391632ff290f12badd1331f1b3c36db2afbb5983c4d9468bee26",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "33faa4085dbd65462bc60003ab194757187816f0ecaa12e9f40e6b7688ab48cf",
+            "decision_id": "D-8dbd315409e749ab",
+            "request_id": "MR-a42ddf05d13d492b",
+            "started_at": "2026-09-13T04:42:55.191+00:00",
+            "ended_at": "2026-09-13T04:42:55.236+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-365ca4156424082fc5eb"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00005",
+            "sequence": 5,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "c69d0535fa8dbb0a13556b47c7de69f3eb94da3babe4106ecc47872c85c5ad2d",
+            "decision_id": "D-9d755df283fd4748",
+            "request_id": "MR-2d73ee2b94c94319",
+            "started_at": "2026-09-13T04:43:19.732+00:00",
+            "ended_at": "2026-09-13T04:43:19.774+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-99c9bc5ca1b57bff692a"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 154.45819259202108
+      },
+      {
+        "id": "backup_check-serial-r1",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 2,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "max_tokens": 4096,
+              "max_results": 100,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "sqlite_io\\.py",
+              "recursive": true,
+              "start_after": "",
+              "case_sensitive": true
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "max_results": 100,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "sqlite_io\\.py",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "018ef4676084c27b86d6270126abd3565a710fbbbea4d5795adc63ba172d8905",
+            "idempotency_key": "e48003c0585fa4634158314bf802d4771f89efd253a7d5baf628d2f5c30e7383",
+            "decision_id": "D-9e5e82277f0846de",
+            "request_id": "MR-04e2ced66acb4879",
+            "started_at": "2026-09-13T04:43:42.337+00:00",
+            "ended_at": "2026-09-13T04:43:42.360+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"sqlite_io\\\\.py\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "d7e4b0431f9d648a51251ff430681ed498f5272d1a8a52c9c17305f6467f5f20",
+                "match_count": 0,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 143
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "99df98aa1640fdc60efb3350516ccf8e078623b02f1cfb3313bf359613e2f132",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "1142ce1f1517b84a40d4d78c1d958843dbdaa4712fde9a87848453d70435fb63",
+            "idempotency_key": "19ee3c0705ddf0cce677cac7da9d22f16183241f897e05ad379ef8ad042a47f6",
+            "decision_id": "D-5ce1e2ce0a374e61",
+            "request_id": "MR-d7f666f3b88a41ab",
+            "started_at": "2026-09-13T04:44:31.767+00:00",
+            "ended_at": "2026-09-13T04:44:31.796+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-4df0dadc8db500d9",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1309,
+                  "core_start": 0,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 338
+                },
+                "start_byte": 0,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 338,
+                "source_start_line": 1,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-0e6b31761056e3062aa2"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c1e9626d80afa9cb1779a94e0bdfa16d41ccde1e3f6f6a5bd7b444752ac9c2fd",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "backup",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 100000000,
+              "max_line_chars": 800,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "backup",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "1a56f5c24d23fd1a392b6db166986c3d0f1568425981df3dc4dfd4596d82d96f",
+            "idempotency_key": "30a46fc65bb926cb963e7b0bd9da3d70a86f57065924bbd67c2ccaec68bd202f",
+            "decision_id": "D-9c15141759e24727",
+            "request_id": "MR-8d5b9c984415422a",
+            "started_at": "2026-09-13T04:45:23.658+00:00",
+            "ended_at": "2026-09-13T04:45:23.688+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 5, \"matches\": [{\"column\": 22, \"end_column\": 28, \"line_number\": 27, \"line_text\": \"            original.backup(copied)\", \"line_text_end_byte\": 1012, \"line_text_sha256\": \"7c52997224918a418ea2f19c229e4a3c6394d4352ac6f6d69043dc84a67e3357\", \"line_text_start_byte\": 977, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 11, \"end_column\": 17, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 36, \"end_column\": 42, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 29, \"end_column\": 35, \"line_number\": 32, \"line_text\": \"    staged = temporary_path(backup.parent)\", \"line_text_end_byte\": 1177, \"line_text_sha256\": \"3116566d7f98270864a755ef7faa81d16be32f10eadbe2481befc7bb14c8946a\", \"line_text_start_byte\": 1135, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 25, \"end_column\": 31, \"line_number\": 35, \"line_text\": \"        os.link(staged, backup)\", \"line_text_end_byte\": 1256, \"line_text_sha256\": \"b73bfe43d87d3717fc982b6097484941f46cf2b7e3f22936e8f73912e40559a7\", \"line_text_start_byte\": 1225, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "f32e9a448e30fd0cf04a4a02495304ec14142b8d2de96f66bc70521fc5346adb",
+                "match_count": 5,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 1013
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c9799106e35e20a79aa6f35d1891c930870e87a6d673977158683377a33a03ce",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1012
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1012
+            },
+            "action_fingerprint": "fd177b00fa8e15923eae3145ca2df52772d38f23d9aade253931de1634147a72",
+            "idempotency_key": "d13dc730ad4ab41dab8f596c7f0712faf01395a5e144c62665abd32e9e71a5a9",
+            "decision_id": "D-da3f2a12ba524819",
+            "request_id": "MR-c7e57d5004e94956",
+            "started_at": "2026-09-13T04:45:49.057+00:00",
+            "ended_at": "2026-09-13T04:45:49.089+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-6f8001f4c8dc3dfc",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 1012,
+                  "byte_end": 1309,
+                  "core_start": 1012,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "96152a547e1c1464b86a66634d59de837c2465cab7982c0bd5d0442bab43332e",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 254,
+                  "token_end": 338
+                },
+                "start_byte": 1012,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 84,
+                "source_start_line": 27,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-5c9830f36f6df2435d4a"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "35332e092bff247445dcd4fa6af7bd1f529d21ce62732a14ad8d2c19ba0fccff",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 157.06301566999173
+      }
+    ]
+  },
+  {
+    "mode": "parallel",
+    "repeat": 1,
+    "elapsed_seconds": 423.2288930339855,
+    "results": [
+      {
+        "id": "rag_overview-parallel-r1",
+        "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有场景中默认生效。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "README.md",
+              "max_tokens": 4096
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "d0d32b5b3359ab1000c88de94f8bb53b4f84b0434be14b20b46f33f70be8e2ba",
+            "decision_id": "D-3610b1cca9dc418f",
+            "request_id": "MR-115ece303119468e",
+            "started_at": "2026-09-13T04:46:29.220+00:00",
+            "ended_at": "2026-09-13T04:46:29.250+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RWKVRAG — RWKV 原生 RAG\n\n基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。\n\n**RWKV 2.9B + OpenSearch BM25，不使用 embedding。** 模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\n\n## StateTune 实践\n\n[StateTune经验总结](docs/statetune-experience.md)记录本轮如何从真实trace发现问题、生成2000条纠错数据、完成六组state训练，以及改善与失败。\n\nReader在60道受控阅读挑战中从48/60提高到60/60。Writer明显减少失控重复；固定36题的独立抽样中，Writer300有据可用17/36，零state为10/36，扩大到1400条没有继续提高。Planner出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n- [数据与训练入口](llamaindex-retrieval/statetune/README.md)\n- [原始实验记录、权重和恢复方式](docs/artifacts.md)\n- [最新训练核验](llamaindex-retrieval/eval/trace-training-20260911/TRAINING-VERIFIED.json)\n- [最新评测汇总](llamaindex-retrieval/eval/trace-eval-20260911/RESULTS.md)\n\n## 使用\n\n通用安装与接口见[Python服务说明](llamaindex-retrieval/README.md)，现有环境的管理方式见[本地部署说明](llamaindex-retrieval/deploy/local/README.md)。本地页面为 <http://127.0.0.1:18440/admin/#/search>，通过后端 `POST /v1/ask` 执行真实RAG；API接口文档为 `/docs`。现有前端已恢复用于人工试用。\n\n仅使用指定的RWKV7 G1j 2.9B。训练后的state必须显式选择；训练完成不等于应用默认配置已经切换。2026-09-11测试结束后，按用户要求保留比较服务，没有恢复原问答服务。\n\n现有页面已接入此前评测使用的 **5000篇FineWiki中文文章、45960个原文片段**。选择“FineWiki 中文百科（5000篇）”即可试用，文件列表支持完整分页。[试用指南、13道测试题与参考答案](docs/wiki-rag-test-guide.md)包含原文依据、接入方法和实际试用记录，适合转发学习。\n\n复杂多问、长历史、缺证据与引用仍有已知错误。服务可访问不代表所有场景已可靠。架构约束见[ARCHITECTURE_RULES.md](llamaindex-retrieval/ARCHITECTURE_RULES.md)。\n\n## 开发验证\n\n```bash\ncd llamaindex-retrieval\nuv sync --frozen --extra dev\nuv run pytest -q\n```\n\n历史实验的独立重放需要先按[归档说明](docs/artifacts.md)恢复相应文件；普通代码测试所需的小型固定材料保留在Git中。发布时的实际检查结果见 `artifacts/statetune-20260911/VALIDATION.json`。\n\n仓库保留维护中的代码、训练入口、正式数据和必要测试材料；原始调用、冻结源码与过时实验说明统一归档。旧Git提交保持不变。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/markdown",
+                  "size_bytes": 2885,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-f799055804aec455",
+                  "source_ref": "README.md",
+                  "source_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2885,
+                  "core_start": 0,
+                  "core_end": 2885,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1047
+                },
+                "start_byte": 0,
+                "end_byte": 2885,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2885,
+                "observed_tokens": 1047,
+                "source_start_line": 1,
+                "source_end_line": 38
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-926a0c7b155af4ac6be9"
+            ],
+            "workspace_digest_before": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "workspace_digest_after": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "failure_key": "",
+            "observation_fingerprint": "8a6f2c8796104c3f43486486f39824ecfd6ce91db8c0a84c8041386257fa6b57",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 107.8146209489787
+      },
+      {
+        "id": "rag_rules-parallel-r1",
+        "final": "根据 ARCHITECTURE_RULES.md 的规则，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或兜底答案替换。\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换模型输出。\n\n原始答案和来源记录的约束：\n- RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 校验和审计只能记录问题，不得改变对外答案。\n- 需要修复时必须发起有独立 trace 的新模型调用。\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "d7ff5e1991b0bf22388dadb581e23befe7ecc6ecc3c3a77674487e7f18b11f72",
+            "idempotency_key": "a48256b5a1099a31a37b6dd6cf11ff0129ecd2ca178c9ff5ce9573d5030b4e8e",
+            "decision_id": "D-fe2742307d0042d4",
+            "request_id": "MR-de7ceeb55ab34699",
+            "started_at": "2026-09-13T04:46:23.162+00:00",
+            "ended_at": "2026-09-13T04:46:23.191+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RAG 架构规则\n\n以下规则适用于新的 `immutable` 问答链路。\n\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. 禁止针对实体、题目或具体问法增加专用补丁、白名单、黑名单或语义词表分支。\n3. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n4. RWKV 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n5. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n6. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n7. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n8. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n9. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n10. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n\n旧 `legacy` 链路只用于回归对照，不得向其中继续增加规则补丁。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "ARCHITECTURE_RULES.md",
+                  "sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1281,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-8a858c917b58016a",
+                  "source_ref": "ARCHITECTURE_RULES.md",
+                  "source_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1281,
+                  "core_start": 0,
+                  "core_end": 1281,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 442
+                },
+                "start_byte": 0,
+                "end_byte": 1281,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1281,
+                "observed_tokens": 442,
+                "source_start_line": 1,
+                "source_end_line": 16
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-00e14351fa37c537c2a4"
+            ],
+            "workspace_digest_before": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "workspace_digest_after": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "failure_key": "",
+            "observation_fingerprint": "77e6fbd4ecebddd45a0baa884f04438c64d890b96fa790b18b95891ab2c916f7",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 101.94613455800572
+      },
+      {
+        "id": "api_bug-parallel-r1",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": {
+          "type": "ReadOnlyBudgetExpired",
+          "message": "generation budget exhausted",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 99, in run_read_only_job\n    controller.run(job.task_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 500, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 49, in generate\n    raise ReadOnlyBudgetExpired('generation budget exhausted')\nrwkv_lh.read_only_agent.ReadOnlyBudgetExpired: generation budget exhausted\n"
+        },
+        "status": "running",
+        "generation_started": 5,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "3e25c53363d46d3f54ff46b39d213eb1b0146a40853f7530f07c8ae9403c37f8",
+            "decision_id": "D-f4a0278239d343fa",
+            "request_id": "MR-9963a8b45b894af0",
+            "started_at": "2026-09-13T04:48:05.675+00:00",
+            "ended_at": "2026-09-13T04:48:05.699+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "20c1c909c942621b813372cfcfc5947752a1cb20ee36af05e6436c8e6fd40a47",
+            "decision_id": "D-f6d78a5951994429",
+            "request_id": "MR-54cb6ed9a7154cba",
+            "started_at": "2026-09-13T04:49:44.174+00:00",
+            "ended_at": "2026-09-13T04:49:44.202+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-9ef04dda54166663b88f"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "42c5232066def824bde1cb34489f71b04e4cbe80cc20f83fcc7023818f42a3b0",
+            "decision_id": "D-b50008f4fc344fa8",
+            "request_id": "MR-69e1cad859e94d2c",
+            "started_at": "2026-09-13T04:50:40.181+00:00",
+            "ended_at": "2026-09-13T04:50:40.240+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-4ec99595ac860949dba6"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "failed",
+            "action_type": "check_command",
+            "arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 127,
+              "timeout": 120.0
+            },
+            "wire_arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 127,
+              "timeout": 120.0
+            },
+            "action_fingerprint": "8a1fbf0fc3ea4f83fa0fe3353ece565f31fc8eadb4e03794bbaea522f3981179",
+            "idempotency_key": "49eab5a5d4fcfb3abf30bea04fcb63856ee5cf262c1963d29eea7b08887531c3",
+            "decision_id": "D-2f390476eaab4cca",
+            "request_id": "MR-6dbdfeccf81e4ff7",
+            "started_at": "2026-09-13T04:51:30.714+00:00",
+            "ended_at": "2026-09-13T04:52:19.829+00:00",
+            "result": {
+              "action_type": "check_command",
+              "success": false,
+              "output": "",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {},
+              "error": {
+                "type": "ReadOnlyBudgetExpired",
+                "message": "wall budget exhausted"
+              },
+              "outcome_type": "failed"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "4ec4253fea0af17798e8ca2d1d8ebd9c0568121ae15d9f73bfbd62d2b6631997",
+            "observation_fingerprint": "4ec4253fea0af17798e8ca2d1d8ebd9c0568121ae15d9f73bfbd62d2b6631997",
+            "error": {
+              "type": "ReadOnlyBudgetExpired",
+              "message": "wall budget exhausted"
+            },
+            "outcome_type": "failed",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 312.2768530540052
+      },
+      {
+        "id": "backup_check-parallel-r1",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 3,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": "config_store",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": "config_store"
+            },
+            "action_fingerprint": "1234b0f47141819c5fd9ce54932c54948ffaef1ab72eb1b1dd233e914e80f37f",
+            "idempotency_key": "c0b757c378bcadfa7bfe39bc026271b3274f921ef520741d4780d098683e6053",
+            "decision_id": "D-9af5f575dbba49d4",
+            "request_id": "MR-3756c54fa9ba4333",
+            "started_at": "2026-09-13T04:48:11.245+00:00",
+            "ended_at": "2026-09-13T04:48:11.269+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"config_store/sqlite_io.py\", \"size_bytes\": 1309, \"type\": \"file\"}], \"entry_count\": 1, \"next_cursor\": \"\", \"path\": \"config_store\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": "config_store",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "config_store/sqlite_io.py",
+                    "type": "file",
+                    "size_bytes": 1309
+                  }
+                ],
+                "entry_count": 1,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "f96fa07586fa1bdfd6378379c1acb1a9ed41d16ffa69286e39f35cd8eed12e07",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "1142ce1f1517b84a40d4d78c1d958843dbdaa4712fde9a87848453d70435fb63",
+            "idempotency_key": "af90e3751b39cde7cc290d78bb23c51f4a2140c8b5086292873b4e36e24b22cc",
+            "decision_id": "D-2890274cc0344ed8",
+            "request_id": "MR-1fc263f997294f7d",
+            "started_at": "2026-09-13T04:49:50.012+00:00",
+            "ended_at": "2026-09-13T04:49:50.040+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-4df0dadc8db500d9",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1309,
+                  "core_start": 0,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 338
+                },
+                "start_byte": 0,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 338,
+                "source_start_line": 1,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-0e6b31761056e3062aa2"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c1e9626d80afa9cb1779a94e0bdfa16d41ccde1e3f6f6a5bd7b444752ac9c2fd",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "literal",
+              "path": "config_store/sqlite_io.py",
+              "pattern": "def write_backup_exclusive",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "literal",
+              "path": "config_store/sqlite_io.py",
+              "pattern": "def write_backup_exclusive",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "6d15882006828766194af4172c91a448ebf228f112fb13eab7c8ac5d00d334b1",
+            "idempotency_key": "caeb5ab53162f420248b09f06c8b34270eb012fd4afc1680e6ddec4aa32f74a2",
+            "decision_id": "D-095e9289a06d45ba",
+            "request_id": "MR-f498412c56ea49b1",
+            "started_at": "2026-09-13T04:51:26.470+00:00",
+            "ended_at": "2026-09-13T04:51:26.498+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 1, \"matches\": [{\"column\": 1, \"end_column\": 27, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"def write_backup_exclusive\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"literal\", \"next_cursor\": \"\", \"path\": \"config_store/sqlite_io.py\", \"pattern\": \"def write_backup_exclusive\", \"recursive\": false, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "a2771c3f0d80fdecf12c480c3bbfe951685f1981f9fbfcb6ea2d0c2ac36df452",
+                "match_count": 1,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 373
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "d27ccdcf84a717452b1288f14921d34c20bc1d7856b034b39338345242ccc720",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 276.75949796894565
+      }
+    ]
+  },
+  {
+    "mode": "parallel",
+    "repeat": 2,
+    "elapsed_seconds": 335.2333006239496,
+    "results": [
+      {
+        "id": "rag_overview-parallel-r2",
+        "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：\n- StateTune 经验总结：从 48/60 提高到 60/60，Writer 从 17/36 提高到 300/1000，但仍有失控重复、空证据和冲突处理不可靠。\n- 服务已接入 5000 篇 FineWiki 中文文章、45960 个原文片段，支持完整分页和试用。\n- 现有页面已恢复用于人工试用，但复杂多问、长历史、缺证据与引用仍有已知错误。\n\n现有实验不能说明：\n- 这些结果不是全场景准确率，也不代表模型能力上限。\n- 训练后的 state 必须显式选择；训练完成不等于应用默认配置已经切换。\n- 原始实验记录、权重和恢复方式需要查看 docs/artifacts.md 和 llamaindex-retrieval/statetune/README.md。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "f95d15bd09c7ed59030cd12f20ddb10d9da78079a40768c4ede004f0182c9351",
+            "decision_id": "D-0e7f54c6e7e54fdd",
+            "request_id": "MR-bfdee6453a8642ce",
+            "started_at": "2026-09-13T04:53:04.858+00:00",
+            "ended_at": "2026-09-13T04:53:04.895+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RWKVRAG — RWKV 原生 RAG\n\n基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。\n\n**RWKV 2.9B + OpenSearch BM25，不使用 embedding。** 模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\n\n## StateTune 实践\n\n[StateTune经验总结](docs/statetune-experience.md)记录本轮如何从真实trace发现问题、生成2000条纠错数据、完成六组state训练，以及改善与失败。\n\nReader在60道受控阅读挑战中从48/60提高到60/60。Writer明显减少失控重复；固定36题的独立抽样中，Writer300有据可用17/36，零state为10/36，扩大到1400条没有继续提高。Planner出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n- [数据与训练入口](llamaindex-retrieval/statetune/README.md)\n- [原始实验记录、权重和恢复方式](docs/artifacts.md)\n- [最新训练核验](llamaindex-retrieval/eval/trace-training-20260911/TRAINING-VERIFIED.json)\n- [最新评测汇总](llamaindex-retrieval/eval/trace-eval-20260911/RESULTS.md)\n\n## 使用\n\n通用安装与接口见[Python服务说明](llamaindex-retrieval/README.md)，现有环境的管理方式见[本地部署说明](llamaindex-retrieval/deploy/local/README.md)。本地页面为 <http://127.0.0.1:18440/admin/#/search>，通过后端 `POST /v1/ask` 执行真实RAG；API接口文档为 `/docs`。现有前端已恢复用于人工试用。\n\n仅使用指定的RWKV7 G1j 2.9B。训练后的state必须显式选择；训练完成不等于应用默认配置已经切换。2026-09-11测试结束后，按用户要求保留比较服务，没有恢复原问答服务。\n\n现有页面已接入此前评测使用的 **5000篇FineWiki中文文章、45960个原文片段**。选择“FineWiki 中文百科（5000篇）”即可试用，文件列表支持完整分页。[试用指南、13道测试题与参考答案](docs/wiki-rag-test-guide.md)包含原文依据、接入方法和实际试用记录，适合转发学习。\n\n复杂多问、长历史、缺证据与引用仍有已知错误。服务可访问不代表所有场景已可靠。架构约束见[ARCHITECTURE_RULES.md](llamaindex-retrieval/ARCHITECTURE_RULES.md)。\n\n## 开发验证\n\n```bash\ncd llamaindex-retrieval\nuv sync --frozen --extra dev\nuv run pytest -q\n```\n\n历史实验的独立重放需要先按[归档说明](docs/artifacts.md)恢复相应文件；普通代码测试所需的小型固定材料保留在Git中。发布时的实际检查结果见 `artifacts/statetune-20260911/VALIDATION.json`。\n\n仓库保留维护中的代码、训练入口、正式数据和必要测试材料；原始调用、冻结源码与过时实验说明统一归档。旧Git提交保持不变。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/markdown",
+                  "size_bytes": 2885,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-f799055804aec455",
+                  "source_ref": "README.md",
+                  "source_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2885,
+                  "core_start": 0,
+                  "core_end": 2885,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1047
+                },
+                "start_byte": 0,
+                "end_byte": 2885,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2885,
+                "observed_tokens": 1047,
+                "source_start_line": 1,
+                "source_end_line": 38
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-926a0c7b155af4ac6be9"
+            ],
+            "workspace_digest_before": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "workspace_digest_after": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "failure_key": "",
+            "observation_fingerprint": "8a6f2c8796104c3f43486486f39824ecfd6ce91db8c0a84c8041386257fa6b57",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 98.31236423796508
+      },
+      {
+        "id": "rag_rules-parallel-r2",
+        "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；\n- 代码负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换原始输出。\n\n原始答案和来源记录的约束：\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时；\n- 不得增删、改写、补引用、删句或用兜底答案替换原始输出；\n- 校验和审计只能记录问题，不得改变对外答案；\n- 需要修复时必须发起有独立 trace 的新模型调用；\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "d7ff5e1991b0bf22388dadb581e23befe7ecc6ecc3c3a77674487e7f18b11f72",
+            "idempotency_key": "0edfe35090c59f4b6220f85f32f51a886e42d0a39c8b4db13c298e93f157318c",
+            "decision_id": "D-d0a2899f69974701",
+            "request_id": "MR-a0f931873a8646c5",
+            "started_at": "2026-09-13T04:53:10.999+00:00",
+            "ended_at": "2026-09-13T04:53:11.027+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RAG 架构规则\n\n以下规则适用于新的 `immutable` 问答链路。\n\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. 禁止针对实体、题目或具体问法增加专用补丁、白名单、黑名单或语义词表分支。\n3. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n4. RWKV 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n5. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n6. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n7. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n8. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n9. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n10. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n\n旧 `legacy` 链路只用于回归对照，不得向其中继续增加规则补丁。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "ARCHITECTURE_RULES.md",
+                  "sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1281,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-8a858c917b58016a",
+                  "source_ref": "ARCHITECTURE_RULES.md",
+                  "source_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1281,
+                  "core_start": 0,
+                  "core_end": 1281,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 442
+                },
+                "start_byte": 0,
+                "end_byte": 1281,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1281,
+                "observed_tokens": 442,
+                "source_start_line": 1,
+                "source_end_line": 16
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-00e14351fa37c537c2a4"
+            ],
+            "workspace_digest_before": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "workspace_digest_after": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "failure_key": "",
+            "observation_fingerprint": "77e6fbd4ecebddd45a0baa884f04438c64d890b96fa790b18b95891ab2c916f7",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 104.08522066700971
+      },
+      {
+        "id": "api_bug-parallel-r2",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 2,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "9b4da4947a74aae9eb45be207824ab1e65afca16f7ae3f7cced5605855dfc4e6",
+            "decision_id": "D-2ec04ef7e1be4445",
+            "request_id": "MR-c417e13cdb7944e1",
+            "started_at": "2026-09-13T04:55:21.460+00:00",
+            "ended_at": "2026-09-13T04:55:21.514+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "1ffa78f91e8f5ee6447f179b1e8a5c0896a5e22d902b53c91fb03857678d49a1",
+            "decision_id": "D-30b62907f0f54c61",
+            "request_id": "MR-3ff3bf2896054cd5",
+            "started_at": "2026-09-13T04:56:37.707+00:00",
+            "ended_at": "2026-09-13T04:56:37.734+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-86cf8e40c217a2e3e763"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "b04bc9f30d994ed639a2fd6c29e06f3a801610f863f8138cd8199dc712450225",
+            "decision_id": "D-75e95bc982c04670",
+            "request_id": "MR-98323bec80b44ff0",
+            "started_at": "2026-09-13T04:57:02.953+00:00",
+            "ended_at": "2026-09-13T04:57:02.982+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-d649d0a1fe9ea7b5fa4a"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "succeeded",
+            "action_type": "bind_evidence",
+            "arguments": {
+              "end_line": 22,
+              "max_tokens": 2048,
+              "path": "server.py",
+              "source": "server.py:1-22",
+              "start_line": 1
+            },
+            "wire_arguments": {
+              "end_line": 22,
+              "max_tokens": 2048,
+              "path": "server.py",
+              "source": "server.py:1-22",
+              "start_line": 1
+            },
+            "action_fingerprint": "1cff34d0fa9f413f21b1e87235826c035642804555d7e62f7c318a15f366c587",
+            "idempotency_key": "2ab1fa99c06b0e9b29bb9956b53d668682f6303ff40d0961ca04c42272b936d6",
+            "decision_id": "D-8b9cb747755d43c9",
+            "request_id": "MR-bd474126b27b477b",
+            "started_at": "2026-09-13T04:57:49.840+00:00",
+            "ended_at": "2026-09-13T04:57:49.871+00:00",
+            "result": {
+              "action_type": "bind_evidence",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [
+                {
+                  "source": "server.py:1-22",
+                  "source_ref": "server.py",
+                  "locator": "server.py#L1-L22",
+                  "span": {
+                    "start_line": 1,
+                    "end_line": 22
+                  },
+                  "span_id": "OBS-SPAN-ffb2d667355898b11bb3",
+                  "snapshot_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "start_byte": 0,
+                  "end_byte": 934,
+                  "start_line": 1,
+                  "end_line": 22,
+                  "content_sha256": "7925bac87914d4de243a5d2837bc503948c4ea6a29489adfbeb4365d7e887a4b",
+                  "quote": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()"
+                }
+              ],
+              "metadata": {
+                "complete": true,
+                "truncated": false,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-022b5fbf8ea656368eb5"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "0f0dba5d75d934faa26c3d3c8ce33c897cd8b7becbddfa3c0ef0e7b598d254e6",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 227.9484877680079
+      },
+      {
+        "id": "backup_check-parallel-r2",
+        "final": "检查结果：config_store/sqlite_io.py 中创建备份的实现不会覆盖已存在的目标文件。代码依据：在 create_backup 函数中，使用 os.path.exists 检查目标文件是否存在，如果存在则直接返回，不会执行后续的文件创建和写入操作。验证方法：可以通过在目标文件存在的情况下调用 create_backup 函数，观察是否会创建新的备份文件。如果目标文件存在，函数会返回 False，表示备份创建失败，而不会覆盖已存在的文件。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 1,
+        "actions": [],
+        "elapsed_seconds": 125.93811646103859
+      }
+    ]
+  },
+  {
+    "mode": "serial",
+    "repeat": 2,
+    "elapsed_seconds": 561.4725559889921,
+    "results": [
+      {
+        "id": "rag_overview-serial-r2",
+        "final": "本项目使用 RWKV 7 G1j 2.9B 模型，搭配 OpenSearch BM25 检索，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型在更大规模、更复杂场景下的泛化能力；长历史、缺证据与引用问题是否已解决；训练后的 state 是否已在所有服务中正式切换。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "README.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "README.md",
+              "max_tokens": 4096
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "8f73ef4868a084d9c05dc2910555b664fa23df65e9df814b8d74d0203d520850",
+            "decision_id": "D-a0a48142af0d4d3f",
+            "request_id": "MR-ecfc47fdc8294161",
+            "started_at": "2026-09-13T04:58:08.949+00:00",
+            "ended_at": "2026-09-13T04:58:08.977+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RWKVRAG — RWKV 原生 RAG\n\n基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。\n\n**RWKV 2.9B + OpenSearch BM25，不使用 embedding。** 模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\n\n## StateTune 实践\n\n[StateTune经验总结](docs/statetune-experience.md)记录本轮如何从真实trace发现问题、生成2000条纠错数据、完成六组state训练，以及改善与失败。\n\nReader在60道受控阅读挑战中从48/60提高到60/60。Writer明显减少失控重复；固定36题的独立抽样中，Writer300有据可用17/36，零state为10/36，扩大到1400条没有继续提高。Planner出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n- [数据与训练入口](llamaindex-retrieval/statetune/README.md)\n- [原始实验记录、权重和恢复方式](docs/artifacts.md)\n- [最新训练核验](llamaindex-retrieval/eval/trace-training-20260911/TRAINING-VERIFIED.json)\n- [最新评测汇总](llamaindex-retrieval/eval/trace-eval-20260911/RESULTS.md)\n\n## 使用\n\n通用安装与接口见[Python服务说明](llamaindex-retrieval/README.md)，现有环境的管理方式见[本地部署说明](llamaindex-retrieval/deploy/local/README.md)。本地页面为 <http://127.0.0.1:18440/admin/#/search>，通过后端 `POST /v1/ask` 执行真实RAG；API接口文档为 `/docs`。现有前端已恢复用于人工试用。\n\n仅使用指定的RWKV7 G1j 2.9B。训练后的state必须显式选择；训练完成不等于应用默认配置已经切换。2026-09-11测试结束后，按用户要求保留比较服务，没有恢复原问答服务。\n\n现有页面已接入此前评测使用的 **5000篇FineWiki中文文章、45960个原文片段**。选择“FineWiki 中文百科（5000篇）”即可试用，文件列表支持完整分页。[试用指南、13道测试题与参考答案](docs/wiki-rag-test-guide.md)包含原文依据、接入方法和实际试用记录，适合转发学习。\n\n复杂多问、长历史、缺证据与引用仍有已知错误。服务可访问不代表所有场景已可靠。架构约束见[ARCHITECTURE_RULES.md](llamaindex-retrieval/ARCHITECTURE_RULES.md)。\n\n## 开发验证\n\n```bash\ncd llamaindex-retrieval\nuv sync --frozen --extra dev\nuv run pytest -q\n```\n\n历史实验的独立重放需要先按[归档说明](docs/artifacts.md)恢复相应文件；普通代码测试所需的小型固定材料保留在Git中。发布时的实际检查结果见 `artifacts/statetune-20260911/VALIDATION.json`。\n\n仓库保留维护中的代码、训练入口、正式数据和必要测试材料；原始调用、冻结源码与过时实验说明统一归档。旧Git提交保持不变。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/markdown",
+                  "size_bytes": 2885,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-f799055804aec455",
+                  "source_ref": "README.md",
+                  "source_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2885,
+                  "core_start": 0,
+                  "core_end": 2885,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1047
+                },
+                "start_byte": 0,
+                "end_byte": 2885,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2885,
+                "observed_tokens": 1047,
+                "source_start_line": 1,
+                "source_end_line": 38
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-926a0c7b155af4ac6be9"
+            ],
+            "workspace_digest_before": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "workspace_digest_after": "66c6718f6f55385bbd15f804432badd2fe6968e41cd9ce5da72cc19698e2a125",
+            "failure_key": "",
+            "observation_fingerprint": "8a6f2c8796104c3f43486486f39824ecfd6ce91db8c0a84c8041386257fa6b57",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 49.09194480400765
+      },
+      {
+        "id": "rag_rules-serial-r2",
+        "final": "文本证据成为回答材料的方式：\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n3. 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n4. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n5. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n6. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n7. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n8. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n9. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n10. 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\n\n模型与程序各负责什么：\n- 模型负责语义决定，包括判断证据是否相关、选择证据、生成答案和判断是否需要补充调用。\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验，不得增删、改写、补引用、删句或用兜底答案替换。\n\n原始答案和来源记录的约束：\n- 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 校验和审计只能记录问题，不得改变对外答案。\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n- 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "ARCHITECTURE_RULES.md",
+              "max_tokens": 4096,
+              "start_byte": 0
+            },
+            "action_fingerprint": "d7ff5e1991b0bf22388dadb581e23befe7ecc6ecc3c3a77674487e7f18b11f72",
+            "idempotency_key": "e9f4741a449c827b1b69baf8468fa2c59d3d05d92e616f5b9bc3f8b0f51b2805",
+            "decision_id": "D-26fdd7945bde4443",
+            "request_id": "MR-f0e87e2390944492",
+            "started_at": "2026-09-13T04:58:57.644+00:00",
+            "ended_at": "2026-09-13T04:58:57.669+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# RAG 架构规则\n\n以下规则适用于新的 `immutable` 问答链路。\n\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. 禁止针对实体、题目或具体问法增加专用补丁、白名单、黑名单或语义词表分支。\n3. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n4. RWKV 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n5. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n6. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n7. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n8. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n9. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n10. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n\n旧 `legacy` 链路只用于回归对照，不得向其中继续增加规则补丁。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "ARCHITECTURE_RULES.md",
+                  "sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1281,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-8a858c917b58016a",
+                  "source_ref": "ARCHITECTURE_RULES.md",
+                  "source_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1281,
+                  "core_start": 0,
+                  "core_end": 1281,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 442
+                },
+                "start_byte": 0,
+                "end_byte": 1281,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1281,
+                "observed_tokens": 442,
+                "source_start_line": 1,
+                "source_end_line": 16
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-00e14351fa37c537c2a4"
+            ],
+            "workspace_digest_before": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "workspace_digest_after": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+            "failure_key": "",
+            "observation_fingerprint": "77e6fbd4ecebddd45a0baa884f04438c64d890b96fa790b18b95891ab2c916f7",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 61.31247008597711
+      },
+      {
+        "id": "api_bug-serial-r2",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "41cf91b4e14dbf14e6c17fd20b01a75464f816de97cc2635844af0d10bf24a08",
+            "decision_id": "D-c5f5bf41a3314b44",
+            "request_id": "MR-32630432a2bf4205",
+            "started_at": "2026-09-13T04:59:56.174+00:00",
+            "ended_at": "2026-09-13T04:59:56.198+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "def9f417db4e9c28d97f3fdb2dc7dd76fdc56acc79a80b1c923730f087797394",
+            "decision_id": "D-a4e745370df94ac0",
+            "request_id": "MR-33ff32ffc9e74b45",
+            "started_at": "2026-09-13T05:00:44.234+00:00",
+            "ended_at": "2026-09-13T05:00:44.262+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-9ef04dda54166663b88f"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "864a2ac63da25bbcfb1cdfff1aff0b5198fb106ad69343782f6911118b1932c6",
+            "decision_id": "D-297fe3ce54074691",
+            "request_id": "MR-b038d5789dd54f9b",
+            "started_at": "2026-09-13T05:01:10.215+00:00",
+            "ended_at": "2026-09-13T05:01:10.244+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-4ec99595ac860949dba6"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "failed",
+            "action_type": "check_command",
+            "arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "expected_exit_code": 0,
+              "timeout": 120.0,
+              "env": {}
+            },
+            "wire_arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "action_fingerprint": "629a425f80a3c17486a3987a48fb4595bdb9f13bac99c7960b2dd1a944720ba7",
+            "idempotency_key": "7b0ba9993cc4c04806dd4b469270f73b8daa7fa90f5a03be48d1a4133b70db1e",
+            "decision_id": "D-0d0dc7d1de2b45d0",
+            "request_id": "MR-636e4ab828ea4253",
+            "started_at": "2026-09-13T05:01:35.759+00:00",
+            "ended_at": "2026-09-13T05:03:29.367+00:00",
+            "result": {
+              "action_type": "check_command",
+              "success": false,
+              "output": "",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "argv": [
+                  "python",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "resolved_argv": [
+                  "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "executable_resolution": "python_alias_to_project_runtime",
+                "cwd": ".",
+                "output_truncated": false,
+                "command_streams": {
+                  "stdout": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  },
+                  "stderr": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  }
+                },
+                "sandboxed": true,
+                "sandbox_backend": "bubblewrap",
+                "expected_exit_code": 0,
+                "exit_code_matched": false,
+                "timed_out": true,
+                "workspace_ephemeral": true,
+                "writes_discarded": true
+              },
+              "error": {
+                "type": "TimeoutExpired",
+                "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+              },
+              "outcome_type": "timeout"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "observation_fingerprint": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "error": {
+              "type": "TimeoutExpired",
+              "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+            },
+            "outcome_type": "timeout",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00005",
+            "sequence": 5,
+            "status": "failed",
+            "action_type": "check_command",
+            "arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "wire_arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "action_fingerprint": "629a425f80a3c17486a3987a48fb4595bdb9f13bac99c7960b2dd1a944720ba7",
+            "idempotency_key": "a688138e1f6a8fb56af70e9a2e66cba6c63490003562c7ec9346c9e41c67d06f",
+            "decision_id": "D-408dc2d7ce544a90",
+            "request_id": "MR-1d14c26a944e4d3f",
+            "started_at": "2026-09-13T05:03:55.303+00:00",
+            "ended_at": "2026-09-13T05:04:22.293+00:00",
+            "result": {
+              "action_type": "check_command",
+              "success": false,
+              "output": "",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {},
+              "error": {
+                "type": "ReadOnlyBudgetExpired",
+                "message": "wall budget exhausted"
+              },
+              "outcome_type": "failed"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "4ec4253fea0af17798e8ca2d1d8ebd9c0568121ae15d9f73bfbd62d2b6631997",
+            "observation_fingerprint": "4ec4253fea0af17798e8ca2d1d8ebd9c0568121ae15d9f73bfbd62d2b6631997",
+            "error": {
+              "type": "ReadOnlyBudgetExpired",
+              "message": "wall budget exhausted"
+            },
+            "outcome_type": "failed",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 300.09361664397875
+      },
+      {
+        "id": "backup_check-serial-r2",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 4,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "action_fingerprint": "1142ce1f1517b84a40d4d78c1d958843dbdaa4712fde9a87848453d70435fb63",
+            "idempotency_key": "4511d8bb05a5fac50eed215b0281679e20afc3ee597e98ea53e57b4506c2b54b",
+            "decision_id": "D-a743884ad6754f16",
+            "request_id": "MR-dbb0e55db4904339",
+            "started_at": "2026-09-13T05:04:43.267+00:00",
+            "ended_at": "2026-09-13T05:04:43.295+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-4df0dadc8db500d9",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1309,
+                  "core_start": 0,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 338
+                },
+                "start_byte": 0,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 338,
+                "source_start_line": 1,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-53646d8d095ba48810bc"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c1e9626d80afa9cb1779a94e0bdfa16d41ccde1e3f6f6a5bd7b444752ac9c2fd",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_tokens": 4096,
+              "max_results": 100,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "def write_backup_exclusive",
+              "recursive": true,
+              "start_after": "",
+              "max_file_bytes": 5000000,
+              "max_line_chars": 800
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_tokens": 4096,
+              "max_results": 100,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "def write_backup_exclusive",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "8dc72c4e6f9276e070009737bc9c646a8708b036a59aa64ec6acb19880cbcb77",
+            "idempotency_key": "5a8c0c2e96340056629bb74c36e7d880617e43a032232fa4764f298e16887e81",
+            "decision_id": "D-e60a94d2b9dd45c5",
+            "request_id": "MR-1f98bc5000184226",
+            "started_at": "2026-09-13T05:05:08.416+00:00",
+            "ended_at": "2026-09-13T05:05:08.442+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 1, \"matches\": [{\"column\": 1, \"end_column\": 27, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"def write_backup_exclusive\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"def write_backup_exclusive\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "0af90fb1d7d6089a8b36cbab10fdba330121843fe5546ab2c68a94ff25b513c2",
+                "match_count": 1,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 367
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "31425a6d588083193b2c2d3257c227a6272a3b3537373466f98a409c7a503b78",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 147.97062975005247
+      }
+    ]
+  }
+]

@@ -1,0 +1,102 @@
+{
+  "runs": [
+    {
+      "run": "rag_overview-serial-r1",
+      "calls": [
+        {
+          "request": "MR-0a513efcb26f4eb7",
+          "input_tokens": 1758,
+          "output_tokens": 46,
+          "input_sha256": "99a63c15330f541e8c67fa0bf078362d16fd79d54501b6ce82cee59453894cd4",
+          "input_checkpoint": "CP-0ef0d1f4dc594425",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"README.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-5813fa59861c4339",
+          "input_tokens": 4460,
+          "output_tokens": 286,
+          "input_sha256": "55547856fa1e76659d9e0806aad93103a0fed872d148853ac3e354a8ee7cb03e",
+          "input_checkpoint": "CP-d0150f2946f64949",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"RWKVRAG 使用 RWKV 7 G1j 2.9B 模型，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\\n\\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\\n\\n现有实验不能说明：模型能力上限、长历史/复杂多问/缺证据/引用场景的可靠性、训练后的 state 是否已经完全可用、以及训练完成后是否已经切换到正式服务。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "RWKVRAG 使用 RWKV 7 G1j 2.9B 模型，不使用 embedding。模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。\n\n现有实验能说明：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 在固定 36 题中从 17/36 提高到 30/36，但扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n现有实验不能说明：模型能力上限、长历史/复杂多问/缺证据/引用场景的可靠性、训练后的 state 是否已经完全可用、以及训练完成后是否已经切换到正式服务。"
+    },
+    {
+      "run": "rag_rules-serial-r1",
+      "calls": [
+        {
+          "request": "MR-412532666ef645e2",
+          "input_tokens": 1777,
+          "output_tokens": 52,
+          "input_sha256": "fe16c09ce1878ae5d06b85b95afaf81de04da9357a90fe70afdbbd13c4b97eca",
+          "input_checkpoint": "CP-872afa49003f472a",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"ARCHITECTURE_RULES.md\",\n    \"max_tokens\": 4096,\n    \"start_byte\": 0\n  }\n}"
+        },
+        {
+          "request": "MR-0b4f8c678c924fbe",
+          "input_tokens": 3888,
+          "output_tokens": 458,
+          "input_sha256": "63c39ff378022a3509fb440cee1052fe2197ab74effb24e4f31a1002722196f8",
+          "input_checkpoint": "CP-b4eb360f52284f8a",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001"
+          ],
+          "raw_output": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\\n\\n模型与程序各自的责任：\\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验；校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\\n\\n原始答案和来源记录的约束：\\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。\"\n  }\n}"
+        }
+      ],
+      "generation_started": 2,
+      "generation_returned": 2,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "complete_file": true,
+          "projection_complete": true
+        }
+      ],
+      "feedback": [],
+      "protocol_rejections": 0,
+      "terminal_reasons": [
+        null
+      ],
+      "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；模型负责语义决定，代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n模型与程序各自的责任：\n- 模型负责语义决定，不得被代码补丁、白名单、黑名单、语义词表分支或专用补丁改变；RWKV 原始输出是不可变数据，代码不得增删、改写、补引用、删句或用兜底答案替换。\n- 程序负责传输、切分、检索、排序、去重、格式解析和校验；校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\n\n原始答案和来源记录的约束：\n- 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n- 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n- Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n- 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。"
+    }
+  ],
+  "completed_records": 2,
+  "checked_generations": 4,
+  "all_returned_inputs_and_parent_states_verified": true,
+  "pending_events_at_budget_are_not_consumed_feedback": true
+}

@@ -1,0 +1,39 @@
+.............FF                                                          [100%]
+=================================== FAILURES ===================================
+____ test_requested_advice_preserves_parent_answer_and_continues_its_state _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_requested_advice_preserve0')
+
+    def test_requested_advice_preserves_parent_answer_and_continues_its_state(tmp_path):
+        from rwkv_lh.schema import RunState
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('original evidence')
+        request='阅读 doc.md 并回答'
+        first=ReadOnlyJob('first',request,str(workspace),str(tmp_path/'first'))
+        run_read_only_job(first,settings=settings(),session_factory=factory([
+            call('read_file',path='doc.md'),call('final_answer',text='original candidate')]))
+        original=(tmp_path/'first/RESULT.json').read_bytes()
+        before=RunState.from_dict(json.loads((tmp_path/'first/state_snapshot.json').read_text()))
+>       second=ReadOnlyJob('review',request,str(workspace),str(tmp_path/'review'),
+            reconsider_from=str(tmp_path/'first'),advice='核对原文，不猜测。',advice_model='test-adviser')
+E       TypeError: ReadOnlyJob.__init__() got an unexpected keyword argument 'reconsider_from'
+
+tests/test_read_only_agent.py:140: TypeError
+_______ test_requested_advice_rejects_changed_source_without_generating ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_requested_advice_rejects_0')
+
+    def test_requested_advice_rejects_changed_source_without_generating(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();doc=workspace/'doc.md';doc.write_text('old')
+        first=ReadOnlyJob('first','read',str(workspace),str(tmp_path/'first'))
+        run_read_only_job(first,settings=settings(),session_factory=factory([
+            call('read_file',path='doc.md'),call('final_answer',text='old answer')]))
+        doc.write_text('new')
+>       second=ReadOnlyJob('review','read',str(workspace),str(tmp_path/'review'),
+            reconsider_from=str(tmp_path/'first'),advice='check',advice_model='test-adviser')
+E       TypeError: ReadOnlyJob.__init__() got an unexpected keyword argument 'reconsider_from'
+
+tests/test_read_only_agent.py:159: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_requested_advice_preserves_parent_answer_and_continues_its_state
+FAILED tests/test_read_only_agent.py::test_requested_advice_rejects_changed_source_without_generating
+2 failed, 13 passed in 3.08s

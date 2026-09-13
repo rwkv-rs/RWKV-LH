@@ -1,0 +1,59 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+.....................F.................................................. [ 13%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 27%]
+........................................................................ [ 31%]
+........................................................................ [ 36%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 85%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 99%]
+........                                                                 [100%]
+=================================== FAILURES ===================================
+__________ test_real_direct_trace_replays_through_production_builder ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_real_direct_trace_replays0')
+
+    def test_real_direct_trace_replays_through_production_builder(tmp_path):
+        from pathlib import Path
+        from rwkv_lh.direct_trace_data import replay_run
+        root = Path(__file__).resolve().parents[1]
+        import tarfile
+        archive = root / 'data/experiments/RWKV_SUMMARY_ADVICE_DIAGNOSTIC_R3_20260913/RAW_EVIDENCE.tar.gz'
+        with tarfile.open(archive) as tar:
+            members = [m for m in tar.getmembers() if m.name.startswith('runs/trial-1/') and m.isfile()
+                       and ('/workspace/' in m.name or m.name.endswith(('state_snapshot.json', 'model_trace.jsonl')))]
+            tar.extractall(tmp_path, members=members, filter='data')
+        run = tmp_path / 'runs/trial-1'
+>       rows = replay_run(run, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_direct_statetune.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/direct_trace_data.py:103: in replay_run
+    core.require(expected == cp.transcript, 'production observation replay differs')
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False, message = 'production observation replay differs'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ValueError(message)
+E           ValueError: production observation replay differs
+
+rwkv_lh/statetune_core.py:16: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_direct_statetune.py::test_real_direct_trace_replays_through_production_builder
+1 failed, 1591 passed in 303.62s (0:05:03)

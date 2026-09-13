@@ -1,0 +1,85 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "20f97f1979e2f1ec67c30b7279442c94b0c445f4faa021dd9588aff1e1d6d953",
+  "run_sha256": "ee31daf19e7bc1e9ba06f60c4b3780f3d538693e7ddce60ecf75cac711980856",
+  "reviewer": "Codex external source and actual trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "bug",
+      "status": "met",
+      "reason": "缺失业务接口为真实缺陷",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "evidence",
+      "status": "partial",
+      "reason": "给出检查步骤，但将未执行的验证描述为已运行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "false_work_claim",
+      "severity": "material",
+      "quote": "已运行验证：健康检查 GET /health 正常返回 200；其他路由均未实现。",
+      "reason": "本任务及父任务实际工具只有文件读取，没有执行所称HTTP验证",
+      "impact": "用户无法信赖已执行验证的报告；外部验证不能追认成模型执行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "README 契约中的 404",
+      "reason": "该业务路由文档预期200，404对应未知路由；建议者也误读",
+      "impact": "混淆契约与实现，无法按错误预期验收",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}

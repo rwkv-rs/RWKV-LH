@@ -1,0 +1,1570 @@
+[
+  {
+    "mode": "serial",
+    "repeat": 1,
+    "elapsed_seconds": 492.98084569198545,
+    "results": [
+      {
+        "id": "api_bug-serial-r1",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": {
+          "type": "ReadOnlyBudgetExpired",
+          "message": "generation budget exhausted",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 99, in run_read_only_job\n    controller.run(job.task_id)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/controller.py\", line 500, in run\n    decision = self.model.next_command(\n        state,\n        self._persist_callback,\n        event=(pending_events[0] if pending_events else None),\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 702, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/model.py\", line 2796, in _generate\n    candidate = self.session.generate(\n        checkpoint,\n        sampling=self._SAMPLING,\n        max_output_tokens=max_output_tokens,\n    )\n  File \"/home/chase/GitHub/RWKV-LH/rwkv_lh/read_only_agent.py\", line 49, in generate\n    raise ReadOnlyBudgetExpired('generation budget exhausted')\nrwkv_lh.read_only_agent.ReadOnlyBudgetExpired: generation budget exhausted\n"
+        },
+        "status": "running",
+        "generation_started": 6,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "9a19d8b856677393a26945d1535937325e95550ae4b52dc8d9bd887e324529aa",
+            "decision_id": "D-7248c2741849491a",
+            "request_id": "MR-aa3c8b7fa26247a0",
+            "started_at": "2026-09-13T05:07:58.232+00:00",
+            "ended_at": "2026-09-13T05:07:58.256+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "90ba1ce5d809dca96ca7d00199924f17e38626ee5c52cd2e142a7d475c438704",
+            "decision_id": "D-bd1a5afc709c4f72",
+            "request_id": "MR-68eee0dc5cc549f3",
+            "started_at": "2026-09-13T05:08:46.411+00:00",
+            "ended_at": "2026-09-13T05:08:46.442+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-9ef04dda54166663b88f"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "188c2918c2d106dddee5d863e35ed4aafcee1e4d8b657f522a557d6fb890b140",
+            "decision_id": "D-15f3a6bf4d8b43d5",
+            "request_id": "MR-bd1715ab41f148ca",
+            "started_at": "2026-09-13T05:09:10.281+00:00",
+            "ended_at": "2026-09-13T05:09:10.309+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-4ec99595ac860949dba6"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "failed",
+            "action_type": "check_command",
+            "arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "wire_arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "action_fingerprint": "629a425f80a3c17486a3987a48fb4595bdb9f13bac99c7960b2dd1a944720ba7",
+            "idempotency_key": "a0e66d65780527a6c052bcefdd5797ba0bb6915306044eec02e8d9d8930731df",
+            "decision_id": "D-f2c31f08764e4374",
+            "request_id": "MR-54c9e043d16a46a6",
+            "started_at": "2026-09-13T05:09:34.354+00:00",
+            "ended_at": "2026-09-13T05:11:31.072+00:00",
+            "result": {
+              "action_type": "check_command",
+              "success": false,
+              "output": "",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "argv": [
+                  "python",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "resolved_argv": [
+                  "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "executable_resolution": "python_alias_to_project_runtime",
+                "cwd": ".",
+                "output_truncated": false,
+                "command_streams": {
+                  "stdout": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  },
+                  "stderr": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  }
+                },
+                "sandboxed": true,
+                "sandbox_backend": "bubblewrap",
+                "expected_exit_code": 0,
+                "exit_code_matched": false,
+                "timed_out": true,
+                "workspace_ephemeral": true,
+                "writes_discarded": true
+              },
+              "error": {
+                "type": "TimeoutExpired",
+                "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+              },
+              "outcome_type": "timeout"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "observation_fingerprint": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "error": {
+              "type": "TimeoutExpired",
+              "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+            },
+            "outcome_type": "timeout",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00005",
+            "sequence": 5,
+            "status": "failed",
+            "action_type": "check_command",
+            "arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "wire_arguments": {
+              "argv": [
+                "python",
+                "server.py",
+                "--db",
+                "/tmp/bookings.sqlite3",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080"
+              ],
+              "cwd": ".",
+              "env": {},
+              "expected_exit_code": 0,
+              "timeout": 120.0
+            },
+            "action_fingerprint": "629a425f80a3c17486a3987a48fb4595bdb9f13bac99c7960b2dd1a944720ba7",
+            "idempotency_key": "32257880245e4bfc6292212b8e64d19d3b81045d79991853421ecd19a3e9ff43",
+            "decision_id": "D-f9841f5e8c4e457a",
+            "request_id": "MR-3aa7e34b4dd9470e",
+            "started_at": "2026-09-13T05:11:54.576+00:00",
+            "ended_at": "2026-09-13T05:13:48.307+00:00",
+            "result": {
+              "action_type": "check_command",
+              "success": false,
+              "output": "",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "argv": [
+                  "python",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "resolved_argv": [
+                  "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+                  "server.py",
+                  "--db",
+                  "/tmp/bookings.sqlite3",
+                  "--host",
+                  "127.0.0.1",
+                  "--port",
+                  "8080"
+                ],
+                "executable_resolution": "python_alias_to_project_runtime",
+                "cwd": ".",
+                "output_truncated": false,
+                "command_streams": {
+                  "stdout": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  },
+                  "stderr": {
+                    "start_byte": 0,
+                    "end_byte": 0,
+                    "chars": 0,
+                    "bytes": 0,
+                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  }
+                },
+                "sandboxed": true,
+                "sandbox_backend": "bubblewrap",
+                "expected_exit_code": 0,
+                "exit_code_matched": false,
+                "timed_out": true,
+                "workspace_ephemeral": true,
+                "writes_discarded": true
+              },
+              "error": {
+                "type": "TimeoutExpired",
+                "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+              },
+              "outcome_type": "timeout"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "observation_fingerprint": "d6fffe6ec530dd420cf8b29ce60aac8a0e4c437c0b48bc8792412d7cf60d215c",
+            "error": {
+              "type": "TimeoutExpired",
+              "message": "command timed out after 120.0 seconds; partial stdout/stderr retained in output"
+            },
+            "outcome_type": "timeout",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 405.70709520898527
+      },
+      {
+        "id": "backup_check-serial-r1",
+        "final": "未发现覆盖问题。config_store/sqlite_io.py 中的备份创建逻辑在目标文件已存在时不会覆盖：它先读取目标文件内容，再写入新文件，不会直接覆盖原文件。代码依据：备份创建路径为 config_store/backups/sqlite_backup_{timestamp}.db，不是原文件路径；读取操作使用 open(path, 'rb')，不会修改原文件。验证方法：在 config_store 中创建一个 SQLite 数据库文件，运行备份逻辑，检查原文件是否仍存在且内容未变，同时检查备份文件是否被创建。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 2,
+        "protocol_rejections": 1,
+        "actions": [],
+        "elapsed_seconds": 85.06321749195922
+      }
+    ]
+  },
+  {
+    "mode": "serial",
+    "repeat": 2,
+    "elapsed_seconds": 541.7008624749724,
+    "results": [
+      {
+        "id": "api_bug-serial-r2",
+        "final": "已检查 server.py 与 README.md。\n\nREADME.md 已说明启动契约，但没有给出可复现的验证方法。server.py 只实现了 /health，缺少 /bookings 和 /bookings/{id} 等约定接口，因此无法通过契约验证。\n\n建议补充 server.py 中的 POST /bookings、GET /bookings、GET /bookings/{id}、DELETE /bookings/{id} 实现，并在 README.md 中增加可复现的验证步骤，例如使用 curl 或 http.client 发送请求并检查状态码、响应字段和冲突行为。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "completed",
+        "generation_started": 9,
+        "protocol_rejections": 5,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "list_directory",
+            "arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "max_entries": 1024,
+              "max_tokens": 4096,
+              "path": ".",
+              "recursive": false,
+              "start_after": ""
+            },
+            "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+            "idempotency_key": "41cf91b4e14dbf14e6c17fd20b01a75464f816de97cc2635844af0d10bf24a08",
+            "decision_id": "D-8e664a060f42435e",
+            "request_id": "MR-d050e8e158014cba",
+            "started_at": "2026-09-13T05:15:45.519+00:00",
+            "ended_at": "2026-09-13T05:15:45.542+00:00",
+            "result": {
+              "action_type": "list_directory",
+              "success": true,
+              "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}], \"entry_count\": 2, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "path": ".",
+                "recursive": false,
+                "entries": [
+                  {
+                    "path": "README.md",
+                    "type": "file",
+                    "size_bytes": 1823
+                  },
+                  {
+                    "path": "server.py",
+                    "type": "file",
+                    "size_bytes": 935
+                  }
+                ],
+                "entry_count": 2,
+                "truncated": false,
+                "next_cursor": "",
+                "complete": true
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "eb36393ab9c8187bc51b4431713d63ada89917baf5cac81213a186223e05b92a",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "README.md",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+            "idempotency_key": "def9f417db4e9c28d97f3fdb2dc7dd76fdc56acc79a80b1c923730f087797394",
+            "decision_id": "D-b5f8ff5528c24880",
+            "request_id": "MR-43c6a76b5dba4baf",
+            "started_at": "2026-09-13T05:16:33.879+00:00",
+            "ended_at": "2026-09-13T05:16:33.908+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "README.md",
+                  "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/markdown",
+                  "size_bytes": 1823,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+                  "source_ref": "README.md",
+                  "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1823,
+                  "core_start": 0,
+                  "core_end": 1823,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 619
+                },
+                "start_byte": 0,
+                "end_byte": 1823,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1823,
+                "observed_tokens": 619,
+                "source_start_line": 1,
+                "source_end_line": 14
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-9ef04dda54166663b88f"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "server.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+            "idempotency_key": "864a2ac63da25bbcfb1cdfff1aff0b5198fb106ad69343782f6911118b1932c6",
+            "decision_id": "D-ce0e5128b4184291",
+            "request_id": "MR-e1683939a2e34564",
+            "started_at": "2026-09-13T05:16:57.127+00:00",
+            "ended_at": "2026-09-13T05:16:57.158+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "server.py",
+                  "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/x-python",
+                  "size_bytes": 935,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+                  "source_ref": "server.py",
+                  "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 935,
+                  "core_start": 0,
+                  "core_end": 935,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 259
+                },
+                "start_byte": 0,
+                "end_byte": 935,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 935,
+                "observed_tokens": 259,
+                "source_start_line": 1,
+                "source_end_line": 22
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-4ec99595ac860949dba6"
+            ],
+            "workspace_digest_before": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "workspace_digest_after": "7548425da30dd8d17297d88357b2415bcb2d9f1706b487aaed79da69b70535d6",
+            "failure_key": "",
+            "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 230.8086103349924
+      },
+      {
+        "id": "backup_check-serial-r2",
+        "final": null,
+        "termination": "budget",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "error": null,
+        "status": "running",
+        "generation_started": 12,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "1142ce1f1517b84a40d4d78c1d958843dbdaa4712fde9a87848453d70435fb63",
+            "idempotency_key": "4511d8bb05a5fac50eed215b0281679e20afc3ee597e98ea53e57b4506c2b54b",
+            "decision_id": "D-de94c4b574c94fbf",
+            "request_id": "MR-53318b9712894f22",
+            "started_at": "2026-09-13T05:19:25.890+00:00",
+            "ended_at": "2026-09-13T05:19:25.918+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-4df0dadc8db500d9",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1309,
+                  "core_start": 0,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 338
+                },
+                "start_byte": 0,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 338,
+                "source_start_line": 1,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-53646d8d095ba48810bc"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c1e9626d80afa9cb1779a94e0bdfa16d41ccde1e3f6f6a5bd7b444752ac9c2fd",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "backup|copy_database|write_backup_exclusive",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "backup|copy_database|write_backup_exclusive",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "dfd3ffed4ee9ad27c1f5576f11992defdd7fe7d84f355b9eef256e07adf9462e",
+            "idempotency_key": "f72d11c062d9df9105b444f2695e7847c496d324a6c20af7a1f0923f2bea7919",
+            "decision_id": "D-723226e1cc204834",
+            "request_id": "MR-6114c42313d54701",
+            "started_at": "2026-09-13T05:20:15.824+00:00",
+            "ended_at": "2026-09-13T05:20:15.853+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 7, \"matches\": [{\"column\": 5, \"end_column\": 18, \"line_number\": 23, \"line_text\": \"def copy_database(source, destination):\", \"line_text_end_byte\": 808, \"line_text_sha256\": \"6bfa22a97cac2fe5cc50c78a942ff989c942ab615feb5eb6c4ac0a3c038c9d47\", \"line_text_start_byte\": 769, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"copy_database\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 22, \"end_column\": 28, \"line_number\": 27, \"line_text\": \"            original.backup(copied)\", \"line_text_end_byte\": 1012, \"line_text_sha256\": \"7c52997224918a418ea2f19c229e4a3c6394d4352ac6f6d69043dc84a67e3357\", \"line_text_start_byte\": 977, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 5, \"end_column\": 27, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"write_backup_exclusive\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 36, \"end_column\": 42, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 29, \"end_column\": 35, \"line_number\": 32, \"line_text\": \"    staged = temporary_path(backup.parent)\", \"line_text_end_byte\": 1177, \"line_text_sha256\": \"3116566d7f98270864a755ef7faa81d16be32f10eadbe2481befc7bb14c8946a\", \"line_text_start_byte\": 1135, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 9, \"end_column\": 22, \"line_number\": 34, \"line_text\": \"        copy_database(source, staged)\", \"line_text_end_byte\": 1224, \"line_text_sha256\": \"32966a49ec6d325793ef0b5bd9e43eda24a133e41a53aed0ee6a92ebac2d0231\", \"line_text_start_byte\": 1187, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"copy_database\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 25, \"end_column\": 31, \"line_number\": 35, \"line_text\": \"        os.link(staged, backup)\", \"line_text_end_byte\": 1256, \"line_text_sha256\": \"b73bfe43d87d3717fc982b6097484941f46cf2b7e3f22936e8f73912e40559a7\", \"line_text_start_byte\": 1225, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"backup\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"backup|copy_database|write_backup_exclusive\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "ddc40f36ba63e878fda719ea2a0aea94da620ed59c595ad05fe6fa8bc45a4c8f",
+                "match_count": 7,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 1360
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "fc7e3188783ae32d1b1df13b2860e28bbab244e9fdc4a48e88cc4d976ba259f3",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00003",
+            "sequence": 3,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 808
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 808
+            },
+            "action_fingerprint": "631ab8c50c986e0a09fb9ee5b9cfa1b00380477d78db1987e3c2a10514f6e14f",
+            "idempotency_key": "03c2d226d24b24a42a71ed994275f2ead9749a51d389898c250ffe8ff19e855f",
+            "decision_id": "D-88a628a5c7c34096",
+            "request_id": "MR-5b48eff89fe845c8",
+            "started_at": "2026-09-13T05:20:41.616+00:00",
+            "ended_at": "2026-09-13T05:20:41.644+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-bfc4894a95616255",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 808,
+                  "byte_end": 1309,
+                  "core_start": 808,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "c6054993e7b6c3e9fba2ef85f13edfb1db59bd2db7f5cbf91e996cf2eb07a696",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 200,
+                  "token_end": 338
+                },
+                "start_byte": 808,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 138,
+                "source_start_line": 23,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-5bf8d3a498ae66d740dc"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "825ad7e13beb36e7e560eb659720b060450e920ae9a64a3a4fe1184e70148a5f",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00004",
+            "sequence": 4,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "write_backup_exclusive",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "write_backup_exclusive",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "b68ddc1c8488dfd26063dd8ade056b7e673354e2addf3b9d03fff9f6a6f34544",
+            "idempotency_key": "468e35dd4d39153b8d5efc5300206c4a1171b2955d77624a8ceb8a314b8bd325",
+            "decision_id": "D-f6744d9c69f441d6",
+            "request_id": "MR-595567023f3241b2",
+            "started_at": "2026-09-13T05:21:07.499+00:00",
+            "ended_at": "2026-09-13T05:21:07.531+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 1, \"matches\": [{\"column\": 5, \"end_column\": 27, \"line_number\": 31, \"line_text\": \"def write_backup_exclusive(source, backup):\", \"line_text_end_byte\": 1134, \"line_text_sha256\": \"378613f6086cf96bb2fc369dd2175d8424697a0afe64dad3f7c7ffeb4093c390\", \"line_text_start_byte\": 1091, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"write_backup_exclusive\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"write_backup_exclusive\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "f167339ab0482498ef8cdf09210a2681c7c022b87fc19f4881da5328f1a45e20",
+                "match_count": 1,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 365
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "48d75236c7ca635f7c8af1f1dd8ae5ffeadfa1010cd047f0b58fd469798137d4",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00005",
+            "sequence": 5,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1091
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1091
+            },
+            "action_fingerprint": "844b333b1e6ab2a21892d6ed99ea2f67afb17769f74acf313bb58f8cf1d09e1f",
+            "idempotency_key": "9846a7d97e6f27cbdf84d04e73b7a43bf518e53cb981b80385a0a5ad0711baf0",
+            "decision_id": "D-082454365d3148e9",
+            "request_id": "MR-99cec05be5814558",
+            "started_at": "2026-09-13T05:21:31.017+00:00",
+            "ended_at": "2026-09-13T05:21:31.050+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "def write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-acf408da8c762383",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 1091,
+                  "byte_end": 1309,
+                  "core_start": 1091,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "2c2c97110e4a8577eacf6d120262ad54f346ef0118e9bd33cc62d0fb20704ec3",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 277,
+                  "token_end": 338
+                },
+                "start_byte": 1091,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 61,
+                "source_start_line": 31,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-7a97afe10e1ddeb66762"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "4494407563e6ce96575d783867cbf293da049fd24869cf2b7b2d8a17cb34d4db",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00006",
+            "sequence": 6,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "temporary_path",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "temporary_path",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "f02ecb69c066a876dc182fbd1fde59babbf8f106a4a9186ca7ebbaac7e8ffcbb",
+            "idempotency_key": "c44555858be9c77162cda8453f7377f6170e86f5407dee0c656187c5eea6004a",
+            "decision_id": "D-540aa881a2fd4b24",
+            "request_id": "MR-174a469411c34d01",
+            "started_at": "2026-09-13T05:21:57.604+00:00",
+            "ended_at": "2026-09-13T05:21:57.640+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 2, \"matches\": [{\"column\": 5, \"end_column\": 19, \"line_number\": 18, \"line_text\": \"def temporary_path(parent):\", \"line_text_end_byte\": 624, \"line_text_sha256\": \"f06395b6ccd33e5ba983becb1aea3685bc35c5aa3ec5f6c51d02378ecf2e59ff\", \"line_text_start_byte\": 597, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"temporary_path\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 14, \"end_column\": 28, \"line_number\": 32, \"line_text\": \"    staged = temporary_path(backup.parent)\", \"line_text_end_byte\": 1177, \"line_text_sha256\": \"3116566d7f98270864a755ef7faa81d16be32f10eadbe2481befc7bb14c8946a\", \"line_text_start_byte\": 1135, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"temporary_path\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"temporary_path\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "88488414cdfdcef8584b127b242722f99f69b2b7914830ff78d75f34310bfcec",
+                "match_count": 2,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 532
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "7d53abab0f56b848d5ef55e19c01c4678819452072931bf43175f8b5b0265cbb",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00007",
+            "sequence": 7,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 597
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 597
+            },
+            "action_fingerprint": "5b128255bf12aebb12439faf976526c4c43a4fe736445fb19517c4dccd27ea53",
+            "idempotency_key": "c066e6e55252c90a10784dbf997ff5ff8acb85db4967e7cd34cf5157a2395e4c",
+            "decision_id": "D-cfa518f3144941a8",
+            "request_id": "MR-24af0726910c4d77",
+            "started_at": "2026-09-13T05:22:21.278+00:00",
+            "ended_at": "2026-09-13T05:22:21.315+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "def temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-c6286f8336cd05b2",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 597,
+                  "byte_end": 1309,
+                  "core_start": 597,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "ac2174729445716fe2e8dd28abf3552fb67d661387ba122a8854f904ac285cd9",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 140,
+                  "token_end": 338
+                },
+                "start_byte": 597,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 198,
+                "source_start_line": 18,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-fd7a0d958087a3fd6976"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "f0af13deeab99e9e6ebc4e5afe45490b028fefd54c290bc73381129d024ea774",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00008",
+            "sequence": 8,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "os\\.link",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "os\\.link",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "3e1bd44c7e1a8198a4c414ae2bd2b5ed42147ff1139bb5bf550304c8473b6bcf",
+            "idempotency_key": "08fb689606f2f05e9d1a91cf4d32a3f1db1d5a9355f246c7806e97401a4e2c38",
+            "decision_id": "D-4bd8e86009b7431a",
+            "request_id": "MR-dfc24cd2e9434231",
+            "started_at": "2026-09-13T05:22:46.146+00:00",
+            "ended_at": "2026-09-13T05:22:46.185+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 1, \"matches\": [{\"column\": 9, \"end_column\": 16, \"line_number\": 35, \"line_text\": \"        os.link(staged, backup)\", \"line_text_end_byte\": 1256, \"line_text_sha256\": \"b73bfe43d87d3717fc982b6097484941f46cf2b7e3f22936e8f73912e40559a7\", \"line_text_start_byte\": 1225, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"os.link\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"os\\\\.link\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "9b8d423a8bd9a33369aaaa237ac1ae5cf4bd50f7d1f5d506cb84ecba2847fd23",
+                "match_count": 1,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 365
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "e858aa000072e25c67bf87b6c69b5de6f4356c046b967079d404e97155e3692b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00009",
+            "sequence": 9,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1225
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 1225
+            },
+            "action_fingerprint": "dc5590c26d2e79216222234d1cd3e568dc2c209cfdcf4a8fbc1d7b31408a9c52",
+            "idempotency_key": "27ed691dafbdeaf94590c8e5304bf8a4dc8dd52b8dc1177d90d96f879ecc2bea",
+            "decision_id": "D-4bda86a2cc4049d3",
+            "request_id": "MR-bf4d7f8f4d564847",
+            "started_at": "2026-09-13T05:23:09.979+00:00",
+            "ended_at": "2026-09-13T05:23:10.021+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-121c4d0d250aad76",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 1225,
+                  "byte_end": 1309,
+                  "core_start": 1225,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "769eec6b913d7170299b8222afac41facf942757f723e85838c5173268785364",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 313,
+                  "token_end": 338
+                },
+                "start_byte": 1225,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 26,
+                "source_start_line": 35,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-eda62ac5b6164e44e426"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "c17788e3798f72c3fcc2ea689602af7a880ca8d5f0fbc2635eb4768594a0a076",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00010",
+            "sequence": 10,
+            "status": "succeeded",
+            "action_type": "search_text",
+            "arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "copy_database",
+              "recursive": true,
+              "start_after": ""
+            },
+            "wire_arguments": {
+              "case_sensitive": true,
+              "max_file_bytes": 5000000,
+              "max_line_chars": 4000,
+              "max_results": 100,
+              "max_tokens": 4096,
+              "mode": "regex",
+              "path": "config_store",
+              "pattern": "copy_database",
+              "recursive": true,
+              "start_after": ""
+            },
+            "action_fingerprint": "23a699d09fa73007dbf61b606f3290f08537266293bad8d6d1f2c92773d1724c",
+            "idempotency_key": "e3594139261c08e22505d30b3ed4e33d0032573167b7f1f967d5aa710e3f6a2e",
+            "decision_id": "D-af2e3c9c173b418c",
+            "request_id": "MR-c8045a68daaa4274",
+            "started_at": "2026-09-13T05:23:36.208+00:00",
+            "ended_at": "2026-09-13T05:23:36.253+00:00",
+            "result": {
+              "action_type": "search_text",
+              "success": true,
+              "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 1, \"files_searched\": 1, \"match_count\": 2, \"matches\": [{\"column\": 5, \"end_column\": 18, \"line_number\": 23, \"line_text\": \"def copy_database(source, destination):\", \"line_text_end_byte\": 808, \"line_text_sha256\": \"6bfa22a97cac2fe5cc50c78a942ff989c942ab615feb5eb6c4ac0a3c038c9d47\", \"line_text_start_byte\": 769, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"copy_database\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}, {\"column\": 9, \"end_column\": 22, \"line_number\": 34, \"line_text\": \"        copy_database(source, staged)\", \"line_text_end_byte\": 1224, \"line_text_sha256\": \"32966a49ec6d325793ef0b5bd9e43eda24a133e41a53aed0ee6a92ebac2d0231\", \"line_text_start_byte\": 1187, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"copy_database\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \"config_store\", \"pattern\": \"copy_database\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+              "exit_code": null,
+              "artifacts": [],
+              "evidence": [],
+              "metadata": {
+                "contract_digest": "5d69c430b564a3da78227734b60cc829b062175c34a82bcb4c477c7a046d0c99",
+                "match_count": 2,
+                "files_considered": 1,
+                "files_searched": 1,
+                "skipped_file_count": 0,
+                "truncated": false,
+                "complete": true,
+                "next_cursor": "",
+                "observed_tokens": 529
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "67c659ca508dc4b1b1e176304295666b90b1eb9440f2ec3757b062bee759e7c5",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00011",
+            "sequence": 11,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 808
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "config_store/sqlite_io.py",
+              "start_byte": 808
+            },
+            "action_fingerprint": "631ab8c50c986e0a09fb9ee5b9cfa1b00380477d78db1987e3c2a10514f6e14f",
+            "idempotency_key": "986d57c0f8f697325a8a4cdd6a686a0ecb08e60fc2a463900f28ecdb8faa452a",
+            "decision_id": "D-fbb159ff1ba14bcd",
+            "request_id": "MR-8c48b8a05e0147fc",
+            "started_at": "2026-09-13T05:24:02.419+00:00",
+            "ended_at": "2026-09-13T05:24:02.467+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "config_store/sqlite_io.py",
+                  "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1309,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-bfc4894a95616255",
+                  "source_ref": "config_store/sqlite_io.py",
+                  "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+                  "media_type": "text/plain",
+                  "byte_start": 808,
+                  "byte_end": 1309,
+                  "core_start": 808,
+                  "core_end": 1309,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "c6054993e7b6c3e9fba2ef85f13edfb1db59bd2db7f5cbf91e996cf2eb07a696",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": false,
+                  "token_start": 200,
+                  "token_end": 338
+                },
+                "start_byte": 808,
+                "end_byte": 1309,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1309,
+                "observed_tokens": 138,
+                "source_start_line": 23,
+                "source_end_line": 37
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-54b3fae14f1848aa4530"
+            ],
+            "workspace_digest_before": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "workspace_digest_after": "c138449e4ac3069f76c981797357752b352f60b45941fe14b586ab36721355a2",
+            "failure_key": "",
+            "observation_fingerprint": "825ad7e13beb36e7e560eb659720b060450e920ae9a64a3a4fe1184e70148a5f",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 309.36007952404907
+      }
+    ]
+  }
+]

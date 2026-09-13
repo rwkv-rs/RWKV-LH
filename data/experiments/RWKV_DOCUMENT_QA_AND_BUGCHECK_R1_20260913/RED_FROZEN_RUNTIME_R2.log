@@ -1,0 +1,167 @@
+.....FFFFFF.F                                                            [100%]
+=================================== FAILURES ===================================
+_______ test_session_startup_failure_is_saved_as_error_without_delivery ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_session_startup_failure_i0')
+
+    def test_session_startup_failure_is_saved_as_error_without_delivery(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('offline','read',str(workspace),str(tmp_path/'run'))
+        def unavailable(**kwargs):
+            raise ConnectionError('service unavailable')
+>       result=run_read_only_job(job,settings=settings(),session_factory=unavailable)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+kwargs = {'settings': RuntimeSettings(base_url='http://127.0.0.1:1/v1', api_key='', model='test-rwkv', model_sha256='', backend...256='', state_profile_delivery='request'), 'audit_hook': <function run_read_only_job.<locals>.audit at 0x755b9309efc0>}
+
+    def unavailable(**kwargs):
+>       raise ConnectionError('service unavailable')
+E       ConnectionError: service unavailable
+
+tests/test_read_only_agent.py:77: ConnectionError
+______ test_invalid_resource_budget_rejected_before_creating_run[True-1] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r0')
+calls = True, seconds = 1
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_read_only_agent.py:88: Failed
+_______ test_invalid_resource_budget_rejected_before_creating_run[1.5-1] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r1')
+calls = 1.5, seconds = 1
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_read_only_agent.py:88: Failed
+_______ test_invalid_resource_budget_rejected_before_creating_run[1-inf] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r2')
+calls = 1, seconds = inf
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+>           run_read_only_job(job,settings=settings(),session_factory=factory([]))
+
+tests/test_read_only_agent.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+job = ReadOnlyJob(task_id='bad', request='read', workspace='/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_re...r='/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r2/run', max_calls=1, max_seconds=inf)
+settings = RuntimeSettings(base_url='http://127.0.0.1:1/v1', api_key='', model='test-rwkv', model_sha256='', backend_profile='vll...ll', state_transport='native_required', state_profile_id='', state_profile_sha256='', state_profile_delivery='request')
+session_factory = <function factory.<locals>.create at 0x755b930adda0>
+
+    def run_read_only_job(job, *, settings, session_factory=create_model_session):
+        if job.max_calls < 1 or job.max_seconds <= 0:
+            raise ValueError('positive call and wall budgets required')
+        workspace = Path(job.workspace).resolve(strict=True)
+        if not workspace.is_dir():
+            raise ValueError('workspace must be a directory')
+        output = Path(job.output_dir).resolve()
+        if output == workspace or workspace in output.parents:
+            raise ValueError('audit output must be outside the model workspace')
+        output.mkdir(parents=True, exist_ok=False)
+        records = []
+        def audit(event):
+            records.append(dict(event))
+            with (output / 'model_trace.jsonl').open('a') as stream:
+                stream.write(json.dumps(dict(event), ensure_ascii=False) + '\n')
+        harness = ReadOnlyHarness()
+        model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+        model.session = _BudgetedSession(model.session, job.max_calls, time.monotonic() + job.max_seconds)
+        store = LongHorizonStore(output / 'state', checkpoint_retention=1000)
+        goal = model.create_literal_goal(job.request, str(workspace), runtime_policy={
+            RUN_LIFECYCLE_POLICY_KEY: run_lifecycle_policy_document('goal')})
+        state = store.create_run(goal, run_id=job.task_id)
+        controller = _ReadOnlyController(store, model=model, harness=harness,
+                                         max_transitions=job.max_calls, min_actions=0)
+        _save(output / 'goal.json', goal.to_dict())
+        started = time.monotonic()
+        error = None
+        termination = None
+        def deadline(signum, frame):
+            raise ReadOnlyBudgetExpired('wall budget exhausted')
+        old_handler = signal.signal(signal.SIGALRM, deadline)
+>       old_timer = signal.setitimer(signal.ITIMER_REAL, job.max_seconds)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       OverflowError: timestamp out of range for platform time_t
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:97: OverflowError
+_______ test_invalid_resource_budget_rejected_before_creating_run[1-nan] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r3')
+calls = 1, seconds = nan
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+            run_read_only_job(job,settings=settings(),session_factory=factory([]))
+>       assert not (tmp_path/'run').exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r3') / 'run').exists
+
+tests/test_read_only_agent.py:90: AssertionError
+_____ test_file_scope_rejects_search_but_model_can_recover_and_choose_read _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_file_scope_rejects_search0')
+
+    def test_file_scope_rejects_search_but_model_can_recover_and_choose_read(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('actual source')
+>       job=ReadOnlyJob('files','阅读 doc.md',str(workspace),str(tmp_path/'run'),max_calls=3,tool_scope='files')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ReadOnlyJob.__init__() got an unexpected keyword argument 'tool_scope'
+
+tests/test_read_only_agent.py:95: TypeError
+___________ test_trace_write_failure_prevents_unrecorded_generation ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_trace_write_failure_preve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x755b96944410>
+
+    def test_trace_write_failure_prevents_unrecorded_generation(tmp_path,monkeypatch):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        original=Path.open
+        def open_file(path,mode='r',*args,**kwargs):
+            if path.name=='model_trace.jsonl' and mode=='a':
+                raise OSError('trace disk unavailable')
+            return original(path,mode,*args,**kwargs)
+        monkeypatch.setattr(Path,'open',open_file)
+        job=ReadOnlyJob('trace','read',str(workspace),str(tmp_path/'run'))
+        result=run_read_only_job(job,settings=settings(),session_factory=factory([call('final_answer',text='unrecorded')]))
+>       assert result['final'] is None and result['generation_started']==0
+E       AssertionError: assert ('unrecorded' is None)
+
+tests/test_read_only_agent.py:125: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_session_startup_failure_is_saved_as_error_without_delivery
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[True-1]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1.5-1]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1-inf]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1-nan]
+FAILED tests/test_read_only_agent.py::test_file_scope_rejects_search_but_model_can_recover_and_choose_read
+FAILED tests/test_read_only_agent.py::test_trace_write_failure_prevents_unrecorded_generation
+7 failed, 6 passed in 2.80s

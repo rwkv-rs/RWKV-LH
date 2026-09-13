@@ -1,0 +1,66 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "9aae91bce97fa54f0ae143c05255f0b427d68d87990efae137709301136cda59",
+  "run_sha256": "772faa516af2ddb086777f24a5df834ec8f5c8b0994348dab137eb0209f4c13a",
+  "reviewer": "Codex external source and actual trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "behavior",
+      "status": "partial",
+      "reason": "不覆盖结论正确但机制编造",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "proof",
+      "status": "unmet",
+      "reason": "验证对象变成源数据库，未验证已存在目标",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "sqlite_backup_{timestamp}.db",
+      "reason": "源码无该路径模板或先读目标再写新文件逻辑，实际os.link排他创建",
+      "impact": "回答没有真实代码依据",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "rag_rules",
+    "user_request": "阅读 ARCHITECTURE_RULES.md，说明文本证据如何成为回答材料，模型与程序各负责什么，以及原始答案和来源记录有哪些约束。只依据文件回答。",
+    "kind": "task_trial",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "76df4526364d501fef8f2c1b5782c7e635bc1fa8dfeeea46664e70cda0c94790",
+      "source": "3c7decc09a74342b0735d9489d21114342055c3741fcba5e168e72541c3ccd71",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "13b30413072224420d11410cf8fb760fbfedc286ba9d8dd03ad512aa4216612b",
+      "budget": "08d21294a45c73715c176ac308dfda6787e192ce17589fd0d2758580cb9b838b"
+    },
+    "requirements": [
+      {
+        "id": "material",
+        "user_quote": "文本证据如何成为回答材料",
+        "outcome": "Writer只使用Resolver选中的逐字证据作为回答材料",
+        "level": "essential",
+        "missing_effect": "用户问题未得到实质回答",
+        "acceptance": "Writer只使用Resolver选中的逐字证据作为回答材料；允许等义表达，不限定工具路径",
+        "omission_policy": "正文overlap与原子切片为一般实现细节，允许省略"
+      },
+      {
+        "id": "roles",
+        "user_quote": "模型与程序各负责什么",
+        "outcome": "模型语义决定；程序传输切分检索排序去重解析校验",
+        "level": "essential",
+        "missing_effect": "用户问题未得到实质回答",
+        "acceptance": "模型语义决定；程序传输切分检索排序去重解析校验；允许等义表达，不限制工具路径",
+        "omission_policy": "未明确要求的语法、行号和一般细节允许省略"
+      },
+      {
+        "id": "audit",
+        "user_quote": "原始答案和来源记录有哪些约束",
+        "outcome": "原始回答不可改写/兜底；调用保留prompt、输出和证据ID等可追溯记录；无需列齐所有字段",
+        "level": "essential",
+        "missing_effect": "用户问题未得到实质回答",
+        "acceptance": "原始回答不可改写/兜底；调用保留prompt、输出和证据ID等可追溯记录；无需列齐所有字段；允许等义表达，不限制工具路径",
+        "omission_policy": "未明确要求的语法、行号和一般细节允许省略"
+      },
+      {
+        "id": "chunking",
+        "user_quote": "文本证据如何成为回答材料",
+        "outcome": "正文切片有overlap并保留列表表格等原子结构及父级上下文",
+        "level": "detail",
+        "missing_effect": "不影响对证据选择与回答材料的核心解释",
+        "acceptance": "若详述切片，应与原文一致",
+        "omission_policy": "允许全部省略，不影响主问题合格"
+      }
+    ]
+  },
+  "sha256": "9c94aa6c46787e667457b0e43851f0bbeeffe4ff78e57d001e7e8b6745ab6d50"
+}

@@ -1,0 +1,31 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_session_startup_failure_is_saved_as_error_without_delivery ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_session_startup_failure_i0')
+
+    def test_session_startup_failure_is_saved_as_error_without_delivery(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('offline','read',str(workspace),str(tmp_path/'run'))
+        def unavailable(**kwargs):
+            raise ConnectionError('service unavailable')
+>       result=run_read_only_job(job,settings=settings(),session_factory=unavailable)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+kwargs = {'settings': RuntimeSettings(base_url='http://127.0.0.1:1/v1', api_key='', model='test-rwkv', model_sha256='', backend...256='', state_profile_delivery='request'), 'audit_hook': <function run_read_only_job.<locals>.audit at 0x7d033e7a9a80>}
+
+    def unavailable(**kwargs):
+>       raise ConnectionError('service unavailable')
+E       ConnectionError: service unavailable
+
+tests/test_read_only_agent.py:77: ConnectionError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_session_startup_failure_is_saved_as_error_without_delivery
+1 failed, 5 passed in 2.07s

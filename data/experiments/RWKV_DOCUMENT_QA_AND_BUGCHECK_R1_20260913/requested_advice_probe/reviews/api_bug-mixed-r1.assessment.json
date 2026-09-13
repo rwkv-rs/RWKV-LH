@@ -1,0 +1,99 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_bug-mixed-r1",
+  "task_id": "api_bug",
+  "arm": "mixed",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "20f97f1979e2f1ec67c30b7279442c94b0c445f4faa021dd9588aff1e1d6d953",
+  "run_sha256": "ee31daf19e7bc1e9ba06f60c4b3780f3d538693e7ddce60ecf75cac711980856",
+  "review_sha256": "b9b7e4af11c6167ebaf71981d8fed36ba34eff7a4a10a6bdafe71794824779f5",
+  "execution_identity_sha256": "558aa9b243ddca434aee213d7ad28b904d76503aa15fbfe2f3692924d6f0c8f9",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "strong_advised",
+  "requirement_results": [
+    {
+      "id": "bug",
+      "status": "met",
+      "reason": "缺失业务接口为真实缺陷",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "evidence",
+      "status": "partial",
+      "reason": "给出检查步骤，但将未执行的验证描述为已运行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "false_work_claim",
+      "severity": "material",
+      "quote": "已运行验证：健康检查 GET /health 正常返回 200；其他路由均未实现。",
+      "reason": "本任务及父任务实际工具只有文件读取，没有执行所称HTTP验证",
+      "impact": "用户无法信赖已执行验证的报告；外部验证不能追认成模型执行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "README 契约中的 404",
+      "reason": "该业务路由文档预期200，404对应未知路由；建议者也误读",
+      "impact": "混淆契约与实现，无法按错误预期验收",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "factuality": "material_issue",
+  "false_work_claims": 1,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 1,
+    "input_tokens": 5738,
+    "output_tokens": 388,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

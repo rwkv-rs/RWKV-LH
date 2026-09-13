@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "backup_check-files-r2",
+  "task_id": "backup_check",
+  "arm": "files",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "3a14379cbbe32bb5282ee34cc9e56dbc44c720720068bdab82de4f66601ef678",
+  "run_sha256": "c85a179c69431e31cddd8cb2cb95b5cb0dcea5a5842d07dccf9619c50194bd6a",
+  "review_sha256": "a21a6e449b14d1f94e2e506b778eafb30baf8947d72d06e38cff3af5582255f4",
+  "execution_identity_sha256": "c61dafad8ab33e3a7761222acabbbe13802cd358c91564fab1b7bc2918c207ff",
+  "outcome": "met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "behavior",
+      "status": "met",
+      "reason": "正确说明os.link不会覆盖与暂存清理",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "proof",
+      "status": "met",
+      "reason": "给出已存在目标内容保持不变的验证方法；不要求完整可直接运行脚本",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "确保文件不存在",
+      "reason": "mkstemp创建唯一暂存文件，并非保持不存在；排他发布核心说明正确",
+      "impact": "不改变目标文件不覆盖结论",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "factuality": "minor_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3570,
+    "output_tokens": 455,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

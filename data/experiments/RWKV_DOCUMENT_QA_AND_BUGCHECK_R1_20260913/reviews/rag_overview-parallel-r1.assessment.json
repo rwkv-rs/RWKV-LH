@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "rag_overview-parallel-r1",
+  "task_id": "rag_overview",
+  "arm": "parallel",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "79a941fb73e81d6bb272a61aad6138d7c5b97606f8819e1af37e2a0f8c7193f1",
+  "run_sha256": "a2088c8f626da6a20efdaf032cdf8aec2bd47380d45948f302c7ea143775e7ce",
+  "review_sha256": "1548670ebfa4637ed97aa7f26c316a0870e2a135eda2c21e013d287883bc0219",
+  "execution_identity_sha256": "22a46d3ca70847b7fe21be883caf6a5e87a81c6e27e0a6e1aa6a9f101e7f2d40",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "stack",
+      "status": "met",
+      "reason": "RWKV2.9B、BM25与无embedding均正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "边界说明正确但Writer实验分数错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "Writer 在固定 36 题中从 17/36 提高到 30/36",
+      "reason": "原文Writer300是候选标签，固定组为17/36，对照zero10/36；回答报告了文件不支持的实验分数",
+      "impact": "改变用户询问的实验结果及改善幅度，不能作为正确实验概览",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、原文及实际调用保留；系统或模型失败不排除分母",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "按实际输出与终止记录描述，不推断输入复杂度的因果效果",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 6209,
+    "output_tokens": 327,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

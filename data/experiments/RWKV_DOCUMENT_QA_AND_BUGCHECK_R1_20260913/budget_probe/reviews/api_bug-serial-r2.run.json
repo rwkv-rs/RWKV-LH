@@ -1,0 +1,61 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "api_bug-serial-r2",
+  "task_id": "api_bug",
+  "arm": "serial",
+  "repeat": 2,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "76df4526364d501fef8f2c1b5782c7e635bc1fa8dfeeea46664e70cda0c94790",
+    "source": "6f8743cd1ebe895267e53b9cbc47af99d937dee3b1df85698781285f5fbddcb2",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "13b30413072224420d11410cf8fb760fbfedc286ba9d8dd03ad512aa4216612b",
+    "budget": "a3290a0bb30ee2ef51af15c1eff909a3f018f9b4dda63bb75aedb3163c4503fb"
+  },
+  "termination": "submitted",
+  "answer": "已检查 server.py 与 README.md。\n\nREADME.md 已说明启动契约，但没有给出可复现的验证方法。server.py 只实现了 /health，缺少 /bookings 和 /bookings/{id} 等约定接口，因此无法通过契约验证。\n\n建议补充 server.py 中的 POST /bookings、GET /bookings、GET /bookings/{id}、DELETE /bookings/{id} 实现，并在 README.md 中增加可复现的验证步骤，例如使用 curl 或 http.client 发送请求并检查状态码、响应字段和冲突行为。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "budget_probe/runs/api_bug-serial-r2/execution/RESULT.json",
+      "sha256": "4892ce7f3157337dad18d175e7279cef36aaef69f8abcf8add762d3068cd11ef",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "budget_probe/runs/api_bug-serial-r2/execution/model_trace.jsonl",
+      "sha256": "e6925f55cb0a216dc06772563fca63d2a0c732ccdc454c1a51dbf4079af2a6a3",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "budget_probe/runs/api_bug-serial-r2/execution/state_snapshot.json",
+      "sha256": "694f90a86c3e6daa090cb32c5f7b8dc7076849dfe386461c0d558b0771cb8d56",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "budget_probe/runs/api_bug-serial-r2/workspace/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "budget_probe/runs/api_bug-serial-r2/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 9,
+    "input_tokens": 51983,
+    "output_tokens": 970,
+    "protocol_rejections": 5,
+    "feedback_consumed": 5,
+    "tool_errors": 0
+  }
+}

@@ -1,0 +1,49 @@
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output[False] __
+
+progressive = False
+
+    @pytest.mark.parametrize('progressive',[False,True])
+    def test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output(progressive):
+        event=make_advice_event('advice','原样建议','external_strong_model','adviser')
+        definitions=ActionHarness().g1i_tool_definitions(['read_file']) if progressive else ()
+        text=render_event_append(event,definitions,progressive_tool_disclosure=progressive)
+>       assert '\n\nUser: Function output:' not in text
+E       assert '\n\nUser: Function output:' not in '\n\nUser: F...t: ```json\n'
+E         
+E         '\n\nUser: Function output:' is contained here:
+E           
+E           
+E           User: Function output: {"complete":true,"content_refs":[],"event_type":"summary_advice","payload":{"advice":"原样建议","instruction":"The user requested a second look at the same task. This message is advice, not an acceptance decision or verified tool result. Decide independently whether to revise or retain your answer using the visible file. Follow the existing operation protocol.","is_execution_evidence":false,"model":"adviser","protocol":"rwkv-lh.summary-advice.v1","source":"external_strong_model"}}
+E         ? ++++++++++++++++++++++
+E           
+E           Assistant: ```json
+
+tests/test_advice_input_authority.py:13: AssertionError
+__ test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output[True] __
+
+progressive = True
+
+    @pytest.mark.parametrize('progressive',[False,True])
+    def test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output(progressive):
+        event=make_advice_event('advice','原样建议','external_strong_model','adviser')
+        definitions=ActionHarness().g1i_tool_definitions(['read_file']) if progressive else ()
+        text=render_event_append(event,definitions,progressive_tool_disclosure=progressive)
+>       assert '\n\nUser: Function output:' not in text
+E       assert '\n\nUser: Function output:' not in '\n\nUser: F...t: ```json\n'
+E         
+E         '\n\nUser: Function output:' is contained here:
+E           
+E           
+E           User: Function output: {"complete":true,"content_refs":[],"event_type":"summary_advice","payload":{"advice":"原样建议","instruction":"The user requested a second look at the same task. This message is advice, not an acceptance decision or verified tool result. Decide independently whether to revise or retain your answer using the visible file. Follow the existing operation protocol.","is_execution_evidence":false,"model":"adviser","protocol":"rwkv-lh.summary-advice.v1","source":"external_strong_model"}}
+E         ? ++++++++++++++++++++++
+E           ...
+E         
+E         ...Full output truncated (4 lines hidden), use '-vv' to show
+
+tests/test_advice_input_authority.py:13: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_advice_input_authority.py::test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output[False]
+FAILED tests/test_advice_input_authority.py::test_owner_requested_advice_is_not_labelled_as_untrusted_tool_output[True]
+2 failed, 1 passed in 0.03s

@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "backup_check-serial-r1",
+  "task_id": "backup_check",
+  "arm": "serial",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "9aae91bce97fa54f0ae143c05255f0b427d68d87990efae137709301136cda59",
+  "run_sha256": "772faa516af2ddb086777f24a5df834ec8f5c8b0994348dab137eb0209f4c13a",
+  "review_sha256": "c46b951fb83a84038d3368d636af0e8e4e3ce58ac1173c1feb9ee2957d88ebb0",
+  "execution_identity_sha256": "1d7036584f653e0227cb9b33cc71b70e91c7a472e072f409acaf4686028ca2ef",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "behavior",
+      "status": "partial",
+      "reason": "不覆盖结论正确但机制编造",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "proof",
+      "status": "unmet",
+      "reason": "验证对象变成源数据库，未验证已存在目标",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "sqlite_backup_{timestamp}.db",
+      "reason": "源码无该路径模板或先读目标再写新文件逻辑，实际os.link排他创建",
+      "impact": "回答没有真实代码依据",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3746,
+    "output_tokens": 1999,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

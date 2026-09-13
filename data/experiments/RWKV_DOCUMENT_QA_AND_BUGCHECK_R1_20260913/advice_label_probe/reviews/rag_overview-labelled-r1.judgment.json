@@ -1,0 +1,66 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "e8347276b3b60ba28eacc2d992237c4b14348bd54e9e6466c665a32f79e4d0d4",
+  "run_sha256": "669e561b1e4cb3a100ab1bf2d4ab2228b4f57e862df304f57e8997df56ddf794",
+  "reviewer": "Codex external source and actual trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "stack",
+      "status": "met",
+      "reason": "模型、BM25与无embedding正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "受控实验边界基本正确，但Writer实验分数错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "300/1000",
+      "reason": "Writer300是候选标签；原文实际17/36，对照zero10/36",
+      "impact": "改变所询问实验的实际结果",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ]
+}

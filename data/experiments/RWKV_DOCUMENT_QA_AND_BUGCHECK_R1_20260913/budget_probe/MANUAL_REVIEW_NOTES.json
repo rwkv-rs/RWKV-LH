@@ -1,0 +1,42 @@
+{
+  "api_bug-serial-r2": {
+    "answer_sha256": "d87b75747696ed4c1965cc1fa7f9bec0163d7f1f00d69c5422ee4e3cf0d63585",
+    "requirements": [
+      [
+        "bug",
+        "met",
+        "未实现文档化业务接口是真实缺陷；不要求只报告--db"
+      ],
+      [
+        "evidence",
+        "met",
+        "文件和接口定位、请求触发与无法符合契约的后果明确，给出HTTP请求检查状态字段的可复核方法；未声称运行"
+      ]
+    ],
+    "findings": []
+  },
+  "backup_check-serial-r1": {
+    "answer_sha256": "2a4778b1ce4490b3119bc6278fd5a990f1d178783378d5e07682868f877edf02",
+    "requirements": [
+      [
+        "behavior",
+        "partial",
+        "不覆盖结论正确但机制编造"
+      ],
+      [
+        "proof",
+        "unmet",
+        "验证对象变成源数据库，未验证已存在目标"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "material",
+        "quote": "sqlite_backup_{timestamp}.db",
+        "reason": "源码无该路径模板或先读目标再写新文件逻辑，实际os.link排他创建",
+        "impact": "回答没有真实代码依据"
+      }
+    ]
+  }
+}

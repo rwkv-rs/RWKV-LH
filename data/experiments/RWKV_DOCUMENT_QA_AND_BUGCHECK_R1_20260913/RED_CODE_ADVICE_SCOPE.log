@@ -1,0 +1,17 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_same_advice_protocol_supports_read_only_code_review_without_replacement_answer _
+
+    def test_same_advice_protocol_supports_read_only_code_review_without_replacement_answer():
+     from rwkv_lh.summary_advice import request_advice
+     seen=[]
+     def call(**kw):seen.append(kw);return {'advice':'核对代码证据与实际工具记录，不猜测测试结果。'}
+     goal=LongHorizonModel.create_literal_goal('检查 server.py 的实际缺陷，不修改文件。','.')
+     request_advice(SimpleNamespace(_request_json=call),goal,{'server.py':'# source'},'candidate','code',1024)
+>    assert 'code review' in seen[0]['system_prompt']
+E    AssertionError: assert 'code review' in 'A user requested a bounded second opinion on a short file summary. Use only the supplied user goal, original file con...ntents. Return only a JSON object with one string field, advice. No score, pass/fail gate, plan or replacement answer.'
+
+tests/test_summary_advice.py:37: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_summary_advice.py::test_same_advice_protocol_supports_read_only_code_review_without_replacement_answer
+1 failed, 3 passed in 0.03s

@@ -1,4 +1,4 @@
-"""Owner-triggered, read-only summary advice; no acceptance authority or takeover.
+"""Owner-triggered, read-only answer advice; no acceptance authority or takeover.
 
 This optional entry does not add a mandatory supervisor stage or a help tool.
 Callers supply only the real user goal, visible source and original candidate.
@@ -13,6 +13,7 @@ from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.schema import GoalState, ModelEvent
 
 ADVICE_PROTOCOL = "rwkv-lh.summary-advice.v1"
+ADVICE_EVENT_TYPE = "summary_advice"
 ADVICE_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"advice": {"type": "string"}},
@@ -20,7 +21,7 @@ ADVICE_RESPONSE_SCHEMA = {
     "additionalProperties": False,
 }
 ADVICE_SYSTEM = (
-    "A user requested a bounded second opinion on a short file summary. "
+    "A user requested a bounded second opinion on a read-only file-based answer or code review. "
     "Use only the supplied user goal, original file contents and original candidate. "
     "Identify whether any material correction is needed and give concise diagnostic "
     "advice; if the summary is adequate, say so. Do not invent hidden requirements, "
@@ -49,7 +50,7 @@ def request_advice(client: Any, goal: GoalState, files: Mapping[str, str],
 
 
 def make_advice_event(event_id: str, advice: str, source: str, model: str) -> ModelEvent:
-    return ModelEvent(event_type="summary_advice", event_id=event_id,
+    return ModelEvent(event_type=ADVICE_EVENT_TYPE, event_id=event_id,
         scope_id=LongHorizonModel.ACTION_LANE_ID,
         payload={"protocol": ADVICE_PROTOCOL, "source": source, "model": model,
                  "advice": advice, "is_execution_evidence": False,

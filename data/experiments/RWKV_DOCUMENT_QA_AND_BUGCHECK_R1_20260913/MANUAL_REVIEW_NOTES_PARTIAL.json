@@ -1,0 +1,161 @@
+{
+  "rag_overview-serial-r1": {
+    "answer_sha256": "0fc72763b1411e2a4fa57d23430ffcd398a1317932db263a08bb6f405609a3db",
+    "requirements": [
+      [
+        "stack",
+        "partial",
+        "模型与无embedding正确，但遗漏明确询问的BM25检索方式"
+      ],
+      [
+        "limits",
+        "partial",
+        "受控实验与泛化限制基本正确，Writer数字有实质错误"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "Writer 在固定 36 题中从 17/36 提高到 30/36",
+        "reason": "原文Writer300是候选标签，固定组为17/36，对照zero10/36；回答报告了文件不支持的实验分数",
+        "impact": "改变用户询问的实验结果及改善幅度，不能作为正确实验概览"
+      }
+    ]
+  },
+  "rag_overview-parallel-r1": {
+    "answer_sha256": "9cc62ae4173c266e5310ddca2a7d260c13f2b813c732d259e950d4f42dbf5c2f",
+    "requirements": [
+      [
+        "stack",
+        "met",
+        "RWKV2.9B、BM25与无embedding均正确"
+      ],
+      [
+        "limits",
+        "partial",
+        "边界说明正确但Writer实验分数错误"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "Writer 在固定 36 题中从 17/36 提高到 30/36",
+        "reason": "原文Writer300是候选标签，固定组为17/36，对照zero10/36；回答报告了文件不支持的实验分数",
+        "impact": "改变用户询问的实验结果及改善幅度，不能作为正确实验概览"
+      }
+    ]
+  },
+  "rag_overview-parallel-r2": {
+    "answer_sha256": "6c4dceb7808a984f396e70f443b866b73707aafc984bbded010603b3ab9b84aa",
+    "requirements": [
+      [
+        "stack",
+        "met",
+        "模型、BM25与无embedding均正确"
+      ],
+      [
+        "limits",
+        "partial",
+        "正确保留泛化与默认State限制，但实验数字编造"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "Writer 从 17/36 提高到 300/1000",
+        "reason": "原文Writer300是候选标签，固定组为17/36，对照zero10/36；回答报告了文件不支持的实验分数",
+        "impact": "改变用户询问的实验结果及改善幅度，不能作为正确实验概览"
+      }
+    ]
+  },
+  "rag_rules-serial-r1": {
+    "answer_sha256": "23f38dcec37fed26651d2edc190e639b7a5a9ce402726eeb67b69547c521b6a9",
+    "requirements": [
+      [
+        "material",
+        "met",
+        "准确说明选中的逐字证据与切片原子性/overlap"
+      ],
+      [
+        "roles",
+        "met",
+        "模型语义决定和程序检索传输解析校验职责正确"
+      ],
+      [
+        "audit",
+        "met",
+        "保留原始输出、精确prompt与证据ID，不由程序补写答案"
+      ]
+    ],
+    "findings": []
+  },
+  "rag_rules-parallel-r1": {
+    "answer_sha256": "746d0273ea0b014179304af9af8af8ad3f454e1ae48ff7e2faeea795ae4f86b6",
+    "requirements": [
+      [
+        "material",
+        "met",
+        "准确说明选中的逐字证据与切片原子性/overlap"
+      ],
+      [
+        "roles",
+        "met",
+        "模型语义决定和程序检索传输解析校验职责正确"
+      ],
+      [
+        "audit",
+        "met",
+        "保留原始输出、精确prompt与证据ID，不由程序补写答案"
+      ]
+    ],
+    "findings": []
+  },
+  "rag_rules-parallel-r2": {
+    "answer_sha256": "a9fbc5e34cd6796c3936eeb013f5be441c195191abe6aff51ba6419df2ed436c",
+    "requirements": [
+      [
+        "material",
+        "partial",
+        "说明Writer只看选中的逐字证据；遗漏冻结要点内的切片overlap/结构。该细节是否应为必要项存在契约粒度问题，原口径保留partial，不能称为无法回答主问题"
+      ],
+      [
+        "roles",
+        "met",
+        "模型与程序职责正确"
+      ],
+      [
+        "audit",
+        "met",
+        "原始回答与调用来源记录约束正确"
+      ]
+    ],
+    "findings": []
+  },
+  "backup_check-parallel-r2": {
+    "answer_sha256": "dc049eba0c7c98fbdf928f7664b01e73551b0617e6eeb5bf81a4f775e3eb3e13",
+    "requirements": [
+      [
+        "behavior",
+        "partial",
+        "不会覆盖的结论正确，但机制及返回行为均编造"
+      ],
+      [
+        "proof",
+        "unmet",
+        "不存在create_backup或os.path.exists检查；验证方法依赖不存在函数和False返回"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "material",
+        "quote": "在 create_backup 函数中，使用 os.path.exists 检查目标文件是否存在，如果存在则直接返回",
+        "reason": "实际函数write_backup_exclusive调用os.link排他创建，目标存在时抛FileExistsError，finally清理暂存文件",
+        "impact": "编造代码依据和验证方法，不能作为有效代码检查报告"
+      }
+    ]
+  }
+}

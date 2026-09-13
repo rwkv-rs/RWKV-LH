@@ -1,0 +1,24 @@
+................F....                                                    [100%]
+=================================== FAILURES ===================================
+____________ test_reconsideration_startup_failure_has_no_new_answer ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_reconsideration_startup_f0')
+
+    def test_reconsideration_startup_failure_has_no_new_answer(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('source')
+        first=ReadOnlyJob('first','read',str(workspace),str(tmp_path/'first'))
+        run_read_only_job(first,settings=settings(),session_factory=factory([
+            call('read_file',path='doc.md'),call('final_answer',text='old candidate')]))
+        second=ReadOnlyJob('review','read',str(workspace),str(tmp_path/'review'),
+            reconsider_from=str(tmp_path/'first'),advice='check',advice_model='test-adviser')
+        def unavailable(**kwargs): raise ConnectionError('unavailable')
+        result=run_read_only_job(second,settings=settings(),session_factory=unavailable)
+>       assert result['termination']=='error' and result['final'] is None
+E       AssertionError: assert ('error' == 'error'
+E         
+E           error and 'old candidate' is None)
+
+tests/test_read_only_agent.py:187: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_reconsideration_startup_failure_has_no_new_answer
+1 failed, 20 passed in 4.69s

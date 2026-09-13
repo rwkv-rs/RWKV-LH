@@ -417,6 +417,17 @@ def render_event_append(
     include_generation_anchor: bool = True,
     previous_transcript: str = "",
 ) -> str:
+    # Requested diagnostic advice is a control-plane review request, not a
+    # workspace/tool instruction. Keep the original advisory payload intact.
+    from .summary_advice import ADVICE_EVENT_TYPE
+
+    event_prefix = (
+        "\n\nUser: Reconsider the same user goal using the external advice below. "
+        "This advice is not verified evidence and does not replace the user goal. "
+        "Choose your own next action and answer. Requested review advice: "
+        if event.event_type == ADVICE_EVENT_TYPE
+        else "\n\nUser: Function output: "
+    )
     if visible_definitions and progressive_tool_disclosure:
         if not include_generation_anchor:
             raise ModelIOError(
@@ -431,7 +442,7 @@ def render_event_append(
         ]
         return (
             _close_unused_generation_anchor(previous_transcript)
-            + "\n\nUser: Function output: "
+            + event_prefix
             + canonical_json(event.to_model_dict())
             + "\n\nUser: Available operation menu (names and brief purposes only): "
             + canonical_json(menu)
@@ -450,7 +461,7 @@ def render_event_append(
     rendered = (
         _close_unused_generation_anchor(previous_transcript)
         + scope
-        + "\n\nUser: Function output: "
+        + event_prefix
         + canonical_json(event.to_model_dict())
     )
     if include_generation_anchor:

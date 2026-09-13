@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "backup_check-parallel-r2",
+  "task_id": "backup_check",
+  "arm": "parallel",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "6fba835d3c0d7b0b29848369989800466f8c0ac6e1317d5ea8b2ceb5ff3752f5",
+  "run_sha256": "b4c632f9776c332c26a0e89479b793b7e61975e76c5e9c69bfd4174256699f46",
+  "review_sha256": "2966a3df8b5c50163717f9e118b809901e85ac23ad170df4e76f7c6ded488d52",
+  "execution_identity_sha256": "22a46d3ca70847b7fe21be883caf6a5e87a81c6e27e0a6e1aa6a9f101e7f2d40",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "behavior",
+      "status": "partial",
+      "reason": "不会覆盖的结论正确，但机制及返回行为均编造",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "proof",
+      "status": "unmet",
+      "reason": "不存在create_backup或os.path.exists检查；验证方法依赖不存在函数和False返回",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "在 create_backup 函数中，使用 os.path.exists 检查目标文件是否存在，如果存在则直接返回",
+      "reason": "实际函数write_backup_exclusive调用os.link排他创建，目标存在时抛FileExistsError，finally清理暂存文件",
+      "impact": "编造代码依据和验证方法，不能作为有效代码检查报告",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、原文及实际调用保留；系统或模型失败不排除分母",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "按实际输出与终止记录描述，不推断输入复杂度的因果效果",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3746,
+    "output_tokens": 1990,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

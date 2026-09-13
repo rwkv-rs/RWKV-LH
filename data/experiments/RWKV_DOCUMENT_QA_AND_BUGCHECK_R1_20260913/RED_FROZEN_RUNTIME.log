@@ -1,0 +1,442 @@
+FFF..FFFFFFFF                                                            [100%]
+=================================== FAILURES ===================================
+___ test_agent_reads_and_exports_verbatim_material_without_rewriting_answer ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_agent_reads_and_exports_v0')
+
+    def test_agent_reads_and_exports_verbatim_material_without_rewriting_answer(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('原文：健康检查不证明事务。')
+        job=ReadOnlyJob('one','阅读 doc.md 并回答其用途',str(workspace),str(tmp_path/'run'),max_calls=3)
+>       result=run_read_only_job(job,settings=settings(),session_factory=factory([
+            call('read_file',path='doc.md'),call('final_answer',text='原始回答，不由程序修饰。')]))
+
+tests/test_read_only_agent.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e434897380>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+___ test_read_only_scope_hides_mutations_and_rejects_attempt_without_writing ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_read_only_scope_hides_mut0')
+
+    def test_read_only_scope_hides_mutations_and_rejects_attempt_without_writing(tmp_path):
+        names={d['name'] for d in ReadOnlyHarness().g1i_tool_definitions()}
+        assert 'read_file' in names and 'write_file' not in names
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('one','只读检查',str(workspace),str(tmp_path/'run'),max_calls=2)
+>       result=run_read_only_job(job,settings=settings(),session_factory=factory([
+            call('write_file',path='bad.txt',content='bad'),call('final_answer',text='未写入')]))
+
+tests/test_read_only_agent.py:33: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e434774410>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_ test_budget_never_requests_forced_final_and_output_directory_is_not_overwritten _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_budget_never_requests_for0')
+
+    def test_budget_never_requests_forced_final_and_output_directory_is_not_overwritten(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('source')
+        job=ReadOnlyJob('one','阅读并回答',str(workspace),str(tmp_path/'run'),max_calls=1)
+>       result=run_read_only_job(job,settings=settings(),session_factory=factory([call('read_file',path='doc.md')]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e4347751d0>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_______ test_session_startup_failure_is_saved_as_error_without_delivery ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_session_startup_failure_i0')
+
+    def test_session_startup_failure_is_saved_as_error_without_delivery(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('offline','read',str(workspace),str(tmp_path/'run'))
+        def unavailable(**kwargs):
+            raise ConnectionError('service unavailable')
+>       result=run_read_only_job(job,settings=settings(),session_factory=unavailable)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+kwargs = {'settings': RuntimeSettings(base_url='http://127.0.0.1:1/v1', api_key='', model='test-rwkv', model_sha256='', backend...256='', state_profile_delivery='request'), 'audit_hook': <function run_read_only_job.<locals>.audit at 0x77e434683920>}
+
+    def unavailable(**kwargs):
+>       raise ConnectionError('service unavailable')
+E       ConnectionError: service unavailable
+
+tests/test_read_only_agent.py:77: ConnectionError
+______ test_invalid_resource_budget_rejected_before_creating_run[True-1] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r0')
+calls = True, seconds = 1
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+>           run_read_only_job(job,settings=settings(),session_factory=factory([]))
+
+tests/test_read_only_agent.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e43460a2c0>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_______ test_invalid_resource_budget_rejected_before_creating_run[1.5-1] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r1')
+calls = 1.5, seconds = 1
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+>           run_read_only_job(job,settings=settings(),session_factory=factory([]))
+
+tests/test_read_only_agent.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e43489dba0>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_______ test_invalid_resource_budget_rejected_before_creating_run[1-inf] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r2')
+calls = 1, seconds = inf
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+>           run_read_only_job(job,settings=settings(),session_factory=factory([]))
+
+tests/test_read_only_agent.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e43470e8d0>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_______ test_invalid_resource_budget_rejected_before_creating_run[1-nan] _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_invalid_resource_budget_r3')
+calls = 1, seconds = nan
+
+    @pytest.mark.parametrize('calls,seconds',[(True,1),(1.5,1),(1,float('inf')),(1,float('nan'))])
+    def test_invalid_resource_budget_rejected_before_creating_run(tmp_path,calls,seconds):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('bad','read',str(workspace),str(tmp_path/'run'),max_calls=calls,max_seconds=seconds)
+        with pytest.raises(ValueError):
+>           run_read_only_job(job,settings=settings(),session_factory=factory([]))
+
+tests/test_read_only_agent.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e43478ee00>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+_____ test_file_scope_rejects_search_but_model_can_recover_and_choose_read _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_file_scope_rejects_search0')
+
+    def test_file_scope_rejects_search_but_model_can_recover_and_choose_read(tmp_path):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('actual source')
+>       job=ReadOnlyJob('files','阅读 doc.md',str(workspace),str(tmp_path/'run'),max_calls=3,tool_scope='files')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ReadOnlyJob.__init__() got an unexpected keyword argument 'tool_scope'
+
+tests/test_read_only_agent.py:95: TypeError
+__________________ test_wall_budget_includes_session_startup ___________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_wall_budget_includes_sess0')
+
+    def test_wall_budget_includes_session_startup(tmp_path):
+        import time
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        job=ReadOnlyJob('slow','read',str(workspace),str(tmp_path/'run'),max_seconds=.02)
+        def slow(**kwargs):
+            time.sleep(.08)
+            return factory([call('final_answer',text='late')])(**kwargs)
+>       result=run_read_only_job(job,settings=settings(),session_factory=slow)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e43478f680>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+___________ test_trace_write_failure_prevents_unrecorded_generation ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_trace_write_failure_preve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77e43486d310>
+
+    def test_trace_write_failure_prevents_unrecorded_generation(tmp_path,monkeypatch):
+        workspace=tmp_path/'workspace';workspace.mkdir()
+        original=Path.open
+        def open_file(path,mode='r',*args,**kwargs):
+            if path.name=='model_trace.jsonl' and mode=='a':
+                raise OSError('trace disk unavailable')
+            return original(path,mode,*args,**kwargs)
+        monkeypatch.setattr(Path,'open',open_file)
+        job=ReadOnlyJob('trace','read',str(workspace),str(tmp_path/'run'))
+>       result=run_read_only_job(job,settings=settings(),session_factory=factory([call('final_answer',text='unrecorded')]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_read_only_agent.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/read_only_agent.py:82: in run_read_only_job
+    model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:294: in __init__
+    self._max_disclosure_tokens = max(
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/model.py:295: in <genexpr>
+    get_token_count(render_tool_disclosure(item))
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:20: in get_token_count
+    return len(tokenizer().encode(str(text or ""))) if text else 0
+               ^^^^^^^^^^^
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/token_budget.py:16: in tokenizer
+    return RWKVTokenizer(str(VOCAB_PATH))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.tokenizer.RWKVTokenizer object at 0x77e4346b6850>
+file_name = '/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt'
+
+    def __init__(self, file_name: str | Path | None = None):
+        vocab_path = (
+            Path(file_name)
+            if file_name is not None
+            else Path(__file__).resolve().parent / "data" / "rwkv_vocab_v20230424.txt"
+        )
+        if not vocab_path.is_file():
+>           raise FileNotFoundError(f"RWKV vocabulary not found: {vocab_path}")
+E           FileNotFoundError: RWKV vocabulary not found: /home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/data/rwkv_vocab_v20230424.txt
+
+data/experiments/RWKV_DOCUMENT_QA_AND_BUGCHECK_R1_20260913/source/rwkv_lh/tokenizer.py:59: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_agent_reads_and_exports_verbatim_material_without_rewriting_answer
+FAILED tests/test_read_only_agent.py::test_read_only_scope_hides_mutations_and_rejects_attempt_without_writing
+FAILED tests/test_read_only_agent.py::test_budget_never_requests_forced_final_and_output_directory_is_not_overwritten
+FAILED tests/test_read_only_agent.py::test_session_startup_failure_is_saved_as_error_without_delivery
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[True-1]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1.5-1]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1-inf]
+FAILED tests/test_read_only_agent.py::test_invalid_resource_budget_rejected_before_creating_run[1-nan]
+FAILED tests/test_read_only_agent.py::test_file_scope_rejects_search_but_model_can_recover_and_choose_read
+FAILED tests/test_read_only_agent.py::test_wall_budget_includes_session_startup
+FAILED tests/test_read_only_agent.py::test_trace_write_failure_prevents_unrecorded_generation
+11 failed, 2 passed in 0.40s

@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "rag_overview-mixed-r1",
+  "task_id": "rag_overview",
+  "arm": "mixed",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "fc4d29dd4a641fd319d1c3b1747a4726a665e7c8c587b21e1bc5f9a07369f44f",
+  "run_sha256": "bee5e931270684884fc6bde90c0eed14dcdc5906c40075e40f86fca184a0605b",
+  "review_sha256": "f8b402d17ad191b96fe96e891d50c6f373d8407975f4396a0eac22523aeda8aa",
+  "execution_identity_sha256": "558aa9b243ddca434aee213d7ad28b904d76503aa15fbfe2f3692924d6f0c8f9",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "strong_advised",
+  "requirement_results": [
+    {
+      "id": "stack",
+      "status": "met",
+      "reason": "模型、BM25与无embedding正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "受控实验边界基本正确，但Writer实验分数错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "300/1000",
+      "reason": "Writer300是候选标签；原文实际17/36，对照zero10/36",
+      "impact": "改变所询问实验的实际结果",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务、实际来源与输入输出齐全；失败保留分母",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "描述实际回答及工具记录，不断言提示词或State内部数值是根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 1,
+    "input_tokens": 4049,
+    "output_tokens": 286,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

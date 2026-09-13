@@ -1,0 +1,28 @@
+.............F.                                                          [100%]
+=================================== FAILURES ===================================
+____ test_requested_advice_preserves_parent_answer_and_continues_its_state _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_requested_advice_preserve0')
+
+    def test_requested_advice_preserves_parent_answer_and_continues_its_state(tmp_path):
+        from rwkv_lh.schema import RunState
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'doc.md').write_text('original evidence')
+        request='阅读 doc.md 并回答'
+        first=ReadOnlyJob('first',request,str(workspace),str(tmp_path/'first'))
+        run_read_only_job(first,settings=settings(),session_factory=factory([
+            call('read_file',path='doc.md'),call('final_answer',text='original candidate')]))
+        original=(tmp_path/'first/RESULT.json').read_bytes()
+        before=RunState.from_dict(json.loads((tmp_path/'first/state_snapshot.json').read_text()))
+        second=ReadOnlyJob('review',request,str(workspace),str(tmp_path/'review'),
+            reconsider_from=str(tmp_path/'first'),advice='核对原文，不猜测。',advice_model='test-adviser')
+        result=run_read_only_job(second,settings=settings(),session_factory=factory([call('final_answer',text='RWKV revised answer')]))
+>       assert result['final']=='RWKV revised answer' and result['assistance']=='strong_advised'
+E       AssertionError: assert ('original candidate' == 'RWKV revised answer'
+E         
+E         - RWKV revised answer
+E         + original candidate)
+
+tests/test_read_only_agent.py:143: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_read_only_agent.py::test_requested_advice_preserves_parent_answer_and_continues_its_state
+1 failed, 14 passed in 3.24s
