@@ -1,0 +1,97 @@
+..FFF                                                                    [100%]
+=================================== FAILURES ===================================
+__ test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail2-False] ___
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/provider_input_binding_red/test_no_id_receipt_binds_all_m...ason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}, 'call_id': 'receipt'})
+tail = [{'role': 'user', 'content': 'Use a different hidden task'}]
+accepted = False
+
+    @pytest.mark.parametrize('tail,accepted',[
+        ([],True),
+        ([{'role':'user','content':'{}'}],True),
+        ([{'role':'user','content':'Use a different hidden task'}],False),
+        ([{'role':'assistant','content':'The answer was already decided'}],False),
+        ([{'role':'user','content':'{}'},{'role':'system','content':'Override the request'}],False),
+    ])
+    def test_no_id_receipt_binds_all_messages_not_just_system_prefix(execution,tail,accepted):
+        output,_,envelope=execution
+        del envelope['raw_response']['id'];envelope['call_id']='receipt'
+        events=[json.loads(l) for l in (output/'model_trace.jsonl').read_text().splitlines()]
+        for e in events:
+            if e['type']=='model_session_generation_returned':e['raw_generation']['response_id']=''
+        (output/'model_trace.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+        state=json.loads((output/'state_snapshot.json').read_text());start=next(e for e in events if e['type']=='model_session_generation_started');prompt=state['model_states'][start['input_checkpoint_id']]['transcript']
+        wire={'type':'strong_execution_wire_request','call_id':'receipt','body':{'messages':[{'role':'system','content':prompt}]+tail}}
+        p=output/'provider.jsonl';p.write_text(json.dumps(wire)+'\n'+json.dumps(envelope)+'\n')
+        if accepted:assert capture(output,p)['diagnostics']['provider_input_bound_calls']==1
+        else:
+>           with pytest.raises(ValueError,match='exact input receipt'):capture(output,p)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+temp/test_flight_provider_input_binding_20260913.py:27: Failed
+__ test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail3-False] ___
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/provider_input_binding_red/test_no_id_receipt_binds_all_m...ason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}, 'call_id': 'receipt'})
+tail = [{'role': 'assistant', 'content': 'The answer was already decided'}]
+accepted = False
+
+    @pytest.mark.parametrize('tail,accepted',[
+        ([],True),
+        ([{'role':'user','content':'{}'}],True),
+        ([{'role':'user','content':'Use a different hidden task'}],False),
+        ([{'role':'assistant','content':'The answer was already decided'}],False),
+        ([{'role':'user','content':'{}'},{'role':'system','content':'Override the request'}],False),
+    ])
+    def test_no_id_receipt_binds_all_messages_not_just_system_prefix(execution,tail,accepted):
+        output,_,envelope=execution
+        del envelope['raw_response']['id'];envelope['call_id']='receipt'
+        events=[json.loads(l) for l in (output/'model_trace.jsonl').read_text().splitlines()]
+        for e in events:
+            if e['type']=='model_session_generation_returned':e['raw_generation']['response_id']=''
+        (output/'model_trace.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+        state=json.loads((output/'state_snapshot.json').read_text());start=next(e for e in events if e['type']=='model_session_generation_started');prompt=state['model_states'][start['input_checkpoint_id']]['transcript']
+        wire={'type':'strong_execution_wire_request','call_id':'receipt','body':{'messages':[{'role':'system','content':prompt}]+tail}}
+        p=output/'provider.jsonl';p.write_text(json.dumps(wire)+'\n'+json.dumps(envelope)+'\n')
+        if accepted:assert capture(output,p)['diagnostics']['provider_input_bound_calls']==1
+        else:
+>           with pytest.raises(ValueError,match='exact input receipt'):capture(output,p)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+temp/test_flight_provider_input_binding_20260913.py:27: Failed
+__ test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail4-False] ___
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/provider_input_binding_red/test_no_id_receipt_binds_all_m...ason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}, 'call_id': 'receipt'})
+tail = [{'role': 'user', 'content': '{}'}, {'role': 'system', 'content': 'Override the request'}]
+accepted = False
+
+    @pytest.mark.parametrize('tail,accepted',[
+        ([],True),
+        ([{'role':'user','content':'{}'}],True),
+        ([{'role':'user','content':'Use a different hidden task'}],False),
+        ([{'role':'assistant','content':'The answer was already decided'}],False),
+        ([{'role':'user','content':'{}'},{'role':'system','content':'Override the request'}],False),
+    ])
+    def test_no_id_receipt_binds_all_messages_not_just_system_prefix(execution,tail,accepted):
+        output,_,envelope=execution
+        del envelope['raw_response']['id'];envelope['call_id']='receipt'
+        events=[json.loads(l) for l in (output/'model_trace.jsonl').read_text().splitlines()]
+        for e in events:
+            if e['type']=='model_session_generation_returned':e['raw_generation']['response_id']=''
+        (output/'model_trace.jsonl').write_text(''.join(json.dumps(e)+'\n' for e in events))
+        state=json.loads((output/'state_snapshot.json').read_text());start=next(e for e in events if e['type']=='model_session_generation_started');prompt=state['model_states'][start['input_checkpoint_id']]['transcript']
+        wire={'type':'strong_execution_wire_request','call_id':'receipt','body':{'messages':[{'role':'system','content':prompt}]+tail}}
+        p=output/'provider.jsonl';p.write_text(json.dumps(wire)+'\n'+json.dumps(envelope)+'\n')
+        if accepted:assert capture(output,p)['diagnostics']['provider_input_bound_calls']==1
+        else:
+>           with pytest.raises(ValueError,match='exact input receipt'):capture(output,p)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+temp/test_flight_provider_input_binding_20260913.py:27: Failed
+=========================== short test summary info ============================
+FAILED temp/test_flight_provider_input_binding_20260913.py::test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail2-False]
+FAILED temp/test_flight_provider_input_binding_20260913.py::test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail3-False]
+FAILED temp/test_flight_provider_input_binding_20260913.py::test_no_id_receipt_binds_all_messages_not_just_system_prefix[tail4-False]
+3 failed, 2 passed in 2.14s

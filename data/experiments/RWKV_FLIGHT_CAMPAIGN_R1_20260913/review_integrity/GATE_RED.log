@@ -1,0 +1,32 @@
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets[source] ____
+
+bundle = ({'schema': 'rwkv-lh.task-review-contract.v1', 'task_id': 'health', 'user_request': '找到健康检查脚本，说明主要用途。', 'kind': 'task_...osixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_group_identity_red/test_distinct_tasks_can_have_d0'))
+field = 'source'
+
+    @pytest.mark.parametrize('field',['source','budget'])
+    def test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets(bundle,field):
+        result=review.quality_gate(grid(bundle,field),task_ids=['health','another-file'],repeats=2,arm='zero')
+        assert result['complete_grid']
+>       assert result['consistent_identity_and_contract']
+E       assert False
+
+temp/test_flight_review_group_identity_20260913.py:29: AssertionError
+___ test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets[budget] ____
+
+bundle = ({'schema': 'rwkv-lh.task-review-contract.v1', 'task_id': 'health', 'user_request': '找到健康检查脚本，说明主要用途。', 'kind': 'task_...osixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_group_identity_red/test_distinct_tasks_can_have_d1'))
+field = 'budget'
+
+    @pytest.mark.parametrize('field',['source','budget'])
+    def test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets(bundle,field):
+        result=review.quality_gate(grid(bundle,field),task_ids=['health','another-file'],repeats=2,arm='zero')
+        assert result['complete_grid']
+>       assert result['consistent_identity_and_contract']
+E       assert False
+
+temp/test_flight_review_group_identity_20260913.py:29: AssertionError
+=========================== short test summary info ============================
+FAILED temp/test_flight_review_group_identity_20260913.py::test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets[source]
+FAILED temp/test_flight_review_group_identity_20260913.py::test_distinct_tasks_can_have_distinct_frozen_inputs_and_budgets[budget]
+2 failed, 1 passed in 0.17s

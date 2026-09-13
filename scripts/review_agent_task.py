@@ -28,6 +28,8 @@ def main(argv=None):
         if args.operation == 'capture':
             options = dict(value)
             options['directory'] = path('directory')
+            if options.get('provider_trace') is not None:
+                options['provider_trace'] = path('provider_trace')
             result = review.capture_diagnostic_run(**options)
         elif args.operation in ('packet', 'assess'):
             contract = review.load_contract(path('contract'))

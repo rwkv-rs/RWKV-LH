@@ -1,0 +1,54 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_capture_cli_resolves_provider_path_relative_to_job_file[False] ______
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov0/e...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov0')
+absolute_provider = False
+
+    @pytest.mark.parametrize('absolute_provider',[False,True])
+    def test_capture_cli_resolves_provider_path_relative_to_job_file(execution,tmp_path,absolute_provider):
+        output,_,envelope=execution
+        (output/'provider.jsonl').write_text(json.dumps(envelope)+'\n')
+        job_dir=tmp_path/'jobs';job_dir.mkdir()
+        job={'directory':'../execution','provider_trace':'../execution/provider.jsonl','task_id':'strong','arm':'takeover','repeat':1,'protocol_error_policy':'feedback','execution_identity':{k:review.digest(k) for k in review.IDENTITY_KEYS},'historical':False,'assistance':'strong_takeover'}
+        if absolute_provider:job['provider_trace']=str(output/'provider.jsonl')
+        (job_dir/'capture.json').write_text(json.dumps(job))
+        cwd=tmp_path/'different-cwd'/'nested';cwd.mkdir(parents=True)
+        script=Path(__file__).resolve().parents[1]/'scripts/review_agent_task.py'
+        result=subprocess.run([sys.executable,str(script),'capture','--input',str(job_dir/'capture.json'),'--output',str(job_dir/'run.json')],cwd=cwd,capture_output=True,text=True)
+>       assert result.returncode==0,result.stderr
+E       AssertionError: review rejected: provider token usage evidence must be inside the run directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/home/chase/GitHub/RWKV-LH/.venv/bin/python', '/home/chase/GitHub/RWKV-LH/scripts/review_agent...], returncode=2, stdout='', stderr='review rejected: provider token usage evidence must be inside the run directory\n').returncode
+
+temp/test_flight_review_capture_cli_20260913.py:20: AssertionError
+______ test_capture_cli_resolves_provider_path_relative_to_job_file[True] ______
+
+execution = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov1/e...swer."}}'}, 'finish_reason': 'stop'}], 'usage': {'prompt_tokens': 123, 'completion_tokens': 45, 'total_tokens': 168}}})
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov1')
+absolute_provider = True
+
+    @pytest.mark.parametrize('absolute_provider',[False,True])
+    def test_capture_cli_resolves_provider_path_relative_to_job_file(execution,tmp_path,absolute_provider):
+        output,_,envelope=execution
+        (output/'provider.jsonl').write_text(json.dumps(envelope)+'\n')
+        job_dir=tmp_path/'jobs';job_dir.mkdir()
+        job={'directory':'../execution','provider_trace':'../execution/provider.jsonl','task_id':'strong','arm':'takeover','repeat':1,'protocol_error_policy':'feedback','execution_identity':{k:review.digest(k) for k in review.IDENTITY_KEYS},'historical':False,'assistance':'strong_takeover'}
+        if absolute_provider:job['provider_trace']=str(output/'provider.jsonl')
+        (job_dir/'capture.json').write_text(json.dumps(job))
+        cwd=tmp_path/'different-cwd'/'nested';cwd.mkdir(parents=True)
+        script=Path(__file__).resolve().parents[1]/'scripts/review_agent_task.py'
+        result=subprocess.run([sys.executable,str(script),'capture','--input',str(job_dir/'capture.json'),'--output',str(job_dir/'run.json')],cwd=cwd,capture_output=True,text=True)
+>       assert result.returncode==0,result.stderr
+E       AssertionError: review rejected: '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov1/execution/provider.jsonl' is not in the subpath of '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov1/jobs/../execution'
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/home/chase/GitHub/RWKV-LH/.venv/bin/python', '/home/chase/GitHub/RWKV-LH/scripts/review_agent...ase/GitHub/RWKV-LH/data/test_runs/pytest/review_capture_cli_red2/test_capture_cli_resolves_prov1/jobs/../execution'\n").returncode
+
+temp/test_flight_review_capture_cli_20260913.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED temp/test_flight_review_capture_cli_20260913.py::test_capture_cli_resolves_provider_path_relative_to_job_file[False]
+FAILED temp/test_flight_review_capture_cli_20260913.py::test_capture_cli_resolves_provider_path_relative_to_job_file[True]
+2 failed in 1.68s

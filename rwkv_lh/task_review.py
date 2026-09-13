@@ -240,11 +240,13 @@ def quality_gate(assessments: Sequence[dict], *, task_ids: Sequence[str], repeat
     keys = [(r["task_id"], r["repeat"]) for r in items]
     wanted = {(task, repeat) for task in task_ids for repeat in range(1, repeats + 1)}
     complete = len(keys) == len(set(keys)) and set(keys) == wanted
-    consistent = len({r["execution_identity_sha256"] for r in items}) == 1
+    identities = defaultdict(set)
     contracts = defaultdict(set)
     for r in items:
+        identities[r["task_id"]].add(r["execution_identity_sha256"])
         contracts[r["task_id"]].add(r["contract_sha256"])
-    consistent = consistent and all(len(v) == 1 for v in contracts.values())
+    consistent = (all(len(v) == 1 for v in identities.values())
+                  and all(len(v) == 1 for v in contracts.values()))
     return {"passed": bool(complete and consistent and all(r["outcome"] == "met" and r["eligible_for_gain"] for r in items)),
         "complete_grid": complete, "consistent_identity_and_contract": consistent,
         "scope": sorted({r["scope"] for r in items}),
@@ -332,8 +334,12 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
             matches = []
             for call_id, candidate_response in unidentified_responses:
                 messages = wire_requests.get(call_id, {}).get("messages", [])
-                if (isinstance(prompt, str) and messages
-                        and messages[0] == {"role": "system", "content": prompt}):
+                expected = [{"role": "system", "content": prompt}]
+                # This execution adapter carries the entire production input in
+                # the system message, with at most its empty JSON user envelope.
+                # Matching only a prefix would accept unrelated later context.
+                if (isinstance(prompt, str) and messages in (
+                        expected, expected + [{"role": "user", "content": "{}"}])):
                     matches.append((call_id, candidate_response))
             _require(len(matches) == 1 and matches[0][0] not in consumed_receipts,
                      "provider token usage requires a unique exact input receipt")
@@ -370,7 +376,7 @@ def capture_diagnostic_run(directory: Path, *, task_id: str, arm: str, repeat: i
     files.extend(sorted(p for p in (directory / "workspace").rglob("*") if p.is_file()))
     for index, path in enumerate(files):
         _require(not path.is_symlink() and path.resolve().is_relative_to(directory.resolve()), "unsafe evidence path")
-        evidence.append({"id": f"E{index + 1}", "path": path.relative_to(directory).as_posix(),
+        evidence.append({"id": f"E{index + 1}", "path": path.resolve().relative_to(directory.resolve()).as_posix(),
             "sha256": file_digest(path), "kind": "source" if path.is_relative_to(directory / "workspace") else "trace"})
     feedback = set()
     state_path = directory / "state_snapshot.json"
