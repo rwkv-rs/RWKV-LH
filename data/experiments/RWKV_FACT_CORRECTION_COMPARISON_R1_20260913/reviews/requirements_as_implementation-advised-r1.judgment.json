@@ -1,0 +1,83 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "ba88479048064211a6bf9c0fc8b191b7af6e32775b8f7b23418e2d47e10069f7",
+  "run_sha256": "b6368a8ad1a56d3886ef45a160e22c1b921e20f80b59bb5739690ddfc4d42aaf",
+  "reviewer": "Codex external original source, parent and actual continuation review",
+  "validity": "valid",
+  "validity_reason": "冻结输入/任务、父State、真实观察与原始答案可复核",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "met",
+      "reason": "健康200、其他GET501及业务未实现均已纠正",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "met",
+      "reason": "必填解析但未使用、无数据库持久化明确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "met",
+      "reason": "已读取与无实测分开；结合已列HTTP状态及检查stub/数据库无生成的建议，足以复核核心差距，不要求固定模板或命令",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "未列实际工具操作",
+      "reason": "被复制的建议误评原候选；原候选首句已说读取两文件，本次也如实报告",
+      "impact": "不影响修订的源码核心结论，保留建议复述造成的瑕疵",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "评价实际修订；不以建议正确或提交动作替代任务验收",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}

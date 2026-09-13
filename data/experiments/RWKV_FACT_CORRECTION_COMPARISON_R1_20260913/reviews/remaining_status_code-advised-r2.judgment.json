@@ -1,0 +1,97 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "06f413bbadba5515305ef85c6e2b10c452c07c522970b1d630407811348d377b",
+  "run_sha256": "7a6923915391fa83d124419b33e930c32e45f54d6c4eb30f5e628504222cf666",
+  "reviewer": "Codex external original source, parent and actual continuation review",
+  "validity": "valid",
+  "validity_reason": "冻结输入/任务、父State、真实观察与原始答案可复核",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "partial",
+      "reason": "健康200与业务未实现正确，但非health的404错误未改",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "met",
+      "reason": "未使用和无数据库操作仍正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "读取与未运行区分且新增验证建议，但来源泛化错误残留，第二遍验证预期也错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "其他路由返回 404",
+      "reason": "源码其他GET返回501；建议也明确指出了这一点",
+      "impact": "核心实际HTTP状态码未纠正，第二遍还传播到验证预期",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "JSON 响应、路由规则等均未在 server.py 中实现",
+      "reason": "健康和其他GET都有JSON响应，不能将业务缺失泛化为全部JSON缺失",
+      "impact": "末尾自相矛盾仍保留",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "评价实际修订；不以建议正确或提交动作替代任务验收",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "94f85f449e32ace1497c9d449ba71ebfb53012873c1adf690d96f4299342f877",
+  "run_sha256": "26136019e94144c049e3ef8b901b3554c243f1023d44f86a54563c2e62184389",
+  "reviewer": "Codex external original source, parent and actual continuation review",
+  "validity": "valid",
+  "validity_reason": "冻结输入/任务、父State、真实观察与原始答案可复核",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "numbers",
+      "status": "met",
+      "reason": "标签及原分数与对象仍正确；等价百分比不算改写成绩",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "受控边界正确，但第一遍采纳无依据换算禁令，第二遍保留旧比较关系错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "minor",
+      "quote": "不能将 Reader 结果称为“准确率”并换算百分数",
+      "reason": "原任务保留原值、不推算未报告成绩，不等于禁止等价百分比；旧契约允许等义表达，不能因建议改变评分",
+      "impact": "关系错误已删，但增加了原文不支持的解释限制，保留部分满足",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "评价实际修订；不以建议正确或提交动作替代任务验收",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ]
+}
