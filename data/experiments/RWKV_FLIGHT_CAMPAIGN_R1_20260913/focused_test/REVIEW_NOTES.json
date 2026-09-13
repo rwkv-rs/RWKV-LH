@@ -1,0 +1,130 @@
+{
+  "case-a-focused-r1": {
+    "validity": "valid",
+    "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+    "requirements": [
+      [
+        "execution",
+        "met",
+        "模型自主选择check_command及cwd=.，实际执行原指定脚本。"
+      ],
+      [
+        "report",
+        "met",
+        "实际执行原脚本且报告通过，与exit0和passed=true一致；夹具所在范围轻微不严谨单列。"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "minor",
+        "quote": "工作区中的三个文件",
+        "reason": "bottom.md/nested.md/top.md是公开脚本在临时目录生成的测试夹具；本次输出列出这些名称，不能证明工作区永久存在它们。",
+        "impact": "夹具位置措辞不严谨；本任务核心实际执行和通过结论正确，不要求解释脚本全貌。"
+      }
+    ],
+    "causes": [
+      {
+        "category": "model_behavior",
+        "certainty": "observed",
+        "reason": "实际执行原脚本且报告通过，与exit0和passed=true一致；夹具所在范围轻微不严谨单列。"
+      }
+    ]
+  },
+  "case-a-focused-r2": {
+    "validity": "valid",
+    "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+    "requirements": [
+      [
+        "execution",
+        "met",
+        "模型自主选择check_command及cwd=.，实际执行原指定脚本。"
+      ],
+      [
+        "report",
+        "met",
+        "实际执行原脚本且报告通过，与exit0和passed=true一致；夹具所在范围轻微不严谨单列。"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "minor",
+        "quote": "工作区中的三个文件",
+        "reason": "bottom.md/nested.md/top.md是公开脚本在临时目录生成的测试夹具；本次输出列出这些名称，不能证明工作区永久存在它们。",
+        "impact": "夹具位置措辞不严谨；本任务核心实际执行和通过结论正确，不要求解释脚本全貌。"
+      }
+    ],
+    "causes": [
+      {
+        "category": "model_behavior",
+        "certainty": "observed",
+        "reason": "实际执行原脚本且报告通过，与exit0和passed=true一致；夹具所在范围轻微不严谨单列。"
+      }
+    ]
+  },
+  "case-b-focused-r1": {
+    "validity": "valid",
+    "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+    "requirements": [
+      [
+        "execution",
+        "met",
+        "模型自主选择check_command及cwd=.，实际执行原指定脚本。"
+      ],
+      [
+        "report",
+        "partial",
+        "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "material",
+        "quote": "发生在 query 函数中 normalize(text) 调用处",
+        "reason": "同一源码行同时包含normalize、SQL及fetchmany，堆栈不支持此精确归因；实际默认limit转为-1传给fetchmany触发ValueError。",
+        "impact": "测试失败结论正确，但把根因定位到无证据的位置并据此给出修复方向，会误导后续检查。"
+      }
+    ],
+    "causes": [
+      {
+        "category": "model_behavior",
+        "certainty": "observed",
+        "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。"
+      }
+    ]
+  },
+  "case-b-focused-r2": {
+    "validity": "valid",
+    "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+    "requirements": [
+      [
+        "execution",
+        "met",
+        "模型自主选择check_command及cwd=.，实际执行原指定脚本。"
+      ],
+      [
+        "report",
+        "partial",
+        "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "material",
+        "quote": "发生在 query 函数中的 instr(search,?) > 0 条件",
+        "reason": "同一源码行同时包含normalize、SQL及fetchmany，堆栈不支持此精确归因；实际默认limit转为-1传给fetchmany触发ValueError。",
+        "impact": "测试失败结论正确，但把根因定位到无证据的位置并据此给出修复方向，会误导后续检查。"
+      }
+    ],
+    "causes": [
+      {
+        "category": "model_behavior",
+        "certainty": "observed",
+        "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。"
+      }
+    ]
+  }
+}

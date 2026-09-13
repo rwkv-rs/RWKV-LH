@@ -1,0 +1,126 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "1118439e5d91c135df3b88fefcf98cdbfe734a3cea703ec26c7b1c6695311f61",
+  "run_sha256": "439a69ae8e37a7f9cf21e553054fe656d56e70b5a216c8e0f2312e9c6dc0a658",
+  "reviewer": "Codex external frozen code-behavior and original execution report review",
+  "validity": "valid",
+  "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9",
+    "E10",
+    "E11",
+    "E12",
+    "E13",
+    "E14",
+    "E15",
+    "E16"
+  ],
+  "requirements": [
+    {
+      "id": "execution",
+      "status": "met",
+      "reason": "模型自主选择check_command及cwd=.，实际执行原指定脚本。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    },
+    {
+      "id": "report",
+      "status": "partial",
+      "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "发生在 query 函数中 normalize(text) 调用处",
+      "reason": "同一源码行同时包含normalize、SQL及fetchmany，堆栈不支持此精确归因；实际默认limit转为-1传给fetchmany触发ValueError。",
+      "impact": "测试失败结论正确，但把根因定位到无证据的位置并据此给出修复方向，会误导后续检查。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "case-b-focused-r2",
+  "task_id": "case-b",
+  "arm": "focused",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "1118439e5d91c135df3b88fefcf98cdbfe734a3cea703ec26c7b1c6695311f61",
+  "run_sha256": "73b8e55b5164433855e4ff7d55cf7a808398e9031e33a6bd61a5ec9d9c30fe09",
+  "review_sha256": "eef2244b21e0537e00b5c2d85512290df57dfcfdddb946a070536a166b77247e",
+  "execution_identity_sha256": "27744e0e0b547a831a642cd591b1001a1cb7ae70d34e465393312b1f2471bd0a",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "answer_submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "execution",
+      "status": "met",
+      "reason": "模型自主选择check_command及cwd=.，实际执行原指定脚本。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    },
+    {
+      "id": "report",
+      "status": "partial",
+      "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "发生在 query 函数中的 instr(search,?) > 0 条件",
+      "reason": "同一源码行同时包含normalize、SQL及fetchmany，堆栈不支持此精确归因；实际默认limit转为-1传给fetchmany触发ValueError。",
+      "impact": "测试失败结论正确，但把根因定位到无证据的位置并据此给出修复方向，会误导后续检查。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "validity_reason": "冻结的原脚本/目标/评分、zero State/生产源码/采样和预算；全部真实输入与State链核验；没有工作区修改。",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "实际失败及异常文本正确，但额外断言错误根因；不因缺少详细解释扣分，而因主动补出的误导事实。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 6456,
+    "output_tokens": 203,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 1
+  },
+  "eligible_for_gain": true
+}

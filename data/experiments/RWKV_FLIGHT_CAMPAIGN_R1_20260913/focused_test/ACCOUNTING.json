@@ -1,0 +1,165 @@
+{
+  "runs": [
+    {
+      "id": "case-a-focused-r1",
+      "arm": "focused",
+      "repeat": 1,
+      "outcome": "met",
+      "elapsed_seconds": 60.14240274904296,
+      "diagnostics": {
+        "model_calls": 2,
+        "input_tokens": 6344,
+        "output_tokens": 157,
+        "protocol_rejections": 0,
+        "feedback_consumed": 0,
+        "tool_errors": 0
+      },
+      "termination": "answer_submitted",
+      "commands": [
+        {
+          "action_id": "A00001",
+          "arguments": {
+            "argv": [
+              "python",
+              "check_recursive.py"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 0,
+          "success": true,
+          "output": "{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n",
+          "error": null
+        }
+      ],
+      "actions": {
+        "check_command": 1
+      }
+    },
+    {
+      "id": "case-a-focused-r2",
+      "arm": "focused",
+      "repeat": 2,
+      "outcome": "met",
+      "elapsed_seconds": 56.043812133022584,
+      "diagnostics": {
+        "model_calls": 2,
+        "input_tokens": 6344,
+        "output_tokens": 158,
+        "protocol_rejections": 0,
+        "feedback_consumed": 0,
+        "tool_errors": 0
+      },
+      "termination": "answer_submitted",
+      "commands": [
+        {
+          "action_id": "A00001",
+          "arguments": {
+            "argv": [
+              "python",
+              "check_recursive.py"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 0,
+          "success": true,
+          "output": "{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n",
+          "error": null
+        }
+      ],
+      "actions": {
+        "check_command": 1
+      }
+    },
+    {
+      "id": "case-b-focused-r1",
+      "arm": "focused",
+      "repeat": 1,
+      "outcome": "not_met",
+      "elapsed_seconds": 59.42975397000555,
+      "diagnostics": {
+        "model_calls": 2,
+        "input_tokens": 6456,
+        "output_tokens": 223,
+        "protocol_rejections": 0,
+        "feedback_consumed": 0,
+        "tool_errors": 1
+      },
+      "termination": "answer_submitted",
+      "commands": [
+        {
+          "action_id": "A00001",
+          "arguments": {
+            "argv": [
+              "python",
+              "test_query_limit.py"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "E\n======================================================================\nERROR: test_query_limit (__main__.LimitTests.test_query_limit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/workspace/test_query_limit.py\", line 19, in test_query_limit\n    self.assertEqual(query(db,'hello'),full)\n                     ~~~~~^^^^^^^^^^^^\n  File \"/workspace/document_index/query.py\", line 14, in query\n    rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\nValueError: value must be positive\n\n----------------------------------------------------------------------\nRan 1 test in 0.025s\n\nFAILED (errors=1)\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        }
+      ],
+      "actions": {
+        "check_command": 1
+      }
+    },
+    {
+      "id": "case-b-focused-r2",
+      "arm": "focused",
+      "repeat": 2,
+      "outcome": "not_met",
+      "elapsed_seconds": 57.110146846971475,
+      "diagnostics": {
+        "model_calls": 2,
+        "input_tokens": 6456,
+        "output_tokens": 203,
+        "protocol_rejections": 0,
+        "feedback_consumed": 0,
+        "tool_errors": 1
+      },
+      "termination": "answer_submitted",
+      "commands": [
+        {
+          "action_id": "A00001",
+          "arguments": {
+            "argv": [
+              "python",
+              "test_query_limit.py"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "E\n======================================================================\nERROR: test_query_limit (__main__.LimitTests.test_query_limit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/workspace/test_query_limit.py\", line 19, in test_query_limit\n    self.assertEqual(query(db,'hello'),full)\n                     ~~~~~^^^^^^^^^^^^\n  File \"/workspace/document_index/query.py\", line 14, in query\n    rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\nValueError: value must be positive\n\n----------------------------------------------------------------------\nRan 1 test in 0.025s\n\nFAILED (errors=1)\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        }
+      ],
+      "actions": {
+        "check_command": 1
+      }
+    }
+  ],
+  "state_checkpoint_ids_disjoint": true,
+  "workspaces_unchanged": true,
+  "strong_calls": 0
+}

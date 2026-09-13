@@ -1,0 +1,115 @@
+{
+  "items": [
+    {
+      "event": {
+        "event_type": "action_result",
+        "payload": {
+          "action_id": "A00001",
+          "operation": "check_command",
+          "explicit_arguments": {
+            "argv": [
+              "python",
+              "test_query_limit.py"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "result": {
+            "success": false,
+            "outcome_type": "nonzero",
+            "action_type": "check_command",
+            "exit_code": 1,
+            "error": {
+              "type": "CommandFailed",
+              "message": "exit code 1; expected 0"
+            },
+            "metadata": {
+              "expected_exit_code": 0,
+              "exit_code_matched": false,
+              "output_truncated": false,
+              "command_streams": {
+                "stdout": {
+                  "start_byte": 0,
+                  "end_byte": 0,
+                  "chars": 0,
+                  "bytes": 0,
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                "stderr": {
+                  "start_byte": 0,
+                  "end_byte": 772,
+                  "chars": 772,
+                  "bytes": 772,
+                  "sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d"
+                }
+              }
+            },
+            "observation": {
+              "schema_version": "rwkv-lh.observation-packet.v1",
+              "projection_version": "typed-lineage-observation-funnel.v1",
+              "operation": "check_command",
+              "adapter_registered": true,
+              "raw_result_sha256": "f54403211d7abcb58e9a5e7407933f74fd89b0141f37f5aa4218cfbbd44206a6",
+              "raw_output_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+              "raw_output_chars": 772,
+              "raw_output_bytes": 772,
+              "raw_result_persisted": true,
+              "summary_fact_authority": false,
+              "adapter": "command_streams",
+              "payload_kind": "exact_utf8_spans",
+              "fact_authority": "exit_code_and_exact_stream_spans",
+              "projection_complete": true
+            },
+            "command_streams": [
+              {
+                "stream": "stdout",
+                "stream_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stream_chars": 0,
+                "stream_bytes": 0,
+                "projection_complete": true,
+                "exact_spans": []
+              },
+              {
+                "stream": "stderr",
+                "stream_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+                "stream_chars": 772,
+                "stream_bytes": 772,
+                "projection_complete": true,
+                "exact_spans": [
+                  {
+                    "span_id": "OBS-SPAN-3672390e4baab4b8a1b9",
+                    "source_ref": "command:check_command:stderr",
+                    "snapshot_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+                    "start_byte": 0,
+                    "end_byte": 772,
+                    "start_line": 1,
+                    "end_line": 16,
+                    "content_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+                    "content": "E\n======================================================================\nERROR: test_query_limit (__main__.LimitTests.test_query_limit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/workspace/test_query_limit.py\", line 19, in test_query_limit\n    self.assertEqual(query(db,'hello'),full)\n                     ~~~~~^^^^^^^^^^^^\n  File \"/workspace/document_index/query.py\", line 14, in query\n    rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\nValueError: value must be positive\n\n----------------------------------------------------------------------\nRan 1 test in 0.025s\n\nFAILED (errors=1)\n",
+                    "selection_basis": "complete",
+                    "parent_chunk_id": "",
+                    "parent_chunk_sha256": ""
+                  }
+                ]
+              }
+            ]
+          },
+          "artifact_refs": [],
+          "artifact_revisions": [],
+          "workspace_digest_before": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "workspace_digest_after": "8518bb6cb2f916df8336da43341f6f7e2b323963aa1ab167e2a0ec9c4dfc0ac3",
+          "observation_fingerprint": "cfda075d6d8bbcc36a1ffd448d6c2b9f94c2ab8010983957cc41779b9ab5f0dc",
+          "identical_result_count": 1
+        },
+        "content_refs": [],
+        "complete": true
+      },
+      "event_id": "EV-ACTION-A00001",
+      "consumed_by_requests": [
+        "MR-3faf57d14ad54ff0"
+      ]
+    }
+  ]
+}
