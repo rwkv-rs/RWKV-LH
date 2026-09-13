@@ -1,0 +1,40 @@
+.........................FF                                              [100%]
+=================================== FAILURES ===================================
+______________ test_excluding_a_run_requires_registered_evidence _______________
+
+bundle = ({'schema': 'rwkv-lh.task-review-contract.v1', 'task_id': 'health', 'user_request': '找到健康检查脚本，说明主要用途。', 'kind': 'task_...xternal reviewer', ...}, PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_excluding_a_run_requires_0'))
+
+    def test_excluding_a_run_requires_registered_evidence(bundle):
+        bundle[2]['validity'] = 'invalid'
+        bundle[2]['validity_evidence_ids'] = []
+>       with pytest.raises(ValueError, match='evidence'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'evidence'
+E         Actual message: 'review fields differ'
+
+tests/test_task_review.py:227: AssertionError
+________ test_capture_requires_committed_final_and_explicit_attribution ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_capture_requires_committe0')
+
+    def test_capture_requires_committed_final_and_explicit_attribution(tmp_path):
+        import tarfile
+        root = Path(__file__).resolve().parents[1]
+        archive = root / 'data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/EVIDENCE.tar.gz'
+        with tarfile.open(archive) as tar:
+            for name in ('RESULT.json', 'model_trace.jsonl'):
+                member = next(m for m in tar.getmembers() if m.name.endswith('dev/smoke-readonly-r2/' + name))
+                (tmp_path / name).write_bytes(tar.extractfile(member).read())
+        args = dict(task_id='smoke', arm='readonly', repeat=2, protocol_error_policy='stop',
+                    execution_identity={k: review.digest(k) for k in review.IDENTITY_KEYS},
+                    historical=True, assistance='rwkv_independent')
+>       run = review.capture_diagnostic_run(tmp_path, **args)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: capture_diagnostic_run() got an unexpected keyword argument 'assistance'
+
+tests/test_task_review.py:242: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_task_review.py::test_excluding_a_run_requires_registered_evidence
+FAILED tests/test_task_review.py::test_capture_requires_committed_final_and_explicit_attribution
+2 failed, 25 passed in 4.48s

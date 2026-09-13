@@ -1,0 +1,111 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "smoke-readonly-r2",
+  "task_id": "smoke",
+  "arm": "readonly",
+  "repeat": 2,
+  "scope": "retrospective",
+  "contract_sha256": "a47782b0723f43109811fea4dcf6d8765ebdfa66a4da2838e910a04aefb3e7ca",
+  "run_sha256": "e0033c6eedba35294c0cc33eb1ee02ab34523c16989d7cc6a73b72128c481e46",
+  "review_sha256": "316923303211eb4c5e74deb6d194dbb1f74e3cab2e215a63ac192a010ea0ba5a",
+  "execution_identity_sha256": "1efa753bb3e0dbed2bb46221e6a95567fb555a72f7a7fdd23a5aad9192c3b4b4",
+  "outcome": "met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "location",
+      "status": "met",
+      "reason": "原文指出 verify_public.py",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "purpose",
+      "status": "met",
+      "reason": "说明 /health 成功检查的用途；不要求穷举断言",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "明确列出预约创建、冲突、幂等和持久化不被此检查证明",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "readonly",
+      "status": "met",
+      "reason": "真实轨迹仅目录、读取和最终提交",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "只做 /health 的 200 响应检查",
+      "reason": "脚本还断言 JSON ok 为 true；只做一词过强",
+      "impact": "缩窄了断言描述，但未改变健康检查用途和业务验证边界；应保留缺陷而非称完美",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "既有获准开发工作区，保留首错终止边界性质；本轮未调用执行模型",
+  "factuality": "minor_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "原始提交与终止按真实记录保留，不从中推断输入或 State 根因",
+      "evidence_ids": [
+        "E1",
+        "E2"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 5,
+    "input_tokens": 24695,
+    "output_tokens": 282,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": false
+}
