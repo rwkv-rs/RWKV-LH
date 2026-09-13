@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib,sys
+R=Path('/home/chase/GitHub/RWKV-LH');B=R/'data/experiments/RWKV_FILE_DISCOVERY_BASELINE_R1_20260913';D=R/'data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913';sys.path.insert(0,str(D/'source'))
+from rwkv_lh.token_budget import tokenizer
+from rwkv_lh.model_io import canonical_json
+T=tokenizer();out=D/'original_actual_inputs';out.mkdir(exist_ok=False);rows=[]
+for p in sorted((B/'dev').iterdir()):
+ s=json.loads((p/'state_snapshot.json').read_text());root=next(v for v in s['model_states'].values() if not v['parent_checkpoint_id']);line=root['transcript'].splitlines()[0];defs=json.loads(line[len('System: Tools: '):]);assignment=json.loads(root['transcript'].split('\n\nUser: ',1)[1].rsplit('\n\nAssistant:',1)[0]);gens=[e for e in map(json.loads,(p/'model_trace.jsonl').read_text().splitlines()) if e['type']=='model_session_generation_returned'];obs=[]
+ for f in sorted(p.glob('observation_*.json')):
+  ev=json.loads(f.read_text());v=ev['payload']['result'];structured=v.get('structured_output',{});matches=structured.get('matches',[]);obs.append(dict(event_id=ev['event_id'],event_tokens=len(T.encode(canonical_json(ev))),match_count=structured.get('match_count'),useful_line_text_tokens=sum(len(T.encode(m['line_text'])) for m in matches),sha256_field_occurrences=canonical_json(ev).count('sha256'),zero_match_explicit=structured.get('match_count')==0 and structured.get('matches')==[],note='line token sum is a descriptive measure, not semantic sufficiency or exact additive tokenizer partition'))
+ for i,e in enumerate(gens,1):
+  g=e['raw_generation'];ids=g['prompt_token_ids'];text=T.decode(ids[g['input_bos_token_count']:]);f=out/f'{p.name}-g{i}.txt';f.write_text(text);rows.append(dict(run=p.name,generation=i,actual_input_tokens=len(ids),input_text_sha256=hashlib.sha256(text.encode()).hexdigest(),input_path=str(f.relative_to(D)),root_tokens=len(T.encode(root['transcript'])),tool_menu_tokens=len(T.encode(canonical_json(defs))),tool_count=len(defs),request_tokens=len(T.encode(assignment['immutable_request'])),assignment_tokens=len(T.encode(json.dumps(assignment,ensure_ascii=False))),workspace_manifest_tokens=len(T.encode(json.dumps(assignment['workspace_manifest'],ensure_ascii=False))),root_search_parameters=list(next(d for d in defs if d['name']=='search_text')['parameters']['properties']),read_contract=next(d for d in defs if d['name']=='read_file'),output_tokens=len(g['raw_token_ids']),finish_reason=g['finish_reason'],preceding_observations=obs[:i-1],observation_token_accounting='whole ModelEvent JSON; actual wire excludes audit-only fields via to_model_dict, so see actual_input_text for exact injected shape'))
+(D/'ORIGINAL_INPUT_INSPECTION.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n');print('saved',len(rows),'actual inputs')
+for r in rows:
+ if r['generation'] in [1,2]:print(r['run'],r['generation'],'input',r['actual_input_tokens'],'menu',r['tool_menu_tokens'],'request',r['request_tokens'],'obs',r['preceding_observations'])

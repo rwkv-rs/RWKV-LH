@@ -1,0 +1,2465 @@
+[
+  {
+    "id": "health-full-r1",
+    "file_id": "health",
+    "arm": "full",
+    "repeat": 1,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "action search_text has unknown arguments: ['max_text_tokens']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action search_text has unknown arguments: ['max_text_tokens']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action search_text has unknown arguments: ['max_text_tokens']\n",
+    "elapsed_seconds": 17.46852731704712,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "health-readonly-r1",
+    "file_id": "health",
+    "arm": "readonly",
+    "repeat": 1,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 10,
+          "max_tokens": 4096,
+          "max_file_bytes": 1000000,
+          "path": ".",
+          "pattern": "health|Health",
+          "mode": "regex",
+          "case_sensitive": true,
+          "recursive": true,
+          "start_after": "",
+          "max_line_chars": 800
+        },
+        "wire_arguments": {
+          "max_results": 10,
+          "max_tokens": 4096,
+          "max_file_bytes": 1000000,
+          "path": ".",
+          "pattern": "health|Health"
+        },
+        "action_fingerprint": "f2c30adcc093e0adacbad4943435d667862ed1cc90e061c8e863fe98b679f085",
+        "idempotency_key": "7c2dbb8750dbe2b13a39af6623a5dcc8a87a98d92a3ce4d7a3ae92589e740b37",
+        "decision_id": "D-11b8c3998b794bf5",
+        "request_id": "MR-6c0b0f40e3d84611",
+        "started_at": "2026-09-13T02:36:12.404+00:00",
+        "ended_at": "2026-09-13T02:36:12.430+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 3, \"files_searched\": 3, \"match_count\": 5, \"matches\": [{\"column\": 9, \"end_column\": 15, \"line_number\": 7, \"line_text\": \"- `GET /health` → 200 `{\\\"ok\\\":true}`。\", \"line_text_end_byte\": 620, \"line_text_sha256\": \"8cec3428a458c7b3b18932fd2b9cbf03a6b3927416350c5085784d9dfffdbb7c\", \"line_text_start_byte\": 580, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"README.md\"}, {\"column\": 63, \"end_column\": 69, \"line_number\": 8, \"line_text\": \"        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\", \"line_text_end_byte\": 347, \"line_text_sha256\": \"0b0d9d31879b7471a0803de686b57490fa5c21a8fedf153db01c155bf5aa1dc5\", \"line_text_start_byte\": 237, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"server.py\"}, {\"column\": 13, \"end_column\": 19, \"line_number\": 1, \"line_text\": \"\\\"\\\"\\\"Optional health-only smoke: python verify_public.py HOST PORT.\", \"line_text_end_byte\": 65, \"line_text_sha256\": \"aa5cfb510e413c319deff10ac881b84c3a6a3dc32c5f9c0432a4f43d9f2ced10\", \"line_text_start_byte\": 0, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 29, \"end_column\": 35, \"line_number\": 9, \"line_text\": \"connection.request('GET', '/health')\", \"line_text_end_byte\": 291, \"line_text_sha256\": \"c5335dc42ac95978f7d2fe3923e11993da5b25ef20642d1882af0441a926cdb9\", \"line_text_start_byte\": 255, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 8, \"end_column\": 14, \"line_number\": 13, \"line_text\": \"print('health smoke passed; transactional behavior still requires tests')\", \"line_text_end_byte\": 496, \"line_text_sha256\": \"b75cd2af4504d1bb894c184b67ab6cb35a7ead0b80f47fa99654283fd724bfb0\", \"line_text_start_byte\": 423, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"health|Health\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"README.md\": \"8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928\", \"server.py\": \"6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb\", \"verify_public.py\": \"33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583\"}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "4feef26e3b72f079f812d90d5bef2845419ce690f5054ffae83946812f4a34fe",
+            "match_count": 5,
+            "files_considered": 3,
+            "files_searched": 3,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 1127
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "010288e3a86cf72c60a5df475c5a5aad70e55ea9886dbd7240de807824e52b47",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-4257d0423dd34bd0",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 10,
+            "max_tokens": 4096,
+            "max_file_bytes": 1000000,
+            "path": ".",
+            "pattern": "health|Health"
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_lines', 'max_text_bytes']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes']\n",
+    "elapsed_seconds": 45.797157526016235,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "smoke-full-r1",
+    "file_id": "smoke",
+    "arm": "full",
+    "repeat": 1,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 174)",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 590, in parse_model_command_with_trace\n    value = json.loads(text)\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\njson.decoder.JSONDecodeError: Unterminated string starting at: line 9 column 16 (char 174)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2823, in _generate\n    wire_command, output_trace = self.session.parse_with_trace(candidate)\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_session.py\", line 729, in parse_with_trace\n    command, normalization = parse_model_command_with_trace(parse_source)\n                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 594, in parse_model_command_with_trace\n    raise ModelIOError(\n        f\"model output is not one JSON object: {original_exc}\"\n    ) from original_exc\nrwkv_lh.model_io.ModelIOError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 174)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 174)\n",
+    "elapsed_seconds": 47.87880897521973,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "smoke-readonly-r1",
+    "file_id": "smoke",
+    "arm": "readonly",
+    "repeat": 1,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "list_directory",
+        "arguments": {
+          "max_entries": 1024,
+          "max_tokens": 4096,
+          "path": ".",
+          "recursive": false,
+          "start_after": ""
+        },
+        "wire_arguments": {
+          "max_entries": 1024,
+          "max_tokens": 4096,
+          "path": "."
+        },
+        "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+        "idempotency_key": "abe23813de82cbed02ac01f4974ed6429001c0657fb2bd2b39e821d3ae22c218",
+        "decision_id": "D-fffaf59862cd4144",
+        "request_id": "MR-065ad11103974359",
+        "started_at": "2026-09-13T02:37:47.546+00:00",
+        "ended_at": "2026-09-13T02:37:47.571+00:00",
+        "result": {
+          "action_type": "list_directory",
+          "success": true,
+          "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}, {\"path\": \"verify_public.py\", \"size_bytes\": 497, \"type\": \"file\"}], \"entry_count\": 3, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "path": ".",
+            "recursive": false,
+            "entries": [
+              {
+                "path": "README.md",
+                "type": "file",
+                "size_bytes": 1823
+              },
+              {
+                "path": "server.py",
+                "type": "file",
+                "size_bytes": 935
+              },
+              {
+                "path": "verify_public.py",
+                "type": "file",
+                "size_bytes": 497
+              }
+            ],
+            "entry_count": 3,
+            "truncated": false,
+            "next_cursor": "",
+            "complete": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "9d18e3c59a132d20408a3b3643d6df9578bcbf9bcce39f368e29d2d8016b6514",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-e9750b41a7ce4d87",
+        "wire": {
+          "function": "list_directory",
+          "params": {
+            "max_entries": 1024,
+            "max_tokens": 4096,
+            "path": "."
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_lines']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_lines']\n",
+    "elapsed_seconds": 45.456356048583984,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "validation-full-r1",
+    "file_id": "validation",
+    "arm": "full",
+    "repeat": 1,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "model output is not one JSON object: Unterminated string starting at: line 8 column 16 (char 152)",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 590, in parse_model_command_with_trace\n    value = json.loads(text)\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\njson.decoder.JSONDecodeError: Unterminated string starting at: line 8 column 16 (char 152)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2823, in _generate\n    wire_command, output_trace = self.session.parse_with_trace(candidate)\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_session.py\", line 729, in parse_with_trace\n    command, normalization = parse_model_command_with_trace(parse_source)\n                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 594, in parse_model_command_with_trace\n    raise ModelIOError(\n        f\"model output is not one JSON object: {original_exc}\"\n    ) from original_exc\nrwkv_lh.model_io.ModelIOError: model output is not one JSON object: Unterminated string starting at: line 8 column 16 (char 152)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: model output is not one JSON object: Unterminated string starting at: line 8 column 16 (char 152)\n",
+    "elapsed_seconds": 48.10839796066284,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "validation-readonly-r1",
+    "file_id": "validation",
+    "arm": "readonly",
+    "repeat": 1,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 590, in parse_model_command_with_trace\n    value = json.loads(text)\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\njson.decoder.JSONDecodeError: Unterminated string starting at: line 9 column 16 (char 180)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2823, in _generate\n    wire_command, output_trace = self.session.parse_with_trace(candidate)\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_session.py\", line 729, in parse_with_trace\n    command, normalization = parse_model_command_with_trace(parse_source)\n                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 594, in parse_model_command_with_trace\n    raise ModelIOError(\n        f\"model output is not one JSON object: {original_exc}\"\n    ) from original_exc\nrwkv_lh.model_io.ModelIOError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)\n",
+    "elapsed_seconds": 49.970991134643555,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "backup-full-r1",
+    "file_id": "backup",
+    "arm": "full",
+    "repeat": 1,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "fab73a29ae70df26939476309c530182e087d18763269d26cb498c98d052f1e2",
+        "decision_id": "D-b277e1d70af44cfa",
+        "request_id": "MR-92178c56144f4d2b",
+        "started_at": "2026-09-13T02:40:12.744+00:00",
+        "ended_at": "2026-09-13T02:40:12.790+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00002",
+        "sequence": 2,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "0324138565332fc86f9a228488ec8c87bbaea287702951f8bed3dae0d6431977",
+        "decision_id": "D-c022ce616af641c2",
+        "request_id": "MR-de26586bc065418f",
+        "started_at": "2026-09-13T02:40:40.326+00:00",
+        "ended_at": "2026-09-13T02:40:40.379+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00003",
+        "sequence": 3,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "263e6c56977dfb6049fd092fd6596d58b2dbba058c58e935fdaf0a81cb519fe0",
+        "decision_id": "D-cbe226e8b84242ad",
+        "request_id": "MR-7128b6e57c9f4352",
+        "started_at": "2026-09-13T02:41:08.552+00:00",
+        "ended_at": "2026-09-13T02:41:08.610+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00004",
+        "sequence": 4,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "aae833007e6540ebdc2841832c8452d2963fe43a97cd3fd1471d70fd35b6dcdb",
+        "decision_id": "D-21e5c296270249f8",
+        "request_id": "MR-4df112e9d3614ef9",
+        "started_at": "2026-09-13T02:41:36.763+00:00",
+        "ended_at": "2026-09-13T02:41:36.818+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00005",
+        "sequence": 5,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "5c6f558cba0f71617ffee54e98f549ecd3aed4842525622325b74e5f7f27cbfe",
+        "decision_id": "D-a7aecae128b84392",
+        "request_id": "MR-4918e87d1802437f",
+        "started_at": "2026-09-13T02:42:05.474+00:00",
+        "ended_at": "2026-09-13T02:42:05.530+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00006",
+        "sequence": 6,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "25a60f71d14b1e531cc251fb4668ebccebc85b2297b119fe44908dedb3424257",
+        "decision_id": "D-04b894555d2048db",
+        "request_id": "MR-67aebb2bc9234789",
+        "started_at": "2026-09-13T02:42:34.083+00:00",
+        "ended_at": "2026-09-13T02:42:34.141+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-f0ad840bb74648af",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-267413a9f8144e51",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-859db47353c84251",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-b2605b9ecd064a2e",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-e3eee4c030f94ec4",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-62313b007345460c",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      }
+    ],
+    "termination": "budget",
+    "error": null,
+    "elapsed_seconds": 170.0820119380951,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "backup-readonly-r1",
+    "file_id": "backup",
+    "arm": "readonly",
+    "repeat": 1,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "72f1c0d95e5e70e414170c794db946c716ba88be1b12dddeb023d7285101630c",
+        "decision_id": "D-25c0cf6170c94a2f",
+        "request_id": "MR-b965b096af704360",
+        "started_at": "2026-09-13T02:43:04.659+00:00",
+        "ended_at": "2026-09-13T02:43:04.711+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00002",
+        "sequence": 2,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "a36175340eab606fddf548538653c21af0fe77b60af759df2dd01d7c84110ab0",
+        "decision_id": "D-7b2f6c7975934b70",
+        "request_id": "MR-668a69f7cc354f07",
+        "started_at": "2026-09-13T02:43:34.173+00:00",
+        "ended_at": "2026-09-13T02:43:34.200+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00003",
+        "sequence": 3,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "ff783d1818a04659bb9fb8ab02384bfa22eb3573aa493c11b6e990c017a74ad2",
+        "decision_id": "D-26d3f0501acb49e7",
+        "request_id": "MR-2d1eb3e506e3475b",
+        "started_at": "2026-09-13T02:44:02.829+00:00",
+        "ended_at": "2026-09-13T02:44:02.856+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00004",
+        "sequence": 4,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "c4ef6b077effa203725ad564b03553a77da43d09c7082f052cc1cd76e3a83f3c",
+        "decision_id": "D-a8078aed25094f0c",
+        "request_id": "MR-8be1efbe956a4912",
+        "started_at": "2026-09-13T02:44:31.058+00:00",
+        "ended_at": "2026-09-13T02:44:31.085+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00005",
+        "sequence": 5,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "cffe3eee3f3990325807960434021fd2d28e5fdb2d04b5e5d70d20bd9731c866",
+        "decision_id": "D-51e042c20c0b4d8a",
+        "request_id": "MR-3b5a15e7865e40ff",
+        "started_at": "2026-09-13T02:44:59.246+00:00",
+        "ended_at": "2026-09-13T02:44:59.274+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00006",
+        "sequence": 6,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_results": 100,
+          "max_tokens": 4096,
+          "max_file_bytes": 100000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "61351c31df2c27469f8bce3a4129936ade376dd09287c38c97cedcd91699abee",
+        "idempotency_key": "2f6c218dfcfcbb09ac0f694b876e52fdf8ddf37eed52853befb011db6cc33db8",
+        "decision_id": "D-1157e4a25fde4e42",
+        "request_id": "MR-2b2ef173e22045d2",
+        "started_at": "2026-09-13T02:45:28.155+00:00",
+        "ended_at": "2026-09-13T02:45:28.186+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "905a746c15711c1dc1f54f7059b3f6ca905eb3a524afd24c22abe3eb4c2a7552",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-18a418f62726479c",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-f2388b59c2f846d4",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-50e576df994044f3",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-fd29b97d71b54b87",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-73d6aa7c6853471c",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-944809935cc74e26",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 100,
+            "max_tokens": 4096,
+            "max_file_bytes": 100000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      }
+    ],
+    "termination": "budget",
+    "error": null,
+    "elapsed_seconds": 172.887056350708,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "health-readonly-r2",
+    "file_id": "health",
+    "arm": "readonly",
+    "repeat": 2,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_results": 10,
+          "max_tokens": 4096,
+          "mode": "regex",
+          "path": ".",
+          "pattern": "health|Health|健康",
+          "case_sensitive": true,
+          "recursive": true,
+          "start_after": "",
+          "max_file_bytes": 5000000,
+          "max_line_chars": 800
+        },
+        "wire_arguments": {
+          "max_results": 10,
+          "max_tokens": 4096,
+          "mode": "regex",
+          "path": ".",
+          "pattern": "health|Health|健康"
+        },
+        "action_fingerprint": "59affba160e9c0d696c4f21ed78a24d289fb5edd7539688d0273f229bd709ac1",
+        "idempotency_key": "58f42a3d5c898d513cb45394f6a5ac34c3d0a78d084827c224b2a0bff6c6d790",
+        "decision_id": "D-d4b80d5555fd416b",
+        "request_id": "MR-d9250a35d4c54249",
+        "started_at": "2026-09-13T02:45:56.691+00:00",
+        "ended_at": "2026-09-13T02:45:56.717+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 3, \"files_searched\": 3, \"match_count\": 7, \"matches\": [{\"column\": 9, \"end_column\": 15, \"line_number\": 7, \"line_text\": \"- `GET /health` → 200 `{\\\"ok\\\":true}`。\", \"line_text_end_byte\": 620, \"line_text_sha256\": \"8cec3428a458c7b3b18932fd2b9cbf03a6b3927416350c5085784d9dfffdbb7c\", \"line_text_start_byte\": 580, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"README.md\"}, {\"column\": 68, \"end_column\": 70, \"line_number\": 14, \"line_text\": \"多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\", \"line_text_end_byte\": 1822, \"line_text_sha256\": \"39f907726f77114b8ae340d9c0c61318e4eeae8a024e02821f130a40c89b0ab0\", \"line_text_start_byte\": 1543, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"健康\", \"match_text_truncated\": false, \"path\": \"README.md\"}, {\"column\": 87, \"end_column\": 89, \"line_number\": 14, \"line_text\": \"多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\", \"line_text_end_byte\": 1822, \"line_text_sha256\": \"39f907726f77114b8ae340d9c0c61318e4eeae8a024e02821f130a40c89b0ab0\", \"line_text_start_byte\": 1543, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"健康\", \"match_text_truncated\": false, \"path\": \"README.md\"}, {\"column\": 63, \"end_column\": 69, \"line_number\": 8, \"line_text\": \"        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\", \"line_text_end_byte\": 347, \"line_text_sha256\": \"0b0d9d31879b7471a0803de686b57490fa5c21a8fedf153db01c155bf5aa1dc5\", \"line_text_start_byte\": 237, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"server.py\"}, {\"column\": 13, \"end_column\": 19, \"line_number\": 1, \"line_text\": \"\\\"\\\"\\\"Optional health-only smoke: python verify_public.py HOST PORT.\", \"line_text_end_byte\": 65, \"line_text_sha256\": \"aa5cfb510e413c319deff10ac881b84c3a6a3dc32c5f9c0432a4f43d9f2ced10\", \"line_text_start_byte\": 0, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 29, \"end_column\": 35, \"line_number\": 9, \"line_text\": \"connection.request('GET', '/health')\", \"line_text_end_byte\": 291, \"line_text_sha256\": \"c5335dc42ac95978f7d2fe3923e11993da5b25ef20642d1882af0441a926cdb9\", \"line_text_start_byte\": 255, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 8, \"end_column\": 14, \"line_number\": 13, \"line_text\": \"print('health smoke passed; transactional behavior still requires tests')\", \"line_text_end_byte\": 496, \"line_text_sha256\": \"b75cd2af4504d1bb894c184b67ab6cb35a7ead0b80f47fa99654283fd724bfb0\", \"line_text_start_byte\": 423, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"health|Health|健康\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"README.md\": \"8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928\", \"server.py\": \"6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb\", \"verify_public.py\": \"33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583\"}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2d34e4dc106678f00d4aefc72470e01f770e38da7dd29fc4c98216174e0828bd",
+            "match_count": 7,
+            "files_considered": 3,
+            "files_searched": 3,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 1624
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "d96be110358ea7a0b8e4d1c84d1ddaf2539c080e3c749891d8cf3cad5c7cd48d",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-61e67288767b4cbc",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_results": 10,
+            "max_tokens": 4096,
+            "mode": "regex",
+            "path": ".",
+            "pattern": "health|Health|健康"
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars', 'max_text_tokens', 'start_line']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars', 'max_text_tokens', 'start_line']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars', 'max_text_tokens', 'start_line']\n",
+    "elapsed_seconds": 45.15957593917847,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "health-full-r2",
+    "file_id": "health",
+    "arm": "full",
+    "repeat": 2,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_file_bytes": 1000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "health|Health",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_file_bytes": 1000000,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "health|Health",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "574895345a5a329af14032176e3056691a79c7a153fc84730ebd60301ee19df1",
+        "idempotency_key": "35ee7a85ebb6335ae5f481484820d755b60304ef93e23e75b905ba9bf71efe05",
+        "decision_id": "D-d1d5f35f5c9845f1",
+        "request_id": "MR-4a9f56b5830748fd",
+        "started_at": "2026-09-13T02:46:43.195+00:00",
+        "ended_at": "2026-09-13T02:46:43.221+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 3, \"files_searched\": 3, \"match_count\": 5, \"matches\": [{\"column\": 9, \"end_column\": 15, \"line_number\": 7, \"line_text\": \"- `GET /health` → 200 `{\\\"ok\\\":true}`。\", \"line_text_end_byte\": 620, \"line_text_sha256\": \"8cec3428a458c7b3b18932fd2b9cbf03a6b3927416350c5085784d9dfffdbb7c\", \"line_text_start_byte\": 580, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"README.md\"}, {\"column\": 63, \"end_column\": 69, \"line_number\": 8, \"line_text\": \"        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\", \"line_text_end_byte\": 347, \"line_text_sha256\": \"0b0d9d31879b7471a0803de686b57490fa5c21a8fedf153db01c155bf5aa1dc5\", \"line_text_start_byte\": 237, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"server.py\"}, {\"column\": 13, \"end_column\": 19, \"line_number\": 1, \"line_text\": \"\\\"\\\"\\\"Optional health-only smoke: python verify_public.py HOST PORT.\", \"line_text_end_byte\": 65, \"line_text_sha256\": \"aa5cfb510e413c319deff10ac881b84c3a6a3dc32c5f9c0432a4f43d9f2ced10\", \"line_text_start_byte\": 0, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 29, \"end_column\": 35, \"line_number\": 9, \"line_text\": \"connection.request('GET', '/health')\", \"line_text_end_byte\": 291, \"line_text_sha256\": \"c5335dc42ac95978f7d2fe3923e11993da5b25ef20642d1882af0441a926cdb9\", \"line_text_start_byte\": 255, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}, {\"column\": 8, \"end_column\": 14, \"line_number\": 13, \"line_text\": \"print('health smoke passed; transactional behavior still requires tests')\", \"line_text_end_byte\": 496, \"line_text_sha256\": \"b75cd2af4504d1bb894c184b67ab6cb35a7ead0b80f47fa99654283fd724bfb0\", \"line_text_start_byte\": 423, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"health\", \"match_text_truncated\": false, \"path\": \"verify_public.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"health|Health\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"README.md\": \"8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928\", \"server.py\": \"6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb\", \"verify_public.py\": \"33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583\"}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "4feef26e3b72f079f812d90d5bef2845419ce690f5054ffae83946812f4a34fe",
+            "match_count": 5,
+            "files_considered": 3,
+            "files_searched": 3,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 1127
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "010288e3a86cf72c60a5df475c5a5aad70e55ea9886dbd7240de807824e52b47",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-db5cf884f6b94a6c",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_file_bytes": 1000000,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "health|Health",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_lines', 'max_text_bytes', 'max_text_chars']\n",
+    "elapsed_seconds": 46.923351526260376,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "smoke-readonly-r2",
+    "file_id": "smoke",
+    "arm": "readonly",
+    "repeat": 2,
+    "final": "公开健康检查脚本是 verify_public.py，它只做 /health 的 200 响应检查，不能证明 booking 创建、冲突检查、取消幂等或数据持久化正确。",
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "list_directory",
+        "arguments": {
+          "max_entries": 1024,
+          "max_tokens": 4096,
+          "path": ".",
+          "recursive": true,
+          "start_after": ""
+        },
+        "wire_arguments": {
+          "max_entries": 1024,
+          "max_tokens": 4096,
+          "path": ".",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "8d208dc956797311e6a28ea6761a0bd4ba454f15daa454af68667a8f48e7bca2",
+        "idempotency_key": "2cf4a308f7fd7c1bf2d47c3362b4b35aceb738d57451d628e2600ad7d323c770",
+        "decision_id": "D-33e0c7f7023049ac",
+        "request_id": "MR-0011eaea1d72456d",
+        "started_at": "2026-09-13T02:47:30.083+00:00",
+        "ended_at": "2026-09-13T02:47:30.108+00:00",
+        "result": {
+          "action_type": "list_directory",
+          "success": true,
+          "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}, {\"path\": \"verify_public.py\", \"size_bytes\": 497, \"type\": \"file\"}], \"entry_count\": 3, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": true, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "path": ".",
+            "recursive": true,
+            "entries": [
+              {
+                "path": "README.md",
+                "type": "file",
+                "size_bytes": 1823
+              },
+              {
+                "path": "server.py",
+                "type": "file",
+                "size_bytes": 935
+              },
+              {
+                "path": "verify_public.py",
+                "type": "file",
+                "size_bytes": 497
+              }
+            ],
+            "entry_count": 3,
+            "truncated": false,
+            "next_cursor": "",
+            "complete": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "7b4b14d8ffce3abb688828f8ac4fcbdef5f5a68d5e01e4f5c9b676f62cc7e547",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00002",
+        "sequence": 2,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "max_tokens": 4096,
+          "path": "README.md",
+          "start_byte": 0
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "path": "README.md",
+          "start_byte": 0
+        },
+        "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+        "idempotency_key": "a8922e22bd8bf9f19373e70fe249fb5fa68ce77fa7e5fcf08e65665dbe574075",
+        "decision_id": "D-e678bc67249848f6",
+        "request_id": "MR-afe99a66870a4369",
+        "started_at": "2026-09-13T02:47:57.714+00:00",
+        "ended_at": "2026-09-13T02:47:57.742+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "README.md",
+              "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+              "media_type": "text/markdown",
+              "size_bytes": 1823,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+              "source_ref": "README.md",
+              "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1823,
+              "core_start": 0,
+              "core_end": 1823,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 619
+            },
+            "start_byte": 0,
+            "end_byte": 1823,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1823,
+            "observed_tokens": 619,
+            "source_start_line": 1,
+            "source_end_line": 14
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-9ef04dda54166663b88f"
+        ],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00003",
+        "sequence": 3,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "max_tokens": 4096,
+          "path": "server.py",
+          "start_byte": 0
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "path": "server.py",
+          "start_byte": 0
+        },
+        "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+        "idempotency_key": "deda50ade4da61ba5caa642da6dacca6d1cf447efe4c3e49ef85714cc38e8879",
+        "decision_id": "D-387b087a683b42d6",
+        "request_id": "MR-9fbc98be054e4ff4",
+        "started_at": "2026-09-13T02:48:26.512+00:00",
+        "ended_at": "2026-09-13T02:48:26.539+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "server.py",
+              "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+              "media_type": "text/x-python",
+              "size_bytes": 935,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+              "source_ref": "server.py",
+              "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 935,
+              "core_start": 0,
+              "core_end": 935,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 259
+            },
+            "start_byte": 0,
+            "end_byte": 935,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 935,
+            "observed_tokens": 259,
+            "source_start_line": 1,
+            "source_end_line": 22
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-4ec99595ac860949dba6"
+        ],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00004",
+        "sequence": 4,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "max_tokens": 4096,
+          "path": "verify_public.py",
+          "start_byte": 0
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "path": "verify_public.py",
+          "start_byte": 0
+        },
+        "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+        "idempotency_key": "f5c31259ae7ecc03ce6793d0b68277b676fa26cb40e45e763b901acc7c89c54e",
+        "decision_id": "D-48770b40c4a4495c",
+        "request_id": "MR-f7236f8c04dd4aab",
+        "started_at": "2026-09-13T02:48:54.324+00:00",
+        "ended_at": "2026-09-13T02:48:54.353+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "verify_public.py",
+              "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "media_type": "text/x-python",
+              "size_bytes": 497,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+              "source_ref": "verify_public.py",
+              "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 497,
+              "core_start": 0,
+              "core_end": 497,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 130
+            },
+            "start_byte": 0,
+            "end_byte": 497,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 497,
+            "observed_tokens": 130,
+            "source_start_line": 1,
+            "source_end_line": 13
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-90f946fb043af9364088"
+        ],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-27f25fbc2ba44079",
+        "wire": {
+          "function": "list_directory",
+          "params": {
+            "max_entries": 1024,
+            "max_tokens": 4096,
+            "path": ".",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-c11ee656c9264c58",
+        "wire": {
+          "function": "read_file",
+          "params": {
+            "max_tokens": 4096,
+            "path": "README.md",
+            "start_byte": 0
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-8efa228b44e04a3d",
+        "wire": {
+          "function": "read_file",
+          "params": {
+            "max_tokens": 4096,
+            "path": "server.py",
+            "start_byte": 0
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-cf3f028b1c124e85",
+        "wire": {
+          "function": "read_file",
+          "params": {
+            "max_tokens": 4096,
+            "path": "verify_public.py",
+            "start_byte": 0
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-0c3a58ca05b148f7",
+        "wire": {
+          "function": "final_answer",
+          "params": {
+            "text": "公开健康检查脚本是 verify_public.py，它只做 /health 的 200 响应检查，不能证明 booking 创建、冲突检查、取消幂等或数据持久化正确。"
+          }
+        }
+      }
+    ],
+    "termination": "submitted",
+    "error": null,
+    "elapsed_seconds": 129.2260537147522,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "smoke-full-r2",
+    "file_id": "smoke",
+    "arm": "full",
+    "repeat": 2,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "list_directory",
+        "arguments": {
+          "path": ".",
+          "recursive": false,
+          "max_entries": 1024,
+          "start_after": "",
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": ".",
+          "recursive": false,
+          "max_entries": 1024
+        },
+        "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+        "idempotency_key": "226ccba3951a5f2147d9d7136994b9c347e1a9125a8611bdf9ee975d9126e85e",
+        "decision_id": "D-d95645fa16c94f98",
+        "request_id": "MR-6885a3b500114935",
+        "started_at": "2026-09-13T02:49:41.087+00:00",
+        "ended_at": "2026-09-13T02:49:41.112+00:00",
+        "result": {
+          "action_type": "list_directory",
+          "success": true,
+          "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 1823, \"type\": \"file\"}, {\"path\": \"server.py\", \"size_bytes\": 935, \"type\": \"file\"}, {\"path\": \"verify_public.py\", \"size_bytes\": 497, \"type\": \"file\"}], \"entry_count\": 3, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "path": ".",
+            "recursive": false,
+            "entries": [
+              {
+                "path": "README.md",
+                "type": "file",
+                "size_bytes": 1823
+              },
+              {
+                "path": "server.py",
+                "type": "file",
+                "size_bytes": 935
+              },
+              {
+                "path": "verify_public.py",
+                "type": "file",
+                "size_bytes": 497
+              }
+            ],
+            "entry_count": 3,
+            "truncated": false,
+            "next_cursor": "",
+            "complete": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+        "failure_key": "",
+        "observation_fingerprint": "9d18e3c59a132d20408a3b3643d6df9578bcbf9bcce39f368e29d2d8016b6514",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-a0a625e3eb8245f3",
+        "wire": {
+          "function": "list_directory",
+          "params": {
+            "path": ".",
+            "recursive": false,
+            "max_entries": 1024
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_lines']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_lines']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_lines']\n",
+    "elapsed_seconds": 45.40525579452515,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "validation-readonly-r2",
+    "file_id": "validation",
+    "arm": "readonly",
+    "repeat": 2,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 590, in parse_model_command_with_trace\n    value = json.loads(text)\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\njson.decoder.JSONDecodeError: Unterminated string starting at: line 9 column 16 (char 180)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2823, in _generate\n    wire_command, output_trace = self.session.parse_with_trace(candidate)\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_session.py\", line 729, in parse_with_trace\n    command, normalization = parse_model_command_with_trace(parse_source)\n                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 594, in parse_model_command_with_trace\n    raise ModelIOError(\n        f\"model output is not one JSON object: {original_exc}\"\n    ) from original_exc\nrwkv_lh.model_io.ModelIOError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: model output is not one JSON object: Unterminated string starting at: line 9 column 16 (char 180)\n",
+    "elapsed_seconds": 48.70578098297119,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "validation-full-r2",
+    "file_id": "validation",
+    "arm": "full",
+    "repeat": 2,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def validate",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def validate",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "74c5ddd16f3dabf45558cda6d7b732a06dee3e138557fbe96cae636243404a78",
+        "idempotency_key": "7ce934949c03c69480ae30eba618c406bbf1e94fa4be784ae7d7e1e14b902e5d",
+        "decision_id": "D-3a558606ffc34239",
+        "request_id": "MR-7285671c89494e31",
+        "started_at": "2026-09-13T02:51:17.401+00:00",
+        "ended_at": "2026-09-13T02:51:17.426+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 1, \"matches\": [{\"column\": 1, \"end_column\": 13, \"line_number\": 7, \"line_text\": \"def validate(connection):\", \"line_text_end_byte\": 127, \"line_text_sha256\": \"9c47c81ea89f8afbaf9b64139514c40e8533fe153cf5d3ef2cd85c9b68664dc7\", \"line_text_start_byte\": 102, \"line_text_start_column\": 1, \"line_text_truncated\": false, \"match_text\": \"def validate\", \"match_text_truncated\": false, \"path\": \"config_store/sqlite_io.py\"}], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def validate\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {\"config_store/sqlite_io.py\": \"3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46\"}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "8e529d0533dc70d47e365bf10dd3de370f4e6c53b8cf5c46bf209f6e8cc01365",
+            "match_count": 1,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 354
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6bbab3a6eec84e30dba15efb305690c3a3b9fe7fcd9dcc762fc64d405e54dd26",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-1a7eeeb76fef40b5",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def validate",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      }
+    ],
+    "termination": "ModelProtocolError",
+    "error": "action read_file has unknown arguments: ['max_bytes', 'max_lines']",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2847, in _generate\n    self.harness.normalize_action_with_trace(\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        TaskAction(wire_command.name, wire_command.arguments)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1065, in normalize_action_with_trace\n    self.validate_action_contract(normalized)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/harness.py\", line 1011, in validate_action_contract\n    raise HarnessError(\n        f\"action {definition.name} has unknown arguments: {unknown}\"\n    )\nrwkv_lh.harness.HarnessError: action read_file has unknown arguments: ['max_bytes', 'max_lines']\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: action read_file has unknown arguments: ['max_bytes', 'max_lines']\n",
+    "elapsed_seconds": 46.01017642021179,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "backup-readonly-r2",
+    "file_id": "backup",
+    "arm": "readonly",
+    "repeat": 2,
+    "final": null,
+    "actions": [],
+    "decisions": [],
+    "termination": "ModelProtocolError",
+    "error": "model output is not one JSON object: Unterminated string starting at: line 10 column 16 (char 206)",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 590, in parse_model_command_with_trace\n    value = json.loads(text)\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\njson.decoder.JSONDecodeError: Unterminated string starting at: line 10 column 16 (char 206)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2823, in _generate\n    wire_command, output_trace = self.session.parse_with_trace(candidate)\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_session.py\", line 729, in parse_with_trace\n    command, normalization = parse_model_command_with_trace(parse_source)\n                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model_io.py\", line 594, in parse_model_command_with_trace\n    raise ModelIOError(\n        f\"model output is not one JSON object: {original_exc}\"\n    ) from original_exc\nrwkv_lh.model_io.ModelIOError: model output is not one JSON object: Unterminated string starting at: line 10 column 16 (char 206)\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/temp/run_input_menu_r1_20260913.py\", line 41, in run\n    decision=model.next_command(state,controller._persist_callback,max_output_tokens=er['max_output_tokens']);row['decisions'].append({'checkpoint':decision.checkpoint.checkpoint_id,'wire':decision.wire_command.to_wire_dict()})\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 701, in next_command\n    return self._generate(\n           ~~~~~~~~~~~~~~^\n        state,\n        ^^^^^^\n    ...<4 lines>...\n        current_requirement=selected_requirement,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DISCOVERY_INPUT_MENU_R1_20260913/source/rwkv_lh/model.py\", line 2982, in _generate\n    raise ModelProtocolError(\n    ...<25 lines>...\n    ) from exc\nrwkv_lh.model.ModelProtocolError: model output is not one JSON object: Unterminated string starting at: line 10 column 16 (char 206)\n",
+    "elapsed_seconds": 49.812705278396606,
+    "workspace_unchanged": true
+  },
+  {
+    "id": "backup-full-r2",
+    "file_id": "backup",
+    "arm": "full",
+    "repeat": 2,
+    "final": null,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "d8443669096c94c981ce17ee27be3a35d074c9df040d64058525e608047b6a0c",
+        "decision_id": "D-45955d6ee7444d37",
+        "request_id": "MR-bd19988ec7604dff",
+        "started_at": "2026-09-13T02:52:53.353+00:00",
+        "ended_at": "2026-09-13T02:52:53.377+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00002",
+        "sequence": 2,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "2131657e6d495d599849c4a362aa1f5515f2ee520dabf85f0e0cb203ffb388c0",
+        "decision_id": "D-384915b1e93947a6",
+        "request_id": "MR-ed2132f1145f4180",
+        "started_at": "2026-09-13T02:53:22.301+00:00",
+        "ended_at": "2026-09-13T02:53:22.327+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00003",
+        "sequence": 3,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "581aebc99e2253318d2f0ade14f5af52b04376babbd0a369a318225c32eb1be1",
+        "decision_id": "D-de88c9a276364d82",
+        "request_id": "MR-4a1850439ad747fa",
+        "started_at": "2026-09-13T02:53:50.840+00:00",
+        "ended_at": "2026-09-13T02:53:50.869+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00004",
+        "sequence": 4,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "902c0c223aa26ae915ef87100e9cb6676185a0d60e54031dea80004e6c3d6039",
+        "decision_id": "D-ce30a6ee7ec040e1",
+        "request_id": "MR-c48f703d225548d1",
+        "started_at": "2026-09-13T02:54:19.227+00:00",
+        "ended_at": "2026-09-13T02:54:19.255+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00005",
+        "sequence": 5,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "b691a334cc926d1b0d6f56ccb90316330cf9434b0fdefde1597d46a55bcf2dc9",
+        "decision_id": "D-a2fd087066684c32",
+        "request_id": "MR-256fee84162d4fac",
+        "started_at": "2026-09-13T02:54:48.322+00:00",
+        "ended_at": "2026-09-13T02:54:48.353+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00006",
+        "sequence": 6,
+        "status": "succeeded",
+        "action_type": "search_text",
+        "arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": "",
+          "mode": "regex",
+          "case_sensitive": true,
+          "max_file_bytes": 5000000
+        },
+        "wire_arguments": {
+          "max_tokens": 4096,
+          "max_results": 100,
+          "max_line_chars": 800,
+          "path": ".",
+          "pattern": "def create_exclusive_backup",
+          "recursive": true,
+          "start_after": ""
+        },
+        "action_fingerprint": "df72c97679abebf129665d492f1af6cf480a064d1e45753b1883d6b273c184a6",
+        "idempotency_key": "72b633adb40eab234bf33517338ecca2f964ed3c52ebed6bd2bcb3224507f194",
+        "decision_id": "D-18d478694aad4958",
+        "request_id": "MR-5ef643d3a15c401b",
+        "started_at": "2026-09-13T02:55:17.277+00:00",
+        "ended_at": "2026-09-13T02:55:17.309+00:00",
+        "result": {
+          "action_type": "search_text",
+          "success": true,
+          "output": "{\"case_sensitive\": true, \"complete\": true, \"excluded_directories\": [], \"excluded_directory_count\": 0, \"files_considered\": 7, \"files_searched\": 7, \"match_count\": 0, \"matches\": [], \"mode\": \"regex\", \"next_cursor\": \"\", \"path\": \".\", \"pattern\": \"def create_exclusive_backup\", \"recursive\": true, \"schema_version\": \"rwkv-lh.search-text-result.v1\", \"skipped_file_count\": 0, \"skipped_files\": [], \"source_snapshots\": {}, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "contract_digest": "2067d321e9749ec02e264133d8022e2a2712f197f36aa7d04c5aa1ac122551e5",
+            "match_count": 0,
+            "files_considered": 7,
+            "files_searched": 7,
+            "skipped_file_count": 0,
+            "truncated": false,
+            "complete": true,
+            "next_cursor": "",
+            "observed_tokens": 140
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+        "failure_key": "",
+        "observation_fingerprint": "6240a766e1cf7d45bb41c3cc4f09b15a2440cb34798846574ed4274914cb8342",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "decisions": [
+      {
+        "checkpoint": "CP-6c5965a908c54086",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-6229ae04014245ec",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-f362cc56d6554506",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-5362d387aef045d4",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-a844c62a1fde4d7c",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      },
+      {
+        "checkpoint": "CP-eb631b36b86f41c3",
+        "wire": {
+          "function": "search_text",
+          "params": {
+            "max_tokens": 4096,
+            "max_results": 100,
+            "max_line_chars": 800,
+            "path": ".",
+            "pattern": "def create_exclusive_backup",
+            "recursive": true,
+            "start_after": ""
+          }
+        }
+      }
+    ],
+    "termination": "budget",
+    "error": null,
+    "elapsed_seconds": 171.98465180397034,
+    "workspace_unchanged": true
+  }
+]
