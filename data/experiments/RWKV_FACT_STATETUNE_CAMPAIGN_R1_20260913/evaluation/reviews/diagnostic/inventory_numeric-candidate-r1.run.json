@@ -1,0 +1,55 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "inventory_numeric-candidate-r1",
+  "task_id": "inventory_numeric",
+  "arm": "candidate",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "README 要求：SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减。启动：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080；首次创建 DB，重启保留数据。\n\n数量与长度限制：PUT /inventory/{url-encoded-sku} 的 N 为非负整数，bool/小数非法；POST /orders 的 Idempotency-Key 最长 128 字符，quantity 为正整数，JSON 为必须。\n\n状态码：GET /health → 200；PUT 创建/更新 → 200；GET /inventory/{sku} → 200 或 404；POST 首次成功 → 201；同 key 相同规范化请求重复 → 200 同一订单；同 key 不同 customer/明细 → 409；任一 SKU 不存在或数量不足 → 404、409；失败整体无写入，不扣库存、不创建订单、不占用 key，允许之后重试；GET /orders → 200 或 404；坏 JSON/非法字段 → 400；未知路由 → 404。\n\n文档要求：库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单；并发不同 key 不得超卖；库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "diagnostic/inventory_numeric-candidate-r1/execution/RESULT.json",
+      "sha256": "9e382bcdc3ca0de2ee4f964a1e4a9d0f10ec07cf67114812363b2d56e4de68b1",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "diagnostic/inventory_numeric-candidate-r1/execution/model_trace.jsonl",
+      "sha256": "e92f2fcf4a790bb091ce29204210029c2e419b6fcaa47a7af4701fa1b2cb70e9",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "diagnostic/inventory_numeric-candidate-r1/execution/state_snapshot.json",
+      "sha256": "83006fbe8001344f324bd432b68ccdd83b1a0646619897bec857a0eab89f1544",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "diagnostic/inventory_numeric-candidate-r1/workspace/README.md",
+      "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3803,
+    "output_tokens": 452,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

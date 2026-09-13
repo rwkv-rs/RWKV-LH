@@ -1,0 +1,111 @@
+{
+  "id": "file-05",
+  "case": "RP-MAINT-01",
+  "path": "README.md",
+  "final": "README.md 的主要内容是：这是一个已有的多模块 CLI 项目，用于 SQLite 配置升级工具。升级/恢复在服务停机后运行，不要求与外部写进程并发。入口固定 config_cli.py，所有命令成功返回 0，失败返回非零并在 stdout 最后一行输出 JSON 对象。\n\n公开 v1 schema：PRAGMA user_version=1; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL); value 是任意合法 JSON 值的 UTF-8 字符串。保留 key 和语义值，拒绝 NaN/Infinity/坏 JSON。还可能有无关用户表，必须保留。\n\nv2 schema：保留 settings.key/value，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL；value 用 JSON ensure_ascii=False, sort_keys=True, separators=(',', ':') 规范化，类型为 null/boolean/number/string/array/object，迁移旧数据 updated_at=0。PRAGMA user_version=2，并有 schema_migrations(version INTEGER PRIMARY KEY, description TEXT NOT NULL) 的版本记录。\n\n- python config_cli.py migrate --db DB --backup BACKUP：只允许 v1→v2。首次必须先保留有效的完整 v1 SQLite 备份，再原子发布升级；BACKUP 不得等于 DB，已有备份不得覆盖。成功输出 {from_version:1,to_version:2,migrated_rows:N,changed:true,...}。已为 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0，且不改 DB 或备份，即使 BACKUP 已存在。\n- 任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败，原 DB 字节保持不变；不能丢失原行、表或版本。无关用户表保留；已有不兼容 schema_migrations 不得强制删除或覆盖。\n- python config_cli.py list --db DB：返回 {schema_version,settings:[{key,value,value_type},...]} 按 key 排序，value 为解码后的 JSON 值。\n- python config_cli.py get --db DB --key KEY：返回 {key,value,value_type}；未知 key 非 0。get/list 支持合法 v1、v2；不得修改 DB。\n- python config_cli.py restore --db DB --backup BACKUP：验证备份确为完整合法 v1/v2 配置 DB 后原子恢复，返回 {restored:true,schema_version:版本}；损坏文件、非配置 SQLite、缺失文件应失败并保留原 DB；不得修改 BACKUP。\n\nDB/backup 父目录已存在。允许调整内部模块，所有运行数据路径由 CLI 指定。sample_v1.sql 是小样例，不代表全面输入。请实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode。",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "016cc8e37976ec088ffaf6e1fe0edb0c363bbd24f26d174176de983a8a3f8711",
+      "decision_id": "D-8cecd3548b92452f",
+      "request_id": "MR-721bd4e1820a4115",
+      "started_at": "2026-09-12T20:12:12.711+00:00",
+      "ended_at": "2026-09-12T20:12:12.724+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 旧版 SQLite 配置升级工具\n\n这是已有的多模块 CLI 项目。用户反馈升级失败后 DB 被部分修改，重跑覆盖了可恢复备份。修复通用迁移、类型保真、备份和恢复逻辑，并补充验证与操作文档。升级/恢复在服务停机后运行，不要求与外部写进程并发。\n\n环境为 Python 3.11+ 标准库；入口固定 `config_cli.py`。所有命令成功返回 0，并在 stdout 最后一行输出 JSON 对象；失败返回非 0，不得静默成功。\n\n公开 v1 schema：`PRAGMA user_version=1; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`。value 是任意合法 JSON 值的 UTF-8 字符串。保留 key 和语义值，拒绝 NaN/Infinity/坏 JSON。还可能有无关用户表，必须保留。\n\nv2 schema：保留 settings.key/value，新增 `value_type TEXT NOT NULL`、`updated_at INTEGER NOT NULL`；value 用 JSON `ensure_ascii=False, sort_keys=True, separators=(',', ':')` 规范化，类型为 `null/boolean/number/string/array/object`，迁移旧数据 updated_at=0。`PRAGMA user_version=2`，并有 `schema_migrations(version INTEGER PRIMARY KEY, description TEXT NOT NULL)` 的 version=2 记录。\n\n- `python config_cli.py migrate --db DB --backup BACKUP`：只允许 v1→v2。首次必须先保留有效的完整 v1 SQLite 备份，再原子发布升级；BACKUP 不得等于 DB，已有备份不得覆盖。成功输出 `{from_version:1,to_version:2,migrated_rows:N,changed:true,...}`。已为 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0，且不改 DB 或备份，即使 BACKUP 已存在。\n- 任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败，原 DB 字节保持不变；不能丢失原行、表或版本。无关用户表保留；已有不兼容 schema_migrations 不得强制删除或覆盖。\n- `python config_cli.py list --db DB`：返回 `{schema_version,settings:[{key,value,value_type},...]}` 按 key 排序，value 为解码后的 JSON 值。\n- `python config_cli.py get --db DB --key KEY`：返回对应 `{key,value,value_type}`；未知 key 非 0。get/list 支持合法 v1、v2；不得修改 DB。\n- `python config_cli.py restore --db DB --backup BACKUP`：验证备份确为完整合法 v1/v2 配置 DB 后原子恢复，返回 `{restored:true,schema_version:版本}`；损坏文件、非配置 SQLite、缺失文件应失败并保留原 DB；不得修改 BACKUP。\n\nDB/backup 父目录已存在。允许调整内部模块，所有运行数据路径由 CLI 指定。`sample_v1.sql` 是小样例，不代表全面输入。请实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "fe1b81a024bb7a0b01b6d43c4266343ee80d8fd0296fafb293f0106b10bbd155",
+            "media_type": "text/markdown",
+            "size_bytes": 2685,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-b78b8859b74fe873",
+            "source_ref": "README.md",
+            "source_sha256": "fe1b81a024bb7a0b01b6d43c4266343ee80d8fd0296fafb293f0106b10bbd155",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2685,
+            "core_start": 0,
+            "core_end": 2685,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "fe1b81a024bb7a0b01b6d43c4266343ee80d8fd0296fafb293f0106b10bbd155",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 904
+          },
+          "start_byte": 0,
+          "end_byte": 2685,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2685,
+          "observed_tokens": 904,
+          "source_start_line": 1,
+          "source_end_line": 17
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-6891b194e02df21d7203"
+      ],
+      "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+      "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+      "failure_key": "",
+      "observation_fingerprint": "a494413846e9fee07a4c5c2b69509b2572bee09ce483683b355ca8ca1792a300",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-b648564e8df843a2",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "README.md"
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-4eb13614563048b3",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "README.md 的主要内容是：这是一个已有的多模块 CLI 项目，用于 SQLite 配置升级工具。升级/恢复在服务停机后运行，不要求与外部写进程并发。入口固定 config_cli.py，所有命令成功返回 0，失败返回非零并在 stdout 最后一行输出 JSON 对象。\n\n公开 v1 schema：PRAGMA user_version=1; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL); value 是任意合法 JSON 值的 UTF-8 字符串。保留 key 和语义值，拒绝 NaN/Infinity/坏 JSON。还可能有无关用户表，必须保留。\n\nv2 schema：保留 settings.key/value，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL；value 用 JSON ensure_ascii=False, sort_keys=True, separators=(',', ':') 规范化，类型为 null/boolean/number/string/array/object，迁移旧数据 updated_at=0。PRAGMA user_version=2，并有 schema_migrations(version INTEGER PRIMARY KEY, description TEXT NOT NULL) 的版本记录。\n\n- python config_cli.py migrate --db DB --backup BACKUP：只允许 v1→v2。首次必须先保留有效的完整 v1 SQLite 备份，再原子发布升级；BACKUP 不得等于 DB，已有备份不得覆盖。成功输出 {from_version:1,to_version:2,migrated_rows:N,changed:true,...}。已为 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0，且不改 DB 或备份，即使 BACKUP 已存在。\n- 任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败，原 DB 字节保持不变；不能丢失原行、表或版本。无关用户表保留；已有不兼容 schema_migrations 不得强制删除或覆盖。\n- python config_cli.py list --db DB：返回 {schema_version,settings:[{key,value,value_type},...]} 按 key 排序，value 为解码后的 JSON 值。\n- python config_cli.py get --db DB --key KEY：返回 {key,value,value_type}；未知 key 非 0。get/list 支持合法 v1、v2；不得修改 DB。\n- python config_cli.py restore --db DB --backup BACKUP：验证备份确为完整合法 v1/v2 配置 DB 后原子恢复，返回 {restored:true,schema_version:版本}；损坏文件、非配置 SQLite、缺失文件应失败并保留原 DB；不得修改 BACKUP。\n\nDB/backup 父目录已存在。允许调整内部模块，所有运行数据路径由 CLI 指定。sample_v1.sql 是小样例，不代表全面输入。请实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode。"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 59.763670921325684,
+  "workspace_unchanged": true
+}

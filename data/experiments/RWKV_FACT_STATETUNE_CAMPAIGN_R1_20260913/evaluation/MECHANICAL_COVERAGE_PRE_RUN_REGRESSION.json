@@ -1,0 +1,106 @@
+{
+  "before_two_chunk_result": false,
+  "after_two_chunk_result": true,
+  "cases": [
+    {
+      "name": "one complete",
+      "ranges": [
+        [
+          0,
+          10
+        ]
+      ],
+      "file_bytes": 10,
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "two adjacent",
+      "ranges": [
+        [
+          0,
+          4
+        ],
+        [
+          4,
+          10
+        ]
+      ],
+      "file_bytes": 10,
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "reordered overlap",
+      "ranges": [
+        [
+          4,
+          10
+        ],
+        [
+          0,
+          6
+        ]
+      ],
+      "file_bytes": 10,
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "gap",
+      "ranges": [
+        [
+          0,
+          4
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "file_bytes": 10,
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "missing beginning",
+      "ranges": [
+        [
+          1,
+          10
+        ]
+      ],
+      "file_bytes": 10,
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "no observation",
+      "ranges": [],
+      "file_bytes": 10,
+      "expected": false,
+      "actual": false
+    },
+    {
+      "name": "empty file observed",
+      "ranges": [
+        [
+          0,
+          0
+        ]
+      ],
+      "file_bytes": 0,
+      "expected": true,
+      "actual": true
+    },
+    {
+      "name": "empty file unobserved",
+      "ranges": [],
+      "file_bytes": 0,
+      "expected": false,
+      "actual": false
+    }
+  ],
+  "helper_sha256": "85ad94341c807f93a7212d43a5240b83f4bb108d31e6309124bf5d6697de94cc",
+  "note": "No model evaluation has run; correction to external review adapter, no production edits or task score changes. Actual consumption and byte content still checked by trace audit."
+}

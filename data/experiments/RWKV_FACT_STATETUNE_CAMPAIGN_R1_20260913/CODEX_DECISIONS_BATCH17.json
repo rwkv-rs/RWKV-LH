@@ -1,0 +1,11 @@
+{
+ "rag_sparse-v7":{"accepted":false,"reason":"未去重和计数超过8被截断的概括混淆Counter聚合与权重min表达式；原Counter可大于8，不应如此描述原计数。"},
+ "rag_sparse-v8":{"accepted":false,"reason":"将Counter的count直接称上限8，实际仅权重计算使用min(count,8)，数值对象错配。"},
+ "rag_document_retrieval-v7":{"accepted":true,"reason":"按query并行、文档去重与RRF1/(60+rank)、选集内二次检索及未选文档拒绝准确，未把BM25注释当已实现事实。"},
+ "rag_document_retrieval-v8":{"accepted":true,"reason":"真实参数/观察与RRF常数和rank起点、selected空分支、metadata含义忠实。"},
+ "rag_state_tokens-v7":{"accepted":true,"reason":"词表、最长匹配、总长度与prompt屏蔽/答案EOS关系准确，未称训练或测试已完成。"},
+ "rag_state_tokens-v8":{"accepted":true,"reason":"max_tokens限制总序列、-100只屏蔽prompt、答案计数包含追加0关系准确，实际仅文件读取。"},
+ "rag_schemas-v6":{"accepted":false,"reason":"将question的10000限制改为content的100000，数字与对象明显错配。"},
+ "rag_schemas-v7":{"accepted":true,"reason":"question10000/content100000、top_k/candidate_k与列表/批量限制对象准确，模型关系和两个strip校验来自源码；未声称业务实现。"},
+ "rag_schemas-v8":{"accepted":true,"reason":"字段类型、继承关系和数字范围分别对应准确，明确只定义数据模型而非执行检索/生成。"}
+}

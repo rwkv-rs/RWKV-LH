@@ -1,0 +1,13 @@
+{
+  "id": "migration_code_first-v7",
+  "seed_id": "migration_code_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"实际工具操作：成功 read_file config_store/migrations.py（1388字节，27行）和 README.md（2685字节，17行），均完整；未改文件，未跑测试。需求（README）：migrate 仅 v1→v2，先写完整 v1 备份且 BACKUP≠DB、不覆盖已有备份，再原子发布；已 v2 应 changed=false 且不改 DB/备份；坏 JSON、未知版本、冲突备份、异常 schema 必须失败且原 DB 字节不变；v2 需 schema_migrations 的 version=2 记录，value 按 ensure_ascii=False、sort_keys=True、separators=(',', ':') 规范化；restore 验证完整 v1/v2 后原子恢复，失败保留原 DB；get/list 不改 DB。代码推断（migrations.py）：migrate 无条件写 backup 后才读 user_version，未检查 BACKUP==DB 或已有备份，已 v2 也改备份；无 schema_migrations；json.dumps 未传规范化参数；先设 user_version=2 并逐行 commit，坏 JSON 会部分提交，违反原子/回滚；restore 直接写 bytes，不验证备份。未见 .values、config_cli.py，无法核实 decode/value_type 与 CLI 行为。验证建议：正常升级、重跑、坏数据回滚、restore 损坏/缺失/非配置、Unicode 与无关表保留。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"实际工具操作：成功 read_file config_store/migrations.py（1388字节，27行）和 README.md（2685字节，17行），均完整；未改文件，未跑测试。需求（README）：migrate 仅 v1→v2，先写完整 v1 备份且 BACKUP≠DB、不覆盖已有备份，再原子发布；已 v2 应 changed=false 且不改 DB/备份；坏 JSON、未知版本、冲突备份、异常 schema 必须失败且原 DB 字节不变；v2 需 schema_migrations 的 version=2 记录，value 按 ensure_ascii=False、sort_keys=True、separators=(',', ':') 规范化；restore 验证完整 v1/v2 后原子恢复，失败保留原 DB；get/list 不改 DB。代码推断（migrations.py）：migrate 无条件写 backup 后才读 user_version，未检查 BACKUP==DB 或已有备份，已 v2 也改备份；无 schema_migrations；json.dumps 未传规范化参数；先设 user_version=2 并逐行 commit，坏 JSON 会部分提交，违反原子/回滚；restore 直接写 bytes，不验证备份。未见 .values、config_cli.py，无法核实 decode/value_type 与 CLI 行为。验证建议：正常升级、重跑、坏数据回滚、restore 损坏/缺失/非配置、Unicode 与无关表保留。\"}}\n```",
+  "target_sha256": "94c9ee8b7e7393437c7cae6a4f9e9a07d02268bf795d80633c7b886cc1c5d6b9",
+  "target_tokens": 421,
+  "review_issues": []
+}

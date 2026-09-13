@@ -1,0 +1,75 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "d1c73d106e682080cbb18e3e4195fcf502394905397c445caa259bfe4e387559",
+  "run_sha256": "cfdcd0b25431edade9dc87fa795e1b8be3f6471d3edabcf62b40e18ad553c4d5",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "subject",
+      "status": "met",
+      "reason": "识别库存订单需求",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "central",
+      "status": "met",
+      "reason": "主要幂等、原子、并发与持久含义完整",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "fidelity",
+      "status": "partial",
+      "reason": "这次将不存在SKU也归为409，局部状态码关系不忠实",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "任一 SKU 不存在或数量不足均 409",
+      "reason": "不存在应404，数量不足才409；两种条件再次被合并成同一码",
+      "impact": "局部数字/触发关系错误，严格忠实性门不通过；不把其余正确主旨计成零覆盖",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": []
+}

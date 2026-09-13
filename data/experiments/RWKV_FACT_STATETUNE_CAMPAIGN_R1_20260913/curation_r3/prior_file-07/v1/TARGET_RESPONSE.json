@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 提供 SQLite 数据库工具函数。validate(connection) 执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，只接受版本 1 或 2；之后校验 settings 表含 key、value 列，版本 2 时还校验 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source, destination) 以只读 URI 连接 source，先调用 validate，再连接 destination 并执行 original.backup(copied)，最后对 destination 执行 fsync。write_backup_exclusive(source, backup) 先复制到临时 staged，再用 os.link 链接为 backup，最后清理 staged。\"}}",
+  "reason": "已完整读取 config_store/sqlite_io.py，仅依据文件内容归纳各函数职责与校验逻辑。"
+}

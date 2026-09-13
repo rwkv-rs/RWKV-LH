@@ -1,0 +1,75 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "d1c73d106e682080cbb18e3e4195fcf502394905397c445caa259bfe4e387559",
+  "run_sha256": "3017a202ceed5bba147c7691eb8b463da3da3a73c20a0e8cfba8d5c8576d60e1",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "subject",
+      "status": "met",
+      "reason": "识别SQLite库存订单需求说明",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "central",
+      "status": "met",
+      "reason": "主要幂等、原子、并发与持久化含义完整",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "fidelity",
+      "status": "partial",
+      "reason": "局部状态码被改写：不存在404正确，但库存不足应409而不是404",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "任一 SKU 不存在或数量不足均 404",
+      "reason": "原文明确不存在404、数量不足409；这里将不同触发条件合并",
+      "impact": "局部数字/触发关系不忠实，摘要其余主旨保留；任务严格忠实性门不通过",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": []
+}

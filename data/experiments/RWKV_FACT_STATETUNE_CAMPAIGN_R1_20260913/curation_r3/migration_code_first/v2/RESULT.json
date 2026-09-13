@@ -1,0 +1,12 @@
+{
+  "id": "migration_code_first-v2",
+  "seed_id": "migration_code_first",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388字节）和 README.md（A00002，2685字节）；未读取 config_cli.py，未运行任何测试。\\n\\n需求（README）：migrate 仅 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 首句即用 DB 字节覆盖 backup，早于版本判断，故 v2 时仍改写备份；无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本未拒绝。restore 直接用 backup 字节覆盖 DB，未校验备份合法性。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}",
+  "accepted_by_api": false,
+  "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+  "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388字节）和 README.md（A00002，2685字节）；未读取 config_cli.py，未运行任何测试。\\n\\n需求（README）：migrate 仅 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 首句即用 DB 字节覆盖 backup，早于版本判断，故 v2 时仍改写备份；无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本未拒绝。restore 直接用 backup 字节覆盖 DB，未校验备份合法性。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}\n```",
+  "target_sha256": "52a5066a37c39a452b0c7b28d4072394bfec9f0867d10065393759febe775cf4",
+  "target_tokens": 467
+}

@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 说明这是一个旧版 SQLite 配置升级工具，多模块 CLI，入口 config_cli.py，Python 3.11+ 标准库；目标是修复迁移、类型保真、备份和恢复，并补验证文档。v1：user_version=1，settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)，value 为任意合法 JSON 的 UTF-8 字符串，拒绝 NaN/Infinity/坏 JSON，保留无关表。v2：保留 settings，新增 value_type 与 updated_at；value 用 ensure_ascii=False、sort_keys=True、separators=(',',':') 规范化，类型限 null/boolean/number/string/array/object，旧数据 updated_at=0，user_version=2 并写 schema_migrations 的 version=2 记录。migrate 仅 v1→v2：先建完整 v1 备份，BACKUP≠DB 且不覆盖已有备份，再原子升级；已 v2 时 changed=false 且不动 DB/备份；坏 JSON、未知版本、冲突备份或异常 schema 须失败且原 DB 字节不变。list/get 返回 JSON，支持 v1/v2，get 未知 key 非 0，list 按 key 排序，均不改 DB。restore 验证完整 v1/v2 后原子恢复，损坏/非配置/缺失失败并保留原 DB，不改 BACKUP。文档还称运行数据路径由 CLI 指定，sample_v1.sql 非全面输入，需实际验证升级、重跑、坏数据回滚、恢复和 Unicode。以上为 README 要求；本次仅读文件，未执行代码或测试。\"}}",
+  "reason": "已读取完整 README，总结其目标、schema、命令语义与限制，并声明未执行测试。"
+}

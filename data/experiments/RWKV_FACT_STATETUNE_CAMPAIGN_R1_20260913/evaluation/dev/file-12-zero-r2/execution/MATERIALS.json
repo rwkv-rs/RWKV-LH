@@ -1,0 +1,146 @@
+{
+  "items": [
+    {
+      "event": {
+        "event_type": "action_result",
+        "payload": {
+          "action_id": "A00001",
+          "operation": "read_file",
+          "explicit_arguments": {
+            "path": "README.md",
+            "start_byte": 0,
+            "max_tokens": 4096
+          },
+          "result": {
+            "success": true,
+            "outcome_type": "success",
+            "action_type": "read_file",
+            "metadata": {
+              "complete": true,
+              "truncated": false,
+              "eof": true,
+              "start_byte": 0,
+              "end_byte": 2020,
+              "next_start_byte": null,
+              "source_size_bytes": 2020,
+              "observed_tokens": 713,
+              "chunk": {
+                "chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+                "source_ref": "README.md",
+                "source_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 2020,
+                "core_start": 0,
+                "core_end": 2020,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 713
+              },
+              "source_start_line": 1,
+              "source_end_line": 16
+            },
+            "observation": {
+              "schema_version": "rwkv-lh.observation-packet.v1",
+              "projection_version": "typed-lineage-observation-funnel.v1",
+              "operation": "read_file",
+              "adapter_registered": true,
+              "raw_result_sha256": "505353cca1aed2b03f5f0bb41f59f989de07ac706f9e4dfaf8b3161179c00fcd",
+              "raw_output_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+              "raw_output_chars": 1118,
+              "raw_output_bytes": 2020,
+              "raw_result_persisted": true,
+              "summary_fact_authority": false,
+              "source_chunk": {
+                "chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+                "source_ref": "README.md",
+                "source_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                "media_type": "text/plain",
+                "byte_start": 0,
+                "byte_end": 2020,
+                "core_start": 0,
+                "core_end": 2020,
+                "overlap_before": 0,
+                "overlap_after": 0,
+                "chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                "split_strategy_version": "rwkv-token-cursor.v1",
+                "previous_chunk_id": null,
+                "next_chunk_id": null,
+                "complete_source": true,
+                "token_start": 0,
+                "token_end": 713
+              },
+              "source_chunk_integrity_valid": true,
+              "adapter": "local_exact_text",
+              "payload_kind": "exact_utf8_spans",
+              "fact_authority": "exact_spans_only",
+              "exact_spans": [
+                {
+                  "span_id": "OBS-SPAN-635e7c08ffdfab9fdac5",
+                  "source_ref": "README.md",
+                  "snapshot_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                  "start_byte": 0,
+                  "end_byte": 2020,
+                  "start_line": 1,
+                  "end_line": 16,
+                  "content_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                  "content": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+                  "selection_basis": "complete",
+                  "parent_chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+                  "parent_chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c"
+                }
+              ],
+              "projection_complete": true,
+              "unprojected_content_exists": false,
+              "unprojected_byte_ranges": [],
+              "continuation": {
+                "complete": true,
+                "next_start_byte": null
+              },
+              "source_artifact": {
+                "path": "README.md",
+                "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+                "size_bytes": 2020,
+                "media_type": "text/markdown",
+                "fact_authority": "harness_file_artifact_identity"
+              }
+            }
+          },
+          "artifact_refs": [
+            "ART-8334d519837e4a4300c8"
+          ],
+          "artifact_revisions": [
+            {
+              "revision_id": "REV-bf0058ee5c974a66",
+              "target": "README.md",
+              "artifact_id": "ART-8334d519837e4a4300c8",
+              "action_id": "A00001",
+              "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+              "outcome_type": "success",
+              "supersedes_revision_ids": [],
+              "observed_at": "2026-09-13T09:24:42.219+00:00"
+            }
+          ],
+          "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+          "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+          "observation_fingerprint": "0ee08ac89d2728ccfe5ff9f7ef24d5c70f572acb920fea264bc71970ec9c4586",
+          "identical_result_count": 1
+        },
+        "content_refs": [
+          "ART-8334d519837e4a4300c8"
+        ],
+        "complete": true
+      },
+      "event_id": "EV-ACTION-A00001",
+      "consumed_by_requests": [
+        "MR-1856df8a9bfa4aee"
+      ]
+    }
+  ]
+}

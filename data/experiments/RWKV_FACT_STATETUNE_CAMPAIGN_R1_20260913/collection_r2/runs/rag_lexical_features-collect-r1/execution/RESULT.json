@@ -1,0 +1,97 @@
+{
+  "id": "rag_lexical_features-collect-r1",
+  "final": "lexical_features.py 的主要行为：\n\n1. 从文档标题、元数据别名字段和正文前 800 字节中提取候选别名。\n2. 使用正则匹配常见别名标记（如“又称”“别名”“亦称”等）。\n3. 清洗候选别名：去除引号、空格、“一种”“一个”等前缀，并去除“之一”“等”等后缀。\n4. 过滤掉与原标题相同、过短（≤1 字符）或过长（>40 字符）的候选。\n5. 返回最多 16 个不重复的别名。\n\n重要限制：\n- 只处理标题、元数据别名字段和正文前 800 字节，不扫描全文。\n- 别名长度限制为 1~40 字符。\n- 不返回与原标题相同的别名。\n- 不返回“一种”“一个”等泛化前缀。\n- 不返回“之一”“等”等后缀。\n- 不保证别名的语义正确性，只做形式清洗。\n\n对应数字/类型：\n- 最大别名数：16\n- 正文扫描长度：800 字符\n- 别名长度上限：40 字符\n- 别名长度下限：1 字符\n- 别名去重：基于字符串相等",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 2,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "lexical_features.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "lexical_features.py"
+      },
+      "action_fingerprint": "0562b309bd29518e5b1c0b9ee2e0fb95278d57497be6543e22e10da690dc35b4",
+      "idempotency_key": "2307720db06d272b9c6eaf9a397fcbeceb3c170e1fb4751b874db3a8dff70b8b",
+      "decision_id": "D-8291809bbe334a68",
+      "request_id": "MR-db1be551dbab404f",
+      "started_at": "2026-09-13T07:43:34.882+00:00",
+      "ended_at": "2026-09-13T07:43:34.911+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "import re\nfrom typing import Any\n\n\n_ALIAS_KEYS = (\n    \"aliases\",\n    \"alias\",\n    \"redirects\",\n    \"redirect\",\n    \"alternate_names\",\n    \"alternate_name\",\n    \"aka\",\n)\n_ALIAS_PATTERN = re.compile(\n    r\"(?:又称|又稱|又名|亦称|亦稱|也称|也稱|曾称|曾稱|简称|簡稱|旧称|舊稱|原名|别称|別稱)\"\n    r\"(?:为|為|作)?[：:]?\\s*([^，,。！？!?；;）)\\n]{1,80})\"\n)\n_PARENTHETICAL_TITLE = re.compile(r\"^(?P<base>.+?)\\s*[（(][^）)]{1,40}[）)]$\")\n_ALIAS_SPLIT = re.compile(r\"[、，,；;]|(?:或称|或稱|以及|及|和|与|與)\")\n_ALIAS_PREFIX = re.compile(r\"^(?:为|為|作|叫作|称作|稱作)\\s*\")\n_ALIAS_SUFFIX = re.compile(r\"(?:之一|等)$\")\n\n\ndef _metadata_alias_values(metadata: dict[str, Any]) -> list[str]:\n    values: list[str] = []\n    for key in _ALIAS_KEYS:\n        value = metadata.get(key)\n        if isinstance(value, (list, tuple, set)):\n            values.extend(str(item) for item in value)\n        elif value is not None:\n            values.append(str(value))\n    return values\n\n\ndef _clean_alias(value: str) -> str:\n    cleaned = value.strip(\" \\t\\\"'“”‘’《》【】[]（）()\")\n    cleaned = _ALIAS_PREFIX.sub(\"\", cleaned)\n    cleaned = _ALIAS_SUFFIX.sub(\"\", cleaned)\n    cleaned = re.sub(r\"\\s+\", \" \", cleaned).strip(\" 的\")\n    return cleaned\n\n\ndef extract_document_aliases(\n    title: str,\n    text: str,\n    metadata: dict[str, Any] | None = None,\n) -> list[str]:\n    \"\"\"Extract conservative document aliases for lexical entity lookup.\"\"\"\n    candidates = _metadata_alias_values(metadata or {})\n    title_match = _PARENTHETICAL_TITLE.match(title.strip())\n    if title_match:\n        candidates.append(title_match.group(\"base\"))\n\n    lead = \" \".join(text[:800].splitlines())\n    for match in _ALIAS_PATTERN.finditer(lead):\n        value = re.split(\n            r\"[，,](?:是|为|為|指|属于|屬於|位于|位於)\",\n            match.group(1),\n            maxsplit=1,\n        )[0]\n        candidates.extend(_ALIAS_SPLIT.split(value))\n\n    aliases: list[str] = []\n    normalized_title = _clean_alias(title)\n    for candidate in candidates:\n        alias = _clean_alias(candidate)\n        if (\n            1 < len(alias) <= 40\n            and alias != normalized_title\n            and not alias.startswith((\"一种\", \"一種\", \"一个\", \"一個\"))\n            and alias not in aliases\n        ):\n            aliases.append(alias)\n    return aliases[:16]\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "lexical_features.py",
+            "sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+            "media_type": "text/x-python",
+            "size_bytes": 2419,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-93c9e429b25900d3",
+            "source_ref": "lexical_features.py",
+            "source_sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2419,
+            "core_start": 0,
+            "core_end": 2419,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 790
+          },
+          "start_byte": 0,
+          "end_byte": 2419,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2419,
+          "observed_tokens": 790,
+          "source_start_line": 1,
+          "source_end_line": 74
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-175c10b01e357fbd5ce0"
+      ],
+      "workspace_digest_before": "13b7adf31948d36a91ca212ce718ba8de904ca023b762987716140f54270a124",
+      "workspace_digest_after": "13b7adf31948d36a91ca212ce718ba8de904ca023b762987716140f54270a124",
+      "failure_key": "",
+      "observation_fingerprint": "ecb2cf9ffe4b74abb03e3ffdd92b20c3b47c7b66ab5fab7125884b7fdd195e96",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 53.89348486799281
+}

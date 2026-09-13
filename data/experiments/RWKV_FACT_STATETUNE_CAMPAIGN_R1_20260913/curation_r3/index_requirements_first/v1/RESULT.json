@@ -1,0 +1,12 @@
+{
+  "id": "index_requirements_first-v1",
+  "seed_id": "index_requirements_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"一、需求（README.md，已完整读取2194字节）：递归索引 .md/.txt，POSIX 相对路径，跳过符号链接；按内容而非 mtime/size 判断变化；删除文件须从索引移除；返回 {added,updated,deleted,unchanged,generation}，generation 仅在增/改/删时 +1；任一目标文件非严格 UTF-8 或读取失败则整次同步原子失败；DB 绑定首次 root；query 用 NFC+casefold 字面子串匹配（Straße↔STRASSE）、按路径升序每文档一次；status 返回 document_count/generation/root；query/status 不写库。\\n二、代码推断（document_index/store.py，已完整读取1789字节）：synchronize 只用 mtime 相等判 unchanged，故同时间戳内容变更被忽略；无删除分支，deleted 恒为 0、旧记录残留；generation 每次调用无条件 +1；root 直接覆盖写，换 root 不报错；循环内逐条 commit，无整体事务/回滚，坏文件无法原子失败；文件内未见 query 与 NFC casefold 实现（仅存 search 列）。\\n三、本次实际工具操作：仅两次 read_file 读取上述两文件，均 eof、未截断；未修改文件，未执行任何测试。\\n四、未执行的验证建议：sync 增/改/删、同 mtime 改内容、Unicode 查询、坏 UTF-8 原子失败、重启后持久性与换 root 报错；index_cli.py 与样例 docs 不在本工作区清单中，其 CLI 行为无法核实。\"}}",
+  "accepted_by_api": false,
+  "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+  "input_sha256": "768bc2a32c095934da296c3224559aecc53e0671f5cd1e667c00ce64c551cfe8",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"一、需求（README.md，已完整读取2194字节）：递归索引 .md/.txt，POSIX 相对路径，跳过符号链接；按内容而非 mtime/size 判断变化；删除文件须从索引移除；返回 {added,updated,deleted,unchanged,generation}，generation 仅在增/改/删时 +1；任一目标文件非严格 UTF-8 或读取失败则整次同步原子失败；DB 绑定首次 root；query 用 NFC+casefold 字面子串匹配（Straße↔STRASSE）、按路径升序每文档一次；status 返回 document_count/generation/root；query/status 不写库。\\n二、代码推断（document_index/store.py，已完整读取1789字节）：synchronize 只用 mtime 相等判 unchanged，故同时间戳内容变更被忽略；无删除分支，deleted 恒为 0、旧记录残留；generation 每次调用无条件 +1；root 直接覆盖写，换 root 不报错；循环内逐条 commit，无整体事务/回滚，坏文件无法原子失败；文件内未见 query 与 NFC casefold 实现（仅存 search 列）。\\n三、本次实际工具操作：仅两次 read_file 读取上述两文件，均 eof、未截断；未修改文件，未执行任何测试。\\n四、未执行的验证建议：sync 增/改/删、同 mtime 改内容、Unicode 查询、坏 UTF-8 原子失败、重启后持久性与换 root 报错；index_cli.py 与样例 docs 不在本工作区清单中，其 CLI 行为无法核实。\"}}\n```",
+  "target_sha256": "aeb61b51293123cf805d70f8fbf8ea6a741beeed827be90e4db83d435eb47715",
+  "target_tokens": 487
+}

@@ -1,0 +1,15 @@
+{
+  "id": "prior_file-10-v7",
+  "seed_id": "prior_file-10",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py 是基于 sqlite3 的文档索引存储模块，只依据该文件可见内容：\\n\\n1. 用途：提供 existing、synchronize、status 三个函数，管理 SQLite 数据库中的文档与元数据。\\n2. existing(database)：返回 sqlite3.connect(database) 的连接。\\n3. synchronize(database, root, documents)：创建 documents 表（path 主键，含 content、digest、search、mtime）与 metadata 表（key 主键，value）；读取旧 path→mtime；按 mtime 是否相同统计 added/updated/deleted/unchanged，相同则 unchanged，否则 added 或 updated，并按 path 执行 INSERT OR REPLACE；每次提交后 generation 加 1，并写入 root 与 generation；返回统计字典加 generation。\\n4. status(database)：读取 metadata，统计 documents 数量，返回 document_count、generation、root。\\n\\n限制：文件未显示删除文档的实现，deleted 只初始化为 0；未显示外部调用、异常处理和测试。status 直接取 metadata['generation'] 与 metadata['root']，若元数据缺失，按代码可能引发 KeyError，但这不是已观测执行结果。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "c711491b2d890000bc85c7284fff2b08701eb484f4a27b3eadcd5af52a4f2c61",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py 是基于 sqlite3 的文档索引存储模块，只依据该文件可见内容：\\n\\n1. 用途：提供 existing、synchronize、status 三个函数，管理 SQLite 数据库中的文档与元数据。\\n2. existing(database)：返回 sqlite3.connect(database) 的连接。\\n3. synchronize(database, root, documents)：创建 documents 表（path 主键，含 content、digest、search、mtime）与 metadata 表（key 主键，value）；读取旧 path→mtime；按 mtime 是否相同统计 added/updated/deleted/unchanged，相同则 unchanged，否则 added 或 updated，并按 path 执行 INSERT OR REPLACE；每次提交后 generation 加 1，并写入 root 与 generation；返回统计字典加 generation。\\n4. status(database)：读取 metadata，统计 documents 数量，返回 document_count、generation、root。\\n\\n限制：文件未显示删除文档的实现，deleted 只初始化为 0；未显示外部调用、异常处理和测试。status 直接取 metadata['generation'] 与 metadata['root']，若元数据缺失，按代码可能引发 KeyError，但这不是已观测执行结果。\"}}\n```",
+  "target_sha256": "9e7658597bc9864d6e4072abd8ed7f1dc93fe4630ca2b1d694133f404a2fdc66",
+  "target_tokens": 357,
+  "review_issues": [
+    "摘要称 synchronize 中“每次提交后 generation 加 1”，但文件显示 connection.commit() 在循环内每次插入后执行，而 generation 在文档循环结束后只加 1 一次；该提交/递增关系与代码不符。"
+  ]
+}

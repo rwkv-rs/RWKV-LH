@@ -1,0 +1,106 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "inventory_numeric-candidate-r2",
+  "task_id": "inventory_numeric",
+  "arm": "candidate",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "66a967b7ecf957dda7b4cf539ee1bc8fe80b9d7be8eef35562ceb7a0ab0848fd",
+  "run_sha256": "6dde9920cb1cd328fe7abd7ab25c2cb0dc8cb4952402449d734b6cf79a7614c9",
+  "review_sha256": "cc5239b52eb4bdf31319413199748d366082c0672d6525ff2a495dfd29bd4762",
+  "execution_identity_sha256": "b5efe5b8981b0b5c2c0b80f9103310eeb8558f8784fe784426b23dafdad35a17",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "stock非负、quantity正整数、排除bool/小数、128及空key400对应清楚",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "codes",
+      "status": "unmet",
+      "reason": "将不存在/不足都404，把无写入属性赋409，还错误给PUT创建201",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "明确README要求，无本次已实现/测试虚称",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "PUT 创建 SKU 返回 201",
+      "reason": "PUT创建或更新均200",
+      "impact": "把订单首次201迁移到库存PUT",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "任一 SKU 不存在或数量不足 → 404",
+      "reason": "不存在404、数量不足409",
+      "impact": "合并不同错误条件造成数字改写",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "失败整体无写入 → 409",
+      "reason": "无写入是多个失败场景的事务约束，不是统一409的触发条件",
+      "impact": "把事务属性与状态码错配",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3805,
+    "output_tokens": 413,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

@@ -1,0 +1,55 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "inventory_numeric-zero-r2",
+  "task_id": "inventory_numeric",
+  "arm": "zero",
+  "repeat": 2,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "README.md 中的数量、长度限制和 HTTP 状态码对应关系如下：\n\n1. 数量：\n   - `N`：`PUT /inventory/{url-encoded-sku}` 中的 `stock` 字段，表示该 SKU 的可售库存数量，必须为非负整数。\n   - `quantity`：`POST /orders` 中每个 `items` 对象的 `quantity` 字段，表示该 SKU 的购买数量，必须为正整数。\n\n2. 长度限制：\n   - `Idempotency-Key` 请求头：最长 128 字符。\n   - `customer` 字段：非空字符串。\n   - `sku` 字段：非空字符串。\n   - `items` 数组中的 `sku` 字段：非空字符串。\n   - `items` 数组中的 `quantity` 字段：正整数。\n\n3. HTTP 状态码对应关系：\n   - `200`：成功响应，如 `GET /health`、`GET /inventory/{sku}`、`GET /orders`、`GET /orders/{id}`、`POST /orders`（首次成功）、`GET /orders/{id}`。\n   - `201`：创建成功，如 `POST /orders`（首次成功）。\n   - `400`：请求错误，如 `POST /orders` 中的坏 JSON、非法字段、空 `items`/`key`。\n   - `404`：资源不存在，如 `GET /health`（不存在）、`GET /inventory/{sku}`（SKU 不存在）、`GET /orders/{id}`（订单不存在）。\n   - `409`：冲突，如 `POST /orders` 中同一 `Idempotency-Key` 但不同客户或不同明细。\n   - `500`：服务器内部错误，如 `PUT /inventory/{sku}` 中的非法 `stock` 值。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "diagnostic/inventory_numeric-zero-r2/execution/RESULT.json",
+      "sha256": "84dd3c00bd5f9a119d29c685cd548879b90aaa03eadf1c2ff66167448815bd90",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "diagnostic/inventory_numeric-zero-r2/execution/model_trace.jsonl",
+      "sha256": "80e996598916dd15bc3c4adb89ef5840125b14b44226e67c45b0b7882f9c9f28",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "diagnostic/inventory_numeric-zero-r2/execution/state_snapshot.json",
+      "sha256": "66c32cbbfff948b7049cabf30133ba284b0b2cc21b834ae7e980e1a11ce1f847",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "diagnostic/inventory_numeric-zero-r2/workspace/README.md",
+      "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 6986,
+    "output_tokens": 2395,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  }
+}

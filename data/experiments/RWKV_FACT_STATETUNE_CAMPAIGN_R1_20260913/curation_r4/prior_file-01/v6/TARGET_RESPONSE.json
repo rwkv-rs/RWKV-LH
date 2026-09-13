@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 要求仅用 Python 标准库实现 backup.py，支持从任意工作目录运行 `python backup.py snapshot SOURCE ARCHIVE` 和 `python backup.py restore ARCHIVE DESTINATION`。SOURCE 是目录，ARCHIVE 须在其外；递归包含普通文件（含零字节）并保留空目录，拒绝符号链接等非普通条目；失败 snapshot 不得替换旧 ARCHIVE，权限/时间戳无需保留。归档为 ZIP 加 UTF-8 `manifest.json`：`version` 为 1，`directories` 列相对 POSIX 目录路径，`files` 列含 `path`、字节 `size`、小写 `sha256` 的对象；载荷成员名为 `files/<relative path>`，不添加 ZIP 目录条目；该格式用于互操作，不代表可信任归档。restore 在替换 DESTINATION 前须校验版本、名称唯一、声明成员、大小与摘要，拒绝重复/未声明成员、绝对路径、父穿越、反斜杠、无效规范化路径、文件/目录冲突和符号链接目标；只在完整校验后替换，失败保持旧目标，成功不保留旧文件，无效输入不得写出暂存区。成功命令向 stdout 写 JSON，`files` 与 `bytes` 统计普通文件数及原始总字节；失败非零退出并写 stderr；每次调用独立进程，无内存状态；暂存放在最终目标旁以利同文件系统原子替换。还需自编单元测试并文档化使用与验证。\"}}",
+  "reason": "README.md 已被完整读取，下一步应直接给出基于其内容的总结。"
+}

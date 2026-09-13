@@ -1,0 +1,8 @@
+{
+ "index_code_first-v1":{"accepted":true,"reason":"两次读取与未运行测试明确，mtime而非digest、无删除、generation无条件递增、覆盖root及逐行提交均有代码依据，没有越过未读query/扫描模块。"},
+ "index_code_first-v2":{"accepted":true,"reason":"需求与可见store.py行为分开，字节数/函数/计数正确，验证仍为建议。"},
+ "index_code_first-v3":{"accepted":true,"reason":"准确列出实际存储缺陷与本文件未覆盖的查询/扫描，未将推断说成运行结果。"},
+ "index_requirements_first-v1":{"accepted":false,"reason":"由逐行commit直接断言坏文件无法原子失败，缺少上游扫描输入证据；坏文件可能在进入synchronize前已使扫描失败。"},
+ "index_requirements_first-v2":{"accepted":false,"reason":"坏文件无法原子失败超出当前两文件证据，只能证明循环内有分次提交，不能断言所有上游坏文件路径。"},
+ "index_requirements_first-v3":{"accepted":false,"reason":"store.py接收documents，没有文件读取；读取中失败会部分更新推断跨越了未观察的上游调用边界。"}
+}

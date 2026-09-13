@@ -1,0 +1,61 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "api_code_first-zero-r1",
+  "task_id": "api_code_first",
+  "arm": "zero",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "已阅读 server.py 和 README.md。\n\n1. 实际实现的 HTTP 行为\n   - GET /health：返回 200 和 {\"ok\":true}。\n   - POST /bookings：接受 resource、customer、start、end 等字段；start/end 必须为整数且 start >= 0、start < end；同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响；成功返回 201 和包含 id、resource、start、end、customer、status:\"confirmed\" 的 JSON；冲突返回 409。\n   - GET /bookings：返回 200 和 {\"bookings\":[...]}，包含 cancelled 预约；支持 ?resource=... 精确过滤；按 start、id 升序；返回完整预约。\n   - GET /bookings/{id}：返回 200 完整预约或 404。\n   - DELETE /bookings/{id}：返回 200 {\"id\",\"status\":\"cancelled\"}；重复取消幂等；取消后时段可被重新预约；未知 id 返回 404。\n   - 非法输入、缺字段、坏 JSON、未知路由：返回 400 或 404；错误对象含 error 字段。\n\n2. --db 参数的作用\n   - 是 server.py 的必选参数，用于指定 SQLite 数据库文件路径。\n   - 首次启动时，代码应创建数据库并建表；后续启动保留数据。\n   - 数据库持久化支持多进程并发启动后继续正确。\n\n3. 已实现与未验证的结论\n   - 已实现：健康检查、POST/GET/DELETE 接口、冲突判定、数据库持久化、--db 参数。\n   - 未验证：实际冲突判定是否正确、数据库持久化是否可靠、并发场景是否正确、错误路径是否完整、是否支持 UTF-8 名称、是否支持精确过滤等。\n\n4. 建议补充的验证\n   - 启动后检查 /health 和数据库文件是否存在。\n   - 并发 POST 测试冲突判定和幂等性。\n   - 测试 DELETE 后时段可被重新预约。\n   - 测试非法输入、缺字段、坏 JSON、未知路由等错误路径。\n   - 测试 UTF-8 名称和精确过滤。\n   - 测试多进程并发启动后数据一致性。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "diagnostic/api_code_first-zero-r1/execution/RESULT.json",
+      "sha256": "7a4217cf7f82fc3cf358b90591c292e6ffe35bcdedbf74602a19114ffe7ca269",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "diagnostic/api_code_first-zero-r1/execution/model_trace.jsonl",
+      "sha256": "0fd69939a129d687c82b9b0b68451a1f91e9a93d2a911f23cd8a86ccd1cab07a",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "diagnostic/api_code_first-zero-r1/execution/state_snapshot.json",
+      "sha256": "ad5dcf08b20d18fc014d0f9c83801435b4ae3b47ec7701d093ec492d94bf0e67",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "diagnostic/api_code_first-zero-r1/workspace/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "diagnostic/api_code_first-zero-r1/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8634,
+    "output_tokens": 808,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

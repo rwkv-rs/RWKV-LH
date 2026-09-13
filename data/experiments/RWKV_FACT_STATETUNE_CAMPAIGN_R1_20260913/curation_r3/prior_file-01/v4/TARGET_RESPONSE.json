@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 要求仅用 Python 标准库实现可移植的团队文件夹备份工具 backup.py，提供 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两条命令。SOURCE 为目录，ARCHIVE 必须在其外。\\n\\nsnapshot 递归包含常规文件（含隐藏、二进制、Unicode 名称、零字节文件），保留空目录，拒绝符号链接及其他非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档是 ZIP，内含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size 与小写 sha256；载荷成员名为 files/<相对路径>，不加 ZIP 目录条目。\\n\\nrestore 在替换 DESTINATION 前校验 version、名称唯一性、声明成员、文件大小与摘要，拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录的快照与恢复。\\n\\n成功命令向 stdout 输出一个 JSON 对象，files 和 bytes 统计常规文件数量与总原始字节；失败非零退出并在 stderr 说明。每次调用是独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。\"}}",
+  "reason": "README.md 已完整读取（2029 字节、14 行、EOF），直接据此总结其用途、两条命令、ZIP/manifest 格式、restore 校验规则、输出与测试要求，不添加文件外事实。"
+}

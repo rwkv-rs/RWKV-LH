@@ -1,0 +1,99 @@
+{
+  "id": "rag_batch_receipts-collect-r1",
+  "final": "batch_receipts.py 的主要行为是：\n\n1. 读取指定目录下以 `.batch_started.json` 或 `.batch_completed.json` 结尾的文件，解析为 JSON 对象。\n2. 对每个文件，提取 `batch_id` 和 `http_attempted` 字段。\n3. 根据 `http_attempted` 的值，将 batch 分类为：\n   - `confirmed_attempted`：`http_attempted` 为 `true`。\n   - `never_attempted`：`http_attempted` 为 `false`。\n   - `unknown`：文件未完成（未包含 `http_attempted` 字段）或文件损坏。\n4. 返回一个包含以下信息的字典：\n   - `unique_batches`：唯一 batch 的数量。\n   - `batches`：每个 batch 的详细信息，包括 `batch_id`、`classification`、`conflicting_terminal_evidence` 和 `observations`。\n   - `definition`：对分类逻辑的说明。\n   - `schema`：使用的 schema 版本。\n   - `unreadable_receipts`：无法读取的文件列表。\n\n重要限制：\n- 文件名必须以 `.batch_started.json` 或 `.batch_completed.json` 结尾。\n- `batch_id` 必须是字符串。\n- `http_attempted` 必须是布尔值。\n- 如果文件损坏或缺少必要字段，会被标记为 `unknown`。\n\n对应的数字或类型：\n- `batch_id`：字符串。\n- `http_attempted`：布尔值。\n- `unique_batches`：整数。\n- `batches`：列表，每个元素是一个字典。\n- `definition`：字符串。\n- `schema_version`：字符串。\n- `unreadable_receipts`：列表，包含无法读取的文件名。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 3,
+  "protocol_rejections": 1,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "max_tokens": 4096,
+        "path": "batch_receipts.py",
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "max_tokens": 4096,
+        "path": "batch_receipts.py",
+        "start_byte": 0
+      },
+      "action_fingerprint": "0f7e31eb9a26609b110c2c8bcb08b099a6fb39908244590d86f4c9082382bc69",
+      "idempotency_key": "ea5f49dcac9ebca0ec41318dbff45435e2668d47fb9c48c1f4545df2dcde1184",
+      "decision_id": "D-9f18bcd73caa4f87",
+      "request_id": "MR-89f664c7442840ee",
+      "started_at": "2026-09-13T07:39:53.464+00:00",
+      "ended_at": "2026-09-13T07:39:53.495+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Offline accounting for shared HTTP batches, including interrupted runs.\n\nA pre-send receipt proves preparation only. A completed receipt explicitly\nrecording ``http_attempted=False`` proves no dispatch; an observed True proves\nan attempt, not a successful response or provider execution.\n\"\"\"\n\nfrom collections import defaultdict\nimport json\nfrom pathlib import Path\n\n\ndef _summarize_http(directory: Path, prefix: str, identity_key: str, traces=()) -> dict:\n    batches = defaultdict(list)\n    unreadable = []\n\n    def observe(record, origin, completed=False):\n        identity = record.get(identity_key)\n        if not isinstance(identity, str) or not identity:\n            raise ValueError(\"HTTP receipt is missing its identity\")\n        attempted = record.get(\"http_attempted\")\n        terminal = completed or bool(record.get(\"ended_at\"))\n        evidence = (\"attempted\" if attempted is True else\n                    \"not_attempted\" if attempted is False and terminal else \"unknown\")\n        batches[identity].append({\"origin\": origin, \"evidence\": evidence})\n\n    for path in sorted(directory.glob(f\"*.{prefix}_*.json\")):\n        completed = path.name.endswith(f\".{prefix}_completed.json\")\n        if not completed and not path.name.endswith(f\".{prefix}_started.json\"):\n            continue\n        try:\n            record = json.loads(path.read_bytes())\n            if not isinstance(record, dict):\n                raise ValueError(\"batch receipt is not an object\")\n            observe(record, path.name, completed)\n        except (OSError, ValueError, TypeError):\n            # A process can stop halfway through writing a receipt. Its filename\n            # identifies an unresolved batch; do not turn corrupt bytes into 0.\n            identity = path.name.rsplit(f\".{prefix}_\", 1)[0]\n            batches[identity].append({\"origin\": path.name, \"evidence\": \"unknown\"})\n            unreadable.append(path.name)\n\n    for number, trace in enumerate(traces):\n        identity = trace.get(identity_key)\n        if identity_key == \"count_id\" and not identity:\n            identity = trace.get(\"token_count_id\")\n        if isinstance(identity, str) and identity:\n            batches[identity]  # Keep a known batch even if its HTTP entry is absent.\n        for ordinal, record in enumerate(trace.get(\"http\", [])):\n            if isinstance(record, dict) and record.get(identity_key):\n                observe(record, f\"model_trace[{number}].http[{ordinal}]\")\n\n    rows = []\n    counts = {\"confirmed_attempted\": 0, \"never_attempted\": 0, \"unknown\": 0}\n    for identity, observations in sorted(batches.items()):\n        evidence = {item[\"evidence\"] for item in observations}\n        conflict = {\"attempted\", \"not_attempted\"} <= evidence\n        classification = (\"unknown\" if conflict else\n                          \"confirmed_attempted\" if \"attempted\" in evidence else\n                          \"never_attempted\" if \"not_attempted\" in evidence else \"unknown\")\n        counts[classification] += 1\n        rows.append({identity_key: identity, \"classification\": classification,\n                     \"conflicting_terminal_evidence\": conflict, \"observations\": observations})\n    return {\"schema\": f\"{prefix}-http-accounting-v1\", \"unique_requests\": len(rows),\n            **counts, \"count_exact\": counts[\"unknown\"] == 0,\n            \"http_requests\": counts[\"confirmed_attempted\"] if counts[\"unknown\"] == 0 else None,\n            \"confirmed_attempted_lower_bound\": counts[\"confirmed_attempted\"],\n            \"possible_attempted_upper_bound\": counts[\"confirmed_attempted\"] + counts[\"unknown\"],\n            \"unreadable_receipts\": unreadable, \"requests\": rows,\n            \"definition\": \"Attempt means client dispatch attempted; not proof of provider execution. \"\n                          \"Started-only receipts have unknown dispatch state.\"}\n\n\ndef summarize_batch_http(directory: Path, traces=()) -> dict:\n    result = _summarize_http(directory, \"batch\", \"batch_id\", traces)\n    result[\"unique_batches\"] = result.pop(\"unique_requests\")\n    result[\"batches\"] = result.pop(\"requests\")\n    return result\n\n\ndef summarize_token_http(directory: Path, traces=()) -> dict:\n    \"\"\"Count tokenizer HTTP separately; one count_id is not a generation batch.\"\"\"\n    result = _summarize_http(directory, \"token_count\", \"count_id\", traces)\n    result[\"unique_counts\"] = result.pop(\"unique_requests\")\n    result[\"counts\"] = result.pop(\"requests\")\n    return result\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "batch_receipts.py",
+            "sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+            "media_type": "text/x-python",
+            "size_bytes": 4436,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-ccb52599e7b27244",
+            "source_ref": "batch_receipts.py",
+            "source_sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 4436,
+            "core_start": 0,
+            "core_end": 4436,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 1042
+          },
+          "start_byte": 0,
+          "end_byte": 4436,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 4436,
+          "observed_tokens": 1042,
+          "source_start_line": 1,
+          "source_end_line": 86
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-a931ed15742b03c4e6e4"
+      ],
+      "workspace_digest_before": "866377695f5ca8f258304229a97eb18cf308ee1a04581e2c647d9f990efbffc9",
+      "workspace_digest_after": "866377695f5ca8f258304229a97eb18cf308ee1a04581e2c647d9f990efbffc9",
+      "failure_key": "",
+      "observation_fingerprint": "0cd8d3d7c147579e818976227878517218dd0a1aad7ac0cf8b7ecd82be008f98",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 118.83173664903734
+}

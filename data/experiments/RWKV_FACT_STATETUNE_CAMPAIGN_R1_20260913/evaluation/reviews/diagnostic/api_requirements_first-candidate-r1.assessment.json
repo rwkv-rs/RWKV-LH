@@ -1,0 +1,84 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_requirements_first-candidate-r1",
+  "task_id": "api_requirements_first",
+  "arm": "candidate",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "7075b36d448cf11e436cd0d8d2ec65c28b9c476c4f5077b169e0a0f63cb0aa7c",
+  "run_sha256": "02a128b889599fd34adead1546a18214af0e6ebc3c9d7d9e87a87ad39ae0a25b",
+  "review_sha256": "1c1e69019906602b3d92139e0a689eae1dc72d3e0de05224edbc537a0604b8a2",
+  "execution_identity_sha256": "b5efe5b8981b0b5c2c0b80f9103310eeb8558f8784fe784426b23dafdad35a17",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "http",
+      "status": "met",
+      "reason": "正确健康200/其他501、未实现预约业务",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "unmet",
+      "reason": "声称非空限制并传给serve_forever，都不在源码；required只要求参数出现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "实际两次读/无测试正确，主体将业务放到未实现，但后文笼统否认JSON响应等与已述health JSON相冲突",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "强制要求 --db 为非空字符串，并将其传给 ThreadingHTTPServer 的 serve_forever",
+      "reason": "argparse required=True不禁止空字符串，serve_forever()没有传db参数",
+      "impact": "编造关键参数约束与传递关系",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8934,
+    "output_tokens": 702,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

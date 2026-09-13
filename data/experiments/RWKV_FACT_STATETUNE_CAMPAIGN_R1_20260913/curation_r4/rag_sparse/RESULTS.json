@@ -1,0 +1,41 @@
+[
+  {
+    "id": "rag_sparse-v6",
+    "seed_id": "rag_sparse",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"工具操作：本次仅执行 read_file 成功完整读取 sparse.py（1554 字节，1–50 行，0–1554 字节，449 token），未运行任何测试。源码实际行为：SparseBatch 定义为 tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，用正则 [a-zA-Z0-9]+ 取词，再扫描 U+4E00–U+9FFF 连续汉字段，每段加入单字与相邻二字组；token_index 用 blake2s(digest_size=4) 得 4 字节，int.from_bytes(..., big, signed=False)，返回 0 到 2^32-1 的整数；encode_sparse_texts 对每个文本用 Counter 统计 token，按 (token_index, 1.0+math.log(min(count,8))) 排序，分别返回 index 和 value 的平行列表；sparse_encoder 仅返回该函数。重要限制：仅识别 ASCII 字母数字和 CJK 基本区，不涉及其他文字/标点；计数上限 8，value 含自然对数；未处理哈希碰撞与去重；无稀疏矩阵对象。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "144d633b34c287346021b9977581e8b8734caec4bca8d6b4028fc41f5e2b462d",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"工具操作：本次仅执行 read_file 成功完整读取 sparse.py（1554 字节，1–50 行，0–1554 字节，449 token），未运行任何测试。源码实际行为：SparseBatch 定义为 tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，用正则 [a-zA-Z0-9]+ 取词，再扫描 U+4E00–U+9FFF 连续汉字段，每段加入单字与相邻二字组；token_index 用 blake2s(digest_size=4) 得 4 字节，int.from_bytes(..., big, signed=False)，返回 0 到 2^32-1 的整数；encode_sparse_texts 对每个文本用 Counter 统计 token，按 (token_index, 1.0+math.log(min(count,8))) 排序，分别返回 index 和 value 的平行列表；sparse_encoder 仅返回该函数。重要限制：仅识别 ASCII 字母数字和 CJK 基本区，不涉及其他文字/标点；计数上限 8，value 含自然对数；未处理哈希碰撞与去重；无稀疏矩阵对象。\"}}\n```",
+    "target_sha256": "dfd837456ef2fb77d882a2c8a87647f4d86e1ea1612cb1dbb90e6182625260c7",
+    "target_tokens": 342,
+    "review_issues": []
+  },
+  {
+    "id": "rag_sparse-v7",
+    "seed_id": "rag_sparse",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file 读取 sparse.py（0-1554 字节，完整，50 行，449 tokens，sha256 fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662）。源码实际定义：SparseBatch = tuple[list[list[int]], list[list[float]]]；_WORD_PATTERN 为 [a-zA-Z0-9]+。chinese_tokens 先 lower()，提取 ASCII 数字/字母 token，再扫描连续汉字 run；每个 run 追加单字，并追加相邻二字组合（len(run)-1 个）。token_index 用 blake2s digest_size=4 取 4 字节，按大端无符号转 int。encode_sparse_texts 对每个文本用 Counter 统计 token 频率，将 (token_index(token), 1.0+math.log(min(count,8))) 排序，返回 indices 和 values 两个等长列表。sparse_encoder 只是返回 encode_sparse_texts。重要限制：未去重；token_index 可能冲突；值上限 1.0+ln(8)，计数超过 8 被截断；排序按索引；空/非中文/英文混合只有 ASCII 词和汉字单/双字。本次只读文件，未运行任何测试；测试建议未验证。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "144d633b34c287346021b9977581e8b8734caec4bca8d6b4028fc41f5e2b462d",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file 读取 sparse.py（0-1554 字节，完整，50 行，449 tokens，sha256 fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662）。源码实际定义：SparseBatch = tuple[list[list[int]], list[list[float]]]；_WORD_PATTERN 为 [a-zA-Z0-9]+。chinese_tokens 先 lower()，提取 ASCII 数字/字母 token，再扫描连续汉字 run；每个 run 追加单字，并追加相邻二字组合（len(run)-1 个）。token_index 用 blake2s digest_size=4 取 4 字节，按大端无符号转 int。encode_sparse_texts 对每个文本用 Counter 统计 token 频率，将 (token_index(token), 1.0+math.log(min(count,8))) 排序，返回 indices 和 values 两个等长列表。sparse_encoder 只是返回 encode_sparse_texts。重要限制：未去重；token_index 可能冲突；值上限 1.0+ln(8)，计数超过 8 被截断；排序按索引；空/非中文/英文混合只有 ASCII 词和汉字单/双字。本次只读文件，未运行任何测试；测试建议未验证。\"}}\n```",
+    "target_sha256": "979ab388b45bcd63472ac725f30352946f7f8c81c50da2036c05a586de1f391b",
+    "target_tokens": 389,
+    "review_issues": []
+  },
+  {
+    "id": "rag_sparse-v8",
+    "seed_id": "rag_sparse",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次对 sparse.py 实际执行 read_file，读取完整 1554 字节、50 行、449 tokens，未修改文件，也未运行测试。源码定义 SparseBatch = tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，再用正则 [a-zA-Z0-9]+ 取词，并收集连续汉字区间 U+4E00 至 U+9FFF，对每个连续段加入单字和相邻双字。token_index 用 blake2s digest_size=4，按 big-endian unsigned 转为整数。encode_sparse_texts 对每段文本做 Counter，键为 token，值为 count；排序元组为 (token_index, 1.0 + math.log(min(count, 8)))，count 上限 8，数学关系为自然对数；最终返回并行的 all_indices 与 all_values。sparse_encoder 返回 encode_sparse_texts 可调用对象。推断：索引来自 32 位摘要，理论上可能碰撞；未执行测试，因此不能确认运行期行为或性能，建议后续补测试验证。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "144d633b34c287346021b9977581e8b8734caec4bca8d6b4028fc41f5e2b462d",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次对 sparse.py 实际执行 read_file，读取完整 1554 字节、50 行、449 tokens，未修改文件，也未运行测试。源码定义 SparseBatch = tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，再用正则 [a-zA-Z0-9]+ 取词，并收集连续汉字区间 U+4E00 至 U+9FFF，对每个连续段加入单字和相邻双字。token_index 用 blake2s digest_size=4，按 big-endian unsigned 转为整数。encode_sparse_texts 对每段文本做 Counter，键为 token，值为 count；排序元组为 (token_index, 1.0 + math.log(min(count, 8)))，count 上限 8，数学关系为自然对数；最终返回并行的 all_indices 与 all_values。sparse_encoder 返回 encode_sparse_texts 可调用对象。推断：索引来自 32 位摘要，理论上可能碰撞；未执行测试，因此不能确认运行期行为或性能，建议后续补测试验证。\"}}\n```",
+    "target_sha256": "10aa7cef29bffb885d0f9b0b4559472b8c442c26ee1028bba1bb479589af4c64",
+    "target_tokens": 322,
+    "review_issues": []
+  }
+]

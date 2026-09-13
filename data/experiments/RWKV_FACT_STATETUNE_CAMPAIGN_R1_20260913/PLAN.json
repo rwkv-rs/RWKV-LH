@@ -1,0 +1,36 @@
+{
+  "role": "direct_actor",
+  "dataset": "data/datasets/rwkv_direct_fact_fidelity_v1",
+  "train_families": [
+    "RAG",
+    "MAINT"
+  ],
+  "dev_family": "API",
+  "confirmation_families": [
+    "DATA",
+    "WEB"
+  ],
+  "regression_fingerprint": "057c56ef58854f62c47eb4b7ab66c3cc3341267322e3c0fffd22c422d5188242",
+  "minimums": {
+    "train_rows": 14,
+    "read_boundaries": 8,
+    "summary_boundaries": 6,
+    "source_files": 6,
+    "families": 2
+  },
+  "max_rows": 21,
+  "training": {
+    "initial_state": "zero",
+    "learning_rate": 0.0001,
+    "epochs": 3,
+    "max_optimizer_steps": 64,
+    "max_seconds": 7200
+  },
+  "acceptance": {
+    "absolute": "candidate original dev >=7/8, no fidelity or task regression vs same-round zero; diagnostic code order cases each repeat met; numeric supplemental each repeat met",
+    "relative": "report separately; no unreachable fixed gain requirement at ceiling",
+    "confirmation": "same immutable original cases; candidate each repeat4/4 and no regression; run only after development+read pass, no repair after confirmation",
+    "reading": "original fixed main21 and separate3 no regression, zero illegal parameters or false work claims"
+  },
+  "limits": "This pilot has few source families. No universal or project cost claim. Existing diagnostic API sources remain evaluation-only. Original regression unchanged, new focused eval separately frozen before training."
+}

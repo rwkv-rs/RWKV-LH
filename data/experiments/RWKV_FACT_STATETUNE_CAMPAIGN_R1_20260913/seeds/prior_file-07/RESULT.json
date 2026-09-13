@@ -1,0 +1,111 @@
+{
+  "id": "file-07",
+  "case": "RP-MAINT-01",
+  "path": "config_store/sqlite_io.py",
+  "final": "config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，主要提供以下功能：\n\n1. **validate(connection)**：验证 SQLite 数据库的完整性，检查 PRAGMA integrity_check 是否为 ok，并确认 schema_version 为 1 或 2。\n2. **temporary_path(parent)**：在指定父目录下创建一个临时文件路径。\n3. **copy_database(source, destination)**：将源数据库复制到目标数据库，使用 PRAGMA backup_exclusive 模式确保原子性。\n4. **write_backup_exclusive(source, backup)**：写入备份文件，先复制到临时文件，再原子性地链接到目标路径。\n\n模块还导入了 os、sqlite3、tempfile 和 Path 等标准库模块，用于文件操作和数据库连接。",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "config_store/sqlite_io.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "config_store/sqlite_io.py"
+      },
+      "action_fingerprint": "1142ce1f1517b84a40d4d78c1d958843dbdaa4712fde9a87848453d70435fb63",
+      "idempotency_key": "0f19fa925c1338cd1f3985c711df6686ff2e4de5f22143dcc78e24b9c6dada81",
+      "decision_id": "D-69135b3112b8454a",
+      "request_id": "MR-8b2fedd4c25f46d6",
+      "started_at": "2026-09-12T20:14:18.451+00:00",
+      "ended_at": "2026-09-12T20:14:18.460+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport os\nimport sqlite3\nimport tempfile\nfrom pathlib import Path\n\ndef validate(connection):\n    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':\n        raise ValueError('invalid SQLite database')\n    version = connection.execute('PRAGMA user_version').fetchone()[0]\n    if version not in (1, 2):\n        raise ValueError('unsupported schema version')\n    connection.execute('SELECT key,value FROM settings LIMIT 0')\n    if version == 2:\n        connection.execute('SELECT value_type,updated_at FROM settings LIMIT 0')\n    return version\n\ndef temporary_path(parent):\n    descriptor, name = tempfile.mkstemp(prefix='.config-stage-', suffix='.sqlite3', dir=parent)\n    os.close(descriptor)\n    return Path(name)\n\ndef copy_database(source, destination):\n    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as original:\n        validate(original)\n        with sqlite3.connect(destination) as copied:\n            original.backup(copied)\n    with destination.open('rb') as stream:\n        os.fsync(stream.fileno())\n\ndef write_backup_exclusive(source, backup):\n    staged = temporary_path(backup.parent)\n    try:\n        copy_database(source, staged)\n        os.link(staged, backup)\n    finally:\n        staged.unlink(missing_ok=True)\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "config_store/sqlite_io.py",
+            "sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+            "media_type": "text/x-python",
+            "size_bytes": 1309,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-4df0dadc8db500d9",
+            "source_ref": "config_store/sqlite_io.py",
+            "source_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1309,
+            "core_start": 0,
+            "core_end": 1309,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "3bc4f32ef3d9bdee7702192d19455423b3e277a807fa74114f0d425b6aa15e46",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 338
+          },
+          "start_byte": 0,
+          "end_byte": 1309,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1309,
+          "observed_tokens": 338,
+          "source_start_line": 1,
+          "source_end_line": 37
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-53646d8d095ba48810bc"
+      ],
+      "workspace_digest_before": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+      "workspace_digest_after": "7824b5d4b9be51254e231b3d6f109d59d1471e41c3d26fd398de2ca1f7670c81",
+      "failure_key": "",
+      "observation_fingerprint": "c1e9626d80afa9cb1779a94e0bdfa16d41ccde1e3f6f6a5bd7b444752ac9c2fd",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-c4b79e3c0ef5405c",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "config_store/sqlite_io.py"
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-98006bc1cc544596",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，主要提供以下功能：\n\n1. **validate(connection)**：验证 SQLite 数据库的完整性，检查 PRAGMA integrity_check 是否为 ok，并确认 schema_version 为 1 或 2。\n2. **temporary_path(parent)**：在指定父目录下创建一个临时文件路径。\n3. **copy_database(source, destination)**：将源数据库复制到目标数据库，使用 PRAGMA backup_exclusive 模式确保原子性。\n4. **write_backup_exclusive(source, backup)**：写入备份文件，先复制到临时文件，再原子性地链接到目标路径。\n\n模块还导入了 os、sqlite3、tempfile 和 Path 等标准库模块，用于文件操作和数据库连接。"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 50.99448847770691,
+  "workspace_unchanged": true
+}

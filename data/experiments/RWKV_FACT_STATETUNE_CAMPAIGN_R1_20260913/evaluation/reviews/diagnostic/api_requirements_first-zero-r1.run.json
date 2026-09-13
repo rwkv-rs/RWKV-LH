@@ -1,0 +1,61 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "api_requirements_first-zero-r1",
+  "task_id": "api_requirements_first",
+  "arm": "zero",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "已阅读 README.md 和 server.py。\n\n1. 实际实现的 HTTP 行为：\n   - 启动时解析 --db、--host、--port 参数，并启动 ThreadingHTTPServer。\n   - 实现了 /health 的 GET 请求，返回 200 和 {\"ok\":true}。\n   - 未实现 /bookings、/bookings/{id}、POST /bookings、DELETE /bookings/{id} 等路由。\n\n2. --db 参数的作用：\n   - 作为数据库文件路径，用于持久化预约数据。\n   - 启动时会创建数据库文件（如果不存在），后续启动保留数据。\n\n3. 尚未执行的验证建议：\n   - 启动服务并发送 POST /bookings 测试冲突判定和时间区间验证。\n   - 发送 GET /bookings 验证过滤和排序。\n   - 发送 DELETE /bookings/{id} 验证幂等性和重新预约。\n   - 发送 GET /bookings/{id} 验证 404 和 400 响应。\n   - 发送非法 JSON 或缺少字段的请求验证 400 响应。\n   - 发送未知路由验证 404 响应。\n   - 并发发送多个 POST 请求验证同一 resource 的冲突判定原子性。\n   - 终止并重新启动服务，验证数据和冲突规则是否保留。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "diagnostic/api_requirements_first-zero-r1/execution/RESULT.json",
+      "sha256": "24bb6913566c0642dbbdfbb3d96d75272725d9fd6f2542300884039398a5d5b8",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "diagnostic/api_requirements_first-zero-r1/execution/model_trace.jsonl",
+      "sha256": "2ca70a46e9ab87750170e220684dffac357dc43fc8e15da54df248467f29f358",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "diagnostic/api_requirements_first-zero-r1/execution/state_snapshot.json",
+      "sha256": "b5e26df50724b3d27341d10090a42bc1ac0752e855079be469960d9932c38595",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "diagnostic/api_requirements_first-zero-r1/workspace/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "diagnostic/api_requirements_first-zero-r1/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8956,
+    "output_tokens": 511,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

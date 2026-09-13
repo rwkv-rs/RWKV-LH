@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅实际执行 read_file：读取 lexical_features.py 完整 2419 字节、790 tokens，工具返回完整成功，文件未被修改；未运行测试。源码主函数 extract_document_aliases(title, text, metadata) 返回 list[str]。其行为：先用 _metadata_alias_values 从 metadata 固定键 aliases、alias、redirects、redirect、alternate_names、alternate_name、aka 取值；值为 list/tuple/set 时逐项 str，非 None 标量直接 str，None 跳过；键值若为其他类型（如 dict）也会 str 后进入候选。标题若匹配末尾括号尾注，取括号前 base。正文只取前 800 字符并按行合并，用 _ALIAS_PATTERN 找 1 到 80 字符别名片段，再按标点及或称/以及/及/和/与/與切分。_clean_alias 去除首尾指定空白引号括号、前导 为/為/作/叫作/称作/稱作、尾部 之一/等，压缩空白并去首尾空格和 的。过滤条件为长度大于 1 且不超过 40、不同于原标题、不以 一种/一種/一个/一個 开头、列表内去重，最后最多返回 16 个。限制包括只读前 800 字符、正则捕获上限、标题括号内容限 1 到 40 字符、最终上限 16；这些是代码推断，非测试结果。\"}}",
+  "reason": "基于已读取完整源码与工具观察独立总结，区分实际工具操作与代码推断，且未把未运行测试当作事实。"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "migration_requirements_first-v8",
+  "seed_id": "migration_requirements_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"结论：README.md 定义完整升级/备份/恢复契约，但 config_store/migrations.py 实现远未满足，且有明确缺陷。需求：Python 3.11+，入口 config_cli.py；migrate 仅 v1→v2，先保有效完整 v1 备份，BACKUP≠DB 且不覆盖；v2 保留 settings.key/value，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL，value 需 ensure_ascii=False, sort_keys=True, separators=(',',':') 规范化，支持 null/boolean/number/string/array/object，旧行 updated_at=0，并建 schema_migrations version=2 记录；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；list/get 支持 v1/v2 不改库；restore 验证后原子恢复且不改 BACKUP。代码实际：migrate 先无条件把 database.read_bytes() 写入 backup，再读 user_version；若 version==2 返回 changed=False；否则 ALTER 加两列、设 user_version=2、逐行 decode 并 json.dumps 后更新 value/value_type，逐行 commit。restore 直接 database.write_bytes(backup.read_bytes()) 后读版本。差距：无 BACKUP≠DB、不覆盖、备份有效性、原子发布、失败保 DB 检查；已 v2 仍覆盖备份；非 v1/v2 仍按 v1 迁移；无 schema_migrations 记录；json.dumps 默认非规范化且允许 NaN/Infinity；逐行 commit 可部分迁移；restore 无验证即覆盖 DB。本次工具操作：完整读取 README.md（2685B）与 config_store/migrations.py（1388B），未改文件，未运行测试。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "8a9e3cbc323fcd03afc21b6e4e0bb059b3b3ef383c749f15a563304531674152",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"结论：README.md 定义完整升级/备份/恢复契约，但 config_store/migrations.py 实现远未满足，且有明确缺陷。需求：Python 3.11+，入口 config_cli.py；migrate 仅 v1→v2，先保有效完整 v1 备份，BACKUP≠DB 且不覆盖；v2 保留 settings.key/value，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL，value 需 ensure_ascii=False, sort_keys=True, separators=(',',':') 规范化，支持 null/boolean/number/string/array/object，旧行 updated_at=0，并建 schema_migrations version=2 记录；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；list/get 支持 v1/v2 不改库；restore 验证后原子恢复且不改 BACKUP。代码实际：migrate 先无条件把 database.read_bytes() 写入 backup，再读 user_version；若 version==2 返回 changed=False；否则 ALTER 加两列、设 user_version=2、逐行 decode 并 json.dumps 后更新 value/value_type，逐行 commit。restore 直接 database.write_bytes(backup.read_bytes()) 后读版本。差距：无 BACKUP≠DB、不覆盖、备份有效性、原子发布、失败保 DB 检查；已 v2 仍覆盖备份；非 v1/v2 仍按 v1 迁移；无 schema_migrations 记录；json.dumps 默认非规范化且允许 NaN/Infinity；逐行 commit 可部分迁移；restore 无验证即覆盖 DB。本次工具操作：完整读取 README.md（2685B）与 config_store/migrations.py（1388B），未改文件，未运行测试。\"}}\n```",
+  "target_sha256": "c186861465bc4c554d8c0c2c3bdcaa938a99ee378290ad9a0a1b1eff1df2433b",
+  "target_tokens": 513,
+  "review_issues": [
+    "没有按要求单独给出“未执行的验证建议”部分；只写了“未运行测试”，未列出建议验证项（如正常升级、重跑、坏数据回滚、恢复、Unicode 等）。"
+  ]
+}

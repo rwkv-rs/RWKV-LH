@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-08-v6",
+  "seed_id": "prior_file-08",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 任务是维护增量文档索引：基于 Python/SQLite 的现有多文件索引存在子目录漏索、删除不清理、mtime/size 相同时内容变更被忽略、Unicode 查询不一致等问题；要求修复扫描、增量更新、查询和持久化，保持 CLI 接口并说明验证方法。实现限定 Python 3.11+ 标准库，入口 index_cli.py；成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。sync 递归索引 .md/.txt UTF-8 普通文件（扩展名不区分大小写），用 POSIX 相对路径，跳过符号链接；按内容变化更新，删除文件要移出索引；返回 added、updated、deleted、unchanged、generation，generation 从 0 开始，仅新增、内容修改或删除时加 1。扫描中任一目标文件非严格 UTF-8 或读取失败则整次同步失败，不得部分更新；不存在的 root 失败；DB 绑定首次 root 绝对路径，换 root 不得静默混用。query 非空，对内容和 TEXT 做 NFC 规范化后 casefold 字面子串匹配（Straße 匹配 STRASSE，组合/分解 é 等价），返回按路径升序、每文档一次的 matches，无匹配为空数组，禁止 SQL 通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，缺失 DB 失败；重启后索引保留，查询时源文件不必存在。还要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新操作说明。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 任务是维护增量文档索引：基于 Python/SQLite 的现有多文件索引存在子目录漏索、删除不清理、mtime/size 相同时内容变更被忽略、Unicode 查询不一致等问题；要求修复扫描、增量更新、查询和持久化，保持 CLI 接口并说明验证方法。实现限定 Python 3.11+ 标准库，入口 index_cli.py；成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。sync 递归索引 .md/.txt UTF-8 普通文件（扩展名不区分大小写），用 POSIX 相对路径，跳过符号链接；按内容变化更新，删除文件要移出索引；返回 added、updated、deleted、unchanged、generation，generation 从 0 开始，仅新增、内容修改或删除时加 1。扫描中任一目标文件非严格 UTF-8 或读取失败则整次同步失败，不得部分更新；不存在的 root 失败；DB 绑定首次 root 绝对路径，换 root 不得静默混用。query 非空，对内容和 TEXT 做 NFC 规范化后 casefold 字面子串匹配（Straße 匹配 STRASSE，组合/分解 é 等价），返回按路径升序、每文档一次的 matches，无匹配为空数组，禁止 SQL 通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，缺失 DB 失败；重启后索引保留，查询时源文件不必存在。还要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新操作说明。\"}}\n```",
+  "target_sha256": "f9bf05e296dddb014f20b5855152ddc4d2d0655fdfcdd66a92b041d1638be810",
+  "target_tokens": 506,
+  "review_issues": []
+}

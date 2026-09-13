@@ -1,0 +1,111 @@
+{
+  "id": "file-09",
+  "case": "RP-MAINT-02",
+  "path": "document_index/documents.py",
+  "final": "document_index/documents.py 的主要内容是一个文档索引模块，用于收集指定目录下的 Markdown 文件，并为每个文件生成索引记录。\n\n主要功能：\n1. 收集文件：遍历指定目录下的所有 .md 文件\n2. 读取内容：读取每个文件的 UTF-8 字节内容\n3. 生成索引：为每个文件生成包含以下字段的索引记录：\n   - path: 文件路径\n   - content: 文件原始内容\n   - digest: 文件内容的 SHA-256 哈希值\n   - search: 文件内容的小写化搜索文本\n   - mtime: 文件最后修改时间的纳秒时间戳\n\n核心函数：\n- collect(root): 主收集函数，接收目录路径，返回文档索引记录列表\n- normalize(value): 将文本转换为小写，用于搜索标准化\n\n使用场景：\n- 文档搜索和检索\n- 内容版本管理\n- 文件内容比对和更新检测",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/documents.py"
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "6814b8acaa029a265b7766e2a78824c0ef18be7fbef921959e10e8a55eb8b7dc",
+      "decision_id": "D-cf22bb3ffac84a38",
+      "request_id": "MR-c22dabf71a894f9e",
+      "started_at": "2026-09-12T20:16:07.429+00:00",
+      "ended_at": "2026-09-12T20:16:07.447+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "media_type": "text/x-python",
+            "size_bytes": 492,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e4f859e6cf76011f",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 492,
+            "core_start": 0,
+            "core_end": 492,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 129
+          },
+          "start_byte": 0,
+          "end_byte": 492,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 492,
+          "observed_tokens": 129,
+          "source_start_line": 1,
+          "source_end_line": 15
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-58b8829fa70da727591b"
+      ],
+      "workspace_digest_before": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "workspace_digest_after": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "failure_key": "",
+      "observation_fingerprint": "488635fb9739fb54de5b4b14d9ec951d866bb39e0ca4f1cf0c664f9ae95dd24d",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-eaf21700a1934235",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "document_index/documents.py"
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-2cd2ed192a004bea",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "document_index/documents.py 的主要内容是一个文档索引模块，用于收集指定目录下的 Markdown 文件，并为每个文件生成索引记录。\n\n主要功能：\n1. 收集文件：遍历指定目录下的所有 .md 文件\n2. 读取内容：读取每个文件的 UTF-8 字节内容\n3. 生成索引：为每个文件生成包含以下字段的索引记录：\n   - path: 文件路径\n   - content: 文件原始内容\n   - digest: 文件内容的 SHA-256 哈希值\n   - search: 文件内容的小写化搜索文本\n   - mtime: 文件最后修改时间的纳秒时间戳\n\n核心函数：\n- collect(root): 主收集函数，接收目录路径，返回文档索引记录列表\n- normalize(value): 将文本转换为小写，用于搜索标准化\n\n使用场景：\n- 文档搜索和检索\n- 内容版本管理\n- 文件内容比对和更新检测"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 53.09669899940491,
+  "workspace_unchanged": true
+}

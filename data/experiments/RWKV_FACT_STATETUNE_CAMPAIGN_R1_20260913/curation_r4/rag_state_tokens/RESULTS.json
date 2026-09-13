@@ -1,0 +1,40 @@
+[
+  {
+    "id": "rag_state_tokens-v6",
+    "seed_id": "rag_state_tokens",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已按请求调用 read_file：path=state_tokens.py，start_byte=0，max_tokens 采用默认 4096；结果为成功、完整 UTF-8 全文，字节范围 0 到 2316，590 tokens，第 1 至 52 行，源 sha256 为 6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882。未运行测试，未修改文件。源码实际实现：Vocabulary.__init__ 逐行读取 UTF-8 词表，每行拆为 token_id、字面量和 size；对字面量 ast.literal_eval，若为 str 再 UTF-8 编码，否则按原值；仅接受非空 bytes、len(token)==int(size)、index>0 且 index 不重复，否则抛 ValueError。它建立 by_id（index 到 bytes）和 trie（字节到子字典），trie 的 None 键存放 index。encode 将 text 编码为 UTF-8 后按 trie 贪心最长匹配，无匹配则抛 ValueError，返回 list[int]，并校验拼接字节等于原始 raw，否则抛 tokenization changed input bytes。encode_training 要求 prompt 与 target 非空；分别编码后 ids=prompt_ids+answer_ids+[0]；labels 为前 len(prompt_ids) 个 -100，再接 answer_ids 和 0；若 len(ids)>max_tokens 则报错且不截断；返回 input_ids、labels、prompt_tokens、target_tokens_with_eos=len(answer_ids)+1。重要限制：词表整体一次读入；encode 本身不受 max_tokens 限制；追加的 0 是硬编码，代码未校验其语义；未见批处理或模型导入。以上行为来自本次读取的完整源码和工具观察；测试未运行。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "36010e3422b1128f3a3f4b88f8c39fc0f407b17f892151f1dec6738e07e026e6",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已按请求调用 read_file：path=state_tokens.py，start_byte=0，max_tokens 采用默认 4096；结果为成功、完整 UTF-8 全文，字节范围 0 到 2316，590 tokens，第 1 至 52 行，源 sha256 为 6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882。未运行测试，未修改文件。源码实际实现：Vocabulary.__init__ 逐行读取 UTF-8 词表，每行拆为 token_id、字面量和 size；对字面量 ast.literal_eval，若为 str 再 UTF-8 编码，否则按原值；仅接受非空 bytes、len(token)==int(size)、index>0 且 index 不重复，否则抛 ValueError。它建立 by_id（index 到 bytes）和 trie（字节到子字典），trie 的 None 键存放 index。encode 将 text 编码为 UTF-8 后按 trie 贪心最长匹配，无匹配则抛 ValueError，返回 list[int]，并校验拼接字节等于原始 raw，否则抛 tokenization changed input bytes。encode_training 要求 prompt 与 target 非空；分别编码后 ids=prompt_ids+answer_ids+[0]；labels 为前 len(prompt_ids) 个 -100，再接 answer_ids 和 0；若 len(ids)>max_tokens 则报错且不截断；返回 input_ids、labels、prompt_tokens、target_tokens_with_eos=len(answer_ids)+1。重要限制：词表整体一次读入；encode 本身不受 max_tokens 限制；追加的 0 是硬编码，代码未校验其语义；未见批处理或模型导入。以上行为来自本次读取的完整源码和工具观察；测试未运行。\"}}\n```",
+    "target_sha256": "e44a40fe69037675028b81b654dfc2cac4b504684c4236600bb4dd1cc9ba0150",
+    "target_tokens": 529,
+    "review_issues": []
+  },
+  {
+    "id": "rag_state_tokens-v7",
+    "seed_id": "rag_state_tokens",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file，成功读取 state_tokens.py 全文件（2316 字节，52 行，590 token，EOF，未修改）。源码实现 CPU RWKV 字节级分词与 target-only teacher forcing，未导入模型。Vocabulary 初始化从 UTF-8 文本逐行解析 token_id、字面量、size；ast.literal_eval 后若 str 则 UTF-8 编码为 bytes；校验 token 为非空 bytes、长度等于 size、index 为 >0 且不重复，否则 ValueError；建立 by_id 与 trie，叶节点以 None 为 key 存 index。encode 将文本 UTF-8 编码后按 trie 做最长匹配，返回 list[int]；匹配不到或重建字节不等于输入则 ValueError。encode_training 拒绝空 prompt/target；分别编码后拼成 prompt_ids+answer_ids+[0]，若长度 > max_tokens 则 ValueError，并称不截断；返回 input_ids、labels（prompt 段 -100，后接 answer_ids+[0]）、prompt_tokens、target_tokens_with_eos（answer 数+1）。限制：仅依据源码推断；未运行测试；不证明模型集成、性能或实际训练可用性；注释/命名意图不算已实现。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=8192",
+    "input_sha256": "36010e3422b1128f3a3f4b88f8c39fc0f407b17f892151f1dec6738e07e026e6",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file，成功读取 state_tokens.py 全文件（2316 字节，52 行，590 token，EOF，未修改）。源码实现 CPU RWKV 字节级分词与 target-only teacher forcing，未导入模型。Vocabulary 初始化从 UTF-8 文本逐行解析 token_id、字面量、size；ast.literal_eval 后若 str 则 UTF-8 编码为 bytes；校验 token 为非空 bytes、长度等于 size、index 为 >0 且不重复，否则 ValueError；建立 by_id 与 trie，叶节点以 None 为 key 存 index。encode 将文本 UTF-8 编码后按 trie 做最长匹配，返回 list[int]；匹配不到或重建字节不等于输入则 ValueError。encode_training 拒绝空 prompt/target；分别编码后拼成 prompt_ids+answer_ids+[0]，若长度 > max_tokens 则 ValueError，并称不截断；返回 input_ids、labels（prompt 段 -100，后接 answer_ids+[0]）、prompt_tokens、target_tokens_with_eos（answer 数+1）。限制：仅依据源码推断；未运行测试；不证明模型集成、性能或实际训练可用性；注释/命名意图不算已实现。\"}}\n```",
+    "target_sha256": "3eac31ec89b61805e4d04c5d0ca3725342db76cdd5b38e4784ed7a146a00e2ba",
+    "target_tokens": 371
+  },
+  {
+    "id": "rag_state_tokens-v8",
+    "seed_id": "rag_state_tokens",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已用 read_file 成功读取 state_tokens.py 完整源码：2316 字节、52 行，哈希与清单一致；未修改文件，未运行测试，测试运行只能作为建议。源码实际实现 CPU 端 RWKV 字节分词与 target-only teacher forcing；仅导入 ast、Path，未导入模型。Vocabulary 从 UTF-8 词汇表逐行解析 token_id、字面量和 size；str 字面量先转 UTF-8 bytes；校验 token 为 bytes 且非空、len(token) 等于 size、index 为正且不重复，否则抛 ValueError。字节 trie 用嵌套 dict，None 键存 index。encode 对 UTF-8 字节扫描 trie，按最长匹配更新 best；无匹配抛 vocabulary cannot encode input byte；末尾用拼接验证不改变原字节。encode_training 要求 prompt 与 target 非空，分别编码；ids=prompt_ids+answer_ids+[0]；len(ids) 超过 max_tokens 抛错且不截断；labels=-100 重复 len(prompt_ids) 次，接 answer_ids 和 0。返回 input_ids、labels、prompt_tokens、target_tokens_with_eos。数字类型关系：max_tokens 限制总 token 数，0 为追加 EOS，-100 屏蔽 prompt 标签，target_tokens_with_eos=len(answer_ids)+1。以上属代码推断；实际仅完成 read_file，文件未改。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "36010e3422b1128f3a3f4b88f8c39fc0f407b17f892151f1dec6738e07e026e6",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已用 read_file 成功读取 state_tokens.py 完整源码：2316 字节、52 行，哈希与清单一致；未修改文件，未运行测试，测试运行只能作为建议。源码实际实现 CPU 端 RWKV 字节分词与 target-only teacher forcing；仅导入 ast、Path，未导入模型。Vocabulary 从 UTF-8 词汇表逐行解析 token_id、字面量和 size；str 字面量先转 UTF-8 bytes；校验 token 为 bytes 且非空、len(token) 等于 size、index 为正且不重复，否则抛 ValueError。字节 trie 用嵌套 dict，None 键存 index。encode 对 UTF-8 字节扫描 trie，按最长匹配更新 best；无匹配抛 vocabulary cannot encode input byte；末尾用拼接验证不改变原字节。encode_training 要求 prompt 与 target 非空，分别编码；ids=prompt_ids+answer_ids+[0]；len(ids) 超过 max_tokens 抛错且不截断；labels=-100 重复 len(prompt_ids) 次，接 answer_ids 和 0。返回 input_ids、labels、prompt_tokens、target_tokens_with_eos。数字类型关系：max_tokens 限制总 token 数，0 为追加 EOS，-100 屏蔽 prompt 标签，target_tokens_with_eos=len(answer_ids)+1。以上属代码推断；实际仅完成 read_file，文件未改。\"}}\n```",
+    "target_sha256": "a4b4984ecf52fbafc7e3a47a36801a449cc746e2194f1011457747f4a82aa436",
+    "target_tokens": 418,
+    "review_issues": []
+  }
+]

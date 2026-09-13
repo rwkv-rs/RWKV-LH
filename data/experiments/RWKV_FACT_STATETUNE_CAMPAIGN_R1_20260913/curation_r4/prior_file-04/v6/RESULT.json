@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-04-v6",
+  "seed_id": "prior_file-04",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README（# RP-FULL-02）描述待实现项目：从零为团队实现意见投票板，含 HTTP API、SQLite 与网页。成员以非空标题/描述创建提案并用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票须幂等。支持按票数排序和关闭投票；关闭后服务必须拒绝新增或撤销票，不能只禁用界面；名字仅是本地标识，不要求认证。API 关键：POST /api/proposals 接收 {title,description} 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回含 id、title、description、closed、votes、voted 的 proposals，votes 降序且平票按 id 升序，newest 新到旧；PUT /api/proposals/ID/vote 接收 {voter,active} 添加/移除唯一票，重复不影响其他票并返回 id 与 votes，关闭后 HTTP409；PATCH /api/proposals/ID 接收 {closed:true} 永久关闭。UI 要求 Your name、Proposal title、Proposal description、Create proposal、Sort proposals(newest/votes)，文章显示 Votes 数量与 Voting open/closed，未投票 Vote、已投 Remove vote，关闭后按钮禁用。运行 `python server.py --host 127.0.0.1 --port PORT --db PATH`，仅 Python 标准库与原生浏览器；源码只读，数据库与运行文件写入 PATH 临时目录；GET / 提供页面，SQLite 持久化，同一 PATH 重启数据不丢失。API 用 JSON，成功创建 201、查询/更新 200，无效输入 400、缺失资源 404，错误对象含 error；id 稳定唯一，多浏览器共享数据。交付自包含工作区，README 说明启动与人工验证；不得依赖远程 CDN、外网或需下载包；以真实浏览器验收，不看 CSS 长度或源码关键词。以上为 README 要求；本次仅 read_file 读取，未观察实现或测试。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README（# RP-FULL-02）描述待实现项目：从零为团队实现意见投票板，含 HTTP API、SQLite 与网页。成员以非空标题/描述创建提案并用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票须幂等。支持按票数排序和关闭投票；关闭后服务必须拒绝新增或撤销票，不能只禁用界面；名字仅是本地标识，不要求认证。API 关键：POST /api/proposals 接收 {title,description} 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回含 id、title、description、closed、votes、voted 的 proposals，votes 降序且平票按 id 升序，newest 新到旧；PUT /api/proposals/ID/vote 接收 {voter,active} 添加/移除唯一票，重复不影响其他票并返回 id 与 votes，关闭后 HTTP409；PATCH /api/proposals/ID 接收 {closed:true} 永久关闭。UI 要求 Your name、Proposal title、Proposal description、Create proposal、Sort proposals(newest/votes)，文章显示 Votes 数量与 Voting open/closed，未投票 Vote、已投 Remove vote，关闭后按钮禁用。运行 `python server.py --host 127.0.0.1 --port PORT --db PATH`，仅 Python 标准库与原生浏览器；源码只读，数据库与运行文件写入 PATH 临时目录；GET / 提供页面，SQLite 持久化，同一 PATH 重启数据不丢失。API 用 JSON，成功创建 201、查询/更新 200，无效输入 400、缺失资源 404，错误对象含 error；id 稳定唯一，多浏览器共享数据。交付自包含工作区，README 说明启动与人工验证；不得依赖远程 CDN、外网或需下载包；以真实浏览器验收，不看 CSS 长度或源码关键词。以上为 README 要求；本次仅 read_file 读取，未观察实现或测试。\"}}\n```",
+  "target_sha256": "89c2348dce5e1029ca8d463e3832aed4f27b477856627dd0f994bedf0980ab41",
+  "target_tokens": 605,
+  "review_issues": []
+}

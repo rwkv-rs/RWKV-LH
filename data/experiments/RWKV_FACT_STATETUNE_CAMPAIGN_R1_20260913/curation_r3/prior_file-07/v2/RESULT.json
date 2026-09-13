@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-07-v2",
+  "seed_id": "prior_file-07",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，包含四个函数。validate 验证数据库完整性：执行 PRAGMA integrity_check 要求返回 ok，读取 PRAGMA user_version 并仅接受 1 或 2，然后检查 settings 表含 key 和 value 列，version 2 时还检查 value_type 和 updated_at 列，最后返回版本号。temporary_path 使用 tempfile.mkstemp 在指定目录创建 .config-stage- 前缀、.sqlite3 后缀的临时文件，关闭文件描述符后返回 Path。copy_database 通过只读 URI 连接 source，调用 validate，再用 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 fsync。write_backup_exclusive 先经 temporary_path 创建 staged 文件，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中清理 staged。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，包含四个函数。validate 验证数据库完整性：执行 PRAGMA integrity_check 要求返回 ok，读取 PRAGMA user_version 并仅接受 1 或 2，然后检查 settings 表含 key 和 value 列，version 2 时还检查 value_type 和 updated_at 列，最后返回版本号。temporary_path 使用 tempfile.mkstemp 在指定目录创建 .config-stage- 前缀、.sqlite3 后缀的临时文件，关闭文件描述符后返回 Path。copy_database 通过只读 URI 连接 source，调用 validate，再用 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 fsync。write_backup_exclusive 先经 temporary_path 创建 staged 文件，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中清理 staged。\"}}\n```",
+  "target_sha256": "db40d8444c1dcd2d66fb9de8a9a3426b4757b9e23cc0d3fac16dd82ebe2b6bac",
+  "target_tokens": 283,
+  "review_issues": []
+}

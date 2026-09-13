@@ -1,0 +1,24 @@
+frozen 8e38993134773140af38fef36639509c975228469203270c604ee9aececc4e95
+Traceback (most recent call last):
+  File "/home/chase/GitHub/RWKV-LH-fact-statetune-r1-20260913/source/scripts/run_state_tune.py", line 35, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/chase/GitHub/RWKV-LH-fact-statetune-r1-20260913/source/scripts/run_state_tune.py", line 29, in main
+    result = run(reference, args.output, source_root=Path(__file__).resolve().parents[1])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH-fact-statetune-r1-20260913/source/rwkv_lh/statetune_training.py", line 246, in run_training
+    core.require(evaluation.get("role") == role and evaluation.get("regression_fingerprint") == registration["regression_fingerprint"]
+  File "/home/chase/GitHub/RWKV-LH-fact-statetune-r1-20260913/source/rwkv_lh/statetune_core.py", line 16, in require
+    raise ValueError(message)
+ValueError: role/Agent evaluation metrics and retention rules must be pre-registered
+Traceback (most recent call last):
+  File "/home/chase/GitHub/RWKV-LH/temp/launch_fact_training_r2_20260913.py", line 17, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/home/chase/GitHub/RWKV-LH/temp/launch_fact_training_r2_20260913.py", line 16, in main
+    shell=(T/'validate.sh').read_text().split('exec timeout')[0];cmd=['timeout','14700','/home/chase/GitHub/RWKV-LH/data/runtime/engines/vllm-rwkv-67f0c5996c50/.venv/bin/python','-B',str(remote/'source/scripts/run_state_tune.py'),'train','--registration',str(remote/'training_registration/REGISTRATION.json'),'--registration-sha256',sha(D/'REGISTRATION.json'),'--output',str(remote/'training_runs'/run)];(D/'train.sh').write_text(shell+'exec '+shlex.join(cmd)+'\n');subprocess.run(['scp',str(D/'train.sh'),f'rwkv-8222:{remote}/training_registration/train.sh'],check=True);print('frozen',sha(D/'REGISTRATION.json'),flush=True);subprocess.run(['ssh','-o','BatchMode=yes','rwkv-8222','bash',str(remote/'training_registration/train.sh')],check=True)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['ssh', '-o', 'BatchMode=yes', 'rwkv-8222', 'bash', '/home/chase/GitHub/RWKV-LH-fact-statetune-r1-20260913/training_registration/train.sh']' returned non-zero exit status 1.

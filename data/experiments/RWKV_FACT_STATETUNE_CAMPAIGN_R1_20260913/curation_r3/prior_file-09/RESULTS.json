@@ -1,0 +1,73 @@
+[
+  {
+    "id": "prior_file-09-v1",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 共 15 行，是一个文档索引模块，只依赖标准库 hashlib 和 __future__.annotations。\\n\\n文件定义两个函数：\\n1. normalize(value)：直接把传入值转为小写并返回，用于生成搜索用的标准化文本。\\n2. collect(root)：核心函数。它遍历 root.glob('*.md') 得到的 Markdown 文件，先按文件名排序；对每个文件先以字节读取，再用 UTF-8 解码（errors='replace'），然后向结果列表追加一条字典记录。\\n\\n每条记录包含五个字段：path（取自 path.name，即文件名）、content（解码后的文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize 后的小写文本）、mtime（path.stat().st_mtime_ns 得到的纳秒级修改时间）。函数最终返回该列表。\\n\\n整体上，该文件只负责按目录收集 Markdown 文件并构建带摘要与检索字段的记录，未包含查询、过滤或排序排名等逻辑。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 共 15 行，是一个文档索引模块，只依赖标准库 hashlib 和 __future__.annotations。\\n\\n文件定义两个函数：\\n1. normalize(value)：直接把传入值转为小写并返回，用于生成搜索用的标准化文本。\\n2. collect(root)：核心函数。它遍历 root.glob('*.md') 得到的 Markdown 文件，先按文件名排序；对每个文件先以字节读取，再用 UTF-8 解码（errors='replace'），然后向结果列表追加一条字典记录。\\n\\n每条记录包含五个字段：path（取自 path.name，即文件名）、content（解码后的文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize 后的小写文本）、mtime（path.stat().st_mtime_ns 得到的纳秒级修改时间）。函数最终返回该列表。\\n\\n整体上，该文件只负责按目录收集 Markdown 文件并构建带摘要与检索字段的记录，未包含查询、过滤或排序排名等逻辑。\"}}\n```",
+    "target_sha256": "9ca3bbad678209009b7f0c5be751a5f1b1e1126fabb8603545dd1ccc50d56f23",
+    "target_tokens": 353,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-09-v2",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个文档索引模块，共 15 行、492 字节，只依赖 hashlib 和 __future__.annotations。文件定义两个函数：normalize(value) 将传入值转为小写返回；collect(root) 先按文件名排序遍历 root.glob('*.md')，对每个 Markdown 文件以字节读取，再用 UTF-8 解码（errors='replace'），然后追加一条字典记录。每条记录含 path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制）、search（normalize 后的小写文本）、mtime（st_mtime_ns 纳秒修改时间）。collect 最终返回该记录列表。文件本身没有查询、过滤或排序排名逻辑。\"}}",
+    "accepted_by_api": false,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个文档索引模块，共 15 行、492 字节，只依赖 hashlib 和 __future__.annotations。文件定义两个函数：normalize(value) 将传入值转为小写返回；collect(root) 先按文件名排序遍历 root.glob('*.md')，对每个 Markdown 文件以字节读取，再用 UTF-8 解码（errors='replace'），然后追加一条字典记录。每条记录含 path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制）、search（normalize 后的小写文本）、mtime（st_mtime_ns 纳秒修改时间）。collect 最终返回该记录列表。文件本身没有查询、过滤或排序排名逻辑。\"}}\n```",
+    "target_sha256": "9b5c00dafbbdcef361621f8a5f70478639b7b04a09b3b06a2803b6a2065eea85",
+    "target_tokens": 248,
+    "review_issues": [
+      "摘要末尾称“文件本身没有查询、过滤或排序排名逻辑”，但同一摘要前文已说明 collect 会先按文件名排序遍历 root.glob('*.md')，且源码确实包含 sorted(root.glob('*.md'))；因此该否定性结论与文件内容及自身前文矛盾。"
+    ]
+  },
+  {
+    "id": "prior_file-09-v3",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/documents.py（15 行，492 字节）是一个仅依赖标准库的 Markdown 索引模块，导入 hashlib 与 __future__.annotations。它定义两个函数：normalize(value) 返回 value.lower()，用于生成搜索标准化文本；collect(root) 先按文件名 sorted(root.glob('*.md')) 遍历 Markdown 文件，对每个文件用 path.read_bytes() 取原始字节，再以 UTF-8 解码（errors='replace'），然后追加一条字典记录。记录字段包括 path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize(text) 后的小写文本）、mtime（path.stat().st_mtime_ns 纳秒修改时间）。collect 返回该记录列表；文件本身未包含查询、过滤或排序排名逻辑。\"}}",
+    "accepted_by_api": false,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/documents.py（15 行，492 字节）是一个仅依赖标准库的 Markdown 索引模块，导入 hashlib 与 __future__.annotations。它定义两个函数：normalize(value) 返回 value.lower()，用于生成搜索标准化文本；collect(root) 先按文件名 sorted(root.glob('*.md')) 遍历 Markdown 文件，对每个文件用 path.read_bytes() 取原始字节，再以 UTF-8 解码（errors='replace'），然后追加一条字典记录。记录字段包括 path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize(text) 后的小写文本）、mtime（path.stat().st_mtime_ns 纳秒修改时间）。collect 返回该记录列表；文件本身未包含查询、过滤或排序排名逻辑。\"}}\n```",
+    "target_sha256": "09d33198bd2526e70ccc36d429175bf3bb8aef9e90f828c3b3b0867f2bb1346b",
+    "target_tokens": 277,
+    "review_issues": [
+      "候选回答称“文件本身未包含查询、过滤或排序排名逻辑”，但文件中的 collect 函数使用了 sorted(root.glob('*.md'))，包含排序逻辑，该断言与文件内容矛盾。"
+    ]
+  },
+  {
+    "id": "prior_file-09-v4",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个短小的 Markdown 文档索引模块（共 15 行、492 字节），仅导入标准库 hashlib 和 __future__.annotations，不涉及任何外部依赖。\\n\\n模块包含两个函数：\\n\\nnormalize(value)：对输入调用 lower() 并返回，作用是生成用于搜索的小写标准化文本。\\n\\ncollect(root)：核心收集函数。它先按文件名对 root.glob('*.md') 结果排序，然后逐个处理 Markdown 文件：用 read_bytes() 读取原始字节，再以 UTF-8 解码（errors='replace'），接着向列表追加一条字典记录，最后返回该列表。\\n\\n每条记录含五个字段：path（path.name 文件名）、content（解码后的文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize(text) 得到的小写文本）、mtime（path.stat().st_mtime_ns 纳秒修改时间）。\\n\\n综上，该文件只负责按目录收集 Markdown 文件并生成带摘要与检索字段的记录，文件中未包含查询、过滤或排序排名逻辑。\"}}",
+    "accepted_by_api": false,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个短小的 Markdown 文档索引模块（共 15 行、492 字节），仅导入标准库 hashlib 和 __future__.annotations，不涉及任何外部依赖。\\n\\n模块包含两个函数：\\n\\nnormalize(value)：对输入调用 lower() 并返回，作用是生成用于搜索的小写标准化文本。\\n\\ncollect(root)：核心收集函数。它先按文件名对 root.glob('*.md') 结果排序，然后逐个处理 Markdown 文件：用 read_bytes() 读取原始字节，再以 UTF-8 解码（errors='replace'），接着向列表追加一条字典记录，最后返回该列表。\\n\\n每条记录含五个字段：path（path.name 文件名）、content（解码后的文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize(text) 得到的小写文本）、mtime（path.stat().st_mtime_ns 纳秒修改时间）。\\n\\n综上，该文件只负责按目录收集 Markdown 文件并生成带摘要与检索字段的记录，文件中未包含查询、过滤或排序排名逻辑。\"}}\n```",
+    "target_sha256": "5d5007c0cfb0f5443fd61544d14ce4315549dadd6261c51cb9c8588c189c6803",
+    "target_tokens": 379,
+    "review_issues": [
+      "candidate states the file contains no sorting logic, but collect() uses sorted(root.glob('*.md')) to order Markdown paths"
+    ]
+  },
+  {
+    "id": "prior_file-09-v5",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个仅依赖标准库的小型 Markdown 文档索引模块，共 15 行、492 字节，导入 hashlib 和 __future__.annotations。文件定义两个函数：normalize(value) 将输入转为小写并返回，用于生成搜索标准化文本；collect(root) 是核心函数，先按文件名对 root.glob('*.md') 排序，再逐个 Markdown 文件用 read_bytes() 读取原始字节，并以 UTF-8 解码（errors='replace'），然后向列表追加一条字典记录，最后返回该列表。每条记录包含五个字段：path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize 后的小写文本）、mtime（st_mtime_ns 纳秒修改时间）。文件本身不包含查询、过滤或排序排名逻辑。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/documents.py 是一个仅依赖标准库的小型 Markdown 文档索引模块，共 15 行、492 字节，导入 hashlib 和 __future__.annotations。文件定义两个函数：normalize(value) 将输入转为小写并返回，用于生成搜索标准化文本；collect(root) 是核心函数，先按文件名对 root.glob('*.md') 排序，再逐个 Markdown 文件用 read_bytes() 读取原始字节，并以 UTF-8 解码（errors='replace'），然后向列表追加一条字典记录，最后返回该列表。每条记录包含五个字段：path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize 后的小写文本）、mtime（st_mtime_ns 纳秒修改时间）。文件本身不包含查询、过滤或排序排名逻辑。\"}}\n```",
+    "target_sha256": "63b3aa1d60b0d7ab49a1533191c7ef78365a4c1fe3ab98a79e5311a0365fd023",
+    "target_tokens": 292,
+    "review_issues": []
+  }
+]

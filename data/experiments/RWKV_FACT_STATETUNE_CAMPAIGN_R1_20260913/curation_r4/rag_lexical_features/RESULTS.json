@@ -1,0 +1,40 @@
+[
+  {
+    "id": "rag_lexical_features-v6",
+    "seed_id": "rag_lexical_features",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次仅成功执行 read_file：完整读取 lexical_features.py（74行、2419字节，sha256 418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e），未修改文件，也未运行任何测试。源码实际定义 7 个别名元数据键（aliases、alias、redirects、redirect、alternate_names、alternate_name、aka）；_metadata_alias_values 对 list/tuple/set 逐项 str 后加入候选，其他非 None 值整体 str 加入；set 顺序在推断上可能不确定。_clean_alias 会去除首尾空白/引号/括号等、去掉前缀“为/為/作/叫作/称作/稱作”、去掉后缀“之一/等”、把空白压成单空格并去除首尾空格和“的”。extract_document_aliases 用标题括号中 1–40 字的基础名、文本前 800 字符中别名提示后的候选及元数据候选，经 _ALIAS_SPLIT 拆分；过滤规则为 1<长度≤40、不等于清洗后标题、不以“一种/一種/一个/一個”开头、去重，最终至多返回 16 个。重要限制：文本扫描仅取 text[:800] 字符；正则捕获 1–80 字符；标题括号部分限 1–40；未做元数据运行时校验；文档字符串只是意图说明，不是额外实现。建议测试应覆盖这些边界，但本次未执行。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=8192",
+    "input_sha256": "72049e17e221c04d6348540a8ad7f41e08047c167ac19f7057fa6b444c2a58ec",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次仅成功执行 read_file：完整读取 lexical_features.py（74行、2419字节，sha256 418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e），未修改文件，也未运行任何测试。源码实际定义 7 个别名元数据键（aliases、alias、redirects、redirect、alternate_names、alternate_name、aka）；_metadata_alias_values 对 list/tuple/set 逐项 str 后加入候选，其他非 None 值整体 str 加入；set 顺序在推断上可能不确定。_clean_alias 会去除首尾空白/引号/括号等、去掉前缀“为/為/作/叫作/称作/稱作”、去掉后缀“之一/等”、把空白压成单空格并去除首尾空格和“的”。extract_document_aliases 用标题括号中 1–40 字的基础名、文本前 800 字符中别名提示后的候选及元数据候选，经 _ALIAS_SPLIT 拆分；过滤规则为 1<长度≤40、不等于清洗后标题、不以“一种/一種/一个/一個”开头、去重，最终至多返回 16 个。重要限制：文本扫描仅取 text[:800] 字符；正则捕获 1–80 字符；标题括号部分限 1–40；未做元数据运行时校验；文档字符串只是意图说明，不是额外实现。建议测试应覆盖这些边界，但本次未执行。\"}}\n```",
+    "target_sha256": "8f99cf338001af9a14d9ad22c6fc911a29288cfe5661a5ccb4e5975fc4622e8b",
+    "target_tokens": 472
+  },
+  {
+    "id": "rag_lexical_features-v7",
+    "seed_id": "rag_lexical_features",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"静态阅读 lexical_features.py（本次实际仅执行 read_file：成功读取完整文件 2419 字节、74 行、790 tokens、sha256 418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e；未修改，未运行测试）。源码主要实现 extract_document_aliases(title, text, metadata=None)->list[str]：从 metadata 的 _ALIAS_KEYS（7 个键）收集别名；用 _PARENTHETICAL_TITLE 匹配标题末尾括号并取 base；取 text[:800] 为 lead；用 _ALIAS_PATTERN 捕获 1-80 字符别名候选，再按 ，是/为/指等、分隔符/连词切分；_clean_alias 去除前后缀、合并空白。过滤条件是 1 < len(alias) <=40、不等于清洗后标题、不以一种/一個等开头、去重，最后返回前 16 个。限制：仅前 800 字符、正则与固定键，括号标题只取一个匹配，未做语义校验；这些是源码推断。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "72049e17e221c04d6348540a8ad7f41e08047c167ac19f7057fa6b444c2a58ec",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"静态阅读 lexical_features.py（本次实际仅执行 read_file：成功读取完整文件 2419 字节、74 行、790 tokens、sha256 418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e；未修改，未运行测试）。源码主要实现 extract_document_aliases(title, text, metadata=None)->list[str]：从 metadata 的 _ALIAS_KEYS（7 个键）收集别名；用 _PARENTHETICAL_TITLE 匹配标题末尾括号并取 base；取 text[:800] 为 lead；用 _ALIAS_PATTERN 捕获 1-80 字符别名候选，再按 ，是/为/指等、分隔符/连词切分；_clean_alias 去除前后缀、合并空白。过滤条件是 1 < len(alias) <=40、不等于清洗后标题、不以一种/一個等开头、去重，最后返回前 16 个。限制：仅前 800 字符、正则与固定键，括号标题只取一个匹配，未做语义校验；这些是源码推断。\"}}\n```",
+    "target_sha256": "e16c801ec063478fa8d03afc34d79f9e677424caedb5f0ee187f874a580acc38",
+    "target_tokens": 341,
+    "review_issues": []
+  },
+  {
+    "id": "rag_lexical_features-v8",
+    "seed_id": "rag_lexical_features",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅实际执行 read_file：读取 lexical_features.py 完整 2419 字节、790 tokens，工具返回完整成功，文件未被修改；未运行测试。源码主函数 extract_document_aliases(title, text, metadata) 返回 list[str]。其行为：先用 _metadata_alias_values 从 metadata 固定键 aliases、alias、redirects、redirect、alternate_names、alternate_name、aka 取值；值为 list/tuple/set 时逐项 str，非 None 标量直接 str，None 跳过；键值若为其他类型（如 dict）也会 str 后进入候选。标题若匹配末尾括号尾注，取括号前 base。正文只取前 800 字符并按行合并，用 _ALIAS_PATTERN 找 1 到 80 字符别名片段，再按标点及或称/以及/及/和/与/與切分。_clean_alias 去除首尾指定空白引号括号、前导 为/為/作/叫作/称作/稱作、尾部 之一/等，压缩空白并去首尾空格和 的。过滤条件为长度大于 1 且不超过 40、不同于原标题、不以 一种/一種/一个/一個 开头、列表内去重，最后最多返回 16 个。限制包括只读前 800 字符、正则捕获上限、标题括号内容限 1 到 40 字符、最终上限 16；这些是代码推断，非测试结果。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "72049e17e221c04d6348540a8ad7f41e08047c167ac19f7057fa6b444c2a58ec",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅实际执行 read_file：读取 lexical_features.py 完整 2419 字节、790 tokens，工具返回完整成功，文件未被修改；未运行测试。源码主函数 extract_document_aliases(title, text, metadata) 返回 list[str]。其行为：先用 _metadata_alias_values 从 metadata 固定键 aliases、alias、redirects、redirect、alternate_names、alternate_name、aka 取值；值为 list/tuple/set 时逐项 str，非 None 标量直接 str，None 跳过；键值若为其他类型（如 dict）也会 str 后进入候选。标题若匹配末尾括号尾注，取括号前 base。正文只取前 800 字符并按行合并，用 _ALIAS_PATTERN 找 1 到 80 字符别名片段，再按标点及或称/以及/及/和/与/與切分。_clean_alias 去除首尾指定空白引号括号、前导 为/為/作/叫作/称作/稱作、尾部 之一/等，压缩空白并去首尾空格和 的。过滤条件为长度大于 1 且不超过 40、不同于原标题、不以 一种/一種/一个/一個 开头、列表内去重，最后最多返回 16 个。限制包括只读前 800 字符、正则捕获上限、标题括号内容限 1 到 40 字符、最终上限 16；这些是代码推断，非测试结果。\"}}\n```",
+    "target_sha256": "4aae36b4d4441be17d3d27a9f1a715dd95099f190e00addc79538b33dfb4aba5",
+    "target_tokens": 430,
+    "review_issues": []
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-02-v6",
+  "seed_id": "prior_file-02",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 要求实现 timebook.py：仅用 Python 标准库和 SQLite 持久化。每条 CLI 调用都是新进程，因此持久化和重复检测须跨重启存活。事件恰含 id、project、start、end 四个非空字符串字段；非空 ID 和项目名须原样保留，纯空白应拒绝。时间戳使用 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 必须严格晚于 start。提供 add、import、stats 命令；import 接收 JSON 事件数组，ID 全局标识，时间戳归一化到 UTC 后比较：相同 ID、项目和区间重复导入为 no-op，冲突 ID 报错并拒绝整批导入，空导入有效；add 遵循同样重复规则。没有重叠限制，时长独立求和。add 和 import 成功时输出 inserted 与 duplicates 计数的 JSON 对象。stats 使用 UTC 日历日期和半开区间 [from, to)，拒绝无效、反向或空区间；按 UTC 午夜拆分并裁剪到区间，覆盖闰日和偏移转换。输出 days、按项目整数秒和 total_seconds；只包含有记录的日子，按时间排序，项目键按序；空结果 days 为空数组且 total_seconds 为 0。错误非零退出并给出诊断，成功 stdout 是一个 JSON 文档。README 还要求自带测试并更新使用与验证说明。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 要求实现 timebook.py：仅用 Python 标准库和 SQLite 持久化。每条 CLI 调用都是新进程，因此持久化和重复检测须跨重启存活。事件恰含 id、project、start、end 四个非空字符串字段；非空 ID 和项目名须原样保留，纯空白应拒绝。时间戳使用 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 必须严格晚于 start。提供 add、import、stats 命令；import 接收 JSON 事件数组，ID 全局标识，时间戳归一化到 UTC 后比较：相同 ID、项目和区间重复导入为 no-op，冲突 ID 报错并拒绝整批导入，空导入有效；add 遵循同样重复规则。没有重叠限制，时长独立求和。add 和 import 成功时输出 inserted 与 duplicates 计数的 JSON 对象。stats 使用 UTC 日历日期和半开区间 [from, to)，拒绝无效、反向或空区间；按 UTC 午夜拆分并裁剪到区间，覆盖闰日和偏移转换。输出 days、按项目整数秒和 total_seconds；只包含有记录的日子，按时间排序，项目键按序；空结果 days 为空数组且 total_seconds 为 0。错误非零退出并给出诊断，成功 stdout 是一个 JSON 文档。README 还要求自带测试并更新使用与验证说明。\"}}\n```",
+  "target_sha256": "345e4fb5d8c53acd35a93fa7ce925a509d0be916c30676b1b010959427ba5b6c",
+  "target_tokens": 427,
+  "review_issues": []
+}

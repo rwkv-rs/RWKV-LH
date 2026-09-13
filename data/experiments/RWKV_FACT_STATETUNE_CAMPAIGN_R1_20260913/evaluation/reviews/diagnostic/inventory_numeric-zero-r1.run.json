@@ -1,0 +1,55 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "inventory_numeric-zero-r1",
+  "task_id": "inventory_numeric",
+  "arm": "zero",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "README.md 中的数量、长度限制和 HTTP 状态码对应关系如下：\n\n1. 数量（quantity）\n   - 必须为非负整数，bool、小数、负数均不合法。\n   - 在 PUT /inventory/{sku} 中设置库存；在 POST /orders 中按 SKU 求和，再按 SKU 排序。\n   - 任一 SKU 不存在或数量不足 → 404 或 409，不扣库存、不创建订单、不占用 key。\n   - 同 key 相同规范化请求重试，不再次扣库存；不同 key 不得超卖。\n\n2. 长度限制\n   - Idempotency-Key 最长 128 字符。\n   - 文档中未给出其他字段的长度限制。\n\n3. HTTP 状态码对应关系\n   - 200：健康检查、GET /inventory/{sku}、GET /orders、GET /orders/{id}、PUT /inventory/{sku}、POST /orders 成功。\n   - 400：坏 JSON、非法字段、空 items/key。\n   - 404：SKU 不存在、GET /orders 无订单、GET /orders/{id} 不存在。\n   - 409：同 key 不同 customer 或不同明细。\n   - 201：首次成功创建订单。\n   - 500：服务器内部错误。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "diagnostic/inventory_numeric-zero-r1/execution/RESULT.json",
+      "sha256": "bdf8e314a6db41f100c536fd31c5373e53f45ebdc4f668bdc17710c38a87b12c",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "diagnostic/inventory_numeric-zero-r1/execution/model_trace.jsonl",
+      "sha256": "72410d3da509cff5605cb8957c087ef7b775c6d9be4c7adc27ab7f37b96c22ce",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "diagnostic/inventory_numeric-zero-r1/execution/state_snapshot.json",
+      "sha256": "66d0082d6b16679ff513ca98a8113ef4972546f28fe058a1785f488772ee1895",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "diagnostic/inventory_numeric-zero-r1/workspace/README.md",
+      "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3814,
+    "output_tokens": 450,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

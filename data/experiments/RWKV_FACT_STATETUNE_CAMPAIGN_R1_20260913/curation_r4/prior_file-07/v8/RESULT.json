@@ -1,0 +1,15 @@
+{
+  "id": "prior_file-07-v8",
+  "seed_id": "prior_file-07",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件实现 SQLite 配置数据库的校验与备份 I/O。validate 先执行 PRAGMA integrity_check，要求返回 'ok'，再读取 PRAGMA user_version，仅接受 1 或 2；随后用 LIMIT 0 探测 settings 的 key、value 列，版本 2 还探测 value_type、updated_at 列；不满足则抛 ValueError。temporary_path 在指定父目录用 tempfile.mkstemp 创建 .config-stage-*.sqlite3 并关闭文件描述符。copy_database 以只读 URI 连接 source，先 validate，再 backup 到 destination，随后以 rb 打开 destination 并 fsync。write_backup_exclusive 先生成 staged 临时文件，copy_database 后通过 os.link 创建 backup，最后在 finally 中删除 staged。以上仅为源文件静态内容摘要；未观察到实际测试或运行。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件实现 SQLite 配置数据库的校验与备份 I/O。validate 先执行 PRAGMA integrity_check，要求返回 'ok'，再读取 PRAGMA user_version，仅接受 1 或 2；随后用 LIMIT 0 探测 settings 的 key、value 列，版本 2 还探测 value_type、updated_at 列；不满足则抛 ValueError。temporary_path 在指定父目录用 tempfile.mkstemp 创建 .config-stage-*.sqlite3 并关闭文件描述符。copy_database 以只读 URI 连接 source，先 validate，再 backup 到 destination，随后以 rb 打开 destination 并 fsync。write_backup_exclusive 先生成 staged 临时文件，copy_database 后通过 os.link 创建 backup，最后在 finally 中删除 staged。以上仅为源文件静态内容摘要；未观察到实际测试或运行。\"}}\n```",
+  "target_sha256": "cd9bf276be74eed6d2f7871e07bfa0e54d6edb1da58531440a47d27ea2ff47dd",
+  "target_tokens": 257,
+  "review_issues": [
+    "摘要称 validate 中“不满足则抛 ValueError”，但文件只在 integrity_check 失败或 user_version 不是 1/2 时显式抛出 ValueError；对 settings 列探测（key/value 或 value_type/updated_at）失败不会由文件转换为 ValueError，而是会传播 sqlite3.OperationalError，因此该断言超出文件支持。"
+  ]
+}

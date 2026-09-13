@@ -1,0 +1,391 @@
+{
+  "api_code_first-zero-r1": {
+    "answer_sha256": "432de47dda81864cff40c4de169872d7cb9e164814c02f0a98c19f3ff19c2c1c",
+    "requirements": [
+      [
+        "http",
+        "unmet",
+        "将README预约业务、冲突、查询取消当成源码实现，遗漏实际其他GET501"
+      ],
+      [
+        "db",
+        "unmet",
+        "宣称数据库持久化已实现；实际只解析必填db且未使用"
+      ],
+      [
+        "sources",
+        "partial",
+        "读取与待执行建议有区分，但把需求整批列入已实现，关键来源区分失败"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "已实现：健康检查、POST/GET/DELETE 接口、冲突判定、数据库持久化、--db 参数",
+        "reason": "源码仅健康GET及其他GET501、db未使用",
+        "impact": "把需求当实现，误导缺陷检查；并非虚称本次实际运行测试"
+      }
+    ]
+  },
+  "api_code_first-zero-r2": {
+    "answer_sha256": "2b03aaa8a8e3f0866937e957d8f305ee068290c97500c84b4784ed000514a96e",
+    "requirements": [
+      [
+        "http",
+        "unmet",
+        "把预约创建/查询/取消和文档状态码当成已实现；源码没有这些业务"
+      ],
+      [
+        "db",
+        "unmet",
+        "虚称启动创建并持续使用DB；代码未使用db"
+      ],
+      [
+        "sources",
+        "partial",
+        "已读取和未运行区分存在，但已实现列表与源码冲突"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "启动时会创建该数据库文件；后续启动会保留数据并继续使用同一数据库",
+        "reason": "源码只有parse_args，没打开/创建DB",
+        "impact": "虚构当前数据库行为"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "健康检查、预约创建、查询、取消等接口的路由和响应结构已实现",
+        "reason": "源码只有GET /health和其余GET501",
+        "impact": "需求/实现混淆"
+      }
+    ]
+  },
+  "api_code_first-candidate-r1": {
+    "answer_sha256": "cbe1e355cc3cd4ae89409ea3766cf02902e272969b472801373401251595e9a7",
+    "requirements": [
+      [
+        "http",
+        "met",
+        "正确GET健康200及其余501，预约业务未实现；后文未实现GET按上下文指预约GET，不否定刚列出的健康检查"
+      ],
+      [
+        "db",
+        "met",
+        "明确必填解析但未使用、没有数据库行为"
+      ],
+      [
+        "sources",
+        "partial",
+        "实际两次读取/未运行明确，多数建议合理，但末尾把健康检查说成可替代完整功能"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "健康检查替代完整功能",
+        "reason": "README明确不能以健康检查替代完整功能；候选在未执行验证建议中反说了边界",
+        "impact": "局部建议错误，不能作为合格验证指导；没有实际执行虚称"
+      }
+    ]
+  },
+  "api_code_first-candidate-r2": {
+    "answer_sha256": "3dcd442b83b533f0fd7bee0de32cd90cfe9599b88ba67da99c99e7418f093d4a",
+    "requirements": [
+      [
+        "http",
+        "met",
+        "正确健康200/其他501，预约功能单列为需求"
+      ],
+      [
+        "db",
+        "partial",
+        "核心未使用DB判断正确，但凭空增加打印db行为"
+      ],
+      [
+        "sources",
+        "met",
+        "实际读取与未运行明确，建议检查当前服务/DB行为，未把测试说成已运行"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "unsupported",
+        "severity": "minor",
+        "quote": "只解析 --db 并打印",
+        "reason": "文件没有print或打印db操作",
+        "impact": "局部参数用途被编造，db问答不完全忠实"
+      }
+    ]
+  },
+  "api_requirements_first-zero-r1": {
+    "answer_sha256": "b785586250c02ac2d799c5f163971d8a9acb86d1b3ce2dd0f250a80afaee3ea3",
+    "requirements": [
+      [
+        "http",
+        "partial",
+        "正确健康和预约路由未实现，但遗漏冻结诊断明确要求的其他GET实际501"
+      ],
+      [
+        "db",
+        "unmet",
+        "把需求中DB创建持久化说成参数的当前实际用途"
+      ],
+      [
+        "sources",
+        "partial",
+        "实际读取/尚未验证有区分，但DB需求仍被当代码行为"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "启动时会创建数据库文件（如果不存在），后续启动保留数据",
+        "reason": "代码不创建或连接数据库",
+        "impact": "核心参数作用/来源归属错误"
+      }
+    ]
+  },
+  "api_requirements_first-zero-r2": {
+    "answer_sha256": "1122e9b904760f331104259e0ce3f4400d4320bd36a55c8a0936d2328df298e1",
+    "requirements": [
+      [
+        "http",
+        "unmet",
+        "前面虚构POST201、GET空列表200等，结尾又说只有健康检查，核心回答自相矛盾"
+      ],
+      [
+        "db",
+        "met",
+        "明确必填参数被解析而未使用"
+      ],
+      [
+        "sources",
+        "partial",
+        "实际未运行标注清楚，但混入虚构代码行为和错误取消验证建议"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "GET /bookings 返回 200 和空列表",
+        "reason": "实际除health外GET均501",
+        "impact": "编造代码行为"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "POST /bookings/{id} 验证取消后状态为 cancelled，且不能重复取消",
+        "reason": "README要求DELETE且重复取消幂等；当前代码也未实现该POST",
+        "impact": "建议方法与要求/代码均不符"
+      }
+    ]
+  },
+  "api_requirements_first-candidate-r1": {
+    "answer_sha256": "45830a1fa225eff76418a504c8a22346bb8cbb7a8a283ded1f42687b7ed98d0a",
+    "requirements": [
+      [
+        "http",
+        "met",
+        "正确健康200/其他501、未实现预约业务"
+      ],
+      [
+        "db",
+        "unmet",
+        "声称非空限制并传给serve_forever，都不在源码；required只要求参数出现"
+      ],
+      [
+        "sources",
+        "partial",
+        "实际两次读/无测试正确，主体将业务放到未实现，但后文笼统否认JSON响应等与已述health JSON相冲突"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "强制要求 --db 为非空字符串，并将其传给 ThreadingHTTPServer 的 serve_forever",
+        "reason": "argparse required=True不禁止空字符串，serve_forever()没有传db参数",
+        "impact": "编造关键参数约束与传递关系"
+      }
+    ]
+  },
+  "api_requirements_first-candidate-r2": {
+    "answer_sha256": "ae0a7fd7dd19a2062e334aaf7a2a741f13954d80ffdcad0a8a350519da1083f6",
+    "requirements": [
+      [
+        "http",
+        "met",
+        "正确明确已实现GET /health200/ok和其他501"
+      ],
+      [
+        "db",
+        "met",
+        "明确必填只解析、Handler未使用、没有DB创建/连接/写入"
+      ],
+      [
+        "sources",
+        "met",
+        "已实现仅health与501；其余放在推断未验证并另列建议，实际两次读且未运行清楚。需求来源标签可更明确，但不强制固定“README要求”措辞，也没有断言预约已实现"
+      ]
+    ],
+    "findings": []
+  },
+  "inventory_numeric-zero-r1": {
+    "answer_sha256": "c48e4a73240e48bc5e4d88ec003ca8729ee4cfac955b0d2a5ebec68a8440ee19",
+    "requirements": [
+      [
+        "limits",
+        "unmet",
+        "quantity写成非负整数且混入PUT stock，数字对象未区分"
+      ],
+      [
+        "codes",
+        "unmet",
+        "虚构500、集合GET/orders无订单404，并混淆首次POST200/201与冲突条件"
+      ],
+      [
+        "provenance",
+        "met",
+        "明确在转述README，没有虚称本次实现或执行"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "必须为非负整数",
+        "reason": "该小节quantity应正整数；非负是stock N的约束",
+        "impact": "混淆核心数值对象"
+      },
+      {
+        "kind": "unsupported",
+        "severity": "material",
+        "quote": "500：服务器内部错误",
+        "reason": "文件没有500契约",
+        "impact": "新增未经文档支持状态码"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "GET /orders 无订单",
+        "reason": "集合接口应200及orders列表，不是无订单404",
+        "impact": "混淆集合与单订单查询"
+      }
+    ]
+  },
+  "inventory_numeric-zero-r2": {
+    "answer_sha256": "92396638eda6b40867dc183295a891d3bd1a46f269992b1dfb009e85fc0bba48",
+    "requirements": [
+      [
+        "limits",
+        "met",
+        "stock非负与quantity正整数、128长度、空key400相互对应；整数作为字段类型等义理解，不额外强制逐词列bool/小数"
+      ],
+      [
+        "codes",
+        "unmet",
+        "首次POST同时200/201，且把非法stock说成500"
+      ],
+      [
+        "provenance",
+        "met",
+        "回答以README说明框定，没有虚假已执行"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "500`：服务器内部错误，如 `PUT /inventory/{sku}` 中的非法 `stock` 值",
+        "reason": "原文非法stock/字段应400，不包含500",
+        "impact": "数字和触发条件错误"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "`POST /orders`（首次成功）",
+        "reason": "首次成功列在200和201两组，正确应201",
+        "impact": "首次与重试的对应不清"
+      }
+    ]
+  },
+  "inventory_numeric-candidate-r1": {
+    "answer_sha256": "dbccd75e23e7addd1aa6a19b7f23e3415d2b42bc19b55a9dab7866629e22450b",
+    "requirements": [
+      [
+        "limits",
+        "partial",
+        "stock非负、quantity正整数与128对象正确，但没说明key非空的下界"
+      ],
+      [
+        "codes",
+        "partial",
+        "首次/同key重试/冲突主要关系正确；404、409按顺序对应不存在/不足可等义理解，但GET/orders说可404不对"
+      ],
+      [
+        "provenance",
+        "met",
+        "明确README要求，未虚称实现或测试"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "GET /orders → 200 或 404",
+        "reason": "集合接口GET/orders返回200，404是单订单id查询/不存在SKU等",
+        "impact": "局部路由与数字对应错误；不否定其他正确关系"
+      }
+    ]
+  },
+  "inventory_numeric-candidate-r2": {
+    "answer_sha256": "435f4b8582862c2a5fcce022ca9683c7e81ebeb75aad0330a43aa8ab099c11f9",
+    "requirements": [
+      [
+        "limits",
+        "met",
+        "stock非负、quantity正整数、排除bool/小数、128及空key400对应清楚"
+      ],
+      [
+        "codes",
+        "unmet",
+        "将不存在/不足都404，把无写入属性赋409，还错误给PUT创建201"
+      ],
+      [
+        "provenance",
+        "met",
+        "明确README要求，无本次已实现/测试虚称"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "PUT 创建 SKU 返回 201",
+        "reason": "PUT创建或更新均200",
+        "impact": "把订单首次201迁移到库存PUT"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "任一 SKU 不存在或数量不足 → 404",
+        "reason": "不存在404、数量不足409",
+        "impact": "合并不同错误条件造成数字改写"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "失败整体无写入 → 409",
+        "reason": "无写入是多个失败场景的事务约束，不是统一409的触发条件",
+        "impact": "把事务属性与状态码错配"
+      }
+    ]
+  }
+}

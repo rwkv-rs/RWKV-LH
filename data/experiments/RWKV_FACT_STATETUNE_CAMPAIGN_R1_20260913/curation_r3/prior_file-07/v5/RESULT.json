@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-07-v5",
+  "seed_id": "prior_file-07",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 辅助函数，共四个。validate(connection) 先执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，仅接受 1 或 2，否则抛出 ValueError；随后检查 settings 表含 key、value 列，版本 2 时还检查 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source,destination) 以只读 URI 打开 source，调用 validate，再执行 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive(source,backup) 先经 temporary_path 创建 staged，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中 unlink staged。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 辅助函数，共四个。validate(connection) 先执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，仅接受 1 或 2，否则抛出 ValueError；随后检查 settings 表含 key、value 列，版本 2 时还检查 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source,destination) 以只读 URI 打开 source，调用 validate，再执行 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive(source,backup) 先经 temporary_path 创建 staged，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中 unlink staged。\"}}\n```",
+  "target_sha256": "d7c1070a403fe76e073ce88bf59857c7398da2fa80f809ed6e235cb1ee834a96",
+  "target_tokens": 281,
+  "review_issues": []
+}

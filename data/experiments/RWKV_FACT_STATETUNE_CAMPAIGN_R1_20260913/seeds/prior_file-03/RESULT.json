@@ -1,0 +1,115 @@
+{
+  "id": "file-03",
+  "case": "RP-FULL-01",
+  "path": "README.md",
+  "final": "README.md 说明：\n\n1. 项目目标\n   - 为小团队从零实现工单支持台。\n   - 包含 HTTP API、SQLite 与可操作网页。\n   - 用户创建带标题和描述的工单，初始 status=open、assignee=\"\"。\n   - 可分配负责人、关闭工单、搜索和状态筛选。\n\n2. 核心约束\n   - 空白标题拒绝。\n   - 更新必须原子校验，非法 status 不得顺便修改 assignee。\n\n3. API 规范\n   - GET /api/tickets?q=文本&status=all|open|closed\n     - q 在标题/描述做大小写不敏感子串搜索。\n     - status=all 返回全部，status=open/closed 按状态过滤。\n     - 返回 {tickets:[{id,title,description,assignee,status}]}。\n   - POST /api/tickets 接收 {title,description}，返回新工单。\n   - PATCH /api/tickets/ID 接收 assignee 和/或 status，返回更新工单；status 仅 open/closed。\n   - 成功创建 HTTP 201，查询/更新 200；无效输入 400；缺失资源 404。\n   - id 为稳定唯一值，多个独立浏览器看到相同服务数据。\n\n4. 公开 UI\n   - Ticket title、Ticket description 字段和 Create ticket 按钮。\n   - Search tickets 与 Status filter(all/open/closed)。\n   - 每工单 article 名称 `Ticket 标题`，展示描述和状态，内部 Assignee 字段、Assign 按钮。\n   - open 工单有 Close 按钮。\n\n5. 运行方式\n   - 命令：python server.py --host 127.0.0.1 --port PORT --db PATH\n   - 仅用 Python 标准库与原生浏览器功能。\n   - 数据库 PATH 由运行者给定。\n   - 源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码。\n   - GET / 提供页面，SQLite 持久化，停止服务再用同一个 PATH 启动后数据不丢失。\n\n6. 交付要求\n   - 保持工作区为自包含项目。\n   - 说明启动与人工验证方法。\n   - 不得依赖远程 CDN、外网或需要下载的包。\n   - 页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。\n\n7. 验证方式\n   - 通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "max_tokens": 4096,
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "path": "README.md",
+        "max_tokens": 4096,
+        "start_byte": 0
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "68f9b6040b7feb5d28c9a3d68722ce66e3f5f652c7f05ab7c12c9209c48d1170",
+      "decision_id": "D-fbe0c24a3f994c22",
+      "request_id": "MR-fd30c6d9a6984780",
+      "started_at": "2026-09-12T20:10:09.185+00:00",
+      "ended_at": "2026-09-12T20:10:09.202+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# RP-FULL-01\n\n为小团队从零实现工单支持台，包含 HTTP API、SQLite 与可操作网页。用户创建带标题和描述的工单，初始 status=open、assignee=\"\"；可分配负责人、关闭工单、搜索和状态筛选。空白标题拒绝。更新必须原子校验，非法 status 不得顺便修改 assignee。\nAPI：GET /api/tickets?q=文本&status=all|open|closed 返回 {\"tickets\":[{\"id\":唯一值,\"title\":文本,\"description\":文本,\"assignee\":文本,\"status\":\"open或closed\"}]}；q 在标题/描述做大小写不敏感子串搜索。POST /api/tickets 接收 {title,description} 并返回新工单。PATCH /api/tickets/ID 接收 assignee 和/或 status，返回更新工单；status 仅 open/closed。\n公开 UI：Ticket title、Ticket description 字段和 Create ticket 按钮；Search tickets 与 Status filter(all/open/closed)。每工单 article 名称 `Ticket 标题`，展示描述和状态，内部 Assignee 字段、Assign 按钮；open 工单有 Close 按钮。\n运行方式：`python server.py --host 127.0.0.1 --port PORT --db PATH`，仅用 Python 标准库与原生浏览器功能；数据库 PATH 由运行者给定。源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码。GET / 提供页面，SQLite 持久化，停止服务再用同一个 PATH 启动后数据不丢失。所有 API 接受/返回 JSON，成功创建 HTTP 201、查询/更新 200；无效输入 400、缺失资源 404；返回错误对象含 error。id 为稳定唯一值，多个独立浏览器看到相同服务数据。\n\n交付时保持工作区为自包含项目，README 说明启动与人工验证方法。不得依赖远程 CDN、外网或需要下载的包。页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。\n\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "5edc37f37b28fd09f206d36e6317fd2db9ec8a3e48cc9421396537bfd6235176",
+            "media_type": "text/markdown",
+            "size_bytes": 1960,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-5541b6c6ce0b710b",
+            "source_ref": "README.md",
+            "source_sha256": "5edc37f37b28fd09f206d36e6317fd2db9ec8a3e48cc9421396537bfd6235176",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1960,
+            "core_start": 0,
+            "core_end": 1960,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "5edc37f37b28fd09f206d36e6317fd2db9ec8a3e48cc9421396537bfd6235176",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 648
+          },
+          "start_byte": 0,
+          "end_byte": 1960,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1960,
+          "observed_tokens": 648,
+          "source_start_line": 1,
+          "source_end_line": 9
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-00b1efeb98075044fe1b"
+      ],
+      "workspace_digest_before": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "workspace_digest_after": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "failure_key": "",
+      "observation_fingerprint": "3227287d8983e15ca440d7d6821211dc37b52122107964b14aacc026aff80195",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-7a76cc77bf8e4bb4",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "README.md",
+          "max_tokens": 4096,
+          "start_byte": 0
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-15ddbcef3caa4950",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "README.md 说明：\n\n1. 项目目标\n   - 为小团队从零实现工单支持台。\n   - 包含 HTTP API、SQLite 与可操作网页。\n   - 用户创建带标题和描述的工单，初始 status=open、assignee=\"\"。\n   - 可分配负责人、关闭工单、搜索和状态筛选。\n\n2. 核心约束\n   - 空白标题拒绝。\n   - 更新必须原子校验，非法 status 不得顺便修改 assignee。\n\n3. API 规范\n   - GET /api/tickets?q=文本&status=all|open|closed\n     - q 在标题/描述做大小写不敏感子串搜索。\n     - status=all 返回全部，status=open/closed 按状态过滤。\n     - 返回 {tickets:[{id,title,description,assignee,status}]}。\n   - POST /api/tickets 接收 {title,description}，返回新工单。\n   - PATCH /api/tickets/ID 接收 assignee 和/或 status，返回更新工单；status 仅 open/closed。\n   - 成功创建 HTTP 201，查询/更新 200；无效输入 400；缺失资源 404。\n   - id 为稳定唯一值，多个独立浏览器看到相同服务数据。\n\n4. 公开 UI\n   - Ticket title、Ticket description 字段和 Create ticket 按钮。\n   - Search tickets 与 Status filter(all/open/closed)。\n   - 每工单 article 名称 `Ticket 标题`，展示描述和状态，内部 Assignee 字段、Assign 按钮。\n   - open 工单有 Close 按钮。\n\n5. 运行方式\n   - 命令：python server.py --host 127.0.0.1 --port PORT --db PATH\n   - 仅用 Python 标准库与原生浏览器功能。\n   - 数据库 PATH 由运行者给定。\n   - 源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码。\n   - GET / 提供页面，SQLite 持久化，停止服务再用同一个 PATH 启动后数据不丢失。\n\n6. 交付要求\n   - 保持工作区为自包含项目。\n   - 说明启动与人工验证方法。\n   - 不得依赖远程 CDN、外网或需要下载的包。\n   - 页面使用英语可访问名称以方便协作测试；允许任意视觉设计与代码组织，但下列公开交互合同保持稳定。\n\n7. 验证方式\n   - 通过真实浏览器操作检查行为，不以 CSS 长度或源码关键词验收。"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 62.00185203552246,
+  "workspace_unchanged": true
+}

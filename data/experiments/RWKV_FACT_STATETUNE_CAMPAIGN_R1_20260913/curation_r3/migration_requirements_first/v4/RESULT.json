@@ -1,0 +1,9 @@
+{
+  "id": "migration_requirements_first-v4",
+  "seed_id": "migration_requirements_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际工具操作：仅两次 read_file 成功——A00001 读 README.md（2685字节/17行，完整）、A00002 读 config_store/migrations.py（1388字节/27行，完整）；未运行任何测试或 CLI，未改动文件。\\n\\n需求描述（据 README）：migrate 仅允许 v1→v2，首次先落有效完整 v1 备份再原子发布；BACKUP≠DB 且不得覆盖已有备份；已是 v2 时 changed=false 且不改 DB/备份；坏 JSON、未知版本等须失败且原 DB 字节不变；须建 schema_migrations 及 version=2 记录；value 以 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；restore 须校验备份后原子恢复且不得改 BACKUP。\\n\\n代码推断的差距：migrate 首行无条件 backup.write_bytes(database.read_bytes())，既会覆盖已有备份，又早于 v2 判断；版本仅判 version==2，其余版本（0、3 等）仍继续 ALTER；ALTER 与 PRAGMA user_version=2 先 commit，再逐行 decode，坏 JSON 抛错时 DB 已部分改且无回滚，不满足原子性；json.dumps 未带规范化参数；未见创建 schema_migrations；restore 直接覆写、不校验备份合法性，失败不保原 DB。清单中无 config_cli.py 与 values.py，CLI 及 decode/value_type 行为无法核对。\\n\\n未执行的验证建议：用 v1 样本跑 migrate 并比对前后哈希（正常、坏 JSON 回滚、已有备份、BACKUP=DB）；v2 重跑核对 DB 与备份哈希不变；restore 测损坏/非配置 SQLite/缺失备份；覆盖 Unicode 与 NaN/Infinity 拒绝。\"}",
+  "accepted_by_api": false,
+  "error": "JSONDecodeError: Expecting ',' delimiter: line 1 column 929 (char 928)",
+  "input_sha256": "8a9e3cbc323fcd03afc21b6e4e0bb059b3b3ef383c749f15a563304531674152",
+  "augmentation": "alternate target at same actual production boundary"
+}

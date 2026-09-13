@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-10-v3",
+  "seed_id": "prior_file-10",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/store.py 用 sqlite3 实现文档索引持久化。existing(database) 返回 sqlite3.connect(database)。synchronize(database, root, documents) 在上下文中先 CREATE TABLE IF NOT EXISTS：documents 表含 path 主键、content、digest、search、mtime 五列；metadata 表含 key 主键与 value。随后读出 metadata 字典和 documents 的 path→mtime 旧映射；counts 初始为 added/updated/deleted/unchanged 四项，遍历传入 documents：mtime 相同计 unchanged 并跳过，否则按 path 是否已存在计 updated 或 added，并以 INSERT OR REPLACE 写入五列，循环内 commit。代码没有删除分支，deleted 始终为 0。接着 generation 取 metadata 中 generation（缺省 '0'）加 1，写回 root 与 generation，返回 counts 加 generation。status(database) 经 existing() 读 metadata 并 COUNT(*) documents，返回 document_count、generation、root。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "c711491b2d890000bc85c7284fff2b08701eb484f4a27b3eadcd5af52a4f2c61",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/store.py 用 sqlite3 实现文档索引持久化。existing(database) 返回 sqlite3.connect(database)。synchronize(database, root, documents) 在上下文中先 CREATE TABLE IF NOT EXISTS：documents 表含 path 主键、content、digest、search、mtime 五列；metadata 表含 key 主键与 value。随后读出 metadata 字典和 documents 的 path→mtime 旧映射；counts 初始为 added/updated/deleted/unchanged 四项，遍历传入 documents：mtime 相同计 unchanged 并跳过，否则按 path 是否已存在计 updated 或 added，并以 INSERT OR REPLACE 写入五列，循环内 commit。代码没有删除分支，deleted 始终为 0。接着 generation 取 metadata 中 generation（缺省 '0'）加 1，写回 root 与 generation，返回 counts 加 generation。status(database) 经 existing() 读 metadata 并 COUNT(*) documents，返回 document_count、generation、root。\"}}\n```",
+  "target_sha256": "d588b559b91c0ccfa1e15ddbae615f4f38814cb5518c51d9854c437cf55024d4",
+  "target_tokens": 275,
+  "review_issues": []
+}

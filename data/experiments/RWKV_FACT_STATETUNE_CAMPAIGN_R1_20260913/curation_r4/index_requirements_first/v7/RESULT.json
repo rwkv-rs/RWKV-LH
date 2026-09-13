@@ -1,0 +1,16 @@
+{
+  "id": "index_requirements_first-v7",
+  "seed_id": "index_requirements_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"需求描述：README 要求 index_cli.py 提供 sync/query/status；递归索引 .md/.txt UTF-8 文件，跳过符号链接，按内容变化检测，删除移出索引，返回 added/updated/deleted/unchanged 与 generation；generation 从 0 开始仅增删改时 +1；坏文件整次同步原子失败；root 绑定；查询需 NFC casefold 子串匹配。\\n\\n源码事实：store.py 只定义 synchronize 和 status。synchronize 建 documents、metadata 表，用 path->mtime 判断，mtime 相同则 unchanged，否则 added/updated；逐行 INSERT OR REPLACE 并 commit；随后无条件 generation = 旧值 + 1，存储 root；返回 counts 和 generation。status 读取 metadata 与文档数。代码中无 deleted 计数、无删除处理、无内容摘要比对、无原子事务、无 query、无 root 校验、无 Unicode 规范化与大小写折叠。\\n\\n工具操作：实际读取 README.md 2194 字节/747 token 和 store.py 1789 字节/412 token，均完整，未修改文件。\\n\\n未验证：未运行 index_cli.py，未执行增删改、同时间戳、Unicode、坏文件原子性、重启等测试；未查看其他文件。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "768bc2a32c095934da296c3224559aecc53e0671f5cd1e667c00ce64c551cfe8",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"需求描述：README 要求 index_cli.py 提供 sync/query/status；递归索引 .md/.txt UTF-8 文件，跳过符号链接，按内容变化检测，删除移出索引，返回 added/updated/deleted/unchanged 与 generation；generation 从 0 开始仅增删改时 +1；坏文件整次同步原子失败；root 绑定；查询需 NFC casefold 子串匹配。\\n\\n源码事实：store.py 只定义 synchronize 和 status。synchronize 建 documents、metadata 表，用 path->mtime 判断，mtime 相同则 unchanged，否则 added/updated；逐行 INSERT OR REPLACE 并 commit；随后无条件 generation = 旧值 + 1，存储 root；返回 counts 和 generation。status 读取 metadata 与文档数。代码中无 deleted 计数、无删除处理、无内容摘要比对、无原子事务、无 query、无 root 校验、无 Unicode 规范化与大小写折叠。\\n\\n工具操作：实际读取 README.md 2194 字节/747 token 和 store.py 1789 字节/412 token，均完整，未修改文件。\\n\\n未验证：未运行 index_cli.py，未执行增删改、同时间戳、Unicode、坏文件原子性、重启等测试；未查看其他文件。\"}}\n```",
+  "target_sha256": "75cecafd583f4412dde9e7e36bbf6dbf7b4d7bfbaf1387332da52819c91e470a",
+  "target_tokens": 386,
+  "review_issues": [
+    "源码事实称 store.py 只定义 synchronize 和 status，但同一文件中还定义了 existing(database)，该断言与可见源码不符。",
+    "称代码中无 deleted 计数不够准确：counts 字典包含 deleted 键，只是从未递增或用于删除处理；应表述为未实现删除处理/未更新 deleted 计数。"
+  ]
+}

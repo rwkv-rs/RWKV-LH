@@ -1,0 +1,98 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_requirements_first-zero-r2",
+  "task_id": "api_requirements_first",
+  "arm": "zero",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "7075b36d448cf11e436cd0d8d2ec65c28b9c476c4f5077b169e0a0f63cb0aa7c",
+  "run_sha256": "9400c5a581f8c2e0c97633a91b4ac160e5a3d774dbb0d74f72733b64dcb56546",
+  "review_sha256": "35f969b0886640e02ac00e81fbe40dcb4bfe4b0382cc0b57c7aa6168359538e6",
+  "execution_identity_sha256": "b5efe5b8981b0b5c2c0b80f9103310eeb8558f8784fe784426b23dafdad35a17",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "http",
+      "status": "unmet",
+      "reason": "前面虚构POST201、GET空列表200等，结尾又说只有健康检查，核心回答自相矛盾",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "met",
+      "reason": "明确必填参数被解析而未使用",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "实际未运行标注清楚，但混入虚构代码行为和错误取消验证建议",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "GET /bookings 返回 200 和空列表",
+      "reason": "实际除health外GET均501",
+      "impact": "编造代码行为",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "POST /bookings/{id} 验证取消后状态为 cancelled，且不能重复取消",
+      "reason": "README要求DELETE且重复取消幂等；当前代码也未实现该POST",
+      "impact": "建议方法与要求/代码均不符",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8960,
+    "output_tokens": 823,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

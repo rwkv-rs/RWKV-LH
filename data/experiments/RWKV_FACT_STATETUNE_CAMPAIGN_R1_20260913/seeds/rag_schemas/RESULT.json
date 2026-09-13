@@ -1,0 +1,97 @@
+{
+  "id": "rag_schemas-collect-r1",
+  "final": "schemas.py 是一个 Pydantic 模型定义文件，主要用于定义请求、响应和数据模型。它包含以下主要内容：\n\n1. **导入和类型定义**：\n   - 导入了 `datetime`、`typing` 和 `pydantic` 库。\n   - 定义了 `SearchAnswerStatus` 枚举类型，表示搜索答案的状态。\n\n2. **请求和响应模型**：\n   - `ConversationMessage`：表示对话消息，包含角色和内容。\n   - `SearchRequest`：搜索请求模型，包含问题、知识库 ID、历史记录等字段。\n   - `SourceItem`：搜索结果中的文档项，包含文档 ID、标题、得分等信息。\n   - `SearchResponse`：搜索响应模型，包含结果列表和检索信息。\n   - `AskResponse`：问答响应模型，包含答案、来源和检索信息。\n   - `MaterialAskRequest`：材料问答请求模型，包含问题和材料列表。\n   - `SearchTestRun`：搜索测试运行模型，包含请求和响应。\n   - `SearchTestItem`：搜索测试项模型，包含请求、运行记录和状态信息。\n   - `SearchTestPage`：搜索测试分页模型，包含项列表和分页信息。\n\n3. **导入和索引模型**：\n   - `MarkdownImportRequest`：Markdown 导入请求模型，包含路径和选项。\n   - `ImportResponse`：导入响应模型，包含文档和节点数量。\n   - `KnowledgeBaseCreate` 和 `KnowledgeBaseUpdate`：知识库创建和更新模型。\n   - `KnowledgeBaseItem`：知识库项模型，包含基本信息和文件数量。\n   - `FileItem`：文件项模型，包含文件信息和状态。\n   - `JobItem`：任务项模型，包含任务类型、状态和进度。\n   - `JobAccepted`：任务接受响应模型。\n   - `FileUploadAccepted`：文件上传接受响应模型。\n   - `FineWikiImportRequest`：FineWiki 导入请求模型，包含路径和选项。\n   - `FineWikiPathEntry` 和 `FineWikiPathPage`：FineWiki 路径条目和分页模型。\n   - `ChunkItem`：文本块项模型，包含文本和元数据。\n   - `ChunkPage`：文本块分页模型。\n   - `AdminHealth`：管理健康检查模型，包含 MongoDB 和 Lexical 状态。\n\n4. **验证方法**：\n   - 多个模型中包含 `@field_validator` 装饰器，用于验证字段的有效性，例如确保问题不为空、文件路径有效等。\n\n5. **限制和约束**：\n   - 字段长度限制：例如 `question` 最大长度为 100,000 字符，`content` 最大长度为 100,000 字符。\n   - 数值范围限制：例如 `top_k` 在 5 到 200 之间，`batch_size` 在 1 到 256 之间。\n   - 枚举值限制：例如 `SearchAnswerStatus` 只能是预定义的值之一。\n\n6. **未实现的功能**：\n   - 文件中没有实际的业务逻辑或函数实现，仅定义了数据模型和验证规则。\n   - 没有实现文件读取、搜索、索引或导入等功能，这些功能需要在其他模块中实现。\n\n总结：`schemas.py` 是一个数据模型定义文件，主要用于定义请求、响应和数据模型，并包含一些验证规则。它没有实现任何实际的业务逻辑或功能。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 3,
+  "protocol_rejections": 1,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "schemas.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "schemas.py"
+      },
+      "action_fingerprint": "15cb59aa0856a58c91bffac453840efbfbb88b4f5719a698fe4a2e0170d96cad",
+      "idempotency_key": "772400bfc0dc424b7375afdb24f955c3a0808e4f76d803a076f7ee2a118a5156",
+      "decision_id": "D-a70f0fea7cd94fe6",
+      "request_id": "MR-024731e47a5b4b06",
+      "started_at": "2026-09-13T07:48:28.622+00:00",
+      "ended_at": "2026-09-13T07:48:28.655+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from datetime import datetime\nfrom typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator\n\n\nSearchAnswerStatus = Literal[\"answered\", \"refused\", \"completed\", \"partial\", \"failed\"]\n\n\nclass ConversationMessage(BaseModel):\n    role: Literal[\"user\", \"assistant\"]\n    content: str = Field(max_length=100_000)\n\n\nclass SearchRequest(BaseModel):\n    question: str = Field(max_length=10_000)\n    top_k: int | None = Field(default=None, ge=1, le=100)\n    candidate_k: int | None = Field(default=None, ge=5, le=200)\n    min_score: float | None = None\n    knowledge_base_id: str | None = None\n    history: list[ConversationMessage] = Field(default_factory=list, max_length=64)\n\n    @field_validator(\"question\")\n    @classmethod\n    def validate_question(cls, value: str) -> str:\n        value = value.strip()\n        if not value:\n            raise ValueError(\"question must not be empty\")\n        return value\n\n\nclass SourceItem(BaseModel):\n    id: str\n    document_id: str\n    source: str\n    title: str\n    uri: str | None = None\n    score: float\n    snippet: str\n    metadata: dict[str, Any] = Field(default_factory=dict)\n\n\nclass SearchResponse(BaseModel):\n    results: list[SourceItem]\n    retrieval: dict[str, Any]\n\n\nclass AskResponse(BaseModel):\n    answer: str\n    sources: list[SourceItem]\n    retrieval: dict[str, Any]\n    generation: dict[str, Any]\n\n\nclass MaterialAskRequest(BaseModel):\n    question: str = Field(max_length=10_000)\n    materials: list[SourceItem] = Field(min_length=1, max_length=20)\n    history: list[ConversationMessage] = Field(default_factory=list, max_length=64)\n\n    @field_validator(\"question\")\n    @classmethod\n    def validate_question(cls, value: str) -> str:\n        value = value.strip()\n        if not value:\n            raise ValueError(\"question must not be empty\")\n        return value\n\n\nclass SearchTestRun(BaseModel):\n    id: str\n    test_id: str\n    run_number: int\n    request: dict[str, Any]\n    response: AskResponse\n    created_at: datetime\n\n\nclass SearchTestItem(BaseModel):\n    id: str\n    question: str\n    knowledge_base_id: str | None = None\n    request: dict[str, Any]\n    run_count: int = 0\n    created_at: datetime\n    updated_at: datetime\n    latest_run_id: str | None = None\n    latest_answer_status: SearchAnswerStatus | None = None\n    latest_failure_category: Literal[\n        \"data_missing\",\n        \"retrieval_failed\",\n        \"evidence_extraction_failed\",\n        \"generation_failed\",\n    ] | None = None\n    latest_failure_reason: str | None = None\n    latest_run: SearchTestRun | None = None\n\n\nclass SearchTestDetail(SearchTestItem):\n    runs: list[SearchTestRun] = Field(default_factory=list)\n\n\nclass SearchTestPage(BaseModel):\n    items: list[SearchTestItem]\n    total: int = Field(ge=0)\n    page: int = Field(ge=1)\n    page_size: int = Field(ge=1)\n\n\nclass MarkdownImportRequest(BaseModel):\n    path: str\n    source: str = \"local-markdown\"\n    limit: int = Field(default=0, ge=0)\n    batch_size: int = Field(default=16, ge=1, le=256)\n    recreate: bool = False\n\n\nclass ImportResponse(BaseModel):\n    documents: int\n    nodes: int\n\n\nclass KnowledgeBaseCreate(BaseModel):\n    name: str = Field(min_length=1, max_length=100)\n    description: str = Field(default=\"\", max_length=500)\n\n\nclass KnowledgeBaseUpdate(BaseModel):\n    name: str | None = Field(default=None, min_length=1, max_length=100)\n    description: str | None = Field(default=None, max_length=500)\n\n\nclass KnowledgeBaseItem(BaseModel):\n    id: str\n    name: str\n    description: str = \"\"\n    created_at: datetime\n    updated_at: datetime\n    file_count: int = 0\n\n\nFileStatus = Literal[\"pending\", \"processing\", \"ready\", \"failed\", \"deleting\"]\nJobStatus = Literal[\"pending\", \"running\", \"completed\", \"failed\"]\nJobKind = Literal[\"file_ingest\", \"file_reindex\", \"finewiki_import\"]\n\n\nclass FileItem(BaseModel):\n    id: str\n    knowledge_base_id: str\n    filename: str\n    content_type: str\n    extension: str\n    size: int\n    sha256: str\n    source: str\n    status: FileStatus\n    node_count: int = 0\n    error: str | None = None\n    last_job_id: str | None = None\n    created_at: datetime\n    updated_at: datetime\n\n\nclass JobItem(BaseModel):\n    id: str\n    kind: JobKind\n    status: JobStatus\n    progress: int = Field(ge=0, le=100)\n    stage: str\n    message: str = \"\"\n    documents_processed: int = 0\n    nodes_processed: int = 0\n    error: str | None = None\n    payload: dict[str, Any] = Field(default_factory=dict)\n    created_at: datetime\n    updated_at: datetime\n    started_at: datetime | None = None\n    completed_at: datetime | None = None\n\n\nclass JobAccepted(BaseModel):\n    job_id: str\n    status: JobStatus = \"pending\"\n\n\nclass FileUploadAccepted(JobAccepted):\n    file_id: str\n\n\nclass FineWikiImportRequest(BaseModel):\n    path: str\n    knowledge_base_id: str = \"default\"\n    source: str = \"finewiki-zh\"\n    titles: list[str] = Field(default_factory=list)\n    limit: int = Field(default=0, ge=0)\n    batch_size: int = Field(default=8, ge=1, le=128)\n    recreate: bool = False\n\n\nclass FineWikiPathEntry(BaseModel):\n    name: str\n    path: str\n    type: Literal[\"directory\", \"parquet\"]\n    size: int | None = None\n\n\nclass FineWikiPathPage(BaseModel):\n    current: str\n    parent: str | None = None\n    roots: list[str]\n    entries: list[FineWikiPathEntry]\n\n\nclass ChunkItem(BaseModel):\n    id: str\n    document_id: str\n    text: str\n    metadata: dict[str, Any] = Field(default_factory=dict)\n\n\nclass ChunkPage(BaseModel):\n    items: list[ChunkItem]\n    next_offset: str | None = None\n\n\nclass AdminHealth(BaseModel):\n    status: Literal[\"ok\", \"degraded\"]\n    mongodb: dict[str, Any]\n    lexical: dict[str, Any]\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "schemas.py",
+            "sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+            "media_type": "text/x-python",
+            "size_bytes": 5661,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-13b5b770b2419c58",
+            "source_ref": "schemas.py",
+            "source_sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 5661,
+            "core_start": 0,
+            "core_end": 5661,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 1613
+          },
+          "start_byte": 0,
+          "end_byte": 5661,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 5661,
+          "observed_tokens": 1613,
+          "source_start_line": 1,
+          "source_end_line": 228
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-99b20585c4ffc25fa5cb"
+      ],
+      "workspace_digest_before": "c2bf86bf15a5e752955efe3e384464b0f96e3eee440baf179f9503f1e857a4d3",
+      "workspace_digest_after": "c2bf86bf15a5e752955efe3e384464b0f96e3eee440baf179f9503f1e857a4d3",
+      "failure_key": "",
+      "observation_fingerprint": "ccbd6ca482fe9c13385e72867f41d303398a080dd114d74f3a55353132b90d5b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 116.62344245397253
+}

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "prior_file-09-v6",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件定义了文档收集辅助逻辑。normalize(value) 将输入转为小写后返回。collect(root) 接收根路径，遍历排序后的 root.glob('*.md')，只处理根目录下匹配的 Markdown 文件；对每个文件读取原始字节，以 UTF-8 解码且 errors='replace'，然后生成记录列表，每项包含 path.name、解码后 content、对原始字节计算的 SHA-256 digest、经 normalize 处理的 search 字段，以及 path.stat().st_mtime_ns 时间戳，最后返回该列表。限制是 glob('*.md') 不递归，非 .md 文件不纳入，解码错误会被替换而非抛出；文件未展示其他索引逻辑。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件定义了文档收集辅助逻辑。normalize(value) 将输入转为小写后返回。collect(root) 接收根路径，遍历排序后的 root.glob('*.md')，只处理根目录下匹配的 Markdown 文件；对每个文件读取原始字节，以 UTF-8 解码且 errors='replace'，然后生成记录列表，每项包含 path.name、解码后 content、对原始字节计算的 SHA-256 digest、经 normalize 处理的 search 字段，以及 path.stat().st_mtime_ns 时间戳，最后返回该列表。限制是 glob('*.md') 不递归，非 .md 文件不纳入，解码错误会被替换而非抛出；文件未展示其他索引逻辑。\"}}\n```",
+    "target_sha256": "b0586c9e273e270542f0c90a3f9b089ccd317a93d1e2ecaefde056144344802f",
+    "target_tokens": 231,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-09-v7",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"结构说明：\\n目的：该文件提供 Markdown 文档的收集与规范化辅助。\\n文件内容：共15行、492字节；顶部启用 from __future__ import annotations，并导入 hashlib。normalize(value) 返回 value.lower()。collect(root) 遍历 sorted(root.glob('*.md'))，读取每个文件字节，用 UTF-8 且 errors='replace' 解码，追加字典，键为 path（仅 path.name）、content、digest（sha256(content).hexdigest()）、search（normalize(text)）、mtime（path.stat().st_mtime_ns），最后返回 rows。\\n限制：仅依据该文件可见，未显示调用方、索引入库、查询或测试执行；glob 模式为 '*.md'，未体现递归或其它扩展名；解码错误会被替换而非抛出。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"结构说明：\\n目的：该文件提供 Markdown 文档的收集与规范化辅助。\\n文件内容：共15行、492字节；顶部启用 from __future__ import annotations，并导入 hashlib。normalize(value) 返回 value.lower()。collect(root) 遍历 sorted(root.glob('*.md'))，读取每个文件字节，用 UTF-8 且 errors='replace' 解码，追加字典，键为 path（仅 path.name）、content、digest（sha256(content).hexdigest()）、search（normalize(text)）、mtime（path.stat().st_mtime_ns），最后返回 rows。\\n限制：仅依据该文件可见，未显示调用方、索引入库、查询或测试执行；glob 模式为 '*.md'，未体现递归或其它扩展名；解码错误会被替换而非抛出。\"}}\n```",
+    "target_sha256": "ae230f32582cc95faced1a5e1373c4b728f173ab00edea6ac322abcc471d2df4",
+    "target_tokens": 256,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-09-v8",
+    "seed_id": "prior_file-09",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/documents.py（492字节，15行，sha256=e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1）主要内容：先导入 from __future__ import annotations 和 hashlib；定义 normalize(value)，返回 value.lower()；定义 collect(root)，用 sorted(root.glob('*.md')) 遍历路径，逐个 path.read_bytes()，再用 UTF-8 和 errors='replace' 解码为 text，随后向 rows 追加字典：path 为 path.name，content 为 text，digest 为 hashlib.sha256(content).hexdigest()，search 为 normalize(text)，mtime 为 path.stat().st_mtime_ns；最后返回 rows。文件未展开调用、异常处理或测试细节；本次观察仅成功读取该文件，未显示测试执行。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bb9a9f4db5be08f37b98192bc2a27d0dbb7a7a2186fccdaa8bd380f72e397454",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/documents.py（492字节，15行，sha256=e1d63dc78bd41af72ca04907c11a05d8944ae8f35885f067e3bca9975d6708c1）主要内容：先导入 from __future__ import annotations 和 hashlib；定义 normalize(value)，返回 value.lower()；定义 collect(root)，用 sorted(root.glob('*.md')) 遍历路径，逐个 path.read_bytes()，再用 UTF-8 和 errors='replace' 解码为 text，随后向 rows 追加字典：path 为 path.name，content 为 text，digest 为 hashlib.sha256(content).hexdigest()，search 为 normalize(text)，mtime 为 path.stat().st_mtime_ns；最后返回 rows。文件未展开调用、异常处理或测试细节；本次观察仅成功读取该文件，未显示测试执行。\"}}\n```",
+    "target_sha256": "eebf1b7a77358c0abe5f9217cb01387115b08fbe48a892d8e3ef8669e7253db9",
+    "target_tokens": 261,
+    "review_issues": []
+  }
+]

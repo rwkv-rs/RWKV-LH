@@ -1,0 +1,65 @@
+[
+  {
+    "id": "prior_file-04-v1",
+    "seed_id": "prior_file-04",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 为 RP-FULL-02 任务说明：从零实现团队意见投票板，包含 HTTP API、SQLite 与网页。成员可创建非空标题/描述的提案，并输入名字投票；同一成员每提案最多一票，可取消再投，重复相同投票请求须幂等。支持按票数或最新排序；票数降序、平票按 id 升序。投票关闭后服务须拒绝新增或撤销票，而非只禁用界面；名字仅为本地团队标识，不要求认证。API 包含 POST /api/proposals、GET /api/proposals?voter=名字&sort=newest|votes、PUT /api/proposals/ID/vote、PATCH /api/proposals/ID，并规定 201/200/400/404/409 及 error 对象。UI 有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，以及 Vote/Remove vote、Close voting 等状态。运行用 python server.py --host 127.0.0.1 --port PORT --db PATH，仅标准库；数据库等写入 PATH 所在临时目录，不写回源码，重启不丢数据。交付需自包含、README 说明启动与人工验证，不依赖远程 CDN，通过真实浏览器验收。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 为 RP-FULL-02 任务说明：从零实现团队意见投票板，包含 HTTP API、SQLite 与网页。成员可创建非空标题/描述的提案，并输入名字投票；同一成员每提案最多一票，可取消再投，重复相同投票请求须幂等。支持按票数或最新排序；票数降序、平票按 id 升序。投票关闭后服务须拒绝新增或撤销票，而非只禁用界面；名字仅为本地团队标识，不要求认证。API 包含 POST /api/proposals、GET /api/proposals?voter=名字&sort=newest|votes、PUT /api/proposals/ID/vote、PATCH /api/proposals/ID，并规定 201/200/400/404/409 及 error 对象。UI 有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，以及 Vote/Remove vote、Close voting 等状态。运行用 python server.py --host 127.0.0.1 --port PORT --db PATH，仅标准库；数据库等写入 PATH 所在临时目录，不写回源码，重启不丢数据。交付需自包含、README 说明启动与人工验证，不依赖远程 CDN，通过真实浏览器验收。\"}}\n```",
+    "target_sha256": "a3b7df7ec161aeef47b07c5abde8ac59723ba16db2ed81e49b3ba045fc62e31d",
+    "target_tokens": 374,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-04-v2",
+    "seed_id": "prior_file-04",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 是 RP-FULL-02 任务说明：用 Python 标准库和原生浏览器从零实现团队意见投票板，包含 HTTP API、SQLite 持久化与网页。成员创建提案（非空标题、描述），输入名字投票；同一成员每提案最多一票，可取消再投，重复相同投票请求必须幂等；名字仅为本地团队标识，不要求认证。API 含 POST /api/proposals 创建并返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组，字段为 id、title、description、closed、votes、voted，votes 按票数降序、平票按 id 升序，newest 按创建新到旧；PUT /api/proposals/ID/vote 接收 voter 与 active 的 true 或 false，添加或移除该成员唯一票，重复操作不改变其他票，关闭后 HTTP409；PATCH /api/proposals/ID 接收 closed=true 永久关闭。公开 UI 有 Your name 字段，Proposal title、Proposal description 与 Create proposal 按钮，Sort proposals 支持 newest/votes；每个 article 名称 Proposal 标题，展示描述、Votes: 数量和 Voting open/Voting closed，当前成员未投票用 Vote，已投用 Remove vote，开放提案提供 Close voting，关闭后投票按钮禁用；改变名字并离开输入框后更新投票状态。运行方式为 python server.py --host 127.0.0.1 --port PORT --db PATH，仅用标准库与原生浏览器；源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码；停止服务再用同一 PATH 启动后数据不丢失。所有 API 收发 JSON，成功创建 HTTP 201、查询或更新 200；无效输入 400、缺失资源 404；错误对象含 error。id 为稳定唯一值，多个独立浏览器看到相同服务数据。交付时工作区保持自包含，README 说明启动与人工验证方法，不依赖远程 CDN、外网或需下载的包，页面使用英语可访问名称，通过真实浏览器操作检查行为。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 是 RP-FULL-02 任务说明：用 Python 标准库和原生浏览器从零实现团队意见投票板，包含 HTTP API、SQLite 持久化与网页。成员创建提案（非空标题、描述），输入名字投票；同一成员每提案最多一票，可取消再投，重复相同投票请求必须幂等；名字仅为本地团队标识，不要求认证。API 含 POST /api/proposals 创建并返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组，字段为 id、title、description、closed、votes、voted，votes 按票数降序、平票按 id 升序，newest 按创建新到旧；PUT /api/proposals/ID/vote 接收 voter 与 active 的 true 或 false，添加或移除该成员唯一票，重复操作不改变其他票，关闭后 HTTP409；PATCH /api/proposals/ID 接收 closed=true 永久关闭。公开 UI 有 Your name 字段，Proposal title、Proposal description 与 Create proposal 按钮，Sort proposals 支持 newest/votes；每个 article 名称 Proposal 标题，展示描述、Votes: 数量和 Voting open/Voting closed，当前成员未投票用 Vote，已投用 Remove vote，开放提案提供 Close voting，关闭后投票按钮禁用；改变名字并离开输入框后更新投票状态。运行方式为 python server.py --host 127.0.0.1 --port PORT --db PATH，仅用标准库与原生浏览器；源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码；停止服务再用同一 PATH 启动后数据不丢失。所有 API 收发 JSON，成功创建 HTTP 201、查询或更新 200；无效输入 400、缺失资源 404；错误对象含 error。id 为稳定唯一值，多个独立浏览器看到相同服务数据。交付时工作区保持自包含，README 说明启动与人工验证方法，不依赖远程 CDN、外网或需下载的包，页面使用英语可访问名称，通过真实浏览器操作检查行为。\"}}\n```",
+    "target_sha256": "ec89267a72190139410f90eb316115e816b182f642dde69473444524ed65f3aa",
+    "target_tokens": 652
+  },
+  {
+    "id": "prior_file-04-v3",
+    "seed_id": "prior_file-04",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 描述项目 RP-FULL-02：从零实现团队意见投票板，交付 HTTP API、SQLite 与网页，只用 Python 标准库和原生浏览器功能。核心规则：成员创建提案须有非空标题与描述；投票时输入自己的名字，同一成员每个提案最多一票，可取消后重投，重复的相同投票请求必须幂等；关闭投票后服务端必须拒绝新增或撤销票，不能只靠界面禁用。API：POST /api/proposals 返回含 id 的对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组，每项含 id、title、description、closed、votes、voted，votes 排序按票数降序、平票按 id 升序，newest 按创建时间新到旧；PUT /api/proposals/ID/vote 用 voter 与 active（true/false）添加或移除该成员唯一票，重复操作不影响其他票，关闭后返回 HTTP409；PATCH /api/proposals/ID 用 closed=true 永久关闭。UI 需有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals(newest/votes)；每个 article 名称为 Proposal 标题，显示描述、Votes: 数量与 Voting open/Voting closed，未投票显示 Vote、已投票显示 Remove vote，开放提案有 Close voting，关闭后投票按钮禁用；改名并离开输入框后更新投票状态。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码，重启后数据不丢失。所有 API 收发 JSON，创建成功 201、查询或更新 200，无效输入 400、缺失资源 404，错误对象含 error；id 为稳定唯一值，多个浏览器看到相同数据。交付需自包含、不依赖远程 CDN 或需下载的包，README 给出启动与人工验证方法，页面使用英语可访问名称，通过真实浏览器操作验收而非 CSS 或源码关键词。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 描述项目 RP-FULL-02：从零实现团队意见投票板，交付 HTTP API、SQLite 与网页，只用 Python 标准库和原生浏览器功能。核心规则：成员创建提案须有非空标题与描述；投票时输入自己的名字，同一成员每个提案最多一票，可取消后重投，重复的相同投票请求必须幂等；关闭投票后服务端必须拒绝新增或撤销票，不能只靠界面禁用。API：POST /api/proposals 返回含 id 的对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组，每项含 id、title、description、closed、votes、voted，votes 排序按票数降序、平票按 id 升序，newest 按创建时间新到旧；PUT /api/proposals/ID/vote 用 voter 与 active（true/false）添加或移除该成员唯一票，重复操作不影响其他票，关闭后返回 HTTP409；PATCH /api/proposals/ID 用 closed=true 永久关闭。UI 需有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals(newest/votes)；每个 article 名称为 Proposal 标题，显示描述、Votes: 数量与 Voting open/Voting closed，未投票显示 Vote、已投票显示 Remove vote，开放提案有 Close voting，关闭后投票按钮禁用；改名并离开输入框后更新投票状态。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；源码目录运行时可只读，数据库及运行文件写入 PATH 所在临时目录，不能写回源码，重启后数据不丢失。所有 API 收发 JSON，创建成功 201、查询或更新 200，无效输入 400、缺失资源 404，错误对象含 error；id 为稳定唯一值，多个浏览器看到相同数据。交付需自包含、不依赖远程 CDN 或需下载的包，README 给出启动与人工验证方法，页面使用英语可访问名称，通过真实浏览器操作验收而非 CSS 或源码关键词。\"}}\n```",
+    "target_sha256": "dcbfd032c4db769d34efa82b35c15341dafd9cd961d9978b4098675ea8095508",
+    "target_tokens": 635
+  },
+  {
+    "id": "prior_file-04-v4",
+    "seed_id": "prior_file-04",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 要求实现 RP-FULL-02：团队意见投票板，含 HTTP API、SQLite 和网页，仅用 Python 标准库与原生浏览器。成员创建非空标题/描述提案，用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票必须幂等；关闭后服务端必须拒绝新增或撤销票（HTTP409），不能只禁用界面；名字仅本地标识。API：POST /api/proposals 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组（id、title、description、closed、votes、voted），votes 降序、平票 id 升序，newest 按时间倒序；PUT /api/proposals/ID/vote 接收 voter 与 active 布尔；PATCH /api/proposals/ID 接收 closed=true 永久关闭。UI 含 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，article 名 Proposal 标题，显示 Votes 与 open/closed，Vote/Remove vote/Close voting，改名离开输入框更新。运行 python server.py --host 127.0.0.1 --port PORT --db PATH；数据写 PATH 临时目录，源码只读，重启不丢。API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error。交付自包含，README 说明启动与人工验证，真实浏览器验收。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 要求实现 RP-FULL-02：团队意见投票板，含 HTTP API、SQLite 和网页，仅用 Python 标准库与原生浏览器。成员创建非空标题/描述提案，用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票必须幂等；关闭后服务端必须拒绝新增或撤销票（HTTP409），不能只禁用界面；名字仅本地标识。API：POST /api/proposals 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组（id、title、description、closed、votes、voted），votes 降序、平票 id 升序，newest 按时间倒序；PUT /api/proposals/ID/vote 接收 voter 与 active 布尔；PATCH /api/proposals/ID 接收 closed=true 永久关闭。UI 含 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，article 名 Proposal 标题，显示 Votes 与 open/closed，Vote/Remove vote/Close voting，改名离开输入框更新。运行 python server.py --host 127.0.0.1 --port PORT --db PATH；数据写 PATH 临时目录，源码只读，重启不丢。API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error。交付自包含，README 说明启动与人工验证，真实浏览器验收。\"}}\n```",
+    "target_sha256": "2f9634cd1db2e1195bb4be1847736167cde2a5bc8b8e18e6cedcb773b0765adf",
+    "target_tokens": 423,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-04-v5",
+    "seed_id": "prior_file-04",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 为 RP-FULL-02 任务说明：从零实现团队意见投票板，含 HTTP API、SQLite 与网页，仅用 Python 标准库和原生浏览器。成员创建非空标题/描述提案，用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票必须幂等；关闭后服务端须拒绝新增或撤销票，不能只禁用界面；名字仅本地标识。支持 newest/votes 排序，votes 降序、平票 id 升序。API：POST /api/proposals 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组（id、title、description、closed、votes、voted）；PUT /api/proposals/ID/vote 接收 voter 与 active，关闭后 HTTP409；PATCH /api/proposals/ID 接收 closed=true 永久关闭。UI 有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，article 名称为 Proposal 标题，显示 Votes 与 open/closed，Vote/Remove vote/Close voting，改名离开输入框更新。运行 python server.py --host 127.0.0.1 --port PORT --db PATH；数据写 PATH 临时目录，源码只读，重启不丢。API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error。交付自包含，README 说明启动与人工验证，真实浏览器验收。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "4dfd2183fc44197ba28910bc8e71f5849d8cf32ce18afcca08a98b1929950959",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 为 RP-FULL-02 任务说明：从零实现团队意见投票板，含 HTTP API、SQLite 与网页，仅用 Python 标准库和原生浏览器。成员创建非空标题/描述提案，用名字投票；同一成员每提案最多一票，可取消再投，重复相同投票必须幂等；关闭后服务端须拒绝新增或撤销票，不能只禁用界面；名字仅本地标识。支持 newest/votes 排序，votes 降序、平票 id 升序。API：POST /api/proposals 返回含 id 对象；GET /api/proposals?voter=名字&sort=newest|votes 返回 proposals 数组（id、title、description、closed、votes、voted）；PUT /api/proposals/ID/vote 接收 voter 与 active，关闭后 HTTP409；PATCH /api/proposals/ID 接收 closed=true 永久关闭。UI 有 Your name、Proposal title、Proposal description、Create proposal、Sort proposals，article 名称为 Proposal 标题，显示 Votes 与 open/closed，Vote/Remove vote/Close voting，改名离开输入框更新。运行 python server.py --host 127.0.0.1 --port PORT --db PATH；数据写 PATH 临时目录，源码只读，重启不丢。API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error。交付自包含，README 说明启动与人工验证，真实浏览器验收。\"}}\n```",
+    "target_sha256": "4f7c41f0ec39988fc6ba8efa6522d4311729a374ac056b4de6535c13f422bbf9",
+    "target_tokens": 429,
+    "review_issues": []
+  }
+]

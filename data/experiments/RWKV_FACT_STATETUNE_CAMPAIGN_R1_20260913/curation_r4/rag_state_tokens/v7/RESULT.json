@@ -1,0 +1,12 @@
+{
+  "id": "rag_state_tokens-v7",
+  "seed_id": "rag_state_tokens",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file，成功读取 state_tokens.py 全文件（2316 字节，52 行，590 token，EOF，未修改）。源码实现 CPU RWKV 字节级分词与 target-only teacher forcing，未导入模型。Vocabulary 初始化从 UTF-8 文本逐行解析 token_id、字面量、size；ast.literal_eval 后若 str 则 UTF-8 编码为 bytes；校验 token 为非空 bytes、长度等于 size、index 为 >0 且不重复，否则 ValueError；建立 by_id 与 trie，叶节点以 None 为 key 存 index。encode 将文本 UTF-8 编码后按 trie 做最长匹配，返回 list[int]；匹配不到或重建字节不等于输入则 ValueError。encode_training 拒绝空 prompt/target；分别编码后拼成 prompt_ids+answer_ids+[0]，若长度 > max_tokens 则 ValueError，并称不截断；返回 input_ids、labels（prompt 段 -100，后接 answer_ids+[0]）、prompt_tokens、target_tokens_with_eos（answer 数+1）。限制：仅依据源码推断；未运行测试；不证明模型集成、性能或实际训练可用性；注释/命名意图不算已实现。\"}}",
+  "accepted_by_api": false,
+  "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=8192",
+  "input_sha256": "36010e3422b1128f3a3f4b88f8c39fc0f407b17f892151f1dec6738e07e026e6",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file，成功读取 state_tokens.py 全文件（2316 字节，52 行，590 token，EOF，未修改）。源码实现 CPU RWKV 字节级分词与 target-only teacher forcing，未导入模型。Vocabulary 初始化从 UTF-8 文本逐行解析 token_id、字面量、size；ast.literal_eval 后若 str 则 UTF-8 编码为 bytes；校验 token 为非空 bytes、长度等于 size、index 为 >0 且不重复，否则 ValueError；建立 by_id 与 trie，叶节点以 None 为 key 存 index。encode 将文本 UTF-8 编码后按 trie 做最长匹配，返回 list[int]；匹配不到或重建字节不等于输入则 ValueError。encode_training 拒绝空 prompt/target；分别编码后拼成 prompt_ids+answer_ids+[0]，若长度 > max_tokens 则 ValueError，并称不截断；返回 input_ids、labels（prompt 段 -100，后接 answer_ids+[0]）、prompt_tokens、target_tokens_with_eos（answer 数+1）。限制：仅依据源码推断；未运行测试；不证明模型集成、性能或实际训练可用性；注释/命名意图不算已实现。\"}}\n```",
+  "target_sha256": "3eac31ec89b61805e4d04c5d0ca3725342db76cdd5b38e4784ed7a146a00e2ba",
+  "target_tokens": 371
+}

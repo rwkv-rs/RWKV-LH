@@ -1,0 +1,70 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "7ae7881494436838f8c5530cfc24cdfd72faecfdb61bc43ac7b741e73ce82b45",
+  "run_sha256": "445fcccabc6092c2519e5d12eebefcc36009478e9455a86ec5b3ab4023a58825",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "met",
+      "reason": "正确健康200/其他501，预约功能单列为需求",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "partial",
+      "reason": "核心未使用DB判断正确，但凭空增加打印db行为",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "met",
+      "reason": "实际读取与未运行明确，建议检查当前服务/DB行为，未把测试说成已运行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "minor",
+      "quote": "只解析 --db 并打印",
+      "reason": "文件没有print或打印db操作",
+      "impact": "局部参数用途被编造，db问答不完全忠实",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": []
+}

@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"config_store/migrations.py 是 SQLite 设置表的迁移与恢复模块。文件导入 __future__.annotations、json、sqlite3，并从同包 .values 引入 decode 与 value_type。migrate(database, backup) 先把 database 的当前字节写入 backup 进行备份；然后连接 database，用 PRAGMA user_version 获取版本。若版本已为 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则向 settings 表添加 value_type（TEXT NOT NULL DEFAULT 'string'）和 updated_at（INTEGER NOT NULL DEFAULT 0）两列，设 user_version=2 并提交；随后按 key 排序读取 settings 的 key、value，对每条 value 调用 decode，再用 json.dumps(value) 和 value_type(value) 回写 value 与 value_type，逐条提交，最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。restore(database, backup) 把 backup 的字节写回 database，读取 user_version，返回 restored=True 与 schema_version。\"}}",
+  "reason": "已读取文件；总结其迁移与恢复逻辑，保留版本号 2、列默认值和 migrated_rows 含义，并仅依据文件信息作答。"
+}

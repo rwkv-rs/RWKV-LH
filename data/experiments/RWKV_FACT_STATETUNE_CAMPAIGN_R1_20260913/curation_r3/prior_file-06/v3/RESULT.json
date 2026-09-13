@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-06-v3",
+  "seed_id": "prior_file-06",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/migrations.py 定义 SQLite 设置的迁移与恢复，共两个函数。migrate(database, backup)：先把 database 的字节写入 backup；连接 database 后读取 PRAGMA user_version。若版本已是 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则向 settings 表添加 value_type（TEXT NOT NULL DEFAULT 'string'）和 updated_at（INTEGER NOT NULL DEFAULT 0）两列，设 user_version=2 并提交；再按 key 排序查询 settings 的 key、value，对每行以 decode 解码，再用 json.dumps(value) 和 value_type(value) 回写 value、value_type，逐条提交；最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。restore(database, backup)：把 backup 字节写回 database，读取 user_version，返回 restored=True 和 schema_version。文件导入 json、sqlite3，并从 .values 导入 decode、value_type。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "e782953777594173c29ac7be5e1a062a054dc4aaf1a5d4fada4072d65fb6e4d7",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/migrations.py 定义 SQLite 设置的迁移与恢复，共两个函数。migrate(database, backup)：先把 database 的字节写入 backup；连接 database 后读取 PRAGMA user_version。若版本已是 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则向 settings 表添加 value_type（TEXT NOT NULL DEFAULT 'string'）和 updated_at（INTEGER NOT NULL DEFAULT 0）两列，设 user_version=2 并提交；再按 key 排序查询 settings 的 key、value，对每行以 decode 解码，再用 json.dumps(value) 和 value_type(value) 回写 value、value_type，逐条提交；最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。restore(database, backup)：把 backup 字节写回 database，读取 user_version，返回 restored=True 和 schema_version。文件导入 json、sqlite3，并从 .values 导入 decode、value_type。\"}}\n```",
+  "target_sha256": "1be7c7e3a4c3105669d050aa3fbd1f239bf8320f76ff4a5051c6698c7a4ea796",
+  "target_tokens": 293,
+  "review_issues": []
+}

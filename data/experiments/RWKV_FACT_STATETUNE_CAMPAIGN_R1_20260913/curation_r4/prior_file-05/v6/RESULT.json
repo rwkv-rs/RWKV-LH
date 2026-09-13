@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-05-v6",
+  "seed_id": "prior_file-05",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 描述一个已有的多模块 CLI 项目：修复旧版 SQLite 配置库的迁移与恢复。背景是用户反馈升级失败后 DB 被部分修改、重跑覆盖了可恢复备份。要求修复通用迁移、类型保真、备份与恢复逻辑，并补充验证与操作文档；升级/恢复在服务停机后运行，不要求与外部写进程并发。环境为 Python 3.11+ 标准库，入口固定 config_cli.py；命令成功返回 0 且 stdout 最后一行输出 JSON，失败返回非 0，不得静默成功。schema 方面：v1 为 user_version=1，settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)，value 是任意合法 JSON 值的 UTF-8 字符串，须保留 key 与语义值、拒绝 NaN/Infinity/坏 JSON，并保留无关用户表。v2 保留 settings，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL；value 用 ensure_ascii=False、sort_keys=True、separators=(',',':') 规范化，类型限于 null/boolean/number/string/array/object，旧数据 updated_at=0，user_version=2，并有 schema_migrations 的 version=2 记录。命令包括 migrate（仅 v1→v2，先保留完整有效 v1 备份再原子发布，BACKUP 不得等于 DB 且不得覆盖已有备份；已是 v2 则 changed=false、from=to=2、migrated_rows=0 且不改 DB/备份）、list（按 key 排序返回 schema_version 与 key/value/value_type）、get（未知 key 非 0）与 restore（验证备份为完整合法 v1/v2 后原子恢复，返回 restored 与 schema_version）。任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败并保持原 DB 字节不变，不得丢失原行、表或版本，也不得强制删除不兼容的 schema_migrations。注意：这些是 README 记载的需求与约束，并非已实际执行的实现或测试结论；sample_v1.sql 只是小样例，文档要求实际验证升级、重跑、坏数据回滚、恢复与 Unicode。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "a2b0cf3a95a0c43929ace7be55dbef81f60442f01915ae0563b119ee643606c1",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 描述一个已有的多模块 CLI 项目：修复旧版 SQLite 配置库的迁移与恢复。背景是用户反馈升级失败后 DB 被部分修改、重跑覆盖了可恢复备份。要求修复通用迁移、类型保真、备份与恢复逻辑，并补充验证与操作文档；升级/恢复在服务停机后运行，不要求与外部写进程并发。环境为 Python 3.11+ 标准库，入口固定 config_cli.py；命令成功返回 0 且 stdout 最后一行输出 JSON，失败返回非 0，不得静默成功。schema 方面：v1 为 user_version=1，settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)，value 是任意合法 JSON 值的 UTF-8 字符串，须保留 key 与语义值、拒绝 NaN/Infinity/坏 JSON，并保留无关用户表。v2 保留 settings，新增 value_type TEXT NOT NULL、updated_at INTEGER NOT NULL；value 用 ensure_ascii=False、sort_keys=True、separators=(',',':') 规范化，类型限于 null/boolean/number/string/array/object，旧数据 updated_at=0，user_version=2，并有 schema_migrations 的 version=2 记录。命令包括 migrate（仅 v1→v2，先保留完整有效 v1 备份再原子发布，BACKUP 不得等于 DB 且不得覆盖已有备份；已是 v2 则 changed=false、from=to=2、migrated_rows=0 且不改 DB/备份）、list（按 key 排序返回 schema_version 与 key/value/value_type）、get（未知 key 非 0）与 restore（验证备份为完整合法 v1/v2 后原子恢复，返回 restored 与 schema_version）。任一坏 JSON、未知版本、冲突备份、异常 schema 或恢复失败都必须失败并保持原 DB 字节不变，不得丢失原行、表或版本，也不得强制删除不兼容的 schema_migrations。注意：这些是 README 记载的需求与约束，并非已实际执行的实现或测试结论；sample_v1.sql 只是小样例，文档要求实际验证升级、重跑、坏数据回滚、恢复与 Unicode。\"}}\n```",
+  "target_sha256": "40ea05785ef0dcce4995f40ddb9e9419b8e5493a254ca36fba7800ccf413fc25",
+  "target_tokens": 657,
+  "review_issues": []
+}

@@ -1,0 +1,4 @@
+{
+  "candidate": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本次仅执行一次 read_file：读取 evidence_quality.py，956 字节，完整到 EOF（eof=true，truncated=false），未修改文件。以下为静态阅读推断，未运行测试。\\n\\n实现：字符串先经 _NON_CONTENT 正则删去不属于 0-9a-zA-Z 及 U+3400–U+4DBF、U+4E00–U+9FFF 的字符；按 splitlines 逐行清理，取最长行为 candidate（无行时默认空串）。若 len(candidate) < 80 返回 False。否则 max_period = min(32, len(candidate)//5)，period 从 2 升序到 max_period：unit=candidate[:period]，repetitions=len//period，repeated_length=repetitions*period；仅当 repetitions≥5 且 repeated_length/len≥0.9 才继续，否则跳过。再令 repeated=unit*repetitions，比较 candidate 前 repeated_length 字符，若错位数/repeated_length ≤ 0.03 立即返回 True。循环结束返回 False。\\n\\n数字/类型：阈值 80；周期上限 min(32, len//5)；最少重复 5 次；覆盖率 0.9；错位率 0.03；period 起始 2；输入 str，输出 bool。\\n\\n限制：只考察一条最长清理行，其他行不参与；错位率只算 repeated_length 前缀；函数名和 docstring 的意图不算已实现功能。建议测试长周期串、高变异串和短行，但本次未执行。\"\n  }\n}",
+  "reason": "修正原输出对周期上限、覆盖条件和错位统计范围的误述，并补上工具执行事实与未运行测试的区分，按源码常量重新组织。"
+}

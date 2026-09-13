@@ -1,0 +1,226 @@
+[
+  {
+    "id": "file-11-candidate-r1",
+    "answer": "README.md 说明：提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备。要求自行组织模块，不依赖固定框架；运行环境为 Python 3.11+ 标准库，不依赖联网安装。公开启动命令为 python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080，DB 父目录已存在；首次启动创建数据库，后续保留数据。所有响应为 JSON，允许增加字段，所有接口从 URL 路由。健康检查为 GET /health → 200 `{\"ok\":true}`；POST /bookings 需 resource/customer 为非空字符串，start/end 为非负整数且 start < end，时间单位为 UTC 整数分钟，区间为 `[start,end)`，同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响，成功返回 201 并包含 id、resource、start、end、customer、status:confirmed，冲突返回 409；GET /bookings 返回 200 `{\"bookings\":[...]}`，含 cancelled，按 start、id 升序，可用 ?resource=... 精确过滤，UTF-8 名称原样保留；GET /bookings/{id} 返回完整预约或 404；DELETE /bookings/{id} 返回 200 `{id,status:\"cancelled\"}`，重复取消幂等，取消后时段可被重新预约，未知 id 为 404；非法输入、缺字段、坏 JSON 返回 400，失败不得改变任何预约，未知路由返回 404，错误对象含 error 字符串。多个 HTTP 请求可同时到达，冲突判定与写入必须为同一原子操作；终止重启后数据和冲突规则继续正确。公开验证仅是启动健康检查，需自行补充行为验证，不能以健康检查替代完整功能。",
+    "answer_sha256": "a373c1f4ffdbc815322afa8f06045af8113cc557abfdba09c4c7e76b000cc535",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3956,
+      "output_tokens": 573,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-11-candidate-r2",
+    "answer": "README.md 说明：提供可重启的 SQLite HTTP 预约服务，用于内部会议室与设备。要求自组织模块，不限框架；环境为 Python 3.11+ 标准库，不依赖联网安装。公开启动命令为 python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080，DB 父目录已存在；首次启动创建数据库，后续保留数据。所有响应为 JSON，可增加字段，所有接口从 URL 路由。健康检查 GET /health 返回 200 `{\"ok\":true}`。POST /bookings 需非空字符串 resource/customer、整数 start/end（start >= 0 且 start < end，bool/小数不是整数），时间单位为 UTC 整数分钟，区间为 `[start,end)`，首尾相接不冲突；同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响；成功 201 返回 id、resource、start、end、customer、status:confirmed，id 为非空唯一字符串；冲突 409。GET /bookings 返回 200 `{\"bookings\":[...]}`，含 cancelled，按 start、id 升序；可用 ?resource=... 精确过滤，UTF-8 名称原样保留。GET /bookings/{id} 返回完整预约或 404。DELETE /bookings/{id} 返回 200 `{id,status:\"cancelled\"}`，重复取消幂等，取消后时段可被重新预约；未知 id 为 404。非法输入、缺字段、坏 JSON 返回 400，失败不得改变任何预约，未知路由返回 404，错误对象含 error 字符串。多个 HTTP 请求可同时到达，冲突判定与写入必须为同一原子操作；终止重启后数据和冲突规则继续正确。公开验证仅是启动健康检查，需自行补充行为验证，不能以健康检查替代完整功能。",
+    "answer_sha256": "b1061705361fedec7ceb1d0ed7dbcda235a9462af6dc7163fd234276755b2b4b",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3956,
+      "output_tokens": 589,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-11-zero-r1",
+    "answer": "README.md 的主要内容是：这是一个会议资源预约服务的说明文档。它描述了服务的目标、启动方式、公开接口、数据持久化要求、冲突处理规则、错误处理规范以及验证方式。\n\n主要内容包括：\n1. 服务目标：为内部会议室与设备提供可重启的 SQLite HTTP 预约服务\n2. 启动方式：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`\n3. 公开接口：\n   - `GET /health` → 200 `{\"ok\":true}`\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end，返回 201 和预约信息\n   - `GET /bookings`：获取所有预约，支持按 resource 过滤\n   - `GET /bookings/{id}`：获取特定预约\n   - `DELETE /bookings/{id}`：取消预约\n4. 数据持久化：使用 SQLite 数据库，首次启动创建数据库，后续启动保留数据\n5. 冲突处理：同一资源的 confirmed 预约不能重叠，其他资源不受影响\n6. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约；未知路由返回 404\n7. 验证方式：公开健康检查仅是启动健康检查；需要补充自己的行为验证",
+    "answer_sha256": "8cd55462a93acef82e8d901c44a2d63eb614eae1dfd594efc34fc219913eb8f2",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3966,
+      "output_tokens": 500,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-11-zero-r2",
+    "answer": "README.md 的主要内容如下：\n\n1. 项目目标：提供一个可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约。\n2. 启动方式：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。\n3. 数据持久化：首次启动会创建数据库，后续启动保留数据。\n4. 健康检查：`GET /health` 返回 `{\"ok\":true}`。\n5. 预约接口：\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟，UTC 时间）。要求 resource 和 customer 非空，start 和 end 为整数且 start < end。同一资源的 confirmed 预约不能重叠，其他资源不受影响。成功返回 201，包含 id、resource、start、end、customer、status: \"confirmed\"。冲突返回 409。\n   - `GET /bookings`：返回所有预约，包含 cancelled 状态，按 start、id 升序排列。可通过 `?resource=...` 精确过滤。\n   - `GET /bookings/{id}`：返回指定预约的完整信息，不存在返回 404。\n   - `DELETE /bookings/{id}`：取消预约，返回 200，包含 id 和 status: \"cancelled\"。重复取消幂等，取消后时段可被重新预约。未知 id 返回 404。\n6. 冲突处理：多个 HTTP 请求同时到达时，冲突判定与写入必须为同一原子操作。\n7. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约；未知路由返回 404；错误对象包含 error 字符串。\n8. 数据持久化：终止并重新启动进程后，数据和冲突规则必须继续正确。\n9. 验证：公开健康检查仅是启动健康检查；需要补充自己的行为验证，不能以健康检查替代完整功能。",
+    "answer_sha256": "06e1f11aa0baec1f9a721a0fb978cc8054c6d3b4648cf7d77add1ec169879e06",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3965,
+      "output_tokens": 670,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-12-candidate-r1",
+    "answer": "README.md 是 SQLite HTTP 订单服务的需求与实现说明。目的：解决网络重试重复扣库存及多行订单部分扣减问题，实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块，Python 3.11+ 标准库可用，不依赖网络。启动命令：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080，首次创建 DB，重启保留数据，响应 JSON 可增加字段。健康检查 GET /health 返回 200 `{\"ok\":true}`；PUT /inventory/{url-encoded-sku} 设置 SKU 当前可售量，创建或更新返回 200 `{\"sku\":\"...\",\"stock\":N}`，N 必须非负整数，bool/小数非法，SKU 非空 UTF-8 字符串。GET /inventory/{sku} 返回 200 库存或 404。POST /orders 必须有非空 Idempotency-Key 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`，同 SKU 项数量求和并按 SKU 排序，item 顺序和重复项拆分不影响语义，quantity 不接受 bool/小数。首次成功返回 201，同 key、相同规范化请求返回 200 同一订单且不再次扣库存，同 key 不同 customer/明细返回 409。任一 SKU 不存在或数量不足均 404，失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后重试。GET /orders 按 id 排序返回 200 `{\"orders\":[...]}`，GET /orders/{id} 返回 200 完整订单或 404。坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error；非法请求不得改变库存或订单；未知路由 404。库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单，并发不同 key 不得超卖；库存、订单、key 在进程重启后继续有效。公开验证仅做健康检查，交易与恢复验证需自行补充。",
+    "answer_sha256": "6f10f9391d7cc1097c27525825a05cdfdc8e8bbbb417e8d4347ce6eb6a1c5ec7",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 4074,
+      "output_tokens": 683,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-12-candidate-r2",
+    "answer": "README.md 是 SQLite HTTP 订单服务的需求与运行说明。目的：实现可维护的库存与订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。启动命令：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080，首次创建 DB，重启保留数据；响应均为 JSON，可增加字段。健康检查 GET /health 返回 200 `{\"ok\":true}`；PUT /inventory/{url-encoded-sku} 设置 SKU 当前可售量，创建或更新返回 200 `{\"sku\":\"...\",\"stock\":N}`，N 必须非负整数，bool/小数非法，SKU 非空 UTF-8 字符串。GET /inventory/{sku} 返回 200 库存或 404。POST /orders 必须有非空 Idempotency-Key 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`，同 SKU 项数量求和并按 SKU 排序，item 顺序和重复项拆分不影响语义，quantity 不接受 bool/小数。首次成功返回 201，同 key、相同规范化请求返回 200 同一订单且不再次扣库存，同 key 不同 customer/明细返回 409；任一 SKU 不存在或数量不足均 409，失败整体无写入，不扣库存、不创建订单、不占用 key，允许之后重试。GET /orders 按 id 排序返回 200 `{\"orders\":[...]}`，GET /orders/{id} 返回 200 完整订单或 404。坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error；非法请求不得改变库存或订单，未知路由 404。库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单，并发不同 key 不得超卖；库存、订单、key 在进程重启后继续有效。公开验证仅做健康检查，交易与恢复验证需自行补充。",
+    "answer_sha256": "5c2b740215e65df245d3aa8256fe365fbb2d9c010762326c1662774c8a30c5b9",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 4074,
+      "output_tokens": 644,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-12-zero-r1",
+    "answer": "README.md 内容如下：\n\n# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。",
+    "answer_sha256": "92403ce5ede8ccb1bc1a77ccc299e82e3b5780b30cd6edb3dbaa443dd62b770f",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 4083,
+      "output_tokens": 812,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-12-zero-r2",
+    "answer": "README.md 内容如下：\n\n# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。",
+    "answer_sha256": "92403ce5ede8ccb1bc1a77ccc299e82e3b5780b30cd6edb3dbaa443dd62b770f",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 4082,
+      "output_tokens": 812,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-13-candidate-r1",
+    "answer": "server.py 是一个基于 http.server 的 HTTP 服务入口，完整实现了 README.md 中要求的契约。它用 argparse 解析命令行参数：--db 必填，--host 默认 127.0.0.1，--port 必填。随后启动 ThreadingHTTPServer，监听 (args.host, args.port)，并使用 Handler 处理请求。Handler 仅对 /health 返回 200 和 {'ok': True}，其他路径返回 501 和 {'error': 'not_implemented'}。响应头设置 Content-Type 为 application/json，Content-Length 为 body 长度，最后用 wfile.write(body) 发送。文件末尾的 if __name__ == '__main__' 块调用 serve_forever() 循环接收请求。",
+    "answer_sha256": "3e801ace8c1e125926ba84674170ce80dfe2525e36dd3e0f5e2551fd16d37aae",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3613,
+      "output_tokens": 248,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-13-candidate-r2",
+    "answer": "server.py 是一个基于 http.server 的 HTTP 服务入口，完整实现了 README.md 中要求的契约。它用 argparse 解析命令行参数：--db 必填，--host 默认 127.0.0.1，--port 必填。随后启动 ThreadingHTTPServer，监听 (args.host, args.port)，并使用 Handler 处理请求。Handler 中，仅 /health 返回 200 和 {'ok': True}；其他路径返回 501 和 {'error': 'not_implemented'}。响应头设置 Content-Type 为 application/json，Content-Length 为 body 长度，最后用 wfile.write(body) 发送。文件末尾的 if __name__ == '__main__' 块调用 serve_forever() 循环提供服务。",
+    "answer_sha256": "af68dc2ac264a4d4d425d6333894283ea57422c7f55bd818c6d260c30319fee2",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3612,
+      "output_tokens": 249,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-13-zero-r1",
+    "answer": "server.py 是一个基于 Python 的 HTTP 服务器入口文件，主要功能是提供一个简单的健康检查接口。\n\n1. **导入模块**：\n   - `argparse`：用于解析命令行参数。\n   - `json`：用于处理 JSON 数据。\n   - `http.server`：提供 HTTP 服务器的基础类。\n\n2. **Handler 类**：\n   - 继承自 `BaseHTTPRequestHandler`，用于处理 HTTP 请求。\n   - `do_GET` 方法：处理 GET 请求。\n     - 如果请求路径是 `/health`，则返回状态码 200 和 JSON 响应 `{\"ok\": true}`。\n     - 其他路径返回状态码 501 和 JSON 响应 `{\"error\": \"not_implemented\"}`。\n\n3. **主程序逻辑**：\n   - 使用 `argparse` 解析命令行参数，包括 `--db`（必需）、`--host`（默认 `127.0.0.1`）和 `--port`（必需）。\n   - 启动 `ThreadingHTTPServer`，监听指定的主机和端口，并使用 `Handler` 处理请求。\n\n4. **功能总结**：\n   - 提供一个简单的健康检查接口 `/health`。\n   - 支持通过命令行参数配置服务器的主机和端口。\n   - 使用多线程处理并发请求。\n\n这个文件的主要目的是提供一个基础的 HTTP 服务器，用于后续的数据库连接和其他功能的扩展。",
+    "answer_sha256": "d19469c1670b9e3bc07a7af56870310ecb1861ff675915b7dfd8577fdefa3c83",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3618,
+      "output_tokens": 531,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-13-zero-r2",
+    "answer": "server.py 是一个基于 Python 的 HTTP 服务器入口文件，主要功能是提供一个简单的健康检查接口。\n\n1. **导入模块**：\n   - `argparse`：用于解析命令行参数。\n   - `json`：用于处理 JSON 数据。\n   - `http.server`：提供 HTTP 服务器的基础类。\n\n2. **Handler 类**：\n   - 继承自 `BaseHTTPRequestHandler`。\n   - 实现了 `do_GET` 方法，用于处理 GET 请求。\n   - 如果请求路径为 `/health`，则返回状态码 200 和 JSON 响应 `{\"ok\": true}`。\n   - 其他路径返回状态码 501 和 JSON 响应 `{\"error\": \"not_implemented\"}`。\n\n3. **主程序逻辑**：\n   - 使用 `argparse` 解析命令行参数，包括 `--db`（必需）、`--host`（默认为 `127.0.0.1`）和 `--port`（必需）。\n   - 创建 `ThreadingHTTPServer` 实例，绑定到指定的主机和端口，并使用 `Handler` 作为请求处理器。\n   - 调用 `serve_forever()` 方法，使服务器持续运行，处理客户端请求。\n\n4. **功能总结**：\n   - 该文件实现了一个简单的 HTTP 服务器，主要用于提供健康检查接口。\n   - 通过命令行参数配置服务器的主机和端口。\n   - 服务器启动后，可以通过访问 `/health` 路径来验证其运行状态。",
+    "answer_sha256": "fc567c176d313d060766100bf21aca2ba8d1b3806403ec2c27494ea7a54d762c",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3620,
+      "output_tokens": 551,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-14-candidate-r1",
+    "answer": "verify_public.py 是一个仅做健康检查的辅助脚本，不验证订单或预订行为。它接收主机和端口，用 http.client 向 /health 发送 GET 请求，要求状态码 200 且返回 JSON 中 ok 为 True，然后关闭连接并输出 health smoke passed；transactional behavior still requires tests。",
+    "answer_sha256": "83213b16d2100dad48d166711a12f4ac88db724c6aac16bf7ffa7ee17edf9f54",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3432,
+      "output_tokens": 133,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-14-candidate-r2",
+    "answer": "verify_public.py 是一个仅做健康检查的辅助脚本，不验证订单或预订行为。它接收主机和端口，用 http.client 向 /health 发送 GET 请求，要求响应状态码为 200 且 JSON 中 ok 为 True，然后关闭连接并输出 health smoke passed；同时提示 transactional behavior still requires tests。",
+    "answer_sha256": "81eb2a4764aaa2e41b3749bde4e57d05421f0971881f69265753a35b3bbe7ba5",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3432,
+      "output_tokens": 138,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-14-zero-r1",
+    "answer": "verify_public.py 是一个简单的健康检查脚本，用于验证服务器的 /health 端点是否正常返回。它通过 HTTP GET 请求访问指定主机和端口的 /health 接口，并检查响应状态码是否为 200 以及返回的 JSON 中 'ok' 字段是否为 true。脚本仅执行这一项检查，不涉及预订或订单等业务行为的验证。",
+    "answer_sha256": "470d1c9352ef68b0856e8c266c834e18b923ee6667556eba95752ee7f32abc3c",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3440,
+      "output_tokens": 183,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  },
+  {
+    "id": "file-14-zero-r2",
+    "answer": "verify_public.py 是一个简单的健康检查脚本，用于验证指定主机和端口的 HTTP 服务是否正常。它通过向 /health 端点发送 GET 请求，并检查响应是否为 200 状态码且返回的 JSON 中 ok 字段为 true。脚本仅执行这一项检查，不验证预订或订单等业务行为。",
+    "answer_sha256": "be53feeeb89ec0429f8af346d0e173af88e4ea8738e4d2309733f6637dceeb37",
+    "termination": "submitted",
+    "diagnostics": {
+      "model_calls": 2,
+      "input_tokens": 3439,
+      "output_tokens": 168,
+      "protocol_rejections": 0,
+      "feedback_consumed": 0,
+      "tool_errors": 0
+    }
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "id": "prior_file-05-v1",
+  "seed_id": "prior_file-05",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 描述的是一个已有的多模块 CLI 项目：修复 SQLite 配置升级工具的通用迁移、类型保真、备份与恢复逻辑，并补充验证和操作文档（升级/恢复在服务停机后运行，不要求与外部写进程并发）。环境为 Python 3.11+ 标准库，入口固定 `config_cli.py`；命令成功返回 0 并在 stdout 最后一行输出 JSON，失败返回非 0 且不得静默成功。\\n\\nv1 schema 为 `PRAGMA user_version=1` 加 `settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)`，value 是任意合法 JSON 值的 UTF-8 字符串；v2 保留 key/value，新增 `value_type TEXT NOT NULL`、`updated_at INTEGER NOT NULL`，value 用 `ensure_ascii=False, sort_keys=True, separators=(',', ':')` 规范化，类型为 null/boolean/number/string/array/object，旧数据 updated_at=0，并写入 `schema_migrations` 的 version=2 记录。必须保留无关用户表，拒绝 NaN/Infinity/坏 JSON。\\n\\n命令包括：`migrate`（仅 v1→v2，先做完整 v1 备份再原子发布，BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改动 DB/备份）、`list`、`get`（只读，支持 v1/v2，未知 key 非 0）、`restore`（校验备份为完整合法 v1/v2 后原子恢复，不得修改 BACKUP）。任何坏数据、未知版本、冲突备份或异常 schema 都必须失败并保持原 DB 字节不变。文件还要求实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode，`sample_v1.sql` 仅为小样例。\"}}",
+  "accepted_by_api": false,
+  "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+  "input_sha256": "a2b0cf3a95a0c43929ace7be55dbef81f60442f01915ae0563b119ee643606c1",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 描述的是一个已有的多模块 CLI 项目：修复 SQLite 配置升级工具的通用迁移、类型保真、备份与恢复逻辑，并补充验证和操作文档（升级/恢复在服务停机后运行，不要求与外部写进程并发）。环境为 Python 3.11+ 标准库，入口固定 `config_cli.py`；命令成功返回 0 并在 stdout 最后一行输出 JSON，失败返回非 0 且不得静默成功。\\n\\nv1 schema 为 `PRAGMA user_version=1` 加 `settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)`，value 是任意合法 JSON 值的 UTF-8 字符串；v2 保留 key/value，新增 `value_type TEXT NOT NULL`、`updated_at INTEGER NOT NULL`，value 用 `ensure_ascii=False, sort_keys=True, separators=(',', ':')` 规范化，类型为 null/boolean/number/string/array/object，旧数据 updated_at=0，并写入 `schema_migrations` 的 version=2 记录。必须保留无关用户表，拒绝 NaN/Infinity/坏 JSON。\\n\\n命令包括：`migrate`（仅 v1→v2，先做完整 v1 备份再原子发布，BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改动 DB/备份）、`list`、`get`（只读，支持 v1/v2，未知 key 非 0）、`restore`（校验备份为完整合法 v1/v2 后原子恢复，不得修改 BACKUP）。任何坏数据、未知版本、冲突备份或异常 schema 都必须失败并保持原 DB 字节不变。文件还要求实际验证正常升级、重跑、坏数据回滚、恢复和 Unicode，`sample_v1.sql` 仅为小样例。\"}}\n```",
+  "target_sha256": "804a6d8365e8df683c9a78784256eb227da32c7e21e4a107b4a4d9de54d767d9",
+  "target_tokens": 552
+}

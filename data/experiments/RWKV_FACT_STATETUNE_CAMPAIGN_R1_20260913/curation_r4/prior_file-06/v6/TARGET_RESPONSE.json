@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"文件 config_store/migrations.py 定义 migrate(database, backup) 与 restore(database, backup)。migrate 先将 database 字节写入 backup；连接 sqlite3 后读取 PRAGMA user_version。若版本为 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则对 settings 表执行 ALTER TABLE，增加 value_type TEXT NOT NULL DEFAULT 'string' 和 updated_at INTEGER NOT NULL DEFAULT 0，设置 PRAGMA user_version=2 并提交；再按 key 读取 key,value，调用 values.decode 解码，用 json.dumps(value) 和 value_type(value) 更新每行，逐行提交。返回原版本、to_version=2、migrated_rows 为行数、changed=True。restore 用 backup 覆盖 database，读 PRAGMA user_version，返回 restored=True 与 schema_version=version。文件还导入 json、sqlite3、decode、value_type，并含 from __future__ import annotations。以上仅来自该文件；未观察到测试或运行。\"}}",
+  "reason": "基于唯一成功 read_file 观测，总结该文件的迁移与恢复实现，未添加未见于文件的事实。"
+}

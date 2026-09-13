@@ -1,0 +1,13 @@
+{
+  "id": "rag_model_client-v8",
+  "seed_id": "rag_model_client",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file：path=model_client.py，start_byte=0，max_tokens=8192；读回完整源文件，byte 0 到 3114，66 行，793 tokens，sha256 1b0c...84ac，未截断。源码实际：model_client_class 在 settings.native_transport 等于 rwkvos_batch 时导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 始终从 settings.native_* 取 base_url、model、timeout_seconds、context_window_tokens、max_concurrency；batch 分支按需加入 CF-Access 头，以及 state_id、reader_state_id（仅 native_resolver_protocol 等于 binary_query 时用 binary_reader_state_id，否则用 reader_state_id）、writer_state_id 等；非 batch 加 api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 的 raw_text 返回 None；transport 默认 native，native 调 inspect_envelope；rwkvos_batch 要求 envelope 是 dict 且 valid 为 True、answer_span 是 dict、unit 等于 unicode_code_points、start/end 为 int 且 0 <= start < end <= len(raw_text)、切片 strip 非空，返回 start,end，否则 None。限制：本次只读文件，未运行测试或网络调用；未验证 settings 属性一定存在；docstring 的不改变输出/凭据是意图，不是本次执行证明；未修改文件。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file：path=model_client.py，start_byte=0，max_tokens=8192；读回完整源文件，byte 0 到 3114，66 行，793 tokens，sha256 1b0c...84ac，未截断。源码实际：model_client_class 在 settings.native_transport 等于 rwkvos_batch 时导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 始终从 settings.native_* 取 base_url、model、timeout_seconds、context_window_tokens、max_concurrency；batch 分支按需加入 CF-Access 头，以及 state_id、reader_state_id（仅 native_resolver_protocol 等于 binary_query 时用 binary_reader_state_id，否则用 reader_state_id）、writer_state_id 等；非 batch 加 api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 的 raw_text 返回 None；transport 默认 native，native 调 inspect_envelope；rwkvos_batch 要求 envelope 是 dict 且 valid 为 True、answer_span 是 dict、unit 等于 unicode_code_points、start/end 为 int 且 0 <= start < end <= len(raw_text)、切片 strip 非空，返回 start,end，否则 None。限制：本次只读文件，未运行测试或网络调用；未验证 settings 属性一定存在；docstring 的不改变输出/凭据是意图，不是本次执行证明；未修改文件。\"}}\n```",
+  "target_sha256": "bba9e6d5f6efa390eed041a0241da56698f8637858e50a308d1ffc3e80c80368",
+  "target_tokens": 416,
+  "review_issues": []
+}

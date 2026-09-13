@@ -1,0 +1,2380 @@
+[
+  {
+    "case": "full_text-1",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "32aaa76eb7060dec95ddf9d3af086f544d299c761047ec250fa858575b1c45ab",
+      "decision_id": "D-ecb910ed2ee84737",
+      "request_id": "MR-a3b0edc310dd4b57",
+      "started_at": "2026-09-13T09:31:07.746+00:00",
+      "ended_at": "2026-09-13T09:31:07.776+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-6f255cf9bbf65f6f89c6"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-1e6d5f7b4d0a4d8c",
+      "child_checkpoint_id": "CP-f076829112ad46b7",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 5.800211668014526
+  },
+  {
+    "case": "full_text-2",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "824cec0302f1cac42afd4e56fe2c6ac980b24e8a74583408ed0caba1efa62c04",
+      "decision_id": "D-cfe39afd7f9e46ba",
+      "request_id": "MR-09457723b9dc42ad",
+      "started_at": "2026-09-13T09:31:12.549+00:00",
+      "ended_at": "2026-09-13T09:31:12.579+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/markdown",
+            "size_bytes": 2020,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+            "source_ref": "README.md",
+            "source_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2020,
+            "core_start": 0,
+            "core_end": 2020,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 713
+          },
+          "start_byte": 0,
+          "end_byte": 2020,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2020,
+          "observed_tokens": 713,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-8334d519837e4a4300c8"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "0ee08ac89d2728ccfe5ff9f7ef24d5c70f572acb920fea264bc71970ec9c4586",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-a24b7f81e9a84bef",
+      "child_checkpoint_id": "CP-e1ba2f3ab4e64763",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.8172008991241455
+  },
+  {
+    "case": "full_code-1",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "7f8a9630831023005c53eb20a2e90abfcfd92748d9f1665a14819b78e70630fb",
+      "decision_id": "D-98f07393dd4648fd",
+      "request_id": "MR-196fde8a1c0e4da5",
+      "started_at": "2026-09-13T09:31:17.518+00:00",
+      "ended_at": "2026-09-13T09:31:17.545+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 935,
+            "core_start": 0,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 259
+          },
+          "start_byte": 0,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 259,
+          "source_start_line": 1,
+          "source_end_line": 22
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-7f9b9b98fca84088",
+      "child_checkpoint_id": "CP-a929333ccb994918",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.757335186004639
+  },
+  {
+    "case": "full_code-2",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py"
+      },
+      "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+      "idempotency_key": "ffc65f3cbd8c03e70ea437353191c1c0ede4a5ef461b02294fec39fd0cf50f34",
+      "decision_id": "D-1e1768d6f8d74dfd",
+      "request_id": "MR-dd266a4132aa4a1c",
+      "started_at": "2026-09-13T09:31:22.291+00:00",
+      "ended_at": "2026-09-13T09:31:22.318+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 497,
+            "core_start": 0,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 130
+          },
+          "start_byte": 0,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 130,
+          "source_start_line": 1,
+          "source_end_line": 13
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-e82828a32baf4688",
+      "child_checkpoint_id": "CP-874d5d81391b4ef1",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.829162359237671
+  },
+  {
+    "case": "offset-1",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\", \"start_byte\": 935, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "a5a2a9e854ee5fd9c96394dc56ff8fa661fd1689b4d9a83a08473c305f37e1b7",
+      "idempotency_key": "8a9028761a6736d7c0e60516166afbd95b7706f970ef3b4950c1a090ada3c9a2",
+      "decision_id": "D-36f6a8ffdb3a4174",
+      "request_id": "MR-3a071605e7eb45a8",
+      "started_at": "2026-09-13T09:31:27.332+00:00",
+      "ended_at": "2026-09-13T09:31:27.357+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d667472b9d312db4",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 935,
+            "byte_end": 935,
+            "core_start": 935,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 259,
+            "token_end": 259
+          },
+          "start_byte": 935,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 0,
+          "source_start_line": 23,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "99fc00a890836531de4bbd79a9f0877df5c42cea4602330b3069dd6df412d40e",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-da20ebdb43a04295",
+      "child_checkpoint_id": "CP-615c256fc9d7480a",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.93545126914978
+  },
+  {
+    "case": "offset-2",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\", \"start_byte\": 497, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "dcaf88cfcc4052efb8aea6ed45963cf72d30ada2108e9472a51011ce3bb1b203",
+      "idempotency_key": "c2aa73c8e0fb6ddbb1fe36d956fe809eb6bc5158760982e99768d393279a4e9d",
+      "decision_id": "D-c9428546a67547fa",
+      "request_id": "MR-2b705ea86ee3480b",
+      "started_at": "2026-09-13T09:31:32.473+00:00",
+      "ended_at": "2026-09-13T09:31:32.500+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-3c4358a8b42577d4",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 497,
+            "byte_end": 497,
+            "core_start": 497,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 130,
+            "token_end": 130
+          },
+          "start_byte": 497,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 0,
+          "source_start_line": 14,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "ec6a475735e704c64cf7a24ef6b4b1c5c3141e4a816c19cdadd0adb519ea266a",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-ed19eef0f4e243ed",
+      "child_checkpoint_id": "CP-94e370e7505f4623",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 5.276447772979736
+  },
+  {
+    "case": "missing-1",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "ae162b46175e78e61d243e03870ee83aeda94ac79f3f2c65059d55349638091d",
+      "decision_id": "D-26f6db36da8045e2",
+      "request_id": "MR-a3cc7c6e24464e2c",
+      "started_at": "2026-09-13T09:31:37.227+00:00",
+      "ended_at": "2026-09-13T09:31:37.253+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: server.py"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "workspace_digest_after": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "failure_key": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "observation_fingerprint": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: server.py"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-1c217766096c4990",
+      "child_checkpoint_id": "CP-0e32f2a5b8a54633",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.485946178436279
+  },
+  {
+    "case": "missing-2",
+    "repeat": 1,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"index.html\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "index.html"
+      },
+      "action_fingerprint": "937c5801135619452b17c922270e2a4e629ffaa7a9034dc4e84fa48becef146d",
+      "idempotency_key": "411bc1d8a524cd454d2330e4efad95b7c87de520805ae4072e522ddacf023a54",
+      "decision_id": "D-41f22ce315524e59",
+      "request_id": "MR-af11e1f6831d4f9a",
+      "started_at": "2026-09-13T09:31:41.836+00:00",
+      "ended_at": "2026-09-13T09:31:41.862+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: index.html"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "workspace_digest_after": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "failure_key": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "observation_fingerprint": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: index.html"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-4203aa90ea8b427a",
+      "child_checkpoint_id": "CP-7424fbdc586c4072",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.553130865097046
+  },
+  {
+    "case": "full_text-1",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "144fddcd2721cba086ee8e27395ba9b94213fa1023cb095e01f43a793e990b30",
+      "decision_id": "D-7c3651aa4d7a4057",
+      "request_id": "MR-4b4d25c38d0a4798",
+      "started_at": "2026-09-13T09:31:45.489+00:00",
+      "ended_at": "2026-09-13T09:31:45.519+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-6f255cf9bbf65f6f89c6"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-7d34a47da08140a6",
+      "child_checkpoint_id": "CP-919a77d3e6ab4215",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.099460601806641
+  },
+  {
+    "case": "full_text-2",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "f5cb29b47c4391b8e220a85edb348807ecb8c06f0942ebe60850e64a40d12f14",
+      "decision_id": "D-daa396f4b3584c95",
+      "request_id": "MR-b9e55272458f489f",
+      "started_at": "2026-09-13T09:31:46.922+00:00",
+      "ended_at": "2026-09-13T09:31:46.950+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/markdown",
+            "size_bytes": 2020,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+            "source_ref": "README.md",
+            "source_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2020,
+            "core_start": 0,
+            "core_end": 2020,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 713
+          },
+          "start_byte": 0,
+          "end_byte": 2020,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2020,
+          "observed_tokens": 713,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-8334d519837e4a4300c8"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "0ee08ac89d2728ccfe5ff9f7ef24d5c70f572acb920fea264bc71970ec9c4586",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-57fdc4e1e9b04013",
+      "child_checkpoint_id": "CP-4556ca0562ca45c1",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 1.4782471656799316
+  },
+  {
+    "case": "full_code-1",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "6fbce06845d7a1beb37c5c445e64b93ed8c1dd5d9b0cce997387fd918565dc56",
+      "decision_id": "D-b8bce28bdcb4426a",
+      "request_id": "MR-61b6e914b1ec4b94",
+      "started_at": "2026-09-13T09:31:51.091+00:00",
+      "ended_at": "2026-09-13T09:31:51.116+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 935,
+            "core_start": 0,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 259
+          },
+          "start_byte": 0,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 259,
+          "source_start_line": 1,
+          "source_end_line": 22
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-06bdb22f049a4ce8",
+      "child_checkpoint_id": "CP-7ba83ae587e64ead",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 3.9658782482147217
+  },
+  {
+    "case": "full_code-2",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py"
+      },
+      "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+      "idempotency_key": "73dd1fcef282c02d1337376e7432de7358e2be3eab063655df719ac2f63a44f4",
+      "decision_id": "D-88655d7122bb4f35",
+      "request_id": "MR-28abe70e15e8478b",
+      "started_at": "2026-09-13T09:31:55.201+00:00",
+      "ended_at": "2026-09-13T09:31:55.228+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 497,
+            "core_start": 0,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 130
+          },
+          "start_byte": 0,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 130,
+          "source_start_line": 1,
+          "source_end_line": 13
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-682084ba035a4518",
+      "child_checkpoint_id": "CP-b8eb9d3d297841ef",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.1494340896606445
+  },
+  {
+    "case": "offset-1",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\", \"start_byte\": 935, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "a5a2a9e854ee5fd9c96394dc56ff8fa661fd1689b4d9a83a08473c305f37e1b7",
+      "idempotency_key": "bd000259d7a9bd3d4159d6e6cf62df9490d069e3a0c8ef28605f3620d98c7bf0",
+      "decision_id": "D-b3e89b87fa9b4357",
+      "request_id": "MR-acbeefb0b64b4242",
+      "started_at": "2026-09-13T09:31:59.706+00:00",
+      "ended_at": "2026-09-13T09:31:59.731+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d667472b9d312db4",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 935,
+            "byte_end": 935,
+            "core_start": 935,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 259,
+            "token_end": 259
+          },
+          "start_byte": 935,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 0,
+          "source_start_line": 23,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "99fc00a890836531de4bbd79a9f0877df5c42cea4602330b3069dd6df412d40e",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-4b274742141d49f6",
+      "child_checkpoint_id": "CP-23f5c46c0bba4dcc",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.379496097564697
+  },
+  {
+    "case": "offset-2",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\", \"start_byte\": 497, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "dcaf88cfcc4052efb8aea6ed45963cf72d30ada2108e9472a51011ce3bb1b203",
+      "idempotency_key": "dfd5f7d1249435f02d3fcba9921829d630cc7e3f81937ee7f3453d7f59afdb37",
+      "decision_id": "D-702fc758c635455e",
+      "request_id": "MR-9070653ed1a44e6c",
+      "started_at": "2026-09-13T09:32:04.085+00:00",
+      "ended_at": "2026-09-13T09:32:04.111+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-3c4358a8b42577d4",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 497,
+            "byte_end": 497,
+            "core_start": 497,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 130,
+            "token_end": 130
+          },
+          "start_byte": 497,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 0,
+          "source_start_line": 14,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "ec6a475735e704c64cf7a24ef6b4b1c5c3141e4a816c19cdadd0adb519ea266a",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-ee0b725a695149f3",
+      "child_checkpoint_id": "CP-46b72fca6232420f",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.3988142013549805
+  },
+  {
+    "case": "missing-1",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "c748aef658678e709718358a0318ea78b4a376abbeaffdfb145b43204224ea82",
+      "decision_id": "D-5aabb25647a54f96",
+      "request_id": "MR-1f5431e2c2ea4cae",
+      "started_at": "2026-09-13T09:32:08.017+00:00",
+      "ended_at": "2026-09-13T09:32:08.042+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: server.py"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "workspace_digest_after": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "failure_key": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "observation_fingerprint": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: server.py"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-72b572f4a6404c4d",
+      "child_checkpoint_id": "CP-a5cf234a19954628",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 3.7497506141662598
+  },
+  {
+    "case": "missing-2",
+    "repeat": 2,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"index.html\", \"start_byte\": 0, \"max_tokens\": 8192}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 8192
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 8192
+      },
+      "wire_arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 8192
+      },
+      "action_fingerprint": "0b4418d7a52d731dea9bd39068030feaad34b1685ed597adf6b7e004212919cf",
+      "idempotency_key": "1bb8e1033d63d6feceeefd65779eb7c8f8fe205a2292defbd0e271beab0a8aab",
+      "decision_id": "D-bb830d58647f4c9f",
+      "request_id": "MR-b0ba501ba0a241da",
+      "started_at": "2026-09-13T09:32:12.256+00:00",
+      "ended_at": "2026-09-13T09:32:12.282+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: index.html"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "workspace_digest_after": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "failure_key": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "observation_fingerprint": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: index.html"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-cb424e16eb974547",
+      "child_checkpoint_id": "CP-5c695fb474c94e45",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.26397967338562
+  },
+  {
+    "case": "full_text-1",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "237ce58aaa2cd2181b29481ba40edd276d9c4e5ba3710d59f0be3cf654350260",
+      "decision_id": "D-07be9b69d49745ea",
+      "request_id": "MR-2eaa3369e21e4b19",
+      "started_at": "2026-09-13T09:32:16.024+00:00",
+      "ended_at": "2026-09-13T09:32:16.051+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 会议资源预约服务\n\n为内部会议室与设备提供可重启的 SQLite HTTP 预约服务。实现可维护的代码并更新本 README，说明启动、验证和数据持久化方式。可自行组织模块，不要求固定框架；运行环境提供 Python 3.11+ 标准库，不依赖联网安装。\n\n公开启动契约：`python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。DB 父目录已存在；首次启动应创建数据库，后续启动保留数据。所有响应为 JSON，允许增加字段；所有接口从 URL 路由。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `POST /bookings`，对象包含非空字符串 resource/customer、整数 start/end；start >= 0 且 start < end，bool/小数不是整数。时间单位为 UTC 整数分钟；区间为 `[start,end)`，首尾相接不冲突。同 resource 的 confirmed 预约不能重叠，其他 resource 不受影响。成功 201，返回 `{id,resource,start,end,customer,status:\"confirmed\"}`，id 为非空唯一字符串；冲突 409。\n- `GET /bookings` → 200 `{\"bookings\":[...]}`，包含 cancelled，按 start、id 升序；可用 `?resource=...` 精确过滤，UTF-8 名称应保持原样。\n- `GET /bookings/{id}` → 200 完整预约或 404。\n- `DELETE /bookings/{id}` → 200 `{id,status:\"cancelled\"}`。重复取消幂等，取消后时段可被重新预约；未知 id 为 404。\n- 非法输入、缺字段、坏 JSON → 400；失败不得改变任何预约。未知路由 → 404。错误对象含 error 字符串。\n\n多个 HTTP 请求可以同时到达，冲突判定与写入必须为同一原子操作。终止并重新启动进程后，数据和冲突规则必须继续正确。公开验证仅是启动健康检查；请补充自己的行为验证，不能以健康检查替代完整功能。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/markdown",
+            "size_bytes": 1823,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e8c143b91fac216f",
+            "source_ref": "README.md",
+            "source_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1823,
+            "core_start": 0,
+            "core_end": 1823,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 619
+          },
+          "start_byte": 0,
+          "end_byte": 1823,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1823,
+          "observed_tokens": 619,
+          "source_start_line": 1,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-6f255cf9bbf65f6f89c6"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "7a155fdbb9b756abccd4a6afca55152288b9e787a9e70e928055d95dd8842d2b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-d96c255d21e64f39",
+      "child_checkpoint_id": "CP-5e342e1be15a4e6d",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.117600202560425
+  },
+  {
+    "case": "full_text-2",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "README.md"
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "8636f4f3b13487920bd6536665f59fe18ff5813da9a580d4052101dd0ce91c82",
+      "decision_id": "D-9b94df68b6b64fa1",
+      "request_id": "MR-5a44002938b044c8",
+      "started_at": "2026-09-13T09:32:18.348+00:00",
+      "ended_at": "2026-09-13T09:32:18.377+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# 库存与订单服务\n\n给小型仓库实现 SQLite HTTP 订单服务，解决网络重试重复扣库存及多行订单部分扣减问题。实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块；Python 3.11+ 标准库可用，不需要联网依赖。\n\n启动：`python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080`。首次创建 DB，重启保留数据；所有响应 JSON，可增加字段。\n\n- `GET /health` → 200 `{\"ok\":true}`。\n- `PUT /inventory/{url-encoded-sku}`，`{\"stock\":N}` 设置该 SKU 当前可售量，创建或更新返回 200 `{\"sku\":...,\"stock\":N}`。N 必须非负整数，bool/小数非法。SKU 为非空 UTF-8 字符串。\n- `GET /inventory/{sku}` → 200 对应库存或 404。\n- `POST /orders` 必须有非空 `Idempotency-Key` 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`。同 SKU 的重复项数量求和，再按 SKU 排序；item 顺序和重复项拆分不影响语义。quantity 不接受 bool/小数。\n- 首次成功返回 201 `{id,customer,items:[规范化明细],status:\"confirmed\"}`；同 key、相同规范化请求返回 200 同一订单，不再次扣库存。同 key 不同 customer/明细返回 409，不修改状态。\n- 任一 SKU 不存在 → 404，任一数量不足 → 409；失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后更正请求重试。\n- `GET /orders` → 200 `{\"orders\":[...]}` 按 id 排序；`GET /orders/{id}` 返回 200 完整订单或 404。\n- 坏 JSON、非法字段、空 items/key → 400，错误对象含 error。非法请求不得改变库存或订单；未知路由 404。\n\n库存判定、扣减和订单/idempotency 登记必须原子完成。并发相同 key 只创建一单；并发不同 key 不得超卖。库存、订单、key 在进程重启后继续有效。公开验证只做健康检查，请自行补充交易与恢复验证。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/markdown",
+            "size_bytes": 2020,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-2da00be39cd9f4ad",
+            "source_ref": "README.md",
+            "source_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2020,
+            "core_start": 0,
+            "core_end": 2020,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 713
+          },
+          "start_byte": 0,
+          "end_byte": 2020,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2020,
+          "observed_tokens": 713,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-8334d519837e4a4300c8"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "0ee08ac89d2728ccfe5ff9f7ef24d5c70f572acb920fea264bc71970ec9c4586",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-d8bc0d66239345a9",
+      "child_checkpoint_id": "CP-a2f433f66a0c47e7",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 2.382690191268921
+  },
+  {
+    "case": "full_code-1",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "a60665162a626732d6cbbe994185ece2d25edd5f58767eb1e7f9c44a36813c30",
+      "decision_id": "D-ad950b65893d45eb",
+      "request_id": "MR-c53916bfec2c48e9",
+      "started_at": "2026-09-13T09:32:22.634+00:00",
+      "ended_at": "2026-09-13T09:32:22.657+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Initial HTTP entry point; complete the contract documented in README.md.\"\"\"\nimport argparse\nimport json\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, value = (200, {'ok': True}) if self.path == '/health' else (501, {'error': 'not_implemented'})\n        body = json.dumps(value).encode()\n        self.send_response(status)\n        self.send_header('Content-Type', 'application/json')\n        self.send_header('Content-Length', str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\nif __name__ == '__main__':\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--db', required=True)\n    parser.add_argument('--host', default='127.0.0.1')\n    parser.add_argument('--port', type=int, required=True)\n    args = parser.parse_args()\n    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-ac30aabfa2757d61",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 935,
+            "core_start": 0,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 259
+          },
+          "start_byte": 0,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 259,
+          "source_start_line": 1,
+          "source_end_line": 22
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "e658ddc1ca3c2b453680b1ede2e92971f4401e2c024cdf32fabd3594783e71c1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-bad3c441acb6488b",
+      "child_checkpoint_id": "CP-a42ae5b9407d43b1",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.060401678085327
+  },
+  {
+    "case": "full_code-2",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py"
+      },
+      "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+      "idempotency_key": "e8480c5fae40fd092ec41f771564d181e53070371efad0b1be98932e82f7bbff",
+      "decision_id": "D-28cabb391ff44c43",
+      "request_id": "MR-a243dab6165e47eb",
+      "started_at": "2026-09-13T09:32:26.691+00:00",
+      "ended_at": "2026-09-13T09:32:26.715+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 497,
+            "core_start": 0,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 130
+          },
+          "start_byte": 0,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 130,
+          "source_start_line": 1,
+          "source_end_line": 13
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+      "failure_key": "",
+      "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-239a53517f2b4491",
+      "child_checkpoint_id": "CP-f1e42ca61d3b4192",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.121828556060791
+  },
+  {
+    "case": "offset-1",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\", \"start_byte\": 935, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py",
+        "start_byte": 935,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "a5a2a9e854ee5fd9c96394dc56ff8fa661fd1689b4d9a83a08473c305f37e1b7",
+      "idempotency_key": "7ef804281f6507722a197021368cc91e1e9dad3299e6a890d838feb7d1c55070",
+      "decision_id": "D-ed1d9afae8f34bda",
+      "request_id": "MR-23f2fc6dba884d37",
+      "started_at": "2026-09-13T09:32:31.218+00:00",
+      "ended_at": "2026-09-13T09:32:31.245+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "server.py",
+            "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/x-python",
+            "size_bytes": 935,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d667472b9d312db4",
+            "source_ref": "server.py",
+            "source_sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+            "media_type": "text/plain",
+            "byte_start": 935,
+            "byte_end": 935,
+            "core_start": 935,
+            "core_end": 935,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 259,
+            "token_end": 259
+          },
+          "start_byte": 935,
+          "end_byte": 935,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 935,
+          "observed_tokens": 0,
+          "source_start_line": 23,
+          "source_end_line": 23
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-b5e872b46d3bb61298c4"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "99fc00a890836531de4bbd79a9f0877df5c42cea4602330b3069dd6df412d40e",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-94781e8732b6430d",
+      "child_checkpoint_id": "CP-124a12f65aee4edd",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.369524717330933
+  },
+  {
+    "case": "offset-2",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": true,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"verify_public.py\", \"start_byte\": 497, \"max_tokens\": 4096}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "verify_public.py",
+        "start_byte": 497,
+        "max_tokens": 4096
+      },
+      "action_fingerprint": "dcaf88cfcc4052efb8aea6ed45963cf72d30ada2108e9472a51011ce3bb1b203",
+      "idempotency_key": "9ed9c7d7684ac6083611496d3d69707b32e1195fdb9d09fd90d50bb5698f203f",
+      "decision_id": "D-8ae50a38e9c94591",
+      "request_id": "MR-6382e59e186b4dea",
+      "started_at": "2026-09-13T09:32:35.543+00:00",
+      "ended_at": "2026-09-13T09:32:35.570+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "verify_public.py",
+            "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/x-python",
+            "size_bytes": 497,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-3c4358a8b42577d4",
+            "source_ref": "verify_public.py",
+            "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+            "media_type": "text/plain",
+            "byte_start": 497,
+            "byte_end": 497,
+            "core_start": 497,
+            "core_end": 497,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": false,
+            "token_start": 130,
+            "token_end": 130
+          },
+          "start_byte": 497,
+          "end_byte": 497,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 497,
+          "observed_tokens": 0,
+          "source_start_line": 14,
+          "source_end_line": 14
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-77a32f727364701768aa"
+      ],
+      "workspace_digest_before": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "workspace_digest_after": "1b8d8a1a1d8b74ef370d498adc4ef21f8cfb9e15b5684e6b28ced14b27baa422",
+      "failure_key": "",
+      "observation_fingerprint": "ec6a475735e704c64cf7a24ef6b4b1c5c3141e4a816c19cdadd0adb519ea266a",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-8947fa75d01e42b6",
+      "child_checkpoint_id": "CP-b939d5efb0f34db7",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 4.3983564376831055
+  },
+  {
+    "case": "missing-1",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"server.py\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "server.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "server.py"
+      },
+      "action_fingerprint": "f912813c7dc8a3fc81e7e136381359e7844afce3fc7c93ac7dbb28d6e3bcaa67",
+      "idempotency_key": "8fc728886f1a979f630b5dee55004116fc039532cf57c5416e37e5e0394aaf55",
+      "decision_id": "D-7a44239a97624b27",
+      "request_id": "MR-14449f058a28490d",
+      "started_at": "2026-09-13T09:32:39.630+00:00",
+      "ended_at": "2026-09-13T09:32:39.656+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: server.py"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "workspace_digest_after": "01c563c63e569d8af8ff761565266403968b3fe04127e4396e0a13c931166d8b",
+      "failure_key": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "observation_fingerprint": "67ffcb283767ba3929b2998d1b3d1588e7ba3e16e3a59980bf35713ea00dcec0",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: server.py"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-383569816c934bbc",
+      "child_checkpoint_id": "CP-ddf0c716eab143c1",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 3.8565990924835205
+  },
+  {
+    "case": "missing-2",
+    "repeat": 3,
+    "pass": true,
+    "tool_success": false,
+    "protocol_error": null,
+    "infrastructure_error": null,
+    "raw_output": "{\"function\": \"read_file\", \"params\": {\"path\": \"index.html\"}}",
+    "command": {
+      "name": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 4096
+      }
+    },
+    "action": {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "failed",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "index.html",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "index.html"
+      },
+      "action_fingerprint": "937c5801135619452b17c922270e2a4e629ffaa7a9034dc4e84fa48becef146d",
+      "idempotency_key": "6c31c03dc3a16777194485104d9d484e70acd0ae8ee1d7c7660e640688d32a41",
+      "decision_id": "D-f500ae726c9c4176",
+      "request_id": "MR-733c98ed40c6412c",
+      "started_at": "2026-09-13T09:32:43.447+00:00",
+      "ended_at": "2026-09-13T09:32:43.473+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": false,
+        "output": "",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {},
+        "error": {
+          "type": "FileNotFoundError",
+          "message": "path does not exist: index.html"
+        },
+        "outcome_type": "not_found"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "workspace_digest_after": "8579c626e057a43b4db9e4f40d44cd3bac552779a0d31e41c87f06b29ea9ae53",
+      "failure_key": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "observation_fingerprint": "f2ce52b18fb34efa832866ba5bb3f6ce13f303ee34da01d8788fd6aefdaeb5e3",
+      "error": {
+        "type": "FileNotFoundError",
+        "message": "path does not exist: index.html"
+      },
+      "outcome_type": "not_found",
+      "atom_execution_contract_digest": ""
+    },
+    "observation_handoff": {
+      "parent_checkpoint_id": "CP-d9ddee4b6d2843fd",
+      "child_checkpoint_id": "CP-cf50bc6621a542c0",
+      "event_id": "EV-ACTION-A00001",
+      "present": true,
+      "parent_matches": true
+    },
+    "correct_call": true,
+    "actual_result_correct": true,
+    "workspace_unchanged": true,
+    "elapsed_seconds": 3.887047290802002
+  }
+]

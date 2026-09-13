@@ -1,0 +1,13 @@
+{
+  "id": "rag_sparse-v10",
+  "seed_id": "rag_sparse",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际执行的工具操作：read_file(sparse.py) 成功两次，完整取得 1554 字节、50 行、449 token，未运行测试，未修改文件。源码实际行为：chinese_tokens 先把文本 lower；用正则 [a-zA-Z0-9]+ 收集 ASCII 字母数字；再把 U+4E00 至 U+9FFF 连续汉字串拆成单字，并对每串追加相邻汉字二元组。token_index 对 token 的 UTF-8 编码做 blake2s digest_size=4，取 4 字节大端无符号整数，范围 0..2^32-1。encode_sparse_texts 对每个 text 用 Counter 统计 token 频次；生成 (token_index, 1.0+math.log(min(count,8))) 并按元组排序，输出 indices 与 values 两个平行列表。count 为正整数且无上限；参与权重的是 min(count,8)，故权重范围 1.0 到 1.0+ln8（约 3.0794），count>8 后权重不再增大。重要限制：只处理 ASCII 字母数字与指定汉字范围；二元组只在同一汉字连续串内生成；32 位哈希可能碰撞，代码未消解不同 token 的相同 index；Counter 只按 token 聚合，不做按 index 合并。sparse_encoder 返回 encode_sparse_texts。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "144d633b34c287346021b9977581e8b8734caec4bca8d6b4028fc41f5e2b462d",
+  "augmentation": "source-bound reviewed correction at unchanged actual input",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际执行的工具操作：read_file(sparse.py) 成功两次，完整取得 1554 字节、50 行、449 token，未运行测试，未修改文件。源码实际行为：chinese_tokens 先把文本 lower；用正则 [a-zA-Z0-9]+ 收集 ASCII 字母数字；再把 U+4E00 至 U+9FFF 连续汉字串拆成单字，并对每串追加相邻汉字二元组。token_index 对 token 的 UTF-8 编码做 blake2s digest_size=4，取 4 字节大端无符号整数，范围 0..2^32-1。encode_sparse_texts 对每个 text 用 Counter 统计 token 频次；生成 (token_index, 1.0+math.log(min(count,8))) 并按元组排序，输出 indices 与 values 两个平行列表。count 为正整数且无上限；参与权重的是 min(count,8)，故权重范围 1.0 到 1.0+ln8（约 3.0794），count>8 后权重不再增大。重要限制：只处理 ASCII 字母数字与指定汉字范围；二元组只在同一汉字连续串内生成；32 位哈希可能碰撞，代码未消解不同 token 的相同 index；Counter 只按 token 聚合，不做按 index 合并。sparse_encoder 返回 encode_sparse_texts。\"}}\n```",
+  "target_tokens": 410,
+  "target_sha256": "2f6487a023f7cbbb6ebda430ba50721173dc2bd1564a8422be1278745bc8deaa",
+  "review_issues": []
+}

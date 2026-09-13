@@ -1,0 +1,64 @@
+[
+  {
+    "id": "migration_code_first-v1",
+    "seed_id": "migration_code_first",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388 字节）和 README.md（A00002，2685 字节）；未读取入口 config_cli.py，也未运行任何测试。\\n\\n需求（README）：migrate 仅允许 v1→v2，先保留完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON/未知版本/恢复失败须原字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 第一句即把 DB 字节复制到 backup，早于版本判断，故 v2 时仍会改写备份；且无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode+commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本也不被拒绝。restore 直接用备份字节覆盖 DB，未校验其合法性，未原子发布。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对 stdout 末行 JSON 与退出码。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388 字节）和 README.md（A00002，2685 字节）；未读取入口 config_cli.py，也未运行任何测试。\\n\\n需求（README）：migrate 仅允许 v1→v2，先保留完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON/未知版本/恢复失败须原字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 第一句即把 DB 字节复制到 backup，早于版本判断，故 v2 时仍会改写备份；且无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode+commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本也不被拒绝。restore 直接用备份字节覆盖 DB，未校验其合法性，未原子发布。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对 stdout 末行 JSON 与退出码。\"}}\n```",
+    "target_sha256": "f7245d1a7936aef605da7e1e7d869d552263dfc346f509853d43fc0db267631b",
+    "target_tokens": 471
+  },
+  {
+    "id": "migration_code_first-v2",
+    "seed_id": "migration_code_first",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388字节）和 README.md（A00002，2685字节）；未读取 config_cli.py，未运行任何测试。\\n\\n需求（README）：migrate 仅 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 首句即用 DB 字节覆盖 backup，早于版本判断，故 v2 时仍改写备份；无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本未拒绝。restore 直接用 backup 字节覆盖 DB，未校验备份合法性。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388字节）和 README.md（A00002，2685字节）；未读取 config_cli.py，未运行任何测试。\\n\\n需求（README）：migrate 仅 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 首句即用 DB 字节覆盖 backup，早于版本判断，故 v2 时仍改写备份；无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本未拒绝。restore 直接用 backup 字节覆盖 DB，未校验备份合法性。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}\n```",
+    "target_sha256": "52a5066a37c39a452b0c7b28d4072394bfec9f0867d10065393759febe775cf4",
+    "target_tokens": 467
+  },
+  {
+    "id": "migration_code_first-v3",
+    "seed_id": "migration_code_first",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：已用 read_file 完整读取 config_store/migrations.py（A00001，1388 字节，EOF）和 README.md（A00002，2685 字节，EOF）；未读取其它文件，未运行任何测试。\\n\\n需求（来自 README）：migrate 仅允许 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改 DB/备份；value 应按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；需建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 须先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅 migrations.py）：migrate 第一句就把 DB 字节复制到 backup，早于版本判断，故 v2 时仍可能改写备份；未见 BACKUP≠DB 或防覆盖检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 使用默认参数，未按需求规范化；未知版本未拒绝。restore 直接用备份字节覆盖 DB，未校验备份合法性，也未原子发布。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，检查退出码与 stdout 末行 JSON。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：已用 read_file 完整读取 config_store/migrations.py（A00001，1388 字节，EOF）和 README.md（A00002，2685 字节，EOF）；未读取其它文件，未运行任何测试。\\n\\n需求（来自 README）：migrate 仅允许 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改 DB/备份；value 应按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；需建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 须先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅 migrations.py）：migrate 第一句就把 DB 字节复制到 backup，早于版本判断，故 v2 时仍可能改写备份；未见 BACKUP≠DB 或防覆盖检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 使用默认参数，未按需求规范化；未知版本未拒绝。restore 直接用备份字节覆盖 DB，未校验备份合法性，也未原子发布。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，检查退出码与 stdout 末行 JSON。\"}}\n```",
+    "target_sha256": "7e8818e256166af0d6b2f52bb6b059d19e2a3df120b715d7b42cd0db7b65f568",
+    "target_tokens": 505,
+    "review_issues": []
+  },
+  {
+    "id": "migration_code_first-v4",
+    "seed_id": "migration_code_first",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际工具操作：A00001 完整读取 config_store/migrations.py，1388字节到EOF；A00002 完整读取 README.md，2685字节到EOF；未读 config_cli.py，未运行测试。README需求：migrate仅v1→v2，先备份有效完整v1再原子发布，BACKUP≠DB且不覆盖已有备份；已v2返回changed=false、from_version=to_version=2、migrated_rows=0且不改DB/备份；value按ensure_ascii=False,sort_keys=True,separators=(',',':')规范化；需schema_migrations含version=2记录；失败须原DB字节不变；restore先验证备份为合法v1/v2再原子恢复。代码推断（仅migrations.py）：migrate首句即把DB字节写入backup，早于版本判断，v2时也会改备份，且无BACKUP≠DB与防覆盖；加列后仅PRAGMA user_version=2，未建schema_migrations；逐行decode后commit，坏JSON非原子；json.dumps默认参数未按需求规范化；未知版本未拒绝；restore直接覆盖DB，未校验备份合法性。未执行的验证建议：用样例v1跑migrate与重跑、坏JSON回滚、BACKUP=DB、损坏备份restore，核对退出码与stdout末行JSON。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际工具操作：A00001 完整读取 config_store/migrations.py，1388字节到EOF；A00002 完整读取 README.md，2685字节到EOF；未读 config_cli.py，未运行测试。README需求：migrate仅v1→v2，先备份有效完整v1再原子发布，BACKUP≠DB且不覆盖已有备份；已v2返回changed=false、from_version=to_version=2、migrated_rows=0且不改DB/备份；value按ensure_ascii=False,sort_keys=True,separators=(',',':')规范化；需schema_migrations含version=2记录；失败须原DB字节不变；restore先验证备份为合法v1/v2再原子恢复。代码推断（仅migrations.py）：migrate首句即把DB字节写入backup，早于版本判断，v2时也会改备份，且无BACKUP≠DB与防覆盖；加列后仅PRAGMA user_version=2，未建schema_migrations；逐行decode后commit，坏JSON非原子；json.dumps默认参数未按需求规范化；未知版本未拒绝；restore直接覆盖DB，未校验备份合法性。未执行的验证建议：用样例v1跑migrate与重跑、坏JSON回滚、BACKUP=DB、损坏备份restore，核对退出码与stdout末行JSON。\"}}\n```",
+    "target_sha256": "cc6716ee9b7a5417e10e1d0ee8b8c243efac737f2be62461f8837c98bfd83d45",
+    "target_tokens": 399,
+    "review_issues": []
+  },
+  {
+    "id": "migration_code_first-v5",
+    "seed_id": "migration_code_first",
+    "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：本次仅调用 read_file 两次——A00001 完整读取 config_store/migrations.py（1388 字节，至 EOF），A00002 完整读取 README.md（2685 字节，至 EOF）；未读取 config_cli.py 或其它文件，未运行任何测试。\\n\\n需求（README 原文）：migrate 仅允许 v1→v2，须先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0 且不改动 DB 与备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；须建立 schema_migrations 并写入 version=2 记录；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败均须失败且原 DB 字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅据 migrations.py）：migrate 第一句即把 database 字节写入 backup，早于版本查询，故 v2 重跑仍会改写备份；未见 BACKUP≠DB、已有备份防覆盖或版本白名单检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 表及 version=2 记录。逐行 decode 后立即 commit，坏 JSON 会留下部分已改行，不满足原子性。json.dumps 使用默认参数，与需求规范化要求不一致。restore 直接 write_bytes 覆盖数据库，未校验备份合法性，也未做原子发布。另 decode/value_type 来自 .values，该模块未读取，其行为无法判断。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"实际工具操作：本次仅调用 read_file 两次——A00001 完整读取 config_store/migrations.py（1388 字节，至 EOF），A00002 完整读取 README.md（2685 字节，至 EOF）；未读取 config_cli.py 或其它文件，未运行任何测试。\\n\\n需求（README 原文）：migrate 仅允许 v1→v2，须先保留有效完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 时返回 changed=false、from_version=to_version=2、migrated_rows=0 且不改动 DB 与备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；须建立 schema_migrations 并写入 version=2 记录；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败均须失败且原 DB 字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅据 migrations.py）：migrate 第一句即把 database 字节写入 backup，早于版本查询，故 v2 重跑仍会改写备份；未见 BACKUP≠DB、已有备份防覆盖或版本白名单检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 表及 version=2 记录。逐行 decode 后立即 commit，坏 JSON 会留下部分已改行，不满足原子性。json.dumps 使用默认参数，与需求规范化要求不一致。restore 直接 write_bytes 覆盖数据库，未校验备份合法性，也未做原子发布。另 decode/value_type 来自 .values，该模块未读取，其行为无法判断。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对退出码与 stdout 末行 JSON。\"}}\n```",
+    "target_sha256": "4129642726665d07d5af59ed0820874fedf6d5eda3ed4332347c70bb5766b616",
+    "target_tokens": 589
+  }
+]

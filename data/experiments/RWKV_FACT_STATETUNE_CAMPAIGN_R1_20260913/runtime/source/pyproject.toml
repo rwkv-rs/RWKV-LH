@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rwkv-lh"
+version = "0.1.0"
+description = "Persistent, verifiable Long-Horizon Agent runtime for RWKV"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "requests>=2.32,<3",
+]
+
+[project.optional-dependencies]
+selector-runtime = [
+  "numpy>=2,<3",
+  "torch==2.8.0",
+]
+benchmark-web = [
+  "playwright==1.61.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10"]
+
+[project.scripts]
+rwkv-lh = "scripts.run_long_horizon:main"
+rwkv-lh-e2e = "scripts.run_rwkv_e2e_benchmark:main"
+rwkv-lh-runtime-smoke = "scripts.runtime_smoke:main"
+rwkv-lh-stack = "scripts.manage_runtime_stack:main"
+rwkv-lh-web = "scripts.run_web_ui:main"
+
+[tool.setuptools.packages.find]
+include = ["rwkv_lh*", "scripts*", "benchmarks*"]
+
+[tool.setuptools.package-data]
+rwkv_lh = [
+  "data/*.txt",
+  "inference/*.json",
+  "goal_web_assets/*.html",
+  "goal_web_assets/*.css",
+  "goal_web_assets/*.js",
+]
+"benchmarks.rwkv_e2e.rwkv_e2e_30" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_e2e_lh12" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_e2e_extension48" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_real_project_dev_v1" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_diag_fix_v1" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_agent_v1" = ["tasks.json", "acceptance.json"]
+"benchmarks.rwkv_e2e.rwkv_agent_capability_ladder_v1" = ["tasks.json", "acceptance.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --basetemp=data/test_runs/pytest"

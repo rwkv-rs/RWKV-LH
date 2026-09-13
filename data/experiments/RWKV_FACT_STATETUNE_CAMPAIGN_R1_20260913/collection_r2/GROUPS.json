@@ -1,0 +1,871 @@
+[
+  {
+    "mode": "collect",
+    "repeat": 1,
+    "elapsed_seconds": 729.9661877240287,
+    "results": [
+      {
+        "id": "rag_model_client-collect-r1",
+        "final": "model_client.py 的实际行为是：\n\n1. 导入两个模块：\n   - 从 .native_rwkv 导入 NativeRWKVClient 和 inspect_envelope。\n   - 从 .rwkvos_batch 导入 RwkvosBatchClient。\n\n2. 提供 model_client_class：\n   - 如果 settings.native_transport 为 \"rwkvos_batch\"，返回 RwkvosBatchClient。\n   - 否则返回 NativeRWKVClient。\n\n3. 提供 model_client_options：\n   - 根据 settings.native_transport 构造不同的 options。\n   - 对于 \"native_rwkv\"，options 包含 base_url、model、timeout_seconds、context_window_tokens、max_concurrency，以及可选的 api_key。\n   - 对于 \"rwkvos_batch\"，options 包含 headers（CF-Access-Client-Id 和 CF-Access-Client-Secret）、state_id、reader_state_id、writer_state_id、reader_prompt_protocol、reader_input_layout、writer_prompt_protocol、stop_tokens、prefill_mode、count_input_tokens、input_token_limit、batch_size、batch_wait_ms。\n\n4. 提供 model_answer_bounds：\n   - 如果 raw_text 不是字符串，返回 None。\n   - 如果 transport 不是 \"native\" 或 \"rwkvos_batch\"，返回 None。\n   - 如果 transport 是 \"native\"，调用 inspect_envelope 解析 prefill 后的答案边界。\n   - 如果 transport 是 \"rwkvos_batch\"，从 trace 中提取 envelope，验证其有效性，并返回 answer_span 中的 start 和 end 字段。\n   - 否则返回 None。\n\n重要限制：\n- 不修改文件内容，只读取源码。\n- 不执行任何操作，只分析源码。\n- 不假设未实现的功能。\n\n对应关系：\n- 源码实际实现的行为：导入模块、提供模型客户端类、提供模型客户端选项、提供模型答案边界。\n- 重要限制：只读取源码，不修改文件，不执行操作，不假设未实现的功能。\n- 涉及数字或类型的对应关系：\n  - 字符串类型：settings.native_transport、settings.native_base_url、settings.native_model、settings.native_timeout_seconds、settings.native_context_window_tokens、settings.native_max_concurrency、settings.native_api_key、settings.rwkvos_cf_access_client_id、settings.rwkvos_cf_access_client_secret、settings.rwkvos_state_id、settings.rwkvos_reader_state_id、settings.rwkvos_writer_state_id、settings.rwkvos_reader_prompt_protocol、settings.rwkvos_reader_input_layout、settings.rwkvos_writer_prompt_protocol、settings.rwkvos_stop_tokens、settings.rwkvos_prefill_mode、settings.rwkvos_count_input_tokens、settings.rwkvos_input_token_limit、settings.rwkvos_batch_size、settings.rwkvos_batch_wait_ms。\n  - 整数类型：settings.native_timeout_seconds、settings.native_context_window_tokens、settings.native_max_concurrency、settings.rwkvos_batch_wait_ms、options[\"timeout_seconds\"]、options[\"context_window_tokens\"]、options[\"max_concurrency\"]、options[\"api_key\"]、options[\"state_id\"]、options[\"reader_state_id\"]、options[\"writer_state_id\"]、options[\"reader_prompt_protocol\"]、options[\"reader_input_layout\"]、options[\"writer_prompt_protocol\"]、options[\"stop_tokens\"]、options[\"prefill_mode\"]、options[\"count_input_tokens\"]、options[\"input_token_limit\"]、options[\"batch_size\"]、options[\"batch_wait_ms\"]。\n  - 布尔类型：settings.native_resolver_protocol == \"binary_query\"。\n  - 字典类型：options、headers、envelope、span。\n  - 列表类型：settings.rwkvos_stop_tokens。\n  - 元组类型：(start, end)。\n  - 函数类型：inspect_envelope、model_answer_bounds。\n  - 类型：NativeRWKVClient、RwkvosBatchClient。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "model_client.py",
+              "max_tokens": 8192,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "model_client.py",
+              "max_tokens": 8192
+            },
+            "action_fingerprint": "caf5f0feabc40335c93c3b02490a963573ed30b02249163daf6064999afbca00",
+            "idempotency_key": "4b243c124621ea0993461b2091c46f4c98211ca759035fea869c8f0e90134718",
+            "decision_id": "D-abdd954fe67940ab",
+            "request_id": "MR-e890c1b68a6f485a",
+            "started_at": "2026-09-13T07:38:47.310+00:00",
+            "ended_at": "2026-09-13T07:38:47.338+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Select explicit RWKV transports without changing model output or credentials.\"\"\"\n\nfrom .native_rwkv import NativeRWKVClient, inspect_envelope\n\n\ndef model_client_class(settings):\n    if settings.native_transport == \"rwkvos_batch\":\n        from .rwkvos_batch import RwkvosBatchClient\n        return RwkvosBatchClient\n    return NativeRWKVClient\n\n\ndef model_client_options(settings, **overrides):\n    options = {\n        \"base_url\": settings.native_base_url, \"model\": settings.native_model,\n        \"timeout_seconds\": settings.native_timeout_seconds,\n        \"context_window_tokens\": settings.native_context_window_tokens,\n        \"max_concurrency\": settings.native_max_concurrency,\n    }\n    if settings.native_transport == \"rwkvos_batch\":\n        headers = {}\n        for name, value in (\n            (\"CF-Access-Client-Id\", settings.rwkvos_cf_access_client_id),\n            (\"CF-Access-Client-Secret\", settings.rwkvos_cf_access_client_secret),\n        ):\n            if value.get_secret_value():\n                headers[name] = value.get_secret_value()\n        options.update(headers=headers, state_id=settings.rwkvos_state_id,\n                       reader_state_id=(settings.rwkvos_binary_reader_state_id\n                                        if settings.native_resolver_protocol == \"binary_query\"\n                                        else settings.rwkvos_reader_state_id),\n                       writer_state_id=settings.rwkvos_writer_state_id,\n                       reader_prompt_protocol=settings.rwkvos_reader_prompt_protocol,\n                       reader_input_layout=settings.rwkvos_reader_input_layout,\n                       writer_prompt_protocol=settings.rwkvos_writer_prompt_protocol,\n                       stop_tokens=settings.rwkvos_stop_tokens, prefill_mode=settings.rwkvos_prefill_mode,\n                       count_input_tokens=settings.rwkvos_count_input_tokens,\n                       input_token_limit=settings.rwkvos_input_token_limit,\n                       batch_size=settings.rwkvos_batch_size,\n                       batch_wait_ms=settings.rwkvos_batch_wait_ms)\n    else:\n        options[\"api_key\"] = settings.native_api_key\n    options.update(overrides)\n    return options\n\n\ndef model_answer_bounds(raw_text, trace):\n    \"\"\"Interpret the transport's explicit body bounds; never repair raw text.\"\"\"\n    if not isinstance(raw_text, str):\n        return None\n    transport = trace.get(\"transport\", \"native\")\n    if transport == \"native\":\n        return inspect_envelope(raw_text, trace.get(\"prefill\", \"<think\"))\n    if transport != \"rwkvos_batch\":\n        return None\n    envelope = trace.get(\"envelope\")\n    if not isinstance(envelope, dict) or envelope.get(\"valid\") is not True:\n        return None\n    span = envelope.get(\"answer_span\")\n    if not isinstance(span, dict) or span.get(\"unit\") != \"unicode_code_points\":\n        return None\n    start, end = span.get(\"start\"), span.get(\"end\")\n    if (type(start) is not int or type(end) is not int\n            or not 0 <= start < end <= len(raw_text) or not raw_text[start:end].strip()):\n        return None\n    return start, end\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "model_client.py",
+                  "sha256": "1b0cbd28fa25bd1b9656611705e9d7456e48258845785b076f11441ed08784ac",
+                  "media_type": "text/x-python",
+                  "size_bytes": 3114,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-4c38b7353c921ae4",
+                  "source_ref": "model_client.py",
+                  "source_sha256": "1b0cbd28fa25bd1b9656611705e9d7456e48258845785b076f11441ed08784ac",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 3114,
+                  "core_start": 0,
+                  "core_end": 3114,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "1b0cbd28fa25bd1b9656611705e9d7456e48258845785b076f11441ed08784ac",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 793
+                },
+                "start_byte": 0,
+                "end_byte": 3114,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 3114,
+                "observed_tokens": 793,
+                "source_start_line": 1,
+                "source_end_line": 66
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-20d4afb1a87bfaee699d"
+            ],
+            "workspace_digest_before": "28af5bb63bb1c838d8c743e2ea12263b42e16653b3cb7e2afe32873c533f1c5f",
+            "workspace_digest_after": "28af5bb63bb1c838d8c743e2ea12263b42e16653b3cb7e2afe32873c533f1c5f",
+            "failure_key": "",
+            "observation_fingerprint": "ed3bcd62fe5d1f1e330d556b4cde292b5f2d2800592983f8773c67da86f5cbf6",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 71.04057161702076
+      },
+      {
+        "id": "rag_batch_receipts-collect-r1",
+        "final": "batch_receipts.py 的主要行为是：\n\n1. 读取指定目录下以 `.batch_started.json` 或 `.batch_completed.json` 结尾的文件，解析为 JSON 对象。\n2. 对每个文件，提取 `batch_id` 和 `http_attempted` 字段。\n3. 根据 `http_attempted` 的值，将 batch 分类为：\n   - `confirmed_attempted`：`http_attempted` 为 `true`。\n   - `never_attempted`：`http_attempted` 为 `false`。\n   - `unknown`：文件未完成（未包含 `http_attempted` 字段）或文件损坏。\n4. 返回一个包含以下信息的字典：\n   - `unique_batches`：唯一 batch 的数量。\n   - `batches`：每个 batch 的详细信息，包括 `batch_id`、`classification`、`conflicting_terminal_evidence` 和 `observations`。\n   - `definition`：对分类逻辑的说明。\n   - `schema`：使用的 schema 版本。\n   - `unreadable_receipts`：无法读取的文件列表。\n\n重要限制：\n- 文件名必须以 `.batch_started.json` 或 `.batch_completed.json` 结尾。\n- `batch_id` 必须是字符串。\n- `http_attempted` 必须是布尔值。\n- 如果文件损坏或缺少必要字段，会被标记为 `unknown`。\n\n对应的数字或类型：\n- `batch_id`：字符串。\n- `http_attempted`：布尔值。\n- `unique_batches`：整数。\n- `batches`：列表，每个元素是一个字典。\n- `definition`：字符串。\n- `schema_version`：字符串。\n- `unreadable_receipts`：列表，包含无法读取的文件名。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 3,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "batch_receipts.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "batch_receipts.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "0f7e31eb9a26609b110c2c8bcb08b099a6fb39908244590d86f4c9082382bc69",
+            "idempotency_key": "ea5f49dcac9ebca0ec41318dbff45435e2668d47fb9c48c1f4545df2dcde1184",
+            "decision_id": "D-9f18bcd73caa4f87",
+            "request_id": "MR-89f664c7442840ee",
+            "started_at": "2026-09-13T07:39:53.464+00:00",
+            "ended_at": "2026-09-13T07:39:53.495+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Offline accounting for shared HTTP batches, including interrupted runs.\n\nA pre-send receipt proves preparation only. A completed receipt explicitly\nrecording ``http_attempted=False`` proves no dispatch; an observed True proves\nan attempt, not a successful response or provider execution.\n\"\"\"\n\nfrom collections import defaultdict\nimport json\nfrom pathlib import Path\n\n\ndef _summarize_http(directory: Path, prefix: str, identity_key: str, traces=()) -> dict:\n    batches = defaultdict(list)\n    unreadable = []\n\n    def observe(record, origin, completed=False):\n        identity = record.get(identity_key)\n        if not isinstance(identity, str) or not identity:\n            raise ValueError(\"HTTP receipt is missing its identity\")\n        attempted = record.get(\"http_attempted\")\n        terminal = completed or bool(record.get(\"ended_at\"))\n        evidence = (\"attempted\" if attempted is True else\n                    \"not_attempted\" if attempted is False and terminal else \"unknown\")\n        batches[identity].append({\"origin\": origin, \"evidence\": evidence})\n\n    for path in sorted(directory.glob(f\"*.{prefix}_*.json\")):\n        completed = path.name.endswith(f\".{prefix}_completed.json\")\n        if not completed and not path.name.endswith(f\".{prefix}_started.json\"):\n            continue\n        try:\n            record = json.loads(path.read_bytes())\n            if not isinstance(record, dict):\n                raise ValueError(\"batch receipt is not an object\")\n            observe(record, path.name, completed)\n        except (OSError, ValueError, TypeError):\n            # A process can stop halfway through writing a receipt. Its filename\n            # identifies an unresolved batch; do not turn corrupt bytes into 0.\n            identity = path.name.rsplit(f\".{prefix}_\", 1)[0]\n            batches[identity].append({\"origin\": path.name, \"evidence\": \"unknown\"})\n            unreadable.append(path.name)\n\n    for number, trace in enumerate(traces):\n        identity = trace.get(identity_key)\n        if identity_key == \"count_id\" and not identity:\n            identity = trace.get(\"token_count_id\")\n        if isinstance(identity, str) and identity:\n            batches[identity]  # Keep a known batch even if its HTTP entry is absent.\n        for ordinal, record in enumerate(trace.get(\"http\", [])):\n            if isinstance(record, dict) and record.get(identity_key):\n                observe(record, f\"model_trace[{number}].http[{ordinal}]\")\n\n    rows = []\n    counts = {\"confirmed_attempted\": 0, \"never_attempted\": 0, \"unknown\": 0}\n    for identity, observations in sorted(batches.items()):\n        evidence = {item[\"evidence\"] for item in observations}\n        conflict = {\"attempted\", \"not_attempted\"} <= evidence\n        classification = (\"unknown\" if conflict else\n                          \"confirmed_attempted\" if \"attempted\" in evidence else\n                          \"never_attempted\" if \"not_attempted\" in evidence else \"unknown\")\n        counts[classification] += 1\n        rows.append({identity_key: identity, \"classification\": classification,\n                     \"conflicting_terminal_evidence\": conflict, \"observations\": observations})\n    return {\"schema\": f\"{prefix}-http-accounting-v1\", \"unique_requests\": len(rows),\n            **counts, \"count_exact\": counts[\"unknown\"] == 0,\n            \"http_requests\": counts[\"confirmed_attempted\"] if counts[\"unknown\"] == 0 else None,\n            \"confirmed_attempted_lower_bound\": counts[\"confirmed_attempted\"],\n            \"possible_attempted_upper_bound\": counts[\"confirmed_attempted\"] + counts[\"unknown\"],\n            \"unreadable_receipts\": unreadable, \"requests\": rows,\n            \"definition\": \"Attempt means client dispatch attempted; not proof of provider execution. \"\n                          \"Started-only receipts have unknown dispatch state.\"}\n\n\ndef summarize_batch_http(directory: Path, traces=()) -> dict:\n    result = _summarize_http(directory, \"batch\", \"batch_id\", traces)\n    result[\"unique_batches\"] = result.pop(\"unique_requests\")\n    result[\"batches\"] = result.pop(\"requests\")\n    return result\n\n\ndef summarize_token_http(directory: Path, traces=()) -> dict:\n    \"\"\"Count tokenizer HTTP separately; one count_id is not a generation batch.\"\"\"\n    result = _summarize_http(directory, \"token_count\", \"count_id\", traces)\n    result[\"unique_counts\"] = result.pop(\"unique_requests\")\n    result[\"counts\"] = result.pop(\"requests\")\n    return result\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "batch_receipts.py",
+                  "sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+                  "media_type": "text/x-python",
+                  "size_bytes": 4436,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-ccb52599e7b27244",
+                  "source_ref": "batch_receipts.py",
+                  "source_sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 4436,
+                  "core_start": 0,
+                  "core_end": 4436,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "1a3b46cc397004c66666c701cdb9f3092ed07cfd62275605bdcbe0f006b530e0",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1042
+                },
+                "start_byte": 0,
+                "end_byte": 4436,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 4436,
+                "observed_tokens": 1042,
+                "source_start_line": 1,
+                "source_end_line": 86
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-a931ed15742b03c4e6e4"
+            ],
+            "workspace_digest_before": "866377695f5ca8f258304229a97eb18cf308ee1a04581e2c647d9f990efbffc9",
+            "workspace_digest_after": "866377695f5ca8f258304229a97eb18cf308ee1a04581e2c647d9f990efbffc9",
+            "failure_key": "",
+            "observation_fingerprint": "0cd8d3d7c147579e818976227878517218dd0a1aad7ac0cf8b7ecd82be008f98",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 118.83173664903734
+      },
+      {
+        "id": "rag_evidence_quality-collect-r1",
+        "final": "evidence_quality.py 的主要行为是检测长文本中是否存在重复的垃圾内容。它先用正则表达式去掉非中文和英文字母的字符，然后按行分割，取最长的一行作为候选。如果候选行长度小于 80 字符，直接返回 False。否则，尝试从 2 到 32 的周期长度，找到一个周期使得候选行可以被该周期重复至少 5 次覆盖，且重复部分与原文的差异不超过 3%。如果找到这样的周期，就返回 True，表示可能是重复的垃圾内容；否则返回 False。\n\n重要限制：\n1. 只检测长度超过 80 字符的候选行，短行直接返回 False。\n2. 周期长度上限为 32，超过 32 的周期不会被检测。\n3. 重复覆盖率要求至少 5 次，且差异不超过 3%。\n4. 只检测最长的一行，其他行不参与判断。\n\n对应关系：\n- 文本长度：80 字符是阈值，超过才可能被判定为垃圾。\n- 周期长度：2 到 32 字符，周期越短越容易被检测为重复。\n- 重复次数：至少 5 次，确保重复足够明显。\n- 差异率：3%，允许少量变异，但整体必须高度重复。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 3,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "evidence_quality.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "evidence_quality.py"
+            },
+            "action_fingerprint": "f61db1a207294dab795f15744d73aa4c96b52143141f680c8a195e3cbb876938",
+            "idempotency_key": "a8df501c69724c61169fb7a1f20b3408558bfdf3d2b11b63b95751e5ee96d97e",
+            "decision_id": "D-5eb7432d865f4511",
+            "request_id": "MR-29833509ec804018",
+            "started_at": "2026-09-13T07:41:46.946+00:00",
+            "ended_at": "2026-09-13T07:41:46.971+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "import re\n\n\n_NON_CONTENT = re.compile(r\"[^0-9a-zA-Z\\u3400-\\u4dbf\\u4e00-\\u9fff]+\")\n\n\ndef is_repetitive_garbage(text: str) -> bool:\n    \"\"\"Detect long, near-periodic parser garbage without rejecting normal prose.\"\"\"\n\n    lines = [_NON_CONTENT.sub(\"\", line) for line in text.splitlines()]\n    candidate = max(lines, key=len, default=\"\")\n    if len(candidate) < 80:\n        return False\n    max_period = min(32, len(candidate) // 5)\n    for period in range(2, max_period + 1):\n        unit = candidate[:period]\n        repetitions = len(candidate) // period\n        repeated_length = repetitions * period\n        if repetitions < 5 or repeated_length / len(candidate) < 0.9:\n            continue\n        repeated = unit * repetitions\n        mismatches = sum(\n            left != right\n            for left, right in zip(candidate[:repeated_length], repeated)\n        )\n        if mismatches / repeated_length <= 0.03:\n            return True\n    return False\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "evidence_quality.py",
+                  "sha256": "e81f0c0f5c284169721ac852b3865da33645acc1dcbf5376be79392bdea7f027",
+                  "media_type": "text/x-python",
+                  "size_bytes": 956,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-a83b9be79b2423b9",
+                  "source_ref": "evidence_quality.py",
+                  "source_sha256": "e81f0c0f5c284169721ac852b3865da33645acc1dcbf5376be79392bdea7f027",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 956,
+                  "core_start": 0,
+                  "core_end": 956,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "e81f0c0f5c284169721ac852b3865da33645acc1dcbf5376be79392bdea7f027",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 260
+                },
+                "start_byte": 0,
+                "end_byte": 956,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 956,
+                "observed_tokens": 260,
+                "source_start_line": 1,
+                "source_end_line": 28
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-6cd8dcd9ec05b3fc68b7"
+            ],
+            "workspace_digest_before": "14479b455a9fa52febe8fa78e3874d737fd93359fca58d816c6aa9bad09a8ec4",
+            "workspace_digest_after": "14479b455a9fa52febe8fa78e3874d737fd93359fca58d816c6aa9bad09a8ec4",
+            "failure_key": "",
+            "observation_fingerprint": "3a5898af1b208eeb203c7a0606f0c2ff8a1e07ca206db0c95c73d7b0f06195f1",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 114.44837438396644
+      },
+      {
+        "id": "rag_lexical_features-collect-r1",
+        "final": "lexical_features.py 的主要行为：\n\n1. 从文档标题、元数据别名字段和正文前 800 字节中提取候选别名。\n2. 使用正则匹配常见别名标记（如“又称”“别名”“亦称”等）。\n3. 清洗候选别名：去除引号、空格、“一种”“一个”等前缀，并去除“之一”“等”等后缀。\n4. 过滤掉与原标题相同、过短（≤1 字符）或过长（>40 字符）的候选。\n5. 返回最多 16 个不重复的别名。\n\n重要限制：\n- 只处理标题、元数据别名字段和正文前 800 字节，不扫描全文。\n- 别名长度限制为 1~40 字符。\n- 不返回与原标题相同的别名。\n- 不返回“一种”“一个”等泛化前缀。\n- 不返回“之一”“等”等后缀。\n- 不保证别名的语义正确性，只做形式清洗。\n\n对应数字/类型：\n- 最大别名数：16\n- 正文扫描长度：800 字符\n- 别名长度上限：40 字符\n- 别名长度下限：1 字符\n- 别名去重：基于字符串相等",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "lexical_features.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "lexical_features.py"
+            },
+            "action_fingerprint": "0562b309bd29518e5b1c0b9ee2e0fb95278d57497be6543e22e10da690dc35b4",
+            "idempotency_key": "2307720db06d272b9c6eaf9a397fcbeceb3c170e1fb4751b874db3a8dff70b8b",
+            "decision_id": "D-8291809bbe334a68",
+            "request_id": "MR-db1be551dbab404f",
+            "started_at": "2026-09-13T07:43:34.882+00:00",
+            "ended_at": "2026-09-13T07:43:34.911+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "import re\nfrom typing import Any\n\n\n_ALIAS_KEYS = (\n    \"aliases\",\n    \"alias\",\n    \"redirects\",\n    \"redirect\",\n    \"alternate_names\",\n    \"alternate_name\",\n    \"aka\",\n)\n_ALIAS_PATTERN = re.compile(\n    r\"(?:又称|又稱|又名|亦称|亦稱|也称|也稱|曾称|曾稱|简称|簡稱|旧称|舊稱|原名|别称|別稱)\"\n    r\"(?:为|為|作)?[：:]?\\s*([^，,。！？!?；;）)\\n]{1,80})\"\n)\n_PARENTHETICAL_TITLE = re.compile(r\"^(?P<base>.+?)\\s*[（(][^）)]{1,40}[）)]$\")\n_ALIAS_SPLIT = re.compile(r\"[、，,；;]|(?:或称|或稱|以及|及|和|与|與)\")\n_ALIAS_PREFIX = re.compile(r\"^(?:为|為|作|叫作|称作|稱作)\\s*\")\n_ALIAS_SUFFIX = re.compile(r\"(?:之一|等)$\")\n\n\ndef _metadata_alias_values(metadata: dict[str, Any]) -> list[str]:\n    values: list[str] = []\n    for key in _ALIAS_KEYS:\n        value = metadata.get(key)\n        if isinstance(value, (list, tuple, set)):\n            values.extend(str(item) for item in value)\n        elif value is not None:\n            values.append(str(value))\n    return values\n\n\ndef _clean_alias(value: str) -> str:\n    cleaned = value.strip(\" \\t\\\"'“”‘’《》【】[]（）()\")\n    cleaned = _ALIAS_PREFIX.sub(\"\", cleaned)\n    cleaned = _ALIAS_SUFFIX.sub(\"\", cleaned)\n    cleaned = re.sub(r\"\\s+\", \" \", cleaned).strip(\" 的\")\n    return cleaned\n\n\ndef extract_document_aliases(\n    title: str,\n    text: str,\n    metadata: dict[str, Any] | None = None,\n) -> list[str]:\n    \"\"\"Extract conservative document aliases for lexical entity lookup.\"\"\"\n    candidates = _metadata_alias_values(metadata or {})\n    title_match = _PARENTHETICAL_TITLE.match(title.strip())\n    if title_match:\n        candidates.append(title_match.group(\"base\"))\n\n    lead = \" \".join(text[:800].splitlines())\n    for match in _ALIAS_PATTERN.finditer(lead):\n        value = re.split(\n            r\"[，,](?:是|为|為|指|属于|屬於|位于|位於)\",\n            match.group(1),\n            maxsplit=1,\n        )[0]\n        candidates.extend(_ALIAS_SPLIT.split(value))\n\n    aliases: list[str] = []\n    normalized_title = _clean_alias(title)\n    for candidate in candidates:\n        alias = _clean_alias(candidate)\n        if (\n            1 < len(alias) <= 40\n            and alias != normalized_title\n            and not alias.startswith((\"一种\", \"一種\", \"一个\", \"一個\"))\n            and alias not in aliases\n        ):\n            aliases.append(alias)\n    return aliases[:16]\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "lexical_features.py",
+                  "sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+                  "media_type": "text/x-python",
+                  "size_bytes": 2419,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-93c9e429b25900d3",
+                  "source_ref": "lexical_features.py",
+                  "source_sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2419,
+                  "core_start": 0,
+                  "core_end": 2419,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "418f5bb5643c919f514c631fee6d8e77f0ea835ba1942a212cbba8b2f7acfa5e",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 790
+                },
+                "start_byte": 0,
+                "end_byte": 2419,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2419,
+                "observed_tokens": 790,
+                "source_start_line": 1,
+                "source_end_line": 74
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-175c10b01e357fbd5ce0"
+            ],
+            "workspace_digest_before": "13b7adf31948d36a91ca212ce718ba8de904ca023b762987716140f54270a124",
+            "workspace_digest_after": "13b7adf31948d36a91ca212ce718ba8de904ca023b762987716140f54270a124",
+            "failure_key": "",
+            "observation_fingerprint": "ecb2cf9ffe4b74abb03e3ffdd92b20c3b47c7b66ab5fab7125884b7fdd195e96",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 53.89348486799281
+      },
+      {
+        "id": "rag_sparse-collect-r1",
+        "final": "sparse.py 实现了一个稀疏文本编码器，核心是 sparse_encoder() 返回的 encode_sparse_texts 函数。它接收一个文本列表，对每个文本做中文分词、词频统计，然后按词频对词汇表排序，最后输出两个列表：索引列表和对应的权重列表。\n\n主要行为：\n- 中文分词：先按字符分割，再合并连续汉字为词，并把每个词的前两个字作为额外词项。\n- 词频统计：用 Counter 统计每个词出现次数。\n- 排序：按词频降序排列，相同词频时按 token_index 升序。\n- 编码：对每个词计算 token_index（基于 UTF-8 字节的 Blake2s 哈希），权重为 1 + log(min(词频, 8))。\n- 输出：返回 (索引列表, 权重列表) 的元组。\n\n重要限制：\n- 只处理中文字符和英文字母/数字，不处理标点、空格等非字母数字字符。\n- 词频上限为 8，超过 8 的词频都映射为相同权重。\n- 不保证词频相同时的排序稳定性，因为排序键只包含词频和 token_index。\n- 不支持自定义分词规则或词典。\n\n对应关系：\n- 中文字符 → 汉字列表\n- 词频 → 权重（1 + log(min(词频, 8))）\n- 词 → token_index（基于 UTF-8 字节的 Blake2s 哈希）\n- 文本列表 → 索引列表和权重列表的元组列表",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 4,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "sparse.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "sparse.py"
+            },
+            "action_fingerprint": "926c89fcbabf2e912b8cb5dea7c171036ea048bddf46946f0842dcc50b93b790",
+            "idempotency_key": "ddd5e11b1fa9e83f3ca744e19cdbb487774225ad0b5e7f0dd4bbda85d12c0b17",
+            "decision_id": "D-419db57254fe4767",
+            "request_id": "MR-091c5a8e95e84f28",
+            "started_at": "2026-09-13T07:44:27.454+00:00",
+            "ended_at": "2026-09-13T07:44:27.479+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "import hashlib\nimport math\nimport re\nfrom collections import Counter\nfrom collections.abc import Callable\n\nSparseBatch = tuple[list[list[int]], list[list[float]]]\n\n_WORD_PATTERN = re.compile(r\"[a-zA-Z0-9]+\")\n\n\ndef chinese_tokens(text: str) -> list[str]:\n    lowered = text.lower()\n    han_runs: list[list[str]] = []\n    current: list[str] = []\n    tokens = _WORD_PATTERN.findall(lowered)\n    for character in lowered:\n        if \"\\u4e00\" <= character <= \"\\u9fff\":\n            current.append(character)\n        elif current:\n            han_runs.append(current)\n            current = []\n    if current:\n        han_runs.append(current)\n    for run in han_runs:\n        tokens.extend(run)\n        tokens.extend(\"\".join(run[index : index + 2]) for index in range(len(run) - 1))\n    return tokens\n\n\ndef token_index(token: str) -> int:\n    digest = hashlib.blake2s(token.encode(\"utf-8\"), digest_size=4).digest()\n    return int.from_bytes(digest, \"big\", signed=False)\n\n\ndef encode_sparse_texts(texts: list[str]) -> SparseBatch:\n    all_indices: list[list[int]] = []\n    all_values: list[list[float]] = []\n    for text in texts:\n        counts = Counter(chinese_tokens(text))\n        weighted = sorted(\n            (token_index(token), 1.0 + math.log(min(count, 8))) for token, count in counts.items()\n        )\n        all_indices.append([index for index, _ in weighted])\n        all_values.append([value for _, value in weighted])\n    return all_indices, all_values\n\n\ndef sparse_encoder() -> Callable[[list[str]], SparseBatch]:\n    return encode_sparse_texts\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "sparse.py",
+                  "sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1554,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-bc8beecb2d36b50d",
+                  "source_ref": "sparse.py",
+                  "source_sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1554,
+                  "core_start": 0,
+                  "core_end": 1554,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 449
+                },
+                "start_byte": 0,
+                "end_byte": 1554,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1554,
+                "observed_tokens": 449,
+                "source_start_line": 1,
+                "source_end_line": 50
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-79bacc1e4b28a30ac96f"
+            ],
+            "workspace_digest_before": "9074233aa951158c1421e78eae22d805a71361019623a1f61cd815c9bba915af",
+            "workspace_digest_after": "9074233aa951158c1421e78eae22d805a71361019623a1f61cd815c9bba915af",
+            "failure_key": "",
+            "observation_fingerprint": "6a49c74e9aa79ea79349627c432c9c480705316a0425233ba384ff196e2a2305",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          },
+          {
+            "action_id": "A00002",
+            "sequence": 2,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "max_tokens": 4096,
+              "path": "sparse.py",
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "max_tokens": 4096,
+              "path": "sparse.py",
+              "start_byte": 0
+            },
+            "action_fingerprint": "926c89fcbabf2e912b8cb5dea7c171036ea048bddf46946f0842dcc50b93b790",
+            "idempotency_key": "e91022d07673edcf736642186f9b601a2005a4f1b36f7ad1334dffca596e48db",
+            "decision_id": "D-86bab0ffd23c4b5f",
+            "request_id": "MR-b717121835714c7d",
+            "started_at": "2026-09-13T07:45:48.210+00:00",
+            "ended_at": "2026-09-13T07:45:48.238+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "import hashlib\nimport math\nimport re\nfrom collections import Counter\nfrom collections.abc import Callable\n\nSparseBatch = tuple[list[list[int]], list[list[float]]]\n\n_WORD_PATTERN = re.compile(r\"[a-zA-Z0-9]+\")\n\n\ndef chinese_tokens(text: str) -> list[str]:\n    lowered = text.lower()\n    han_runs: list[list[str]] = []\n    current: list[str] = []\n    tokens = _WORD_PATTERN.findall(lowered)\n    for character in lowered:\n        if \"\\u4e00\" <= character <= \"\\u9fff\":\n            current.append(character)\n        elif current:\n            han_runs.append(current)\n            current = []\n    if current:\n        han_runs.append(current)\n    for run in han_runs:\n        tokens.extend(run)\n        tokens.extend(\"\".join(run[index : index + 2]) for index in range(len(run) - 1))\n    return tokens\n\n\ndef token_index(token: str) -> int:\n    digest = hashlib.blake2s(token.encode(\"utf-8\"), digest_size=4).digest()\n    return int.from_bytes(digest, \"big\", signed=False)\n\n\ndef encode_sparse_texts(texts: list[str]) -> SparseBatch:\n    all_indices: list[list[int]] = []\n    all_values: list[list[float]] = []\n    for text in texts:\n        counts = Counter(chinese_tokens(text))\n        weighted = sorted(\n            (token_index(token), 1.0 + math.log(min(count, 8))) for token, count in counts.items()\n        )\n        all_indices.append([index for index, _ in weighted])\n        all_values.append([value for _, value in weighted])\n    return all_indices, all_values\n\n\ndef sparse_encoder() -> Callable[[list[str]], SparseBatch]:\n    return encode_sparse_texts\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "sparse.py",
+                  "sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1554,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-bc8beecb2d36b50d",
+                  "source_ref": "sparse.py",
+                  "source_sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1554,
+                  "core_start": 0,
+                  "core_end": 1554,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "fbd8676a68b1e4d81fdc091691b198e20abdca617c51d0a78e216929974ac662",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 449
+                },
+                "start_byte": 0,
+                "end_byte": 1554,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1554,
+                "observed_tokens": 449,
+                "source_start_line": 1,
+                "source_end_line": 50
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-0a2f807e985f80f7c9e2"
+            ],
+            "workspace_digest_before": "9074233aa951158c1421e78eae22d805a71361019623a1f61cd815c9bba915af",
+            "workspace_digest_after": "9074233aa951158c1421e78eae22d805a71361019623a1f61cd815c9bba915af",
+            "failure_key": "",
+            "observation_fingerprint": "6a49c74e9aa79ea79349627c432c9c480705316a0425233ba384ff196e2a2305",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 141.71341655700235
+      },
+      {
+        "id": "rag_document_retrieval-collect-r1",
+        "final": "document_retrieval.py 实现了一个基于 RRF（Reciprocal Rank Fusion）的文档级检索流程，并在文档级结果上执行 BM25 精排。\n\n主要行为：\n1. 对每个查询，调用 index.search_chunks 获取候选文档块（candidate_k 个）；\n2. 对每个查询，对同一文档的多个候选块合并为一个文档得分，使用 1/(60 + rank) 作为权重；\n3. 按文档得分选出 document_limit 个文档；\n4. 对每个查询，在这些文档内再次调用 index.search_chunks 获取精排结果；\n5. 若精排结果中出现未选中的文档，则抛出 ValueError。\n\n重要限制：\n- 只在文档级别做融合，不在文档内部做融合；\n- 精排阶段不能引入新文档；\n- 返回的是文档块（chunk），不是原始文档；\n- 文档得分使用 1/(60 + rank) 而非 1/rank，因此排名越靠前权重越高。\n\n对应关系：\n- candidate_k：每个查询的初始候选块数量；\n- document_limit：最终返回的文档数量；\n- knowledge_base_id：用于限定搜索范围的知识库 ID；\n- document_id：文档唯一标识，用于去重和得分累加；\n- rank：排序后的位置，从 1 开始；\n- rrf_scores：文档得分；\n- rrf_votes：每个查询对文档的投票记录；\n- expanded_chunk_ids：精排阶段返回的文档块 ID 列表。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "document_retrieval.py",
+              "max_tokens": 8192,
+              "start_byte": 0
+            },
+            "wire_arguments": {
+              "path": "document_retrieval.py",
+              "max_tokens": 8192,
+              "start_byte": 0
+            },
+            "action_fingerprint": "304c0ffd22f42d8fdf215eb420dfa6cc6f2379800247002a0e81661e7b3cc8d0",
+            "idempotency_key": "16aca6143118cf2a5fada2069465ebe28ea6ad05a29914a0d51b2b8e2d336620",
+            "decision_id": "D-456ad3088df44558",
+            "request_id": "MR-33d7f4664eb6484a",
+            "started_at": "2026-09-13T07:46:40.675+00:00",
+            "ended_at": "2026-09-13T07:46:40.701+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"Document RRF followed by BM25 inside selected documents; no semantic rules.\"\"\"\nimport asyncio\n\n\nasync def document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit):\n    initial = await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, collapse_documents=True)\n        for query in queries))\n    scores, votes = {}, []\n    for query_index, group in enumerate(initial):\n        seen = set()\n        for rank, hit in enumerate(group, 1):\n            if hit.document_id in seen:\n                continue\n            seen.add(hit.document_id)\n            weight = 1 / (60 + rank)\n            scores[hit.document_id] = scores.get(hit.document_id, 0) + weight\n            votes.append({\"query_index\": query_index, \"document_id\": hit.document_id,\n                          \"best_chunk_id\": hit.node_id, \"rank\": rank, \"rrf_contribution\": weight})\n    selected = sorted(scores, key=lambda document: -scores[document])[:document_limit]\n    expanded = (await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, document_ids=selected)\n        for query in queries))) if selected else [[] for _ in queries]\n    if any(hit.document_id not in selected for group in expanded for hit in group):\n        raise ValueError(\"document-scoped search returned an unselected document\")\n    return expanded, {\"scope\": \"documents\", \"selected_document_ids\": selected,\n        \"document_limit\": document_limit, \"rrf_scores\": scores, \"rrf_votes\": votes,\n        \"document_candidates\": [[h.document_id for h in group] for group in initial],\n        \"expanded_chunk_ids\": [[h.node_id for h in group] for group in expanded],\n        \"passage_query_policy\": \"each original model query, restricted to the selected documents\"}\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "document_retrieval.py",
+                  "sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+                  "media_type": "text/x-python",
+                  "size_bytes": 1882,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-819803403298fd1a",
+                  "source_ref": "document_retrieval.py",
+                  "source_sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 1882,
+                  "core_start": 0,
+                  "core_end": 1882,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 493
+                },
+                "start_byte": 0,
+                "end_byte": 1882,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 1882,
+                "observed_tokens": 493,
+                "source_start_line": 1,
+                "source_end_line": 30
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-d0667aac151e2e00af39"
+            ],
+            "workspace_digest_before": "dcaae12850c2f43cc8b8c9a58c4d0a059235baf7c6adbfd66ed3fd9de18455dc",
+            "workspace_digest_after": "dcaae12850c2f43cc8b8c9a58c4d0a059235baf7c6adbfd66ed3fd9de18455dc",
+            "failure_key": "",
+            "observation_fingerprint": "55848703f6b2c4237c9143d1f7751a2417320d568bf1e2d87f7eb8fff453e17f",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 56.26125940901693
+      },
+      {
+        "id": "rag_state_tokens-collect-r1",
+        "final": "state_tokens.py 是一个 CPU RWKV 字节级 tokenization 工具，不依赖模型导入。它读取一个词表文件，将每个词表条目解析为 token_id 和对应的 UTF-8 字节序列，并构建一个字典树（Trie）用于编码。\n\n主要行为：\n1. Vocabulary 类：\n   - 构造函数读取词表文件，解析每行为 token_id 和 size 字符串，将 token 字符串转为 UTF-8 字节，并构建 Trie。\n   - encode 方法将输入字符串编码为 token_ids 列表，通过 Trie 逐字节匹配，遇到 EOF 标记（None）时记录 token_id。\n   - 编码后会验证拼接后的字节是否与原始输入一致，确保无损。\n\n2. encode_training 函数：\n   - 分别编码 prompt 和 target，将 prompt 的 token_ids 作为 input_ids，target 的 token_ids 加上 EOS 标记（0）作为 labels。\n   - 返回包含 input_ids、labels 和 token 计数的字典。\n   - 如果序列超过 max_tokens，直接抛出 ValueError，不截断。\n\n重要限制：\n- 词表必须包含 EOS 标记（token_id 为 0），否则编码会失败。\n- 输入字符串必须能被词表完整编码，否则抛出 ValueError。\n- 序列长度不能超过 max_tokens，否则抛出 ValueError。\n- 不支持截断，也不支持未在词表中的字符。\n\n对应数字或类型：\n- token_id：整数，词表中的唯一标识。\n- size：字符串，表示 token 的字节长度。\n- max_tokens：整数，最大 token 数量，超过则抛出 ValueError。\n- 返回的 input_ids、labels 和 prompt_tokens 均为整数列表。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 2,
+        "protocol_rejections": 0,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "state_tokens.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "state_tokens.py"
+            },
+            "action_fingerprint": "d7c52a8fac09af3166204f0ac0ecd1aafc22cf72b264a65491655c88c22fe756",
+            "idempotency_key": "c332b102a08e07970e2d9daedbf402c34fc0f38c70de44eae46b2652da8cecb9",
+            "decision_id": "D-78241cdb85f14fac",
+            "request_id": "MR-e59e5c905ba34258",
+            "started_at": "2026-09-13T07:47:33.528+00:00",
+            "ended_at": "2026-09-13T07:47:33.557+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "\"\"\"CPU RWKV byte tokenization and target-only teacher forcing; no model import.\"\"\"\n\nimport ast\nfrom pathlib import Path\n\n\nclass Vocabulary:\n    def __init__(self, path: Path):\n        self.by_id, self.trie = {}, {}\n        for line in path.read_text(encoding=\"utf-8\").splitlines():\n            token_id, rest = line.split(\" \", 1)\n            literal, size = rest.rsplit(\" \", 1)\n            token = ast.literal_eval(literal)\n            token = token.encode(\"utf-8\") if isinstance(token, str) else token\n            index = int(token_id)\n            if (not isinstance(token, bytes) or not token or len(token) != int(size)\n                    or index <= 0 or index in self.by_id):\n                raise ValueError(\"invalid RWKV vocabulary entry\")\n            self.by_id[index] = token\n            node = self.trie\n            for byte in token:\n                node = node.setdefault(byte, {})\n            node[None] = index\n\n    def encode(self, text: str) -> list[int]:\n        raw, start, result = text.encode(\"utf-8\"), 0, []\n        while start < len(raw):\n            node, cursor, best = self.trie, start, None\n            while cursor < len(raw) and raw[cursor] in node:\n                node = node[raw[cursor]]\n                cursor += 1\n                if None in node:\n                    best = cursor, node[None]\n            if best is None:\n                raise ValueError(\"vocabulary cannot encode input byte\")\n            start, index = best\n            result.append(index)\n        if b\"\".join(self.by_id[index] for index in result) != raw:\n            raise ValueError(\"tokenization changed input bytes\")\n        return result\n\n\ndef encode_training(prompt: str, target: str, vocab: Vocabulary, max_tokens: int) -> dict:\n    if not prompt or not target:\n        raise ValueError(\"empty prompt or target\")\n    # Separate encoding preserves the inference-time prompt/answer boundary.\n    prompt_ids, answer_ids = vocab.encode(prompt), vocab.encode(target)\n    ids = prompt_ids + answer_ids + [0]\n    if len(ids) > max_tokens:\n        raise ValueError(f\"sequence has {len(ids)} tokens, limit {max_tokens}; never truncate\")\n    return {\"input_ids\": ids, \"labels\": [-100] * len(prompt_ids) + answer_ids + [0],\n            \"prompt_tokens\": len(prompt_ids), \"target_tokens_with_eos\": len(answer_ids) + 1}\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "state_tokens.py",
+                  "sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+                  "media_type": "text/x-python",
+                  "size_bytes": 2316,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-e1f639cb7e95286c",
+                  "source_ref": "state_tokens.py",
+                  "source_sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 2316,
+                  "core_start": 0,
+                  "core_end": 2316,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 590
+                },
+                "start_byte": 0,
+                "end_byte": 2316,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 2316,
+                "observed_tokens": 590,
+                "source_start_line": 1,
+                "source_end_line": 52
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-f6dc91b6f649e8b220a7"
+            ],
+            "workspace_digest_before": "ba32818b03fb4e1c160e29983cfa592a4562ae0d8f5d9c12ce731a05382dfe2a",
+            "workspace_digest_after": "ba32818b03fb4e1c160e29983cfa592a4562ae0d8f5d9c12ce731a05382dfe2a",
+            "failure_key": "",
+            "observation_fingerprint": "61302d1c05eef7770066e713bb86a2c8d645fa19172ac2335b8c6915392eb87e",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 57.12367116799578
+      },
+      {
+        "id": "rag_schemas-collect-r1",
+        "final": "schemas.py 是一个 Pydantic 模型定义文件，主要用于定义请求、响应和数据模型。它包含以下主要内容：\n\n1. **导入和类型定义**：\n   - 导入了 `datetime`、`typing` 和 `pydantic` 库。\n   - 定义了 `SearchAnswerStatus` 枚举类型，表示搜索答案的状态。\n\n2. **请求和响应模型**：\n   - `ConversationMessage`：表示对话消息，包含角色和内容。\n   - `SearchRequest`：搜索请求模型，包含问题、知识库 ID、历史记录等字段。\n   - `SourceItem`：搜索结果中的文档项，包含文档 ID、标题、得分等信息。\n   - `SearchResponse`：搜索响应模型，包含结果列表和检索信息。\n   - `AskResponse`：问答响应模型，包含答案、来源和检索信息。\n   - `MaterialAskRequest`：材料问答请求模型，包含问题和材料列表。\n   - `SearchTestRun`：搜索测试运行模型，包含请求和响应。\n   - `SearchTestItem`：搜索测试项模型，包含请求、运行记录和状态信息。\n   - `SearchTestPage`：搜索测试分页模型，包含项列表和分页信息。\n\n3. **导入和索引模型**：\n   - `MarkdownImportRequest`：Markdown 导入请求模型，包含路径和选项。\n   - `ImportResponse`：导入响应模型，包含文档和节点数量。\n   - `KnowledgeBaseCreate` 和 `KnowledgeBaseUpdate`：知识库创建和更新模型。\n   - `KnowledgeBaseItem`：知识库项模型，包含基本信息和文件数量。\n   - `FileItem`：文件项模型，包含文件信息和状态。\n   - `JobItem`：任务项模型，包含任务类型、状态和进度。\n   - `JobAccepted`：任务接受响应模型。\n   - `FileUploadAccepted`：文件上传接受响应模型。\n   - `FineWikiImportRequest`：FineWiki 导入请求模型，包含路径和选项。\n   - `FineWikiPathEntry` 和 `FineWikiPathPage`：FineWiki 路径条目和分页模型。\n   - `ChunkItem`：文本块项模型，包含文本和元数据。\n   - `ChunkPage`：文本块分页模型。\n   - `AdminHealth`：管理健康检查模型，包含 MongoDB 和 Lexical 状态。\n\n4. **验证方法**：\n   - 多个模型中包含 `@field_validator` 装饰器，用于验证字段的有效性，例如确保问题不为空、文件路径有效等。\n\n5. **限制和约束**：\n   - 字段长度限制：例如 `question` 最大长度为 100,000 字符，`content` 最大长度为 100,000 字符。\n   - 数值范围限制：例如 `top_k` 在 5 到 200 之间，`batch_size` 在 1 到 256 之间。\n   - 枚举值限制：例如 `SearchAnswerStatus` 只能是预定义的值之一。\n\n6. **未实现的功能**：\n   - 文件中没有实际的业务逻辑或函数实现，仅定义了数据模型和验证规则。\n   - 没有实现文件读取、搜索、索引或导入等功能，这些功能需要在其他模块中实现。\n\n总结：`schemas.py` 是一个数据模型定义文件，主要用于定义请求、响应和数据模型，并包含一些验证规则。它没有实现任何实际的业务逻辑或功能。",
+        "termination": "submitted",
+        "acceptance": "not_evaluated",
+        "assistance": "rwkv_independent",
+        "continuation": null,
+        "error": null,
+        "status": "completed",
+        "trace_complete": true,
+        "trace_errors": [],
+        "tool_scope": "files",
+        "generation_started": 3,
+        "protocol_rejections": 1,
+        "actions": [
+          {
+            "action_id": "A00001",
+            "sequence": 1,
+            "status": "succeeded",
+            "action_type": "read_file",
+            "arguments": {
+              "path": "schemas.py",
+              "start_byte": 0,
+              "max_tokens": 4096
+            },
+            "wire_arguments": {
+              "path": "schemas.py"
+            },
+            "action_fingerprint": "15cb59aa0856a58c91bffac453840efbfbb88b4f5719a698fe4a2e0170d96cad",
+            "idempotency_key": "772400bfc0dc424b7375afdb24f955c3a0808e4f76d803a076f7ee2a118a5156",
+            "decision_id": "D-a70f0fea7cd94fe6",
+            "request_id": "MR-024731e47a5b4b06",
+            "started_at": "2026-09-13T07:48:28.622+00:00",
+            "ended_at": "2026-09-13T07:48:28.655+00:00",
+            "result": {
+              "action_type": "read_file",
+              "success": true,
+              "output": "from datetime import datetime\nfrom typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator\n\n\nSearchAnswerStatus = Literal[\"answered\", \"refused\", \"completed\", \"partial\", \"failed\"]\n\n\nclass ConversationMessage(BaseModel):\n    role: Literal[\"user\", \"assistant\"]\n    content: str = Field(max_length=100_000)\n\n\nclass SearchRequest(BaseModel):\n    question: str = Field(max_length=10_000)\n    top_k: int | None = Field(default=None, ge=1, le=100)\n    candidate_k: int | None = Field(default=None, ge=5, le=200)\n    min_score: float | None = None\n    knowledge_base_id: str | None = None\n    history: list[ConversationMessage] = Field(default_factory=list, max_length=64)\n\n    @field_validator(\"question\")\n    @classmethod\n    def validate_question(cls, value: str) -> str:\n        value = value.strip()\n        if not value:\n            raise ValueError(\"question must not be empty\")\n        return value\n\n\nclass SourceItem(BaseModel):\n    id: str\n    document_id: str\n    source: str\n    title: str\n    uri: str | None = None\n    score: float\n    snippet: str\n    metadata: dict[str, Any] = Field(default_factory=dict)\n\n\nclass SearchResponse(BaseModel):\n    results: list[SourceItem]\n    retrieval: dict[str, Any]\n\n\nclass AskResponse(BaseModel):\n    answer: str\n    sources: list[SourceItem]\n    retrieval: dict[str, Any]\n    generation: dict[str, Any]\n\n\nclass MaterialAskRequest(BaseModel):\n    question: str = Field(max_length=10_000)\n    materials: list[SourceItem] = Field(min_length=1, max_length=20)\n    history: list[ConversationMessage] = Field(default_factory=list, max_length=64)\n\n    @field_validator(\"question\")\n    @classmethod\n    def validate_question(cls, value: str) -> str:\n        value = value.strip()\n        if not value:\n            raise ValueError(\"question must not be empty\")\n        return value\n\n\nclass SearchTestRun(BaseModel):\n    id: str\n    test_id: str\n    run_number: int\n    request: dict[str, Any]\n    response: AskResponse\n    created_at: datetime\n\n\nclass SearchTestItem(BaseModel):\n    id: str\n    question: str\n    knowledge_base_id: str | None = None\n    request: dict[str, Any]\n    run_count: int = 0\n    created_at: datetime\n    updated_at: datetime\n    latest_run_id: str | None = None\n    latest_answer_status: SearchAnswerStatus | None = None\n    latest_failure_category: Literal[\n        \"data_missing\",\n        \"retrieval_failed\",\n        \"evidence_extraction_failed\",\n        \"generation_failed\",\n    ] | None = None\n    latest_failure_reason: str | None = None\n    latest_run: SearchTestRun | None = None\n\n\nclass SearchTestDetail(SearchTestItem):\n    runs: list[SearchTestRun] = Field(default_factory=list)\n\n\nclass SearchTestPage(BaseModel):\n    items: list[SearchTestItem]\n    total: int = Field(ge=0)\n    page: int = Field(ge=1)\n    page_size: int = Field(ge=1)\n\n\nclass MarkdownImportRequest(BaseModel):\n    path: str\n    source: str = \"local-markdown\"\n    limit: int = Field(default=0, ge=0)\n    batch_size: int = Field(default=16, ge=1, le=256)\n    recreate: bool = False\n\n\nclass ImportResponse(BaseModel):\n    documents: int\n    nodes: int\n\n\nclass KnowledgeBaseCreate(BaseModel):\n    name: str = Field(min_length=1, max_length=100)\n    description: str = Field(default=\"\", max_length=500)\n\n\nclass KnowledgeBaseUpdate(BaseModel):\n    name: str | None = Field(default=None, min_length=1, max_length=100)\n    description: str | None = Field(default=None, max_length=500)\n\n\nclass KnowledgeBaseItem(BaseModel):\n    id: str\n    name: str\n    description: str = \"\"\n    created_at: datetime\n    updated_at: datetime\n    file_count: int = 0\n\n\nFileStatus = Literal[\"pending\", \"processing\", \"ready\", \"failed\", \"deleting\"]\nJobStatus = Literal[\"pending\", \"running\", \"completed\", \"failed\"]\nJobKind = Literal[\"file_ingest\", \"file_reindex\", \"finewiki_import\"]\n\n\nclass FileItem(BaseModel):\n    id: str\n    knowledge_base_id: str\n    filename: str\n    content_type: str\n    extension: str\n    size: int\n    sha256: str\n    source: str\n    status: FileStatus\n    node_count: int = 0\n    error: str | None = None\n    last_job_id: str | None = None\n    created_at: datetime\n    updated_at: datetime\n\n\nclass JobItem(BaseModel):\n    id: str\n    kind: JobKind\n    status: JobStatus\n    progress: int = Field(ge=0, le=100)\n    stage: str\n    message: str = \"\"\n    documents_processed: int = 0\n    nodes_processed: int = 0\n    error: str | None = None\n    payload: dict[str, Any] = Field(default_factory=dict)\n    created_at: datetime\n    updated_at: datetime\n    started_at: datetime | None = None\n    completed_at: datetime | None = None\n\n\nclass JobAccepted(BaseModel):\n    job_id: str\n    status: JobStatus = \"pending\"\n\n\nclass FileUploadAccepted(JobAccepted):\n    file_id: str\n\n\nclass FineWikiImportRequest(BaseModel):\n    path: str\n    knowledge_base_id: str = \"default\"\n    source: str = \"finewiki-zh\"\n    titles: list[str] = Field(default_factory=list)\n    limit: int = Field(default=0, ge=0)\n    batch_size: int = Field(default=8, ge=1, le=128)\n    recreate: bool = False\n\n\nclass FineWikiPathEntry(BaseModel):\n    name: str\n    path: str\n    type: Literal[\"directory\", \"parquet\"]\n    size: int | None = None\n\n\nclass FineWikiPathPage(BaseModel):\n    current: str\n    parent: str | None = None\n    roots: list[str]\n    entries: list[FineWikiPathEntry]\n\n\nclass ChunkItem(BaseModel):\n    id: str\n    document_id: str\n    text: str\n    metadata: dict[str, Any] = Field(default_factory=dict)\n\n\nclass ChunkPage(BaseModel):\n    items: list[ChunkItem]\n    next_offset: str | None = None\n\n\nclass AdminHealth(BaseModel):\n    status: Literal[\"ok\", \"degraded\"]\n    mongodb: dict[str, Any]\n    lexical: dict[str, Any]\n",
+              "exit_code": null,
+              "artifacts": [
+                {
+                  "path": "schemas.py",
+                  "sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+                  "media_type": "text/x-python",
+                  "size_bytes": 5661,
+                  "summary": ""
+                }
+              ],
+              "evidence": [],
+              "metadata": {
+                "chunk": {
+                  "chunk_id": "CH-CURSOR-13b5b770b2419c58",
+                  "source_ref": "schemas.py",
+                  "source_sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+                  "media_type": "text/plain",
+                  "byte_start": 0,
+                  "byte_end": 5661,
+                  "core_start": 0,
+                  "core_end": 5661,
+                  "overlap_before": 0,
+                  "overlap_after": 0,
+                  "chunk_sha256": "5460bcb2635b2c1697e28ffa32d11c38d5d3d4dfeb34ccf811e50a7a9e41a53f",
+                  "split_strategy_version": "rwkv-token-cursor.v1",
+                  "previous_chunk_id": null,
+                  "next_chunk_id": null,
+                  "complete_source": true,
+                  "token_start": 0,
+                  "token_end": 1613
+                },
+                "start_byte": 0,
+                "end_byte": 5661,
+                "next_start_byte": null,
+                "truncated": false,
+                "complete": true,
+                "eof": true,
+                "source_size_bytes": 5661,
+                "observed_tokens": 1613,
+                "source_start_line": 1,
+                "source_end_line": 228
+              },
+              "error": null,
+              "outcome_type": "success"
+            },
+            "artifact_refs": [
+              "ART-99b20585c4ffc25fa5cb"
+            ],
+            "workspace_digest_before": "c2bf86bf15a5e752955efe3e384464b0f96e3eee440baf179f9503f1e857a4d3",
+            "workspace_digest_after": "c2bf86bf15a5e752955efe3e384464b0f96e3eee440baf179f9503f1e857a4d3",
+            "failure_key": "",
+            "observation_fingerprint": "ccbd6ca482fe9c13385e72867f41d303398a080dd114d74f3a55353132b90d5b",
+            "error": null,
+            "outcome_type": "success",
+            "atom_execution_contract_digest": ""
+          }
+        ],
+        "elapsed_seconds": 116.62344245397253
+      }
+    ]
+  }
+]

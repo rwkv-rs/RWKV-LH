@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-10-v2",
+  "seed_id": "prior_file-10",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py 基于 sqlite3 实现 SQLite 文档索引存储。existing(database) 直接返回 sqlite3.connect(database)。synchronize(database, root, documents) 用 with 连接：先 CREATE TABLE IF NOT EXISTS 建 documents(path 主键, content, digest, search, mtime) 和 metadata(key 主键, value)；读取 metadata 为 dict，读取 documents 的 path→mtime 为 old；counts 初始为 {'added':0,'updated':0,'deleted':0,'unchanged':0}。遍历 documents：若 old.get(path)==mtime 则 unchanged+1 并 continue；否则按 path 是否在 old 中给 updated/added+1，再用 INSERT OR REPLACE 写入五列，并在循环内 commit。代码没有删除分支，deleted 始终为 0。之后 generation = int(metadata.get('generation','0'))+1，把 root 和 generation 写回 metadata，返回 counts 加 generation。status(database) 经 existing() 读 metadata、COUNT(*) documents，返回 document_count、generation、root。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "c711491b2d890000bc85c7284fff2b08701eb484f4a27b3eadcd5af52a4f2c61",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py 基于 sqlite3 实现 SQLite 文档索引存储。existing(database) 直接返回 sqlite3.connect(database)。synchronize(database, root, documents) 用 with 连接：先 CREATE TABLE IF NOT EXISTS 建 documents(path 主键, content, digest, search, mtime) 和 metadata(key 主键, value)；读取 metadata 为 dict，读取 documents 的 path→mtime 为 old；counts 初始为 {'added':0,'updated':0,'deleted':0,'unchanged':0}。遍历 documents：若 old.get(path)==mtime 则 unchanged+1 并 continue；否则按 path 是否在 old 中给 updated/added+1，再用 INSERT OR REPLACE 写入五列，并在循环内 commit。代码没有删除分支，deleted 始终为 0。之后 generation = int(metadata.get('generation','0'))+1，把 root 和 generation 写回 metadata，返回 counts 加 generation。status(database) 经 existing() 读 metadata、COUNT(*) documents，返回 document_count、generation、root。\"}}\n```",
+  "target_sha256": "2431d79a033ffb202aa30d7f75bb97fe46fc91fc4893c86d50819ad903b728af",
+  "target_tokens": 288,
+  "review_issues": []
+}

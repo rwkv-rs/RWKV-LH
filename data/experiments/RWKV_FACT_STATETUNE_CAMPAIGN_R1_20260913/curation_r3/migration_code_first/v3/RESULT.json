@@ -1,0 +1,13 @@
+{
+  "id": "migration_code_first-v3",
+  "seed_id": "migration_code_first",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：已用 read_file 完整读取 config_store/migrations.py（A00001，1388 字节，EOF）和 README.md（A00002，2685 字节，EOF）；未读取其它文件，未运行任何测试。\\n\\n需求（来自 README）：migrate 仅允许 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改 DB/备份；value 应按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；需建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 须先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅 migrations.py）：migrate 第一句就把 DB 字节复制到 backup，早于版本判断，故 v2 时仍可能改写备份；未见 BACKUP≠DB 或防覆盖检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 使用默认参数，未按需求规范化；未知版本未拒绝。restore 直接用备份字节覆盖 DB，未校验备份合法性，也未原子发布。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，检查退出码与 stdout 末行 JSON。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：已用 read_file 完整读取 config_store/migrations.py（A00001，1388 字节，EOF）和 README.md（A00002，2685 字节，EOF）；未读取其它文件，未运行任何测试。\\n\\n需求（来自 README）：migrate 仅允许 v1→v2，先保留有效完整 v1 备份再原子发布；BACKUP 不得等于 DB 且已有备份不得覆盖；已是 v2 时 changed=false 且不改 DB/备份；value 应按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；需建 schema_migrations 并写 version=2；坏 JSON、未知版本、冲突备份、异常 schema、恢复失败须失败且原 DB 字节不变；restore 须先验证备份为合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（仅 migrations.py）：migrate 第一句就把 DB 字节复制到 backup，早于版本判断，故 v2 时仍可能改写备份；未见 BACKUP≠DB 或防覆盖检查。加列后只执行 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode 后 commit，坏 JSON 会留下部分修改，非原子；json.dumps 使用默认参数，未按需求规范化；未知版本未拒绝。restore 直接用备份字节覆盖 DB，未校验备份合法性，也未原子发布。\\n\\n未执行的验证建议：在样例 v1 上执行 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，检查退出码与 stdout 末行 JSON。\"}}\n```",
+  "target_sha256": "7e8818e256166af0d6b2f52bb6b059d19e2a3df120b715d7b42cd0db7b65f568",
+  "target_tokens": 505,
+  "review_issues": []
+}

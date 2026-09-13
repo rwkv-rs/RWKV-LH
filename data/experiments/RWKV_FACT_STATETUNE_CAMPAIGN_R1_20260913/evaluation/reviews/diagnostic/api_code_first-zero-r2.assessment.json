@@ -1,0 +1,98 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "api_code_first-zero-r2",
+  "task_id": "api_code_first",
+  "arm": "zero",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "7ae7881494436838f8c5530cfc24cdfd72faecfdb61bc43ac7b741e73ce82b45",
+  "run_sha256": "ed2453cdaa0b5bbc3ba4312c35f10112997dc470c97ab156601fbd03da98af20",
+  "review_sha256": "09cd12b65ade6bafb7a1621c9537fd3ea3d8e9061c7b6015ebeb741bc896c59e",
+  "execution_identity_sha256": "b5efe5b8981b0b5c2c0b80f9103310eeb8558f8784fe784426b23dafdad35a17",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "http",
+      "status": "unmet",
+      "reason": "把预约创建/查询/取消和文档状态码当成已实现；源码没有这些业务",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "unmet",
+      "reason": "虚称启动创建并持续使用DB；代码未使用db",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "已读取和未运行区分存在，但已实现列表与源码冲突",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "启动时会创建该数据库文件；后续启动会保留数据并继续使用同一数据库",
+      "reason": "源码只有parse_args，没打开/创建DB",
+      "impact": "虚构当前数据库行为",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "健康检查、预约创建、查询、取消等接口的路由和响应结构已实现",
+      "reason": "源码只有GET /health和其余GET501",
+      "impact": "需求/实现混淆",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8608,
+    "output_tokens": 769,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

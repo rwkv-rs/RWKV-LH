@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"该文件用 sqlite3 实现 SQLite 文档索引存储。existing(database) 返回 sqlite3.connect(database)。synchronize(database, root, documents) 在连接上下文里建两张表：documents(path 主键, content, digest, search, mtime) 与 metadata(key 主键, value)；读出 metadata 字典及 documents 的 path→mtime。counts 初始含 added/updated/deleted/unchanged。逐条处理传入文档：mtime 与旧值相同则 unchanged 并跳过，否则按 path 是否存在记为 updated 或 added，再用 INSERT OR REPLACE 写入并 commit；代码无删除分支，deleted 恒为 0。随后 generation 取 metadata 中 generation（缺省 '0'）加 1，写回 root 和 generation，返回 counts 加 generation。status(database) 经 existing() 读 metadata 并 COUNT(*) documents，返回 document_count、generation、root。\"}}",
+  "reason": "直接依据已读取的 store.py 内容概括表结构与三个函数，不补充文件外事实。"
+}

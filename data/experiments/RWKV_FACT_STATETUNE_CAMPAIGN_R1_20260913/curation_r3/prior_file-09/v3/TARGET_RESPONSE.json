@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/documents.py（15 行，492 字节）是一个仅依赖标准库的 Markdown 索引模块，导入 hashlib 与 __future__.annotations。它定义两个函数：normalize(value) 返回 value.lower()，用于生成搜索标准化文本；collect(root) 先按文件名 sorted(root.glob('*.md')) 遍历 Markdown 文件，对每个文件用 path.read_bytes() 取原始字节，再以 UTF-8 解码（errors='replace'），然后追加一条字典记录。记录字段包括 path（path.name 文件名）、content（解码文本）、digest（原始字节的 SHA-256 十六进制摘要）、search（normalize(text) 后的小写文本）、mtime（path.stat().st_mtime_ns 纳秒修改时间）。collect 返回该记录列表；文件本身未包含查询、过滤或排序排名逻辑。\"}}",
+  "reason": "基于已完整读取的 document_index/documents.py 源文件，概括其函数、数据流与记录字段，不添加文件外事实。"
+}

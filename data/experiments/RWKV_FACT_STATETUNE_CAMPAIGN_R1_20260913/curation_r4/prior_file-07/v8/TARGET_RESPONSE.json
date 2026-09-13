@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件实现 SQLite 配置数据库的校验与备份 I/O。validate 先执行 PRAGMA integrity_check，要求返回 'ok'，再读取 PRAGMA user_version，仅接受 1 或 2；随后用 LIMIT 0 探测 settings 的 key、value 列，版本 2 还探测 value_type、updated_at 列；不满足则抛 ValueError。temporary_path 在指定父目录用 tempfile.mkstemp 创建 .config-stage-*.sqlite3 并关闭文件描述符。copy_database 以只读 URI 连接 source，先 validate，再 backup 到 destination，随后以 rb 打开 destination 并 fsync。write_backup_exclusive 先生成 staged 临时文件，copy_database 后通过 os.link 创建 backup，最后在 finally 中删除 staged。以上仅为源文件静态内容摘要；未观察到实际测试或运行。\"}}",
+  "reason": "基于已读取的完整文件内容，给出符合单次 final_answer 的纯文本总结，未虚构测试或外部依赖。"
+}

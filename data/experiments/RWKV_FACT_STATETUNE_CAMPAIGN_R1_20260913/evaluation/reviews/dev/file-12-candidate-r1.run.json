@@ -1,0 +1,67 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "file-12-candidate-r1",
+  "task_id": "file-12",
+  "arm": "candidate",
+  "repeat": 1,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "README.md 是 SQLite HTTP 订单服务的需求与实现说明。目的：解决网络重试重复扣库存及多行订单部分扣减问题，实现可维护代码并更新 README 的启动、验证和事务说明。允许自行组织模块，Python 3.11+ 标准库可用，不依赖网络。启动命令：python server.py --db /absolute/path/inventory.sqlite3 --host 127.0.0.1 --port 8080，首次创建 DB，重启保留数据，响应 JSON 可增加字段。健康检查 GET /health 返回 200 `{\"ok\":true}`；PUT /inventory/{url-encoded-sku} 设置 SKU 当前可售量，创建或更新返回 200 `{\"sku\":\"...\",\"stock\":N}`，N 必须非负整数，bool/小数非法，SKU 非空 UTF-8 字符串。GET /inventory/{sku} 返回 200 库存或 404。POST /orders 必须有非空 Idempotency-Key 请求头（最长 128 字符），JSON 为 `{customer:非空字符串,items:[{sku:非空字符串,quantity:正整数},...]}`，同 SKU 项数量求和并按 SKU 排序，item 顺序和重复项拆分不影响语义，quantity 不接受 bool/小数。首次成功返回 201，同 key、相同规范化请求返回 200 同一订单且不再次扣库存，同 key 不同 customer/明细返回 409。任一 SKU 不存在或数量不足均 404，失败应整体无写入，不扣其他 SKU、不创建订单、不占用 key，允许之后重试。GET /orders 按 id 排序返回 200 `{\"orders\":[...]}`，GET /orders/{id} 返回 200 完整订单或 404。坏 JSON、非法字段、空 items/key 返回 400，错误对象含 error；非法请求不得改变库存或订单；未知路由 404。库存判定、扣减和订单/idempotency 登记必须原子完成；并发相同 key 只创建一单，并发不同 key 不得超卖；库存、订单、key 在进程重启后继续有效。公开验证仅做健康检查，交易与恢复验证需自行补充。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "dev/file-12-candidate-r1/execution/RESULT.json",
+      "sha256": "0cde41decb2d790e75c03b6da081659d88f1bb3e42cab733efcb394b47d69cb2",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "dev/file-12-candidate-r1/execution/model_trace.jsonl",
+      "sha256": "e4dbcca00ba97766b2a70e20f7931c67501b3265d1c6f8e0344a5eb0f39b4aba",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "dev/file-12-candidate-r1/execution/state_snapshot.json",
+      "sha256": "1a9295d61a5a26563798895b7c149bad679558543f8f770df69f3eed75408725",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "dev/file-12-candidate-r1/workspace/README.md",
+      "sha256": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "dev/file-12-candidate-r1/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    },
+    {
+      "id": "E6",
+      "path": "dev/file-12-candidate-r1/workspace/verify_public.py",
+      "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 4074,
+    "output_tokens": 683,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

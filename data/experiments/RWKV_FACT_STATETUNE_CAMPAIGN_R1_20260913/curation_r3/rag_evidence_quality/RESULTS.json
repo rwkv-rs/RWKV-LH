@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rag_evidence_quality-v1",
+    "seed_id": "rag_evidence_quality",
+    "candidate": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本次真正执行的工具操作只有一次 read_file：读取 evidence_quality.py，956 字节，完整到 EOF（eof=true，未截断，未修改文件）。以下内容是该源码的静态阅读推断，本次没有运行任何测试。\\n\\n实际实现：模块级 _NON_CONTENT 正则把不属于 0-9、a-zA-Z、U+3400–U+4DBF、U+4E00–U+9FFF 的字符替换为空；随后按 splitlines() 分行清理，用 max(lines, key=len, default=\\\"\\\") 取清理后最长的一行作为 candidate。若 len(candidate) < 80 直接返回 False。否则 max_period = min(32, len(candidate)//5)，对 period 从 2 递增到 max_period：unit = candidate[:period]，repetitions = len(candidate)//period，repeated_length = repetitions*period；只有 repetitions >= 5 且 repeated_length/len(candidate) >= 0.9 才继续，否则 continue；然后把 unit 重复 repetitions 次，与 candidate 前 repeated_length 个字符逐位比较，若 mismatches/repeated_length <= 0.03 立即返回 True。循环走完返回 False。\\n\\n数字与类型对应：长度阈值 80；周期上限是 min(32, len//5) 而非固定 32；最少重复 5 次；重复覆盖长度占比至少 0.9；失配率不超过 0.03；输入 text: str，输出 bool。重要限制：只考察最长的一行，其他行不参与；周期性判断从 period=2 起升序短路；覆盖不足或重复次数不足时跳过该周期。函数名与文档字符串表达的意图（检测近周期解析垃圾）不算额外已实现功能，仅代码本身有效。未执行：可用 ≥80 字符的周期串、高变异串和短行样本验证边界。\"\n  }\n}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "a3419c36a5ae1c8d821a06a842a999c33c1b7708e77de4a3f8160616741ec8ac",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\n  \"function\": \"final_answer\",\n  \"params\": {\n    \"text\": \"本次真正执行的工具操作只有一次 read_file：读取 evidence_quality.py，956 字节，完整到 EOF（eof=true，未截断，未修改文件）。以下内容是该源码的静态阅读推断，本次没有运行任何测试。\\n\\n实际实现：模块级 _NON_CONTENT 正则把不属于 0-9、a-zA-Z、U+3400–U+4DBF、U+4E00–U+9FFF 的字符替换为空；随后按 splitlines() 分行清理，用 max(lines, key=len, default=\\\"\\\") 取清理后最长的一行作为 candidate。若 len(candidate) < 80 直接返回 False。否则 max_period = min(32, len(candidate)//5)，对 period 从 2 递增到 max_period：unit = candidate[:period]，repetitions = len(candidate)//period，repeated_length = repetitions*period；只有 repetitions >= 5 且 repeated_length/len(candidate) >= 0.9 才继续，否则 continue；然后把 unit 重复 repetitions 次，与 candidate 前 repeated_length 个字符逐位比较，若 mismatches/repeated_length <= 0.03 立即返回 True。循环走完返回 False。\\n\\n数字与类型对应：长度阈值 80；周期上限是 min(32, len//5) 而非固定 32；最少重复 5 次；重复覆盖长度占比至少 0.9；失配率不超过 0.03；输入 text: str，输出 bool。重要限制：只考察最长的一行，其他行不参与；周期性判断从 period=2 起升序短路；覆盖不足或重复次数不足时跳过该周期。函数名与文档字符串表达的意图（检测近周期解析垃圾）不算额外已实现功能，仅代码本身有效。未执行：可用 ≥80 字符的周期串、高变异串和短行样本验证边界。\"\n  }\n}\n```",
+    "target_sha256": "858cf9c5ff5549f0dfa9424f7820d1f579c27c128ebafe8d37080885269703a3",
+    "target_tokens": 571
+  }
+]

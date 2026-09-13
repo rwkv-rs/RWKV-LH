@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"该文件 config_store/sqlite_io.py 主要提供 SQLite 配置库的校验与备份/复制操作。validate(connection) 先执行 PRAGMA integrity_check，结果须为 'ok'，再读取 PRAGMA user_version，仅允许 1 或 2；随后确认 settings 表存在 key、value 列，若版本为 2 还要求 value_type、updated_at 列，最终返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在父目录创建 .config-stage- 前缀、.sqlite3 后缀的临时文件，关闭描述符后返回 Path。copy_database(source, destination) 以只读 URI 打开源库并先 validate，再连接目标库，调用 sqlite3 的 backup 复制，最后对目标文件执行 os.fsync。write_backup_exclusive(source, backup) 先在 backup 父目录创建暂存文件，调用 copy_database 写入暂存文件，再用 os.link 将其硬链接到 backup，最后在 finally 中删除暂存文件。文件未展示调用方、并发控制或异常回滚细节。\"}}",
+  "reason": "已读取并基于该文件的完整可见内容，概述其主要函数、版本限制与备份流程，未补充文件外事实。"
+}

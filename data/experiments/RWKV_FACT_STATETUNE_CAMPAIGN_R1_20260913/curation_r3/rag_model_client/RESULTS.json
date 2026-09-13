@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rag_model_client-v1",
+    "seed_id": "rag_model_client",
+    "candidate": null,
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "alternate target at same actual production boundary"
+  },
+  {
+    "id": "rag_model_client-v2",
+    "seed_id": "rag_model_client",
+    "candidate": null,
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "alternate target at same actual production boundary"
+  },
+  {
+    "id": "rag_model_client-v3",
+    "seed_id": "rag_model_client",
+    "candidate": null,
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "alternate target at same actual production boundary"
+  },
+  {
+    "id": "rag_model_client-v4",
+    "seed_id": "rag_model_client",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"model_client.py 共 66 行、3114 字节；本次已用 read_file 完整读取（0–3114 字节，约 793 token），未运行测试，未改文件。实际实现：1) model_client_class(settings)：若 settings.native_transport 等于 `rwkvos_batch`，惰性导入并返回 RwkvosBatchClient；否则返回 NativeRWKVClient。2) model_client_options(settings, **overrides)：先构造 dict，键 base_url、model、timeout_seconds、context_window_tokens、max_concurrency 均直接取自 settings 对应字段；若 transport 为 `rwkvos_batch`，先按 CF-Access-Client-Id 和 CF-Access-Client-Secret 构造 headers，仅当 value.get_secret_value() 非空才加入，再 update 进 state_id、reader_state_id、writer_state_id、reader_prompt_protocol、reader_input_layout、writer_prompt_protocol、stop_tokens、prefill_mode、count_input_tokens、input_token_limit、batch_size、batch_wait_ms；其中 reader_state_id 在 native_resolver_protocol 等于 `binary_query` 时选 rwkvos_binary_reader_state_id，否则选 rwkvos_reader_state_id。否则加 api_key。最后 options.update(overrides) 覆盖。3) model_answer_bounds(raw_text, trace)：raw_text 非 str 返回 None。transport 默认 `native`；native 时调用 inspect_envelope(raw_text, prefill 默认 `<think`)；非 `rwkvos_batch` 返回 None；rwkvos_batch 要求 envelope 是 dict 且 valid is True，answer_span 是 dict 且 unit 为 `unicode_code_points`，start/end 的 type(...) is int（排除 bool），并满足 0 <= start < end <= len(raw_text) 且切片 strip() 非空，才返回 (start, end)，否则 None；不修复文本。重要限制：settings 各字段类型、inspect_envelope 和两个 client 的具体实现未在本文件出现，不能由本文件断言；本次未执行测试。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"model_client.py 共 66 行、3114 字节；本次已用 read_file 完整读取（0–3114 字节，约 793 token），未运行测试，未改文件。实际实现：1) model_client_class(settings)：若 settings.native_transport 等于 `rwkvos_batch`，惰性导入并返回 RwkvosBatchClient；否则返回 NativeRWKVClient。2) model_client_options(settings, **overrides)：先构造 dict，键 base_url、model、timeout_seconds、context_window_tokens、max_concurrency 均直接取自 settings 对应字段；若 transport 为 `rwkvos_batch`，先按 CF-Access-Client-Id 和 CF-Access-Client-Secret 构造 headers，仅当 value.get_secret_value() 非空才加入，再 update 进 state_id、reader_state_id、writer_state_id、reader_prompt_protocol、reader_input_layout、writer_prompt_protocol、stop_tokens、prefill_mode、count_input_tokens、input_token_limit、batch_size、batch_wait_ms；其中 reader_state_id 在 native_resolver_protocol 等于 `binary_query` 时选 rwkvos_binary_reader_state_id，否则选 rwkvos_reader_state_id。否则加 api_key。最后 options.update(overrides) 覆盖。3) model_answer_bounds(raw_text, trace)：raw_text 非 str 返回 None。transport 默认 `native`；native 时调用 inspect_envelope(raw_text, prefill 默认 `<think`)；非 `rwkvos_batch` 返回 None；rwkvos_batch 要求 envelope 是 dict 且 valid is True，answer_span 是 dict 且 unit 为 `unicode_code_points`，start/end 的 type(...) is int（排除 bool），并满足 0 <= start < end <= len(raw_text) 且切片 strip() 非空，才返回 (start, end)，否则 None；不修复文本。重要限制：settings 各字段类型、inspect_envelope 和两个 client 的具体实现未在本文件出现，不能由本文件断言；本次未执行测试。\"}}\n```",
+    "target_sha256": "ed798ee1bf6d604360288a3b17eb7408bf66da794890ec7f236e7d8a595419ef",
+    "target_tokens": 584
+  },
+  {
+    "id": "rag_model_client-v5",
+    "seed_id": "rag_model_client",
+    "candidate": null,
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "alternate target at same actual production boundary"
+  }
+]

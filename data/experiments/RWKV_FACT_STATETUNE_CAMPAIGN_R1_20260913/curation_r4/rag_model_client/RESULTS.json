@@ -1,0 +1,40 @@
+[
+  {
+    "id": "rag_model_client-v6",
+    "seed_id": "rag_model_client",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行一次 read_file：path=model_client.py，start_byte=0，max_tokens=8192；工具返回完整源码 3114 字节/66 行/793 token，sha256=1b0cbd28fa25bd1b9656611705e9d7456e48258845785b076f11441ed08784ac，文件未修改，未运行测试。源码实际实现：model_client_class 仅当 settings.native_transport==\\\"rwkvos_batch\\\" 时返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 先以 native_base_url、native_model、native_timeout_seconds、native_context_window_tokens、native_max_concurrency 构造 options；rwkvos_batch 分支仅把 get_secret_value() 非空的 CF-Access-Client-Id/Secret 放入 headers，并加入 state_id、reader_state_id（native_resolver_protocol==\\\"binary_query\\\" 时用 rwkvos_binary_reader_state_id，否则用 rwkvos_reader_state_id）、writer_state_id、reader/writer_prompt_protocol、reader_input_layout、stop_tokens、prefill_mode、count_input_tokens、input_token_limit、batch_size、batch_wait_ms；否则加 native_api_key；最后用 overrides 覆盖。model_answer_bounds 不修复 raw_text：非 str 返回 None；transport 默认 native，native 调 inspect_envelope(raw_text, prefill 默认 \\\"<think\\\")；非 native 且非 rwkvos_batch 返回 None；rwkvos_batch 要求 envelope 为 dict、valid is True、answer_span 为 dict 且 unit==\\\"unicode_code_points\\\"、start/end 严格 int、0<=start<end<=len(raw_text) 且切片 strip 非空，才返回 (start,end)，否则 None。以上为源码推断；本次仅执行读取。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行一次 read_file：path=model_client.py，start_byte=0，max_tokens=8192；工具返回完整源码 3114 字节/66 行/793 token，sha256=1b0cbd28fa25bd1b9656611705e9d7456e48258845785b076f11441ed08784ac，文件未修改，未运行测试。源码实际实现：model_client_class 仅当 settings.native_transport==\\\"rwkvos_batch\\\" 时返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 先以 native_base_url、native_model、native_timeout_seconds、native_context_window_tokens、native_max_concurrency 构造 options；rwkvos_batch 分支仅把 get_secret_value() 非空的 CF-Access-Client-Id/Secret 放入 headers，并加入 state_id、reader_state_id（native_resolver_protocol==\\\"binary_query\\\" 时用 rwkvos_binary_reader_state_id，否则用 rwkvos_reader_state_id）、writer_state_id、reader/writer_prompt_protocol、reader_input_layout、stop_tokens、prefill_mode、count_input_tokens、input_token_limit、batch_size、batch_wait_ms；否则加 native_api_key；最后用 overrides 覆盖。model_answer_bounds 不修复 raw_text：非 str 返回 None；transport 默认 native，native 调 inspect_envelope(raw_text, prefill 默认 \\\"<think\\\")；非 native 且非 rwkvos_batch 返回 None；rwkvos_batch 要求 envelope 为 dict、valid is True、answer_span 为 dict 且 unit==\\\"unicode_code_points\\\"、start/end 严格 int、0<=start<end<=len(raw_text) 且切片 strip 非空，才返回 (start,end)，否则 None。以上为源码推断；本次仅执行读取。\"}}\n```",
+    "target_sha256": "c32769682d8928170f1b577f52f865223eb1ca001031572e0a95c009823a63a3",
+    "target_tokens": 524,
+    "review_issues": []
+  },
+  {
+    "id": "rag_model_client-v7",
+    "seed_id": "rag_model_client",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file：path=model_client.py、start_byte=0、max_tokens=8192，成功返回完整源码 3114 字节/66 行/793 tokens，complete=true，未运行测试也未改文件。源码实现：model_client_class 在 native_transport 等于 rwkvos_batch 时延迟导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 先取 native_base_url、native_model、native_timeout_seconds、native_context_window_tokens、native_max_concurrency 构造 options；rwkvos_batch 分支按 get_secret_value() 真值加入 CF-Access-Client-Id/Secret 及 state_id、reader_state_id（native_resolver_protocol 等于 binary_query 用 rwkvos_binary_reader_state_id，否则 rwkvos_reader_state_id）等一批字段；否则设 api_key=native_api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 返回 None；transport 默认 native，native 调 inspect_envelope(raw_text, trace.get(prefill,<think>))；非 native 且非 rwkvos_batch 返回 None；rwkvos_batch 要求 envelope 为 dict 且 valid is True、answer_span 为 dict 且 unit 等于 unicode_code_points、start/end 均为 int 且 0<=start<end<=len(raw_text)、切片 strip 非空，否则 None。限制：不修复 raw_text；以上为源码推断，非运行验证。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=8192",
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file：path=model_client.py、start_byte=0、max_tokens=8192，成功返回完整源码 3114 字节/66 行/793 tokens，complete=true，未运行测试也未改文件。源码实现：model_client_class 在 native_transport 等于 rwkvos_batch 时延迟导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 先取 native_base_url、native_model、native_timeout_seconds、native_context_window_tokens、native_max_concurrency 构造 options；rwkvos_batch 分支按 get_secret_value() 真值加入 CF-Access-Client-Id/Secret 及 state_id、reader_state_id（native_resolver_protocol 等于 binary_query 用 rwkvos_binary_reader_state_id，否则 rwkvos_reader_state_id）等一批字段；否则设 api_key=native_api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 返回 None；transport 默认 native，native 调 inspect_envelope(raw_text, trace.get(prefill,<think>))；非 native 且非 rwkvos_batch 返回 None；rwkvos_batch 要求 envelope 为 dict 且 valid is True、answer_span 为 dict 且 unit 等于 unicode_code_points、start/end 均为 int 且 0<=start<end<=len(raw_text)、切片 strip 非空，否则 None。限制：不修复 raw_text；以上为源码推断，非运行验证。\"}}\n```",
+    "target_sha256": "014969ff63eca3ced9f24ac52c586737ff9b82bd5c06fd329c83bbd65b9ccb7d",
+    "target_tokens": 427
+  },
+  {
+    "id": "rag_model_client-v8",
+    "seed_id": "rag_model_client",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file：path=model_client.py，start_byte=0，max_tokens=8192；读回完整源文件，byte 0 到 3114，66 行，793 tokens，sha256 1b0c...84ac，未截断。源码实际：model_client_class 在 settings.native_transport 等于 rwkvos_batch 时导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 始终从 settings.native_* 取 base_url、model、timeout_seconds、context_window_tokens、max_concurrency；batch 分支按需加入 CF-Access 头，以及 state_id、reader_state_id（仅 native_resolver_protocol 等于 binary_query 时用 binary_reader_state_id，否则用 reader_state_id）、writer_state_id 等；非 batch 加 api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 的 raw_text 返回 None；transport 默认 native，native 调 inspect_envelope；rwkvos_batch 要求 envelope 是 dict 且 valid 为 True、answer_span 是 dict、unit 等于 unicode_code_points、start/end 为 int 且 0 <= start < end <= len(raw_text)、切片 strip 非空，返回 start,end，否则 None。限制：本次只读文件，未运行测试或网络调用；未验证 settings 属性一定存在；docstring 的不改变输出/凭据是意图，不是本次执行证明；未修改文件。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "635f246ead3838db87bf423ab873e63ed6d62778ffb17824b4c5110ff80edcb1",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file：path=model_client.py，start_byte=0，max_tokens=8192；读回完整源文件，byte 0 到 3114，66 行，793 tokens，sha256 1b0c...84ac，未截断。源码实际：model_client_class 在 settings.native_transport 等于 rwkvos_batch 时导入并返回 RwkvosBatchClient，否则返回 NativeRWKVClient。model_client_options 始终从 settings.native_* 取 base_url、model、timeout_seconds、context_window_tokens、max_concurrency；batch 分支按需加入 CF-Access 头，以及 state_id、reader_state_id（仅 native_resolver_protocol 等于 binary_query 时用 binary_reader_state_id，否则用 reader_state_id）、writer_state_id 等；非 batch 加 api_key；最后 overrides 覆盖。model_answer_bounds 对非 str 的 raw_text 返回 None；transport 默认 native，native 调 inspect_envelope；rwkvos_batch 要求 envelope 是 dict 且 valid 为 True、answer_span 是 dict、unit 等于 unicode_code_points、start/end 为 int 且 0 <= start < end <= len(raw_text)、切片 strip 非空，返回 start,end，否则 None。限制：本次只读文件，未运行测试或网络调用；未验证 settings 属性一定存在；docstring 的不改变输出/凭据是意图，不是本次执行证明；未修改文件。\"}}\n```",
+    "target_sha256": "bba9e6d5f6efa390eed041a0241da56698f8637858e50a308d1ffc3e80c80368",
+    "target_tokens": 416,
+    "review_issues": []
+  }
+]

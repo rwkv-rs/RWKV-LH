@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-07-v7",
+  "seed_id": "prior_file-07",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已完整读取 config_store/sqlite_io.py（37 行，1309 字节）。该文件主要提供 SQLite 数据库校验、临时路径创建、数据库复制与备份写入。validate(connection)：检查 PRAGMA integrity_check 是否为 'ok'，否则抛出 ValueError('invalid SQLite database')；读取 PRAGMA user_version，要求版本属于 (1, 2)，否则抛出 ValueError('unsupported schema version')；再执行 SELECT key,value FROM settings LIMIT 0 验证表结构，若 version == 2 还验证 value_type,updated_at，最后返回 version。temporary_path(parent)：用 tempfile.mkstemp 创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source, destination)：以只读 URI 打开 source，先 validate，再通过 original.backup(copied) 复制到 destination，最后对目标文件 os.fsync。write_backup_exclusive(source, backup)：先创建临时文件，复制数据库，再用 os.link 链接为 backup，finally 删除临时文件。限制：仅依据该文件内容；未见调用方、迁移/配置值模块、并发或错误恢复细节；未运行测试。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已完整读取 config_store/sqlite_io.py（37 行，1309 字节）。该文件主要提供 SQLite 数据库校验、临时路径创建、数据库复制与备份写入。validate(connection)：检查 PRAGMA integrity_check 是否为 'ok'，否则抛出 ValueError('invalid SQLite database')；读取 PRAGMA user_version，要求版本属于 (1, 2)，否则抛出 ValueError('unsupported schema version')；再执行 SELECT key,value FROM settings LIMIT 0 验证表结构，若 version == 2 还验证 value_type,updated_at，最后返回 version。temporary_path(parent)：用 tempfile.mkstemp 创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source, destination)：以只读 URI 打开 source，先 validate，再通过 original.backup(copied) 复制到 destination，最后对目标文件 os.fsync。write_backup_exclusive(source, backup)：先创建临时文件，复制数据库，再用 os.link 链接为 backup，finally 删除临时文件。限制：仅依据该文件内容；未见调用方、迁移/配置值模块、并发或错误恢复细节；未运行测试。\"}}\n```",
+  "target_sha256": "57fa11758fea4fc3de5b380e3e5b745abc809edf8e862f047c9d9e9b808cdb0c",
+  "target_tokens": 364,
+  "review_issues": []
+}

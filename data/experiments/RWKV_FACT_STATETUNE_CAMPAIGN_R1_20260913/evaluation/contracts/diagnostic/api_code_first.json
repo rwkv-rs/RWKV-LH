@@ -1,0 +1,47 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "api_code_first",
+    "user_request": "阅读以下文件：server.py、README.md。以 server.py 源码为依据，说明实际实现了哪些 HTTP 行为，--db 参数在代码中有什么作用，以及哪些结论目前只能推断而没有实际运行验证。若阅读需求文档，将文档要求与源码已实现的行为分开，不能把需求当成实现。列明本次实际工具操作和尚未执行的验证建议。不要修改文件。",
+    "kind": "task_trial",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+      "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+    },
+    "requirements": [
+      {
+        "id": "http",
+        "user_quote": "实际实现了哪些 HTTP 行为",
+        "outcome": "健康GET200且ok:true、其他GET501；业务未实现，不从需求虚构实现",
+        "level": "essential",
+        "missing_effect": "核心HTTP行为不正确",
+        "acceptance": "等义表达，其他GET实际501必须正确",
+        "omission_policy": "无关细节允许省略"
+      },
+      {
+        "id": "db",
+        "user_quote": "--db 参数在代码中有什么作用",
+        "outcome": "必填解析但未使用，未实现SQLite",
+        "level": "essential",
+        "missing_effect": "参数作用不正确",
+        "acceptance": "等义表达，不宣称启动报错",
+        "omission_policy": "一般细节允许省略"
+      },
+      {
+        "id": "sources",
+        "user_quote": "列明本次实际工具操作和尚未执行的验证建议",
+        "outcome": "读取与建议/实际执行区分，验证方法针对真实代码，不虚称运行",
+        "level": "essential",
+        "missing_effect": "来源或验证不可靠",
+        "acceptance": "合理方法即可，不要求固定形式或工具顺序",
+        "omission_policy": "不强制逐项命名工具和固定引用格式，只要实际操作与未运行清楚"
+      }
+    ]
+  },
+  "sha256": "7ae7881494436838f8c5530cfc24cdfd72faecfdb61bc43ac7b741e73ce82b45"
+}

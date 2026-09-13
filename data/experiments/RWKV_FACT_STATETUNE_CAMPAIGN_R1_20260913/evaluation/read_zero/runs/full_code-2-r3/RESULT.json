@@ -1,0 +1,109 @@
+{
+  "case": "full_code-2",
+  "repeat": 3,
+  "pass": true,
+  "tool_success": true,
+  "protocol_error": null,
+  "infrastructure_error": null,
+  "raw_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"verify_public.py\",\n    \"start_byte\": 0,\n    \"max_tokens\": 4096\n  }\n}",
+  "command": {
+    "name": "read_file",
+    "arguments": {
+      "path": "verify_public.py",
+      "start_byte": 0,
+      "max_tokens": 4096
+    }
+  },
+  "action": {
+    "action_id": "A00001",
+    "sequence": 1,
+    "status": "succeeded",
+    "action_type": "read_file",
+    "arguments": {
+      "path": "verify_public.py",
+      "start_byte": 0,
+      "max_tokens": 4096
+    },
+    "wire_arguments": {
+      "path": "verify_public.py",
+      "start_byte": 0,
+      "max_tokens": 4096
+    },
+    "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+    "idempotency_key": "e8480c5fae40fd092ec41f771564d181e53070371efad0b1be98932e82f7bbff",
+    "decision_id": "D-c832fb7b7cc84831",
+    "request_id": "MR-70f8b29da964430f",
+    "started_at": "2026-09-13T09:30:45.465+00:00",
+    "ended_at": "2026-09-13T09:30:45.492+00:00",
+    "result": {
+      "action_type": "read_file",
+      "success": true,
+      "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+      "exit_code": null,
+      "artifacts": [
+        {
+          "path": "verify_public.py",
+          "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+          "media_type": "text/x-python",
+          "size_bytes": 497,
+          "summary": ""
+        }
+      ],
+      "evidence": [],
+      "metadata": {
+        "chunk": {
+          "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+          "source_ref": "verify_public.py",
+          "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+          "media_type": "text/plain",
+          "byte_start": 0,
+          "byte_end": 497,
+          "core_start": 0,
+          "core_end": 497,
+          "overlap_before": 0,
+          "overlap_after": 0,
+          "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+          "split_strategy_version": "rwkv-token-cursor.v1",
+          "previous_chunk_id": null,
+          "next_chunk_id": null,
+          "complete_source": true,
+          "token_start": 0,
+          "token_end": 130
+        },
+        "start_byte": 0,
+        "end_byte": 497,
+        "next_start_byte": null,
+        "truncated": false,
+        "complete": true,
+        "eof": true,
+        "source_size_bytes": 497,
+        "observed_tokens": 130,
+        "source_start_line": 1,
+        "source_end_line": 13
+      },
+      "error": null,
+      "outcome_type": "success"
+    },
+    "artifact_refs": [
+      "ART-77a32f727364701768aa"
+    ],
+    "workspace_digest_before": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+    "workspace_digest_after": "7d680298a31f92a5d7ee5265a09f8907c6f92879d11a5b62325b8a6bd27100cb",
+    "failure_key": "",
+    "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+    "error": null,
+    "outcome_type": "success",
+    "atom_execution_contract_digest": ""
+  },
+  "observation_handoff": {
+    "parent_checkpoint_id": "CP-4911c62ee0a54c04",
+    "child_checkpoint_id": "CP-688ab2fe0cd44010",
+    "event_id": "EV-ACTION-A00001",
+    "present": true,
+    "parent_matches": true
+  },
+  "correct_call": true,
+  "actual_result_correct": true,
+  "workspace_unchanged": true,
+  "elapsed_seconds": 4.433790922164917
+}

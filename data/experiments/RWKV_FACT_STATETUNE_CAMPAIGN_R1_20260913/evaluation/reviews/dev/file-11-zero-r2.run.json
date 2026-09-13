@@ -1,0 +1,67 @@
+{
+  "schema": "rwkv-lh.task-review-run.v1",
+  "run_id": "file-11-zero-r2",
+  "task_id": "file-11",
+  "arm": "zero",
+  "repeat": 2,
+  "protocol_error_policy": "feedback",
+  "execution_identity": {
+    "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+    "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+    "source": "c35ee671b11b803ecbfc7cbd9b65c618551834f8ceb9f08a51489c8681eeac6a",
+    "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+    "state": "2fb8a16a46a9396cee7013efe220c7fe6b3f4f5beeffa6abeaa9e00de56168ab",
+    "budget": "49fceb7e6500b330317c2cba078d04cbc6c4a8c12d2e7de14f0a8095afcaef75"
+  },
+  "termination": "submitted",
+  "answer": "README.md 的主要内容如下：\n\n1. 项目目标：提供一个可重启的 SQLite HTTP 预约服务，用于内部会议室与设备的预约。\n2. 启动方式：使用命令 `python server.py --db /absolute/path/bookings.sqlite3 --host 127.0.0.1 --port 8080`。\n3. 数据持久化：首次启动会创建数据库，后续启动保留数据。\n4. 健康检查：`GET /health` 返回 `{\"ok\":true}`。\n5. 预约接口：\n   - `POST /bookings`：创建预约，参数包括 resource、customer、start、end（整数分钟，UTC 时间）。要求 resource 和 customer 非空，start 和 end 为整数且 start < end。同一资源的 confirmed 预约不能重叠，其他资源不受影响。成功返回 201，包含 id、resource、start、end、customer、status: \"confirmed\"。冲突返回 409。\n   - `GET /bookings`：返回所有预约，包含 cancelled 状态，按 start、id 升序排列。可通过 `?resource=...` 精确过滤。\n   - `GET /bookings/{id}`：返回指定预约的完整信息，不存在返回 404。\n   - `DELETE /bookings/{id}`：取消预约，返回 200，包含 id 和 status: \"cancelled\"。重复取消幂等，取消后时段可被重新预约。未知 id 返回 404。\n6. 冲突处理：多个 HTTP 请求同时到达时，冲突判定与写入必须为同一原子操作。\n7. 错误处理：非法输入、缺字段、坏 JSON 返回 400；失败不得改变任何预约；未知路由返回 404；错误对象包含 error 字符串。\n8. 数据持久化：终止并重新启动进程后，数据和冲突规则必须继续正确。\n9. 验证：公开健康检查仅是启动健康检查；需要补充自己的行为验证，不能以健康检查替代完整功能。",
+  "artifact_ids": [],
+  "assistance": "rwkv_independent",
+  "historical": false,
+  "evidence": [
+    {
+      "id": "E1",
+      "path": "dev/file-11-zero-r2/execution/RESULT.json",
+      "sha256": "4c6b3d89721b995374ab6c4b3083c71cd1400bbbbf399e3a8586d608c9739049",
+      "kind": "trace"
+    },
+    {
+      "id": "E2",
+      "path": "dev/file-11-zero-r2/execution/model_trace.jsonl",
+      "sha256": "eb01d3b972ff14ddeca73bf071b91d5c146a35b4d320cecea209b73be9fff496",
+      "kind": "trace"
+    },
+    {
+      "id": "E3",
+      "path": "dev/file-11-zero-r2/execution/state_snapshot.json",
+      "sha256": "5ca685cd9854656214585b9f1260d07b738096ddb247a9ab12b1e40317e5a050",
+      "kind": "trace"
+    },
+    {
+      "id": "E4",
+      "path": "dev/file-11-zero-r2/workspace/README.md",
+      "sha256": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928",
+      "kind": "source"
+    },
+    {
+      "id": "E5",
+      "path": "dev/file-11-zero-r2/workspace/server.py",
+      "sha256": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+      "kind": "source"
+    },
+    {
+      "id": "E6",
+      "path": "dev/file-11-zero-r2/workspace/verify_public.py",
+      "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+      "kind": "source"
+    }
+  ],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 3965,
+    "output_tokens": 670,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  }
+}

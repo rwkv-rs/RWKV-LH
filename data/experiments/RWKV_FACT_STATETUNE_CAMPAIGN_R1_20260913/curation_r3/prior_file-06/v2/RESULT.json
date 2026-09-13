@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-06-v2",
+  "seed_id": "prior_file-06",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/migrations.py 提供 SQLite 设置库迁移与恢复。导入 __future__.annotations、json、sqlite3，并从 .values 导入 decode、value_type。migrate(database, backup) 先把 database 当前字节写入 backup 作备份；再连接 database，用 PRAGMA user_version 取版本。若版本已是 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则给 settings 表添加 value_type（TEXT NOT NULL DEFAULT 'string'）和 updated_at（INTEGER NOT NULL DEFAULT 0），设 user_version=2 并提交；然后按 key 排序读取 settings 的 key、value，对每条 value 调用 decode，并以 json.dumps(value)、value_type(value) 回写 value 与 value_type，逐条提交；最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。restore(database, backup) 把 backup 字节写回 database，再读 user_version，返回 restored=True 与 schema_version。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "e782953777594173c29ac7be5e1a062a054dc4aaf1a5d4fada4072d65fb6e4d7",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/migrations.py 提供 SQLite 设置库迁移与恢复。导入 __future__.annotations、json、sqlite3，并从 .values 导入 decode、value_type。migrate(database, backup) 先把 database 当前字节写入 backup 作备份；再连接 database，用 PRAGMA user_version 取版本。若版本已是 2，返回 from_version=2、to_version=2、migrated_rows=0、changed=False。否则给 settings 表添加 value_type（TEXT NOT NULL DEFAULT 'string'）和 updated_at（INTEGER NOT NULL DEFAULT 0），设 user_version=2 并提交；然后按 key 排序读取 settings 的 key、value，对每条 value 调用 decode，并以 json.dumps(value)、value_type(value) 回写 value 与 value_type，逐条提交；最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。restore(database, backup) 把 backup 字节写回 database，再读 user_version，返回 restored=True 与 schema_version。\"}}\n```",
+  "target_sha256": "4456678744373cd5c4bc378ea343d3cdb0217194cb18a7f565d766f70b9fd196",
+  "target_tokens": 296,
+  "review_issues": []
+}

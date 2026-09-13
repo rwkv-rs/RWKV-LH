@@ -1,0 +1,97 @@
+{
+  "id": "rag_state_tokens-collect-r1",
+  "final": "state_tokens.py 是一个 CPU RWKV 字节级 tokenization 工具，不依赖模型导入。它读取一个词表文件，将每个词表条目解析为 token_id 和对应的 UTF-8 字节序列，并构建一个字典树（Trie）用于编码。\n\n主要行为：\n1. Vocabulary 类：\n   - 构造函数读取词表文件，解析每行为 token_id 和 size 字符串，将 token 字符串转为 UTF-8 字节，并构建 Trie。\n   - encode 方法将输入字符串编码为 token_ids 列表，通过 Trie 逐字节匹配，遇到 EOF 标记（None）时记录 token_id。\n   - 编码后会验证拼接后的字节是否与原始输入一致，确保无损。\n\n2. encode_training 函数：\n   - 分别编码 prompt 和 target，将 prompt 的 token_ids 作为 input_ids，target 的 token_ids 加上 EOS 标记（0）作为 labels。\n   - 返回包含 input_ids、labels 和 token 计数的字典。\n   - 如果序列超过 max_tokens，直接抛出 ValueError，不截断。\n\n重要限制：\n- 词表必须包含 EOS 标记（token_id 为 0），否则编码会失败。\n- 输入字符串必须能被词表完整编码，否则抛出 ValueError。\n- 序列长度不能超过 max_tokens，否则抛出 ValueError。\n- 不支持截断，也不支持未在词表中的字符。\n\n对应数字或类型：\n- token_id：整数，词表中的唯一标识。\n- size：字符串，表示 token 的字节长度。\n- max_tokens：整数，最大 token 数量，超过则抛出 ValueError。\n- 返回的 input_ids、labels 和 prompt_tokens 均为整数列表。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 2,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "state_tokens.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "state_tokens.py"
+      },
+      "action_fingerprint": "d7c52a8fac09af3166204f0ac0ecd1aafc22cf72b264a65491655c88c22fe756",
+      "idempotency_key": "c332b102a08e07970e2d9daedbf402c34fc0f38c70de44eae46b2652da8cecb9",
+      "decision_id": "D-78241cdb85f14fac",
+      "request_id": "MR-e59e5c905ba34258",
+      "started_at": "2026-09-13T07:47:33.528+00:00",
+      "ended_at": "2026-09-13T07:47:33.557+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"CPU RWKV byte tokenization and target-only teacher forcing; no model import.\"\"\"\n\nimport ast\nfrom pathlib import Path\n\n\nclass Vocabulary:\n    def __init__(self, path: Path):\n        self.by_id, self.trie = {}, {}\n        for line in path.read_text(encoding=\"utf-8\").splitlines():\n            token_id, rest = line.split(\" \", 1)\n            literal, size = rest.rsplit(\" \", 1)\n            token = ast.literal_eval(literal)\n            token = token.encode(\"utf-8\") if isinstance(token, str) else token\n            index = int(token_id)\n            if (not isinstance(token, bytes) or not token or len(token) != int(size)\n                    or index <= 0 or index in self.by_id):\n                raise ValueError(\"invalid RWKV vocabulary entry\")\n            self.by_id[index] = token\n            node = self.trie\n            for byte in token:\n                node = node.setdefault(byte, {})\n            node[None] = index\n\n    def encode(self, text: str) -> list[int]:\n        raw, start, result = text.encode(\"utf-8\"), 0, []\n        while start < len(raw):\n            node, cursor, best = self.trie, start, None\n            while cursor < len(raw) and raw[cursor] in node:\n                node = node[raw[cursor]]\n                cursor += 1\n                if None in node:\n                    best = cursor, node[None]\n            if best is None:\n                raise ValueError(\"vocabulary cannot encode input byte\")\n            start, index = best\n            result.append(index)\n        if b\"\".join(self.by_id[index] for index in result) != raw:\n            raise ValueError(\"tokenization changed input bytes\")\n        return result\n\n\ndef encode_training(prompt: str, target: str, vocab: Vocabulary, max_tokens: int) -> dict:\n    if not prompt or not target:\n        raise ValueError(\"empty prompt or target\")\n    # Separate encoding preserves the inference-time prompt/answer boundary.\n    prompt_ids, answer_ids = vocab.encode(prompt), vocab.encode(target)\n    ids = prompt_ids + answer_ids + [0]\n    if len(ids) > max_tokens:\n        raise ValueError(f\"sequence has {len(ids)} tokens, limit {max_tokens}; never truncate\")\n    return {\"input_ids\": ids, \"labels\": [-100] * len(prompt_ids) + answer_ids + [0],\n            \"prompt_tokens\": len(prompt_ids), \"target_tokens_with_eos\": len(answer_ids) + 1}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "state_tokens.py",
+            "sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+            "media_type": "text/x-python",
+            "size_bytes": 2316,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-e1f639cb7e95286c",
+            "source_ref": "state_tokens.py",
+            "source_sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 2316,
+            "core_start": 0,
+            "core_end": 2316,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "6c496d3061abd6d764881b71f1b2c06f4bb85b44a3c6763e2807b313b17da882",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 590
+          },
+          "start_byte": 0,
+          "end_byte": 2316,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 2316,
+          "observed_tokens": 590,
+          "source_start_line": 1,
+          "source_end_line": 52
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-f6dc91b6f649e8b220a7"
+      ],
+      "workspace_digest_before": "ba32818b03fb4e1c160e29983cfa592a4562ae0d8f5d9c12ce731a05382dfe2a",
+      "workspace_digest_after": "ba32818b03fb4e1c160e29983cfa592a4562ae0d8f5d9c12ce731a05382dfe2a",
+      "failure_key": "",
+      "observation_fingerprint": "61302d1c05eef7770066e713bb86a2c8d645fa19172ac2335b8c6915392eb87e",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 57.12367116799578
+}

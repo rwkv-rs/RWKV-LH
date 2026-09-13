@@ -1,0 +1,99 @@
+{
+  "id": "rag_document_retrieval-collect-r1",
+  "final": "document_retrieval.py 实现了一个基于 RRF（Reciprocal Rank Fusion）的文档级检索流程，并在文档级结果上执行 BM25 精排。\n\n主要行为：\n1. 对每个查询，调用 index.search_chunks 获取候选文档块（candidate_k 个）；\n2. 对每个查询，对同一文档的多个候选块合并为一个文档得分，使用 1/(60 + rank) 作为权重；\n3. 按文档得分选出 document_limit 个文档；\n4. 对每个查询，在这些文档内再次调用 index.search_chunks 获取精排结果；\n5. 若精排结果中出现未选中的文档，则抛出 ValueError。\n\n重要限制：\n- 只在文档级别做融合，不在文档内部做融合；\n- 精排阶段不能引入新文档；\n- 返回的是文档块（chunk），不是原始文档；\n- 文档得分使用 1/(60 + rank) 而非 1/rank，因此排名越靠前权重越高。\n\n对应关系：\n- candidate_k：每个查询的初始候选块数量；\n- document_limit：最终返回的文档数量；\n- knowledge_base_id：用于限定搜索范围的知识库 ID；\n- document_id：文档唯一标识，用于去重和得分累加；\n- rank：排序后的位置，从 1 开始；\n- rrf_scores：文档得分；\n- rrf_votes：每个查询对文档的投票记录；\n- expanded_chunk_ids：精排阶段返回的文档块 ID 列表。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "continuation": null,
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 2,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_retrieval.py",
+        "max_tokens": 8192,
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "path": "document_retrieval.py",
+        "max_tokens": 8192,
+        "start_byte": 0
+      },
+      "action_fingerprint": "304c0ffd22f42d8fdf215eb420dfa6cc6f2379800247002a0e81661e7b3cc8d0",
+      "idempotency_key": "16aca6143118cf2a5fada2069465ebe28ea6ad05a29914a0d51b2b8e2d336620",
+      "decision_id": "D-456ad3088df44558",
+      "request_id": "MR-33d7f4664eb6484a",
+      "started_at": "2026-09-13T07:46:40.675+00:00",
+      "ended_at": "2026-09-13T07:46:40.701+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Document RRF followed by BM25 inside selected documents; no semantic rules.\"\"\"\nimport asyncio\n\n\nasync def document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit):\n    initial = await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, collapse_documents=True)\n        for query in queries))\n    scores, votes = {}, []\n    for query_index, group in enumerate(initial):\n        seen = set()\n        for rank, hit in enumerate(group, 1):\n            if hit.document_id in seen:\n                continue\n            seen.add(hit.document_id)\n            weight = 1 / (60 + rank)\n            scores[hit.document_id] = scores.get(hit.document_id, 0) + weight\n            votes.append({\"query_index\": query_index, \"document_id\": hit.document_id,\n                          \"best_chunk_id\": hit.node_id, \"rank\": rank, \"rrf_contribution\": weight})\n    selected = sorted(scores, key=lambda document: -scores[document])[:document_limit]\n    expanded = (await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, document_ids=selected)\n        for query in queries))) if selected else [[] for _ in queries]\n    if any(hit.document_id not in selected for group in expanded for hit in group):\n        raise ValueError(\"document-scoped search returned an unselected document\")\n    return expanded, {\"scope\": \"documents\", \"selected_document_ids\": selected,\n        \"document_limit\": document_limit, \"rrf_scores\": scores, \"rrf_votes\": votes,\n        \"document_candidates\": [[h.document_id for h in group] for group in initial],\n        \"expanded_chunk_ids\": [[h.node_id for h in group] for group in expanded],\n        \"passage_query_policy\": \"each original model query, restricted to the selected documents\"}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_retrieval.py",
+            "sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+            "media_type": "text/x-python",
+            "size_bytes": 1882,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-819803403298fd1a",
+            "source_ref": "document_retrieval.py",
+            "source_sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1882,
+            "core_start": 0,
+            "core_end": 1882,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 493
+          },
+          "start_byte": 0,
+          "end_byte": 1882,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1882,
+          "observed_tokens": 493,
+          "source_start_line": 1,
+          "source_end_line": 30
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-d0667aac151e2e00af39"
+      ],
+      "workspace_digest_before": "dcaae12850c2f43cc8b8c9a58c4d0a059235baf7c6adbfd66ed3fd9de18455dc",
+      "workspace_digest_after": "dcaae12850c2f43cc8b8c9a58c4d0a059235baf7c6adbfd66ed3fd9de18455dc",
+      "failure_key": "",
+      "observation_fingerprint": "55848703f6b2c4237c9143d1f7751a2417320d568bf1e2d87f7eb8fff453e17f",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 56.26125940901693
+}

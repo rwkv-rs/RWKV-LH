@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 主要内容：它描述一个仅用 Python 标准库实现的可移植团队文件夹备份工具 backup.py，支持从任意工作目录执行 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION。SOURCE 是目录，ARCHIVE 必须位于其外；快照需递归包含常规文件（含隐藏、二进制、Unicode 名和零字节文件）并保留空目录，拒绝符号链接及其他非常规项；失败的快照不得替换旧 ARCHIVE。归档为 ZIP，内含 UTF-8 manifest.json：version 为 1，directories 列出相对 POSIX 目录路径，files 列出含 path、字节 size 和小写 sha256 的对象，文件负载成员名为 files/<relative path>，不添加 ZIP 目录条目。restore 在替换 DESTINATION 前校验 version、名称唯一、声明成员、文件大小和摘要；拒绝未声明/重复成员、绝对路径、父目录穿越、反斜杠、非法规范化路径、文件/目录冲突及符号链接目标；仅完全校验后替换，损坏或失败须保持原目标，成功恢复不得保留旧文件，非法输入不得写出到 staging 区域外；支持空目录快照与恢复。每次成功命令向 stdout 写一个 JSON 对象，含 files 与 bytes；失败非零退出并在 stderr 说明。每次调用是独立进程，无进程内存状态；staging 文件应靠近最终目标以便同文件系统原子替换；需提供自写单元测试并说明使用与验证方法。\"}}",
+  "reason": "已依据 README.md 完整可见内容按要求总结，保留版本、字段、命令和校验限制，仅陈述文件支持的信息。"
+}

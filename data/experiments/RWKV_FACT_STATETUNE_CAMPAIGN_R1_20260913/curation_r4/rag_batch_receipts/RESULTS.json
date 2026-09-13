@@ -1,0 +1,45 @@
+[
+  {
+    "id": "rag_batch_receipts-v6",
+    "seed_id": "rag_batch_receipts",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际仅执行 read_file：path=batch_receipts.py，start_byte=0，max_tokens=4096，完整读取4436字节、86行、1042 token，成功到EOF；未修改文件，未运行测试。源码实现 _summarize_http，按 prefix 与 identity_key 汇总目录中 *.prefix_*.json 的 completed/started 收据及可选 traces。每条记录取 identity_key，缺失或空会触发异常但被捕获并记为 unknown；http_attempted 仅 True 记 attempted，False 且 terminal（completed=True 或 ended_at 真值）记 not_attempted，其余 unknown。同一 identity 同时出现 attempted 与 not_attempted 时 conflict=True，classification=unknown；否则为 confirmed_attempted、never_attempted 或 unknown。unique_requests=行数；count_exact=unknown==0；http_requests 仅当无 unknown 时为 confirmed_attempted，否则 None；lower_bound=confirmed_attempted，upper_bound=confirmed_attempted+unknown。summarize_batch_http 用 batch_id 并输出 unique_batches/batches；summarize_token_http 用 count_id（可回退 token_count_id）并输出 unique_counts/counts。限制：仅直接 glob 非递归；不可读/非对象/缺 identity 计 unknown 并列入 unreadable_receipts；traces 未严格类型校验；True 只表示客户端尝试发送，不证明成功或提供方执行。以上为代码推断。\"}}",
+    "accepted_by_api": false,
+    "error": null,
+    "input_sha256": "d1cdd618baf2992825e41e8befc32e47bac597ff74e86c8e697c002f90ae4406",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次实际仅执行 read_file：path=batch_receipts.py，start_byte=0，max_tokens=4096，完整读取4436字节、86行、1042 token，成功到EOF；未修改文件，未运行测试。源码实现 _summarize_http，按 prefix 与 identity_key 汇总目录中 *.prefix_*.json 的 completed/started 收据及可选 traces。每条记录取 identity_key，缺失或空会触发异常但被捕获并记为 unknown；http_attempted 仅 True 记 attempted，False 且 terminal（completed=True 或 ended_at 真值）记 not_attempted，其余 unknown。同一 identity 同时出现 attempted 与 not_attempted 时 conflict=True，classification=unknown；否则为 confirmed_attempted、never_attempted 或 unknown。unique_requests=行数；count_exact=unknown==0；http_requests 仅当无 unknown 时为 confirmed_attempted，否则 None；lower_bound=confirmed_attempted，upper_bound=confirmed_attempted+unknown。summarize_batch_http 用 batch_id 并输出 unique_batches/batches；summarize_token_http 用 count_id（可回退 token_count_id）并输出 unique_counts/counts。限制：仅直接 glob 非递归；不可读/非对象/缺 identity 计 unknown 并列入 unreadable_receipts；traces 未严格类型校验；True 只表示客户端尝试发送，不证明成功或提供方执行。以上为代码推断。\"}}\n```",
+    "target_sha256": "5b41c8c240b266d2c5ea1f8b357949cd2dec344f4f861ea11d3cbb365caae066",
+    "target_tokens": 419,
+    "review_issues": [
+      "候选称“每条记录取 identity_key，缺失或空会触发异常但被捕获并记为 unknown”，但源码仅对目录中的文件收据在 observe 内抛出 ValueError 并由 except 转为 unknown；对 traces 的顶层 identity 缺失不会触发该异常，对 trace 内 http 记录还会先以 record.get(identity_key) 真假过滤，缺失/空 identity 会被跳过，不会记为 unknown。",
+      "若“不可读/非对象/缺 identity 计 unknown 并列入 unreadable_receipts”被理解为同样适用于 traces，则不准确；unreadable_receipts 只在对目录文件收据读取/解析/identity 校验抛出 OSError、ValueError、TypeError 时由 except 追加。",
+      "候选未说明 token_count_id 回退只发生在 traces 循环中 trace 顶层 identity 缺失时，而不是目录文件收据或 trace 内单条 http 记录的 identity_key 解析中；泛化说法与源码行为不完全一致。"
+    ]
+  },
+  {
+    "id": "rag_batch_receipts-v7",
+    "seed_id": "rag_batch_receipts",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file：path=batch_receipts.py, start_byte=0, max_tokens=4096；成功完整读取 4436 字节、86 行、1042 tokens，未运行测试或修改。源码 _summarize_http(directory: Path, prefix: str, identity_key: str, traces=())->dict 扫描 *.prefix_started.json 与 *.prefix_completed.json；summarize_batch_http 传 prefix=batch、identity_key=batch_id，summarize_token_http 传 token_count/count_id。JSON 根须为 dict，identity 须为非空 str。terminal=completed 或 ended_at 真；http_attempted=True→attempted，False 且 terminal→not_attempted，否则 unknown。同批 attempted 与 not_attempted 冲突→classification=unknown、conflicting_terminal_evidence=True。读取异常 OSError/ValueError/TypeError 时用文件名 rsplit 取 identity，evidence=unknown，入 unreadable_receipts，不当作 0。汇总字段：unique_requests、confirmed_attempted、never_attempted、unknown、count_exact（unknown==0）、http_requests（unknown==0 时为 confirmed_attempted，否则 None）、confirmed_attempted_lower_bound、possible_attempted_upper_bound=confirmed+unknown。局限：True 只证客户端尝试派发，不证服务端成功；started-only 的 False 仍 unknown；traces 按 http 列表补充，count_id 缺失可回退 token_count_id。上述为源码推断。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d1cdd618baf2992825e41e8befc32e47bac597ff74e86c8e697c002f90ae4406",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅执行 read_file：path=batch_receipts.py, start_byte=0, max_tokens=4096；成功完整读取 4436 字节、86 行、1042 tokens，未运行测试或修改。源码 _summarize_http(directory: Path, prefix: str, identity_key: str, traces=())->dict 扫描 *.prefix_started.json 与 *.prefix_completed.json；summarize_batch_http 传 prefix=batch、identity_key=batch_id，summarize_token_http 传 token_count/count_id。JSON 根须为 dict，identity 须为非空 str。terminal=completed 或 ended_at 真；http_attempted=True→attempted，False 且 terminal→not_attempted，否则 unknown。同批 attempted 与 not_attempted 冲突→classification=unknown、conflicting_terminal_evidence=True。读取异常 OSError/ValueError/TypeError 时用文件名 rsplit 取 identity，evidence=unknown，入 unreadable_receipts，不当作 0。汇总字段：unique_requests、confirmed_attempted、never_attempted、unknown、count_exact（unknown==0）、http_requests（unknown==0 时为 confirmed_attempted，否则 None）、confirmed_attempted_lower_bound、possible_attempted_upper_bound=confirmed+unknown。局限：True 只证客户端尝试派发，不证服务端成功；started-only 的 False 仍 unknown；traces 按 http 列表补充，count_id 缺失可回退 token_count_id。上述为源码推断。\"}}\n```",
+    "target_sha256": "d5600855a72b595d55368a05eea528d989b9b6555c4322b8188aab992fe3b1c2",
+    "target_tokens": 414,
+    "review_issues": []
+  },
+  {
+    "id": "rag_batch_receipts-v8",
+    "seed_id": "rag_batch_receipts",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已完整读取 batch_receipts.py（0–4436字节，86行，1042 tokens；本次仅执行 read_file，未运行测试，未修改文件）。实际实现：_summarize_http(directory,prefix,identity_key,traces=()) 扫描目录下 *.{prefix}_completed.json 与 *.{prefix}_started.json，读取 JSON 并要求 dict。按 identity_key 聚合；身份必须为非空 str，否则抛 ValueError。http_attempted 为 True 时记 evidence=attempted；为 False 且 terminal（completed 或 ended_at 为真）时记 not_attempted；其余 unknown。读取异常 OSError/ValueError/TypeError 时按文件名 rsplit 取身份，记 unknown，并列入 unreadable_receipts，不把损坏字节当 0。traces 中 dict 且含身份者调用 observe；identity_key 为 count_id 且空时回退 token_count_id。汇总时 evidence 同时含 attempted 与 not_attempted 则 classification=unknown 且 conflicting_terminal_evidence=True；否则依次判 confirmed_attempted、never_attempted、unknown。counts 三键为 confirmed_attempted、never_attempted、unknown；count_exact=unknown==0；http_requests 仅在 count_exact 时等于 confirmed_attempted，否则 None；possible_attempted_upper_bound=confirmed_attempted+unknown。返回 schema 为 {prefix}-http-accounting-v1。summarize_batch_http 改名 unique_requests/requests 为 unique_batches/batches；summarize_token_http 改为 unique_counts/counts，并注明一个 count_id 不是生成批次。限制：attempt 仅指客户端发起尝试，不证明 provider 执行；started-only 状态未知。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d1cdd618baf2992825e41e8befc32e47bac597ff74e86c8e697c002f90ae4406",
+    "augmentation": "source-only alternative at same actual boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已完整读取 batch_receipts.py（0–4436字节，86行，1042 tokens；本次仅执行 read_file，未运行测试，未修改文件）。实际实现：_summarize_http(directory,prefix,identity_key,traces=()) 扫描目录下 *.{prefix}_completed.json 与 *.{prefix}_started.json，读取 JSON 并要求 dict。按 identity_key 聚合；身份必须为非空 str，否则抛 ValueError。http_attempted 为 True 时记 evidence=attempted；为 False 且 terminal（completed 或 ended_at 为真）时记 not_attempted；其余 unknown。读取异常 OSError/ValueError/TypeError 时按文件名 rsplit 取身份，记 unknown，并列入 unreadable_receipts，不把损坏字节当 0。traces 中 dict 且含身份者调用 observe；identity_key 为 count_id 且空时回退 token_count_id。汇总时 evidence 同时含 attempted 与 not_attempted 则 classification=unknown 且 conflicting_terminal_evidence=True；否则依次判 confirmed_attempted、never_attempted、unknown。counts 三键为 confirmed_attempted、never_attempted、unknown；count_exact=unknown==0；http_requests 仅在 count_exact 时等于 confirmed_attempted，否则 None；possible_attempted_upper_bound=confirmed_attempted+unknown。返回 schema 为 {prefix}-http-accounting-v1。summarize_batch_http 改名 unique_requests/requests 为 unique_batches/batches；summarize_token_http 改为 unique_counts/counts，并注明一个 count_id 不是生成批次。限制：attempt 仅指客户端发起尝试，不证明 provider 执行；started-only 状态未知。\"}}\n```",
+    "target_sha256": "25fa0caa5c3bfeac75c5bf9b60cdfc7e4c8f306bdf48ae0928cc4f9661f3d87b",
+    "target_tokens": 479,
+    "review_issues": []
+  }
+]

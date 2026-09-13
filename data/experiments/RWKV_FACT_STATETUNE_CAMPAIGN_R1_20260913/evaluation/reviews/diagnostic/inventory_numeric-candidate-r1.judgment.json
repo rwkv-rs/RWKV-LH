@@ -1,0 +1,65 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "66a967b7ecf957dda7b4cf539ee1bc8fe80b9d7be8eef35562ceb7a0ab0848fd",
+  "run_sha256": "ca429a499a6302391db124d8122215bb7fbc49974b0f4bf8786e8934a7ed2c8a",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "stock非负、quantity正整数与128对象正确，但没说明key非空的下界",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "codes",
+      "status": "partial",
+      "reason": "首次/同key重试/冲突主要关系正确；404、409按顺序对应不存在/不足可等义理解，但GET/orders说可404不对",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "明确README要求，未虚称实现或测试",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "GET /orders → 200 或 404",
+      "reason": "集合接口GET/orders返回200，404是单订单id查询/不存在SKU等",
+      "impact": "局部路由与数字对应错误；不否定其他正确关系",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": []
+}

@@ -1,0 +1,13 @@
+{
+  "id": "rag_document_retrieval-v6",
+  "seed_id": "rag_document_retrieval",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅 read_file 读取 document_retrieval.py 全文件（1882 字节、493 tokens，sha256 一致），未测试、未修改。源码定义 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先对每个 query 并行调用 index.search_chunks，传 candidate_k、knowledge_base_id 与 collapse_documents=True 做初始文档候选；再按 rank 从 1 起算 weight=1/(60+rank)，同一 query 内按 document_id 去重累加到 scores，并生成 votes（query_index、document_id、best_chunk_id=node_id、rank、rrf_contribution）；然后按分数降序取前 document_limit 个文档为 selected。selected 非空时，再对每个 query 并行调用 index.search_chunks，传相同 candidate_k、knowledge_base_id 和 document_ids=selected，否则 expanded 为等长空列表；若二次结果出现未选中文档，抛 ValueError。返回 expanded 与 metadata，其中 scope='documents'，并记录 selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。注意：本文件只做 RRF 选文档与二次检索编排；BM25/语义规则未在本文件实现，二次评分由 index.search_chunks 决定；未运行测试，故不能报告测试结果。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "88bdc461b64839dce54a6dc5e685bb5174d598c1cf118ff49316e65c3e15a3c3",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅 read_file 读取 document_retrieval.py 全文件（1882 字节、493 tokens，sha256 一致），未测试、未修改。源码定义 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先对每个 query 并行调用 index.search_chunks，传 candidate_k、knowledge_base_id 与 collapse_documents=True 做初始文档候选；再按 rank 从 1 起算 weight=1/(60+rank)，同一 query 内按 document_id 去重累加到 scores，并生成 votes（query_index、document_id、best_chunk_id=node_id、rank、rrf_contribution）；然后按分数降序取前 document_limit 个文档为 selected。selected 非空时，再对每个 query 并行调用 index.search_chunks，传相同 candidate_k、knowledge_base_id 和 document_ids=selected，否则 expanded 为等长空列表；若二次结果出现未选中文档，抛 ValueError。返回 expanded 与 metadata，其中 scope='documents'，并记录 selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。注意：本文件只做 RRF 选文档与二次检索编排；BM25/语义规则未在本文件实现，二次评分由 index.search_chunks 决定；未运行测试，故不能报告测试结果。\"}}\n```",
+  "target_sha256": "abd5d6b8fe290c1d262000e496941a2437e07279fe8d0072be9b4d366f347512",
+  "target_tokens": 409,
+  "review_issues": []
+}

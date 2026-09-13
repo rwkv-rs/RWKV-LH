@@ -1,0 +1,13 @@
+{
+  "id": "rag_sparse-v8",
+  "seed_id": "rag_sparse",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次对 sparse.py 实际执行 read_file，读取完整 1554 字节、50 行、449 tokens，未修改文件，也未运行测试。源码定义 SparseBatch = tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，再用正则 [a-zA-Z0-9]+ 取词，并收集连续汉字区间 U+4E00 至 U+9FFF，对每个连续段加入单字和相邻双字。token_index 用 blake2s digest_size=4，按 big-endian unsigned 转为整数。encode_sparse_texts 对每段文本做 Counter，键为 token，值为 count；排序元组为 (token_index, 1.0 + math.log(min(count, 8)))，count 上限 8，数学关系为自然对数；最终返回并行的 all_indices 与 all_values。sparse_encoder 返回 encode_sparse_texts 可调用对象。推断：索引来自 32 位摘要，理论上可能碰撞；未执行测试，因此不能确认运行期行为或性能，建议后续补测试验证。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "144d633b34c287346021b9977581e8b8734caec4bca8d6b4028fc41f5e2b462d",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次对 sparse.py 实际执行 read_file，读取完整 1554 字节、50 行、449 tokens，未修改文件，也未运行测试。源码定义 SparseBatch = tuple[list[list[int]], list[list[float]]]；chinese_tokens 先 lower，再用正则 [a-zA-Z0-9]+ 取词，并收集连续汉字区间 U+4E00 至 U+9FFF，对每个连续段加入单字和相邻双字。token_index 用 blake2s digest_size=4，按 big-endian unsigned 转为整数。encode_sparse_texts 对每段文本做 Counter，键为 token，值为 count；排序元组为 (token_index, 1.0 + math.log(min(count, 8)))，count 上限 8，数学关系为自然对数；最终返回并行的 all_indices 与 all_values。sparse_encoder 返回 encode_sparse_texts 可调用对象。推断：索引来自 32 位摘要，理论上可能碰撞；未执行测试，因此不能确认运行期行为或性能，建议后续补测试验证。\"}}\n```",
+  "target_sha256": "10aa7cef29bffb885d0f9b0b4559472b8c442c26ee1028bba1bb479589af4c64",
+  "target_tokens": 322,
+  "review_issues": []
+}

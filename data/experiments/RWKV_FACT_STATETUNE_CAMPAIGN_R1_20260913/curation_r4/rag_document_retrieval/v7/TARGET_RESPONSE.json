@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"目的：阅读并说明源码。本次通过 read_file 完整读取 document_retrieval.py（0-1882 字节，493 token，30 行），未运行测试、未修改文件。源码实现 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先 asyncio.gather 对每个 query 以 asyncio.to_thread 调 index.search_chunks(... candidate_k, knowledge_base_id, collapse_documents=True)，做文档级 RRF；每个 query 内用 seen 去重 document_id，rank 从 1 开始，weight=1/(60+rank)，按 document_id 累加 scores，并记录 votes。随后按 -score 排序取前 document_limit 个文档；若 selected 非空，再对每个 query 调 search_chunks 并传 document_ids=selected，否则返回空组。最后校验 expanded 中 hit.document_id 不在 selected 则抛 ValueError，返回 expanded 与 metadata。限制：注释称文档 RRF 后接 BM25 且无语义规则，但源码只显式实现文档级 RRF 与二次检索调用；BM25/语义规则是否由 index.search_chunks 提供本文件无法证明。candidate_k、knowledge_base_id、document_limit 无默认值，且未注解类型；依赖 hit 有 document_id、node_id。\"}}",
+  "reason": "已基于实际读取结果总结源码行为、数字关系和限制，并区分注释意图与已实现功能。"
+}

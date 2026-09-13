@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-06-v1",
+  "seed_id": "prior_file-06",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"根据已读取的 config_store/migrations.py，该文件是一个 SQLite 迁移/恢复模块。它导入 json、sqlite3，并从 .values 导入 decode、value_type。函数 migrate(database, backup) 先用 backup.write_bytes(database.read_bytes()) 备份，再连接 database 并读取 PRAGMA user_version；若版本为 2，则返回 {'from_version': 2, 'to_version': 2, 'migrated_rows': 0, 'changed': False}。否则向 settings 表添加 value_type TEXT NOT NULL DEFAULT 'string' 与 updated_at INTEGER NOT NULL DEFAULT 0，执行 PRAGMA user_version=2 并提交；随后按 key 顺序读取 key,value，对每行 decode(text)，并用 json.dumps(value) 与 value_type(value) 更新 value 和 value_type，逐行提交，最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。函数 restore(database, backup) 用 backup 字节覆盖 database，再连接读取 PRAGMA user_version，返回 {'restored': True, 'schema_version': version}。文件未显示其他函数或测试。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "e782953777594173c29ac7be5e1a062a054dc4aaf1a5d4fada4072d65fb6e4d7",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"根据已读取的 config_store/migrations.py，该文件是一个 SQLite 迁移/恢复模块。它导入 json、sqlite3，并从 .values 导入 decode、value_type。函数 migrate(database, backup) 先用 backup.write_bytes(database.read_bytes()) 备份，再连接 database 并读取 PRAGMA user_version；若版本为 2，则返回 {'from_version': 2, 'to_version': 2, 'migrated_rows': 0, 'changed': False}。否则向 settings 表添加 value_type TEXT NOT NULL DEFAULT 'string' 与 updated_at INTEGER NOT NULL DEFAULT 0，执行 PRAGMA user_version=2 并提交；随后按 key 顺序读取 key,value，对每行 decode(text)，并用 json.dumps(value) 与 value_type(value) 更新 value 和 value_type，逐行提交，最后返回 from_version、to_version=2、migrated_rows=len(rows)、changed=True。函数 restore(database, backup) 用 backup 字节覆盖 database，再连接读取 PRAGMA user_version，返回 {'restored': True, 'schema_version': version}。文件未显示其他函数或测试。\"}}\n```",
+  "target_sha256": "90f7638888ddab1acabd4ac646bd7c00926e78adb6209509149a09d3c4b67f4c",
+  "target_tokens": 330,
+  "review_issues": []
+}

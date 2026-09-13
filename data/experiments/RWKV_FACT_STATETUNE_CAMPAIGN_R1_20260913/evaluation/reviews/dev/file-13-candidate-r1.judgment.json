@@ -1,0 +1,75 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "0f621394e977fb05a150240c7c44e33e5dc8aa1fc2246da76689d29d7b491f52",
+  "run_sha256": "65cbffd96107d6c79431895272bc6b374c7aa7f29ab0fdb04b117bd53df54bdf",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6"
+  ],
+  "requirements": [
+    {
+      "id": "subject",
+      "status": "met",
+      "reason": "识别HTTP服务入口",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "central",
+      "status": "partial",
+      "reason": "列出的health/501和启动行为正确，但把初始待完成入口说成完整契约实现，核心定位自相矛盾",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "fidelity",
+      "status": "unmet",
+      "reason": "将docstring中的待完成指令改为已经完成，且未读取README作实现证据",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "完整实现了 README.md 中要求的契约",
+      "reason": "源码首句是Initial HTTP entry point; complete the contract，现有代码仅GET健康检查/其他501；不支持完整契约已实现",
+      "impact": "误判代码是否已经实现业务，是核心来源/语态错误；不把对既有代码的错误描述另算成本次执行工作的虚称",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "causes": []
+}

@@ -1,0 +1,190 @@
+{
+  "role": "direct_actor",
+  "original_regression": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/evaluation/REGRESSION_REGISTRATION.json",
+    "sha256": "057c56ef58854f62c47eb4b7ab66c3cc3341267322e3c0fffd22c422d5188242"
+  },
+  "diagnostic_cases": [
+    {
+      "id": "api_code_first",
+      "request": "阅读以下文件：server.py、README.md。以 server.py 源码为依据，说明实际实现了哪些 HTTP 行为，--db 参数在代码中有什么作用，以及哪些结论目前只能推断而没有实际运行验证。若阅读需求文档，将文档要求与源码已实现的行为分开，不能把需求当成实现。列明本次实际工具操作和尚未执行的验证建议。不要修改文件。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "files": [
+        "server.py",
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "http",
+          "user_quote": "实际实现了哪些 HTTP 行为",
+          "outcome": "健康GET200且ok:true、其他GET501；业务未实现，不从需求虚构实现",
+          "level": "essential",
+          "missing_effect": "核心HTTP行为不正确",
+          "acceptance": "等义表达，其他GET实际501必须正确",
+          "omission_policy": "无关细节允许省略"
+        },
+        {
+          "id": "db",
+          "user_quote": "--db 参数在代码中有什么作用",
+          "outcome": "必填解析但未使用，未实现SQLite",
+          "level": "essential",
+          "missing_effect": "参数作用不正确",
+          "acceptance": "等义表达，不宣称启动报错",
+          "omission_policy": "一般细节允许省略"
+        },
+        {
+          "id": "sources",
+          "user_quote": "本次实际工具操作和未执行的验证建议",
+          "outcome": "读取与建议/实际执行区分，验证方法针对真实代码，不虚称运行",
+          "level": "essential",
+          "missing_effect": "来源或验证不可靠",
+          "acceptance": "合理方法即可，不要求固定形式或工具顺序",
+          "omission_policy": "不强制逐项命名工具和固定引用格式，只要实际操作与未运行清楚"
+        }
+      ],
+      "file_sha256": {
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928"
+      }
+    },
+    {
+      "id": "api_requirements_first",
+      "request": "阅读以下文件：README.md、server.py。以 server.py 源码为依据，说明实际实现了哪些 HTTP 行为，--db 参数在代码中有什么作用，以及哪些结论目前只能推断而没有实际运行验证。若阅读需求文档，将文档要求与源码已实现的行为分开，不能把需求当成实现。列明本次实际工具操作和尚未执行的验证建议。不要修改文件。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "files": [
+        "server.py",
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "http",
+          "user_quote": "实际实现了哪些 HTTP 行为",
+          "outcome": "健康GET200且ok:true、其他GET501；业务未实现，不从需求虚构实现",
+          "level": "essential",
+          "missing_effect": "核心HTTP行为不正确",
+          "acceptance": "等义表达，其他GET实际501必须正确",
+          "omission_policy": "无关细节允许省略"
+        },
+        {
+          "id": "db",
+          "user_quote": "--db 参数在代码中有什么作用",
+          "outcome": "必填解析但未使用，未实现SQLite",
+          "level": "essential",
+          "missing_effect": "参数作用不正确",
+          "acceptance": "等义表达，不宣称启动报错",
+          "omission_policy": "一般细节允许省略"
+        },
+        {
+          "id": "sources",
+          "user_quote": "本次实际工具操作和未执行的验证建议",
+          "outcome": "读取与建议/实际执行区分，验证方法针对真实代码，不虚称运行",
+          "level": "essential",
+          "missing_effect": "来源或验证不可靠",
+          "acceptance": "合理方法即可，不要求固定形式或工具顺序",
+          "omission_policy": "不强制逐项命名工具和固定引用格式，只要实际操作与未运行清楚"
+        }
+      ],
+      "file_sha256": {
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928"
+      }
+    },
+    {
+      "id": "inventory_numeric",
+      "request": "阅读 README.md，说明文中数量、长度限制和 HTTP 状态码分别对应什么对象或情况。保留数字与对应关系，区分成功首次处理、相同请求重试与冲突；不要把文档要求声称为本次已实现或已测试。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-02/workspace",
+      "files": [
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "limits",
+          "user_quote": "数量、长度限制",
+          "outcome": "库存非负整数、quantity正整数且排除bool/小数；Idempotency-Key非空最长128字符，不能把128当商品数量",
+          "level": "essential",
+          "missing_effect": "主要限制错配",
+          "acceptance": "数字对象准确，等义表达允许",
+          "omission_policy": "不需列所有语法细节"
+        },
+        {
+          "id": "codes",
+          "user_quote": "首次处理、相同请求重试与冲突",
+          "outcome": "首次201，同key同规范化请求200不再次扣减，冲突409；不存在404，非法400，不混淆对象",
+          "level": "essential",
+          "missing_effect": "核心状态码关系错误",
+          "acceptance": "状态码和触发对应，等义表达",
+          "omission_policy": "具体路由列举可省略"
+        },
+        {
+          "id": "provenance",
+          "user_quote": "不要把文档要求声称为本次已实现或已测试",
+          "outcome": "明确需求而非代码或运行证明，无虚假工程声明",
+          "level": "essential",
+          "missing_effect": "来源混淆",
+          "acceptance": "不限定路径",
+          "omission_policy": "不要求固定声明模板"
+        }
+      ],
+      "file_sha256": {
+        "README.md": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c"
+      }
+    }
+  ],
+  "repeats": 2,
+  "profiles": "same serving artifact, zero and one trained candidate; fresh isolated root each task, native child continuation",
+  "max_calls_per_diagnostic": 6,
+  "max_seconds_per_diagnostic": 300,
+  "max_output_tokens": 1800,
+  "sampling": {
+    "temperature": 0.1,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "gate": {
+    "original_dev": "candidate >=7/8 and no task/fidelity regression vs simultaneous zero; old scores and old gain rule preserved historically, not reused as new ceiling trap",
+    "diagnostic": "candidate all3 cases both repeats met, zero illegal calls/false-work claims; compare zero separately",
+    "original_read": "same fixed21+3 each arm; no regression",
+    "confirmation": "only after dev+diagnostic+read gates, same original4 each repeat fullpass and no zero regression; no repair after confirmation"
+  },
+  "source_isolation": "all API development kept out of training; DATA/WEB confirmation unchanged; no private holdout read",
+  "selection": "one candidate zero-init lr1e-4, no tuning after confirmation",
+  "monetary_cost": "unknown until real tariffs; include failures/strong/training amortization",
+  "frozen_policy": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/evaluation/EVALUATION_REGISTRATION.json",
+    "sha256": "b21712b3c4b01b32286ad8040e437f8016c80175dce5a52b00e33a99d5142f29"
+  },
+  "regression_fingerprint": "057c56ef58854f62c47eb4b7ab66c3cc3341267322e3c0fffd22c422d5188242",
+  "metrics": [
+    "original_read_main",
+    "original_read_supplement",
+    "illegal_calls",
+    "false_work_claims"
+  ],
+  "thresholds": {
+    "original_dev": "candidate >=7/8 and no task/fidelity regression vs simultaneous zero; old scores and old gain rule preserved historically, not reused as new ceiling trap",
+    "diagnostic": "candidate all3 cases both repeats met, zero illegal calls/false-work claims; compare zero separately",
+    "original_read": "same fixed21+3 each arm; no regression",
+    "confirmation": "only after dev+diagnostic+read gates, same original4 each repeat fullpass and no zero regression; no repair after confirmation"
+  },
+  "agent_metrics": [
+    "original_dev_task_pass",
+    "diagnostic_task_pass",
+    "confirmation_task_pass",
+    "factual_fidelity",
+    "termination",
+    "calls",
+    "tokens",
+    "latency",
+    "cost_unknown_without_tariffs"
+  ],
+  "retention_rule": "All frozen gate clauses must pass; confirmation only after development, diagnostic and original reading. Failed or interrupted candidate is never retained."
+}

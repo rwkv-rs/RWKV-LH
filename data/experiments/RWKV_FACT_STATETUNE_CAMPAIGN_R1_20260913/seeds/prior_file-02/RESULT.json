@@ -1,0 +1,115 @@
+{
+  "id": "file-02",
+  "case": "RP-CLI-02",
+  "path": "README.md",
+  "final": "README.md 的主要内容是：\n\n1. 项目名称：Team timebook\n2. 实现要求：使用 Python 的标准库和持久化的 SQLite 存储。\n3. 命令行工具：\n   - `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`\n   - `python timebook.py import DB INPUT_JSON`\n   - `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`\n4. 事件格式：每个事件包含 `id`、`project`、`start`、`end`，均为非空字符串。\n5. 时间处理：使用 UTC 时间戳，ISO 8601 格式，带有明确的 UTC 偏移或 Z，整秒精度，且 `end` 必须严格大于 `start`。\n6. 重复处理：重新导入相同 ID/项目/时间区间的事件是一个无操作；冲突的 ID 会被拒绝。\n7. 统计功能：按 UTC 日历日期和半开区间 `[from, to)` 统计，忽略时区偏移，按项目和日期汇总秒数。\n8. 错误处理：无效或冲突的记录会拒绝整个导入事务，包括之前批次中的有效记录。\n9. 文件格式：每个 CLI 调用是一个新进程，因此持久化存储必须在重启后保持。",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "README.md",
+        "max_tokens": 4096,
+        "start_byte": 0
+      },
+      "wire_arguments": {
+        "path": "README.md",
+        "max_tokens": 4096,
+        "start_byte": 0
+      },
+      "action_fingerprint": "f55537749053b9e58a76c05ef2e348f06fb385fcb36a81a88c3fce6a7741d736",
+      "idempotency_key": "c1c7408ae707f1536af71c53027fe7c8cfb27c51d1ec14c96ae7e3decd870352",
+      "decision_id": "D-ca99ae80ada44815",
+      "request_id": "MR-7214649465a94912",
+      "started_at": "2026-09-12T20:09:13.827+00:00",
+      "ended_at": "2026-09-12T20:09:13.856+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# Team timebook\n\nImplement `timebook.py` using only Python's standard library and durable SQLite storage. Commands:\n\n- `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`\n- `python timebook.py import DB INPUT_JSON`\n- `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`\n\nAn event has exactly `id`, `project`, `start`, `end`, all nonempty strings. Preserve nonempty IDs/project names exactly; reject whitespace-only ones. Timestamps use ISO 8601 with explicit UTC offset or Z, whole-second precision, and end strictly after start. Import is a JSON array of events. No overlap restriction is imposed: recorded durations are summed independently.\n\nEvents are identified globally by ID. Normalize timestamps to UTC for duplicate comparisons. Reimporting an identical ID/project/time interval is a no-op; a conflicting ID is an error. An invalid record or conflicting ID rejects the entire import transaction, including earlier valid records from that batch. Empty imports are valid. Add and import print `{\"inserted\": N, \"duplicates\": N}`; add follows the same duplicate rules. A new DB is created as needed.\n\nStats uses UTC calendar dates and a half-open range `[from, to)`, where `to` is the excluded midnight. Reject invalid or reversed/empty date ranges. Split intervals at UTC midnight and clip to the requested range, including leap days and offset conversions. Return `{\"days\": [{\"date\": \"YYYY-MM-DD\", \"projects\": {\"project\": integer_seconds}, \"total_seconds\": integer_seconds}], \"total_seconds\": integer_seconds}`. Include only days with recorded duration, ordered chronologically; project keys must be emitted in sorted order. Empty results contain an empty days array and total 0. Each CLI invocation is a new process, so persistence and duplicate detection must survive restarts. Errors exit nonzero with diagnostics; successful stdout is one JSON document. Include your own tests and update this README with usage and verification instructions.\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "README.md",
+            "sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "media_type": "text/markdown",
+            "size_bytes": 1988,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-92e8525d08bd79a6",
+            "source_ref": "README.md",
+            "source_sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1988,
+            "core_start": 0,
+            "core_end": 1988,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 455
+          },
+          "start_byte": 0,
+          "end_byte": 1988,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1988,
+          "observed_tokens": 455,
+          "source_start_line": 1,
+          "source_end_line": 13
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-2408ab9c1dad1d785b8e"
+      ],
+      "workspace_digest_before": "96fa083e558c76e264e966c3df4fdcd0ad601d82732d3d128e14e82145398e8e",
+      "workspace_digest_after": "96fa083e558c76e264e966c3df4fdcd0ad601d82732d3d128e14e82145398e8e",
+      "failure_key": "",
+      "observation_fingerprint": "dedf440a65a55dcb7188ba11fc474cb7f3c22d811d562bc1b8f5ee7b8e48a935",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-1c74e46f37f64285",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "README.md",
+          "max_tokens": 4096,
+          "start_byte": 0
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "README.md 的主要内容是：\n\n1. 项目名称：Team timebook\n2. 实现要求：使用 Python 的标准库和持久化的 SQLite 存储。\n3. 命令行工具：\n   - `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`\n   - `python timebook.py import DB INPUT_JSON`\n   - `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`\n4. 事件格式：每个事件包含 `id`、`project`、`start`、`end`，均为非空字符串。\n5. 时间处理：使用 UTC 时间戳，ISO 8601 格式，带有明确的 UTC 偏移或 Z，整秒精度，且 `end` 必须严格大于 `start`。\n6. 重复处理：重新导入相同 ID/项目/时间区间的事件是一个无操作；冲突的 ID 会被拒绝。\n7. 统计功能：按 UTC 日历日期和半开区间 `[from, to)` 统计，忽略时区偏移，按项目和日期汇总秒数。\n8. 错误处理：无效或冲突的记录会拒绝整个导入事务，包括之前批次中的有效记录。\n9. 文件格式：每个 CLI 调用是一个新进程，因此持久化存储必须在重启后保持。"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 52.55865740776062,
+  "workspace_unchanged": true
+}

@@ -1,0 +1,16 @@
+{
+  "id": "prior_file-03-v7",
+  "seed_id": "prior_file-03",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"目的：为小团队从零实现工单支持台，含 HTTP API、SQLite 与可操作网页；README 说明启动与人工验证。要求：创建工单含 title/description，初始 status=open、assignee=空字符串；可分配、关闭、搜索、按状态筛选；拒绝空白标题；更新须原子校验，非法 status 不得改 assignee。API：GET /api/tickets?q=文本&status=all|open|closed 返回 tickets 数组，含 id/title/description/assignee/status，q 对标题/描述做大小写不敏感子串搜索；POST /api/tickets 收 title/description 返回新工单；PATCH /api/tickets/ID 收 assignee 和/或 status，status 仅 open/closed。UI：英语可访问名称，字段 Ticket title、Ticket description，按钮 Create ticket、Search tickets、Status filter、Assign、Close；每工单 article 名 Ticket 标题。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；仅标准库与原生浏览器；源码可只读，运行文件写 PATH 临时目录，不写回源码；GET / 提供页面；SQLite 持久化，同 PATH 重启数据不丢失；API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error；id 稳定唯一，多浏览器数据一致。交付：自包含，不依赖远程 CDN、外网或需下载包；真实浏览器操作验收，不以 CSS 长度或源码关键词判断。限制：这是 README 规格，不代表已实现或测试通过；本次仅读全文（1960 字节，648 tokens），未运行测试。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "d61b39e638503e96358901eb1d9a44f5c589d3f92515f8b943a3a6a5ad3974b4",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"目的：为小团队从零实现工单支持台，含 HTTP API、SQLite 与可操作网页；README 说明启动与人工验证。要求：创建工单含 title/description，初始 status=open、assignee=空字符串；可分配、关闭、搜索、按状态筛选；拒绝空白标题；更新须原子校验，非法 status 不得改 assignee。API：GET /api/tickets?q=文本&status=all|open|closed 返回 tickets 数组，含 id/title/description/assignee/status，q 对标题/描述做大小写不敏感子串搜索；POST /api/tickets 收 title/description 返回新工单；PATCH /api/tickets/ID 收 assignee 和/或 status，status 仅 open/closed。UI：英语可访问名称，字段 Ticket title、Ticket description，按钮 Create ticket、Search tickets、Status filter、Assign、Close；每工单 article 名 Ticket 标题。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；仅标准库与原生浏览器；源码可只读，运行文件写 PATH 临时目录，不写回源码；GET / 提供页面；SQLite 持久化，同 PATH 重启数据不丢失；API 用 JSON，创建 201、查询/更新 200、无效 400、缺失 404，错误对象含 error；id 稳定唯一，多浏览器数据一致。交付：自包含，不依赖远程 CDN、外网或需下载包；真实浏览器操作验收，不以 CSS 长度或源码关键词判断。限制：这是 README 规格，不代表已实现或测试通过；本次仅读全文（1960 字节，648 tokens），未运行测试。\"}}\n```",
+  "target_sha256": "c44d194cf1d8424f32eb82f7dd9ff9046ad34f75ec66bc6cdb8c027c4c25cd76",
+  "target_tokens": 500,
+  "review_issues": [
+    "The summary states that 'Search tickets' and 'Status filter' are buttons, but README only explicitly calls Create ticket, Assign, and Close buttons; it does not label Search tickets or Status filter as buttons.",
+    "The summary includes process metadata ('本次仅读全文（1960 字节，648 tokens），未运行测试') that is not contained in README and is outside the instruction to answer only from file information."
+  ]
+}

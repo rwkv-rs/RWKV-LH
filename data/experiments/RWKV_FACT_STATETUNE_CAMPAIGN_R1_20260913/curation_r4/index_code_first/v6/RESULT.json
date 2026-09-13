@@ -1,0 +1,13 @@
+{
+  "id": "index_code_first-v6",
+  "seed_id": "index_code_first",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅实际读取两个文件：document_index/store.py 完整 1789 字节、30 行、412 tokens，SHA-256 e436…b02e03 与清单一致；README.md 完整 2194 字节、13 行、747 tokens，SHA-256 c59d…c55 与清单一致。未运行任何测试或 CLI。源码推断：store.py 的 existing 仅返回 sqlite3.connect；synchronize 建 documents(path,content,digest,search,mtime) 与 metadata 两表，按 path 的 mtime 相等判 unchanged，否则用 INSERT OR REPLACE 并循环 commit，generation 在原 metadata 值上加 1，deleted 恒为 0；没有删除、递归扫描、原子失败、root 绑定、NFC casefold 查询实现；status 读取 metadata 并 COUNT documents。README 需求要求递归同步 .md/.txt、按内容变化更新、删除同步、失败原子性、同 root 绑定、query 的 Unicode NFC+casefold 子串匹配（如 Straße 匹配 STRASSE）、status 和重启持久化，并由 index_cli.py 提供 CLI。证据差距：实际代码与需求明显不符，尤其 mtime 判定会忽略 mtime/size 相同的内容变更，且无查询入口。未执行验证建议：后续可运行 sync/query/status，覆盖增删改、同 mtime、Unicode、坏文件原子回滚、重启及不存在 DB 失败。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "23d1ffb132cf3010f9e89471dc4080f54761cf1809476a2d1f729eb475949c82",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅实际读取两个文件：document_index/store.py 完整 1789 字节、30 行、412 tokens，SHA-256 e436…b02e03 与清单一致；README.md 完整 2194 字节、13 行、747 tokens，SHA-256 c59d…c55 与清单一致。未运行任何测试或 CLI。源码推断：store.py 的 existing 仅返回 sqlite3.connect；synchronize 建 documents(path,content,digest,search,mtime) 与 metadata 两表，按 path 的 mtime 相等判 unchanged，否则用 INSERT OR REPLACE 并循环 commit，generation 在原 metadata 值上加 1，deleted 恒为 0；没有删除、递归扫描、原子失败、root 绑定、NFC casefold 查询实现；status 读取 metadata 并 COUNT documents。README 需求要求递归同步 .md/.txt、按内容变化更新、删除同步、失败原子性、同 root 绑定、query 的 Unicode NFC+casefold 子串匹配（如 Straße 匹配 STRASSE）、status 和重启持久化，并由 index_cli.py 提供 CLI。证据差距：实际代码与需求明显不符，尤其 mtime 判定会忽略 mtime/size 相同的内容变更，且无查询入口。未执行验证建议：后续可运行 sync/query/status，覆盖增删改、同 mtime、Unicode、坏文件原子回滚、重启及不存在 DB 失败。\"}}\n```",
+  "target_sha256": "6842aae263daf251860ad31a47cde5d5776ea3b7e6812fb7c29b22518992c2c5",
+  "target_tokens": 425,
+  "review_issues": []
+}

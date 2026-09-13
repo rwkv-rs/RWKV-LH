@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-10-v8",
+  "seed_id": "prior_file-10",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py（共 30 行、1789 字节，sha256 e4361550…b02e03，已完整读取至 EOF）是本地 SQLite 存储层。existing(database) 直接返回 sqlite3.connect(database)。synchronize(database, root, documents) 在连接上下文内建两张表：documents(path 为主键, content, digest, search, mtime) 与 metadata(key 为主键, value)。它先读出全部 metadata 和旧的 path→mtime 映射，再逐条处理 documents：mtime 相同者计 unchanged 并跳过，否则按 path 是否已存在计 added 或 updated，并用 INSERT OR REPLACE 写入后逐条 commit。counts 初始含 deleted: 0，但该文件中未见使 deleted 递增的删除逻辑，因此“删除清理”在此实现中未体现。循环后 generation 取 metadata 旧值 +1，写入 root 与 generation，返回 counts 加 generation。status(database) 返回 document_count、generation 与 root，其中后两者通过 metadata['generation']、metadata['root'] 直接索引取得。以上仅为对该文件内容的静态阅读结论，未运行任何测试或执行代码。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "c711491b2d890000bc85c7284fff2b08701eb484f4a27b3eadcd5af52a4f2c61",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"document_index/store.py（共 30 行、1789 字节，sha256 e4361550…b02e03，已完整读取至 EOF）是本地 SQLite 存储层。existing(database) 直接返回 sqlite3.connect(database)。synchronize(database, root, documents) 在连接上下文内建两张表：documents(path 为主键, content, digest, search, mtime) 与 metadata(key 为主键, value)。它先读出全部 metadata 和旧的 path→mtime 映射，再逐条处理 documents：mtime 相同者计 unchanged 并跳过，否则按 path 是否已存在计 added 或 updated，并用 INSERT OR REPLACE 写入后逐条 commit。counts 初始含 deleted: 0，但该文件中未见使 deleted 递增的删除逻辑，因此“删除清理”在此实现中未体现。循环后 generation 取 metadata 旧值 +1，写入 root 与 generation，返回 counts 加 generation。status(database) 返回 document_count、generation 与 root，其中后两者通过 metadata['generation']、metadata['root'] 直接索引取得。以上仅为对该文件内容的静态阅读结论，未运行任何测试或执行代码。\"}}\n```",
+  "target_sha256": "5abfb6fa766ad409ff5d229c1d6d7106a8afd0becee842f684b1fad953393d1b",
+  "target_tokens": 345,
+  "review_issues": []
+}

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "prior_file-08-v1",
+    "seed_id": "prior_file-08",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 说明：这是已有的多文件 Python SQLite 索引工具，使用 Python 3.11+ 标准库，入口 index_cli.py，DB 路径由参数指定。文件提到用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致，要求修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口并说明验证方法。sync 递归索引指定 root 下 .md/.txt 的 UTF-8 普通文件，扩展名不区分大小写，相对路径用 POSIX 斜杠，跳过符号链接文件和目录，忽略其他扩展名；按内容变化识别更新，删除要从索引移除；返回 added/updated/deleted/unchanged/generation 计数，generation 从 0 起且仅在新增/内容修改/删除时加 1；任一目标文件不能严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 的绝对路径。query 为非空查询，内容与 TEXT 均做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 与按路径升序的 matches 路径列表，禁止把通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 应失败。进程重启后应保留原索引。样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 说明：这是已有的多文件 Python SQLite 索引工具，使用 Python 3.11+ 标准库，入口 index_cli.py，DB 路径由参数指定。文件提到用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致，要求修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口并说明验证方法。sync 递归索引指定 root 下 .md/.txt 的 UTF-8 普通文件，扩展名不区分大小写，相对路径用 POSIX 斜杠，跳过符号链接文件和目录，忽略其他扩展名；按内容变化识别更新，删除要从索引移除；返回 added/updated/deleted/unchanged/generation 计数，generation 从 0 起且仅在新增/内容修改/删除时加 1；任一目标文件不能严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 的绝对路径。query 为非空查询，内容与 TEXT 均做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 与按路径升序的 matches 路径列表，禁止把通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 应失败。进程重启后应保留原索引。样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}\n```",
+    "target_sha256": "ccc6a30ddfdd8c62edcb8c36cb010bf8ed62b034b647027be366f302ea9e4959",
+    "target_tokens": 508,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-08-v2",
+    "seed_id": "prior_file-08",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 主题为「增量文档索引维护」，说明这是一个已有的多文件 Python SQLite 索引工具，并列出用户报告的问题：子目录文档找不到、删除文件仍出现、mtime/size 相同的内容变更被忽略、Unicode 查询不一致；要求修复扫描、增量更新、查询与持久化路径，保持 CLI 接口并说明验证方法，仅用 Python 3.11+ 标准库，入口 index_cli.py。 sync 递归索引 root 下 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写），跳过符号链接，相对路径用 POSIX 斜杠；按内容变化判断更新，删除文件从索引移除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败，不得部分更新，root 不存在失败，一个 DB 绑定首次 root 的绝对路径。 query 对非空查询与内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败，索引须在进程重启后保留。样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}",
+    "accepted_by_api": false,
+    "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+    "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 主题为「增量文档索引维护」，说明这是一个已有的多文件 Python SQLite 索引工具，并列出用户报告的问题：子目录文档找不到、删除文件仍出现、mtime/size 相同的内容变更被忽略、Unicode 查询不一致；要求修复扫描、增量更新、查询与持久化路径，保持 CLI 接口并说明验证方法，仅用 Python 3.11+ 标准库，入口 index_cli.py。 sync 递归索引 root 下 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写），跳过符号链接，相对路径用 POSIX 斜杠；按内容变化判断更新，删除文件从索引移除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败，不得部分更新，root 不存在失败，一个 DB 绑定首次 root 的绝对路径。 query 对非空查询与内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败，索引须在进程重启后保留。样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}\n```",
+    "target_sha256": "5f92df06cdac529233f51aae2d064eedfc4d342be8ec70cf3f87222b0faa5fa2",
+    "target_tokens": 474
+  },
+  {
+    "id": "prior_file-08-v3",
+    "seed_id": "prior_file-08",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 标题“增量文档索引维护”，说明这是一个已有的多文件 Python SQLite 索引工具，用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致；要求修复扫描、增量更新、查询和持久化路径，保持 CLI 接口并说明验证方法。工具使用 Python 3.11+ 标准库，入口 index_cli.py，成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据返回非 0，DB 路径由参数指定。sync 递归索引 root 下 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写），相对路径用 POSIX 斜杠，跳过符号链接，忽略其他扩展名；按内容变化识别更新和删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1，纯重复同步不增加。任一目标文件无法严格 UTF-8 解码或读取错误则整次同步失败，不得部分更新；不存在的 root 失败；一个 DB 绑定首次 root 的绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches，禁止把通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。进程重启后索引应保留；样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 标题“增量文档索引维护”，说明这是一个已有的多文件 Python SQLite 索引工具，用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致；要求修复扫描、增量更新、查询和持久化路径，保持 CLI 接口并说明验证方法。工具使用 Python 3.11+ 标准库，入口 index_cli.py，成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据返回非 0，DB 路径由参数指定。sync 递归索引 root 下 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写），相对路径用 POSIX 斜杠，跳过符号链接，忽略其他扩展名；按内容变化识别更新和删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1，纯重复同步不增加。任一目标文件无法严格 UTF-8 解码或读取错误则整次同步失败，不得部分更新；不存在的 root 失败；一个 DB 绑定首次 root 的绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches，禁止把通配符或正则当查询语法。status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。进程重启后索引应保留；样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}\n```",
+    "target_sha256": "1ff42e6d4b96674f4882c9ceffcbb7ec8307328d4a41e643a6ebc9b5ae029dda",
+    "target_tokens": 531,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-08-v4",
+    "seed_id": "prior_file-08",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 题为“增量文档索引维护”，介绍一个已有的多文件 Python SQLite 索引工具：使用 Python 3.11+ 标准库、入口 index_cli.py，DB 路径由参数指定；成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。文件指出用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致，要求修复扫描/增量更新/查询/持久化路径、保持 CLI 接口并说明验证方法。sync 递归索引指定 root 下扩展名不区分大小写的 .md/.txt UTF-8 普通文件，相对路径用 POSIX 斜杠，跳过符号链接，忽略其他扩展名；按内容变化识别更新与删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且只在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。索引在重启后保留；样例 docs 仅手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 题为“增量文档索引维护”，介绍一个已有的多文件 Python SQLite 索引工具：使用 Python 3.11+ 标准库、入口 index_cli.py，DB 路径由参数指定；成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。文件指出用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致，要求修复扫描/增量更新/查询/持久化路径、保持 CLI 接口并说明验证方法。sync 递归索引指定 root 下扩展名不区分大小写的 .md/.txt UTF-8 普通文件，相对路径用 POSIX 斜杠，跳过符号链接，忽略其他扩展名；按内容变化识别更新与删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且只在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 和按路径升序的 matches；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。索引在重启后保留；样例 docs 仅手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}\n```",
+    "target_sha256": "c34c4208a67ae870935c57c4b3cd0600615068464b04c446dfb217ccc5888f2a",
+    "target_tokens": 500,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-08-v5",
+    "seed_id": "prior_file-08",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 标题为“增量文档索引维护”，介绍一个已有的多文件 Python SQLite 索引工具：使用 Python 3.11+ 标准库，入口 index_cli.py，DB 路径由参数指定，成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。文件列出用户报告的问题——子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致——要求修复扫描、增量更新、查询和持久化路径，保持 CLI 接口并说明验证方法。\\n\\n命令与行为：sync --root DOCS --db DB 递归索引 root 下 .md/.txt 的 UTF-8 普通文件，扩展名不区分大小写，相对路径用 POSIX 斜杠，跳过符号链接文件和目录，忽略其他扩展名；按内容变化识别更新与删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 的绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 与按路径升序的 matches，禁止把通配符或正则当查询语法；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。索引在进程重启后保留；样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "bceacb84c1856981a058ad441e828c5b7e8d6ff2f72fe8d8602fef01a6f3ff87",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 标题为“增量文档索引维护”，介绍一个已有的多文件 Python SQLite 索引工具：使用 Python 3.11+ 标准库，入口 index_cli.py，DB 路径由参数指定，成功退出 0 且 stdout 最后一行输出 JSON，非法输入或损坏数据非 0。文件列出用户报告的问题——子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略、Unicode 查询不一致——要求修复扫描、增量更新、查询和持久化路径，保持 CLI 接口并说明验证方法。\\n\\n命令与行为：sync --root DOCS --db DB 递归索引 root 下 .md/.txt 的 UTF-8 普通文件，扩展名不区分大小写，相对路径用 POSIX 斜杠，跳过符号链接文件和目录，忽略其他扩展名；按内容变化识别更新与删除，返回 added/updated/deleted/unchanged/generation，generation 从 0 起且仅在新增、内容修改或删除时加 1；任一目标文件无法严格 UTF-8 解码或读取出错则整次同步失败、不得部分更新，不存在的 root 失败，一个 DB 绑定首次 root 的绝对路径。query 对非空查询和内容做 Unicode NFC 规范化后 casefold 的字面子串匹配（如 Straße 匹配 STRASSE），返回 count 与按路径升序的 matches，禁止把通配符或正则当查询语法；status 返回 document_count、generation、root；query/status 不修改索引，不存在的 DB 失败。索引在进程重启后保留；样例 docs 仅用于手工演示，文件要求实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启，并更新 README 操作说明。\"}}\n```",
+    "target_sha256": "190274d6858086fb5235482c241751b62b6bb3fcccf95d9cab1c87cae546fa5c",
+    "target_tokens": 547,
+    "review_issues": []
+  }
+]

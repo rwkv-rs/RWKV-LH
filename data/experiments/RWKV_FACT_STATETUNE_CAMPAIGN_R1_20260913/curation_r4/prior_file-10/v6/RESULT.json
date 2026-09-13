@@ -1,0 +1,13 @@
+{
+  "id": "prior_file-10-v6",
+  "seed_id": "prior_file-10",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"文件 document_index/store.py 仅包含三个函数：existing 返回 sqlite3.connect(database)；synchronize 连接数据库，若无则创建 documents 表（path、content、digest、search、mtime 五列）和 metadata 表（key、value 两列），读取已有 metadata 与 documents 的 path/mtime，初始化 added、updated、deleted、unchanged 计数均为 0；对传入 documents 逐行处理，若 path 的 mtime 相同则 unchanged 加 1，否则按 path 是否已存在分别将 updated 或 added 加 1，并用 INSERT OR REPLACE 写入 documents 后 commit；随后 generation 设为原 metadata generation 值加 1（缺失按 0），写入 root 和 generation 到 metadata，最后返回含四个计数和 generation 的字典。status 读取 metadata 和 documents 总数，返回 document_count、generation、root。注意：deleted 计数在上述代码中初始化为 0 后未见递增逻辑。\"}}",
+  "accepted_by_api": true,
+  "error": null,
+  "input_sha256": "c711491b2d890000bc85c7284fff2b08701eb484f4a27b3eadcd5af52a4f2c61",
+  "augmentation": "source-only alternative at same actual boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"文件 document_index/store.py 仅包含三个函数：existing 返回 sqlite3.connect(database)；synchronize 连接数据库，若无则创建 documents 表（path、content、digest、search、mtime 五列）和 metadata 表（key、value 两列），读取已有 metadata 与 documents 的 path/mtime，初始化 added、updated、deleted、unchanged 计数均为 0；对传入 documents 逐行处理，若 path 的 mtime 相同则 unchanged 加 1，否则按 path 是否已存在分别将 updated 或 added 加 1，并用 INSERT OR REPLACE 写入 documents 后 commit；随后 generation 设为原 metadata generation 值加 1（缺失按 0），写入 root 和 generation 到 metadata，最后返回含四个计数和 generation 的字典。status 读取 metadata 和 documents 总数，返回 document_count、generation、root。注意：deleted 计数在上述代码中初始化为 0 后未见递增逻辑。\"}}\n```",
+  "target_sha256": "d5d08b526d5cc25813d90b1098d60799044185d86d1208243b3c3f56226c93ed",
+  "target_tokens": 276,
+  "review_issues": []
+}

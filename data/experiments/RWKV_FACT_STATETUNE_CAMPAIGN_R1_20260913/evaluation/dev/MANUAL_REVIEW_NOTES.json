@@ -1,0 +1,466 @@
+{
+  "file-11-zero-r1": {
+    "answer_sha256": "8cd55462a93acef82e8d901c44a2d63eb614eae1dfd594efc34fc219913eb8f2",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别会议资源预约服务说明"
+      ],
+      [
+        "central",
+        "met",
+        "摘要已给预约生命周期、防冲突及重启持久的核心含义。并发原子未展开作为细节说明保留，不把原冻结的示意锚点再次当作逐词必填事实组。"
+      ],
+      [
+        "fidelity",
+        "met",
+        "已说内容均有原文依据，未声称运行或实现"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": "首份人工草稿曾拟给central1；正式评定前依冻结“anchors illustrate meaning, not all-or-nothing fact groups”复核为2。草稿和裁定理由均保留，未修改评分规则。"
+  },
+  "file-11-candidate-r1": {
+    "answer_sha256": "a373c1f4ffdbc815322afa8f06045af8113cc557abfdba09c4c7e76b000cc535",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别会议室设备SQLite预约服务说明"
+      ],
+      [
+        "central",
+        "met",
+        "覆盖核心接口、防冲突、原子并发、重启持久及健康验证边界"
+      ],
+      [
+        "fidelity",
+        "met",
+        "数字、状态与时间约束有依据，无实际工作虚称；组织模块措辞作为不依赖固定框架的概述理解，不另行推导禁止使用框架"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-12-zero-r1": {
+    "answer_sha256": "92403ce5ede8ccb1bc1a77ccc299e82e3b5780b30cd6edb3dbaa443dd62b770f",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "原标题和首段清楚识别库存订单需求"
+      ],
+      [
+        "central",
+        "met",
+        "幂等、整单原子、并发防超卖和持久化均完整出现"
+      ],
+      [
+        "fidelity",
+        "met",
+        "基本照录原文，事实关系准确，没有虚称实现或运行"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": "回答基本重印原文，摘要压缩不足；按冻结内容维度给分，不运行后新增字数/压缩率否决门。"
+  },
+  "file-12-candidate-r1": {
+    "answer_sha256": "6f10f9391d7cc1097c27525825a05cdfdc8e8bbbb417e8d4347ce6eb6a1c5ec7",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 1
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别SQLite库存订单需求说明"
+      ],
+      [
+        "central",
+        "met",
+        "主要幂等、原子、并发与持久化含义完整"
+      ],
+      [
+        "fidelity",
+        "partial",
+        "局部状态码被改写：不存在404正确，但库存不足应409而不是404"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "任一 SKU 不存在或数量不足均 404",
+        "reason": "原文明确不存在404、数量不足409；这里将不同触发条件合并",
+        "impact": "局部数字/触发关系不忠实，摘要其余主旨保留；任务严格忠实性门不通过"
+      }
+    ],
+    "presentation_note": null
+  },
+  "file-13-zero-r1": {
+    "answer_sha256": "d19469c1670b9e3bc07a7af56870310ecb1861ff675915b7dfd8577fdefa3c83",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别基础HTTP入口和健康检查"
+      ],
+      [
+        "central",
+        "met",
+        "正确GET /health200、其他GET501及参数/ThreadingHTTPServer启动；初始骨架定位正确"
+      ],
+      [
+        "fidelity",
+        "met",
+        "没有宣称DB已连接或完整业务；多线程来自类名和标准接口，未虚构导入threading。末句为初始骨架与未使用db参数的后续扩展概述"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-13-candidate-r1": {
+    "answer_sha256": "3e801ace8c1e125926ba84674170ce80dfe2525e36dd3e0f5e2551fd16d37aae",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 1,
+      "fidelity": 0
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别HTTP服务入口"
+      ],
+      [
+        "central",
+        "partial",
+        "列出的health/501和启动行为正确，但把初始待完成入口说成完整契约实现，核心定位自相矛盾"
+      ],
+      [
+        "fidelity",
+        "unmet",
+        "将docstring中的待完成指令改为已经完成，且未读取README作实现证据"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "完整实现了 README.md 中要求的契约",
+        "reason": "源码首句是Initial HTTP entry point; complete the contract，现有代码仅GET健康检查/其他501；不支持完整契约已实现",
+        "impact": "误判代码是否已经实现业务，是核心来源/语态错误；不把对既有代码的错误描述另算成本次执行工作的虚称"
+      }
+    ],
+    "presentation_note": null
+  },
+  "file-14-zero-r1": {
+    "answer_sha256": "470d1c9352ef68b0856e8c266c834e18b923ee6667556eba95752ee7f32abc3c",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别健康检查脚本"
+      ],
+      [
+        "central",
+        "met",
+        "说明请求/health并验证200和ok，且不能认证业务"
+      ],
+      [
+        "fidelity",
+        "met",
+        "无未经支持事实；是在描述脚本行为，并非声称本次已运行"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-14-candidate-r1": {
+    "answer_sha256": "83213b16d2100dad48d166711a12f4ac88db724c6aac16bf7ffa7ee17edf9f54",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别仅健康检查的辅助脚本"
+      ],
+      [
+        "central",
+        "met",
+        "正确主机端口、GET、200/ok与不认证业务边界"
+      ],
+      [
+        "fidelity",
+        "met",
+        "关闭连接及输出文本有源码依据；不虚称本次已执行"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-11-zero-r2": {
+    "answer_sha256": "06e1f11aa0baec1f9a721a0fb978cc8054c6d3b4648cf7d77add1ec169879e06",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "正确识别会议资源预约需求"
+      ],
+      [
+        "central",
+        "met",
+        "核心接口、防冲突、原子并发、重启持久及健康验证边界完整"
+      ],
+      [
+        "fidelity",
+        "met",
+        "所述约束与原文对应，未声称实际运行"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-11-candidate-r2": {
+    "answer_sha256": "b1061705361fedec7ceb1d0ed7dbcda235a9462af6dc7163fd234276755b2b4b",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "正确识别SQLite预约服务说明"
+      ],
+      [
+        "central",
+        "met",
+        "覆盖预约生命周期、冲突/并发原子、持久化及验证边界"
+      ],
+      [
+        "fidelity",
+        "met",
+        "数值、状态与对象有原文依据，无虚构工作"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-12-zero-r2": {
+    "answer_sha256": "92403ce5ede8ccb1bc1a77ccc299e82e3b5780b30cd6edb3dbaa443dd62b770f",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别库存订单需求"
+      ],
+      [
+        "central",
+        "met",
+        "幂等、原子、并发防超卖、持久化与验证限制完整"
+      ],
+      [
+        "fidelity",
+        "met",
+        "基本照录原文，数字对应准确"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": "同第一遍：未有效压缩原文，单列呈现局限，不新增冻结门外的压缩率否决。"
+  },
+  "file-12-candidate-r2": {
+    "answer_sha256": "5c2b740215e65df245d3aa8256fe365fbb2d9c010762326c1662774c8a30c5b9",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 1
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别库存订单需求"
+      ],
+      [
+        "central",
+        "met",
+        "主要幂等、原子、并发与持久含义完整"
+      ],
+      [
+        "fidelity",
+        "partial",
+        "这次将不存在SKU也归为409，局部状态码关系不忠实"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "任一 SKU 不存在或数量不足均 409",
+        "reason": "不存在应404，数量不足才409；两种条件再次被合并成同一码",
+        "impact": "局部数字/触发关系错误，严格忠实性门不通过；不把其余正确主旨计成零覆盖"
+      }
+    ],
+    "presentation_note": null
+  },
+  "file-13-zero-r2": {
+    "answer_sha256": "fc567c176d313d060766100bf21aca2ba8d1b3806403ec2c27494ea7a54d762c",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别基础HTTP入口"
+      ],
+      [
+        "central",
+        "met",
+        "GET健康检查/其他501及参数启动行为准确"
+      ],
+      [
+        "fidelity",
+        "met",
+        "没有虚构数据库、完整业务或已执行验证"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-13-candidate-r2": {
+    "answer_sha256": "af68dc2ac264a4d4d425d6333894283ea57422c7f55bd818c6d260c30319fee2",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 1,
+      "fidelity": 0
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别HTTP入口"
+      ],
+      [
+        "central",
+        "partial",
+        "实际health和501描述正确，但完整实现契约的定位错误"
+      ],
+      [
+        "fidelity",
+        "unmet",
+        "再次把源码待完成指令说成完整契约已实现"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "完整实现了 README.md 中要求的契约",
+        "reason": "Initial入口和complete指令不代表完成；现有代码只提供GET健康检查和其他GET501",
+        "impact": "核心实现状态/来源归属错误，不另算本次执行测试或修复的虚称"
+      }
+    ],
+    "presentation_note": null
+  },
+  "file-14-zero-r2": {
+    "answer_sha256": "be53feeeb89ec0429f8af346d0e173af88e4ea8738e4d2309733f6637dceeb37",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别HTTP健康检查脚本"
+      ],
+      [
+        "central",
+        "met",
+        "请求/health、200/ok检查与不认证业务的边界明确"
+      ],
+      [
+        "fidelity",
+        "met",
+        "源码支持，无虚称本次执行"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  },
+  "file-14-candidate-r2": {
+    "answer_sha256": "81eb2a4764aaa2e41b3749bde4e57d05421f0971881f69265753a35b3bbe7ba5",
+    "scores": {
+      "subject": 1,
+      "central_meaning": 2,
+      "fidelity": 2
+    },
+    "requirements": [
+      [
+        "subject",
+        "met",
+        "识别仅健康检查辅助脚本"
+      ],
+      [
+        "central",
+        "met",
+        "健康检查和不验证订单/预订含义明确"
+      ],
+      [
+        "fidelity",
+        "met",
+        "HTTP步骤、关闭和提示有依据，是脚本描述而非运行声明"
+      ]
+    ],
+    "findings": [],
+    "presentation_note": null
+  }
+}

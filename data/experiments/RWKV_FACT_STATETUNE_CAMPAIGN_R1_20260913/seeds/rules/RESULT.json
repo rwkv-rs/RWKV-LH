@@ -1,0 +1,96 @@
+{
+  "id": "rag_rules-files-r1",
+  "final": "根据 ARCHITECTURE_RULES.md，文本证据成为回答材料的方式是：模型只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选；Writer 输出上限默认 2K token，输入证据容量单独配置，不与输出上限混用。\n\n模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n\n原始答案和来源记录的约束：\n1. 模型输出不得增删、改写、补引用、删句或用兜底答案替换；RWKV 原始输出是不可变数据。\n2. 校验和审计只能记录问题，不得改变对外答案；需要修复时必须发起有独立 trace 的新模型调用。\n3. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n4. 旧 legacy 链路只用于回归对照，不得向其中继续增加规则补丁。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "files",
+  "generation_started": 2,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "ARCHITECTURE_RULES.md",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "ARCHITECTURE_RULES.md"
+      },
+      "action_fingerprint": "d7ff5e1991b0bf22388dadb581e23befe7ecc6ecc3c3a77674487e7f18b11f72",
+      "idempotency_key": "a69d491ac98b400aab3212ca7b731234d95d2bea76e36decb6afea07d3aef468",
+      "decision_id": "D-ac17e354a29645b9",
+      "request_id": "MR-b7d237e439a84434",
+      "started_at": "2026-09-13T05:31:22.378+00:00",
+      "ended_at": "2026-09-13T05:31:22.406+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "# RAG 架构规则\n\n以下规则适用于新的 `immutable` 问答链路。\n\n1. 模型负责语义决定；代码只负责传输、切分、检索、排序、去重、格式解析和校验。\n2. 禁止针对实体、题目或具体问法增加专用补丁、白名单、黑名单或语义词表分支。\n3. Writer 只能看到 Resolver 选中的逐字证据，不得看到未入选的检索候选。\n4. RWKV 原始输出是不可变数据。代码不得增删、改写、补引用、删句或用兜底答案替换。\n5. 校验和审计只能记录问题，不得改变对外答案。需要修复时必须发起有独立 trace 的新模型调用。\n6. 每次模型调用必须保存精确 prompt、原始输出、内容哈希、输入证据 ID 和阶段耗时。\n7. 所有实验固定索引名、索引版本、配置和提示词版本；一次只改变一个变量。\n8. 先验证固定材料问答，再分别验证 Resolver、检索，最后验证端到端链路。\n9. 连续正文切片必须有 overlap；表格行、列表项和 QA 对保持原子结构并携带父级上下文。\n10. Writer 输出上限默认设为 2K token；输入证据容量单独配置，不与输出上限混用。\n\n旧 `legacy` 链路只用于回归对照，不得向其中继续增加规则补丁。\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "ARCHITECTURE_RULES.md",
+            "sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+            "media_type": "text/markdown",
+            "size_bytes": 1281,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-8a858c917b58016a",
+            "source_ref": "ARCHITECTURE_RULES.md",
+            "source_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1281,
+            "core_start": 0,
+            "core_end": 1281,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "db6d4b9744aa292c28c1042c1fa25f2248423edd295b5afb6cb93f09f9758692",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 442
+          },
+          "start_byte": 0,
+          "end_byte": 1281,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1281,
+          "observed_tokens": 442,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-00e14351fa37c537c2a4"
+      ],
+      "workspace_digest_before": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+      "workspace_digest_after": "f009dfd571aebe946ebf80b7594a718de6400a8c1243f0bddf867cc4bc3d9cb1",
+      "failure_key": "",
+      "observation_fingerprint": "77e6fbd4ecebddd45a0baa884f04438c64d890b96fa790b18b95891ab2c916f7",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 51.323906789999455
+}

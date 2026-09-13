@@ -1,0 +1,9 @@
+{
+ "index_code_first-v4":{"accepted":true,"reason":"完整读取、重要存储缺陷和未读模块分开；逐行commit仅作为非整体事务的源码判断，未声称已运行坏文件测试。"},
+ "index_code_first-v5":{"accepted":false,"reason":"不存在DB可能被新建而非失败没有说明随后status查询缺表仍可能报错，容易将connect阶段与整个status成功混淆。"},
+ "index_requirements_first-v4":{"accepted":false,"reason":"坏文件无法原子失败的断言跨越未读扫描层，当前只能证明存储层逐行提交。"},
+ "index_requirements_first-v5":{"accepted":true,"reason":"用无法保证原子性限定逐行提交的风险而非断言所有坏文件必定部分写入；主要mtime/删除/generation/root缺陷及实际两次读取均正确。"},
+ "rag_model_client-v4":{"accepted":true,"reason":"传输选择、二进制reader State条件、overrides覆盖与code-point答案边界的整数/非空限制逐项匹配源码；未推断未读client实现。"},
+ "rag_batch_receipts-v2":{"accepted":false,"reason":"把仅有started回执一概称unknown不符合observe逻辑：其中http_attempted为True即记attempted，不能忽略显式尝试证据。"},
+ "rag_evidence_quality-v1":{"accepted":true,"reason":"最长清洗行、80阈值、2到min(32,len//5)周期、至少5次/90%覆盖/3%失配分母均准确；明确静态阅读与未执行测试。"}
+}

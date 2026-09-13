@@ -1,0 +1,91 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "66a967b7ecf957dda7b4cf539ee1bc8fe80b9d7be8eef35562ceb7a0ab0848fd",
+  "run_sha256": "bcb6b8279c09b7ca3df53bd36f6f45b940eb6e4e3362583f6a0fbe2c999bef0d",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "limits",
+      "status": "unmet",
+      "reason": "quantity写成非负整数且混入PUT stock，数字对象未区分",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "codes",
+      "status": "unmet",
+      "reason": "虚构500、集合GET/orders无订单404，并混淆首次POST200/201与冲突条件",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "明确在转述README，没有虚称本次实现或执行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "必须为非负整数",
+      "reason": "该小节quantity应正整数；非负是stock N的约束",
+      "impact": "混淆核心数值对象",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "500：服务器内部错误",
+      "reason": "文件没有500契约",
+      "impact": "新增未经文档支持状态码",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "GET /orders 无订单",
+      "reason": "集合接口应200及orders列表，不是无订单404",
+      "impact": "混淆集合与单订单查询",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": []
+}

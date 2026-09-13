@@ -1,0 +1,63 @@
+[
+  {
+    "id": "prior_file-07-v1",
+    "seed_id": "prior_file-07",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 提供 SQLite 数据库工具函数。validate(connection) 执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，只接受版本 1 或 2；之后校验 settings 表含 key、value 列，版本 2 时还校验 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source, destination) 以只读 URI 连接 source，先调用 validate，再连接 destination 并执行 original.backup(copied)，最后对 destination 执行 fsync。write_backup_exclusive(source, backup) 先复制到临时 staged，再用 os.link 链接为 backup，最后清理 staged。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 提供 SQLite 数据库工具函数。validate(connection) 执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，只接受版本 1 或 2；之后校验 settings 表含 key、value 列，版本 2 时还校验 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source, destination) 以只读 URI 连接 source，先调用 validate，再连接 destination 并执行 original.backup(copied)，最后对 destination 执行 fsync。write_backup_exclusive(source, backup) 先复制到临时 staged，再用 os.link 链接为 backup，最后清理 staged。\"}}\n```",
+    "target_sha256": "f8e68bb6c0858ee3e0cdacb387086f0cbeea236582e0f79fcef600d3585ad8f6",
+    "target_tokens": 253,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-07-v2",
+    "seed_id": "prior_file-07",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，包含四个函数。validate 验证数据库完整性：执行 PRAGMA integrity_check 要求返回 ok，读取 PRAGMA user_version 并仅接受 1 或 2，然后检查 settings 表含 key 和 value 列，version 2 时还检查 value_type 和 updated_at 列，最后返回版本号。temporary_path 使用 tempfile.mkstemp 在指定目录创建 .config-stage- 前缀、.sqlite3 后缀的临时文件，关闭文件描述符后返回 Path。copy_database 通过只读 URI 连接 source，调用 validate，再用 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 fsync。write_backup_exclusive 先经 temporary_path 创建 staged 文件，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中清理 staged。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块，包含四个函数。validate 验证数据库完整性：执行 PRAGMA integrity_check 要求返回 ok，读取 PRAGMA user_version 并仅接受 1 或 2，然后检查 settings 表含 key 和 value 列，version 2 时还检查 value_type 和 updated_at 列，最后返回版本号。temporary_path 使用 tempfile.mkstemp 在指定目录创建 .config-stage- 前缀、.sqlite3 后缀的临时文件，关闭文件描述符后返回 Path。copy_database 通过只读 URI 连接 source，调用 validate，再用 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 fsync。write_backup_exclusive 先经 temporary_path 创建 staged 文件，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中清理 staged。\"}}\n```",
+    "target_sha256": "db40d8444c1dcd2d66fb9de8a9a3426b4757b9e23cc0d3fac16dd82ebe2b6bac",
+    "target_tokens": 283,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-07-v3",
+    "seed_id": "prior_file-07",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 操作辅助函数。validate 先执行 PRAGMA integrity_check，结果须为 ok，否则抛 ValueError('invalid SQLite database')；再读取 PRAGMA user_version，只允许 1 或 2，否则抛 ValueError('unsupported schema version')；随后探测 settings 表含 key、value 列，版本 2 时还探测 value_type、updated_at 列，并返回版本号。temporary_path 用 tempfile.mkstemp 在 parent 下创建 .config-stage- 前缀、.sqlite3 后缀临时文件，关闭描述符后返回 Path。copy_database 以 ?mode=ro URI 只读打开 source，调用 validate，再用 original.backup(copied) 复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive 先经 temporary_path 得到 staged，调用 copy_database 写入 staged，再用 os.link 链接为 backup，并在 finally 中 unlink(staged, missing_ok=True)。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 操作辅助函数。validate 先执行 PRAGMA integrity_check，结果须为 ok，否则抛 ValueError('invalid SQLite database')；再读取 PRAGMA user_version，只允许 1 或 2，否则抛 ValueError('unsupported schema version')；随后探测 settings 表含 key、value 列，版本 2 时还探测 value_type、updated_at 列，并返回版本号。temporary_path 用 tempfile.mkstemp 在 parent 下创建 .config-stage- 前缀、.sqlite3 后缀临时文件，关闭描述符后返回 Path。copy_database 以 ?mode=ro URI 只读打开 source，调用 validate，再用 original.backup(copied) 复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive 先经 temporary_path 得到 staged，调用 copy_database 写入 staged，再用 os.link 链接为 backup，并在 finally 中 unlink(staged, missing_ok=True)。\"}}\n```",
+    "target_sha256": "236b344ca829587d13a3c78a5f529ab91126720fc689bb9bc55ceaf89122a01c",
+    "target_tokens": 285,
+    "review_issues": []
+  },
+  {
+    "id": "prior_file-07-v4",
+    "seed_id": "prior_file-07",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py（37 行）依赖 os、sqlite3、tempfile 和 pathlib.Path，导出四个函数，围绕“校验—暂存—复制—独占落盘”这一备份流程组织。\\n\\n校验层 validate(connection)：执行 PRAGMA integrity_check，结果不是 'ok' 时抛 ValueError('invalid SQLite database')；读取 PRAGMA user_version，不在 (1, 2) 内时抛 ValueError('unsupported schema version')；随后用 LIMIT 0 试探 settings 表的 key、value 列，版本 2 时再试探 value_type、updated_at 列，最后返回版本号。\\n\\n暂存层 temporary_path(parent)：tempfile.mkstemp 在 parent 下生成前缀 .config-stage-、后缀 .sqlite3 的文件，关闭描述符后返回 Path。\\n\\n复制层 copy_database(source, destination)：以 source.resolve().as_uri() 加 ?mode=ro 的只读 URI 打开源库，先 validate，再连接 destination 并调用 original.backup(copied)，最后以二进制打开 destination 并 os.fsync 其描述符。\\n\\n写入层 write_backup_exclusive(source, backup)：先在 backup.parent 下取 staged 路径，copy_database 写入 staged，再用 os.link 将其链接为 backup，finally 中 staged.unlink(missing_ok=True) 清理。\"}",
+    "accepted_by_api": false,
+    "error": "JSONDecodeError: Expecting ',' delimiter: line 1 column 879 (char 878)",
+    "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+    "augmentation": "alternate target at same actual production boundary"
+  },
+  {
+    "id": "prior_file-07-v5",
+    "seed_id": "prior_file-07",
+    "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 辅助函数，共四个。validate(connection) 先执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，仅接受 1 或 2，否则抛出 ValueError；随后检查 settings 表含 key、value 列，版本 2 时还检查 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source,destination) 以只读 URI 打开 source，调用 validate，再执行 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive(source,backup) 先经 temporary_path 创建 staged，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中 unlink staged。\"}}",
+    "accepted_by_api": true,
+    "error": null,
+    "input_sha256": "d68ba9a82816d7f153a5970fd645a7b490c1703e9ea91989d875dd0c98876335",
+    "augmentation": "alternate target at same actual production boundary",
+    "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"config_store/sqlite_io.py 定义 SQLite 辅助函数，共四个。validate(connection) 先执行 PRAGMA integrity_check，要求结果为 ok；再读取 PRAGMA user_version，仅接受 1 或 2，否则抛出 ValueError；随后检查 settings 表含 key、value 列，版本 2 时还检查 value_type、updated_at 列，并返回版本号。temporary_path(parent) 用 tempfile.mkstemp 在 parent 下创建前缀 .config-stage-、后缀 .sqlite3 的临时文件，关闭描述符后返回 Path。copy_database(source,destination) 以只读 URI 打开 source，调用 validate，再执行 original.backup(copied) 将数据复制到 destination，最后对 destination 执行 os.fsync。write_backup_exclusive(source,backup) 先经 temporary_path 创建 staged，调用 copy_database 写入 staged，再用 os.link 将其链接为 backup，并在 finally 中 unlink staged。\"}}\n```",
+    "target_sha256": "d7c1070a403fe76e073ce88bf59857c7398da2fa80f809ed6e235cb1ee834a96",
+    "target_tokens": 281,
+    "review_issues": []
+  }
+]

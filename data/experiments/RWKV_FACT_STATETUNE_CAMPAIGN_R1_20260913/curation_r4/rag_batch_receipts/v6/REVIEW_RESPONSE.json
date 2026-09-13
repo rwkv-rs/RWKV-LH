@@ -1,0 +1,8 @@
+{
+  "accepted": false,
+  "issues": [
+    "候选称“每条记录取 identity_key，缺失或空会触发异常但被捕获并记为 unknown”，但源码仅对目录中的文件收据在 observe 内抛出 ValueError 并由 except 转为 unknown；对 traces 的顶层 identity 缺失不会触发该异常，对 trace 内 http 记录还会先以 record.get(identity_key) 真假过滤，缺失/空 identity 会被跳过，不会记为 unknown。",
+    "若“不可读/非对象/缺 identity 计 unknown 并列入 unreadable_receipts”被理解为同样适用于 traces，则不准确；unreadable_receipts 只在对目录文件收据读取/解析/identity 校验抛出 OSError、ValueError、TypeError 时由 except 追加。",
+    "候选未说明 token_count_id 回退只发生在 traces 循环中 trace 顶层 identity 缺失时，而不是目录文件收据或 trace 内单条 http 记录的 identity_key 解析中；泛化说法与源码行为不完全一致。"
+  ]
+}

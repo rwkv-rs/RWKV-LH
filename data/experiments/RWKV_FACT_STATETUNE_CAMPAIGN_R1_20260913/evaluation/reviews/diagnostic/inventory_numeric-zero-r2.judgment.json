@@ -1,0 +1,78 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "66a967b7ecf957dda7b4cf539ee1bc8fe80b9d7be8eef35562ceb7a0ab0848fd",
+  "run_sha256": "80bc11e1a533bd0f02e67c4f6e04c73b6da9859031ac9c5e4a17912a315d7d5a",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "stock非负与quantity正整数、128长度、空key400相互对应；整数作为字段类型等义理解，不额外强制逐词列bool/小数",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "codes",
+      "status": "unmet",
+      "reason": "首次POST同时200/201，且把非法stock说成500",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "met",
+      "reason": "回答以README说明框定，没有虚假已执行",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "500`：服务器内部错误，如 `PUT /inventory/{sku}` 中的非法 `stock` 值",
+      "reason": "原文非法stock/字段应400，不包含500",
+      "impact": "数字和触发条件错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "`POST /orders`（首次成功）",
+      "reason": "首次成功列在200和201两组，正确应201",
+      "impact": "首次与重试的对应不清",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": []
+}

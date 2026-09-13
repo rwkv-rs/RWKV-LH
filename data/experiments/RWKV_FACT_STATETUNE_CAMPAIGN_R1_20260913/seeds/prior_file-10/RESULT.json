@@ -1,0 +1,111 @@
+{
+  "id": "file-10",
+  "case": "RP-MAINT-02",
+  "path": "document_index/store.py",
+  "final": "document_index/store.py 是一个 SQLite 文档索引存储模块，主要提供文档索引的持久化操作。\n\n核心功能：\n1. 文档索引存储：使用 SQLite 数据库存储文档内容、路径、摘要、搜索索引和修改时间戳\n2. 文档同步：支持添加、更新和删除文档，并自动计算版本号\n3. 状态查询：提供文档数量、版本号和根路径等元数据查询\n\n主要函数：\n- existing(database): 创建数据库连接\n- synchronize(database, root, documents): 同步文档到数据库，返回操作统计\n- status(database): 查询文档索引状态\n\n数据库表结构：\n- documents: 存储文档内容（path, content, digest, search, mtime）\n- metadata: 存储元数据（key, value）\n\n版本管理：使用 generation 字段进行版本控制，每次同步操作后自动递增版本号。",
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/store.py"
+      },
+      "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+      "idempotency_key": "e72d2bed9d14a3de24ebb26362e8c970d795ba11fffc3adc29e55dc2e3656622",
+      "decision_id": "D-ee8b53bd3cbc449d",
+      "request_id": "MR-7e95d5348da24311",
+      "started_at": "2026-09-12T20:17:00.118+00:00",
+      "ended_at": "2026-09-12T20:17:00.131+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/store.py",
+            "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/x-python",
+            "size_bytes": 1789,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+            "source_ref": "document_index/store.py",
+            "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1789,
+            "core_start": 0,
+            "core_end": 1789,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 412
+          },
+          "start_byte": 0,
+          "end_byte": 1789,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1789,
+          "observed_tokens": 412,
+          "source_start_line": 1,
+          "source_end_line": 30
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-9e0513ec07fd8dc074c5"
+      ],
+      "workspace_digest_before": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "workspace_digest_after": "8a3ea7f8f6940dbe22a0e9e7449f325491d23bf0b3246c3d6eb231609d5286ce",
+      "failure_key": "",
+      "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "decisions": [
+    {
+      "checkpoint": "CP-1f50e156858a45c0",
+      "wire": {
+        "function": "read_file",
+        "params": {
+          "path": "document_index/store.py"
+        }
+      }
+    },
+    {
+      "checkpoint": "CP-f1e77e0ce98f41c7",
+      "wire": {
+        "function": "final_answer",
+        "params": {
+          "text": "document_index/store.py 是一个 SQLite 文档索引存储模块，主要提供文档索引的持久化操作。\n\n核心功能：\n1. 文档索引存储：使用 SQLite 数据库存储文档内容、路径、摘要、搜索索引和修改时间戳\n2. 文档同步：支持添加、更新和删除文档，并自动计算版本号\n3. 状态查询：提供文档数量、版本号和根路径等元数据查询\n\n主要函数：\n- existing(database): 创建数据库连接\n- synchronize(database, root, documents): 同步文档到数据库，返回操作统计\n- status(database): 查询文档索引状态\n\n数据库表结构：\n- documents: 存储文档内容（path, content, digest, search, mtime）\n- metadata: 存储元数据（key, value）\n\n版本管理：使用 generation 字段进行版本控制，每次同步操作后自动递增版本号。"
+        }
+      }
+    }
+  ],
+  "termination": "submitted",
+  "error": null,
+  "elapsed_seconds": 51.64036583900452,
+  "workspace_unchanged": true
+}

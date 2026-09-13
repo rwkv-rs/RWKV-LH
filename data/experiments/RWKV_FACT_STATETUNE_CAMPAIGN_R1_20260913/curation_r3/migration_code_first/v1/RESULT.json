@@ -1,0 +1,12 @@
+{
+  "id": "migration_code_first-v1",
+  "seed_id": "migration_code_first",
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388 字节）和 README.md（A00002，2685 字节）；未读取入口 config_cli.py，也未运行任何测试。\\n\\n需求（README）：migrate 仅允许 v1→v2，先保留完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON/未知版本/恢复失败须原字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 第一句即把 DB 字节复制到 backup，早于版本判断，故 v2 时仍会改写备份；且无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode+commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本也不被拒绝。restore 直接用备份字节覆盖 DB，未校验其合法性，未原子发布。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对 stdout 末行 JSON 与退出码。\"}}",
+  "accepted_by_api": false,
+  "error": "SupervisorGenerationInterrupted: supervisor state_tune_target_review generation interrupted: finish_reason='length'; output limit=4096",
+  "input_sha256": "df3fd42652f642680f80e5a8d281c3be5bb99b391b381bf31b4fe875859bba06",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\": \"final_answer\", \"params\": {\"text\": \"本次实际工具操作：read_file 完整读取 config_store/migrations.py（A00001，1388 字节）和 README.md（A00002，2685 字节）；未读取入口 config_cli.py，也未运行任何测试。\\n\\n需求（README）：migrate 仅允许 v1→v2，先保留完整 v1 备份再原子发布；BACKUP≠DB 且不覆盖已有备份；已是 v2 返回 changed=false 且不改 DB/备份；value 按 ensure_ascii=False,sort_keys=True,separators=(',',':') 规范化；建 schema_migrations 并写 version=2；坏 JSON/未知版本/恢复失败须原字节不变；restore 先验证备份是合法 v1/v2 配置 DB 再原子恢复。\\n\\n代码推断（migrations.py）：migrate 第一句即把 DB 字节复制到 backup，早于版本判断，故 v2 时仍会改写备份；且无 BACKUP≠DB 与防覆盖检查。加列后仅 PRAGMA user_version=2，未创建 schema_migrations 记录。逐行 decode+commit，坏 JSON 会留下部分修改，非原子；json.dumps 用默认参数，未按需求规范化。未知版本也不被拒绝。restore 直接用备份字节覆盖 DB，未校验其合法性，未原子发布。\\n\\n未执行的验证建议：用 v1 样例跑 migrate 与重跑、坏 JSON 回滚、BACKUP=DB、损坏备份 restore，核对 stdout 末行 JSON 与退出码。\"}}\n```",
+  "target_sha256": "f7245d1a7936aef605da7e1e7d869d552263dfc346f509853d43fc0db267631b",
+  "target_tokens": 471
+}

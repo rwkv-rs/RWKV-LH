@@ -1,0 +1,17 @@
+{
+  "id": "prior_file-03-v1",
+  "seed_id": "prior_file-03",
+  "candidate": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md（RP-FULL-01）是一份工单支持台项目规格，不是已实现代码或验证结果。它要求为小团队从零实现工单支持台，含 HTTP API、SQLite 与可操作网页。工单创建时有 title、description，初始 status=open、assignee 为空；可分配负责人、关闭、搜索和状态筛选；空白标题拒绝；更新须原子校验，非法 status 不得顺便修改 assignee。API：GET /api/tickets?q=文本&status=all|open|closed，q 对标题和描述做大小写不敏感子串搜索，返回 tickets 数组；POST /api/tickets 接收 title、description；PATCH /api/tickets/ID 接收 assignee 和/或 status；status 仅 open/closed。成功创建 201，查询/更新 200，无效输入 400，缺失资源 404，错误对象含 error；id 稳定唯一，多个独立浏览器看到相同数据。UI 公开合同：Ticket title、Ticket description、Create ticket、Search tickets、Status filter(all/open/closed)；每工单 article 名称为 Ticket 标题，展示描述和状态，含 Assignee、Assign 按钮，open 工单有 Close。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；仅标准库与原生浏览器，DB 和运行文件写 PATH 临时目录，不能写源码；GET / 提供页面，SQLite 持久化。交付自包含项目，README 说明启动与人工验证，无远程 CDN/外网，用真实浏览器检查行为。\"}}",
+  "accepted_by_api": false,
+  "error": null,
+  "input_sha256": "d61b39e638503e96358901eb1d9a44f5c589d3f92515f8b943a3a6a5ad3974b4",
+  "augmentation": "alternate target at same actual production boundary",
+  "target_text": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md（RP-FULL-01）是一份工单支持台项目规格，不是已实现代码或验证结果。它要求为小团队从零实现工单支持台，含 HTTP API、SQLite 与可操作网页。工单创建时有 title、description，初始 status=open、assignee 为空；可分配负责人、关闭、搜索和状态筛选；空白标题拒绝；更新须原子校验，非法 status 不得顺便修改 assignee。API：GET /api/tickets?q=文本&status=all|open|closed，q 对标题和描述做大小写不敏感子串搜索，返回 tickets 数组；POST /api/tickets 接收 title、description；PATCH /api/tickets/ID 接收 assignee 和/或 status；status 仅 open/closed。成功创建 201，查询/更新 200，无效输入 400，缺失资源 404，错误对象含 error；id 稳定唯一，多个独立浏览器看到相同数据。UI 公开合同：Ticket title、Ticket description、Create ticket、Search tickets、Status filter(all/open/closed)；每工单 article 名称为 Ticket 标题，展示描述和状态，含 Assignee、Assign 按钮，open 工单有 Close。运行：python server.py --host 127.0.0.1 --port PORT --db PATH；仅标准库与原生浏览器，DB 和运行文件写 PATH 临时目录，不能写源码；GET / 提供页面，SQLite 持久化。交付自包含项目，README 说明启动与人工验证，无远程 CDN/外网，用真实浏览器检查行为。\"}}\n```",
+  "target_sha256": "52f1289111934e231c01853382b649d59ce6fa55a9b4880a453a3ae8954b6a8a",
+  "target_tokens": 469,
+  "review_issues": [
+    "候选加入 README 正文未支持的断言：‘不是已实现代码或验证结果’；用户要求只依据文件中的信息回答。",
+    "GET /api/tickets 的返回被概括为‘返回 tickets 数组’，但 README 规定返回对象 {\"tickets\":[...]}，改变了 API 返回的外层结构关系。",
+    "遗漏 README 中的重要运行/验收限制：停止服务后用同一个 PATH 启动数据不丢失、数据库 PATH 由运行者给定、页面使用英语可访问名称、允许任意视觉设计与代码组织、不以 CSS 长度或源码关键词验收。"
+  ]
+}

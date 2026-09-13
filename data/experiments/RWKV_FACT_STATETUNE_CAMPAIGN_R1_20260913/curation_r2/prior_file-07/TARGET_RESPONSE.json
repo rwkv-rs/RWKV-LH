@@ -1,0 +1,16 @@
+{
+  "candidates": [
+    "{\"function\": \"final_answer\", \"params\": {\"text\": \"根据文件内容，config_store/sqlite_io.py 是一个 SQLite 数据库操作工具模块。它定义了四个函数：validate(connection) 检查 PRAGMA integrity_check 是否为 'ok'，读取 PRAGMA user_version 并确保版本为 1 或 2，否则抛出 ValueError；还会执行 SELECT 语句以确认 settings 表结构，版本 2 时额外检查 value_type 和 updated_at 列。temporary_path(parent) 在指定目录创建临时文件并返回 Path。copy_database(source, destination) 以只读 URI 连接源库，验证后通过 sqlite3 的 backup 方法复制到目标库，并对目标文件执行 fsync。write_backup_exclusive(source, backup) 先在 backup 父目录创建暂存文件，复制源库到暂存文件，再用 os.link 创建硬链接到 backup，最后清理暂存文件。模块导入 os、sqlite3、tempfile 和 pathlib.Path。文件内无注释或文档字符串，以上总结仅基于代码本身。\"}}",
+    "{\"function\": \"final_answer\", \"params\": {\"text\": \"该模块文件 config_store/sqlite_io.py 仅包含 Python 代码，无注释。它主要提供 SQLite 数据库验证、临时路径创建、数据库复制和独占备份写入功能。validate 函数验证数据库完整性检查结果为 'ok'，并接受 user_version 为 1 或 2，同时确认 settings 表存在；对于版本 2，还检查 value_type 和 updated_at 字段。temporary_path 使用 tempfile.mkstemp 创建临时文件。copy_database 以只读模式打开源库，调用 backup 方法复制到目标库，并 fsync 目标文件。write_backup_exclusive 先创建暂存文件，复制数据库，然后通过 os.link 硬链接到备份路径，并清理暂存文件。导入模块包括 os、sqlite3、tempfile 和 Path。\"}}",
+    "{\"function\": \"final_answer\", \"params\": {\"text\": \"config_store/sqlite_io.py 定义了与 SQLite 数据库交互的辅助函数。validate(connection) 执行 PRAGMA integrity_check 并要求结果为 'ok'，读取 PRAGMA user_version 并仅允许 1 或 2，否则引发 ValueError；然后通过 SELECT ... LIMIT 0 验证 settings 表，版本 2 时还验证 value_type 和 updated_at 列。temporary_path(parent) 在 parent 下生成前缀为 '.config-stage-'、后缀为 '.sqlite3' 的临时文件并返回其 Path。copy_database(source, destination) 用只读 URI 连接 source，验证后使用 sqlite3.Connection.backup 复制到 destination，最后 fsync destination 文件。write_backup_exclusive(source, backup) 在 backup 的父目录创建暂存文件，调用 copy_database 复制，再用 os.link 创建硬链接到 backup，最后删除暂存文件。文件无注释，以上基于代码。\"}}",
+    "{\"function\": \"final_answer\", \"params\": {\"text\": \"该文件是一个 Python 模块，包含四个函数：validate 用于验证 SQLite 数据库的完整性、版本和表结构；temporary_path 用于创建临时文件路径；copy_database 用于通过 SQLite backup API 复制数据库并同步文件；write_backup_exclusive 用于以独占方式写入备份，先暂存再硬链接。具体来说，validate 检查 PRAGMA integrity_check 为 'ok'，user_version 为 1 或 2，并查询 settings 表（版本 2 还查 value_type 和 updated_at）。temporary_path 使用 tempfile.mkstemp。copy_database 以只读模式连接源库，验证后备份到目标并 fsync。write_backup_exclusive 在目标父目录创建暂存文件，复制后 os.link 到备份路径，最后清理暂存。模块导入 os、sqlite3、tempfile、Path。无注释或文档字符串，总结仅依据代码。\"}}",
+    "{\"function\": \"final_answer\", \"params\": {\"text\": \"config_store/sqlite_io.py 是一个工具模块，提供 SQLite 数据库验证、临时路径生成、数据库复制和独占备份写入功能。validate(connection) 检查 PRAGMA integrity_check 是否为 'ok'，读取 PRAGMA user_version 并确保其为 1 或 2，否则抛出 ValueError('unsupported schema version')；之后执行 SELECT key,value FROM settings LIMIT 0，若版本为 2 还执行 SELECT value_type,updated_at FROM settings LIMIT 0，最后返回版本号。temporary_path(parent) 使用 tempfile.mkstemp 创建临时文件并关闭描述符，返回 Path 对象。copy_database(source, destination) 以只读 URI 连接源数据库，调用 validate，然后通过 sqlite3 的 backup 方法复制到目标，并对目标文件执行 os.fsync。write_backup_exclusive(source, backup) 先在 backup.parent 创建暂存文件，复制数据库到暂存文件，再用 os.link 创建硬链接到 backup，最后删除暂存文件。所有总结仅基于文件代码，文件不含注释。\"}}"
+  ],
+  "reasons": [
+    "准确概括四个函数，避免提及文件未含的 PRAGMA backup_exclusive 模式，仅依据代码本身。",
+    "换用模块角色描述，突出验证逻辑和只读连接，不添加外部事实。",
+    "强调独占备份的暂存-硬链接流程，保留所有函数和关键参数。",
+    "更紧凑地列举函数，区分验证与复制/备份操作，不超出文件信息。",
+    "从导入和函数签名入手，逐项说明，确保不遗漏版本检查细节。"
+  ]
+}

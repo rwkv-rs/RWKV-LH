@@ -1,0 +1,4 @@
+{
+  "candidate": "{\"function\": \"final_answer\", \"params\": {\"text\": \"document_index/store.py 是 sqlite3 文档索引存储层。existing(database) 返回 sqlite3.connect(database)。synchronize(database, root, documents) 在 with 连接中先 CREATE TABLE IF NOT EXISTS 建 documents(path 主键, content, digest, search, mtime) 与 metadata(key 主键, value)；读取 metadata 字典及 documents 的 path→mtime；counts 初始有 added、updated、deleted、unchanged 四项。遍历 documents：mtime 相同则 unchanged 并跳过，否则按 path 是否已存在计 updated 或 added，然后 INSERT OR REPLACE 写入五列，循环内 commit。代码无删除分支，deleted 始终为 0。之后 generation = int(metadata.get('generation','0'))+1，写回 root 与 generation，返回 counts 加 generation。status(database) 经 existing() 读 metadata 并 COUNT(*) documents，返回 document_count、generation、root。\"}}",
+  "reason": "依据已读取的完整文件内容总结，不补充未经文件支持的事实；与已有备选措辞组织不同。"
+}

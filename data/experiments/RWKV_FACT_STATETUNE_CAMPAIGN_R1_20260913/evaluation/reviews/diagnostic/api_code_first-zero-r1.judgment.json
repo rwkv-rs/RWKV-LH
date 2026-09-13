@@ -1,0 +1,70 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "7ae7881494436838f8c5530cfc24cdfd72faecfdb61bc43ac7b741e73ce82b45",
+  "run_sha256": "575fc03d244cc94837b3d76663b01524e1ce56673e3d70d7917ed96b289a01c0",
+  "reviewer": "Codex independent source and actual execution review",
+  "validity": "valid",
+  "validity_reason": "Frozen task, sources, original output and mechanical State/input audit available",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "unmet",
+      "reason": "将README预约业务、冲突、查询取消当成源码实现，遗漏实际其他GET501",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "unmet",
+      "reason": "宣称数据库持久化已实现；实际只解析必填db且未使用",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "读取与待执行建议有区分，但把需求整批列入已实现，关键来源区分失败",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "已实现：健康检查、POST/GET/DELETE 接口、冲突判定、数据库持久化、--db 参数",
+      "reason": "源码仅健康GET及其他GET501、db未使用",
+      "impact": "把需求当实现，误导缺陷检查；并非虚称本次实际运行测试",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": []
+}
