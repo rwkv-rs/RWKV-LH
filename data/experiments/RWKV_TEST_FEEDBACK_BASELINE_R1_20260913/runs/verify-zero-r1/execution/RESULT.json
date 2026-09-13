@@ -1,0 +1,496 @@
+{
+  "id": "verify-zero-r1",
+  "final": "检查结果：collect 已经正确收集任意层级的 .md 文件，并保留原有字段、内容、摘要和搜索行为。\n\n实际测试输出：\n{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n\n结论：无需修改 document_index/documents.py。",
+  "termination": "submitted",
+  "acceptance": "not_evaluated",
+  "assistance": "rwkv_independent",
+  "error": null,
+  "status": "completed",
+  "trace_complete": true,
+  "trace_errors": [],
+  "tool_scope": "production_full",
+  "generation_started": 7,
+  "protocol_rejections": 0,
+  "actions": [
+    {
+      "action_id": "A00001",
+      "sequence": 1,
+      "status": "succeeded",
+      "action_type": "list_directory",
+      "arguments": {
+        "path": ".",
+        "recursive": false,
+        "max_entries": 1024,
+        "start_after": "",
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "."
+      },
+      "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+      "idempotency_key": "15e67797eedbd1413bc6b3a343be6386faa00c4fc43fadbacb651cbb193877e7",
+      "decision_id": "D-2b7458c6a86e4fdc",
+      "request_id": "MR-1f53181144154359",
+      "started_at": "2026-09-13T11:28:41.406+00:00",
+      "ended_at": "2026-09-13T11:28:41.440+00:00",
+      "result": {
+        "action_type": "list_directory",
+        "success": true,
+        "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 2194, \"type\": \"file\"}, {\"path\": \"check_recursive.py\", \"size_bytes\": 1266, \"type\": \"file\"}, {\"path\": \"docs\", \"type\": \"directory\"}, {\"path\": \"document_index\", \"type\": \"directory\"}, {\"path\": \"index_cli.py\", \"size_bytes\": 1415, \"type\": \"file\"}], \"entry_count\": 5, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+        "exit_code": null,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "path": ".",
+          "recursive": false,
+          "entries": [
+            {
+              "path": "README.md",
+              "type": "file",
+              "size_bytes": 2194
+            },
+            {
+              "path": "check_recursive.py",
+              "type": "file",
+              "size_bytes": 1266
+            },
+            {
+              "path": "docs",
+              "type": "directory"
+            },
+            {
+              "path": "document_index",
+              "type": "directory"
+            },
+            {
+              "path": "index_cli.py",
+              "type": "file",
+              "size_bytes": 1415
+            }
+          ],
+          "entry_count": 5,
+          "truncated": false,
+          "next_cursor": "",
+          "complete": true
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "b07645e7dbb256e280a0f32ad3c5fdfd03d6b7ef8b62fc14e2be78bb6969c40e",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00002",
+      "sequence": 2,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/documents.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/documents.py"
+      },
+      "action_fingerprint": "cbb9ce80481297bf4f49305e79fc5f766d7c8448245457c9492f3d9106d86896",
+      "idempotency_key": "571a1c396173c099edbca68373c77d3f169e121d6e1302172f4128f99a205300",
+      "decision_id": "D-3b3ff2f84e3d40fd",
+      "request_id": "MR-5d48225bdaa54f9e",
+      "started_at": "2026-09-13T11:29:05.584+00:00",
+      "ended_at": "2026-09-13T11:29:05.618+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/documents.py",
+            "sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/x-python",
+            "size_bytes": 510,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-d1cb78c59268c3b7",
+            "source_ref": "document_index/documents.py",
+            "source_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 510,
+            "core_start": 0,
+            "core_end": 510,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 134
+          },
+          "start_byte": 0,
+          "end_byte": 510,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 510,
+          "observed_tokens": 134,
+          "source_start_line": 1,
+          "source_end_line": 16
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-5c085441cb7a28361215"
+      ],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "0f78f7195631cf95e8ea14203a389b2b552a4c02c63ba60403c94eebc110b746",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00003",
+      "sequence": 3,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/query.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/query.py"
+      },
+      "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+      "idempotency_key": "880125df077e227d3cb570d12435de17837c3ad2d63fd5d670151172e9bdb69e",
+      "decision_id": "D-2bdc2324f74c4852",
+      "request_id": "MR-38fd7cab54f342b4",
+      "started_at": "2026-09-13T11:29:30.477+00:00",
+      "ended_at": "2026-09-13T11:29:30.514+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text):\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/query.py",
+            "sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/x-python",
+            "size_bytes": 482,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-555293ae5997414e",
+            "source_ref": "document_index/query.py",
+            "source_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 482,
+            "core_start": 0,
+            "core_end": 482,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 116
+          },
+          "start_byte": 0,
+          "end_byte": 482,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 482,
+          "observed_tokens": 116,
+          "source_start_line": 1,
+          "source_end_line": 11
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-fc038929a5fec38fbebc"
+      ],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "8639ed2f3a57c69e8c1317b592c7afdb6bf2c1ef957c9abb373dc1c0509abc08",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00004",
+      "sequence": 4,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "document_index/store.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "document_index/store.py"
+      },
+      "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+      "idempotency_key": "b71760e581fbf5b316cb30eb8876396001c9c3b481154511199ec5a4c01bf4bb",
+      "decision_id": "D-5bd7631a37de4f2a",
+      "request_id": "MR-67ad29ca67ab485b",
+      "started_at": "2026-09-13T11:29:55.217+00:00",
+      "ended_at": "2026-09-13T11:29:55.258+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "document_index/store.py",
+            "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/x-python",
+            "size_bytes": 1789,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+            "source_ref": "document_index/store.py",
+            "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1789,
+            "core_start": 0,
+            "core_end": 1789,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 412
+          },
+          "start_byte": 0,
+          "end_byte": 1789,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1789,
+          "observed_tokens": 412,
+          "source_start_line": 1,
+          "source_end_line": 30
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-150b629146a7af5b8dce"
+      ],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00005",
+      "sequence": 5,
+      "status": "succeeded",
+      "action_type": "read_file",
+      "arguments": {
+        "path": "check_recursive.py",
+        "start_byte": 0,
+        "max_tokens": 4096
+      },
+      "wire_arguments": {
+        "path": "check_recursive.py"
+      },
+      "action_fingerprint": "aab2a16c3f5aef5b565177e631bf7c954dd5a101fcf3ad67ae522dec3dbc137c",
+      "idempotency_key": "8b7cc52be524fff7d3578df9e6f3bf22c8a03f791cc28b55925d468dcddadaf6",
+      "decision_id": "D-324f9d7e3c7249a6",
+      "request_id": "MR-01eb244419e44b8e",
+      "started_at": "2026-09-13T11:30:22.912+00:00",
+      "ended_at": "2026-09-13T11:30:22.963+00:00",
+      "result": {
+        "action_type": "read_file",
+        "success": true,
+        "output": "\"\"\"Public behavioral test for the requested collect API; no repair implementation.\"\"\"\nfrom pathlib import Path\nimport runpy,tempfile,json,hashlib,sys\nsys.dont_write_bytecode=True\nrootdir=Path(__file__).resolve().parent\ncollect=runpy.run_path(str(rootdir/'document_index/documents.py'))['collect']\nwith tempfile.TemporaryDirectory(prefix='.public-check-',dir=rootdir) as td:\n root=Path(td);(root/'sub/deep').mkdir(parents=True)\n samples={'top.md':b'TOP','sub/nested.md':'中文 Mixed'.encode(),'sub/deep/bottom.md':b'BAD\\xff'}\n for name,data in samples.items():(root/name).write_bytes(data)\n (root/'sub/ignore.txt').write_text('not markdown')\n rows=collect(root);actual=sorted(row['path'] for row in rows);expected=['bottom.md','nested.md','top.md']\n checks={'recursive_paths':actual==expected,'original_fields_and_content':all(set(r)=={'path','content','digest','search','mtime'} and any(r['content']==b.decode('utf-8',errors='replace') and r['search']==b.decode('utf-8',errors='replace').lower() and r['digest']==hashlib.sha256(b).hexdigest() for b in samples.values()) for r in rows)}\n print(json.dumps({'checks':checks,'expected_paths':expected,'actual_paths':actual,'passed':all(checks.values())},ensure_ascii=False))\n sys.exit(0 if all(checks.values()) else 1)\n",
+        "exit_code": null,
+        "artifacts": [
+          {
+            "path": "check_recursive.py",
+            "sha256": "c123a53cadc56dba98286cb5c3a365da5b3d220bff9781c4c24d6146bdf63226",
+            "media_type": "text/x-python",
+            "size_bytes": 1266,
+            "summary": ""
+          }
+        ],
+        "evidence": [],
+        "metadata": {
+          "chunk": {
+            "chunk_id": "CH-CURSOR-47e21dd41ab2da66",
+            "source_ref": "check_recursive.py",
+            "source_sha256": "c123a53cadc56dba98286cb5c3a365da5b3d220bff9781c4c24d6146bdf63226",
+            "media_type": "text/plain",
+            "byte_start": 0,
+            "byte_end": 1266,
+            "core_start": 0,
+            "core_end": 1266,
+            "overlap_before": 0,
+            "overlap_after": 0,
+            "chunk_sha256": "c123a53cadc56dba98286cb5c3a365da5b3d220bff9781c4c24d6146bdf63226",
+            "split_strategy_version": "rwkv-token-cursor.v1",
+            "previous_chunk_id": null,
+            "next_chunk_id": null,
+            "complete_source": true,
+            "token_start": 0,
+            "token_end": 398
+          },
+          "start_byte": 0,
+          "end_byte": 1266,
+          "next_start_byte": null,
+          "truncated": false,
+          "complete": true,
+          "eof": true,
+          "source_size_bytes": 1266,
+          "observed_tokens": 398,
+          "source_start_line": 1,
+          "source_end_line": 15
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [
+        "ART-58ad36d0a8e4e1b9983e"
+      ],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "62bd1e180bed6094c1f8b1a402d5b8b30a73bd8eadca471a8fdc618bf990d705",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    },
+    {
+      "action_id": "A00006",
+      "sequence": 6,
+      "status": "succeeded",
+      "action_type": "run_command",
+      "arguments": {
+        "argv": [
+          "python3",
+          "check_recursive.py"
+        ],
+        "cwd": ".",
+        "timeout": 120.0,
+        "env": {},
+        "expected_exit_code": 0
+      },
+      "wire_arguments": {
+        "argv": [
+          "python3",
+          "check_recursive.py"
+        ],
+        "cwd": ".",
+        "timeout": 120.0
+      },
+      "action_fingerprint": "c2d125b03aeaa929cb4a2c8f14d366ac5de3c6dbfe169ee47f5f95b9f03b11af",
+      "idempotency_key": "6226fea3f02637fc6ba538120ce1e2bac1582a1ef07ee4fe440291d753fe2755",
+      "decision_id": "D-e80b8282534b4274",
+      "request_id": "MR-b82597e8e1824c0c",
+      "started_at": "2026-09-13T11:30:48.582+00:00",
+      "ended_at": "2026-09-13T11:30:48.656+00:00",
+      "result": {
+        "action_type": "run_command",
+        "success": true,
+        "output": "{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n",
+        "exit_code": 0,
+        "artifacts": [],
+        "evidence": [],
+        "metadata": {
+          "argv": [
+            "python3",
+            "check_recursive.py"
+          ],
+          "resolved_argv": [
+            "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+            "check_recursive.py"
+          ],
+          "executable_resolution": "project_runtime_executable",
+          "cwd": ".",
+          "output_truncated": false,
+          "command_streams": {
+            "stdout": {
+              "start_byte": 0,
+              "end_byte": 201,
+              "chars": 201,
+              "bytes": 201,
+              "sha256": "72323acdaa9ea3d314dcbb6743635281cd8913fc9c55ba3e84c0dd8e60e44c20"
+            },
+            "stderr": {
+              "start_byte": 201,
+              "end_byte": 201,
+              "chars": 0,
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "sandboxed": true,
+          "sandbox_backend": "bubblewrap",
+          "expected_exit_code": 0,
+          "exit_code_matched": true,
+          "workspace_changes": {
+            "schema_version": "rwkv-lh.workspace-changes.v1",
+            "complete": true,
+            "reason": "",
+            "changed_paths": [],
+            "created_paths": [],
+            "modified_paths": [],
+            "deleted_paths": []
+          }
+        },
+        "error": null,
+        "outcome_type": "success"
+      },
+      "artifact_refs": [],
+      "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+      "failure_key": "",
+      "observation_fingerprint": "0a17a896b82636f64e49af7f5fa4168c2d800c5bceac4ed05df0414af472434a",
+      "error": null,
+      "outcome_type": "success",
+      "atom_execution_contract_digest": ""
+    }
+  ],
+  "elapsed_seconds": 187.23955843702424
+}

@@ -1,0 +1,7 @@
+# 离线核验范围说明
+
+运行及评分契约保持冻结。外部验收适配器在首次执行前把命令记录范围从仅check_command扩展到check_command和run_command：RWKV实际自主选择了run_command。两者均是生产工具，是否完成测试由argv、cwd、实际退出码、原始输出和执行时文件SHA决定，不按工具名称或固定步骤评分。没有模型参数修正、测试代执行或旧结果重算。
+
+State审计在已有唯一bootstrap/append重建之外核对command_streams原始stdout/stderr、exit_code、完整性和观察消费。每次测试前快照的目标文件必须与最终目标一致，公开测试须与冻结原件一致。外部初测和外部最终验收不算RWKV本轮测试，且外部最终验收不回传模型。
+
+这是新增测试执行场景的离线证据适配，没有改生产行为、评分标准或模型输入。PRELIMINARY_MECHANICAL_AUDIT只记录当时已完成的前三次；最终四次核验另存，不能把两个文件加总成七次运行。

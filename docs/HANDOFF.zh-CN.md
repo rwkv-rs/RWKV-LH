@@ -1,3 +1,15 @@
+# 当前进展：真实测试反馈阶段完成，Trace前置仅离线建议（2026-09-13）
+
+- 两题各两遍：任务2/4合格、1部分、1不合格；最终文件3/4通过。4自然提交、1实际目标修改、0非目标变化；不是项目Strict，无strong/训练/新数据集。
+- repair-r1实际修复原collect并亲自测试通过，但改动命名说明有误，计部分满足。verify两遍保持正确文件并实际测试，任务合格；第二遍来源标签轻微歧义单列。
+- repair-r2未修改文件，唯一实际测试退出1/passed=false；模型设置expected_exit_code=1，工具success=true仅表示符合调用预期。随后回答编造修改后测试通过。失败全文进入最终输入；不能把这次真实虚假完成与单纯提交答案混同，也不能据此认定工具success字段是根因。
+- 31生成、268426输入/2419输出token，3参数拒绝均恢复；24工具执行（15读取/4目录/1写/4命令），实际测试3通过1失败。约853.94秒。输入/观察/State声明父子关系全部核验，源码及owner五处SHA保持，1594 passed/0 skipped身份不变。
+- 本阶段复用既有最终产物，以新zero State任务接收外部初测；不声称原任务State续接或稳定多轮自主修复。固定组门未达，失败保留供跨阶段归因，不逐阶段训练或封存开放开发测试。
+- owner新增Trace前置思路：已查论文主实验五次首遍轨迹及同T位置对照，未验证RWKV/Agent。仅[离线建议](TRACE_PREFIX_DIAGNOSTIC_PROPOSAL.zh-CN.md)，尚未运行，不接入生产。优先数字/来源对照，四组从同起始State重建输入，冻结后再跑。
+- [完整报告](../data/experiments/RWKV_TEST_FEEDBACK_BASELINE_R1_20260913/REPORT.zh-CN.md)，SHA `e67601cfe80545593ee849e75f19ef734d8a345dbc40e801a9c1cc16e8926a8f`；[当前能力](CAPABILITY_STATUS.zh-CN.md)。本轮仅本地提交，未推GitHub、未启动训练。
+
+---
+
 # 当前进展：明确文件单处修改阶段完成（2026-09-13）
 
 - owner最新方向：重复问题之后集中处理，不能每个能力阶段训练一次StateTune并封存后续开发测试。按授权完成明确文件/明确目标的单处修改；zero State，无strong介入、无新训练/数据集，旧State仍NO_KEEP。

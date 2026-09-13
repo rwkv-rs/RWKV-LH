@@ -1,0 +1,11 @@
+--- before/document_index/documents.py
++++ after/document_index/documents.py
+@@ -7,7 +7,7 @@
+ 
+ def collect(root):
+     rows = []
+-    for path in sorted(root.glob('*.md')):
++    for path in sorted(root.glob('**/*.md')):
+         content = path.read_bytes()
+         text = content.decode('utf-8', errors='replace')
+         rows.append({'path': path.name, 'content': text,
