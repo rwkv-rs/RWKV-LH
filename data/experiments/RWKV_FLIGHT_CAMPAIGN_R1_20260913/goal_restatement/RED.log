@@ -1,0 +1,52 @@
+F..FFF                                                                   [100%]
+=================================== FAILURES ===================================
+___ test_opt_in_repeats_exact_goal_after_unchanged_observation_in_same_event ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/goal_restatement_red/test_opt_in_repeats_exact_goal0')
+
+    def test_opt_in_repeats_exact_goal_after_unchanged_observation_in_same_event(tmp_path):
+        result, event, client, content = execute(tmp_path, True)
+>       assert event.payload['unchanged_user_request'] == result.state.goal.request
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'unchanged_user_request'
+
+tests/test_goal_restatement_input.py:25: KeyError
+________________ test_goal_restatement_requires_boolean[false] _________________
+
+value = 'false'
+
+    @pytest.mark.parametrize('value', ['false', 1, None])
+    def test_goal_restatement_requires_boolean(value):
+>       with pytest.raises(ValueError, match='repeat_user_goal'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_goal_restatement_input.py:43: Failed
+__________________ test_goal_restatement_requires_boolean[1] ___________________
+
+value = 1
+
+    @pytest.mark.parametrize('value', ['false', 1, None])
+    def test_goal_restatement_requires_boolean(value):
+>       with pytest.raises(ValueError, match='repeat_user_goal'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_goal_restatement_input.py:43: Failed
+_________________ test_goal_restatement_requires_boolean[None] _________________
+
+value = None
+
+    @pytest.mark.parametrize('value', ['false', 1, None])
+    def test_goal_restatement_requires_boolean(value):
+>       with pytest.raises(ValueError, match='repeat_user_goal'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_goal_restatement_input.py:43: Failed
+=========================== short test summary info ============================
+FAILED tests/test_goal_restatement_input.py::test_opt_in_repeats_exact_goal_after_unchanged_observation_in_same_event
+FAILED tests/test_goal_restatement_input.py::test_goal_restatement_requires_boolean[false]
+FAILED tests/test_goal_restatement_input.py::test_goal_restatement_requires_boolean[1]
+FAILED tests/test_goal_restatement_input.py::test_goal_restatement_requires_boolean[None]
+4 failed, 2 passed in 1.95s

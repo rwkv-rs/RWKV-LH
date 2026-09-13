@@ -1,0 +1,753 @@
+{
+  "runs": [
+    {
+      "id": "artifact-a-original-r1",
+      "arm": "original",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 471.2129352079937,
+      "diagnostics": {
+        "model_calls": 12,
+        "input_tokens": 132460,
+        "output_tokens": 5632,
+        "protocol_rejections": 5,
+        "feedback_consumed": 4,
+        "tool_errors": 0
+      },
+      "termination": "transition_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6
+      }
+    },
+    {
+      "id": "artifact-a-original-r2",
+      "arm": "original",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 384.61664469505195,
+      "diagnostics": {
+        "model_calls": 12,
+        "input_tokens": 139655,
+        "output_tokens": 762,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 4
+      },
+      "termination": "transition_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": "test_query_limit.py",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "HarnessError",
+            "message": "command cwd is not a directory"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00010",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00011",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_index.db",
+              "--text",
+              "hello"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6,
+        "check_command": 4
+      }
+    },
+    {
+      "id": "artifact-a-restated-r1",
+      "arm": "restated",
+      "repeat": 1,
+      "outcome": "not_met",
+      "elapsed_seconds": 279.4885725020431,
+      "diagnostics": {
+        "model_calls": 8,
+        "input_tokens": 63053,
+        "output_tokens": 2241,
+        "protocol_rejections": 2,
+        "feedback_consumed": 2,
+        "tool_errors": 0
+      },
+      "termination": "answer_submitted",
+      "commands": [],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 4
+      }
+    },
+    {
+      "id": "artifact-a-restated-r2",
+      "arm": "restated",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 121.4833353649592,
+      "diagnostics": {
+        "model_calls": 4,
+        "input_tokens": 14160,
+        "output_tokens": 312,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 0
+      },
+      "termination": "identical_success_budget_exhausted",
+      "commands": [],
+      "actions": {
+        "search_text": 3
+      }
+    },
+    {
+      "id": "artifact-b-original-r1",
+      "arm": "original",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 382.98010303999763,
+      "diagnostics": {
+        "model_calls": 12,
+        "input_tokens": 128167,
+        "output_tokens": 688,
+        "protocol_rejections": 1,
+        "feedback_consumed": 1,
+        "tool_errors": 4
+      },
+      "termination": "transition_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "DOCS",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "docs",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00010",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "status",
+              "--db",
+              "DB"
+            ],
+            "cwd": "DOCS",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        },
+        {
+          "action_id": "A00011",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "DB",
+              "--text",
+              "hello"
+            ],
+            "cwd": "DOCS",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: DOCS; nearest existing workspace paths: docs"
+          }
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 6,
+        "check_command": 4
+      }
+    },
+    {
+      "id": "artifact-b-original-r2",
+      "arm": "original",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 386.45984567399137,
+      "diagnostics": {
+        "model_calls": 12,
+        "input_tokens": 119827,
+        "output_tokens": 749,
+        "protocol_rejections": 2,
+        "feedback_consumed": 2,
+        "tool_errors": 4
+      },
+      "termination": "transition_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00006",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "sync",
+              "--root",
+              "DOCS",
+              "--db",
+              "DB"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00007",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "status",
+              "--db",
+              "DB"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "DB",
+              "--text",
+              "test"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "DB",
+              "--text",
+              "test",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 0,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00010",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "DB",
+              "--text",
+              "test",
+              "--limit",
+              "0"
+            ],
+            "cwd": ".",
+            "expected_exit_code": 1,
+            "timeout": 120.0,
+            "env": {}
+          },
+          "exit_code": 1,
+          "success": true,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": null
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 4,
+        "check_command": 5
+      }
+    },
+    {
+      "id": "artifact-b-restated-r1",
+      "arm": "restated",
+      "repeat": 1,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 352.7662273569731,
+      "diagnostics": {
+        "model_calls": 11,
+        "input_tokens": 97793,
+        "output_tokens": 1032,
+        "protocol_rejections": 3,
+        "feedback_consumed": 3,
+        "tool_errors": 5
+      },
+      "termination": "identical_failure_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00004",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test.db",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "env": {},
+            "expected_exit_code": 0,
+            "timeout": 120.0
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00005",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test.db",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "env": {},
+            "expected_exit_code": 0,
+            "timeout": 120.0
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00006",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test.db",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "env": {},
+            "expected_exit_code": 0,
+            "timeout": 120.0
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00007",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test.db",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "env": {},
+            "expected_exit_code": 0,
+            "timeout": 120.0
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        },
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test.db",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": ".",
+            "env": {},
+            "expected_exit_code": 0,
+            "timeout": 120.0
+          },
+          "exit_code": 1,
+          "success": false,
+          "output": "bwrap: execvp index_cli.py: No such file or directory\n",
+          "error": {
+            "type": "CommandFailed",
+            "message": "exit code 1; expected 0"
+          }
+        }
+      ],
+      "actions": {
+        "search_text": 1,
+        "read_file": 2,
+        "check_command": 5
+      }
+    },
+    {
+      "id": "artifact-b-restated-r2",
+      "arm": "restated",
+      "repeat": 2,
+      "outcome": "no_delivery",
+      "elapsed_seconds": 355.2613520369632,
+      "diagnostics": {
+        "model_calls": 11,
+        "input_tokens": 127971,
+        "output_tokens": 615,
+        "protocol_rejections": 0,
+        "feedback_consumed": 0,
+        "tool_errors": 5
+      },
+      "termination": "identical_failure_budget_exhausted",
+      "commands": [
+        {
+          "action_id": "A00007",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_query_limit.py",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": "workspace",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: workspace"
+          }
+        },
+        {
+          "action_id": "A00008",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_query_limit.py",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": "workspace",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: workspace"
+          }
+        },
+        {
+          "action_id": "A00009",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_query_limit.py",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": "workspace",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: workspace"
+          }
+        },
+        {
+          "action_id": "A00010",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_query_limit.py",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": "workspace",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: workspace"
+          }
+        },
+        {
+          "action_id": "A00011",
+          "arguments": {
+            "argv": [
+              "index_cli.py",
+              "query",
+              "--db",
+              "test_query_limit.py",
+              "--text",
+              "hello",
+              "--limit",
+              "1"
+            ],
+            "cwd": "workspace",
+            "timeout": 120.0,
+            "env": {},
+            "expected_exit_code": 0
+          },
+          "exit_code": null,
+          "success": false,
+          "output": "",
+          "error": {
+            "type": "FileNotFoundError",
+            "message": "path does not exist: workspace"
+          }
+        }
+      ],
+      "actions": {
+        "list_directory": 1,
+        "read_file": 5,
+        "check_command": 5
+      }
+    }
+  ],
+  "state_checkpoint_ids_disjoint": true,
+  "workspaces_unchanged": true,
+  "strong_calls": 0
+}
