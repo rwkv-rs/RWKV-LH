@@ -1,0 +1,45 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_resume_can_recover_after_old_failure_without_erasing_history _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_resume_can_recover_after_0')
+
+    def test_resume_can_recover_after_old_failure_without_erasing_history(tmp_path):
+        controller,store,workspace,client,_=build(tmp_path,
+            [call('read_file',path='missing.txt') for _ in range(6)]+
+            [call('read_file',path='exists.txt'),call('final_answer',text='Recovered by reading the existing file.')],
+            max_transitions=12,runtime_policy=goal_policy())
+        (workspace/'exists.txt').write_text('content')
+        first=controller.run('RUN')
+        assert len(first.state.actions)==5 and first.final_output==''
+        old_states=set(first.state.model_states)
+        second=controller.resume('RUN')
+>       assert second.state.status==RunStatus.COMPLETED
+E       AssertionError: assert <RunStatus.RUNNING: 'running'> == <RunStatus.CO...: 'completed'>
+E         
+E         - completed
+E         + running
+
+tests/test_continuation_failure_budget.py:20: AssertionError
+__ test_each_continuation_still_bounds_repeated_failures_and_preserves_totals __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_each_continuation_still_b0')
+
+    def test_each_continuation_still_bounds_repeated_failures_and_preserves_totals(tmp_path):
+        controller,store,_,client,_=build(tmp_path,
+            [call('read_file',path='missing.txt') for _ in range(10)],
+            max_transitions=12,runtime_policy=goal_policy())
+        first=controller.run('RUN')
+        assert len(first.state.actions)==5
+        second=controller.resume('RUN')
+>       assert len(second.state.actions)==10 and len(client.prompts)==10
+E       AssertionError: assert (6 == 10)
+E        +  where 6 = len({'A00001': ActionRecord(action_id='A00001', sequence=1, status=<ActionStatus.FAILED: 'failed'>, action_type='read_file...or', 'message': 'path does not exist: missing.txt'}, outcome_type='not_found', atom_execution_contract_digest=''), ...})
+E        +    where {'A00001': ActionRecord(action_id='A00001', sequence=1, status=<ActionStatus.FAILED: 'failed'>, action_type='read_file...or', 'message': 'path does not exist: missing.txt'}, outcome_type='not_found', atom_execution_contract_digest=''), ...} = RunState(run_id='RUN', goal=GoalState(goal_id='G1', request='Complete the requested workspace change.', constraints=('..._at='2026-09-13T14:59:56.495+00:00', updated_at='2026-09-13T14:59:57.277+00:00', schema_version='long-horizon.run.v18').actions
+E        +      where RunState(run_id='RUN', goal=GoalState(goal_id='G1', request='Complete the requested workspace change.', constraints=('..._at='2026-09-13T14:59:56.495+00:00', updated_at='2026-09-13T14:59:57.277+00:00', schema_version='long-horizon.run.v18') = ControllerResult(state=RunState(run_id='RUN', goal=GoalState(goal_id='G1', request='Complete the requested workspace c...0', updated_at='2026-09-13T14:59:57.277+00:00', schema_version='long-horizon.run.v18'), final_output='', transitions=1).state
+
+tests/test_continuation_failure_budget.py:34: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_continuation_failure_budget.py::test_resume_can_recover_after_old_failure_without_erasing_history
+FAILED tests/test_continuation_failure_budget.py::test_each_continuation_still_bounds_repeated_failures_and_preserves_totals
+2 failed in 3.53s

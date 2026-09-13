@@ -1,3 +1,11 @@
+# 当前进展：Goal 续修预算已整改，固定对照运行中（2026-09-13）
+
+- 同类失败只按本次 Goal 续修 epoch 计数，历史记录和 State 保留；不代填模型参数。红灯 2 failed → 相关 62 passed，全量 1605 passed/零跳过。
+- 同父 State 的独立/原单份建议各两遍已冻结运行，结果另报；目前不能宣称任务质量改善。
+- [工程报告](../data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/budget/REPORT.zh-CN.md)，SHA `dae22b978dd3e87164bca85034a0a82b5cfde844ed61494a2af9fbf7c5321c9c`。owner 修改保留，仅本地提交，无训练/新 datasets/GitHub。
+
+---
+
 # 当前进展：终止记录整改与同父 State 续修对照完成（2026-09-13）
 
 - 工程入口新增精确 termination_reason/evidence、命令执行状态；Controller 步数/模型调用/墙钟/同类失败区分，提交仍不是验收。36 项针对性、全量 1603 passed/零跳过；owner 五处 SHA 保持。
