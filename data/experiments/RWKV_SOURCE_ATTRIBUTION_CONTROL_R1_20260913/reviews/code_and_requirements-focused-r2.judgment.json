@@ -1,0 +1,97 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "9f1add479752134a55673397ccbc446facbbb24b4ba4db2cd8b82fb88b0f4298",
+  "run_sha256": "6f6c861046c4febf7258434778c4c92a8961246249911fb1532de4f0a4de4b3b",
+  "reviewer": "Codex external source and actual tool trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "unmet",
+      "reason": "将需求中的POST/业务路由及错误状态码当源码实际实现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "unmet",
+      "reason": "把需求中的持久化当作已实现，未指出参数实际未使用",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "如实说已读取两文件且未运行测试，但需求与源码事实没有分开",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "首次启动时，代码会创建数据库文件",
+      "reason": "源码只有参数解析，没有数据库创建/连接；这属于需求内容",
+      "impact": "核心持久化行为判断与源码相反",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "POST /bookings",
+      "reason": "该条被列入实际实现HTTP行为，源码没有do_POST或业务路由",
+      "impact": "将目标要求误报为交付实现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}

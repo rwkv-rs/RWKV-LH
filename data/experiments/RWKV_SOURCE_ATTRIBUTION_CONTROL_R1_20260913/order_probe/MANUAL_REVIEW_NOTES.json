@@ -1,0 +1,67 @@
+{
+  "code_and_requirements-focused-r1": {
+    "answer_sha256": "3a7bc5700f30ad7ee6f5792ff3060f0f9a1fdb751711f9eb1f2aa19ef1ab9d9a",
+    "requirements": [
+      [
+        "http",
+        "partial",
+        "健康接口和业务未实现正确，但其他GET应为501，回答混入或确定报告404"
+      ],
+      [
+        "db",
+        "met",
+        "准确说明必填解析、未使用与无数据库实现"
+      ],
+      [
+        "sources",
+        "met",
+        "如实报告读取与未运行，建议验证合理"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "404 或 501",
+        "reason": "实际其他GET固定501和not_implemented；404来自需求约定，不是当前源码行为",
+        "impact": "保留业务未实现和db未使用的正确判断；状态码回答仍不准确"
+      }
+    ]
+  },
+  "code_and_requirements-focused-r2": {
+    "answer_sha256": "a50783dbe3d9b04bfd5c9c437181dd79d8c89c04233f34b3eb3f62cee5e764a6",
+    "requirements": [
+      [
+        "http",
+        "partial",
+        "健康接口和业务未实现正确，但其他GET应为501，回答混入或确定报告404"
+      ],
+      [
+        "db",
+        "met",
+        "准确说明必填解析、未使用与无数据库实现"
+      ],
+      [
+        "sources",
+        "partial",
+        "如实报告读取但没有具体建议验证，额外把已有JSON响应泛称为未实现"
+      ]
+    ],
+    "findings": [
+      {
+        "kind": "contradiction",
+        "severity": "material",
+        "quote": "其他路由返回 404",
+        "reason": "实际其他GET固定501和not_implemented；404来自需求约定，不是当前源码行为",
+        "impact": "用户明确询问实际HTTP行为，确定报告404会误导行为验证"
+      },
+      {
+        "kind": "contradiction",
+        "severity": "minor",
+        "quote": "JSON 响应、路由规则等均未在 server.py 中实现",
+        "reason": "健康接口及其他GET已有JSON响应；不能将业务未实现扩展成所有JSON响应未实现",
+        "impact": "末尾泛化与前文已有健康JSON自相矛盾"
+      }
+    ]
+  }
+}

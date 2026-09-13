@@ -1,0 +1,90 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "4a2b29db1da74bdc3a77d618a28426111d559f820ce792473127eb0c0764dc7b",
+  "run_sha256": "3cf88ccb7dc3dfcd32a18168428441488d0b7645e998001c884cf7a5528a8578",
+  "reviewer": "Codex external source and actual tool trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "requirements": [
+    {
+      "id": "http",
+      "status": "met",
+      "reason": "正确健康GET200和其他GET501；未列ok字段为可省略常规响应细节",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "met",
+      "reason": "必填解析但未使用正确",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "读取结果与未运行建议分开，但附加host推断和curl帮助验证方案不受支持",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "因为代码中没有使用该参数",
+      "reason": "此句对应--host；实际ThreadingHTTPServer绑定args.host。核心HTTP和--db回答仍正确",
+      "impact": "附加配置推断错误，不把整份回答等同于编造主要业务实现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "severity": "minor",
+      "quote": "使用 curl --help 或 httpie --help 确认 --db 参数是否被传递",
+      "reason": "客户端帮助不验证服务进程收到的--db参数",
+      "impact": "这一附加验证建议无效；保留其他监听和文件打开验证建议的价值",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ]
+}

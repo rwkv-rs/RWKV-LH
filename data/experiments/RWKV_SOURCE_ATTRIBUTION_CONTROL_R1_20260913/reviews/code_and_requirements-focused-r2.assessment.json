@@ -1,0 +1,111 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "code_and_requirements-focused-r2",
+  "task_id": "code_and_requirements",
+  "arm": "focused",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "9f1add479752134a55673397ccbc446facbbb24b4ba4db2cd8b82fb88b0f4298",
+  "run_sha256": "6f6c861046c4febf7258434778c4c92a8961246249911fb1532de4f0a4de4b3b",
+  "review_sha256": "f3538ba9c1c9378a51e7381004c4450ebb2b064370062ab21fb37e1ecf9fa651",
+  "execution_identity_sha256": "5065d707ecc27dffdd11cb570772fe731e0c883aa8f42b88c72c0635d5b1cde4",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "http",
+      "status": "unmet",
+      "reason": "将需求中的POST/业务路由及错误状态码当源码实际实现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "db",
+      "status": "unmet",
+      "reason": "把需求中的持久化当作已实现，未指出参数实际未使用",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "sources",
+      "status": "partial",
+      "reason": "如实说已读取两文件且未运行测试，但需求与源码事实没有分开",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "首次启动时，代码会创建数据库文件",
+      "reason": "源码只有参数解析，没有数据库创建/连接；这属于需求内容",
+      "impact": "核心持久化行为判断与源码相反",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "POST /bookings",
+      "reason": "该条被列入实际实现HTTP行为，源码没有do_POST或业务路由",
+      "impact": "将目标要求误报为交付实现",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 8629,
+    "output_tokens": 1200,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}
