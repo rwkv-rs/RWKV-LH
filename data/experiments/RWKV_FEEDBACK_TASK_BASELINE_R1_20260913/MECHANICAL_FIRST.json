@@ -1,0 +1,276 @@
+{
+  "runs": [
+    {
+      "run": "health-feedback-r1",
+      "calls": [
+        {
+          "request": "MR-71d489f1a16d4813",
+          "input_tokens": 3205,
+          "output_tokens": 95,
+          "input_sha256": "75df069436cc9b6f38317bfb73f8430fb66574c829f339b4d8e990417b87ce5c",
+          "input_checkpoint": "CP-6a204ba812ef4f6b",
+          "finish": "stop",
+          "events": [],
+          "raw_output": "{\n  \"function\": \"search_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_results\": 100,\n    \"max_line_chars\": 800,\n    \"max_text_tokens\": 4096,\n    \"path\": \".\",\n    \"pattern\": \"health|Health|健康|Healthy\",\n    \"recursive\": true,\n    \"start_after\": \"\"\n  }\n}"
+        },
+        {
+          "request": "MR-df1654543b344977",
+          "input_tokens": 3683,
+          "output_tokens": 95,
+          "input_sha256": "24cf49764d9077c3b0e8098b1a4afb075a855453e61318aadb9989a662e7f5ed",
+          "input_checkpoint": "CP-50abc91989ef4080",
+          "finish": "stop",
+          "events": [
+            "EV-REJECT-05c046cf6d564d72"
+          ],
+          "raw_output": "{\"function\": \"search_text\", \"params\": {\"case_sensitive\": true, \"max_file_bytes\": 5000000, \"max_line_chars\": 800, \"max_results\": 100, \"max_tokens\": 4096, \"mode\": \"regex\", \"path\": \".\", \"pattern\": \"health|Health|健康|Healthy\", \"recursive\": true, \"start_after\": \"\"}}"
+        },
+        {
+          "request": "MR-9e6d20ea97f34e3f",
+          "input_tokens": 6518,
+          "output_tokens": 39,
+          "input_sha256": "611012e432fc1cb1d605b860d733ff8f662a160a3c92f27619f3a097dd28d715",
+          "input_checkpoint": "CP-98375829ba604559",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-05c046cf6d564d72"
+          ],
+          "raw_output": "{\"function\": \"read_file\", \"params\": {\"max_line_chars\": 800, \"max_tokens\": 4096, \"path\": \"server.py\"}}"
+        },
+        {
+          "request": "MR-bae89b0d3ef74fe6",
+          "input_tokens": 6907,
+          "output_tokens": 29,
+          "input_sha256": "6b5528671f5491ddf0e02656b4bad890b8880ad87e9438d31debe67a8739b78c",
+          "input_checkpoint": "CP-77a9af0fa6064c2d",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-REJECT-05c046cf6d564d72",
+            "EV-REJECT-c7e12d0a3b674363"
+          ],
+          "raw_output": "{\"function\": \"read_file\", \"params\": {\"max_tokens\": 4096, \"path\": \"server.py\"}}"
+        },
+        {
+          "request": "MR-a1ff2870d3a04df1",
+          "input_tokens": 8791,
+          "output_tokens": 31,
+          "input_sha256": "5f3c3cb72b3975cdcc9e5ac0eb9488a0985d3c41b6b84e0913a3075df1fe65f4",
+          "input_checkpoint": "CP-110cb77ba0254b57",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-REJECT-05c046cf6d564d72",
+            "EV-REJECT-c7e12d0a3b674363"
+          ],
+          "raw_output": "{\"function\": \"read_file\", \"params\": {\"max_tokens\": 4096, \"path\": \"verify_public.py\"}}"
+        },
+        {
+          "request": "MR-49c0ebf138ed40bb",
+          "input_tokens": 10497,
+          "output_tokens": 29,
+          "input_sha256": "d71776f8963df599117e2d3c4171dbdba8b41f7a2df9d30147f3c694737fed70",
+          "input_checkpoint": "CP-c6da4323b3f244e9",
+          "finish": "stop",
+          "events": [
+            "EV-ACTION-A00001",
+            "EV-ACTION-A00002",
+            "EV-ACTION-A00003",
+            "EV-REJECT-05c046cf6d564d72",
+            "EV-REJECT-c7e12d0a3b674363"
+          ],
+          "raw_output": "{\"function\": \"read_file\", \"params\": {\"max_tokens\": 4096, \"path\": \"README.md\"}}"
+        }
+      ],
+      "generation_started": 6,
+      "generation_returned": 6,
+      "input_and_state_verified": true,
+      "observations": [
+        {
+          "action": "A00001",
+          "operation": "search_text",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true
+        },
+        {
+          "action": "A00002",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true,
+          "complete_file": true
+        },
+        {
+          "action": "A00003",
+          "operation": "read_file",
+          "event_registered": true,
+          "consumed": true,
+          "success": true,
+          "projection_complete": true,
+          "complete_file": true
+        },
+        {
+          "action": "A00004",
+          "operation": "read_file",
+          "event_registered": false,
+          "consumed": false,
+          "success": true
+        }
+      ],
+      "feedback": [
+        {
+          "event": "EV-REJECT-05c046cf6d564d72",
+          "consumed": true,
+          "payload": {
+            "error": "action search_text has unknown arguments: ['max_text_tokens']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_tokens": 4096,
+              "max_results": 100,
+              "max_line_chars": 800,
+              "max_text_tokens": 4096,
+              "path": ".",
+              "pattern": "health|Health|健康|Healthy",
+              "recursive": true,
+              "start_after": ""
+            },
+            "selected_operation": "search_text",
+            "selected_operation_schema": {
+              "name": "search_text",
+              "description": "Search workspace UTF-8 lines. mode=regex (default) supports TODO|FIXME; mode=literal is exact. Returns bounded ordered locators/cursor and never ranks urgency.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "literal text or one line-oriented Python regular expression"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": ".",
+                    "description": "workspace-relative file or directory"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "literal",
+                      "regex"
+                    ],
+                    "default": "regex"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "recurse when path is a directory"
+                  },
+                  "max_results": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100
+                  },
+                  "start_after": {
+                    "type": "string",
+                    "default": "",
+                    "description": "opaque prior-page next_cursor; copy exactly"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096
+                  },
+                  "max_file_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000000,
+                    "default": 5000000,
+                    "description": "skip larger files and report them"
+                  },
+                  "max_line_chars": {
+                    "type": "integer",
+                    "minimum": 80,
+                    "maximum": 4000,
+                    "default": 800,
+                    "description": "maximum returned line excerpt and match text characters"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        },
+        {
+          "event": "EV-REJECT-c7e12d0a3b674363",
+          "consumed": true,
+          "payload": {
+            "error": "action read_file has unknown arguments: ['max_line_chars']",
+            "action_executed": false,
+            "rejected_arguments": {
+              "max_line_chars": 800,
+              "max_tokens": 4096,
+              "path": "server.py"
+            },
+            "selected_operation": "read_file",
+            "selected_operation_schema": {
+              "name": "read_file",
+              "description": "Read one UTF-8 text chunk using only path, start_byte and max_tokens as input fields. Only path is required; both other fields may be omitted. The range includes the starting byte and excludes the stopping byte computed by the tool; the caller supplies no ending position. Read to EOF when the remaining text fits the token budget. Otherwise the result supplies a continuation cursor. An EOF cursor returns empty text; a missing file fails.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Required string: file path relative to the workspace root."
+                  },
+                  "start_byte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0,
+                    "description": "Optional; omitted means 0. Integer inclusive UTF-8 byte offset, into decoded text, from 0 through its UTF-8 byte length, including EOF. Must be on a UTF-8 character boundary."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 8192,
+                    "default": 4096,
+                    "description": "Optional; omitted means 4096. Integer returned-text token budget from 256 through 8192 inclusive, not a byte or line limit."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "schema_already_disclosed": false,
+            "instruction": "Return one displayed direct function call with its complete explicit parameter object. No operation or value was inferred."
+          }
+        }
+      ],
+      "protocol_rejections": 2,
+      "terminal_reasons": [
+        "transition_budget_exhausted"
+      ],
+      "final": null
+    }
+  ],
+  "completed_records": 1,
+  "checked_generations": 6,
+  "all_returned_inputs_and_parent_states_verified": true,
+  "pending_events_at_budget_are_not_consumed_feedback": true
+}

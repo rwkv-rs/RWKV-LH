@@ -1,3 +1,13 @@
+# 当前进展：真实反馈基线完成，确认输入轮次边界问题（2026-09-13）
+
+- 固定4题×2遍任务合格/提交3/8，无交付5/8，mutation0，虚假工程完成0。RWKV独立执行，未达固定组门槛，不是项目Strict。原始答案及外部逐项审核保留。
+- 44生成/237635输入token/17267输出token；17协议拒绝、15消费反馈、24成功工具（11读取）；71 checkpoint及所有已返回输入/State父子关系核验。1558测试通过、0 skipped。
+- 发现具体输入结构问题：候选回滚保留未闭合Assistant JSON开头，再追加User反馈；26个实际输入含此片段，离线RED_INPUT_BOUNDARY复现。行为因果尚未证明。备份搜索限制与反馈利用另有模型侧问题，不归咎同一根因。
+- 用户最新目标：继续做到自主文档问答、检查bug，参考 `/home/chase/GitHub/rwkvrag` 的原文到材料与并发实现。先修统一输入边界并做回归，再逐步落地证据材料与受控并发；不移植固定六角色、不假定并发已获益。
+- [本轮报告](../data/experiments/RWKV_FEEDBACK_TASK_BASELINE_R1_20260913/REPORT.zh-CN.md)，哈希清单、冻结契约、原始包与下一步最小修复计划同目录。原五个未提交文件未动。无训练/新数据集/GitHub更新。
+
+---
+
 # 当前进展：任务结果审核 v1 已落地（2026-09-13）
 
 - 当前最高优先级为先建立可信判断方式，再继续输入敏感性诊断。统一外部审核规范见 [TASK_OUTCOME_REVIEW.zh-CN.md](TASK_OUTCOME_REVIEW.zh-CN.md)，实现为 `rwkv_lh/task_review.py`，CLI 为 `scripts/review_agent_task.py`。

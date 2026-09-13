@@ -1,0 +1,111 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "smoke-feedback-r1",
+  "task_id": "smoke",
+  "arm": "feedback",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "94985a0f7c6cb532a469d78ebe5ebad2420898d45e8ed2a7fdc5bc71c60c3360",
+  "run_sha256": "584b1539e6e4dc3cc4b560b0c1832f4b8a7b189ce3f54f4d200d07414e6e7a83",
+  "review_sha256": "d048a4fc323b3c45e661601e18056f189d9cb3a22bfc34f7adda94a8abda58f1",
+  "execution_identity_sha256": "64d55f60322ec2600b106beca252c97469a144f27db29edded1fb4c44c8e1a4f",
+  "outcome": "met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "location",
+      "status": "met",
+      "reason": "明确 verify_public.py",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "purpose",
+      "status": "met",
+      "reason": "明确 /health 200 与 JSON ok 为 true",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "met",
+      "reason": "明确不能认证业务行为；附加接口细节中一处错误另记",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "readonly",
+      "status": "met",
+      "reason": "动作与文件 SHA 证明只读",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "非法输入、缺字段、坏 JSON、未知路由 → 400",
+      "reason": "README 将未知路由规定为404；原答案随后也写404，造成局部矛盾",
+      "impact": "附加接口列表的局部状态码错误；核心健康检查用途和不可认证的业务边界仍正确，不整组归零",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "validity_reason": "固定获准用例与只读工作区匹配；真实输入/State及工具结果已核验。输入结构缺陷是被测系统行为，未据此排除失败。",
+  "factuality": "minor_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "按真实原文、调用和终止记录报告行为；不把结果直接当作输入格式缺陷的因果效果",
+      "evidence_ids": [
+        "E1",
+        "E2"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 6,
+    "input_tokens": 36353,
+    "output_tokens": 853,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

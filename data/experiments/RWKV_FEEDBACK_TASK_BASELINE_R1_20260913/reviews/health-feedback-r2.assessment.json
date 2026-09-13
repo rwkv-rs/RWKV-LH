@@ -1,0 +1,95 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "health-feedback-r2",
+  "task_id": "health",
+  "arm": "feedback",
+  "repeat": 2,
+  "scope": "task_trial",
+  "contract_sha256": "50070bc9b31f9d572447f172d4e4f52034910487c2b44d1240f6500ea2e1d2db",
+  "run_sha256": "4270c8ec5356e5aa45111da900fa42b8c80518f462a7a8343690f25d477d6990",
+  "review_sha256": "990e3c8bf49b4762b13f2f384b625619622a5fff2fd7665bca64a6d471de802c",
+  "execution_identity_sha256": "64d55f60322ec2600b106beca252c97469a144f27db29edded1fb4c44c8e1a4f",
+  "outcome": "met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "location",
+      "status": "met",
+      "reason": "server.py 第7行定位 Handler 类，紧随的 do_GET 可直接找到",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "healthy",
+      "status": "met",
+      "reason": "正确说明200和ok=true",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "other",
+      "status": "met",
+      "reason": "正确说明501和not_implemented",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    },
+    {
+      "id": "readonly",
+      "status": "met",
+      "reason": "真实动作只搜索和读取，文件未改",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6"
+      ]
+    }
+  ],
+  "findings": [],
+  "validity_reason": "固定获准用例与只读工作区匹配；真实输入/State及工具结果已核验。输入结构缺陷是被测系统行为，未据此排除失败。",
+  "factuality": "no_issue_reported",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "按真实原文、调用和终止记录报告行为；不把结果直接当作输入格式缺陷的因果效果",
+      "evidence_ids": [
+        "E1",
+        "E2"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 5,
+    "input_tokens": 31398,
+    "output_tokens": 317,
+    "protocol_rejections": 1,
+    "feedback_consumed": 1,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}
