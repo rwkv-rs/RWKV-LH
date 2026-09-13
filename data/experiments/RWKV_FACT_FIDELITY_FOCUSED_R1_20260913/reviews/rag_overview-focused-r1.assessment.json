@@ -1,0 +1,81 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "rag_overview-focused-r1",
+  "task_id": "rag_overview",
+  "arm": "focused",
+  "repeat": 1,
+  "scope": "task_trial",
+  "contract_sha256": "4e70ea2efec0b0b65b2bc165e2c9b4edebc26baed7be4b5755a4add2a9e762ae",
+  "run_sha256": "5ad36af024e0fbbfcd4b4024e92a96c3d98ca4d7d287562582f9725ddff03c26",
+  "review_sha256": "5344a9d435928c5685b65c1f6e3fb38f35bc623ad3268d357059f6ee49cb4087",
+  "execution_identity_sha256": "5065d707ecc27dffdd11cb570772fe731e0c883aa8f42b88c72c0635d5b1cde4",
+  "outcome": "partially_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "numbers",
+      "status": "met",
+      "reason": "候选标签与17/36、zero10/36及Reader48/60到60/60均正确；等价百分比换算不当作篡改数字",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "id": "limits",
+      "status": "partial",
+      "reason": "泛化限制正确，但加入无依据的各自前后提升关系",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "minor",
+      "quote": "从约 47.2% 提升到约 47.2%",
+      "reason": "原文报告两种State的横向成绩，没有这种相同数值的前后提升；同样错误出现在zero27.8%表述",
+      "impact": "比较关系表述不正确；原始成绩及候选归属仍正确，因此保留部分满足，不与改写原分数等同",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "factuality": "minor_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 2,
+    "input_tokens": 4213,
+    "output_tokens": 399,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": true
+}

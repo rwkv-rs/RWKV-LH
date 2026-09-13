@@ -1,0 +1,111 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "dd6266a5f0417ebd2425d2a72dcc3f76bfd6d8c77cd367dc32c3d2997903a9a8",
+  "run_sha256": "6ba87d44ea05e3bb9a53b83aefeea40489b39513d3b74f6b8f3ad76af2bd0aca",
+  "reviewer": "Codex external source and actual tool trace review",
+  "validity": "valid",
+  "validity_reason": "冻结任务及原文和完整实际轨迹保留",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "requirements": [
+    {
+      "id": "bug",
+      "status": "partial",
+      "reason": "数据库与业务功能缺失有事实基础，但混入启动报错、连接泄漏和未实现健康检查等错误",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "provenance",
+      "status": "partial",
+      "reason": "正确标记验证尚未执行，未报告本次读取工具；源码、需求与推断混淆",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "id": "verification",
+      "status": "partial",
+      "reason": "列出建议测试类别，但缺少针对真实缺陷的具体预期且含不存在连接的关闭测试",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "代码中没有实现，只是返回了 404",
+      "reason": "实际GET /health实现返回200和ok:true；其他GET返回501",
+      "impact": "将已有正常实现误报为缺失，并虚构状态码",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "unsupported",
+      "severity": "material",
+      "quote": "因此第一次启动时会报错",
+      "reason": "代码不使用数据库参数，缺失连接并不触发启动报错；已有外部实际启动验证通过",
+      "impact": "误导用户定位不存在的启动故障",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "README 中没有说明如何检测同 resource 的时间重叠",
+      "reason": "README明确给出重叠条件与409冲突要求",
+      "impact": "把已写明的需求当作缺失",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "仅依据实际输出描述事实归属及关系错误，不推断提示或State根因",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    }
+  ]
+}
