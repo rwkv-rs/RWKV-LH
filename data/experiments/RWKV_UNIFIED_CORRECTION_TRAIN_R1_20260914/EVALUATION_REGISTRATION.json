@@ -1,0 +1,278 @@
+{
+  "role": "direct_actor",
+  "original_regression": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/evaluation/REGRESSION_REGISTRATION.json",
+    "sha256": "057c56ef58854f62c47eb4b7ab66c3cc3341267322e3c0fffd22c422d5188242"
+  },
+  "diagnostic_cases": [
+    {
+      "id": "api_code_first",
+      "request": "阅读以下文件：server.py、README.md。以 server.py 源码为依据，说明实际实现了哪些 HTTP 行为，--db 参数在代码中有什么作用，以及哪些结论目前只能推断而没有实际运行验证。若阅读需求文档，将文档要求与源码已实现的行为分开，不能把需求当成实现。列明本次实际工具操作和尚未执行的验证建议。不要修改文件。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "files": [
+        "server.py",
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "http",
+          "user_quote": "实际实现了哪些 HTTP 行为",
+          "outcome": "健康GET200且ok:true、其他GET501；业务未实现，不从需求虚构实现",
+          "level": "essential",
+          "missing_effect": "核心HTTP行为不正确",
+          "acceptance": "等义表达，其他GET实际501必须正确",
+          "omission_policy": "无关细节允许省略"
+        },
+        {
+          "id": "db",
+          "user_quote": "--db 参数在代码中有什么作用",
+          "outcome": "必填解析但未使用，未实现SQLite",
+          "level": "essential",
+          "missing_effect": "参数作用不正确",
+          "acceptance": "等义表达，不宣称启动报错",
+          "omission_policy": "一般细节允许省略"
+        },
+        {
+          "id": "sources",
+          "user_quote": "本次实际工具操作和未执行的验证建议",
+          "outcome": "读取与建议/实际执行区分，验证方法针对真实代码，不虚称运行",
+          "level": "essential",
+          "missing_effect": "来源或验证不可靠",
+          "acceptance": "合理方法即可，不要求固定形式或工具顺序",
+          "omission_policy": "不强制逐项命名工具和固定引用格式，只要实际操作与未运行清楚"
+        }
+      ],
+      "file_sha256": {
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928"
+      }
+    },
+    {
+      "id": "api_requirements_first",
+      "request": "阅读以下文件：README.md、server.py。以 server.py 源码为依据，说明实际实现了哪些 HTTP 行为，--db 参数在代码中有什么作用，以及哪些结论目前只能推断而没有实际运行验证。若阅读需求文档，将文档要求与源码已实现的行为分开，不能把需求当成实现。列明本次实际工具操作和尚未执行的验证建议。不要修改文件。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace",
+      "files": [
+        "server.py",
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "http",
+          "user_quote": "实际实现了哪些 HTTP 行为",
+          "outcome": "健康GET200且ok:true、其他GET501；业务未实现，不从需求虚构实现",
+          "level": "essential",
+          "missing_effect": "核心HTTP行为不正确",
+          "acceptance": "等义表达，其他GET实际501必须正确",
+          "omission_policy": "无关细节允许省略"
+        },
+        {
+          "id": "db",
+          "user_quote": "--db 参数在代码中有什么作用",
+          "outcome": "必填解析但未使用，未实现SQLite",
+          "level": "essential",
+          "missing_effect": "参数作用不正确",
+          "acceptance": "等义表达，不宣称启动报错",
+          "omission_policy": "一般细节允许省略"
+        },
+        {
+          "id": "sources",
+          "user_quote": "本次实际工具操作和未执行的验证建议",
+          "outcome": "读取与建议/实际执行区分，验证方法针对真实代码，不虚称运行",
+          "level": "essential",
+          "missing_effect": "来源或验证不可靠",
+          "acceptance": "合理方法即可，不要求固定形式或工具顺序",
+          "omission_policy": "不强制逐项命名工具和固定引用格式，只要实际操作与未运行清楚"
+        }
+      ],
+      "file_sha256": {
+        "server.py": "6c51a3680f421847f869a2a9d74056a1854d959556ee0c89fb202d658aa451bb",
+        "README.md": "8394edb40e95b8cd0b725aa1e32847eb482254605bf8df9bf1a37c22387f8928"
+      }
+    },
+    {
+      "id": "inventory_numeric",
+      "request": "阅读 README.md，说明文中数量、长度限制和 HTTP 状态码分别对应什么对象或情况。保留数字与对应关系，区分成功首次处理、相同请求重试与冲突；不要把文档要求声称为本次已实现或已测试。",
+      "workspace_source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-02/workspace",
+      "files": [
+        "README.md"
+      ],
+      "family": "API",
+      "split": "dev",
+      "requirements": [
+        {
+          "id": "limits",
+          "user_quote": "数量、长度限制",
+          "outcome": "库存非负整数、quantity正整数且排除bool/小数；Idempotency-Key非空最长128字符，不能把128当商品数量",
+          "level": "essential",
+          "missing_effect": "主要限制错配",
+          "acceptance": "数字对象准确，等义表达允许",
+          "omission_policy": "不需列所有语法细节"
+        },
+        {
+          "id": "codes",
+          "user_quote": "首次处理、相同请求重试与冲突",
+          "outcome": "首次201，同key同规范化请求200不再次扣减，冲突409；不存在404，非法400，不混淆对象",
+          "level": "essential",
+          "missing_effect": "核心状态码关系错误",
+          "acceptance": "状态码和触发对应，等义表达",
+          "omission_policy": "具体路由列举可省略"
+        },
+        {
+          "id": "provenance",
+          "user_quote": "不要把文档要求声称为本次已实现或已测试",
+          "outcome": "明确需求而非代码或运行证明，无虚假工程声明",
+          "level": "essential",
+          "missing_effect": "来源混淆",
+          "acceptance": "不限定路径",
+          "omission_policy": "不要求固定声明模板"
+        }
+      ],
+      "file_sha256": {
+        "README.md": "2cdaa4ca08aa5e40f25fbee01a3ef1231e744d8a47c53af55d5ae866d6f89e5c"
+      }
+    }
+  ],
+  "repeats": 2,
+  "profiles": "same serving artifact, zero and one trained candidate; fresh isolated root each task, native child continuation",
+  "max_calls_per_diagnostic": 6,
+  "max_seconds_per_diagnostic": 300,
+  "max_output_tokens": 1800,
+  "sampling": {
+    "temperature": 0.1,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "gate": {
+    "original_dev": "candidate >=7/8 and no task/fidelity regression vs simultaneous zero; old scores and old gain rule preserved historically, not reused as new ceiling trap",
+    "diagnostic": "candidate all3 cases both repeats met, zero illegal calls/false-work claims; compare zero separately",
+    "original_read": "same fixed21+3 each arm; no regression",
+    "confirmation": "only after dev+diagnostic+read gates, same original4 each repeat fullpass and no zero regression; no repair after confirmation",
+    "coding": "All three tasks both repeats pass, no illegal calls or false executed-work claims; no task regression vs zero. Seen query problem reported explicitly."
+  },
+  "source_isolation": "all API development kept out of training; DATA/WEB confirmation unchanged; no private holdout read",
+  "selection": "one candidate zero-init lr1e-4, no tuning after confirmation",
+  "monetary_cost": "unknown until real tariffs; include failures/strong/training amortization",
+  "frozen_policy": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/evaluation/EVALUATION_REGISTRATION.json",
+    "sha256": "b21712b3c4b01b32286ad8040e437f8016c80175dce5a52b00e33a99d5142f29"
+  },
+  "regression_fingerprint": "057c56ef58854f62c47eb4b7ab66c3cc3341267322e3c0fffd22c422d5188242",
+  "metrics": [
+    "original_read_main",
+    "original_read_supplement",
+    "illegal_calls",
+    "false_work_claims"
+  ],
+  "thresholds": {
+    "original_dev": "candidate >=7/8 and no task/fidelity regression vs simultaneous zero; old scores and old gain rule preserved historically, not reused as new ceiling trap",
+    "diagnostic": "candidate all3 cases both repeats met, zero illegal calls/false-work claims; compare zero separately",
+    "original_read": "same fixed21+3 each arm; no regression",
+    "confirmation": "only after dev+diagnostic+read gates, same original4 each repeat fullpass and no zero regression; no repair after confirmation",
+    "coding": "All three tasks both repeats pass, no illegal calls or false executed-work claims; no task regression vs zero. Seen query problem reported explicitly."
+  },
+  "agent_metrics": [
+    "original_dev_task_pass",
+    "diagnostic_task_pass",
+    "confirmation_task_pass",
+    "factual_fidelity",
+    "termination",
+    "calls",
+    "tokens",
+    "latency",
+    "cost_unknown_without_tariffs",
+    "coding_task_pass",
+    "rwkv_independent",
+    "strong_advised",
+    "strong_takeover",
+    "mutation_count"
+  ],
+  "retention_rule": "All frozen gate clauses including coding must pass. Confirmation only after development, diagnostic, original reading and coding. Failed/interrupted candidate never retained. This proves fixed tasks only, not general Code Agent stability.",
+  "round_id": "RWKV_UNIFIED_CORRECTION_TRAIN_R1_20260914",
+  "registered_at": "2026-09-14T11:53:38.620830+00:00",
+  "context_tokens": 32768,
+  "source_manifest_sha256": "0620845ecdfa75239d5d984d5bf0634b1c3dd0b661f218433af033670185bedf",
+  "dataset_manifest_sha256": "9ae25e11095dbe869ac54b8bdffdda8b7141b5a964c4c5f8b350494745b2a696",
+  "budget": {
+    "max_generation_calls": 400,
+    "max_seconds": 18000,
+    "gpu": "GPU-1faf7f09-25f4-2515-b707-6e0766aa841d"
+  },
+  "coding_checks": {
+    "jobs": [
+      {
+        "task_id": "read-health",
+        "request": "阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+        "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914/sources/read-health",
+        "tool_scope": "coding",
+        "on_stall": "stop",
+        "rwkv_max_calls": 24,
+        "max_calls": 24,
+        "max_seconds": 900,
+        "source_sha256": {
+          "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+        }
+      },
+      {
+        "task_id": "run-recursive",
+        "request": "运行工作区中已有的 check_recursive.py，根据本次真实执行的输出说明测试是否通过。不要修改工作区文件。若没有成功执行，就如实说明未执行及原因；不要把建议、预期或仅外层命令退出0说成测试通过。",
+        "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914/live/run-recursive/workspace",
+        "tool_scope": "coding",
+        "on_stall": "stop",
+        "rwkv_max_calls": 24,
+        "max_calls": 24,
+        "max_seconds": 900,
+        "source_sha256": {
+          "README.md": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+          "check_recursive.py": "c123a53cadc56dba98286cb5c3a365da5b3d220bff9781c4c24d6146bdf63226",
+          "docs/welcome.md": "8cf0921cb0e16821a06e1dbe4a9135b2aef3e063346629040427a9ca0d4fc043",
+          "docs/团队/notes.txt": "d164ce3e0e3f9077661b4a70d095d88ff9d3f25d39b4219233fbe83f98ec0cc5",
+          "document_index/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "document_index/documents.py": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+          "document_index/query.py": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+          "document_index/store.py": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+          "index_cli.py": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8"
+        }
+      },
+      {
+        "task_id": "fix-query",
+        "request": "修复工作区中的查询功能，使 test_query_limit.py 中已有测试全部通过，保留测试及其要求。test_failure.txt 是此前真实运行日志，不代表本轮已经执行测试。请自主检查和修改代码，实际运行 test_query_limit.py，并根据本轮真实失败反馈继续修正；最后如实说明修改内容、实际测试结果和尚未解决的问题。",
+        "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914/source",
+        "tool_scope": "coding",
+        "on_stall": "stop",
+        "rwkv_max_calls": 24,
+        "max_calls": 24,
+        "max_seconds": 900,
+        "source_sha256": {
+          "README.md": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+          "docs/welcome.md": "8cf0921cb0e16821a06e1dbe4a9135b2aef3e063346629040427a9ca0d4fc043",
+          "docs/团队/notes.txt": "d164ce3e0e3f9077661b4a70d095d88ff9d3f25d39b4219233fbe83f98ec0cc5",
+          "document_index/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "document_index/documents.py": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+          "document_index/query.py": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+          "document_index/store.py": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+          "index_cli.py": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+          "test_failure.txt": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+          "test_query_limit.py": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3"
+        }
+      }
+    ],
+    "repeats": 2,
+    "arms": [
+      "zero",
+      "candidate"
+    ],
+    "attribution": "No strong assistance in independent comparison; any later assisted demonstration reported separately. fix-query is a seen problem; not independent generalization.",
+    "criteria": {
+      "read-health": "Faithful summary of script main behavior, no unsupported claims.",
+      "run-recursive": "Actually execute existing test; report inner failures accurately; preserve files.",
+      "fix-query": "Original external test passes on resulting workspace; test unchanged, actual execution recorded, final accurately describes changes and unresolved issues."
+    }
+  }
+}

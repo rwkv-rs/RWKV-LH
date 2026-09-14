@@ -94,3 +94,8 @@ Owner最新要求：只使用物理GPU 0。后续本地测试及模型进程显�
 
 
 PROGRESS_CORRECTIONS R1：两个真实停滞边界的强模型原样下一步均为实际测试，复现ValueError（exit1），不是修复完成。新增verified_command按源request/action/快照绑定、fresh执行及固定退出/输出准入，失败测试可监督有效诊断。完整GPU0 1735 passed（323.77s）。Owner再次要求持续做到训练和真实Code Agent，不再按小阶段停下。54条统一数据已冻结，最长20551tokens；下一轮GPU0长输入训练验证、一个候选和固定验收正在推进。详情见data/experiments/RWKV_PROGRESS_CORRECTIONS_R1_20260914/REPORT.zh-CN.md。
+
+统一纠正训练 R1 已启动（2026-09-14 20:09 CST，尚未验收）：获准新数据 `rwkv_direct_unified_corrections_v1` 共54行，manifest SHA `9ae25e11095dbe869ac54b8bdffdda8b7141b5a964c4c5f8b350494745b2a696`。28读取、24回答代表、1有效修改、1实际失败测试；两条编码相关边界同属一个见过的MAINT问题。原128行及旧NO_KEEP不变。16K工件拒绝32K、32K反向超过80GiB预算，均0 optimizer steps；改为完整容纳20551-token样本的24576窗口后，数值/梯度/State/隔离全部通过，峰值75.691GiB，未截断或放宽门槛。模型/权重未改。GPU0运行 `direct-unified-r1-20260914`，zero初始化、lr1e-4、3epochs计划162步、上限400步/4小时；注册SHA `3669ca64f4b54571ac80d418c6f625113ce173c0b5c25719683ab0b7329a293c`。完整证据位于 `data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R1_20260914/`。任务评分在训练前冻结，固定zero/candidate摘要、诊断、读取与编码两遍比较；不因loss下降保留State。原GPU0项目服务已在确认空闲后临时暂停，独占训练/评测结束必须恢复 `rwkv-lh-native-current.service`；其他服务不动，服务器不使用Git。Owner五处修改SHA仍不变，生产源码冻结于650800e1加这些原有修改，完整测试1735 passed。
+
+
+统一纠正训练 R1 已完成并判 NO_KEEP：162实际训练步、54完整样本、24.2分钟；同源固定两遍摘要 zero7/8、candidate8/8，诊断均0/6，coding均4/6（查询修复均0/2），原读取均24/24。候选协议拒绝12次，不替换默认State，不运行confirmation/holdout。原GPU0服务已恢复并健康核验。报告见 `data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R1_20260914/REPORT.zh-CN.md`。下一轮先修四个产品入口覆盖显式State的问题（4红/4默认通过已复现），再补独立训练来源的真实纠正；不将开发题参考答案训练化。
