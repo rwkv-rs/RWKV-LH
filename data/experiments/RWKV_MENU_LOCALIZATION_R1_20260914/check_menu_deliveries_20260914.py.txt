@@ -1,0 +1,12 @@
+from pathlib import Path
+import json,sys,shutil,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914'
+for p in sorted((D/'runs').glob('*/DELIVERY.json')):
+ name=p.parent.name;out=D/'external'/name
+ if out.exists():continue
+ source=p.parent/'workspace';shutil.copytree(source,out/'workspace');test=(D/'source/test_query_limit.py').read_bytes();preserved=(source/'test_query_limit.py').exists() and (source/'test_query_limit.py').read_bytes()==test;(out/'workspace/test_query_limit.py').write_bytes(test)
+ r=subprocess.run([sys.executable,'-B','test_query_limit.py'],cwd=out/'workspace',capture_output=True,text=True,timeout=60)
+ v.write_once(out/'CHECK.json',{'attribution':'external verifier, not model test execution','exit_code':r.returncode,'stdout':r.stdout,'stderr':r.stderr,'original_test_preserved':preserved,'original_test_sha256':v.file_digest(D/'source/test_query_limit.py')})
+ print(name,r.returncode)

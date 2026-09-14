@@ -1,0 +1,37 @@
+from pathlib import Path
+import sys,json,shutil,subprocess
+from dataclasses import replace
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+from rwkv_lh.coding_agent import _RecordedHarness,_inventory
+from rwkv_lh.read_only_agent import ReadOnlyJob,_run_job
+from rwkv_lh.controller import LongHorizonController
+from rwkv_lh.model_session import create_model_session
+from rwkv_lh.runtime.settings import load_local_env,get_runtime_settings
+D=R/'data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914'
+KEEP=('read_file','write_file','replace_text','check_command')
+class MenuHarness(_RecordedHarness):
+ def __init__(self,out,compact):super().__init__(out);self.compact=compact
+ def g1i_tool_definitions(self,action_types=None):
+  definitions=super().g1i_tool_definitions(action_types)
+  return [d for d in definitions if not self.compact or d['name'] in KEEP]
+if not D.exists():
+ D.mkdir();old=R/'data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914';source=old/'source';shutil.copytree(source,D/'source');reg=json.loads((old/'REGISTRATION.json').read_text())
+ reg.update(id=D.name,order=['r1-full','r1-compact','r2-compact','r2-full'],budgets={'calls_each':12,'seconds_each':600,'normal_output':1800,'identical_read_success':3,'identical_failure':5,'protocol_rejections':12,'terminal_attempts':6,'transport_failures':8,'idempotent_unchanged_mutation_repeat':2},menu={'full':'existing 19 including final_answer','compact':list(KEEP)+['final_answer']},state='fresh zero per run; native_required; continuous within task',scope='fresh same-task menu ablation; not retry-State or project Strict; only diagnostic Harness definition filtering; not production default',head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip(),runner_sha256=v.file_digest(Path(__file__)),gate='two compact runs meet all task requirements, no false claims or illegal params; full control separately; no general stability')
+ for key in ('jobs','arms','candidate_instruction'):reg.pop(key,None)
+ reg['production']={str(p.relative_to(R)):v.file_digest(p) for p in (R/'rwkv_lh').rglob('*.py')}
+ v.write_once(D/'REGISTRATION.json',reg)
+ contract=json.loads((old/'reviews/contract.json').read_text())['contract']
+ for arm in ('full','compact'):
+  c=json.loads(json.dumps(contract));c['kind']='boundary_probe';c['execution_identity']['source']=v.digest({'production':reg['production'],'files':reg['source_files'],'menu':reg['menu'][arm]});c['execution_identity']['state']=v.digest(reg['state']);c['execution_identity']['budget']=v.digest(reg['budgets']);v.freeze_contract(c,D/'reviews'/f'{arm}.contract.json')
+ (D/'OWNER_BEFORE.diff').write_bytes(subprocess.check_output(['git','diff'],cwd=R));shutil.copy2(__file__,D/'runner.py.txt')
+reg=json.loads((D/'REGISTRATION.json').read_text())
+load_local_env(R/'.env.local');settings=replace(get_runtime_settings(),return_token_ids=True,state_transport='native_required',state_profile_id='zero',state_profile_sha256='0'*64,tool_disclosure_mode='full')
+assert settings.model==reg['model'] and settings.model_sha256==reg['model_sha256']
+for name in reg['order']:
+ assert all(v.file_digest(R/p)==s for p,s in reg['production'].items())
+ root=D/'runs'/name;workspace=root/'workspace';out=root/'execution';shutil.copytree(D/'source',workspace)
+ job=ReadOnlyJob(name,reg['request'],str(workspace),str(out),12,600,tool_scope='coding');v.write_once(root/'JOB.json',job.__dict__)
+ result=_run_job(job,settings=settings,session_factory=create_model_session,harness_factory=lambda:MenuHarness(out,name.endswith('compact')),controller_type=LongHorizonController,allowed_scopes=('coding',))
+ after=_inventory(workspace);before=reg['source_files'];v.write_once(root/'INITIAL_FILES.json',before);v.write_once(root/'DELIVERY.json',{**result,'workspace':str(workspace),'changed_files':sorted(p for p in after.keys()|before.keys() if after.get(p)!=before.get(p)),'final_files':after})
+ print(name,result['termination_reason'],result['generation_started'],result['final'],flush=True)

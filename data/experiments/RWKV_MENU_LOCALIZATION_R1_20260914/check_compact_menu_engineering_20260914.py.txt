@@ -1,0 +1,15 @@
+from pathlib import Path
+import sys,ast,json
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path[:0]=[str(R),str(R/'tests')]
+from rwkv_lh.coding_agent import _RecordedHarness
+from rwkv_lh.read_only_agent import _run_job,ReadOnlyJob
+from rwkv_lh.controller import LongHorizonController
+from test_read_only_agent import factory
+from test_unified_controller import call,settings
+D=R/'data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914';tree=ast.parse((R/'temp/run_menu_localization_20260914.py').read_text());node=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='MenuHarness');scope={'_RecordedHarness':_RecordedHarness,'KEEP':tuple(json.loads((D/'REGISTRATION.json').read_text())['menu']['compact'][:-1])};exec(compile(ast.Module(body=[node],type_ignores=[]),'registered_diagnostic_harness','exec'),scope);H=scope['MenuHarness']
+root=R/'data/test_runs/menu_localization_engineering';workspace=root/'workspace';workspace.mkdir(parents=True,exist_ok=False);(workspace/'a.py').write_text('value = 1\n')
+sequence=[call('read_file',path='a.py',max_lines=10),call('read_file',path='a.py'),call('write_file',path='a.py',content='value = 2\n'),call('check_command',argv=['python3','-B','-c','from a import value; assert value == 3']),call('write_file',path='a.py',content='value = 3\n'),call('check_command',argv=['python3','-B','-c','from a import value; assert value == 3']),call('final_answer',text='Changed value to 3; last test passed.')]
+r=_run_job(ReadOnlyJob('engineering','Change value to 3 and test',str(workspace),str(root/'execution'),10,60,tool_scope='coding'),settings=settings(),session_factory=factory(sequence),harness_factory=lambda:H(root/'execution',True),controller_type=LongHorizonController,allowed_scopes=('coding',))
+assert r['final']== 'Changed value to 3; last test passed.'
+checks=[a for a in r['actions'] if a['action_type']=='check_command'];assert [a['result']['exit_code'] for a in checks]==[1,0];assert (workspace/'a.py').read_text()=='value = 3\n'
+(D/'ENGINEERING_CHECK.json').write_text(json.dumps({'attribution':'scripted session, not RWKV ability or dataset','passed':True,'scope':'illegal read recovery then autonomous-protocol write, failed real check, write and passing check; choices scripted only for engineering check','evidence':str(root),'production_changed':False},indent=2)+'\n');print('engineering check passed')

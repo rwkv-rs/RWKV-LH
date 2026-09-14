@@ -1,0 +1,17 @@
+from pathlib import Path
+import sys,json
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914';reg=json.loads((D/'REGISTRATION.json').read_text());assessments=[]
+for name in reg['order']:
+ arm=name.split('-')[1];p=D/'runs'/name/'execution';contract=json.loads((D/'reviews'/f'{arm}.contract.json').read_text())['contract'];d=json.loads((p.parent/'DELIVERY.json').read_text())
+ run=v.capture_diagnostic_run(p,task_id=contract['task_id'],arm=arm,repeat=int(name[1]),protocol_error_policy='feedback',execution_identity=contract['execution_identity'],historical=False,assistance='rwkv_independent')
+ for e in run['evidence']:e['path']=str(p.relative_to(D)/e['path'])
+ for q in [D/'external'/name/'CHECK.json',D/'MECHANICAL.json',p.parent/'DELIVERY.json',D/'REGISTRATION.json']:
+  run['evidence'].append({'id':f'E{len(run["evidence"])+1}','path':str(q.relative_to(D)),'sha256':v.file_digest(q),'kind':'check'})
+ assert not d['changed_files'] and run['answer'] is None,'manual artifact/answer review needed'
+ refs=[e['id'] for e in run['evidence']]
+ j={'schema':v.REVIEW_SCHEMA,'contract_sha256':v.digest(contract),'run_sha256':v.digest(run),'reviewer':'Codex review of frozen criteria and raw traces','validity':'valid','validity_reason':'同任务同源文件，fresh zero，生产输入与父链验证；仅菜单范围不同，外部原测试不变。','validity_evidence_ids':refs,'requirements':[],'findings':[],'causes':[{'category':'model_behavior','certainty':'observed','reason':'没有修改、命令测试或回答；重复读取/缺失路径实测分列，不假定单一内部根因。','evidence_ids':refs}]}
+ a=v.assess(contract,run,j,evidence_root=D);assessments.append(a)
+ for kind,value in [('run',run),('judgment',j),('assessment',a)]:v.write_once(D/'reviews'/f'{name}.{kind}.json',value)
+v.write_once(D/'TASK_SUMMARY.json',v.aggregate(assessments));print([(a['run_id'],a['outcome'],a['diagnostics']) for a in assessments])

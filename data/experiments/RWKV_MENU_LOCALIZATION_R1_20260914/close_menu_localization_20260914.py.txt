@@ -1,0 +1,82 @@
+from pathlib import Path
+import sys,json,hashlib,subprocess,shutil,tarfile
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.token_budget import tokenizer
+D=R/'data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914';reg=json.loads((D/'REGISTRATION.json').read_text());m=json.loads((D/'MECHANICAL.json').read_text())
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+rows=[];first={}
+for name in reg['order']:
+ p=D/'runs'/name/'execution';r=json.loads((p/'RESULT.json').read_text());d=json.loads((p.parent/'DELIVERY.json').read_text());a=json.loads((D/'reviews'/f'{name}.assessment.json').read_text());es=[json.loads(l) for l in (p/'model_trace.jsonl').read_text().splitlines()];g=next(e for e in es if e['type']=='model_session_generation_returned');text=(p/'actual_inputs'/f'{g["request_id"]}.txt').read_text();menu=json.loads(text.split('System: Tools: ',1)[1].split('\n',1)[0]);first[name]=text.split('\n',1)[1]
+ rows.append({'name':name,'outcome':a['outcome'],'calls':r['generation_started'],'initial_input_tokens':len(g['raw_generation']['prompt_token_ids']),'menu_size':len(menu),'termination':r['termination_reason'],'diagnostics':a['diagnostics'],'changed_files':d['changed_files'],'final':r['final'],'action_counts':{op:sum(x['action_type']==op for x in r['actions']) for op in set(x['action_type'] for x in r['actions'])},'tool_failures':[{'operation':x['action_type'],'arguments':x['arguments'],'error':x['result']['error']} for x in r['actions'] if not x['result']['success']],'elapsed_seconds':r['elapsed_seconds']})
+assert len(set(first.values()))==1,'bootstrap must differ only in tools line'
+assert all(r['outcome']=='no_delivery' and not r['changed_files'] and r['final'] is None for r in rows)
+(D/'ACCOUNTING.json').write_text(json.dumps({'rows':rows,'only_bootstrap_tools_line_differs':True,'interpretation':'logical token and monotonic task duration; no energy or financial-cost estimate'},ensure_ascii=False,indent=2)+'\n')
+owner=subprocess.check_output(['git','diff','--','rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'],cwd=R);assert owner==(D/'OWNER_BEFORE.diff').read_bytes()
+release=json.loads((R/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/RELEASE_SOURCE.json').read_text());assert all(sha(R/p)==s for p,s in release['source'].items())
+lines='\n'.join(f"|{r['name']}|{r['calls']}|{r['diagnostics']['protocol_rejections']}|{r['diagnostics']['tool_errors']}|{r['termination']}|" for r in rows)
+total={k:sum(r['diagnostics'][k] for r in rows) for k in ('model_calls','input_tokens','output_tokens','protocol_rejections','tool_errors')}
+report=f'''# 工具菜单定位对照 R1
+
+## 任务级结果
+
+**完整菜单0/2合格，精简菜单0/2合格；四次completed0、mutation0、无交付4。** 四次均没有修改、真实测试命令或最终回答，不记虚假完成，不是项目Strict。精简候选不作为修复保留，不接入生产。
+
+|运行|生成|非法参数拒绝|工具失败|终止|
+|---|---:|---:|---:|---|
+{lines}
+
+所有交付副本仍是原代码，外部原始test_query_limit.py均失败。外部执行不计RWKV执行；没有发生测试反馈后的修复，不将未发生的尝试记为已经验证的能力失败。
+
+## 核心定位结论
+
+1. 当前停点是**从阅读转向修改、测试的动作决策，以及失败后改变策略**。没有模型修改候选或命令候选遭Harness拦截；工作区、观察及State传递未发现可解释停滞的遗漏。
+2. 初始菜单从19项降至5项，完整输入从3959降至2160 token（约45.4%）；四个bootstrap除Tools这一行外逐字相同。任务、文件清单、说明和数据均保持。缩短输入、减少选择没有使本例任务通过；不能据此认定输入组织对RWKV没有影响，也不能单独归因token长度，因为可选工具集合同时改变。
+3. 精简第一遍合法读取测试、源码、日志后转读README及样例，随后连续3次请求不存在的docs/团队/团队.md；真实FileNotFoundError反馈并未令它改换策略。第二遍则重复读取源码。不存在路径没有在已读两份示例文本或README中给出，不是Harness把正确路径改错。
+4. 结合上轮恢复指令A/B均0/2及更早目标重述无收益，不支持继续将这些单句提示或菜单精简当作已证实修复。**已定位可观测行为和工程边界，尚未证实模型内部的单一机制**：不能把它简单称作State丢失、输出预算不足、普遍不会修代码，或保证提示词/StateTune/RL必然解决。
+
+## 实验与工程有效性
+
+运行前冻结REGISTRATION、两臂task_review boundary_probe契约、脚本与生产源码SHA。顺序full/compact/compact/full，各12调用600秒，明确继承协议、重复、传输、幂等修改等终止预算。每次fresh zero/native_required，13.3B同模型SHA、温度0.1、top_p1、正常输出1800。小样本只解释固定任务，不作统计显著性或项目收益结论。
+
+精简组通过既有Harness工具定义接口，仅筛选read_file/write_file/replace_text/check_command，模型生产模块自动加入final_answer；各工具原参数说明、执行和观察不变。read_file保留R4说明；不规定顺序、具体参数、补丁或答案，不让程序代选。该临时诊断Harness位于temp，生产不依赖它，不新增产品配置或修改生产默认。
+
+独立工程检查复用现有脚本化session：非法读取反馈→合法读取→write→真实check失败→write→真实check通过→原回答交付，结果通过。它验证精简菜单没有工程上阻断修改/测试反馈链路，**不是RWKV成果，也不是某个生产缺陷的红绿修复**。无生产修复，本轮不伪称已满足缺陷解决八条。工程检查原轨迹保存在raw归档engineering目录。
+
+全部{total['model_calls']}代真实输入从唯一bootstrap/event renderer、原始输出token及checkpoint父链重建，与精确prompt_token_ids一致；模型/采样/zero身份一致。读取按当次动作前快照核对字节，成功读取完整性及观察投影逐项记录；预算末条未消费观察保留，不称为全部结果都已被后续模型读取。此核验不等于数值State独立等价试验。
+
+## 账目与保留
+
+本轮{total['model_calls']}真实RWKV生成、{total['input_tokens']}逻辑输入/{total['output_tokens']}输出token，新增协议拒绝{total['protocol_rejections']}、工具失败{total['tool_errors']}。每项任务耗时见ACCOUNTING；没有峰值资源、能耗或金额测量，不把逻辑输入下降当作合格项目成本改善。strong0、训练0，无新dataset版本。
+
+所有原输入、输出、token、工具快照、State数据库、最终结果和外部测试保留，RAW_FILES_SHA256逐文件核验。生产/tests与1631 passed/零跳过的完整回归源码身份一致，复用其证据；owner五处修改逐字保留。仅本地提交，不push、不前端开发。
+
+## 下一步方向
+
+这轮定位到此收束，停止继续围绕恢复句子和工具数量做无方向微调。后续改进以三种可审核行为为目标：已有信息足够时采取与目标相关的操作、依据真实失败改变策略、根据实际修改和测试证据结束任务。现存生产失败可进入待审候选，不自动建数据集或启动训练。
+
+先用当前同一失败边界做阶段匹配的强模型诊断/建议，并单列RWKV建议后完成与强模型接管；建议不直接泄露外部验收或代写最终答案。对经验证的纠正再集中评估提示/输入组织或StateTune，固定任务及原已通过读取回归共同验收。若修改工程代码，每项须真实先失败后通过回归；不能用强制工具顺序掩盖动作选择。RL是后续可选研究方向，本轮没有验证或实施。
+'''
+(D/'REPORT.zh-CN.md').write_text(report)
+for name in ['audit_menu_localization_20260914','check_menu_deliveries_20260914','check_compact_menu_engineering_20260914','review_menu_localization_20260914','close_menu_localization_20260914']:
+ shutil.copy2(R/'temp'/f'{name}.py',D/f'{name}.py.txt')
+shutil.copytree(R/'data/test_runs/menu_localization_engineering',D/'engineering')
+roots=['source','runs','external','engineering'];raw={str(p.relative_to(D)):sha(p) for n in roots for p in (D/n).rglob('*') if p.is_file()};(D/'RAW_FILES_SHA256.json').write_text(json.dumps(raw,ensure_ascii=False,indent=2)+'\n')
+with tarfile.open(D/'raw_evidence.tar.gz','w:gz') as tar:
+ for n in roots:tar.add(D/n,arcname=n)
+with tarfile.open(D/'raw_evidence.tar.gz','r|gz') as tar:
+ for member in tar:
+  if member.isfile():assert hashlib.sha256(tar.extractfile(member).read()).hexdigest()==raw[member.name]
+(D/'VERIFICATION.json').write_text(json.dumps({'counts':total,'production_tests_unchanged':True,'owner_diff_preserved':True,'candidate':'NO_KEEP','report_sha256':sha(D/'REPORT.zh-CN.md'),'raw_archive_sha256':sha(D/'raw_evidence.tar.gz')},indent=2)+'\n')
+p=R/'docs/HANDOFF.zh-CN.md';p.write_text(f'''# 当前进展：菜单定位对照结束，聚焦动作推进与失败后调整（2026-09-14）
+
+- 完整19工具0/2、精简5工具0/2，completed0/mutation0，无修改、命令测试或回答；不是项目Strict。初始输入3959→2160（约45.4%）未转成合格交付，精简候选不保留。
+- 精简第一遍读到示例后连续3次读取不存在路径，第二遍重复源码；工具/观察/State未见解释停滞的遗漏。已定位行为停点，未证明单一模型内部机制，不能概括为输入无影响或保证训练可解。
+- {total['model_calls']}真实生成/{total['input_tokens']}逻辑输入/{total['output_tokens']}输出；非法参数{total['protocol_rejections']}、工具失败{total['tool_errors']}，全输入父链核验。工程脚本化修改→失败测试→纠正→通过检查有效，不算RWKV能力。
+- 无生产/tests/前端改动，owner五处保留，复用1631 passed身份；无strong、训练、新dataset或push。收束提示句/菜单定位，下一步针对任务推进、失败策略调整做经验证纠正与阶段匹配strong建议，归属分开。
+- [报告](../data/experiments/RWKV_MENU_LOCALIZATION_R1_20260914/REPORT.zh-CN.md)，SHA `{sha(D/'REPORT.zh-CN.md')}`。
+
+---
+
+'''+p.read_text())
+files=[p for p in D.iterdir() if p.is_file()]+list((D/'reviews').glob('*.json'));(D/'SHA256SUMS.json').write_text(json.dumps({str(p.relative_to(D)):sha(p) for p in files},indent=2)+'\n')
+subprocess.run(['git','add','-f','--',*[str(p.relative_to(R)) for p in files],str((D/'SHA256SUMS.json').relative_to(R)),'docs/HANDOFF.zh-CN.md'],cwd=R,check=True);print(total)
