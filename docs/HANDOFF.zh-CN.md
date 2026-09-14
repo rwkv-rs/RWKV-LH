@@ -116,3 +116,7 @@ GC 空队列性能根因已修复：旧服务8409历史State时每次空GC仍全
 
 
 E12已在训练R2失败、未进入对比后统一修复：status只表示本次终止交付，durable State另存state_status；异常不再显示running。RWKV/strong两种异常红→绿，45项针对性、GPU0完整1763 passed（329.47s），不改模型输入/最终回答/State。数值复现仍在GPU0运行，最多84额外实际步，原服务退出自动恢复。
+
+## 训练失败观测 R1（2026-09-14）
+
+梯度门新增具体参数、当组样本/loss记录；失败保存原精度State诊断快照，不发布profile、不含optimizer恢复状态。[证据](../data/experiments/RWKV_TRAINING_FAILURE_OBSERVABILITY_R1_20260914/REPORT.zh-CN.md)。三个新增回归红→绿，完整1766 passed、0 skipped。数值异常未标解决；首个诊断重放在83步保存目录缺失失败，原结果保留；修正目录后第二个独立诊断仍用原冻结远端数值源码，最多84步。全部实际更新分别计账。

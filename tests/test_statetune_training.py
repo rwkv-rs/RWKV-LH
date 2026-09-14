@@ -225,3 +225,44 @@ def test_candidate_export_uses_real_serving_loader_and_one_transpose(tmp_path):
     for name, parameter in core.state_parameters(model, layers=2).items():
         assert torch.equal(values[name], parameter.bfloat16())
     assert core.sha256_file(result["manifest"]["path"]) == result["manifest"]["sha256"]
+
+
+@pytest.mark.parametrize("kind", ["missing", "nonfinite"])
+def test_bad_gradient_records_current_samples_and_named_parameters(kind):
+    class Broken(MechanismModel):
+        def forward(self, tokens):
+            if kind == "missing":
+                state = self.blocks[0].att.time_state.flatten()
+                return (self.base + state).expand(*tokens.shape, 4)
+            return super().forward(tokens)
+    model = Broken()
+    if kind == "nonfinite":
+        model.blocks[1].att.time_state.register_hook(lambda gradient: gradient * float("nan"))
+    records = []
+    with pytest.raises(ValueError, match="State gradient"):
+        api().optimize_state(model, rows(), config(), context_tokens=8, record=records.append)
+    failures = [r for r in records if r["event"] == "gradient_validation_failed"]
+    assert len(failures) == 1
+    context = failures[0]["failure_context"]
+    assert context["parameters"] == {"blocks.1.att.time_state": kind}
+    assert len(context["samples"]) == 2
+    assert all(r["sample_id"] in {"0", "1", "2"} and r["loss"] > 0 for r in context["samples"])
+    assert failures[0]["optimizer_steps"] == 0
+    assert not any(r["event"] == "optimizer_step_started" for r in records)
+    assert all(p.grad is None for p in model.parameters())
+
+
+def test_failure_snapshot_preserves_exact_state_without_publishing_profile(tmp_path):
+    model = MechanismModel()
+    with torch.no_grad():
+        model.blocks[0].att.time_state.fill_(0.123456789)
+    snapshot = api().save_failure_state(model, tmp_path)
+    path = core.verify_file(snapshot["path"], snapshot["sha256"])
+    values = torch.load(path, weights_only=True)
+    for name, parameter in core.state_parameters(model, layers=2).items():
+        torch.testing.assert_close(values[name], parameter.cpu(), rtol=0, atol=0)
+    assert snapshot["purpose"] == "failure_diagnostic_only"
+    assert not (tmp_path / "candidate.pth").exists()
+    assert not (tmp_path / "STATE_PROFILES.json").exists()
+    with pytest.raises(FileExistsError):
+        api().save_failure_state(model, tmp_path)

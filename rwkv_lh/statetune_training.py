@@ -131,6 +131,7 @@ def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, contex
                 target_count = sum(len(row["target_token_ids"]) for row in group)
                 optimizer.zero_grad(set_to_none=True)
                 weighted_loss = 0.0
+                current_samples = []
                 for sample in group:
                     reason = stop_reason()
                     if reason:
@@ -142,11 +143,19 @@ def optimize_state(model, samples: Sequence[Mapping], config: Mapping, *, contex
                     weight = len(sample["target_token_ids"]) / target_count
                     (loss * weight).backward()
                     weighted_loss += float(loss.detach()) * weight
+                    current_samples.append({"sample_id": sample["sample_id"], "loss": float(loss.detach()),
+                                            "target_tokens": len(sample["target_token_ids"])})
                     result["samples_seen"] += 1
                     result["target_tokens_seen"] += len(sample["target_token_ids"])
                     del logits, loss
-                core.require(all(p.grad is not None and bool(torch.isfinite(p.grad).all()) for p in parameters.values()),
-                             "State gradient is missing or nonfinite")
+                bad_gradients = {name: "missing" if p.grad is None else "nonfinite"
+                                 for name, p in parameters.items()
+                                 if p.grad is None or not bool(torch.isfinite(p.grad).all())}
+                if bad_gradients:
+                    record({"event": "gradient_validation_failed", **result,
+                            "failure_context": {"epoch": epoch + 1, "samples": current_samples,
+                                                "parameters": bad_gradients}})
+                    raise ValueError("State gradient is missing or nonfinite")
                 core.require(all(not p.requires_grad and p.grad is None and p._version == frozen[name]
                                  for name, p in model.named_parameters() if name in frozen), "frozen base was mutated")
                 grad_norm = torch.nn.utils.clip_grad_norm_(list(parameters.values()), config["max_grad_norm"],
@@ -185,6 +194,19 @@ def _atomic_json(path: Path, value: Mapping) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     temporary.replace(path)
+
+
+def save_failure_state(model, output: Path) -> dict:
+    """Keep exact failed-run parameters for diagnosis, never a serving profile."""
+    import torch
+    path = Path(output) / "FAILURE_STATE.pth"
+    values = {name: value.detach().cpu().clone()
+              for name, value in core.state_parameters(model, layers=model.layout.layers).items()}
+    with path.open("xb") as handle:
+        torch.save(values, handle)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return {"path": str(path), "sha256": core.sha256_file(path), "purpose": "failure_diagnostic_only"}
 
 
 def publish_state(model, output: Path, *, profile_id: str, model_artifact: str, engine_revision: str) -> dict:
@@ -275,6 +297,7 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
         _atomic_json(output / "RESULT.json", report)
 
     record({"event": "run_started"})
+    model = None
     try:
         from rwkv_lh.statetune_native_runtime import verify_native_runtime, load_native_runtime, verify_loaded_libraries
         runtime_ref = registration["runtime"]
@@ -323,6 +346,12 @@ def run_training(registration_reference: Mapping, output: Path, *, source_root: 
                 "evaluation_status": "pending_registered_evaluation" if result["optimizer_steps"] else "not_run",
                 "retained": False})
     except BaseException as exc:
+        if model is not None:
+            try:
+                record({"event": "failure_state_saved", "failure_state": save_failure_state(model, output)})
+            except Exception as snapshot_error:
+                # Preserve the original training error even if disk capture fails.
+                record({"event": "failure_state_save_failed", "failure_state_error": str(snapshot_error)})
         record({"event": "run_failed", "status": "interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed",
                 "error_type": type(exc).__name__, "error": str(exc), "retained": False})
         raise
