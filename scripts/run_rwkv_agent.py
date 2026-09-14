@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.agent_batch import run_agent_jobs
 from rwkv_lh.assisted_agent import AssistedJob
 from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.goal_delivery import GoalJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
 from rwkv_lh.runtime.settings import get_runtime_settings, load_local_env
 
@@ -26,9 +27,12 @@ def main():
             jobs.append(AssistedJob(**row))
             continue
         scope = row.pop('tool_scope', 'files')
+        recovery = row.pop('on_stall', None)
+        if recovery is not None and (recovery != 'takeover' or scope != 'coding'):
+            parser.error('on_stall supports takeover for coding tasks only')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')
-            jobs.append(CodingJob(**row))
+            jobs.append(GoalJob(**row) if recovery else CodingJob(**row))
         elif scope in ('files', 'inspect'):
             jobs.append(ReadOnlyJob(**row, tool_scope=scope))
         else:

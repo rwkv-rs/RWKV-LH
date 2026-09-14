@@ -6,9 +6,12 @@ import math
 
 
 def _execute(job, settings):
+    from .goal_delivery import GoalJob, run_goal_job
     from .assisted_agent import AssistedJob, run_assisted_job
     from .coding_agent import CodingJob, run_coding_job
     from .read_only_agent import run_read_only_job
+    if isinstance(job, GoalJob):
+        return run_goal_job(job, settings=settings)
     if isinstance(job, AssistedJob):
         return run_assisted_job(job, settings=settings)
     if isinstance(job, CodingJob):
@@ -43,6 +46,7 @@ def run_agent_jobs(jobs, *, settings, concurrency=1):
     from .assisted_agent import AssistedJob, load_parent
     from .coding_agent import CodingJob
     from .read_only_agent import ReadOnlyJob
+    from .goal_delivery import GoalJob, validate_goal_job
     jobs = list(jobs)
     if type(concurrency) is not int or concurrency < 1:
         raise ValueError('positive integer concurrency required')
@@ -52,6 +56,8 @@ def run_agent_jobs(jobs, *, settings, concurrency=1):
         raise ValueError('duplicate task IDs')
     sources = []
     for job in jobs:
+        if isinstance(job, GoalJob):
+            validate_goal_job(job)
         if not str(job.task_id).strip() or not str(job.request).strip():
             raise ValueError('task ID and request are required')
         if (type(job.max_calls) is not int or job.max_calls < 1

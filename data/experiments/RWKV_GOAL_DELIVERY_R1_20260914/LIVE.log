@@ -1,0 +1,1464 @@
+[
+  {
+    "id": "read-health",
+    "final": "verify_public.py 是一个健康检查脚本，用于验证指定主机和端口的 /health 端点是否返回 200 状态码，并且响应体中的 ok 字段为 true。它不验证预订或订单行为，仅执行 HTTP 连接和 GET 请求，并在成功时打印提示信息。",
+    "termination": "submitted",
+    "termination_reason": "answer_submitted",
+    "termination_evidence": {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000009",
+      "run_id": "read-health",
+      "sequence": 9,
+      "parent_id": "CE-000008",
+      "cause_id": "CE-000008",
+      "subject_id": "read-health",
+      "event_type": "run_completed",
+      "payload_schema": "rwkv-lh.run-terminal.v1",
+      "payload": {
+        "decision_id": "D-358983d7332845e3",
+        "request_id": "MR-8aea158fa27d4dd2",
+        "final_output_sha256": "465687dcfd9fd09e84dceb8a5c888a970bed8d289a645c6b45581ed765bb2788",
+        "output_source": "rwkv_explicit_final_answer_text",
+        "controller_rewritten": false,
+        "final_output": "verify_public.py 是一个健康检查脚本，用于验证指定主机和端口的 /health 端点是否返回 200 状态码，并且响应体中的 ok 字段为 true。它不验证预订或订单行为，仅执行 HTTP 连接和 GET 请求，并在成功时打印提示信息。"
+      },
+      "created_at": "2026-09-14T06:27:44.879+00:00",
+      "digest": "36496aef0ae0a81568a6598acb20fae1a0190e787c96c59dba80bd71310cdbb6"
+    },
+    "command_executions": [],
+    "acceptance": "not_evaluated",
+    "assistance": "rwkv_independent",
+    "execution_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "execution_authority": "rwkv",
+    "continuation": null,
+    "error": null,
+    "status": "completed",
+    "trace_complete": true,
+    "trace_errors": [],
+    "tool_scope": "coding",
+    "generation_started": 2,
+    "protocol_rejections": 0,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "verify_public.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "verify_public.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "action_fingerprint": "2f3e325b74a4ffb7a7366e7de438d4e454b64a0d09e907c057552e35d903c6ce",
+        "idempotency_key": "d47e7b0ac9cd62af2bf6d5ec126665a2abbdef10a809d1fb8af2e17203a3aae6",
+        "decision_id": "D-afcd6fe9524b4fb2",
+        "request_id": "MR-af2d44272b1940d8",
+        "started_at": "2026-09-14T06:26:24.605+00:00",
+        "ended_at": "2026-09-14T06:26:24.658+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "verify_public.py",
+              "sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "media_type": "text/x-python",
+              "size_bytes": 497,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-c3ea3abad1fe16aa",
+              "source_ref": "verify_public.py",
+              "source_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 497,
+              "core_start": 0,
+              "core_end": 497,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 130
+            },
+            "start_byte": 0,
+            "end_byte": 497,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 497,
+            "observed_tokens": 130,
+            "source_start_line": 1,
+            "source_end_line": 13
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-77a32f727364701768aa"
+        ],
+        "workspace_digest_before": "462211933e4bcd1e482a6be3d118ca0151dc094693f4db16c03dd0e088bae408",
+        "workspace_digest_after": "462211933e4bcd1e482a6be3d118ca0151dc094693f4db16c03dd0e088bae408",
+        "failure_key": "",
+        "observation_fingerprint": "3155e7eb24bc647e8785ce61b4295315259d41eef36e5f49e209af945fdbac0b",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "elapsed_seconds": 141.05139948509168,
+    "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/read-health/rwkv/workspace",
+    "source_workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914/sources/read-health",
+    "changed_files": [],
+    "final_files": {
+      "verify_public.py": "33bdbed09abeded9972b3c529ebc1b5a0db7bf6ced09606b124c2b6fee426583"
+    },
+    "workflow": {
+      "id": "read-health",
+      "policy": {
+        "allowed_stall_reasons": [
+          "generation_budget_exhausted",
+          "identical_success_budget_exhausted",
+          "transition_budget_exhausted"
+        ],
+        "max_calls": 32,
+        "rwkv_max_calls": 24,
+        "max_seconds": 1200,
+        "max_takeovers": 1,
+        "acceptance_authority": false
+      },
+      "stages": [
+        {
+          "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/read-health/rwkv",
+          "assistance": "rwkv_independent",
+          "termination": "submitted",
+          "reason": "answer_submitted",
+          "model_calls": 2
+        }
+      ],
+      "model_calls": 2,
+      "end_to_end_seconds": 141.05635975196492,
+      "wall_allowance_exceeded": false
+    }
+  },
+  {
+    "id": "run-recursive",
+    "final": "已运行工作区中已有的 check_recursive.py。执行结果：\n\n```\n{\n  \"checks\": {\n    \"recursive_paths\": true,\n    \"original_fields_and_content\": true\n  },\n  \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"],\n  \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"],\n  \"passed\": true\n}\n```\n\n结论：测试通过。",
+    "termination": "submitted",
+    "termination_reason": "answer_submitted",
+    "termination_evidence": {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000009",
+      "run_id": "run-recursive",
+      "sequence": 9,
+      "parent_id": "CE-000008",
+      "cause_id": "CE-000008",
+      "subject_id": "run-recursive",
+      "event_type": "run_completed",
+      "payload_schema": "rwkv-lh.run-terminal.v1",
+      "payload": {
+        "decision_id": "D-024ba02b3b7f4f06",
+        "request_id": "MR-6fd8cdf033b74095",
+        "final_output_sha256": "9b11463ed983ed42a3b539c697635965475b699ef2a92635f23a36701b6237f8",
+        "output_source": "rwkv_explicit_final_answer_text",
+        "controller_rewritten": false,
+        "final_output": "已运行工作区中已有的 check_recursive.py。执行结果：\n\n```\n{\n  \"checks\": {\n    \"recursive_paths\": true,\n    \"original_fields_and_content\": true\n  },\n  \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"],\n  \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"],\n  \"passed\": true\n}\n```\n\n结论：测试通过。"
+      },
+      "created_at": "2026-09-14T06:27:35.731+00:00",
+      "digest": "8ba23fd369a1871998424a21643de3da46c14c5e2264e18f45aeb1ead2019e9b"
+    },
+    "command_executions": [
+      {
+        "action_id": "A00001",
+        "exit_code": 0,
+        "execution_status": "exited",
+        "tool_success": true,
+        "error": null
+      }
+    ],
+    "acceptance": "not_evaluated",
+    "assistance": "rwkv_independent",
+    "execution_model": "rwkv7-g1j-13.3b-zero-state-capability-ctx16384",
+    "execution_authority": "rwkv",
+    "continuation": null,
+    "error": null,
+    "status": "completed",
+    "trace_complete": true,
+    "trace_errors": [],
+    "tool_scope": "coding",
+    "generation_started": 2,
+    "protocol_rejections": 0,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "run_command",
+        "arguments": {
+          "argv": [
+            "python",
+            "check_recursive.py"
+          ],
+          "cwd": ".",
+          "timeout": 120.0,
+          "expected_exit_code": 0,
+          "env": {}
+        },
+        "wire_arguments": {
+          "argv": [
+            "python",
+            "check_recursive.py"
+          ],
+          "cwd": ".",
+          "timeout": 120.0,
+          "expected_exit_code": 0
+        },
+        "action_fingerprint": "6effef858d049730632180b3f9689b01504883d553cb588706b4084bc2f07cc9",
+        "idempotency_key": "e66c0068c7395bcc24b829756781b1555752d8dcf719b3d9ff0d740fd961b822",
+        "decision_id": "D-6f76d80b4a9541fe",
+        "request_id": "MR-d745a3d5cf1a4d96",
+        "started_at": "2026-09-14T06:26:15.757+00:00",
+        "ended_at": "2026-09-14T06:26:15.849+00:00",
+        "result": {
+          "action_type": "run_command",
+          "success": true,
+          "output": "{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n",
+          "exit_code": 0,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "argv": [
+              "python",
+              "check_recursive.py"
+            ],
+            "resolved_argv": [
+              "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+              "check_recursive.py"
+            ],
+            "executable_resolution": "python_alias_to_project_runtime",
+            "cwd": ".",
+            "output_truncated": false,
+            "command_streams": {
+              "stdout": {
+                "start_byte": 0,
+                "end_byte": 201,
+                "chars": 201,
+                "bytes": 201,
+                "sha256": "72323acdaa9ea3d314dcbb6743635281cd8913fc9c55ba3e84c0dd8e60e44c20"
+              },
+              "stderr": {
+                "start_byte": 201,
+                "end_byte": 201,
+                "chars": 0,
+                "bytes": 0,
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            "sandboxed": true,
+            "sandbox_backend": "bubblewrap",
+            "expected_exit_code": 0,
+            "exit_code_matched": true,
+            "workspace_changes": {
+              "schema_version": "rwkv-lh.workspace-changes.v1",
+              "complete": true,
+              "reason": "",
+              "changed_paths": [],
+              "created_paths": [],
+              "modified_paths": [],
+              "deleted_paths": []
+            }
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+        "workspace_digest_after": "4c27f3780a0888865ec9ea9b0239c3328e83caa56c1f33b930b17771b3c196c6",
+        "failure_key": "",
+        "observation_fingerprint": "a88fdbce1f42b355f6e4cb65876a80946de5c1dba28369af9a77718b025378a0",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "elapsed_seconds": 131.93225306097884,
+    "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/run-recursive/rwkv/workspace",
+    "source_workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914/live/run-recursive/workspace",
+    "changed_files": [],
+    "final_files": {
+      "README.md": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+      "check_recursive.py": "c123a53cadc56dba98286cb5c3a365da5b3d220bff9781c4c24d6146bdf63226",
+      "docs/welcome.md": "8cf0921cb0e16821a06e1dbe4a9135b2aef3e063346629040427a9ca0d4fc043",
+      "docs/团队/notes.txt": "d164ce3e0e3f9077661b4a70d095d88ff9d3f25d39b4219233fbe83f98ec0cc5",
+      "document_index/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "document_index/documents.py": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+      "document_index/query.py": "78a819a706f919ec6176368ac2046baeee97194edfa26b0aa9cd315540e7e8b2",
+      "document_index/store.py": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+      "index_cli.py": "351b10f81d5bcb1d05203bb1c3c50170e3622f4bd5841d781e70110cf757b3c8"
+    },
+    "workflow": {
+      "id": "run-recursive",
+      "policy": {
+        "allowed_stall_reasons": [
+          "generation_budget_exhausted",
+          "identical_success_budget_exhausted",
+          "transition_budget_exhausted"
+        ],
+        "max_calls": 32,
+        "rwkv_max_calls": 24,
+        "max_seconds": 1200,
+        "max_takeovers": 1,
+        "acceptance_authority": false
+      },
+      "stages": [
+        {
+          "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/run-recursive/rwkv",
+          "assistance": "rwkv_independent",
+          "termination": "submitted",
+          "reason": "answer_submitted",
+          "model_calls": 2
+        }
+      ],
+      "model_calls": 2,
+      "end_to_end_seconds": 131.94010306103155,
+      "wall_allowance_exceeded": false
+    }
+  },
+  {
+    "id": "fix-query-takeover",
+    "final": "修复完成，测试全部通过。\n\n## 问题根因\n`document_index/query.py` 中，当 `limit is None` 时调用 `cursor.fetchmany(-1)`。Python `sqlite3` 的 `fetchmany` 要求大小为正值，传入 -1 会抛出 `ValueError: value must be positive`，这正是 `test_failure.txt` 里记录的真实报错（`query(db,'hello')` 未传 limit 时失败）。\n\n## 修改内容（仅一处）\n文件 `document_index/query.py`，将：\n```python\nrows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\n```\n改为：\n```python\ncursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\nrows = cursor.fetchall() if limit is None else cursor.fetchmany(limit)\n```\n未改动测试、CLI、store 等其它文件。保留了原有的 limit 校验（bool/非 int/<=0 抛 ValueError）。\n\n## 本轮真实测试结果\n执行 `python3 -B test_query_limit.py`：\n- exit code 0\n- stderr: `Ran 1 test in 0.234s` / `OK`\n- 覆盖内容：无 limit 的 `query` 与 CLI 查询、limit 为 1/2/5 的 `query` 与 CLI 查询、无匹配（limit=1）、非法 limit（0 与 -1）抛 ValueError 且 CLI 返回码非 0 —— 全部通过。\n\n## 尚未解决 / 遗留问题\n- 无功能性遗留问题：已知测试范围内全部通过。\n- 备注：`fetchmany(limit)` 在 limit 大于匹配数时返回全部行，`count` 语义与测试期望的 `min(limit,3)` 一致，符合当前行为。未额外改动其他潜在问题（如 store.py 中对陈旧文档的 delete 计数未实现），因为它们不在本次测试要求范围内。",
+    "termination": "submitted",
+    "termination_reason": "answer_submitted",
+    "termination_evidence": {
+      "schema_version": "rwkv-lh.causal-event.v2",
+      "event_id": "CE-000064",
+      "run_id": "fix-query",
+      "sequence": 64,
+      "parent_id": "CE-000063",
+      "cause_id": "CE-000063",
+      "subject_id": "fix-query",
+      "event_type": "run_completed",
+      "payload_schema": "rwkv-lh.run-terminal.v1",
+      "payload": {
+        "decision_id": "D-c1b0cf11a89d4a9a",
+        "request_id": "MR-f25b825318c343c3",
+        "final_output_sha256": "dd85cf828d1c6a5f369c39a8d69f809aa73ea42255ab90c4099bbb59ea19a98e",
+        "output_source": "strong_explicit_final_answer_text",
+        "controller_rewritten": false,
+        "final_output": "修复完成，测试全部通过。\n\n## 问题根因\n`document_index/query.py` 中，当 `limit is None` 时调用 `cursor.fetchmany(-1)`。Python `sqlite3` 的 `fetchmany` 要求大小为正值，传入 -1 会抛出 `ValueError: value must be positive`，这正是 `test_failure.txt` 里记录的真实报错（`query(db,'hello')` 未传 limit 时失败）。\n\n## 修改内容（仅一处）\n文件 `document_index/query.py`，将：\n```python\nrows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\n```\n改为：\n```python\ncursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\nrows = cursor.fetchall() if limit is None else cursor.fetchmany(limit)\n```\n未改动测试、CLI、store 等其它文件。保留了原有的 limit 校验（bool/非 int/<=0 抛 ValueError）。\n\n## 本轮真实测试结果\n执行 `python3 -B test_query_limit.py`：\n- exit code 0\n- stderr: `Ran 1 test in 0.234s` / `OK`\n- 覆盖内容：无 limit 的 `query` 与 CLI 查询、limit 为 1/2/5 的 `query` 与 CLI 查询、无匹配（limit=1）、非法 limit（0 与 -1）抛 ValueError 且 CLI 返回码非 0 —— 全部通过。\n\n## 尚未解决 / 遗留问题\n- 无功能性遗留问题：已知测试范围内全部通过。\n- 备注：`fetchmany(limit)` 在 limit 大于匹配数时返回全部行，`count` 语义与测试期望的 `min(limit,3)` 一致，符合当前行为。未额外改动其他潜在问题（如 store.py 中对陈旧文档的 delete 计数未实现），因为它们不在本次测试要求范围内。"
+      },
+      "created_at": "2026-09-14T06:35:23.111+00:00",
+      "digest": "69721056f8769821bf4d7a418e36d8bc53c86a607443c098753f1d478b36663f"
+    },
+    "command_executions": [
+      {
+        "action_id": "A00013",
+        "exit_code": 0,
+        "execution_status": "exited",
+        "tool_success": true,
+        "error": null
+      }
+    ],
+    "acceptance": "not_evaluated",
+    "assistance": "strong_takeover",
+    "execution_model": "deepseek-flash",
+    "execution_authority": "strong_takeover",
+    "continuation": {
+      "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/fix-query/rwkv/execution",
+      "parent_checkpoint_id": "CP-ebc8dcd9cc2941e5",
+      "parent_final_decision_id": "",
+      "historical_actions": 11,
+      "parent_generation_started": 12,
+      "parent_state_sha256": "5d1e75ff73ef03a6bd9f6fc75aa466fe06ed3b3752724b187120d1a09dc7eb2f",
+      "advice_model": ""
+    },
+    "error": null,
+    "status": "completed",
+    "trace_complete": true,
+    "trace_errors": [],
+    "tool_scope": "coding",
+    "generation_started": 3,
+    "protocol_rejections": 1,
+    "actions": [
+      {
+        "action_id": "A00001",
+        "sequence": 1,
+        "status": "succeeded",
+        "action_type": "list_directory",
+        "arguments": {
+          "path": ".",
+          "recursive": false,
+          "max_entries": 1024,
+          "start_after": "",
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "."
+        },
+        "action_fingerprint": "463f0d4912d882149246ef06a8a848e6d2485f6a70237a26c07d13cd58e61769",
+        "idempotency_key": "8f373864c00236f65f83dd69d3153ca0e558f58b5bd3c5257684c91a2ea70132",
+        "decision_id": "D-8ad7c2b8c598494d",
+        "request_id": "MR-fce57813ebd842f5",
+        "started_at": "2026-09-14T06:28:12.571+00:00",
+        "ended_at": "2026-09-14T06:28:12.604+00:00",
+        "result": {
+          "action_type": "list_directory",
+          "success": true,
+          "output": "{\"entries\": [{\"path\": \"README.md\", \"size_bytes\": 2194, \"type\": \"file\"}, {\"path\": \"docs\", \"type\": \"directory\"}, {\"path\": \"document_index\", \"type\": \"directory\"}, {\"path\": \"index_cli.py\", \"size_bytes\": 1492, \"type\": \"file\"}, {\"path\": \"test_failure.txt\", \"size_bytes\": 772, \"type\": \"file\"}, {\"path\": \"test_query_limit.py\", \"size_bytes\": 1725, \"type\": \"file\"}], \"entry_count\": 6, \"next_cursor\": \"\", \"path\": \".\", \"recursive\": false, \"truncated\": false}",
+          "exit_code": null,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "path": ".",
+            "recursive": false,
+            "entries": [
+              {
+                "path": "README.md",
+                "type": "file",
+                "size_bytes": 2194
+              },
+              {
+                "path": "docs",
+                "type": "directory"
+              },
+              {
+                "path": "document_index",
+                "type": "directory"
+              },
+              {
+                "path": "index_cli.py",
+                "type": "file",
+                "size_bytes": 1492
+              },
+              {
+                "path": "test_failure.txt",
+                "type": "file",
+                "size_bytes": 772
+              },
+              {
+                "path": "test_query_limit.py",
+                "type": "file",
+                "size_bytes": 1725
+              }
+            ],
+            "entry_count": 6,
+            "truncated": false,
+            "next_cursor": "",
+            "complete": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "58372a906f866fbbf5d7ef3a89a76a66bf073ca79278376fd3e34a9114cb5155",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00002",
+        "sequence": 2,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "test_query_limit.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "test_query_limit.py"
+        },
+        "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+        "idempotency_key": "f6b245db8e6d64bdf17e7f1b43f8a835f7e5c7b7df2d04c37e11147ef5b7ef76",
+        "decision_id": "D-e3fd2e14ac614bde",
+        "request_id": "MR-3c63242c82e84d7c",
+        "started_at": "2026-09-14T06:29:22.859+00:00",
+        "ended_at": "2026-09-14T06:29:22.931+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "test_query_limit.py",
+              "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/x-python",
+              "size_bytes": 1725,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-f89624455eda026a",
+              "source_ref": "test_query_limit.py",
+              "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1725,
+              "core_start": 0,
+              "core_end": 1725,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 488
+            },
+            "start_byte": 0,
+            "end_byte": 1725,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1725,
+            "observed_tokens": 488,
+            "source_start_line": 1,
+            "source_end_line": 31
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-bc6e4a0a379c08481e5d"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00003",
+        "sequence": 3,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "test_failure.txt",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "test_failure.txt"
+        },
+        "action_fingerprint": "2d1c80bd6bd2c9cb1608be3e5932613a3014a30cf00161862f36125b5fe29975",
+        "idempotency_key": "5a9179da533f142204b5581288f89a359f85954908720142b57e631ca2b0eb8a",
+        "decision_id": "D-6ffc90cac5284a25",
+        "request_id": "MR-70f52c6268454ba8",
+        "started_at": "2026-09-14T06:29:58.891+00:00",
+        "ended_at": "2026-09-14T06:29:58.954+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "E\n======================================================================\nERROR: test_query_limit (__main__.LimitTests.test_query_limit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/workspace/test_query_limit.py\", line 19, in test_query_limit\n    self.assertEqual(query(db,'hello'),full)\n                     ~~~~~^^^^^^^^^^^^\n  File \"/workspace/document_index/query.py\", line 14, in query\n    rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\nValueError: value must be positive\n\n----------------------------------------------------------------------\nRan 1 test in 0.025s\n\nFAILED (errors=1)\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "test_failure.txt",
+              "sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+              "media_type": "text/plain",
+              "size_bytes": 772,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-5f0d70c0dfd69f3a",
+              "source_ref": "test_failure.txt",
+              "source_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 772,
+              "core_start": 0,
+              "core_end": 772,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 167
+            },
+            "start_byte": 0,
+            "end_byte": 772,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 772,
+            "observed_tokens": 167,
+            "source_start_line": 1,
+            "source_end_line": 16
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-b7e63d34afb32f8c961e"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "8898292d0fa0925980096b64a6f8ec7f9671f147c5782e19750de6d8b3998640",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00004",
+        "sequence": 4,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "document_index/query.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "document_index/query.py"
+        },
+        "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+        "idempotency_key": "d57d08e0fa266154843c280ce204edbcf86e914829069fa8be44d4ccbe555389",
+        "decision_id": "D-8d40c1ed869f4110",
+        "request_id": "MR-e4322513f5424d04",
+        "started_at": "2026-09-14T06:30:35.146+00:00",
+        "ended_at": "2026-09-14T06:30:35.186+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nfrom typing import Optional\n\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    if limit is not None:\n        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:\n            raise ValueError('limit must be a positive integer')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "document_index/query.py",
+              "sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "media_type": "text/x-python",
+              "size_bytes": 759,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-927588d194501bd2",
+              "source_ref": "document_index/query.py",
+              "source_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 759,
+              "core_start": 0,
+              "core_end": 759,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 184
+            },
+            "start_byte": 0,
+            "end_byte": 759,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 759,
+            "observed_tokens": 184,
+            "source_start_line": 1,
+            "source_end_line": 16
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-bc917e422f9060fd71e5"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "43b7729b894cfdf2a3a823291cf2821069b6e878143238455fa2dbdfc4fbd3af",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00005",
+        "sequence": 5,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "document_index/store.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "document_index/store.py"
+        },
+        "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+        "idempotency_key": "823a2d1f4b548a53efaac9f0e09ff86ae8d7935e1efed08cf5bfc92bdee71049",
+        "decision_id": "D-12fd20bca0fa4830",
+        "request_id": "MR-8f6e64bc0f5540e6",
+        "started_at": "2026-09-14T06:31:11.734+00:00",
+        "ended_at": "2026-09-14T06:31:11.778+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "document_index/store.py",
+              "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "media_type": "text/x-python",
+              "size_bytes": 1789,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+              "source_ref": "document_index/store.py",
+              "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1789,
+              "core_start": 0,
+              "core_end": 1789,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 412
+            },
+            "start_byte": 0,
+            "end_byte": 1789,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1789,
+            "observed_tokens": 412,
+            "source_start_line": 1,
+            "source_end_line": 30
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-4a1906bb1dcda7948383"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00006",
+        "sequence": 6,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "index_cli.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "index_cli.py"
+        },
+        "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+        "idempotency_key": "f5a9728bdb127d2795a03033a602d68adb789a84ea26ed5fd82807a2d2843821",
+        "decision_id": "D-0ba1897aa16d4523",
+        "request_id": "MR-ab2b6f5742084d56",
+        "started_at": "2026-09-14T06:31:49.965+00:00",
+        "ended_at": "2026-09-14T06:31:50.011+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True); find.add_argument('--limit', type=int, default=None)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text, limit=arguments.limit)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "index_cli.py",
+              "sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "media_type": "text/x-python",
+              "size_bytes": 1492,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-2c1355ed9019a2a3",
+              "source_ref": "index_cli.py",
+              "source_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1492,
+              "core_start": 0,
+              "core_end": 1492,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 371
+            },
+            "start_byte": 0,
+            "end_byte": 1492,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1492,
+            "observed_tokens": 371,
+            "source_start_line": 1,
+            "source_end_line": 33
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-275e5b95655a1885feb6"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "18b39e21400c0ed5944fed62f6d61be78a89082f227d1dd3c6c68694105effc9",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00007",
+        "sequence": 7,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "test_query_limit.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "test_query_limit.py"
+        },
+        "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+        "idempotency_key": "b39c8c37079ae12e0684db3e7bedcf033678efbc3e167325ba4355a42a4b03be",
+        "decision_id": "D-ad8e216ac48c45de",
+        "request_id": "MR-5cf39b33a2234cf6",
+        "started_at": "2026-09-14T06:32:34.604+00:00",
+        "ended_at": "2026-09-14T06:32:34.660+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "test_query_limit.py",
+              "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/x-python",
+              "size_bytes": 1725,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-f89624455eda026a",
+              "source_ref": "test_query_limit.py",
+              "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1725,
+              "core_start": 0,
+              "core_end": 1725,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 488
+            },
+            "start_byte": 0,
+            "end_byte": 1725,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1725,
+            "observed_tokens": 488,
+            "source_start_line": 1,
+            "source_end_line": 31
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-cae4ca39d4f9272a5efc"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00008",
+        "sequence": 8,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "document_index/query.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "document_index/query.py"
+        },
+        "action_fingerprint": "c5ee139720305ed64cc94e04c0667343fc01bb0096b3c04fc30afdb9bcdbed30",
+        "idempotency_key": "095ab3d2b1ca4c733a29e9569dd78fbf3d45264694e9434513e271ded21ecd90",
+        "decision_id": "D-07eff16956414155",
+        "request_id": "MR-bc9daa99d8aa4658",
+        "started_at": "2026-09-14T06:33:10.809+00:00",
+        "ended_at": "2026-09-14T06:33:10.862+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nfrom typing import Optional\n\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text: str, limit: Optional[int] = None) -> dict:\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    if limit is not None:\n        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:\n            raise ValueError('limit must be a positive integer')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "document_index/query.py",
+              "sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "media_type": "text/x-python",
+              "size_bytes": 759,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-927588d194501bd2",
+              "source_ref": "document_index/query.py",
+              "source_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 759,
+              "core_start": 0,
+              "core_end": 759,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 184
+            },
+            "start_byte": 0,
+            "end_byte": 759,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 759,
+            "observed_tokens": 184,
+            "source_start_line": 1,
+            "source_end_line": 16
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-3619d059fbe88afe499e"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "43b7729b894cfdf2a3a823291cf2821069b6e878143238455fa2dbdfc4fbd3af",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00009",
+        "sequence": 9,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "document_index/store.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "document_index/store.py"
+        },
+        "action_fingerprint": "07d86f0a85425e041241d666cc397cfcd24dab12be6e194e3972d802a24e7608",
+        "idempotency_key": "0ad6d605559992a7b7c5d8df79052333c5e9df945372bedf04f46d028ae25caa",
+        "decision_id": "D-4e51b8bdd4f546cd",
+        "request_id": "MR-f877a5255dbc4212",
+        "started_at": "2026-09-14T06:33:46.413+00:00",
+        "ended_at": "2026-09-14T06:33:46.473+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "document_index/store.py",
+              "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "media_type": "text/x-python",
+              "size_bytes": 1789,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-f7730879d0fd3eae",
+              "source_ref": "document_index/store.py",
+              "source_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1789,
+              "core_start": 0,
+              "core_end": 1789,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 412
+            },
+            "start_byte": 0,
+            "end_byte": 1789,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1789,
+            "observed_tokens": 412,
+            "source_start_line": 1,
+            "source_end_line": 30
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-9e85f2b3b04887ae29b4"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "1f6d7ea364d56eaefdb894835cd69cf22895769db8ef15b119b1d82f66c10ca1",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00010",
+        "sequence": 10,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "index_cli.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "index_cli.py"
+        },
+        "action_fingerprint": "c5541e52d130945d6cdb1643a84555a84347074aa57dd690e1ce0c45f9ae4d6b",
+        "idempotency_key": "541aee79f22c8323a018486bcc1f09bbecaeda10b867ea00ce3ee9f206e84ca1",
+        "decision_id": "D-6d7305ad47d6476a",
+        "request_id": "MR-6fce51d9f12145cd",
+        "started_at": "2026-09-14T06:34:23.577+00:00",
+        "ended_at": "2026-09-14T06:34:23.645+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True); find.add_argument('--limit', type=int, default=None)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text, limit=arguments.limit)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "index_cli.py",
+              "sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "media_type": "text/x-python",
+              "size_bytes": 1492,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-2c1355ed9019a2a3",
+              "source_ref": "index_cli.py",
+              "source_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1492,
+              "core_start": 0,
+              "core_end": 1492,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 371
+            },
+            "start_byte": 0,
+            "end_byte": 1492,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1492,
+            "observed_tokens": 371,
+            "source_start_line": 1,
+            "source_end_line": 33
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-b453741ae4d8dcc95a64"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "18b39e21400c0ed5944fed62f6d61be78a89082f227d1dd3c6c68694105effc9",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00011",
+        "sequence": 11,
+        "status": "succeeded",
+        "action_type": "read_file",
+        "arguments": {
+          "path": "test_query_limit.py",
+          "start_byte": 0,
+          "max_tokens": 4096
+        },
+        "wire_arguments": {
+          "path": "test_query_limit.py"
+        },
+        "action_fingerprint": "31f594e409374f6a2671afcd428887e72c0075ad596c856199fe03810f525428",
+        "idempotency_key": "d2194648d81c8c9242eb359085fe086c93aa38b67a3485b402ce4508a72e2e04",
+        "decision_id": "D-02e7585379e64be1",
+        "request_id": "MR-23024ba71db1468c",
+        "started_at": "2026-09-14T06:35:12.066+00:00",
+        "ended_at": "2026-09-14T06:35:12.133+00:00",
+        "result": {
+          "action_type": "read_file",
+          "success": true,
+          "output": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\nfrom document_index.query import query\nROOT=Path(__file__).resolve().parent\nclass LimitTests(unittest.TestCase):\n    def test_query_limit(self):\n        with tempfile.TemporaryDirectory() as tmp:\n            p=Path(tmp); docs=p/'docs'; docs.mkdir(); db=p/'index.db'\n            for name in ('c.md','a.md','b.md'):\n                (docs/name).write_text('hello world')\n            def cli(*args):\n                return subprocess.run([sys.executable,'-B',str(ROOT/'index_cli.py'),*args],cwd=ROOT,capture_output=True,text=True)\n            self.assertEqual(cli('sync','--root',str(docs),'--db',str(db)).returncode,0)\n            full={'count':3,'matches':[{'path':n} for n in ('a.md','b.md','c.md')]}\n            self.assertEqual(query(db,'hello'),full)\n            self.assertEqual(json.loads(cli('query','--db',str(db),'--text','hello').stdout),full)\n            for limit in (1,2,5):\n                expected={'count':min(limit,3),'matches':full['matches'][:limit]}\n                self.assertEqual(query(db,'hello',limit=limit),expected)\n                result=cli('query','--db',str(db),'--text','hello','--limit',str(limit))\n                self.assertEqual(result.returncode,0,result.stderr)\n                self.assertEqual(json.loads(result.stdout),expected)\n            self.assertEqual(query(db,'absent',limit=1),{'count':0,'matches':[]})\n            for invalid in (0,-1):\n                with self.assertRaises(ValueError): query(db,'hello',limit=invalid)\n                self.assertNotEqual(cli('query','--db',str(db),'--text','hello','--limit',str(invalid)).returncode,0)\nif __name__=='__main__': unittest.main()\n",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "test_query_limit.py",
+              "sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/x-python",
+              "size_bytes": 1725,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "chunk": {
+              "chunk_id": "CH-CURSOR-f89624455eda026a",
+              "source_ref": "test_query_limit.py",
+              "source_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "media_type": "text/plain",
+              "byte_start": 0,
+              "byte_end": 1725,
+              "core_start": 0,
+              "core_end": 1725,
+              "overlap_before": 0,
+              "overlap_after": 0,
+              "chunk_sha256": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3",
+              "split_strategy_version": "rwkv-token-cursor.v1",
+              "previous_chunk_id": null,
+              "next_chunk_id": null,
+              "complete_source": true,
+              "token_start": 0,
+              "token_end": 488
+            },
+            "start_byte": 0,
+            "end_byte": 1725,
+            "next_start_byte": null,
+            "truncated": false,
+            "complete": true,
+            "eof": true,
+            "source_size_bytes": 1725,
+            "observed_tokens": 488,
+            "source_start_line": 1,
+            "source_end_line": 31
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-24882807325fdf660c4b"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "failure_key": "",
+        "observation_fingerprint": "0d5d438bc4859e4f04db46035eefe58cdb982085d2295ca64277bad893d662fc",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00012",
+        "sequence": 12,
+        "status": "succeeded",
+        "action_type": "replace_text",
+        "arguments": {
+          "path": "document_index/query.py",
+          "old": "        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)",
+          "new": "        cursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\n        rows = cursor.fetchall() if limit is None else cursor.fetchmany(limit)",
+          "base_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+          "all": false
+        },
+        "wire_arguments": {
+          "path": "document_index/query.py",
+          "old": "        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)",
+          "new": "        cursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\n        rows = cursor.fetchall() if limit is None else cursor.fetchmany(limit)",
+          "base_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff"
+        },
+        "action_fingerprint": "582ce32c98b4472401cd9134983d6e7c97ca812014a68b9571c5a50a5aad534b",
+        "idempotency_key": "77a0a2ca70e83af3c250d8f8c529c5048eb7046252c0bf958701c8198e3100f3",
+        "decision_id": "D-fac6d74a7356423c",
+        "request_id": "MR-e41160df3aa44999",
+        "started_at": "2026-09-14T06:35:16.994+00:00",
+        "ended_at": "2026-09-14T06:35:17.070+00:00",
+        "result": {
+          "action_type": "replace_text",
+          "success": true,
+          "output": "replaced 1 occurrence(s)",
+          "exit_code": null,
+          "artifacts": [
+            {
+              "path": "document_index/query.py",
+              "sha256": "39871d4925eb9dbfbf6b1b2fe66b4358c0c5fe9c6318c25fbe9a9dffa2d3f556",
+              "media_type": "text/x-python",
+              "size_bytes": 794,
+              "summary": ""
+            }
+          ],
+          "evidence": [],
+          "metadata": {
+            "base_snapshot_sha256": "cca1a251c41e1b5e7d60f81ef704228ee14ceaee7768c5364d9fadb7978593ff",
+            "result_snapshot_sha256": "39871d4925eb9dbfbf6b1b2fe66b4358c0c5fe9c6318c25fbe9a9dffa2d3f556",
+            "snapshot_transition_verified": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [
+          "ART-58742f152401f8d02c9a"
+        ],
+        "workspace_digest_before": "f3f38ce5db72edef2976924400f7f5beb8275266ff082a1d20ee38fe40fb4e31",
+        "workspace_digest_after": "e83d57dc46a21049a62500d0275325d9e1534c22da4583d32eda3fa79455743a",
+        "failure_key": "",
+        "observation_fingerprint": "bcda081a87aabb7e8e8bbb4ca582fbf6ad3b027f987df9ec578a06bdd498fa53",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      },
+      {
+        "action_id": "A00013",
+        "sequence": 13,
+        "status": "succeeded",
+        "action_type": "check_command",
+        "arguments": {
+          "argv": [
+            "python3",
+            "-B",
+            "test_query_limit.py"
+          ],
+          "cwd": ".",
+          "timeout": 120,
+          "env": {},
+          "expected_exit_code": 0
+        },
+        "wire_arguments": {
+          "argv": [
+            "python3",
+            "-B",
+            "test_query_limit.py"
+          ],
+          "cwd": ".",
+          "timeout": 120
+        },
+        "action_fingerprint": "f78a8394c0d64019157aa8224fde4c898589275bc608b78dd532a94db18d270d",
+        "idempotency_key": "c6893acc3c92ca197c31eb9567ba45c32cfc182865d2f9a760e1060cd0da63d7",
+        "decision_id": "D-8dffdc23e8594cdf",
+        "request_id": "MR-6a47b893dffe4d5a",
+        "started_at": "2026-09-14T06:35:19.147+00:00",
+        "ended_at": "2026-09-14T06:35:19.519+00:00",
+        "result": {
+          "action_type": "check_command",
+          "success": true,
+          "output": ".\n----------------------------------------------------------------------\nRan 1 test in 0.234s\n\nOK\n",
+          "exit_code": 0,
+          "artifacts": [],
+          "evidence": [],
+          "metadata": {
+            "argv": [
+              "python3",
+              "-B",
+              "test_query_limit.py"
+            ],
+            "resolved_argv": [
+              "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+              "-B",
+              "test_query_limit.py"
+            ],
+            "executable_resolution": "project_runtime_executable",
+            "cwd": ".",
+            "output_truncated": false,
+            "command_streams": {
+              "stdout": {
+                "start_byte": 0,
+                "end_byte": 0,
+                "chars": 0,
+                "bytes": 0,
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              "stderr": {
+                "start_byte": 0,
+                "end_byte": 98,
+                "chars": 98,
+                "bytes": 98,
+                "sha256": "b85b68a561cba24f53922bac1797f94d954950264039928c51d9436dd8a792c0"
+              }
+            },
+            "sandboxed": true,
+            "sandbox_backend": "bubblewrap",
+            "expected_exit_code": 0,
+            "exit_code_matched": true,
+            "workspace_ephemeral": true,
+            "writes_discarded": true
+          },
+          "error": null,
+          "outcome_type": "success"
+        },
+        "artifact_refs": [],
+        "workspace_digest_before": "e83d57dc46a21049a62500d0275325d9e1534c22da4583d32eda3fa79455743a",
+        "workspace_digest_after": "e83d57dc46a21049a62500d0275325d9e1534c22da4583d32eda3fa79455743a",
+        "failure_key": "",
+        "observation_fingerprint": "51ff6ae5f1248afa5cdf4b92c180fedbeab66891d54b982c0c12c8dbd826a974",
+        "error": null,
+        "outcome_type": "success",
+        "atom_execution_contract_digest": ""
+      }
+    ],
+    "elapsed_seconds": 10.489954821998253,
+    "workspace": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/fix-query/takeover/workspace",
+    "final_files": {
+      "README.md": "c59d17ad11b269a091bf6f817cb45ed89bf60f6a7abfdfd68efcbfa0b38e2c55",
+      "docs/welcome.md": "8cf0921cb0e16821a06e1dbe4a9135b2aef3e063346629040427a9ca0d4fc043",
+      "docs/团队/notes.txt": "d164ce3e0e3f9077661b4a70d095d88ff9d3f25d39b4219233fbe83f98ec0cc5",
+      "document_index/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "document_index/documents.py": "e40ea5dcaab8f0278ce2370adb8af3472c0351c6d679183d11a014d5b86793cd",
+      "document_index/query.py": "39871d4925eb9dbfbf6b1b2fe66b4358c0c5fe9c6318c25fbe9a9dffa2d3f556",
+      "document_index/store.py": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03",
+      "index_cli.py": "1774755ed36cb1ba801206d51709fdce3ae2c6df0b093e55a5ccaba21892a74d",
+      "test_failure.txt": "d9997790737b10075f370f05d1685aa8807db54c917aaa0a308cfbf0f36fd58d",
+      "test_query_limit.py": "3d08f872136753c27a00cb226120cc081247b00282252897d675861c0136d2d3"
+    },
+    "changed_files": [
+      "document_index/query.py"
+    ],
+    "workflow": {
+      "id": "fix-query",
+      "policy": {
+        "allowed_stall_reasons": [
+          "generation_budget_exhausted",
+          "identical_success_budget_exhausted",
+          "transition_budget_exhausted"
+        ],
+        "max_calls": 32,
+        "rwkv_max_calls": 24,
+        "max_seconds": 1200,
+        "max_takeovers": 1,
+        "acceptance_authority": false
+      },
+      "stages": [
+        {
+          "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/fix-query/rwkv",
+          "assistance": "rwkv_independent",
+          "termination": "budget",
+          "reason": "identical_success_budget_exhausted",
+          "model_calls": 12
+        },
+        {
+          "directory": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/runs/fix-query/takeover",
+          "assistance": "strong_takeover",
+          "termination": "submitted",
+          "reason": "answer_submitted",
+          "model_calls": 3
+        }
+      ],
+      "model_calls": 15,
+      "end_to_end_seconds": 474.91166985197924,
+      "wall_allowance_exceeded": false
+    }
+  }
+]
