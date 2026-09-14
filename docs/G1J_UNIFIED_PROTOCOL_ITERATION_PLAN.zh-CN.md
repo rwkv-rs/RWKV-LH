@@ -107,7 +107,7 @@ owner 于 2026-09-09 要求 Planner 使用强模型。本地已有的强模型�
 
 2026-09-11 当前实现统一使用 `role-feedback.v2`：步骤语义缺口同时进入 Selector / Executor；最终回答缺口进入 Finalizer；执行证据缺口带原审计身份进入 Planner 并重新打开可执行工作。协议错误只重试原角色、原审计边界，不重放动作或候选；Finalizer 分别保留 semantic feedback 与 protocol retry_feedback。反馈包含来源、接收角色、边界/计划/步骤版本、原条件、证据及被拒绝输出，运行与 trace 重建共享因果日志投影。完成仍须 Final Auditor 接受，预算耗尽只会阻塞/中断。
 
-Stage Checker 接收该阶段所有引用对应的 Harness 动作，action/artifact/revision 使用同一来源解析。内容投影可显式标记，证据条数不再裁成 8/12；审计工具声明也不再限定证据或 gap 数量。目录发现保留全部显式 root，有限发现标明不完整；工具资格依据文件/目录/缺失目标的结构性条件，不按后缀或采样内容推断能力。唯一 GoalPlanPatch v4 及显式 phase 为当前入口，旧版本、未知版本和旧 contract graph 重放拒绝。完整设计及验证边界见 [角色链路契约](CONTROLLER_ROLE_LINK_CONTRACT.zh-CN.md)和本轮报告；工程回归不等于模型能力验收。
+Stage Checker 接收该阶段所有引用对应的 Harness 动作，action/artifact/revision 使用同一来源解析。内容投影可显式标记，证据条数不再裁成 8/12；审计工具声明也不再限定证据或 gap 数量。目录发现保留全部显式 root，有限发现标明不完整；工具资格依据文件/目录/缺失目标的结构性条件，不按后缀或采样内容推断能力。唯一 GoalPlanPatch v4 及显式 phase 为当前入口，旧版本、未知版本和旧 contract graph 重放拒绝。完整设计及验证边界见 [角色链路契约](ARCHITECTURE.zh-CN.md)和本轮报告；工程回归不等于模型能力验收。
 
 RWKV 更新应优先改变部署配置与必要的底层适配：模型/词表 SHA、State 形状与 dtype、上下文和输出预算、生成前缀/停止符、服务能力。角色输入仍调用同一 builder；只有真实语义合同变化才升级并替换协议。每次升级验证 State 注入、token 对齐、自然 stop、五角色输入和真实流程，重新冻结源码与服务身份。旧 State 的形状兼容不等于行为或训练分布兼容，不能自动沿用旧结果。
 

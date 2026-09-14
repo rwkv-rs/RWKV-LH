@@ -1,0 +1,88 @@
+[
+  {
+    "id": "advice-health",
+    "calls": [
+      {
+        "request_id": "MR-103010e6efbb4bdf",
+        "input_sha256": "c3a4d2838ffcf71e95bc0900622e1b6de5faf6ce5941055e0aef8291ccc5f25c",
+        "finish": "stop",
+        "logical_input_tokens": 2835,
+        "output_tokens": 195
+      }
+    ],
+    "provider_usage": [
+      {
+        "prompt_tokens": 1252,
+        "completion_tokens": 443,
+        "total_tokens": 1695,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 355
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1252
+      }
+    ],
+    "assistance": "strong_advised",
+    "termination": "submitted",
+    "new_actions": 0,
+    "protocol_rejections": 0,
+    "parent_unchanged": true,
+    "state_and_observations_verified": true,
+    "final": "verify_public.py 是一个简短的健康检查脚本，用于验证指定主机和端口的 /health 端点是否返回 200 状态码，并且响应体中的 ok 字段为 true。\n\n脚本使用 http.client 库发起 GET 请求，读取响应内容，解析 JSON，并断言状态码为 200 且 ok 为 true。如果验证通过，会打印 \"health smoke passed; transactional behavior still requires tests\"。\n\n脚本的主要目的是进行快速的健康检查，不涉及对预订或订单行为的验证。"
+  },
+  {
+    "id": "takeover-recursive",
+    "calls": [
+      {
+        "request_id": "MR-59ca54518eb4489f",
+        "input_sha256": "034c5689014172daa1e6c6b79e3eeb3d8c825835b124b200df43b23d27b79c5a",
+        "finish": "stop",
+        "token_ids_available": false
+      },
+      {
+        "request_id": "MR-79e9b17056c34bbd",
+        "input_sha256": "22737b0e0a4c57a947401116151cb04298079b156d99510daaccd31115d3e7aa",
+        "finish": "stop",
+        "token_ids_available": false
+      }
+    ],
+    "provider_usage": [
+      {
+        "prompt_tokens": 4822,
+        "completion_tokens": 117,
+        "total_tokens": 4939,
+        "prompt_tokens_details": {
+          "cached_tokens": 2688
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 65
+        },
+        "prompt_cache_hit_tokens": 2688,
+        "prompt_cache_miss_tokens": 2134
+      },
+      {
+        "prompt_tokens": 5884,
+        "completion_tokens": 503,
+        "total_tokens": 6387,
+        "prompt_tokens_details": {
+          "cached_tokens": 4736
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 355
+        },
+        "prompt_cache_hit_tokens": 4736,
+        "prompt_cache_miss_tokens": 1148
+      }
+    ],
+    "assistance": "strong_takeover",
+    "termination": "submitted",
+    "new_actions": 1,
+    "protocol_rejections": 0,
+    "parent_unchanged": true,
+    "state_and_observations_verified": true,
+    "final": "已成功执行 `python check_recursive.py`（退出码 0，stderr 为空）。其真实 stdout 为：\n{\"checks\": {\"recursive_paths\": true, \"original_fields_and_content\": true}, \"expected_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"actual_paths\": [\"bottom.md\", \"nested.md\", \"top.md\"], \"passed\": true}\n据此输出，测试通过（passed: true），且 recursive_paths 与 original_fields_and_content 两项检查均为 true。工作区文件未修改（执行前后工作区摘要相同）。"
+  }
+]

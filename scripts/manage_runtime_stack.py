@@ -19,11 +19,9 @@ def main() -> int:
     subparsers.add_parser("prepare", help="build the pinned reduced Router engine")
     deploy = subparsers.add_parser("deploy", help="prepare and start the stack")
     deploy.add_argument("--web", action="store_true")
-    deploy.add_argument("--worker", action="store_true")
     deploy.add_argument("--timeout", type=float, default=180.0)
     up = subparsers.add_parser("up", help="start and attest the stack")
     up.add_argument("--web", action="store_true")
-    up.add_argument("--worker", action="store_true")
     up.add_argument("--timeout", type=float, default=180.0)
     subparsers.add_parser("down", help="stop only manager-owned processes")
     status = subparsers.add_parser("status", help="show owned processes and health")
@@ -36,7 +34,6 @@ def main() -> int:
         prepared = manager.prepare()
         started = manager.up(
             web=args.web,
-            proactive_worker=args.worker,
             timeout_seconds=args.timeout,
         )
         _print({"prepared": prepared, "started": started})
@@ -44,7 +41,6 @@ def main() -> int:
         _print(
             manager.up(
                 web=args.web,
-                proactive_worker=args.worker,
                 timeout_seconds=args.timeout,
             )
         )

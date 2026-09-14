@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.agent_batch import run_agent_jobs
+from rwkv_lh.assisted_agent import AssistedJob
 from rwkv_lh.coding_agent import CodingJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
 from rwkv_lh.runtime.settings import get_runtime_settings, load_local_env
@@ -20,6 +21,10 @@ def main():
     jobs = []
     for row in json.loads(args.jobs.read_text()):
         row = dict(row)
+        if 'assistance' in row:
+            row['mode'] = row.pop('assistance')
+            jobs.append(AssistedJob(**row))
+            continue
         scope = row.pop('tool_scope', 'files')
         if scope == 'coding':
             row['source_workspace'] = row.pop('workspace')

@@ -539,7 +539,6 @@ class RuntimeStackManager:
         self,
         *,
         web: bool = False,
-        proactive_worker: bool = False,
         timeout_seconds: float = 180.0,
     ) -> dict[str, Any]:
         with self._locked():
@@ -575,18 +574,6 @@ class RuntimeStackManager:
                 product["web"] = self._ensure_product_process(
                     "web", "scripts.run_web_ui"
                 )
-            if proactive_worker:
-                environment = dict(os.environ)
-                environment.pop("RWKV_STATE_ROUTER_URL", None)
-                product["worker"] = {
-                    "owned": True,
-                    "process": self._spawn(
-                        "worker",
-                        [sys.executable, "-m", "scripts.run_long_horizon", "serve"],
-                        cwd=PROJECT_ROOT,
-                        environment=environment,
-                    ),
-                }
             result = {
                 "schema_version": STACK_SCHEMA_VERSION,
                 "mode": self.settings.mode,

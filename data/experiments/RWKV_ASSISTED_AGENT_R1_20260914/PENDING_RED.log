@@ -1,0 +1,48 @@
+....FF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_unconsumed_parent_observation_is_accounted_once_before_intervention[advice] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unconsumed_parent_observa0')
+mode = 'advice'
+
+    @pytest.mark.parametrize('mode',['advice','takeover'])
+    def test_unconsumed_parent_observation_is_accounted_once_before_intervention(tmp_path, mode):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'a.py').write_text('value = 1\n')
+        previous=tmp_path/'parent'
+        run_read_only_job(ReadOnlyJob('parent','Read a.py',str(workspace),str(previous),max_calls=1),settings=settings(),session_factory=factory([call('read_file',path='a.py')]))
+        out=tmp_path/'child'
+        continue_assisted(AssistedJob('child',str(previous),str(out),mode),settings=settings(),session_factory=factory([call('final_answer',text='value is 1')]),advice='Review.',advice_model='test-strong',isolate=False)
+        s=json.loads((out/'execution/state_snapshot.json').read_text())
+        records=[s['causal_records'][k] for k in s['causal_order']]
+        observed=[e for e in records if e['event_type']=='action_observation_appended' and e['payload'].get('event_id')=='EV-ACTION-A00001']
+        assert len(observed)==1
+        intervention=next(e for e in records if e['event_type']=='action_observation_appended' and e['payload'].get('event_id') in ('ADVICE-child','TAKEOVER-child'))
+>       assert observed[0]['sequence'] < intervention['sequence']
+E       assert 10 < 9
+
+tests/test_assisted_agent.py:58: AssertionError
+_ test_unconsumed_parent_observation_is_accounted_once_before_intervention[takeover] _
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_unconsumed_parent_observa1')
+mode = 'takeover'
+
+    @pytest.mark.parametrize('mode',['advice','takeover'])
+    def test_unconsumed_parent_observation_is_accounted_once_before_intervention(tmp_path, mode):
+        workspace=tmp_path/'workspace';workspace.mkdir();(workspace/'a.py').write_text('value = 1\n')
+        previous=tmp_path/'parent'
+        run_read_only_job(ReadOnlyJob('parent','Read a.py',str(workspace),str(previous),max_calls=1),settings=settings(),session_factory=factory([call('read_file',path='a.py')]))
+        out=tmp_path/'child'
+        continue_assisted(AssistedJob('child',str(previous),str(out),mode),settings=settings(),session_factory=factory([call('final_answer',text='value is 1')]),advice='Review.',advice_model='test-strong',isolate=False)
+        s=json.loads((out/'execution/state_snapshot.json').read_text())
+        records=[s['causal_records'][k] for k in s['causal_order']]
+        observed=[e for e in records if e['event_type']=='action_observation_appended' and e['payload'].get('event_id')=='EV-ACTION-A00001']
+        assert len(observed)==1
+        intervention=next(e for e in records if e['event_type']=='action_observation_appended' and e['payload'].get('event_id') in ('ADVICE-child','TAKEOVER-child'))
+>       assert observed[0]['sequence'] < intervention['sequence']
+E       assert 11 < 10
+
+tests/test_assisted_agent.py:58: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_assisted_agent.py::test_unconsumed_parent_observation_is_accounted_once_before_intervention[advice]
+FAILED tests/test_assisted_agent.py::test_unconsumed_parent_observation_is_accounted_once_before_intervention[takeover]
+2 failed, 4 passed in 3.23s

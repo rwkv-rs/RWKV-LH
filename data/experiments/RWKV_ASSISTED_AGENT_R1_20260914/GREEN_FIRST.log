@@ -1,0 +1,17 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_________ test_retired_worker_launch_is_not_an_available_stack_option __________
+
+    def test_retired_worker_launch_is_not_an_available_stack_option():
+        from rwkv_lh.runtime.stack import RuntimeStackManager
+>       assert 'proactive_worker' not in inspect.signature(RuntimeStackManager.up).parameters
+E       assert 'proactive_worker' not in mappingproxy(OrderedDict({'self': <Parameter "self">, 'web': <Parameter "web: 'bool' = False">, 'proactive_worker': <Parameter "proactive_worker: 'bool' = False">, 'timeout_seconds': <Parameter "timeout_seconds: 'float' = 180.0">}))
+E        +  where mappingproxy(OrderedDict({'self': <Parameter "self">, 'web': <Parameter "web: 'bool' = False">, 'proactive_worker': <Parameter "proactive_worker: 'bool' = False">, 'timeout_seconds': <Parameter "timeout_seconds: 'float' = 180.0">})) = <Signature (self, *, web: 'bool' = False, proactive_worker: 'bool' = False, timeout_seconds: 'float' = 180.0) -> 'dict[str, Any]'>.parameters
+E        +    where <Signature (self, *, web: 'bool' = False, proactive_worker: 'bool' = False, timeout_seconds: 'float' = 180.0) -> 'dict[str, Any]'> = <function signature at 0x719f7167fe20>(<function RuntimeStackManager.up at 0x719f6c9e0720>)
+E        +      where <function signature at 0x719f7167fe20> = inspect.signature
+E        +      and   <function RuntimeStackManager.up at 0x719f6c9e0720> = <class 'rwkv_lh.runtime.stack.RuntimeStackManager'>.up
+
+tests/test_assisted_agent.py:43: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_assisted_agent.py::test_retired_worker_launch_is_not_an_available_stack_option
+1 failed, 3 passed in 2.99s

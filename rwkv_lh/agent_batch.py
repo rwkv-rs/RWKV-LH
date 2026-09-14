@@ -6,8 +6,11 @@ import math
 
 
 def _execute(job, settings):
+    from .assisted_agent import AssistedJob, run_assisted_job
     from .coding_agent import CodingJob, run_coding_job
     from .read_only_agent import run_read_only_job
+    if isinstance(job, AssistedJob):
+        return run_assisted_job(job, settings=settings)
     if isinstance(job, CodingJob):
         return run_coding_job(job, settings=settings)
     return run_read_only_job(job, settings=settings)
@@ -20,7 +23,8 @@ def _worker(arguments):
     except Exception as exc:
         return {'id': job.task_id, 'final': None, 'termination': 'error',
                 'termination_reason': 'job_dispatch_failed', 'acceptance': 'not_evaluated',
-                'assistance': 'rwkv_independent',
+                'assistance': ('strong_takeover' if getattr(job, 'mode', '') == 'takeover' else
+                               'strong_advised' if getattr(job, 'mode', '') == 'advice' else 'rwkv_independent'),
                 'error': {'type': type(exc).__name__, 'message': str(exc)},
                 'output_dir': str(job.output_dir)}
 
@@ -36,12 +40,13 @@ def run_agent_jobs(jobs, *, settings, concurrency=1):
     Shared input snapshots are allowed. Outputs cannot overlap any input or
     other output. No result is automatically merged or marked accepted.
     """
+    from .assisted_agent import AssistedJob, load_parent
     from .coding_agent import CodingJob
     from .read_only_agent import ReadOnlyJob
     jobs = list(jobs)
     if type(concurrency) is not int or concurrency < 1:
         raise ValueError('positive integer concurrency required')
-    if not all(isinstance(job, (CodingJob, ReadOnlyJob)) for job in jobs):
+    if not all(isinstance(job, (CodingJob, ReadOnlyJob, AssistedJob)) for job in jobs):
         raise ValueError('unsupported Agent job')
     if len({job.task_id for job in jobs}) != len(jobs):
         raise ValueError('duplicate task IDs')
@@ -53,7 +58,10 @@ def run_agent_jobs(jobs, *, settings, concurrency=1):
                 or type(job.max_seconds) not in (int, float)
                 or not math.isfinite(job.max_seconds) or job.max_seconds <= 0):
             raise ValueError('positive finite task budgets required')
-        if isinstance(job, ReadOnlyJob):
+        if isinstance(job, AssistedJob):
+            previous, _, _, source = load_parent(job)
+            sources.append(previous)
+        elif isinstance(job, ReadOnlyJob):
             if job.tool_scope not in ('files', 'inspect'):
                 raise ValueError('unknown read-only tool scope')
             source = Path(job.workspace).resolve()
