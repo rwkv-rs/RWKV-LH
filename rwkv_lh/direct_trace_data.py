@@ -75,8 +75,7 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
     model = LongHorizonModel(session, harness=harness)
     replay_goal = model.create_literal_goal(state.goal.request, state.goal.workspace_root,
                                                 constraints=state.goal.constraints, runtime_policy=state.goal.runtime_policy)
-    initial = RunState(run_id=state.run_id, goal=replay_goal)
-    bootstrap = model_io.render_bootstrap(model.direct_definitions(), model._assignment(initial, recent_limit=None))
+    bootstraps = {}
     rows = {}
     for e in returned:
         raw = e['raw_generation']
@@ -98,7 +97,39 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
                 core.require(metadata.get('cache_binding', {}).get('parent_state_digest') == previous.native_state_digest,
                              'native parent digest differs')
             current = previous
-        core.require(chain[-1].transcript == bootstrap, 'production bootstrap replay differs')
+        root_checkpoint = chain[-1]
+        if root_checkpoint.checkpoint_id not in bootstraps:
+            from dataclasses import replace
+            from .correction_snapshots import validate_generation_snapshot
+            initial_goal = replay_goal
+            initial_starts = [item for item in starts.values()
+                              if item['input_checkpoint_id'] == root_checkpoint.checkpoint_id]
+            import re
+            for item in initial_starts:
+                core.require(isinstance(item['request_id'], str)
+                             and re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', item['request_id'])
+                             and item['request_id'] not in ('.', '..'),
+                             'unsafe initial snapshot request')
+            snapshot_starts = [item for item in initial_starts if
+                (run_root / 'generation_snapshots' / item['request_id']).exists()
+                or any(event.get('type') == 'correction_generation_snapshot_saved'
+                       and event.get('request_id') == item['request_id'] for event in events)]
+            if snapshot_starts:
+                core.require(len(snapshot_starts) == 1, 'ambiguous initial generation snapshot')
+                first = snapshot_starts[0]
+                core.require(first['input_digest'] == root_checkpoint.native_state_digest,
+                             'initial snapshot root digest differs')
+                directory = run_root / 'generation_snapshots' / first['request_id']
+                members = {str(member.relative_to(run_root)): core.sha256_file(member)
+                           for member in directory.rglob('*') if member.is_file()}
+                before = validate_generation_snapshot(run_root, first, members)
+                initial_goal = replace(replay_goal, workspace_root=str(before))
+            initial = RunState(run_id=state.run_id, goal=initial_goal)
+            bootstraps[root_checkpoint.checkpoint_id] = model_io.render_bootstrap(
+                model.direct_definitions(), model._assignment(initial, recent_limit=None))
+        bootstrap = bootstraps[root_checkpoint.checkpoint_id]
+        core.require(root_checkpoint.transcript == bootstrap,
+                     'production bootstrap replay differs')
         ids = []
         used_events = set()
         for cp in reversed(chain):
