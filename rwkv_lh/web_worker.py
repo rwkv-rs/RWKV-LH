@@ -48,11 +48,9 @@ def result_payload(state: Any, final_output: str, transitions: int) -> dict[str,
 
 
 def direct_settings():
-    from dataclasses import replace
-    from rwkv_lh.runtime.settings import get_runtime_settings
-    return replace(get_runtime_settings(), return_token_ids=True,
-                   state_transport="native_required", state_profile_id="zero",
-                   state_profile_sha256="0" * 64, tool_disclosure_mode="full")
+    from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings
+    return direct_agent_settings(get_runtime_settings())
+
 
 
 def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:

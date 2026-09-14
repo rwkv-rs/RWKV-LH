@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 import re
@@ -474,6 +474,19 @@ class RuntimeSettings:
         return available
 
 
+def direct_agent_settings(settings: RuntimeSettings) -> RuntimeSettings:
+    """Apply direct execution requirements without overriding selected State."""
+    settings.validate()
+    profile = {} if settings.state_profile_id else {
+        "state_profile_id": "zero", "state_profile_sha256": "0" * 64,
+    }
+    result = replace(settings, return_token_ids=True,
+                     state_transport="native_required", tool_disclosure_mode="full",
+                     **profile)
+    result.validate()
+    return result
+
+
 @lru_cache(maxsize=1)
 def get_runtime_settings() -> RuntimeSettings:
     return RuntimeSettings.from_env()
@@ -488,6 +501,7 @@ __all__ = [
     "PROJECT_ROOT",
     "RuntimeSettings",
     "get_runtime_settings",
+    "direct_agent_settings",
     "load_local_env",
     "reset_runtime_settings",
 ]

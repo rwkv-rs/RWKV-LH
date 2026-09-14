@@ -99,3 +99,6 @@ PROGRESS_CORRECTIONS R1：两个真实停滞边界的强模型原样下一步均
 
 
 统一纠正训练 R1 已完成并判 NO_KEEP：162实际训练步、54完整样本、24.2分钟；同源固定两遍摘要 zero7/8、candidate8/8，诊断均0/6，coding均4/6（查询修复均0/2），原读取均24/24。候选协议拒绝12次，不替换默认State，不运行confirmation/holdout。原GPU0服务已恢复并健康核验。报告见 `data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R1_20260914/REPORT.zh-CN.md`。下一轮先修四个产品入口覆盖显式State的问题（4红/4默认通过已复现），再补独立训练来源的真实纠正；不将开发题参考答案训练化。
+
+
+State入口整改已完成：四产品入口统一保留显式profile，缺省仍zero，非法身份拒绝。红4/默认通过4，完整GPU0回归1747 passed、0 skipped（329.02s）。训练R1候选仍NO_KEEP。下一轮已冻结并采集两个获准MAINT来源的事实/局部修复任务，目标是获取真实失败纠正，不读API dev答案或confirmation入训。报告 `data/experiments/RWKV_PROFILE_ENTRYPOINT_FIX_R1_20260914/REPORT.zh-CN.md`。

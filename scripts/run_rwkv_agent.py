@@ -1,6 +1,5 @@
 """Run independent direct RWKV tasks; raw submissions are not acceptance."""
 import argparse
-from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -11,7 +10,7 @@ from rwkv_lh.assisted_agent import AssistedJob
 from rwkv_lh.coding_agent import CodingJob
 from rwkv_lh.goal_delivery import GoalJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
-from rwkv_lh.runtime.settings import get_runtime_settings, load_local_env
+from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
 
 
 def main():
@@ -45,9 +44,7 @@ def main():
         else:
             parser.error('tool_scope must be files, inspect or coding')
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
-    settings = replace(get_runtime_settings(), return_token_ids=True,
-                       state_transport='native_required', state_profile_id='zero',
-                       state_profile_sha256='0'*64, tool_disclosure_mode='full')
+    settings = direct_agent_settings(get_runtime_settings())
     results = (run_agent_workflow(jobs, dependencies, settings=settings, concurrency=args.concurrency)
                if dependencies else run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency))
     print(json.dumps(results, ensure_ascii=False, indent=2))

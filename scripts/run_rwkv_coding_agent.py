@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.coding_agent import CodingJob, run_coding_job
-from rwkv_lh.runtime.settings import get_runtime_settings, load_local_env
+from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
 
 
 def main():
@@ -25,8 +25,7 @@ def main():
     load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
     settings = get_runtime_settings()
     overrides = {name: getattr(args, name) for name in ('base_url', 'model', 'model_sha256') if getattr(args, name)}
-    settings = replace(settings, **overrides, return_token_ids=True, state_transport='native_required',
-                       state_profile_id='zero', state_profile_sha256='0'*64, tool_disclosure_mode='full')
+    settings = direct_agent_settings(replace(settings, **overrides))
     job = CodingJob(**{name: getattr(args, name) for name in CodingJob.__dataclass_fields__})
     result = run_coding_job(job, settings=settings)
     print(json.dumps(result, ensure_ascii=False, indent=2))
