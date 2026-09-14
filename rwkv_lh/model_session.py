@@ -90,6 +90,18 @@ class SessionSampling:
     frequency_penalty: float = 0.0
     penalty_decay: float = 0.996
 
+    @classmethod
+    def from_settings(cls, settings: RuntimeSettings) -> SessionSampling:
+        """Resolve defaults from the session that owns this generation."""
+        return cls(
+            temperature=settings.default_temperature,
+            top_p=settings.default_top_p,
+            top_k=settings.default_top_k,
+            presence_penalty=settings.default_presence_penalty,
+            frequency_penalty=settings.default_frequency_penalty,
+            penalty_decay=settings.default_penalty_decay,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "temperature": self.temperature,
@@ -618,7 +630,7 @@ class ModelSession:
         self._require_committed(checkpoint)
         if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
             validate_independent_executor_generation_input(checkpoint.transcript)
-        selected = sampling or SessionSampling()
+        selected = sampling if sampling is not None else SessionSampling.from_settings(self.settings)
         output_limit = max(1, int(max_output_tokens))
         input_limit = self.settings.max_prompt_tokens(output_limit)
         if checkpoint.token_count > input_limit:
@@ -1413,7 +1425,7 @@ class NativeRWKVModelSession(ModelSession):
         self._require_committed(checkpoint)
         if (checkpoint.native_state_metadata or {}).get("executor_protocol_required"):
             validate_independent_executor_generation_input(checkpoint.transcript)
-        selected = sampling or SessionSampling()
+        selected = sampling if sampling is not None else SessionSampling.from_settings(self.settings)
         output_limit = max(1, int(max_output_tokens))
         request_id = f"MR-{uuid4().hex[:16]}"
         self._emit(

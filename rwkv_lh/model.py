@@ -69,7 +69,6 @@ from rwkv_lh.model_session import (
     InputBudgetError,
     ModelSession,
     ModelSessionError,
-    SessionSampling,
     create_model_session,
 )
 from rwkv_lh.observation_funnel import (
@@ -141,14 +140,6 @@ class LongHorizonModel:
 
     ACTION_LANE_ID = "LANE:ACTION"
     _TOOL_SELECTION_MAX_OUTPUT_TOKENS = 160
-    _SAMPLING = SessionSampling(
-        temperature=0.1,
-        top_p=1.0,
-        top_k=0,
-        presence_penalty=0.0,
-        frequency_penalty=0.0,
-        penalty_decay=0.996,
-    )
     _RESULT_PROJECTION_VERSION = OBSERVATION_PROJECTION_VERSION
     _RESULT_OUTPUT_MAX_CHARS = 6000
 
@@ -856,7 +847,6 @@ class LongHorizonModel:
         )
         candidate = self.finalizer_session.generate(
             finalizer_checkpoint,
-            sampling=self._SAMPLING,
             max_output_tokens=max_output_tokens,
         )
         decision_id = f"D-{uuid4().hex[:16]}"
@@ -1117,7 +1107,6 @@ class LongHorizonModel:
             )
             candidate = audit_session.generate(
                 audit_checkpoint,
-                sampling=self._SAMPLING,
                 max_output_tokens=max_output_tokens,
             )
             last_request_id = candidate.request_id
@@ -2351,22 +2340,21 @@ class LongHorizonModel:
             )
         candidate = self.session.generate(
             checkpoint,
-            sampling=self._SAMPLING,
             max_output_tokens=self._TOOL_SELECTION_MAX_OUTPUT_TOKENS,
         )
         temp = TempDecision(
             request_id=candidate.request_id,
             task_id=self.ACTION_LANE_ID,
             request_type="tool_selection",
-            temperature=self._SAMPLING.temperature,
+            temperature=candidate.sampling.temperature,
             policy_reason="progressive_tool_menu_selection",
             attempt=1,
             started_at=utc_now(),
-            top_p=self._SAMPLING.top_p,
-            top_k=self._SAMPLING.top_k,
-            presence_penalty=self._SAMPLING.presence_penalty,
-            frequency_penalty=self._SAMPLING.frequency_penalty,
-            penalty_decay=self._SAMPLING.penalty_decay,
+            top_p=candidate.sampling.top_p,
+            top_k=candidate.sampling.top_k,
+            presence_penalty=candidate.sampling.presence_penalty,
+            frequency_penalty=candidate.sampling.frequency_penalty,
+            penalty_decay=candidate.sampling.penalty_decay,
             max_tokens=self._TOOL_SELECTION_MAX_OUTPUT_TOKENS,
             backend_profile=self.session.settings.backend_profile,
         )
@@ -2725,22 +2713,21 @@ class LongHorizonModel:
                     )
         candidate = self.session.generate(
             checkpoint,
-            sampling=self._SAMPLING,
             max_output_tokens=max_output_tokens,
         )
         temp = TempDecision(
             request_id=candidate.request_id,
             task_id=self.ACTION_LANE_ID,
             request_type="action_lane",
-            temperature=self._SAMPLING.temperature,
+            temperature=candidate.sampling.temperature,
             policy_reason="single_direct_action_spine",
             attempt=1,
             started_at=utc_now(),
-            top_p=self._SAMPLING.top_p,
-            top_k=self._SAMPLING.top_k,
-            presence_penalty=self._SAMPLING.presence_penalty,
-            frequency_penalty=self._SAMPLING.frequency_penalty,
-            penalty_decay=self._SAMPLING.penalty_decay,
+            top_p=candidate.sampling.top_p,
+            top_k=candidate.sampling.top_k,
+            presence_penalty=candidate.sampling.presence_penalty,
+            frequency_penalty=candidate.sampling.frequency_penalty,
+            penalty_decay=candidate.sampling.penalty_decay,
             max_tokens=max_output_tokens,
             backend_profile=self.session.settings.backend_profile,
         )

@@ -116,7 +116,8 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
     monkeypatch.setattr(
         benchmark,
         "get_runtime_settings",
-        lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture"),
+        lambda: RuntimeSettings(base_url="http://fixture.invalid", api_key="", model="fixture",
+                                default_temperature=0.37, default_top_p=0.88),
     )
     monkeypatch.setattr(
         benchmark,
@@ -128,7 +129,6 @@ def test_metadata_reads_only_explicitly_selected_suite_resources(
     )
     monkeypatch.setattr(executor_args_v7, "INPUT_SCHEMA_VERSION", "current-executor-protocol")
     sampling = SessionSampling(temperature=0.37, top_p=0.88)
-    monkeypatch.setattr(benchmark.LongHorizonModel, "_SAMPLING", sampling)
     arguments = argparse.Namespace(
         suite=suite_key,
         retry_failures_from=None,

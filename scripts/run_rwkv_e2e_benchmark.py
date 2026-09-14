@@ -44,7 +44,7 @@ from rwkv_lh.goal_loop_protocol import GOAL_PLAN_PATCH_SCHEMA_VERSION
 from rwkv_lh.goal_state_protocols import executor_args_v7
 from rwkv_lh.model import LongHorizonModel
 from rwkv_lh.model_io import ModelIOError, parse_model_command
-from rwkv_lh.model_session import create_model_session
+from rwkv_lh.model_session import SessionSampling, create_model_session
 from rwkv_lh.parallel_atoms import AtomWorkerPool, ThreadedRWKVAtomPool
 from rwkv_lh.retrieval.actions import build_retrieval_actions
 from rwkv_lh.retrieval.gateway import build_live_retrieval_backend
@@ -1575,11 +1575,11 @@ def _write_run_metadata(
         },
         "sampling": {
             "sampling_policy": {
-                "scope": "all_semantic_lanes",
-                "temperature": LongHorizonModel._SAMPLING.temperature,
+                "scope": "executor_session_defaults; other sessions use their own settings",
+                "temperature": SessionSampling.from_settings(settings).temperature,
                 "semantic_resample_count": 0,
             },
-            **{key: value for key, value in LongHorizonModel._SAMPLING.to_dict().items()
+            **{key: value for key, value in SessionSampling.from_settings(settings).to_dict().items()
                if key != "temperature"},
         },
         "source_resources": source_resources,
