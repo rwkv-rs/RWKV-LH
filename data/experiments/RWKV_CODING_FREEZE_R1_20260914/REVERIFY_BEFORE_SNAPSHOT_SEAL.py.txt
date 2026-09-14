@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib,sys
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.coding_corrections import validate_coding_correction,revalidate_training_correction
+D=R/'data/experiments/RWKV_CODING_FREEZE_R1_20260914'
+reg=json.loads((R/'data/experiments/RWKV_CORRECTION_REVIEW_R2_20260914/CODING_REGISTRATION.json').read_text())
+reg['output']=str(D/'candidate_validation')
+result=validate_coding_correction(**reg)
+assert result['status']=='validated_candidate'
+p=D/'candidate_validation/VALIDATION.json'
+row={k:result[k] for k in ('target_text','input_text','input_token_ids','input_checkpoint_id','request_id','reviews')}
+row.update(candidate_checkpoint_id=result['checkpoint_id'],correction_validation={'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+fresh=revalidate_training_correction(row,run_root=reg['run_root'],source_files=reg['source_files'],model_sha256=reg['model_sha256'],output=D/'freeze_revalidation')
+(D/'REAL_RESULT.json').write_text(json.dumps({'status':fresh['status'],'original_target_preserved':fresh['target_text']==result['target_text'],'baseline_exit':fresh['before_checks'][0]['exit_code'],'corrected_exit':fresh['after_checks'][0]['exit_code'],'formal_dataset_published':False,'training_steps':0},indent=2)+'\n')
+print((D/'REAL_RESULT.json').read_text())

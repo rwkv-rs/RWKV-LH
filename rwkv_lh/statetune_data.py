@@ -232,9 +232,15 @@ def admit_dataset(reference: Mapping, *, role: str, expected_regression: str, mo
     # Hash the regression bytes only. No evaluation text or labels enter training.
     _member(root, manifest["regression"])
     train_path = _member(root, manifest["train"])
-    rows = [normalize_row(json.loads(line), role=role, model_sha256=model_sha256, context_tokens=context_tokens,
+    raw_rows = [json.loads(line) for line in train_path.read_text().splitlines() if line]
+    coding_count = sum(row.get('label_authority') == 'verified_coding' for row in raw_rows)
+    if coding_count:
+        core.require(role == 'direct_actor' and manifest.get('coding_validation', {}).get('count') == coding_count,
+                     'frozen coding validation count differs')
+        _member(root, manifest['coding_validation'])
+    rows = [normalize_row(row, role=role, model_sha256=model_sha256, context_tokens=context_tokens,
                           vocab_size=vocab_size, bos_token_id=bos_token_id)
-            for line in train_path.read_text().splitlines() if line]
+            for row in raw_rows]
     core.require(len(rows) == manifest["counts"]["train"] > 0
                  and len({row["sample_id"] for row in rows}) == len(rows), "train sample counts or unique identities differ")
     return manifest, rows

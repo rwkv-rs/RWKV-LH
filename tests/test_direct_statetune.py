@@ -141,3 +141,31 @@ def test_replay_rejects_unreturned_or_duplicate_generation_requests(tmp_path):
     path.write_text(''.join(json.dumps(e) + '\n' for e in events))
     with pytest.raises(ValueError, match='generation trace'):
         replay_run(root, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+
+
+@pytest.mark.parametrize('function,params,valid', [
+    ('write_file',{'path':'a.py','content':'value = 2\n'},True),
+    ('replace_text',{'path':'a.py','old':'1','new':'2','base_sha256':'a'*64},True),
+    ('final_answer',{'text':'Tests passed'},False),
+    ('run_command',{'argv':['python3','-m','unittest']},False)])
+def test_coding_training_rows_only_accept_reviewed_atomic_edits(function,params,valid):
+    import json
+    from pathlib import Path
+    from rwkv_lh.direct_trace_data import normalize_direct_row
+    from rwkv_lh.token_budget import tokenizer
+    from test_unified_controller import call
+    source=Path(__file__).resolve().parents[1]/'data/datasets/rwkv_direct_fact_fidelity_v1/train.jsonl'
+    row=json.loads(source.read_text().splitlines()[0])
+    row['target_text']=json.dumps(call(function,**params))+model_io.JSON_CALL_STOP_SUFFIXES[0]
+    row['target_token_ids']=tokenizer().encode(row['target_text'])
+    row['label_authority']='verified_coding'
+    row['correction_validation']={'path':'fixture-proof.json','sha256':'a'*64}
+    row['reviews']=[{'reviewer':r,'accepted':True,'visible_evidence_only':True,
+                    'input_sha256':hashlib.sha256(row['input_text'].encode()).hexdigest(),
+                    'target_sha256':hashlib.sha256(row['target_text'].encode()).hexdigest()} for r in ('test-a','test-b')]
+    args=dict(model_sha256=row['model_sha256'],context_tokens=8192,vocab_size=65536,bos_token_id=0)
+    if valid:
+        assert normalize_direct_row(row,**args)['target_token_ids']==row['target_token_ids']
+    else:
+        with pytest.raises(ValueError,match='atomic correction'):
+            normalize_direct_row(row,**args)

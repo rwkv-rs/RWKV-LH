@@ -58,3 +58,5 @@
 M05 有一条数字关系纠正通过复核；M10/M11 有强模型真实修改及原测试红→绿，但审核分歧/家族切分未解。两者均未证明 RWKV 本身已经改善，正式训练准入仍为0。[证据与下一步](../data/experiments/RWKV_VERIFIED_CORRECTIONS_R1_20260914/REPORT.zh-CN.md)。
 
 E13最新R2：已分开final与next_action审核，增加引文/身份/判断一致性校验；实际旧3/6、新4/6，API语义漏错及审核引文失真仍存在，不标解决。编码纠正经现有验证器红→绿，来源MAINT/train核清；新增正式准入0。详见[记录](../data/experiments/RWKV_CORRECTION_REVIEW_R2_20260914/REPORT.zh-CN.md)。
+
+`RWKV_CODING_FREEZE_R1_20260914`进展：原子编码纠正已接入统一direct freeze，要求原RWKV编辑边界、源快照逐文件封存、原样target/输入/State/request绑定和fresh红绿执行，训练加载核对证明SHA。只解决这一准入通路，M02/M09的工具选择与推进标签、反馈多步标签及E13语义误审仍未解决。12个现有可重建coding run只有2个编辑边界，且都涉及document_index/query.py，不能当作12个独立编码来源。真实旧候选原样复验证通过，不是RWKV独立能力提升。新增正式数据版本与训练步数仍0。

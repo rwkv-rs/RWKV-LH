@@ -86,3 +86,8 @@ Owner最新要求：只使用物理GPU 0。后续本地测试及模型进程显�
 
 
 最新R3已完成128条结构复核和100条回答人工语义审核：98回答保留、2歧义隔离；28读取+24回答代表形成52行引用建议，未改旧数据/评分。历史同批已训练384步并因验收退化NO_KEEP，不盲目重训。GPU0完整回归1710 passed（321.23s）。[完整记录](../data/experiments/RWKV_EXISTING_DATA_AUDIT_R3_20260914/REPORT.zh-CN.md)。Owner随后明确授权离线期间继续推进，按[下一轮范围与预算](../data/experiments/RWKV_EXISTING_DATA_AUDIT_R3_20260914/NEXT_AUTHORIZATION.zh-CN.md)先补编码freeze及训练一致性验证，再有条件冻结新数据/训练；此前“本轮不训练”只描述已完成审计轮。
+
+
+编码freeze增量已实现：verified_coding原子编辑经封存报告绑定与fresh红绿验证后进入统一freeze，训练加载校验编码证明SHA；真实旧候选原样复验证exit 1→0，非RWKV新成绩。正式数据版本/新训练仍0。下一步补多来源修改与测试反馈，再按已获授权冻结一个GPU0训练候选；旧GPU1训练脚本不可直接复用。[本轮记录](../data/experiments/RWKV_CODING_FREEZE_R1_20260914/REPORT.zh-CN.md)。
+
+编码freeze最终回归：GPU0 1725 passed、0 skipped（318.89s），新增15项；原样真实候选在补全源快照逐文件清单后再次红→绿。两次中间测试干扰/源码变化拒绝日志保留，未放宽回归。owner五处修改SHA不变。当前仍无新Agent能力分数、新训练步数或新正式数据版本；授权已记录，下一步针对“读过但不选择修改/测试”的真实边界补纠正和反馈覆盖，然后统一冻结训练与验收，不能直接复用旧GPU1启动身份。

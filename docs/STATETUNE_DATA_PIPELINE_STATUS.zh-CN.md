@@ -1,3 +1,5 @@
+> 最新：R3已全量复核128行（98回答保留、2歧义隔离，28读取通过），形成52行去重复引用建议。编码freeze已支持绑定来源并fresh红绿验证的原子编辑，训练加载核对证明SHA；正式新版本和新训练尚未开始。Owner已授权自主继续，下一步补工具选择/测试反馈来源及冻结GPU0训练配置。详见 [编码freeze](../data/experiments/RWKV_CODING_FREEZE_R1_20260914/REPORT.zh-CN.md)。以下段落保留历史阶段状态。
+
 > 2026-09-14当前直接执行数据状态：已有 rwkv_direct_fact_fidelity_v1 库存128条，28读取/100回答，28来源ID/52生成边界，当前协议与文件SHA已核对；语义重新审核未完成。新增数字/编码各1条可复核候选，正式新增准入0。自动审核新对照4/6，未达门槛。详情见[审核与来源](../data/experiments/RWKV_CORRECTION_REVIEW_R2_20260914/REPORT.zh-CN.md)。以下多角色数量为历史记录，不是当前训练启动门槛。
 
 # StateTune 管线现状

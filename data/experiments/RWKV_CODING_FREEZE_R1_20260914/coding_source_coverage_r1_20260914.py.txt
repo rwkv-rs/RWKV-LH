@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,hashlib,sys,collections
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import model_io
+from rwkv_lh.direct_trace_data import replay_run
+D=R/'data/experiments/RWKV_CODING_FREEZE_R1_20260914'
+source=R/'data/experiments/RWKV_VERIFIED_CORRECTIONS_R1_20260914/SOURCE_INVENTORY.json'
+rows=[]
+for entry in json.loads(source.read_text()):
+ if entry.get('scope')!='coding' or not entry.get('replayed'):continue
+ root=R/entry['run'];assert root.is_relative_to(R/'data/experiments')
+ commands=collections.Counter();edits=[]
+ for cp,event in replay_run(root,'559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65').items():
+  try:c=model_io.parse_model_command(event['raw_generation']['raw_output'])
+  except Exception:commands['invalid_call']+=1;continue
+  commands[c.name]+=1
+  if c.name in ('write_file','replace_text'):
+   edits.append({'checkpoint':cp,'tool':c.name,'path':c.arguments.get('path'),'raw_output_sha256':hashlib.sha256(event['raw_generation']['raw_output'].encode()).hexdigest()})
+ rows.append({'run':entry['run'],'assistance':entry['assistance'],'commands':dict(commands),'edit_boundaries':edits})
+(D/'CODING_SOURCE_COVERAGE.json').write_text(json.dumps({'scope':'Existing approved inventory only; counts are attempts, not unique problems or quality scores','source_inventory_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'runs':rows,'total_runs':len(rows),'total_edit_boundaries':sum(len(r['edit_boundaries']) for r in rows)},ensure_ascii=False,indent=2)+'\n')
+print('coding runs',len(rows),'edit boundaries',sum(len(r['edit_boundaries']) for r in rows))

@@ -157,15 +157,24 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
     if authority == 'executed_read':
         core.require(command.name == 'read_file' and row.get('executed_action_id')
                      and row.get('real_tool_success') is True, 'read label lacks execution proof')
-    elif authority == 'independent_review':
+    elif authority in ('independent_review', 'verified_coding'):
         target_sha = hashlib.sha256(raw_target.encode()).hexdigest()
         reviewers = row.get('reviews', [])
-        core.require(command.name == 'final_answer' and set(command.arguments) == {'text'}
-                     and isinstance(command.arguments['text'], str) and bool(command.arguments['text'].strip()) and len({r.get('reviewer') for r in reviewers}) >= 2
+        if authority == 'independent_review':
+            core.require(command.name == 'final_answer' and set(command.arguments) == {'text'}
+                         and isinstance(command.arguments['text'], str) and bool(command.arguments['text'].strip()),
+                         'summary label requires final answer')
+        else:
+            core.require(command.name in ('write_file', 'replace_text')
+                         and isinstance(row.get('correction_validation'), Mapping)
+                         and set(row['correction_validation']) == {'path', 'sha256'},
+                         'coding label requires sealed atomic correction proof')
+            executed_arguments(command)
+        core.require(len({r.get('reviewer') for r in reviewers}) >= 2
                      and all(isinstance(r.get('reviewer'), str) and bool(r['reviewer'].strip()) and r.get('accepted') is True and r.get('target_sha256') == target_sha
                              and r.get('input_sha256') == hashlib.sha256(row['input_text'].encode()).hexdigest()
                              and r.get('visible_evidence_only') is True for r in reviewers),
-                     'summary label lacks two source-bound independent reviews')
+                     'label lacks two source-bound independent reviews')
     else:
         raise ValueError('unsupported direct label authority')
     return {'sample_id': row['sample_id'], 'input_token_ids': list(source), 'target_token_ids': list(target)}
@@ -211,6 +220,7 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         states[source_id] = RunState.from_dict(json.loads((root / 'state_snapshot.json').read_text()))
     lookup = {s['source_id']: s for s in sources}
     identities = set()
+    coding_proofs = []
     for row in rows:
         normalize_direct_row(row, model_sha256=registration['model_sha256'], context_tokens=registration['context_tokens'],
                              vocab_size=registration['vocab_size'], bos_token_id=registration['bos_token_id'])
@@ -234,6 +244,13 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                          and target.arguments.get('path') == source['path']
                          and hashlib.sha256(action.result['output'].encode()).hexdigest() == row['source_content_sha256'],
                          'executed read target differs from actual command/result')
+        elif row['label_authority'] == 'verified_coding':
+            from .coding_corrections import revalidate_training_correction
+            with tempfile.TemporaryDirectory(prefix='rwkv-coding-freeze-') as temporary:
+                proof = revalidate_training_correction(row, run_root=source['run_root'],
+                    source_files=sealed(source['manifest'])['files'],
+                    model_sha256=registration['model_sha256'], output=Path(temporary) / 'validation')
+                coding_proofs.append({'sample_id': row['sample_id'], 'validation': proof})
         else:
             # Only observations in this generation's ancestry may justify labels.
             content_hashes = []
@@ -255,6 +272,11 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                  and sum(row['label_authority'] == 'executed_read' for row in rows) >= coverage['read_boundaries']
                  and sum(row['label_authority'] == 'independent_review' for row in rows) >= coverage['summary_boundaries'],
                  'direct coverage requirement not met')
+    coding_count = sum(row['label_authority'] == 'verified_coding' for row in rows)
+    if coding_count:
+        core.require(type(coverage.get('coding_boundaries')) is int
+                     and 0 < coverage['coding_boundaries'] <= coding_count,
+                     'coding coverage must be explicitly registered')
     counts = {'train': len(rows), **{split: sum(c['split'] == split for c in regression['cases'])
                                    for split in ('dev', 'confirmation')}}
     core.require(all(counts[k] >= registration['minimum_counts'][k] > 0 for k in counts), 'direct minimum counts not met')
@@ -265,6 +287,8 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
     try:
         (staging / 'train.jsonl').write_bytes(b''.join(_canonical_bytes(row) + b'\n' for row in rows))
         shutil.copyfile(registration['regression_registration']['path'], staging / 'regression.json')
+        if coding_proofs:
+            (staging / 'coding_validation.json').write_bytes(_canonical_bytes({'rows': coding_proofs}) + b'\n')
         version, protocol_sha = protocol_identity()
         manifest = {'schema_version': DATASET_SCHEMA, 'purpose': 'frozen_role_training', 'role': ROLE,
                     'input_protocol': version, 'protocol_sha256': protocol_sha,
@@ -277,6 +301,9 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                     'train': {'file': 'train.jsonl', 'sha256': core.sha256_file(staging / 'train.jsonl')},
                     'regression': {'file': 'regression.json', 'sha256': core.sha256_file(staging / 'regression.json'),
                                    'fingerprint': fingerprint}}
+        if coding_proofs:
+            manifest['coding_validation'] = {'file': 'coding_validation.json',
+                'sha256': core.sha256_file(staging / 'coding_validation.json'), 'count': len(coding_proofs)}
         (staging / 'manifest.json').write_bytes(_canonical_bytes(manifest) + b'\n')
         _publish_no_replace(staging, output)
         return manifest

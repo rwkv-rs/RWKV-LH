@@ -90,7 +90,7 @@ def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sh
               'input_checkpoint_id': actual['input_checkpoint_id'], 'request_id': actual['request_id'],
               'input_text': actual['input_text'], 'input_token_ids': actual['input_token_ids'],
               'original_output': actual['raw_generation']['raw_output'], 'target_text': target_text,
-              'source_files': dict(source_files), 'snapshot_sha256': snapshot_sha256,
+              'source_files': dict(source_files), 'snapshot': snapshot, 'snapshot_sha256': snapshot_sha256,
               'reviews': reviews, 'checks': checks, 'check_timeout_seconds': check_timeout_seconds,
               'before_checks': [], 'after_checks': []}
     def save(status):
@@ -134,3 +134,35 @@ def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sh
         record['error_type'] = type(exc).__name__
         save('validation_error')
         raise
+
+
+def revalidate_training_correction(row, *, run_root, source_files, model_sha256, output):
+    """Freeze-time proof binding plus fresh isolated execution, never label repair."""
+    from .statetune_core import read_sealed_json, require
+    reference = row['correction_validation']
+    proof = read_sealed_json(reference['path'], reference['sha256'])
+    require(proof.get('status') == 'validated_candidate', 'correction proof not validated')
+    require(Path(proof['run_root']).resolve() == Path(run_root).resolve()
+            and proof['source_files'] == dict(source_files)
+            and proof['model_sha256'] == model_sha256, 'correction source binding differs')
+    root = Path(run_root).resolve(strict=True)
+    snapshot = (root / proof['snapshot']).resolve(strict=True)
+    require(root in snapshot.parents, 'correction snapshot binding differs')
+    for member in snapshot.rglob('*'):
+        if member.is_file():
+            require(str(member.relative_to(root)) in source_files,
+                    'unsealed correction snapshot member')
+    for row_key, proof_key in (
+        ('target_text', 'target_text'), ('input_text', 'input_text'),
+        ('input_token_ids', 'input_token_ids'), ('candidate_checkpoint_id', 'checkpoint_id'),
+        ('input_checkpoint_id', 'input_checkpoint_id'), ('request_id', 'request_id'),
+        ('reviews', 'reviews'),
+    ):
+        require(row.get(row_key) == proof.get(proof_key), 'correction row binding differs: ' + row_key)
+    result = validate_coding_correction(
+        run_root=run_root, checkpoint_id=proof['checkpoint_id'], target_text=row['target_text'],
+        model_sha256=model_sha256, source_files=source_files, snapshot=proof['snapshot'],
+        snapshot_sha256=proof['snapshot_sha256'], checks=proof['checks'], reviews=row['reviews'],
+        output=output, check_timeout_seconds=proof['check_timeout_seconds'])
+    require(result['status'] == 'validated_candidate', 'fresh correction verification failed')
+    return result
