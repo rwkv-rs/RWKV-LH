@@ -80,6 +80,7 @@ class RuntimeSettings:
     default_frequency_penalty: float = 0.0
     default_penalty_decay: float = 0.996
     max_model_len: int = 16384
+    action_max_output_tokens: int = 1800
     context_safety_margin: int = 32
     bos_token_count: int = 1
     return_token_ids: bool = False
@@ -175,6 +176,9 @@ class RuntimeSettings:
             ),
             max_model_len=role_int(
                 "executor", "max_model_len", legacy="RWKV_MAX_MODEL_LEN", default=16384
+            ),
+            action_max_output_tokens=role_int(
+                "executor", "action_max_output_tokens", legacy="RWKV_ACTION_MAX_OUTPUT_TOKENS", default=1800
             ),
             context_safety_margin=role_int(
                 "executor",
@@ -325,6 +329,9 @@ class RuntimeSettings:
                 "max_model_len",
                 default=fallback.max_model_len,
             ),
+            action_max_output_tokens=role_int(
+                normalized, "action_max_output_tokens", default=fallback.action_max_output_tokens
+            ),
             context_safety_margin=role_int(
                 normalized,
                 "context_safety_margin",
@@ -449,6 +456,8 @@ class RuntimeSettings:
             raise ValueError("RWKV_DEFAULT_FREQUENCY_PENALTY must be in [-2, 2]")
         if not 0 <= self.default_penalty_decay <= 1:
             raise ValueError("RWKV_DEFAULT_PENALTY_DECAY must be in [0, 1]")
+        if type(self.action_max_output_tokens) is not int or self.action_max_output_tokens < 1:
+            raise ValueError("RWKV_ACTION_MAX_OUTPUT_TOKENS must be a positive integer")
         if self.max_model_len < 2:
             raise ValueError("RWKV_MAX_MODEL_LEN must be at least 2")
         if self.context_safety_margin < 0 or self.bos_token_count < 0:

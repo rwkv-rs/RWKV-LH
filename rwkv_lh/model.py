@@ -371,13 +371,17 @@ class LongHorizonModel:
         *,
         event: ModelEvent | None = None,
         events: Sequence[ModelEvent] = (),
-        max_output_tokens: int = 1800,
+        max_output_tokens: int | None = None,
         eligible_operations: Sequence[str] | None = None,
         selector_stage_context: SelectorStageContext | None = None,
         current_requirement: str | None = None,
         executor_fact_action_ids: Sequence[str] | None = None,
         executor_execution_state: Mapping[str, Any] | None = None,
     ) -> ActionDecision:
+        if max_output_tokens is None:
+            max_output_tokens = getattr(self.session.settings, "action_max_output_tokens", 1800)
+        if type(max_output_tokens) is not int or max_output_tokens < 1:
+            raise ValueError("action output budget must be a positive integer")
         if event is not None and events:
             raise ValueError("pass either event or events, not both")
         pending_events = tuple(events) if events else ((event,) if event is not None else ())

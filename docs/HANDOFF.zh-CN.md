@@ -120,3 +120,7 @@ E12已在训练R2失败、未进入对比后统一修复：status只表示本次
 ## 训练失败观测 R1（2026-09-14）
 
 梯度门新增具体参数、当组样本/loss记录；失败保存原精度State诊断快照，不发布profile、不含optimizer恢复状态。[证据](../data/experiments/RWKV_TRAINING_FAILURE_OBSERVABILITY_R1_20260914/REPORT.zh-CN.md)。三个新增回归红→绿，完整1766 passed、0 skipped。数值异常未标解决；首个诊断重放在83步保存目录缺失失败，原结果保留；修正目录后第二个独立诊断仍用原冻结远端数值源码，最多84步。全部实际更新分别计账。
+
+## CLI创建与输出预算（2026-09-15）
+
+已有两个CLI任务采集0/2、0提交、0修改，28次生成均完整可重放；备份4次/时间记录11次长度截断，各12次协议拒绝后中断。模型已选择write_file，不能统称不会修改。原结果位于RWKV_CLI_ATOMIC_CREATION_R1_20260914。动作输出预算现可显式配置，默认仍1800，[工程证据](../data/experiments/RWKV_ACTION_OUTPUT_BUDGET_CONFIG_R1_20260915/REPORT.zh-CN.md)，完整1769 passed、0 skipped。1800/8192同任务两遍对照脚本已准备，尚未运行。统一训练R3的数值兼容验证仍使用此前冻结的b3702451源码，预算配置变化不混入该轮训练。

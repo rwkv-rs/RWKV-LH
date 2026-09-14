@@ -1,0 +1,52 @@
+.F.....................................................................  [100%]
+=================================== FAILURES ===================================
+_____________ test_output_budget_environment_and_role_inheritance ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7eb99c4243e0>
+
+    def test_output_budget_environment_and_role_inheritance(monkeypatch):
+        import os
+        import rwkv_lh.runtime.settings as module
+        for name in tuple(os.environ):
+            if name.startswith('RWKV_'):
+                monkeypatch.delenv(name)
+        monkeypatch.setattr(module, 'load_local_env', lambda: None)
+        monkeypatch.setenv('RWKV_LH_EXECUTOR_MODEL', 'fixture-model')
+        monkeypatch.setenv('RWKV_LH_EXECUTOR_ACTION_MAX_OUTPUT_TOKENS', '8192')
+        configured = RuntimeSettings.from_env()
+        assert configured.action_max_output_tokens == 8192
+>       assert RuntimeSettings.for_role('executor', fallback=configured).action_max_output_tokens == 8192
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_action_output_budget.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'rwkv_lh.runtime.settings.RuntimeSettings'>, role = 'executor'
+fallback = RuntimeSettings(base_url='http://127.0.0.1:29613/v1', api_key='', model='fixture-model', model_sha256='', backend_prof...ve', state_transport='native_required', state_profile_id='', state_profile_sha256='', state_profile_delivery='request')
+
+    @classmethod
+    def for_role(
+        cls,
+        role: str,
+        *,
+        fallback: "RuntimeSettings",
+    ) -> "RuntimeSettings":
+        """Bind one replaceable RWKV role without inheriting another role's State.
+    
+        Missing role fields inherit deployment properties from ``fallback``.  A
+        role-specific State profile is opt-in and never inherited.  The caller
+        must still construct a distinct :class:`ModelSession`; this method shares
+        configuration defaults, never a recurrent State or checkpoint.
+        """
+    
+        normalized = str(role or "").strip().casefold()
+        if not normalized or not re.fullmatch(r"[a-z][a-z0-9_]*", normalized):
+            raise ValueError("RWKV role must be a lowercase identifier")
+        prefix = f"RWKV_LH_{normalized.upper()}_"
+>       load_local_env(allowed_prefixes=(prefix,))
+E       TypeError: test_output_budget_environment_and_role_inheritance.<locals>.<lambda>() got an unexpected keyword argument 'allowed_prefixes'
+
+rwkv_lh/runtime/settings.py:250: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_action_output_budget.py::test_output_budget_environment_and_role_inheritance
+1 failed, 70 passed in 17.35s

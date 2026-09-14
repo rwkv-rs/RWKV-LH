@@ -1,0 +1,32 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_configured_action_output_budget_reaches_generation_and_trace _______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/action_output_red/test_configured_action_output_0')
+
+    def test_configured_action_output_budget_reaches_generation_and_trace(tmp_path):
+        @dataclass(frozen=True)
+        class Config(RuntimeSettings):
+            action_max_output_tokens: int = 4096
+        configured = Config(**vars(settings()))
+        seen = []
+        class Client(QueueClient):
+            def text_completion(self, prompt, max_tokens=768, stop=None):
+                seen.append(max_tokens)
+                return super().text_completion(prompt, max_tokens=max_tokens, stop=stop)
+        def factory(**kwargs):
+            return ModelSession(Client([call('write_file', path='code.py', content='print(1)\n'),
+                                        call('final_answer', text='Created code.py; tests not run.')]), **kwargs)
+        source = tmp_path / 'source'; source.mkdir()
+        result = run_coding_job(CodingJob('budget', 'Create code.py', str(source), str(tmp_path / 'run')),
+                                settings=configured, session_factory=factory)
+>       assert seen == [4096, 4096]
+E       assert [1800, 1800] == [4096, 4096]
+E         
+E         At index 0 diff: 1800 != 4096
+E         Use -v to get more diff
+
+tests/test_action_output_budget.py:28: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_action_output_budget.py::test_configured_action_output_budget_reaches_generation_and_trace
+1 failed in 1.02s
