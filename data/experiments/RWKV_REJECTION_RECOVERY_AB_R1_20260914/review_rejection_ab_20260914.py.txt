@@ -1,0 +1,20 @@
+from pathlib import Path
+import sys,json,shutil,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914';reg=json.loads((D/'REGISTRATION.json').read_text());contract=json.loads((D/'reviews/contract.json').read_text())['contract'];assessments=[]
+for name in reg['order']:
+ p=D/'valid_runs'/name/'execution';d=json.loads((p.parent/'DELIVERY.json').read_text());out=D/'external'/name;shutil.copytree(p.parent/'workspace',out)
+ original=Path(reg['jobs'][0]['source_workspace'])/'test_query_limit.py';assert (out/'test_query_limit.py').read_bytes()==original.read_bytes()
+ test=subprocess.run([sys.executable,'-B','test_query_limit.py'],cwd=out,capture_output=True,text=True,timeout=60)
+ check=D/f'{name}.CHECK.json';v.write_once(check,{'attribution':'external verifier only','exit_code':test.returncode,'stdout':test.stdout,'stderr':test.stderr,'test_sha256':v.file_digest(original)})
+ run=v.capture_diagnostic_run(p,task_id=contract['task_id'],arm=name[-1],repeat=int(name[1]),protocol_error_policy='feedback',execution_identity=contract['execution_identity'],historical=False,assistance='rwkv_independent');run['run_id']=name+'/'+run['run_id']
+ for e in run['evidence']:e['path']=str(p.relative_to(D)/e['path'])
+ for q in [check,D/'MECHANICAL.json',p.parent/'DELIVERY.json',D/'REGISTRATION.json',p/'INJECTED_EVENT.json']:
+  run['evidence'].append({'id':f'E{len(run["evidence"])+1}','path':str(q.relative_to(D)),'sha256':v.file_digest(q),'kind':'check'})
+ assert not d['changed_files'] and run['answer'] is None,'manual artifact/answer judgment required'
+ refs=[e['id'] for e in run['evidence']]
+ j={'schema':v.REVIEW_SCHEMA,'contract_sha256':v.digest(contract),'run_sha256':v.digest(run),'reviewer':'Codex external frozen-contract review','validity':'valid','validity_reason':'同一历史父State分支、原目标和工具，唯一实验变量是拒绝恢复指令；历史与新增调用分列。','validity_evidence_ids':refs,'requirements':[],'findings':[],'causes':[{'category':'model_behavior','certainty':'observed','reason':'只读取而未修改、测试或提交；不能证明内部机制。','evidence_ids':refs}]}
+ a=v.assess(contract,run,j,evidence_root=D);assessments.append(a)
+ for kind,value in [('run',run),('judgment',j),('assessment',a)]:v.write_once(D/'reviews'/f'{name}.{kind}.json',value)
+v.write_once(D/'TASK_SUMMARY.json',v.aggregate(assessments));print([(a['run_id'],a['outcome'],a['diagnostics']) for a in assessments])

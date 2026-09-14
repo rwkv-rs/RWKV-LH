@@ -1,0 +1,32 @@
+from pathlib import Path
+import sys,json,shutil,sqlite3,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.store import LongHorizonStore
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914';D.mkdir(exist_ok=False)
+P=R/'data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914';reg=json.loads((P/'REGISTRATION.json').read_text())
+parents=[]
+for i in (1,2):
+ p=P/'runs'/f'repeat-{i}'/'execution';store=LongHorizonStore(p/'state',checkpoint_retention=1000)
+ rec=next(c for c in store.checkpoint_records('query-repair') if c['event_type']=='protocol_rejection_recorded')
+ out=D/'parents'/f'p{i}';out.mkdir(parents=True);shutil.copytree(p/'state',out/'state')
+ with sqlite3.connect(out/'state/long_horizon.db') as db:
+  row=db.execute('SELECT state_json FROM checkpoints WHERE revision=?',(rec['revision'],)).fetchone()
+  db.execute('UPDATE runs SET revision=?,state_json=?,status=?',(rec['revision'],row[0],rec['state']['status']))
+  for table in ('checkpoints','events'):db.execute(f'DELETE FROM {table} WHERE revision>?',(rec['revision'],))
+  db.execute('DELETE FROM action_index');db.execute('DELETE FROM run_leases')
+ s=LongHorizonStore(out/'state',checkpoint_retention=1000).load('query-repair');assert s.to_dict()==rec['state']
+ v.write_once(out/'state_snapshot.json',s.to_dict())
+ final=json.loads((p/'state_snapshot.json').read_text());event=next(e for e in final['model_events'].values() if e['event_type']=='protocol_rejection');v.write_once(out/'REJECTION.json',event)
+ es=[json.loads(l) for l in (p/'model_trace.jsonl').read_text().splitlines()];cut=next(j for j,e in enumerate(es) if e['type']=='model_session_generation_started' and sum(x['type']=='model_session_generation_started' for x in es[:j+1])==3)
+ # Prefix includes rollback/rejection bookkeeping, but excludes subsequent input append by stopping at second rollback.
+ end=max(j for j,e in enumerate(es[:cut]) if e['type']=='model_session_candidate_rolled_back')+1
+ (out/'PARENT_TRACE.jsonl').write_text(''.join(json.dumps(e,ensure_ascii=False)+'\n' for e in es[:end]))
+ parents.append({'name':f'p{i}','snapshot_sha256':v.file_digest(out/'state_snapshot.json'),'parent_checkpoint':s.lane_head('executor'),'parent_digest':s.model_states[s.lane_head('executor')].native_state_digest,'revision':rec['revision'],'historical_calls':2})
+reg.update(id=D.name,parents=parents,arms={'A':'original rejection event','B':'only payload.instruction replaced'},candidate_instruction='The rejected call was not executed. Correct its parameters or choose another tool from the original tool menu to continue the same user request. Return one complete JSON function call. No operation or parameter value has been selected for you.',budgets={'new_calls_each':10,'seconds_each':600,'normal_output':1800,'protocol_rejections_total':12,'identical_failures':5,'identical_read_successes':3,'terminal_attempts':6,'transport_failures':8,'idempotent_noop_mutation_repeat':2},order=['p1-A','p1-B','p2-B','p2-A'],gate='both B tasks fully met, zero false work and new illegal params; same-parent paired observations; no general stability claim',scope='diagnostic event-instruction intervention only; no production fix, dataset version or training; original future trace excluded')
+reg['production']={str(p.relative_to(R)):v.file_digest(p) for p in (R/'rwkv_lh').rglob('*.py')}
+v.write_once(D/'REGISTRATION.json',reg)
+contract=json.loads((P/'reviews/contract.json').read_text())['contract'];contract['kind']='boundary_probe';contract['execution_identity']['budget']=v.digest(reg['budgets']);contract['execution_identity']['state']=v.digest(parents)
+v.freeze_contract(contract,D/'reviews/contract.json')
+(D/'OWNER_BEFORE.diff').write_bytes(subprocess.check_output(['git','diff'],cwd=R))
+print(parents)

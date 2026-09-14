@@ -1,0 +1,33 @@
+from pathlib import Path
+import sys,json,subprocess,shutil
+from dataclasses import replace
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+from rwkv_lh.read_only_agent import ReadOnlyJob,_run_job
+from rwkv_lh.coding_agent import _RecordedHarness,_inventory
+from rwkv_lh.controller import LongHorizonController
+from rwkv_lh.store import LongHorizonStore
+from rwkv_lh.model_session import create_model_session
+from rwkv_lh.schema import ModelEvent
+from rwkv_lh.runtime.settings import load_local_env,get_runtime_settings
+D=R/'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914';reg=json.loads((D/'REGISTRATION.json').read_text());name=sys.argv[1];parent,arm=name.split('-');common=D/'parents'/parent;root=D/'valid_runs'/name;root.mkdir(parents=True)
+snapshot=json.loads((common/'state_snapshot.json').read_text());original=Path(snapshot['goal']['workspace_root']);workspace=root/'workspace';execution=root/'execution'
+shutil.copytree(Path(reg['jobs'][0]['source_workspace']),workspace)
+subprocess.run(['mount','--bind',str(workspace),str(original)],check=True)
+assert all(v.file_digest(R/p)==s for p,s in reg['production'].items())
+load_local_env(R/'.env.local');settings=replace(get_runtime_settings(),return_token_ids=True,state_transport='native_required',state_profile_id='zero',state_profile_sha256='0'*64,tool_disclosure_mode='full')
+def prepare(ws,out):
+ shutil.copytree(common/'state',out/'state');store=LongHorizonStore(out/'state',checkpoint_retention=1000);state=store.load(snapshot['run_id']);assert state.to_dict()==snapshot
+ shutil.copy2(common/'PARENT_TRACE.jsonl',out/'PARENT_TRACE.jsonl');shutil.copy2(common/'state_snapshot.json',out/'PARENT_STATE_SNAPSHOT.json')
+ return store,state,{'parent_checkpoint_id':state.lane_head('executor'),'parent_final_decision_id':'','advice_model':'','historical_actions':len(state.actions)}
+def before(state,controller,model):
+ event=json.loads((common/'REJECTION.json').read_text());original_event=json.loads(json.dumps(event))
+ if arm=='B':event['payload']['instruction']=reg['candidate_instruction']
+ copy=json.loads(json.dumps(event));copy['payload']['instruction']=original_event['payload']['instruction'];assert copy==original_event
+ v.write_once(execution/'INJECTED_EVENT.json',event)
+ model._append_event(state,state.model_states[state.lane_head('executor')],ModelEvent.from_dict(event),controller._persist_callback)
+job=ReadOnlyJob(name,snapshot['goal']['request'],str(original),str(execution),10,600,tool_scope='coding');v.write_once(root/'JOB.json',job.__dict__)
+result=_run_job(job,settings=settings,session_factory=create_model_session,harness_factory=lambda:_RecordedHarness(execution),controller_type=LongHorizonController,allowed_scopes=('coding',),prepare_state=prepare,before_run=before)
+initial=json.loads((D/'REGISTRATION.json').read_text())['source_files'];after=_inventory(workspace)
+v.write_once(root/'DELIVERY.json',{**result,'workspace':str(workspace),'changed_files':sorted(p for p in after.keys()|initial.keys() if after.get(p)!=initial.get(p)),'final_files':after})
+print(name,result['termination'],result['termination_reason'],result['generation_started'],result['final'],flush=True)

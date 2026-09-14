@@ -1,0 +1,38 @@
+from pathlib import Path
+import sys,json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.schema import RunState
+from rwkv_lh.model_io import render_event_append
+from rwkv_lh.token_budget import tokenizer
+D=R/'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914';rows=[];reg=json.loads((D/'REGISTRATION.json').read_text())
+for p in sorted((D/'valid_runs').glob('*/execution')):
+ if not (p/'RESULT.json').exists():continue
+ s=RunState.from_dict(json.loads((p/'state_snapshot.json').read_text()));events=[json.loads(l) for l in (p/'model_trace.jsonl').read_text().splitlines()];history=[json.loads(l) for l in (p/'PARENT_TRACE.jsonl').read_text().splitlines()];gens={e['candidate_checkpoint_id']:e['raw_generation'] for e in history+events if e['type']=='model_session_generation_returned'};starts={e['request_id']:e for e in events if e['type']=='model_session_generation_started'};calls=[]
+ for e in events:
+  if e['type']!='model_session_generation_returned':continue
+  raw=e['raw_generation'];assert raw['sampling']==reg['sampling'];assert raw['max_output_tokens'] in (1800,1400);cp=s.model_states[starts[e['request_id']]['input_checkpoint_id']];chain=[]
+  while cp:chain.append(cp);cp=s.model_states.get(cp.parent_checkpoint_id)
+  ids=[]
+  for cp in reversed(chain):
+   assert cp.state_profile_id=='zero' and cp.state_profile_sha256=='0'*64
+   assert cp.native_state_metadata['model_sha256']==reg['model_sha256']
+   if cp.checkpoint_id in gens:ids.extend(gens[cp.checkpoint_id]['raw_token_ids'])
+   else:
+    if cp.parent_checkpoint_id:
+     par=s.model_states[cp.parent_checkpoint_id];delta=set(cp.event_ids)-set(par.event_ids);assert len(delta)==1;ev=s.model_events[next(iter(delta))];assert cp.transcript==render_event_append(ev,previous_transcript=par.transcript)
+    ids.extend(tokenizer().encode(cp.transcript))
+   if cp.parent_checkpoint_id:assert cp.native_state_metadata['cache_binding']['parent_state_digest']==s.model_states[cp.parent_checkpoint_id].native_state_digest
+  assert raw['prompt_token_ids']==[0]+ids
+  (p/'actual_inputs').mkdir(exist_ok=True);text=tokenizer().decode(ids);(p/'actual_inputs'/f'{e["request_id"]}.txt').write_text(text)
+  calls.append({'id':e['request_id'],'input_tokens':len(raw['prompt_token_ids']),'output_tokens':len(raw['raw_token_ids']),'output':raw['raw_output'],'input_sha256':hashlib.sha256(text.encode()).hexdigest()})
+ result=json.loads((p/'RESULT.json').read_text());obs=[]
+ for index,a in enumerate(result['actions']):
+  if index==0:continue # historical directory listing, preserved in parent trace
+  before=p/'tool_snapshots'/f'{index:03d}'/'before'
+  if a['action_type']=='read_file' and a['result']['success']:
+   b=(before/a['arguments']['path']).read_bytes();chunk=a['result']['metadata']['chunk'];assert a['result']['output'].encode()==b[chunk['byte_start']:chunk['byte_end']]
+  ev=s.model_events.get('EV-ACTION-'+a['action_id'])
+  if ev and a['action_type']=='read_file' and a['result']['success']:assert ''.join(x['content'] for x in ev.payload['result']['observation']['exact_spans'])==a['result']['output']
+  obs.append({'id':a['action_id'],'operation':a['action_type'],'registered':ev is not None})
+ rows.append({'run':p.parent.name,'calls':calls,'observations':obs,'termination':result['termination_reason'],'final':result['final'],'input_parent_lineage_verified':True})
+(D/'MECHANICAL.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n');print([(r['run'],len(r['calls']),r['termination']) for r in rows])

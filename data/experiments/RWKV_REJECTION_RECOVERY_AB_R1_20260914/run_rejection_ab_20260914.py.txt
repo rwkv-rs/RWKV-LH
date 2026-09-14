@@ -1,0 +1,8 @@
+from pathlib import Path
+import subprocess,json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_REJECTION_RECOVERY_AB_R1_20260914'
+for name in json.loads((D/'REGISTRATION.json').read_text())['order']:
+ with (D/f'{name}.log').open('x') as log:
+  p=subprocess.run(['unshare','--user','--map-root-user','--mount','--propagation','private',str(R/'.venv/bin/python'),str(R/'temp/run_rejection_ab_child_20260914.py'),name],stdout=log,stderr=subprocess.STDOUT,timeout=660)
+ print(name,p.returncode,flush=True)
+ if p.returncode:break
