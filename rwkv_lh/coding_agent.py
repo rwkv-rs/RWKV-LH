@@ -1,10 +1,10 @@
 """Coding tasks in a copied workspace, using the production execution loop."""
 from .job_budget import task_deadline
 from dataclasses import dataclass
-import hashlib
 from pathlib import Path
 import shutil
 
+from .workspace_snapshot import tree_identity, file_inventory, copy_verified_workspace
 from .controller import LongHorizonController
 from .harness import ActionHarness
 from .model_session import create_model_session
@@ -22,13 +22,7 @@ class CodingJob:
 
 
 def _inventory(root):
-    entries = {}
-    for path in sorted(root.rglob('*')):
-        if path.is_symlink():
-            entries[str(path.relative_to(root))] = 'symlink:' + str(path.readlink())
-        elif path.is_file():
-            entries[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return entries
+    return file_inventory(tree_identity(root, allow_links=True))
 
 
 class _RecordedHarness(ActionHarness):
@@ -69,17 +63,11 @@ def run_coding_job(job, *, settings, session_factory=create_model_session):
         raise ValueError('source and output must not overlap')
     if output.exists():
         raise FileExistsError(output)
-    for path in source.rglob('*'):
-        if '.git' in path.relative_to(source).parts:
-            continue
-        if path.is_symlink():
-            raise ValueError(f'source symlink not supported: {path.relative_to(source)}')
-        if not path.is_dir() and not path.is_file():
-            raise ValueError(f'source special file not supported: {path.relative_to(source)}')
     workspace = output / 'workspace'
     execution = output / 'execution'
-    shutil.copytree(source, workspace, ignore=shutil.ignore_patterns('.git'), symlinks=True)
-    before = _inventory(workspace)
+    before_tree = copy_verified_workspace(source, workspace, audit_path=output / 'SOURCE_COPY.json')
+    before = file_inventory(before_tree)
+    _save(output / 'INITIAL_TREE.json', before_tree)
     _save(output / 'INITIAL_FILES.json', before)
     inner = ReadOnlyJob(job.task_id, job.request, str(workspace), str(execution),
                         job.max_calls, job.max_seconds, tool_scope='coding')
@@ -88,10 +76,11 @@ def run_coding_job(job, *, settings, session_factory=create_model_session):
                       controller_type=LongHorizonController, allowed_scopes=('coding',))
     if result['termination_reason'] == 'wall_budget_exhausted':
         return {**result, 'workspace': str(workspace), 'source_workspace': str(source),
-                'changed_files': None, 'final_files': None}
-    after = _inventory(workspace)
+                'changed_files': None, 'final_files': None, 'final_tree': None}
+    after_tree = tree_identity(workspace, allow_links=True)
+    after = file_inventory(after_tree)
     delivery = {**result, 'workspace': str(workspace), 'source_workspace': str(source),
-                'changed_files': sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p)),
-                'final_files': after}
+                'changed_files': sorted(p for p in before_tree.keys() | after_tree.keys() if before_tree.get(p) != after_tree.get(p)),
+                'final_files': after, 'final_tree': after_tree}
     _save(output / 'DELIVERY.json', delivery)
     return delivery

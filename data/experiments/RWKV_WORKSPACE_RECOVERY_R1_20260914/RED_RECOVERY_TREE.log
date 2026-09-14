@@ -1,0 +1,46 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_reconsideration_rejects_incomplete_parent_trace _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_reconsideration_rejects_i0')
+
+    def test_reconsideration_rejects_incomplete_parent_trace(tmp_path):
+        from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
+        source = tmp_path / 'source'; source.mkdir()
+        run_read_only_job(ReadOnlyJob('parent', 'Read', str(source), str(tmp_path / 'parent')),
+            settings=settings(), session_factory=factory([call('final_answer', text='parent')]))
+        path = tmp_path / 'parent/model_trace.jsonl'
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        path.write_text(''.join(json.dumps(r)+'\n' for r in records if r['type'] != 'model_session_generation_returned'))
+        result = run_read_only_job(ReadOnlyJob('child', 'Read', str(source), str(tmp_path / 'child'),
+            reconsider_from=str(tmp_path / 'parent'), advice='Check', advice_model='test'),
+            settings=settings(), session_factory=factory([call('final_answer', text='child')]))
+>       assert result['termination'] == 'error'
+E       AssertionError: assert 'submitted' == 'error'
+E         
+E         - error
+E         + submitted
+
+tests/test_workspace_copy_integrity.py:63: AssertionError
+__ test_directory_rename_does_not_leave_old_empty_directory_after_integration __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_directory_rename_does_not0')
+
+    def test_directory_rename_does_not_leave_old_empty_directory_after_integration(tmp_path):
+        from rwkv_lh.agent_integration import integrate_deliveries
+        source = tmp_path / 'source'; (source / 'old').mkdir(parents=True); (source / 'old/a').write_text('data')
+        run_coding_job(CodingJob('rename', 'Rename old to new', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([
+                call('run_command', argv=['python', '-c', 'from pathlib import Path; Path("old").rename("new")']),
+                call('final_answer', text='raw')]))
+        integrate_deliveries(source, [tmp_path / 'run'], tmp_path / 'merged')
+>       assert not (tmp_path / 'merged/old').exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_directory_rename_does_not0') / 'merged/old').exists
+
+tests/test_workspace_copy_integrity.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_copy_integrity.py::test_reconsideration_rejects_incomplete_parent_trace
+FAILED tests/test_workspace_copy_integrity.py::test_directory_rename_does_not_leave_old_empty_directory_after_integration
+2 failed, 3 deselected in 1.57s

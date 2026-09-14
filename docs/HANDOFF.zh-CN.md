@@ -28,6 +28,8 @@
 
 工程优先整改：停止继续检查真实trace或调用RWKV。已复现并整改Goal强制Final、生成配对审计、准备预算、进程池结果丢失及旧只读建议顺序；补协助进程组清理、只读快照减负和显式coding依赖/保守集成。[工程报告](../data/experiments/RWKV_ENGINEERING_FIXES_R1_20260914/REPORT.zh-CN.md)保存红绿和完整回归结果。1万条仍仅计划。
 
+工作区与恢复补查已完成本轮实现：复制前后身份核对、目录/权限变化记录、目录移动集成、缺树身份与不支持变化拒绝、旧只读恢复父trace校验。新增7项回归，显式GPU 0完整测试1678 passed（327.08s），未运行新Agent验收。[本轮报告](../data/experiments/RWKV_WORKSPACE_RECOVERY_R1_20260914/REPORT.zh-CN.md)列出证据和剩余边界；下一步是编码纠正候选准入与资源计账，工程问题未全部关闭。
+
 ## 能力和限制
 
 - 固定单步读取、部分文档总结及明确测试执行已有成功证据。
@@ -44,6 +46,8 @@
 3. Owner已提出之后统一约10000条多缺陷StateTune数据目标。按[缺陷台账](DEFECT_REGISTER.zh-CN.md)与[1万条计划](STATETUNE_10000_PLAN.zh-CN.md)先审核来源/纠正与覆盖，再分批生成；当前未建数据版本或训练，不把强模型成果算RWKV独立能力。
 
 ## 必须保留的约束
+
+Owner最新要求：只使用物理GPU 0。后续本地测试及模型进程显式设置`CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0`；远端启动同样限定目标主机GPU 0，不改动无关进程。
 
 遵守AGENTS。所有命令在WSL；服务器禁止Git；不读最终holdout/acceptance目录。不改前端或可视化；本轮不push、不训练、不新建dataset版本。以后授权按具体范围判断。模型输入只走现有唯一构造函数，程序不代选业务动作、补参数或改答案。
 

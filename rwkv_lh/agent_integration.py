@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import shutil
 
+from .workspace_snapshot import tree_identity, copy_verified_workspace
 from .coding_agent import CodingJob, _inventory, run_coding_job
 from .job_budget import task_deadline
 from .read_only_agent import _save
@@ -19,9 +20,12 @@ def _load_delivery(root):
     delivery = json.loads((root / 'DELIVERY.json').read_text())
     if delivery.get('termination') != 'submitted' or not delivery.get('trace_complete'):
         raise ValueError('dependency has no reviewable submission')
+    if not isinstance(delivery.get('final_tree'), dict):
+        raise ValueError('dependency tree identity missing')
     workspace = Path(delivery['workspace']).resolve(strict=True)
     actual = _inventory(workspace)
-    if actual != delivery.get('final_files'):
+    if (actual != delivery.get('final_files') or ('final_tree' in delivery
+            and tree_identity(workspace, allow_links=True) != delivery['final_tree'])):
         raise ValueError('dependency workspace changed')
     if any(value.startswith('symlink:') for value in actual.values()):
         raise ValueError('integration requires regular files')
@@ -37,6 +41,8 @@ def integrate_deliveries(base, parents, output):
     original = {p: value for p, value in _inventory(base).items() if '.git' not in Path(p).parts}
     if any(value.startswith('symlink:') for value in original.values()):
         raise ValueError('integration requires regular files')
+    base_tree = tree_identity(base, exclude_git=True)
+    tree_edits = {}
     edits, contents, modes, provenance = {}, {}, {}, []
     protected = [base]
     for parent in parents:
@@ -45,6 +51,30 @@ def integrate_deliveries(base, parents, output):
         initial = json.loads((parent / 'INITIAL_FILES.json').read_text())
         if initial != original:
             raise ValueError('integration base mismatch')
+        tree_path = parent / 'INITIAL_TREE.json'
+        if not tree_path.is_file() or not isinstance(delivery.get('final_tree'), dict):
+            raise ValueError('integration requires recorded tree identity')
+        initial_tree = json.loads(tree_path.read_text())
+        final_tree = delivery['final_tree']
+        if initial_tree != base_tree:
+            raise ValueError('integration base tree mismatch')
+        for path in initial_tree.keys() | final_tree.keys():
+            old, new = initial_tree.get(path), final_tree.get(path)
+            if old == new:
+                continue
+            if path in tree_edits and tree_edits[path] != new:
+                raise ValueError('integration conflict: tree entry ' + path)
+            tree_edits[path] = new
+            if old and new and old['kind'] == new['kind'] == 'file' and old['sha256'] == new['sha256']:
+                raise ValueError('unsupported permission-only integration: ' + path)
+            if (old and old['kind'] not in ('file', 'directory')) or (new and new['kind'] not in ('file', 'directory')):
+                raise ValueError('integration requires regular files')
+            if old and new and old['kind'] == new['kind'] == 'directory' and old['mode'] != new['mode']:
+                raise ValueError('unsupported directory permission integration: ' + path)
+            if (old or new)['kind'] == 'directory' and (old is None or new is None):
+                tree = final_tree if new else initial_tree
+                if not any(k.startswith(path + '/') and v['kind'] == 'file' for k, v in tree.items()):
+                    raise ValueError('unsupported empty directory integration: ' + path)
         protected.extend((parent, workspace))
         for path in original.keys() | actual.keys():
             value = actual.get(path)
@@ -64,6 +94,11 @@ def integrate_deliveries(base, parents, output):
                 modes[path] = mode
         provenance.append({'directory': str(parent), 'assistance': delivery.get('assistance'),
                            'delivery_sha256': hashlib.sha256((parent / 'DELIVERY.json').read_bytes()).hexdigest()})
+    expected_tree = {p: v for p, v in {**base_tree, **tree_edits}.items() if v is not None}
+    for path in expected_tree:
+        for ancestor in Path(path).parents:
+            if expected_tree.get(str(ancestor), {}).get('kind') != 'directory':
+                raise ValueError('integration conflict: missing or non-directory ancestor ' + path)
     expected = {**original, **edits}
     expected = {p: value for p, value in expected.items() if value is not None}
     for path in expected:
@@ -73,7 +108,20 @@ def integrate_deliveries(base, parents, output):
         raise ValueError('integration output overlaps inputs')
     if output.exists():
         raise FileExistsError(output)
-    shutil.copytree(base, output, ignore=shutil.ignore_patterns('.git'))
+    if copy_verified_workspace(base, output) != base_tree:
+        raise ValueError('integration base changed while copying')
+    for path in sorted(base_tree, key=lambda p: len(Path(p).parts), reverse=True):
+        if path == '.':
+            continue
+        if path not in expected_tree or base_tree[path]['kind'] != expected_tree[path]['kind']:
+            target = output / path
+            if target.is_dir():
+                target.rmdir()
+            elif target.exists():
+                target.unlink()
+    for path, record in sorted(expected_tree.items(), key=lambda row: len(Path(row[0]).parts)):
+        if record['kind'] == 'directory':
+            (output / path).mkdir(exist_ok=True)
     # Delete old file leaves first so directory/file replacements can proceed.
     for path in sorted(edits, key=lambda p: len(Path(p).parts), reverse=True):
         target = output / path
@@ -86,9 +134,12 @@ def integrate_deliveries(base, parents, output):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         target.chmod(modes[path])
-    if _inventory(output) != expected:
+    for path, record in expected_tree.items():
+        if record['kind'] == 'directory':
+            (output / path).chmod(record['mode'])
+    if tree_identity(output) != expected_tree or _inventory(output) != expected:
         raise ValueError('integrated artifact differs from frozen inputs')
-    return {'workspace': str(output), 'final_files': expected, 'parents': provenance,
+    return {'workspace': str(output), 'final_files': expected, 'final_tree': expected_tree, 'parents': provenance,
             'acceptance': 'not_evaluated'}
 
 
@@ -105,7 +156,7 @@ def run_dependent_job(job, *, settings):
         if len(job.parent_outputs) == 1:
             parent, previous_source, expected = _load_delivery(job.parent_outputs[0])
             source = root / 'integrated'
-            shutil.copytree(previous_source, source)
+            copy_verified_workspace(previous_source, source, audit_path=root / 'SOURCE_COPY.json', exclude_git=False)
             if _inventory(source) != expected:
                 raise ValueError('dependency changed while copying')
             integration = {'parents': list(job.parent_outputs), 'acceptance': 'not_evaluated'}
@@ -125,6 +176,7 @@ def run_dependent_job(job, *, settings):
     initial = root / 'execution/INITIAL_FILES.json'
     if initial.exists():
         shutil.copy2(initial, root / 'INITIAL_FILES.json')
+        shutil.copy2(root / 'execution/INITIAL_TREE.json', root / 'INITIAL_TREE.json')
     return {**result, 'dependencies': list(job.parent_outputs), 'integration': integration}
 
 

@@ -10,8 +10,9 @@ import os
 import signal
 import sys
 
+from .workspace_snapshot import tree_identity, file_inventory, copy_verified_workspace
 from .coding_agent import _RecordedHarness, _inventory
-from .read_only_agent import ReadOnlyJob, ReadOnlyHarness, _ReadOnlyController, _run_job, _save, generation_trace_integrity, append_pending_observations
+from .read_only_agent import ReadOnlyJob, ReadOnlyHarness, _ReadOnlyController, _run_job, _save, require_parent_trace, append_pending_observations
 from .controller import LongHorizonController
 from .model_session import create_model_session, ModelSession
 from .schema import RunState, RunStatus, ModelEvent
@@ -53,12 +54,7 @@ def load_parent(job):
         raise ValueError('only direct task parents supported')
     if (state.final_output or None) != result['final'] or not state.lane_head('executor'):
         raise ValueError('parent answer or State mismatch')
-    if not result.get('trace_complete', False):
-        raise ValueError('incomplete parent trace')
-    trace = [json.loads(line) for line in (previous / 'model_trace.jsonl').read_text().splitlines()]
-    integrity = generation_trace_integrity(trace)
-    if not integrity['paired'] or integrity['started'] != result['generation_started']:
-        raise ValueError('parent generation trace is incomplete or inconsistent')
+    require_parent_trace(previous, result)
     if LongHorizonStore(previous / 'state', checkpoint_retention=1000).load(state.run_id).to_dict() != state.to_dict():
         raise ValueError('parent store differs from recorded snapshot')
     workspace = Path(state.goal.workspace_root).resolve(strict=True)
@@ -67,7 +63,8 @@ def load_parent(job):
     if delivery_path.exists():
         delivery = json.loads(delivery_path.read_text())
         workspace = Path(delivery['workspace']).resolve(strict=True)
-        if _inventory(workspace) != delivery['final_files']:
+        if (_inventory(workspace) != delivery['final_files']
+                or ('final_tree' in delivery and tree_identity(workspace, allow_links=True) != delivery['final_tree'])):
             raise ValueError('parent workspace changed')
     for action in state.actions.values():
         chunk = (action.result or {}).get('metadata', {}).get('chunk', {})
@@ -92,8 +89,10 @@ def continue_assisted(job, *, settings, session_factory=create_model_session,
     if not prepared:
         root.mkdir(parents=True, exist_ok=False)
     workspace, output = root / 'workspace', root / 'execution'
-    shutil.copytree(source, workspace, ignore=shutil.ignore_patterns('.git'))
-    initial_files = _inventory(workspace)
+    initial_tree = copy_verified_workspace(source, workspace, audit_path=root / 'SOURCE_COPY.json')
+    initial_files = file_inventory(initial_tree)
+    _save(root / 'INITIAL_FILES.json', initial_files)
+    _save(root / 'INITIAL_TREE.json', initial_tree)
     original = Path(snapshot.goal.workspace_root)
     if isolate:
         subprocess.run(['mount', '--bind', str(workspace), str(original)], check=True)
@@ -156,9 +155,10 @@ def continue_assisted(job, *, settings, session_factory=create_model_session,
         controller_type=LongHorizonController if scope == 'coding' else _ReadOnlyController,
         allowed_scopes=('files', 'inspect', 'coding'), prepare_state=prepare, before_run=before,
         execution_authority='strong_takeover' if job.mode == 'takeover' else 'rwkv')
-    after = _inventory(workspace)
-    result = {**result, 'workspace': str(workspace), 'final_files': after,
-              'changed_files': sorted(p for p in after.keys() | initial_files.keys() if after.get(p) != initial_files.get(p))}
+    after_tree = tree_identity(workspace, allow_links=True)
+    after = file_inventory(after_tree)
+    result = {**result, 'workspace': str(workspace), 'final_files': after, 'final_tree': after_tree,
+              'changed_files': sorted(p for p in after_tree.keys() | initial_tree.keys() if after_tree.get(p) != initial_tree.get(p))}
     _save(root / 'DELIVERY.json', result)
     return result
 

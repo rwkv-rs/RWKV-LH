@@ -1,0 +1,61 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_source_changed_during_copy_is_rejected_before_model_start ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_source_changed_during_cop0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7572650b9ba0>
+
+    def test_source_changed_during_copy_is_rejected_before_model_start(tmp_path, monkeypatch):
+        import rwkv_lh.coding_agent as coding
+        source = tmp_path / 'source'; source.mkdir(); (source / 'a').write_text('before')
+        original = coding.shutil.copytree
+        def changing(src, dst, *args, **kwargs):
+            result = original(src, dst, *args, **kwargs)
+            if Path(src) == source:
+                (source / 'a').write_text('changed externally')
+            return result
+        monkeypatch.setattr(coding.shutil, 'copytree', changing)
+        started = []
+        def create(**kwargs):
+            started.append(True)
+            return factory([call('final_answer', text='raw')])(**kwargs)
+>       with pytest.raises(ValueError, match='source changed'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_copy_integrity.py:23: Failed
+_________________ test_delivery_records_permission_only_change _________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_delivery_records_permissi0')
+
+    def test_delivery_records_permission_only_change(tmp_path):
+        source = tmp_path / 'source'; source.mkdir(); script = source / 'a.sh'; script.write_text('echo ok\n'); script.chmod(0o644)
+        result = run_coding_job(CodingJob('mode', 'Make a.sh executable', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([
+                call('run_command', argv=['python', '-c', 'import os; os.chmod("a.sh", 0o755)']),
+                call('final_answer', text='raw')]))
+>       assert 'a.sh' in result['changed_files']
+E       AssertionError: assert 'a.sh' in []
+
+tests/test_workspace_copy_integrity.py:35: AssertionError
+____ test_integration_rejects_permission_only_change_instead_of_dropping_it ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_integration_rejects_permi0')
+
+    def test_integration_rejects_permission_only_change_instead_of_dropping_it(tmp_path):
+        from rwkv_lh.agent_integration import integrate_deliveries
+        source = tmp_path / 'source'; source.mkdir(); script = source / 'a.sh'; script.write_text('echo ok\n'); script.chmod(0o644)
+        run_coding_job(CodingJob('mode', 'Make a.sh executable', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([
+                call('run_command', argv=['python', '-c', 'import os; os.chmod("a.sh", 0o755)']),
+                call('final_answer', text='raw')]))
+>       with pytest.raises(ValueError, match='permission-only'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_copy_integrity.py:47: Failed
+=========================== short test summary info ============================
+FAILED tests/test_workspace_copy_integrity.py::test_source_changed_during_copy_is_rejected_before_model_start
+FAILED tests/test_workspace_copy_integrity.py::test_delivery_records_permission_only_change
+FAILED tests/test_workspace_copy_integrity.py::test_integration_rejects_permission_only_change_instead_of_dropping_it
+3 failed in 2.51s

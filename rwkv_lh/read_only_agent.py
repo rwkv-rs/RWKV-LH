@@ -99,6 +99,20 @@ def generation_trace_integrity(records):
             'unresolved': sorted(set(started) - set(returned))}
 
 
+def require_parent_trace(previous, result):
+    if not result.get('trace_complete', False):
+        raise ValueError('incomplete parent trace')
+    records = [json.loads(line) for line in (previous / 'model_trace.jsonl').read_text().splitlines()]
+    integrity = generation_trace_integrity(records)
+    if not integrity['paired'] or integrity['started'] != result['generation_started']:
+        raise ValueError('parent generation trace is incomplete or inconsistent')
+    history = previous / 'PARENT_TRACE.jsonl'
+    if history.is_file():
+        ancestors = [json.loads(line) for line in history.read_text().splitlines()]
+        if not generation_trace_integrity(ancestors)['paired']:
+            raise ValueError('parent generation trace ancestry is incomplete')
+
+
 def _save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
 
@@ -107,6 +121,7 @@ def _prepare_reconsideration(job, workspace, output):
     previous = Path(job.reconsider_from).resolve(strict=True)
     raw_result = (previous / 'RESULT.json').read_bytes()
     result = json.loads(raw_result)
+    require_parent_trace(previous, result)
     snapshot = (previous / 'state_snapshot.json').read_bytes()
     state = RunState.from_dict(json.loads(snapshot))
     if result.get('tool_scope') != 'files' or job.tool_scope != 'files':

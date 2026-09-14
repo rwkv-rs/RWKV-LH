@@ -3,7 +3,7 @@
 在WSL中运行：
 
 ```bash
-.venv/bin/python scripts/run_rwkv_agent.py --jobs /absolute/path/jobs.json --concurrency 2
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/run_rwkv_agent.py --jobs /absolute/path/jobs.json --concurrency 2
 ```
 
 任务清单是JSON数组，每项含task_id、request、workspace、output_dir、tool_scope（files/inspect/coding），可指定max_calls、max_seconds。各output_dir必须尚不存在且互不重叠，不能与任一workspace重叠。
@@ -17,7 +17,7 @@
 
 这是调用格式示例，不是训练/评测数据。任务必须已独立，不能把互相依赖的修改放入同批并认为调度器会集成。
 
-stdout返回每项原始结果；可用shell重定向保存批次汇总。每项执行目录保留真实trace和State，coding目录还含workspace、DELIVERY.json及前后快照。异常启动不会令另一项被误记成功，失败结果包含异常类型和信息；进程池整体崩溃仍会作为批次异常抛出，已保存任务证据保留。
+stdout返回每项原始结果；可用shell重定向保存批次汇总。每项执行目录保留真实trace和State，coding目录还含workspace、DELIVERY.json及前后快照。异常启动不会令另一项被误记成功，失败结果包含异常类型和信息；进程池故障按future记录，已完成结果和已保存任务证据保留，无法确认的调用数记为null。
 
 退出0只代表所有任务提交了回答，acceptance仍需外部检查；不要把submitted当验收通过。每任务预算从其执行入口计时，排队、复制和批次总时间需另算。并发数是进程上限，不是服务吞吐承诺。模型、tokenizer、State形状与传输沿当前配置，当前CLI从zero/native_required启动。
 
@@ -64,3 +64,9 @@ JSON任务可增加 `"depends_on": ["前置任务ID"]`。调用方声明依赖�
 编码、协助和整目标入口的准备阶段纳入同一协作式wall deadline，内层不得续出更长预算。取消协助worker会清理其进程组。清理/落盘可能超时，`end_to_end_seconds`和`wall_allowance_exceeded`如实记录；这不是操作系统硬资源配额。
 
 `trace_complete`现在要求日志无写入错误且生成请求/返回配对；`trace_persistence_ok`仅说明日志写入，`unresolved_request_ids`列出未收到返回的请求。它仍不等于native张量正确或所有token可重放，后者由专用验证器检查。
+
+工作区复制现在核对复制前源目录、复制后源目录和副本三份身份，保存`SOURCE_COPY.json`。身份包含文件SHA、路径类型、权限和目录；发现变化即停止，不启动模型。它是变化检测，不是对外部并发写入的文件系统原子快照保证。
+
+coding/assisted保存`INITIAL_TREE.json`，交付包含`final_tree`；`changed_files`也包含权限和目录变化。旧`INITIAL_FILES.json`/`final_files`仍用于文件内容审计。依赖交付缺少树身份即拒绝，不补造历史证据。多父集成支持包含文件的目录移动，纯权限或空目录变化显式拒绝，不再静默丢弃。旧只读建议入口与协助入口共享父生成记录配对检查。
+
+GPU限制应设置在实际推理服务进程上；CLI的环境变量仅约束本地进程及其子进程，不会改变已经启动的远端服务。

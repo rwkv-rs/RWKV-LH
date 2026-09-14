@@ -1,0 +1,21 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+____ test_dependent_delivery_without_tree_identity_is_not_silently_trusted _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_dependent_delivery_withou0')
+
+    def test_dependent_delivery_without_tree_identity_is_not_silently_trusted(tmp_path):
+        from rwkv_lh.agent_integration import _load_delivery
+        source = tmp_path / 'source'; source.mkdir()
+        run_coding_job(CodingJob('parent', 'Read', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([call('final_answer', text='raw')]))
+        path = tmp_path / 'run/DELIVERY.json'
+        result = json.loads(path.read_text()); result.pop('final_tree'); path.write_text(json.dumps(result))
+>       with pytest.raises(ValueError, match='tree identity'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_copy_integrity.py:97: Failed
+=========================== short test summary info ============================
+FAILED tests/test_workspace_copy_integrity.py::test_dependent_delivery_without_tree_identity_is_not_silently_trusted
+1 failed, 2 passed, 4 deselected in 1.79s
