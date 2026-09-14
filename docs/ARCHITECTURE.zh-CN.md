@@ -10,7 +10,7 @@
 |---|---|
 |RWKV执行|`model.py`、`model_session.py`；`model_io.py`唯一输入构造/渲染，不由调度器代选动作或改答案|
 |直接执行控制|`read_only_agent._run_job`与`LongHorizonController`直接模式；预算、协议拒绝、工具结果和终止因果记录|
-|工具与隔离|`harness.py`；`coding_agent.py`复制工作区并保存每次调用前后快照；只读权限限制由`ReadOnlyHarness`执行|
+|工具与隔离|`harness.py`；`coding_agent.py`复制工作区，修改动作保存前后快照；只读动作保存真实观察，可选生成边界快照只用于离线纠正采集；只读权限由`ReadOnlyHarness`执行|
 |独立任务调度|`agent_batch.run_agent_jobs`；全批预检查、spawn进程、独立任务状态和输出、按输入顺序返回原结果|
 |按需强模型|`assisted_agent.py`显式建议/接管，`summary_advice.py`构造建议，`strong_session.py`保存原始提供方请求/响应；默认不介入，可显式开启有界停滞接管|
 |外部验收|`task_review.py`；按用户目标和真实交付审核，隐藏标准不进入模型；submitted不等于合格|
@@ -64,3 +64,6 @@ trace → 错误归因 → 经验证纠正 → 获准数据版本 → StateTune 
 `goal_delivery.py`在共享执行入口外记录总调用上限、剩余时间、原RWKV运行和一次可选接管。它不规划业务、不判定答案合格；完整接口与预算边界见AGENT_BATCH。架构缺口、已观察模型行为和未知原因分开记录在[归因说明](ARCHITECTURE_DIAGNOSIS.zh-CN.md)。后续优先验证语义原子化，以及RWKV“完成当前小任务并提出下一步”的方式；不把一次工具调用等同于已经解决任务粒度问题。
 
 当前工程整改与支持边界见[报告](../data/experiments/RWKV_ENGINEERING_FIXES_R1_20260914/REPORT.zh-CN.md)。强制终止、审计配对、准备预算、worker清理、异常结果与旧只读建议观察顺序已增加回归；不据工程测试宣称模型能力提升。
+
+
+公开执行结果的`status`表示本次交付终止（completed/interrupted/failed），`state_status`保留内部durable State状态；可续State仍为running不意味着请求还在执行。`completed`与`submitted`均不代表外部验收合格，最终质量由独立验收决定。

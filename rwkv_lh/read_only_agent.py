@@ -305,8 +305,12 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
                          'execution_status': 'exited' if type(code) is int else
                          'not_started' if (value.get('error') or {}).get('type') == 'FileNotFoundError'
                          else 'unconfirmed', 'tool_success': value.get('success'), 'error': value.get('error')})
+    termination = termination or ('submitted' if state is not None and state.status == RunStatus.COMPLETED else 'budget')
+    # A durable State may remain resumable after this execution has stopped.
+    # Report that State separately from the terminal delivery of this call.
+    delivery_status = {'submitted': 'completed', 'budget': 'interrupted', 'error': 'failed'}[termination]
     result = {'id': job.task_id, 'final': final,
-              'termination': termination or ('submitted' if state is not None and state.status == RunStatus.COMPLETED else 'budget'),
+              'termination': termination,
               'termination_reason': termination_reason,
               'termination_evidence': boundary.to_dict() if boundary and error is None else error,
               'command_executions': commands,
@@ -316,7 +320,8 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
               'execution_model': settings.model,
               'execution_authority': execution_authority,
               'continuation': continuation,
-              'error': error, 'status': state.status.value if state is not None else 'not_started',
+              'error': error, 'status': delivery_status,
+              'state_status': state.status.value if state is not None else 'not_started',
               'trace_complete': trace_complete, 'trace_persistence_ok': not audit_errors,
               'generation_returned': integrity['returned'], 'unresolved_request_ids': integrity['unresolved'],
               'trace_errors': audit_errors, 'tool_scope': job.tool_scope,

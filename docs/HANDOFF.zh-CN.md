@@ -113,3 +113,6 @@ GC 空队列性能根因已修复：旧服务8409历史State时每次空GC仍全
 
 
 优质纠正采集已封存：GC修复后四局部修复0/4，完整51生成仍重复读取，无修改；两个强修复后的工作区验证任务也未独立验证完成。2条强模型原样编辑红→绿，加1条实际失败测试命令，经两审核及fresh执行后在新v2冻结，共57行，最长24455/24576tokens。文本歧义及错审候选未准入，人工误称sqlite_io.py不存在的错误已留痕纠正。详情 RWKV_FOCUSED_CORRECTION_CAMPAIGN_R1_20260914。训练R2从zero计划342步（6epochs，上限400步/4h/80GiB）正在GPU0执行，结果未知；原门槛不变。复用字节相同数值训练源码及24K兼容证明，生产评测用GC修复源码，唯一model_io相同。训练退出自动恢复原服务，GC侧服务暂停待评测后按原launch重建；不要对已停止的transient unit直接start。启动SSH引号错误0步已保留。所有固定评测两臂重新运行，尚不读confirmation/holdout、不push。详见 RWKV_UNIFIED_CORRECTION_TRAIN_R2_20260914/PREPARATION_SHA256.json。
+
+
+E12已在训练R2失败、未进入对比后统一修复：status只表示本次终止交付，durable State另存state_status；异常不再显示running。RWKV/strong两种异常红→绿，45项针对性、GPU0完整1763 passed（329.47s），不改模型输入/最终回答/State。数值复现仍在GPU0运行，最多84额外实际步，原服务退出自动恢复。
