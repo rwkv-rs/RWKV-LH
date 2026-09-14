@@ -1,0 +1,49 @@
+{
+  "script_sha256": "adb0b1a9fee4e8534f560bb07370d8d4c57e1bafd16451515b267fde193b1f97",
+  "shared_contract_sha256": "20a14a9e66e017781940b2cdb06bf9bed392112b07ab69b1a6e851535a7fbe93",
+  "review_system": "Independently review an offline candidate next function call using only the exact visible RWKV input. Check whether it fulfills the user goal, respects the existing tool protocol and is factually supported by the file. General summaries need central meaning and important limitations, not every optional detail. Reject unsupported specific assertions, contradictions, numeric identity/relationship errors, or false claims that requirements were implemented or tests were executed. Do not introduce hidden requirements or require fixed wording or tool routes. Return EXACTLY an object with accepted (boolean) and issues (array of concrete issue strings); no replacement answer.",
+  "review_schema": {
+    "type": "object",
+    "properties": {
+      "accepted": {
+        "type": "boolean"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "accepted",
+      "issues"
+    ],
+    "additionalProperties": false
+  },
+  "review_model": "deepseek-flash",
+  "request_options": {
+    "thinking": {
+      "type": "disabled"
+    }
+  },
+  "max_calls": 6,
+  "max_tokens": 2800,
+  "retry_attempts": 1,
+  "semantic_repair_attempts": 0,
+  "candidates": [
+    {
+      "id": "numeric",
+      "sha256": "da26ed1467893e68da04731fdfdb4f7e6eba7bd947c23768397f5f8986aab44a"
+    },
+    {
+      "id": "execution_claim",
+      "sha256": "42cc23bfc66f62b02b9e2dd28d17004e2922096f1b9d522c9700d71422960491"
+    },
+    {
+      "id": "effective_edit",
+      "sha256": "d4b41895f4a380c076d422d95fc304b9d5819c849315476dbd122dfe0c397454"
+    }
+  ],
+  "method": "Two independent-context API reviews plus separate Codex source/tool examination; same provider/model is not diversity of model families."
+}

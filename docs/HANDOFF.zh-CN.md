@@ -38,6 +38,8 @@ Owner补充StateTune社区证据：约3000条数据的G1J 7B Three.js展示改�
 
 已查看Lightning CUDA、Preen及RWKV-APP State-Tuning Studio的文档/源码，[参考核对与下一阶段](../data/experiments/RWKV_STATETUNE_REFERENCES_R1_20260914/REPORT.zh-CN.md)。Lightning作为候选训练/推理后端，Preen借鉴mask/导出验证，Studio借鉴run管理。外部训练text格式、截断和State轴语义不可直接混入当前链路；先做有界兼容验证，数据准备主线继续，不等待换后端才训练。未构建或启动外部训练/UI。
 
+最新完成真实失败纠正试点：[记录](../data/experiments/RWKV_VERIFIED_CORRECTIONS_R1_20260914/REPORT.zh-CN.md)。初始强接管目标1/3（提交1），关闭thinking的独立恢复目标1/2（提交2、修改1）；均不算RWKV独立或Strict。数字纠正1条复核通过，API无依据细节被人工拒绝，编码原样修改独立红→绿但审核分歧/家族切分待解，正式准入0。双API审核也出现漏错/误拒，旧票原样保留，不通过反复审核凑通过。GPU 0完整回归1700 passed、0 skipped（329.55s）。共19次供应商请求、121514/10905输入/输出token，成本未知；未训练/建版本/push。下一步先补审核证据规则回归和来源切分，再扩优质真实来源；1万条不再作为首批最低门槛。
+
 ## 能力和限制
 
 - 固定单步读取、部分文档总结及明确测试执行已有成功证据。
