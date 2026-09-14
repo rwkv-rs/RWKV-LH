@@ -31,25 +31,31 @@ def validate_command_correction(*, run_root, checkpoint_id, target_text, model_s
             'RWKV coding source required')
     actual=replay_run(root,model_sha256)[checkpoint_id]
     state=json.loads((root/'state_snapshot.json').read_text())
-    events=[json.loads(line) for line in (root/'model_trace.jsonl').read_text().splitlines()]
-    requests={e['request_id'] for e in events if e['type']=='model_session_generation_returned'}
-    actions=sorted((a for a in state['actions'].values() if a['request_id'] in requests),key=lambda a:a['sequence'])
-    calls=sorted((root/'tool_snapshots').glob('*/call.json'))
-    require(len(actions)==len(calls),'source action/snapshot count differs')
-    matches=[]
-    for action,path in zip(actions,calls):
-        require(str(path.relative_to(root)) in source_files,'unsealed source call')
-        call=json.loads(path.read_text())
-        require(action['action_type']==call['action_type'] and action['arguments']==call['arguments'],'source action/snapshot binding differs')
-        if action['request_id']==actual['request_id']:matches.append((action,path))
-    require(len(matches)==1,'source request has no unique executed boundary')
-    action,path=matches[0]
-    original=model_io.parse_model_command(actual['raw_generation']['raw_output'])
-    require(original.name==action['action_type'] and executed_arguments(original)==action['arguments'],'source command binding differs')
-    snapshot=path.parent/'before'
-    require(snapshot.is_dir(),'source boundary has no recorded before snapshot')
-    for member in snapshot.rglob('*'):
-        if member.is_file():require(str(member.relative_to(root)) in source_files,'unsealed source snapshot')
+    if (root/'generation_snapshots').is_dir():
+        from .correction_snapshots import validate_generation_snapshot
+        snapshot=validate_generation_snapshot(root,actual,source_files)
+        source_action_id=None
+    else:
+        events=[json.loads(line) for line in (root/'model_trace.jsonl').read_text().splitlines()]
+        requests={e['request_id'] for e in events if e['type']=='model_session_generation_returned'}
+        actions=sorted((a for a in state['actions'].values() if a['request_id'] in requests),key=lambda a:a['sequence'])
+        calls=sorted((root/'tool_snapshots').glob('*/call.json'))
+        require(len(actions)==len(calls),'source action/snapshot count differs')
+        matches=[]
+        for action,path in zip(actions,calls):
+            require(str(path.relative_to(root)) in source_files,'unsealed source call')
+            call=json.loads(path.read_text())
+            require(action['action_type']==call['action_type'] and action['arguments']==call['arguments'],'source action/snapshot binding differs')
+            if action['request_id']==actual['request_id']:matches.append((action,path))
+        require(len(matches)==1,'source request has no unique executed boundary')
+        action,path=matches[0]
+        original=model_io.parse_model_command(actual['raw_generation']['raw_output'])
+        require(original.name==action['action_type'] and executed_arguments(original)==action['arguments'],'source command binding differs')
+        snapshot=path.parent/'before'
+        require(snapshot.is_dir(),'source boundary has no recorded before snapshot')
+        for member in snapshot.rglob('*'):
+            if member.is_file():require(str(member.relative_to(root)) in source_files,'unsealed source snapshot')
+        source_action_id=action['action_id']
     stop=model_io.JSON_CALL_STOP_SUFFIXES[0]
     require(isinstance(target_text,str) and target_text.endswith(stop),'exact production stop required')
     raw=target_text[:-len(stop)];json.loads(raw);command=model_io.parse_model_command(raw)
@@ -66,7 +72,7 @@ def validate_command_correction(*, run_root, checkpoint_id, target_text, model_s
             and all(isinstance(s,str) and s.strip() for s in expected_output),'explicit external command outcome required')
     output.mkdir(parents=True)
     record={'status':'started','training_admitted':False,'run_root':str(root),'checkpoint_id':checkpoint_id,
-        'model_sha256':model_sha256,'source_files':dict(source_files),'source_action_id':action['action_id'],
+        'model_sha256':model_sha256,'source_files':dict(source_files),'source_action_id':source_action_id,
         'source_assistance':result['assistance'],'snapshot':str(snapshot.relative_to(root)),
         'input_text':actual['input_text'],'input_token_ids':actual['input_token_ids'],
         'input_checkpoint_id':actual['input_checkpoint_id'],'request_id':actual['request_id'],

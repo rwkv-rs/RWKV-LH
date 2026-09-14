@@ -1,0 +1,131 @@
+FFF.....F                                                                [100%]
+=================================== FAILURES ===================================
+___________ test_snapshot_is_saved_before_the_real_generation_event ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_snapshot_is_saved_before_0')
+
+    def test_snapshot_is_saved_before_the_real_generation_event(tmp_path):
+>       from rwkv_lh.correction_snapshots import generation_snapshot_audit
+E       ModuleNotFoundError: No module named 'rwkv_lh.correction_snapshots'
+
+temp/test_generation_correction_snapshots_r1_20260914.py:11: ModuleNotFoundError
+_________________ test_unrelated_audit_events_do_not_snapshot __________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_unrelated_audit_events_do0')
+
+    def test_unrelated_audit_events_do_not_snapshot(tmp_path):
+>       from rwkv_lh.correction_snapshots import generation_snapshot_audit
+E       ModuleNotFoundError: No module named 'rwkv_lh.correction_snapshots'
+
+temp/test_generation_correction_snapshots_r1_20260914.py:25: ModuleNotFoundError
+_____ test_real_generation_boundary_allows_correction_of_illegal_original ______
+
+generation_candidate = {'run_root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_real_generation_bo...tent": "value = 2\\n"}}\n```', 'model_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def test_real_generation_boundary_allows_correction_of_illegal_original(generation_candidate):
+        from rwkv_lh.coding_corrections import validate_coding_correction
+>       result=validate_coding_correction(**generation_candidate)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+temp/test_generation_correction_snapshots_r1_20260914.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_root = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_real_generation_boundary_0/source')
+checkpoint_id = 'cp'
+target_text = '{"function": "write_file", "params": {"path": "a.py", "content": "value = 2\\n"}}\n```'
+model_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+source_files = {'state_snapshot.json': '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a', 'model_trace.jsonl': 'cdfd...d380', 'generation_snapshots/r/SNAPSHOT.json': 'd64bd36805f0296e7f9934e4a41f7c6244fca8971e2f8e7e55bb923a86c2c255', ...}
+snapshot = 'generation_snapshots/r/before'
+snapshot_sha256 = 'e50712edab3e1b8072fadcddc00413c5495af6c4156539a33e5952e892ec4ab9'
+checks = [['python3', '-B', '-c', 'from a import value; assert value == 2']]
+reviews = [{'reviewer': 'one', 'accepted': True, 'visible_evidence_only': True, 'input_sha256': '49d9d97730b9719c6d649d0bf532e7a...visible_evidence_only': True, 'input_sha256': '49d9d97730b9719c6d649d0bf532e7a5433d2a5e9920b3f96d48caec2f5cb281', ...}]
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_real_generation_boundary_0/validation')
+check_timeout_seconds = 30
+
+    def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sha256,
+                                   source_files, snapshot, snapshot_sha256, checks, reviews, output,
+                                   check_timeout_seconds=30):
+        root, output = Path(run_root).resolve(strict=True), Path(output).resolve()
+        if output == root or root in output.parents or output in root.parents or output.exists():
+            raise ValueError('validation output exists or overlaps source')
+        required = {'state_snapshot.json', 'model_trace.jsonl', 'RESULT.json'}
+        if (root / 'PARENT_TRACE.jsonl').exists():
+            required.add('PARENT_TRACE.jsonl')
+        if not required <= source_files.keys():
+            raise ValueError('missing sealed source artifacts')
+        for relative, digest in source_files.items():
+            path = Path(relative)
+            if path.is_absolute() or '..' in path.parts or root not in (root / path).resolve().parents:
+                raise ValueError('unsafe source member')
+            if hashlib.sha256((root / path).read_bytes()).hexdigest() != digest:
+                raise ValueError('source checksum differs: ' + relative)
+        result = json.loads((root / 'RESULT.json').read_text())
+        if result.get('tool_scope') != 'coding' or result.get('assistance') not in ('rwkv_independent', 'strong_advised'):
+            raise ValueError('coding RWKV source required; takeover is not independent correction evidence')
+        actual = replay_run(root, model_sha256)[checkpoint_id]
+        original = model_io.parse_model_command(actual['raw_generation']['raw_output'])
+        if original.name not in ('write_file', 'replace_text'):
+>           raise ValueError('only recorded atomic file-edit boundaries supported')
+E           ValueError: only recorded atomic file-edit boundaries supported
+
+rwkv_lh/coding_corrections.py:49: ValueError
+_____ test_command_correction_can_use_a_generation_with_no_executed_action _____
+
+generation_candidate = {'run_root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_command_correction...tent": "value = 2\\n"}}\n```', 'model_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7355bb466650>
+
+    def test_command_correction_can_use_a_generation_with_no_executed_action(generation_candidate,monkeypatch):
+        from rwkv_lh.command_corrections import validate_command_correction
+        import rwkv_lh.command_corrections as commands
+        import rwkv_lh.coding_corrections as coding
+        c=generation_candidate
+        monkeypatch.setattr(commands,'replay_run',coding.replay_run)
+        path=c['run_root']/'state_snapshot.json';path.write_text(json.dumps({'goal':{'request':'Check the value'}}))
+        c['source_files']['state_snapshot.json']=hashlib.sha256(path.read_bytes()).hexdigest()
+        target=json.dumps(call('check_command',argv=['python3','-B','-c','from a import value; assert value == 2']))+model_io.JSON_CALL_STOP_SUFFIXES[0]
+        reviews=[{**review,'target_sha256':hashlib.sha256(target.encode()).hexdigest()} for review in c['reviews']]
+>       result=validate_command_correction(**{key:c[key] for key in ('run_root','checkpoint_id','model_sha256','source_files','output')},target_text=target,reviews=reviews,expected_exit_code=1,expected_output=['AssertionError'])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+temp/test_generation_correction_snapshots_r1_20260914.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run_root = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_command_correction_can_us0/source')
+checkpoint_id = 'cp'
+target_text = '{"function": "check_command", "params": {"argv": ["python3", "-B", "-c", "from a import value; assert value == 2"]}}\n```'
+model_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+source_files = {'state_snapshot.json': '7fe42aaeea687cbc3b8f3cb24994431275f83c3663ac82491fba8c56537ed459', 'model_trace.jsonl': 'cdfd...d380', 'generation_snapshots/r/SNAPSHOT.json': 'd64bd36805f0296e7f9934e4a41f7c6244fca8971e2f8e7e55bb923a86c2c255', ...}
+reviews = [{'reviewer': 'one', 'accepted': True, 'visible_evidence_only': True, 'input_sha256': '49d9d97730b9719c6d649d0bf532e7a...visible_evidence_only': True, 'input_sha256': '49d9d97730b9719c6d649d0bf532e7a5433d2a5e9920b3f96d48caec2f5cb281', ...}]
+expected_exit_code = 1, expected_output = ['AssertionError']
+output = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/generation_correction_red_r2/test_command_correction_can_us0/validation')
+
+    def validate_command_correction(*, run_root, checkpoint_id, target_text, model_sha256,
+                                    source_files, reviews, expected_exit_code, expected_output, output):
+        root=Path(run_root).resolve(strict=True); output=Path(output).resolve()
+        require(not output.exists() and output != root and root not in output.parents and output not in root.parents,
+                'output overlaps source or exists')
+        required={'RESULT.json','model_trace.jsonl','state_snapshot.json'}
+        if (root/'PARENT_TRACE.jsonl').exists():required.add('PARENT_TRACE.jsonl')
+        require(required <= source_files.keys(),'source artifacts missing')
+        for name,digest in source_files.items():
+            relative=Path(name)
+            require(not relative.is_absolute() and '..' not in relative.parts and root in (root/relative).resolve().parents,'unsafe source path')
+            verify_file(root/relative,digest)
+        result=json.loads((root/'RESULT.json').read_text())
+        require(result.get('tool_scope')=='coding' and result.get('assistance') in ('rwkv_independent','strong_advised'),
+                'RWKV coding source required')
+        actual=replay_run(root,model_sha256)[checkpoint_id]
+        state=json.loads((root/'state_snapshot.json').read_text())
+        events=[json.loads(line) for line in (root/'model_trace.jsonl').read_text().splitlines()]
+        requests={e['request_id'] for e in events if e['type']=='model_session_generation_returned'}
+>       actions=sorted((a for a in state['actions'].values() if a['request_id'] in requests),key=lambda a:a['sequence'])
+                                   ^^^^^^^^^^^^^^^^
+E       KeyError: 'actions'
+
+rwkv_lh/command_corrections.py:36: KeyError
+=========================== short test summary info ============================
+FAILED temp/test_generation_correction_snapshots_r1_20260914.py::test_snapshot_is_saved_before_the_real_generation_event
+FAILED temp/test_generation_correction_snapshots_r1_20260914.py::test_unrelated_audit_events_do_not_snapshot
+FAILED temp/test_generation_correction_snapshots_r1_20260914.py::test_real_generation_boundary_allows_correction_of_illegal_original
+FAILED temp/test_generation_correction_snapshots_r1_20260914.py::test_command_correction_can_use_a_generation_with_no_executed_action
+4 failed, 5 passed in 0.24s

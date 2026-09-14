@@ -44,24 +44,28 @@ def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sh
     if result.get('tool_scope') != 'coding' or result.get('assistance') not in ('rwkv_independent', 'strong_advised'):
         raise ValueError('coding RWKV source required; takeover is not independent correction evidence')
     actual = replay_run(root, model_sha256)[checkpoint_id]
-    original = model_io.parse_model_command(actual['raw_generation']['raw_output'])
-    if original.name not in ('write_file', 'replace_text'):
-        raise ValueError('only recorded atomic file-edit boundaries supported')
     before = (root / snapshot).resolve(strict=True)
-    if root not in before.parents or before.name != 'before' or before.parent.parent != root / 'tool_snapshots':
-        raise ValueError('snapshot must be a recorded before boundary')
+    if before.parent.parent == root / 'generation_snapshots':
+        from .correction_snapshots import validate_generation_snapshot
+        before = validate_generation_snapshot(root, actual, source_files, snapshot=snapshot)
+    else:
+        original = model_io.parse_model_command(actual['raw_generation']['raw_output'])
+        if original.name not in ('write_file', 'replace_text'):
+            raise ValueError('only recorded atomic file-edit boundaries supported')
+        if root not in before.parents or before.name != 'before' or before.parent.parent != root / 'tool_snapshots':
+            raise ValueError('snapshot must be a recorded before boundary')
+        calls = sorted((root / 'tool_snapshots').glob('*/call.json'))
+        matching = []
+        for path in calls:
+            if str(path.relative_to(root)) not in source_files:
+                raise ValueError('unsealed source call identity')
+            call = json.loads(path.read_text())
+            if call.get('action_type') == original.name and ActionHarness().normalize_action(TaskAction(original.name, call['arguments'])).arguments == executed_arguments(original):
+                matching.append(path.parent / 'before')
+        if matching != [before]:
+            raise ValueError('ambiguous or unrelated source snapshot')
     if tree_sha256(tree_identity(before)) != snapshot_sha256:
         raise ValueError('snapshot identity differs')
-    calls = sorted((root / 'tool_snapshots').glob('*/call.json'))
-    matching = []
-    for path in calls:
-        if str(path.relative_to(root)) not in source_files:
-            raise ValueError('unsealed source call identity')
-        call = json.loads(path.read_text())
-        if call.get('action_type') == original.name and ActionHarness().normalize_action(TaskAction(original.name, call['arguments'])).arguments == executed_arguments(original):
-            matching.append(path.parent / 'before')
-    if matching != [before]:
-        raise ValueError('ambiguous or unrelated source snapshot')
     stop = model_io.JSON_CALL_STOP_SUFFIXES[0]
     if not isinstance(target_text, str) or not target_text.endswith(stop):
         raise ValueError('candidate requires exact production stop')

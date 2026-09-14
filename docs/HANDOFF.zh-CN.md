@@ -102,3 +102,6 @@ PROGRESS_CORRECTIONS R1：两个真实停滞边界的强模型原样下一步均
 
 
 State入口整改已完成：四产品入口统一保留显式profile，缺省仍zero，非法身份拒绝。红4/默认通过4，完整GPU0回归1747 passed、0 skipped（329.02s）。训练R1候选仍NO_KEEP。下一轮已冻结并采集两个获准MAINT来源的事实/局部修复任务，目标是获取真实失败纠正，不读API dev答案或confirmation入训。报告 `data/experiments/RWKV_PROFILE_ENTRYPOINT_FIX_R1_20260914/REPORT.zh-CN.md`。
+
+
+生成边界纠正证据已补齐（RWKV_GENERATION_CORRECTION_SNAPSHOT_R1_20260914）：显式采集在真实generation_started前封存工作区并绑定父State/request，可验证非法原调用对应的编辑/测试纠正。默认生产不加快照，不代选动作；历史缺失快照不补造。GPU0完整1756 passed（325.23s），新增9项。R2四个局部coding任务正在独立State/副本下以并发2采集，尚无新增正式样本。计时另发现非生成State RPC的高耗时，下一步有界核对GC空队列扫描历史State路径，未归因为模型推理。
