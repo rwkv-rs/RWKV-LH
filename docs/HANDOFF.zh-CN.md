@@ -1,3 +1,13 @@
+# 当前进展：重复读取停点定位完成，内部根因仍待因果对照（2026-09-14）
+
+- 无新增模型调用/修改。上轮0/2合格、completed0/mutation0保持。停在模型动作选择，没有修改或命令候选被Harness拒绝；19工具及原目标均在输入，full路径无只读锁定。
+- 原目标仅在bootstrap出现；首次重复时其后累计约1万token。非法参数后单独read_file说明可能影响后续选择，但未证明；State前缀存在不等于有效利用。重复成功3次保护解释中断，不解释重复起因。
+- 已有目标重述对照无收益，不能重复当默认修复。优先考虑同拒绝前State下只改恢复指令的冻结对照，完整任务验收独立；本轮尚未运行或改协议。
+- 既有coding工程测试8 passed；生产/tests同原1631 passed身份，owner修改保留，无训练/push/前端。
+- [定位报告](../data/experiments/RWKV_READ_LOOP_LOCALIZATION_R1_20260914/REPORT.zh-CN.md)，SHA `e982de41f4965100a71d5bf1e2304f391d339af8d2b23d7a1579950b48c3dcb3`。
+
+---
+
 # 当前进展：自主修复试验停在重复读取，尚未到达测试反馈（2026-09-14）
 
 - 本轮固定两遍 **0/2合格、2 no_delivery、completed0、mutation0**；11/13生成后均identical_success_budget_exhausted。没有补丁、实际测试或最终回答，不是项目Strict，不记虚假完成。

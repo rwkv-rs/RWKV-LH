@@ -1,0 +1,56 @@
+from pathlib import Path
+import json,hashlib,subprocess,shutil
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_READ_LOOP_LOCALIZATION_R1_20260914'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+assert subprocess.check_output(['git','diff'],cwd=R)==(D/'OWNER_BEFORE.diff').read_bytes()
+release=json.loads((R/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/RELEASE_SOURCE.json').read_text());assert all(sha(R/p)==s for p,s in release['source'].items())
+report='''# 重复读取停点定位 R1
+
+本轮只审查现有真实轨迹及生产实现，新增模型调用0、修改0、训练0。沿用上一轮任务结果0/2合格、completed0、mutation0，11/13生成后重复成功保护中断；不重评分，不将工程测试当Agent能力。
+
+## 定位结论
+
+已将停点定位到**RWKV选择下一个动作**，尚未定位单一内部根因。两遍始终选择目录/文件读取，没有任何修改或执行命令候选遭Harness拦截。原目标是修改并测试，首次输入全文存在，包含19项工具（含write_file/replace_text/check_command/run_command/final_answer）。Controller直接调用next_command不传业务操作白名单；full模式_generate仍接收完整定义。不是误用了只读入口，也不是读完自动强制结束。
+
+最后中断由已有同指纹、无工作区变化的只读成功3次保护触发。它能解释为什么终止，不能解释为什么此前开始重复，也无法证明如果移除保护模型永远不会行动。无幂等修改，故强制Final的幂等修改分支没有触发；不因看到旧分支就盲目删除。
+
+输入和native父链已在上轮24代逐token重建，本轮进一步统计真实解码输入。原目标每代均在完整逻辑前缀中且只出现一次；不是被字符级删掉。native路径直接延续State，不因累计逻辑token超过16384重放或截断；模型名字中的ctx16384不能作为实际截断证据。这些检查不等于证明模型能有效利用历史信息或数值State完全正确。
+
+## 可测的输入特征与竞争假设
+
+- 初始3959逻辑token，工具JSON2633 token（规范化紧凑JSON计数），共19项。第一遍第9代首次重复时输入16603，原目标之后12651 token；第二遍第8代首次重复时输入14682，目标之后10730。末代分别20478/24408。读取内容已全量返回，增长包含动作和观察元数据，不能将全部增长称为纯冗余。
+- 两遍第2代均给read_file增加max_lines；第3代消费协议错误后合法读取。拒绝观察单独重列read_file schema，并有“one displayed direct function”指令；没有重新列完整菜单。这可能让最近的工具说明更突出，但**full模式机械允许集仍是全部工具**，不是代码将模型锁死在read_file。两条同型轨迹只能提出假设，不能证明该反馈导致循环。
+- 原始文件、真实旧日志和测试要求都有。没有提出补丁，因此无法凭本轮判断是否因为不知道修法而回避行动。上一轮两次根因正确、修法错误是独立证据，不自动解释本轮选择。
+
+## 排除重复实验与工程检查
+
+复核飞行轮goal_restatement/REPORT.zh-CN.md：原观察0/4，观察后重述原目标0/4，并出现过虚称测试通过；候选已撤回。由此撤回上轮将目标表达放在首位的泛化建议：不要把“反复提醒原目标”当默认修复。指定更小任务与原样重述不是同一实验，但若同时缩任务和输入不能声称已隔离输入根因。
+
+运行既有tests/test_coding_agent.py：8 passed（3.08s），验证隔离修改、真实命令、原回答交付、失败边界和续跑等工程路径。测试使用脚本化模型，只支持工具链可执行，不支持RWKV会自主执行。未写替模型选择路径的新测试，也未改生产代码；完整源码与原1631 passed/零跳过身份一致，复用全量证据。
+
+## 下一项最小因果验证
+
+优先单独检验**非法参数反馈是否造成读取倾向持续**，而不是先改全局提示或训练。建议从两条已保存的拒绝前真实生产checkpoint各复制两支，保持完整原目标、工具、观察及native父State一致：A原拒绝反馈；B同一拒绝事实和参数schema，只将恢复指令明确为修正调用或自主选择原菜单其他工具（无建议动作、补丁或参数）。必须通过唯一事件输入构造函数，补充红绿工程回归并在两臂之前冻结同一候选源码、预算与评分；不手写替代协议，不强制下一动作。
+
+事前区分下一步合法恢复率、后续首次修改/命令位置、完整任务通过率和虚称执行。B即使少读也不等于修复成功；若无差距，不能扩展为“输入无影响”。这是具体待验证假设，本轮没有运行、没有预称收益。备选是完整工具菜单与获准最小执行菜单对照，但改变工具能力与输入长度，因果解释更宽，应另轮登记。
+
+需要显式冻结所有终止条件：总调用、墙钟、同指纹成功3次、失败/协议/传输阈值以及幂等修改分支，不能只写16次/900秒。现有重复保护本轮保留；模型候选、工程故障、验收失败分开归属。后续是否保留任何修复取决于同任务验收，不立即训练或加角色。
+
+证据：TRACE_AUDIT.json含每代原输出、真实输入SHA、目标出现次数、目标后token距离及工具菜单。原始输入/输出/工具/State仍由上一轮raw_evidence.tar.gz与SHA清单保存。本轮不更新旧结果；owner五处修改保留，不push、不前端开发。
+'''
+(D/'REPORT.zh-CN.md').write_text(report)
+for n in ('locate_read_loop_20260914','finish_read_loop_localization_20260914'):shutil.copy2(R/'temp'/f'{n}.py',D/f'{n}.py.txt')
+(D/'VERIFICATION.json').write_text(json.dumps({'production_tests_unchanged':True,'owner_diff_preserved':True,'targeted_tests':'8 passed','full_regression_reused':'1631 passed, zero skipped; same RELEASE_SOURCE','report_sha256':sha(D/'REPORT.zh-CN.md'),'new_model_calls':0},indent=2)+'\n')
+p=R/'docs/HANDOFF.zh-CN.md';p.write_text(f'''# 当前进展：重复读取停点定位完成，内部根因仍待因果对照（2026-09-14）
+
+- 无新增模型调用/修改。上轮0/2合格、completed0/mutation0保持。停在模型动作选择，没有修改或命令候选被Harness拒绝；19工具及原目标均在输入，full路径无只读锁定。
+- 原目标仅在bootstrap出现；首次重复时其后累计约1万token。非法参数后单独read_file说明可能影响后续选择，但未证明；State前缀存在不等于有效利用。重复成功3次保护解释中断，不解释重复起因。
+- 已有目标重述对照无收益，不能重复当默认修复。优先考虑同拒绝前State下只改恢复指令的冻结对照，完整任务验收独立；本轮尚未运行或改协议。
+- 既有coding工程测试8 passed；生产/tests同原1631 passed身份，owner修改保留，无训练/push/前端。
+- [定位报告](../data/experiments/RWKV_READ_LOOP_LOCALIZATION_R1_20260914/REPORT.zh-CN.md)，SHA `{sha(D/'REPORT.zh-CN.md')}`。
+
+---
+
+'''+p.read_text())
+files=[p for p in D.iterdir() if p.is_file()];(D/'SHA256SUMS.json').write_text(json.dumps({p.name:sha(p) for p in files},indent=2)+'\n')
+subprocess.run(['git','add','-f','--',str(D.relative_to(R)),'docs/HANDOFF.zh-CN.md'],cwd=R,check=True)

@@ -1,0 +1,23 @@
+from pathlib import Path
+import sys,json,subprocess,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.token_budget import tokenizer
+D=R/'data/experiments/RWKV_READ_LOOP_LOCALIZATION_R1_20260914';D.mkdir(exist_ok=False)
+P=R/'data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+rows=[]
+for i in (1,2):
+ p=P/'runs'/f'repeat-{i}'/'execution';result=json.loads((p/'RESULT.json').read_text());state=json.loads((p/'state_snapshot.json').read_text());es=[json.loads(l) for l in (p/'model_trace.jsonl').read_text().splitlines()];calls=[]
+ for e in es:
+  if e['type']!='model_session_generation_returned':continue
+  raw=e['raw_generation'];text=(p/'actual_inputs'/f'{e["request_id"]}.txt').read_text();goal=state['goal']['request'];pos=text.index(goal)
+  calls.append({'request_id':e['request_id'],'input_tokens':len(raw['prompt_token_ids']),'output_tokens':len(raw['raw_token_ids']),'goal_occurrences':text.count(goal),'tokens_after_original_goal':len(tokenizer().encode(text[pos+len(goal):])),'tool_menu_occurrences':text.count('System: Tools:'),'output':raw['raw_output'],'input_sha256':hashlib.sha256(text.encode()).hexdigest()})
+ first=(p/'actual_inputs'/f'{calls[0]["request_id"]}.txt').read_text();menu=json.loads(first.split('System: Tools: ',1)[1].split('\n',1)[0])
+ events=[]
+ for key,event in state['model_events'].items():
+  events.append({'id':key,'type':event['event_type'],'serialized_tokens':len(tokenizer().encode(json.dumps(event,ensure_ascii=False))),'payload_keys':list(event['payload'])})
+ rows.append({'repeat':i,'trace_sha256':sha(p/'model_trace.jsonl'),'result_sha256':sha(p/'RESULT.json'),'menu':[m['name'] for m in menu],'menu_tokens':len(tokenizer().encode(json.dumps(menu,ensure_ascii=False,separators=(',',':')))),'calls':calls,'events':events,'termination':result['termination_reason']})
+(D/'TRACE_AUDIT.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
+(D/'OWNER_BEFORE.diff').write_bytes(subprocess.check_output(['git','diff'],cwd=R))
+(D/'SOURCE.json').write_text(json.dumps({'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip(),'files':{str(p.relative_to(R)):sha(p) for p in (R/'rwkv_lh').rglob('*.py')},'source_experiment':str(P),'scope':'read-only localization; no new model calls or scoring changes'},indent=2)+'\n')
+print([(r['repeat'],r['menu_tokens'],[(c['input_tokens'],c['tokens_after_original_goal']) for c in r['calls']]) for r in rows])
