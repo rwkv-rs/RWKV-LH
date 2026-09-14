@@ -105,3 +105,6 @@ State入口整改已完成：四产品入口统一保留显式profile，缺省�
 
 
 生成边界纠正证据已补齐（RWKV_GENERATION_CORRECTION_SNAPSHOT_R1_20260914）：显式采集在真实generation_started前封存工作区并绑定父State/request，可验证非法原调用对应的编辑/测试纠正。默认生产不加快照，不代选动作；历史缺失快照不补造。GPU0完整1756 passed（325.23s），新增9项。R2四个局部coding任务正在独立State/副本下以并发2采集，尚无新增正式样本。计时另发现非生成State RPC的高耗时，下一步有界核对GC空队列扫描历史State路径，未归因为模型推理。
+
+
+GC 空队列性能根因已修复：旧服务8409历史State时每次空GC仍全表解码核验，实测8–9秒；新逻辑无待回收键直接返回，非空安全检查保留。红→绿及GPU0全套1758 passed。独立新服务真实CLI脚本任务1/1、2生成、零非法调用、无修改、8.54秒；不是项目Strict/训练收益。原服务不动，新服务29621只用GPU0/zero。详见 data/experiments/RWKV_NATIVE_GC_EMPTY_QUEUE_R1_20260914/REPORT.zh-CN.md。四个已有局部修复目标正以24 calls/600s和24K窗口重新采集，条件不同不直接称对照收益。

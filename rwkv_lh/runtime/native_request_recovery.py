@@ -240,6 +240,12 @@ class NativeRequestJournal:
     def reclaimable_store_keys(self) -> list[str]:
         """Only current owners/pins retain tensors, never historical receipts."""
         with self._connect() as connection:
+            pending = [row[0] for row in connection.execute(
+                "SELECT store_key FROM native_state_gc ORDER BY store_key")]
+            # No deletion is possible without queued keys. Avoid decoding and
+            # hashing the entire history on every ordinary State RPC.
+            if not pending:
+                return []
             states = self._state_rows(connection)
             by_ref = {value["state_ref"]: value for value in states}
             protected = {self._store_key(value) for value in states if not self._retired(value)}
@@ -249,8 +255,7 @@ class NativeRequestJournal:
                     protected.add(row["resource"])
                 elif row["resource"] in by_ref:
                     protected.add(self._store_key(by_ref[row["resource"]]))
-            return [row[0] for row in connection.execute("SELECT store_key FROM native_state_gc ORDER BY store_key")
-                    if row[0] not in protected]
+            return [key for key in pending if key not in protected]
 
     def mark_blob_deleted(self, store_key: str) -> None:
         with self._connect() as connection:
