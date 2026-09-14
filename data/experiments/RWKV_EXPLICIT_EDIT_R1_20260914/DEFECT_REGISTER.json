@@ -1,0 +1,182 @@
+[
+  {
+    "id": "M01",
+    "title": "非法工具参数及跨工具字段混用",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_ATOMIC_CHANGE_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "57c707ecfd444bec7ff23c36683307c65652b63dd4de73c185062f8e2d655c91",
+    "label_rule": "只允许当前工具schema字段；纠正后参数必须经真实Harness验证。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M02",
+    "title": "重复读取、缺少推进",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "74789d1cb99926885fb96addd15085b7d7f7c169e18c8778aecb6b0a59327c85",
+    "label_rule": "给定已见证据时推进合理操作；不得把所有重复读取都标错。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M03",
+    "title": "修改未接入实际入口",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_SINGLE_EDIT_BASELINE_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "b9f5ae4db5e015e7852250f5e8fc5ae3513ab24254eb1b685fac1abeefdf89e7",
+    "label_rule": "修改应影响用户实际调用入口，验证副本上真实行为。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M04",
+    "title": "测试失败后虚称修复与测试通过",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_TEST_FEEDBACK_BASELINE_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "e67601cfe80545593ee849e75f19ef734d8a345dbc40e801a9c1cc16e8926a8f",
+    "label_rule": "区分工具退出、断言结果、实际修改与回答。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M05",
+    "title": "数字、标签、分子分母及比较关系失真",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_FACT_FIDELITY_FOCUSED_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "5710b7741fda1fc2960bb6f2553be138edab3c32ff3e9476ec7a5176c3d59a52",
+    "label_rule": "按来源忠实引用，不编造前后提升；合理等价表达可接受。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M06",
+    "title": "需求误当实现、来源事实混淆",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_SOURCE_ATTRIBUTION_CONTROL_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "fae5806974647b45a94e7a7dd9e2215171797aec8252f6a3d669462261a12ce7",
+    "label_rule": "文档要求、源码实现、本轮观察分别归属。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M07",
+    "title": "纠正后仍残留错误或吸收错误建议",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_FACT_CORRECTION_COMPARISON_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "4e658dad42a86ff2be23b26ecdd3362eab3c53c98f07a7fc7ac57736e8577adc",
+    "label_rule": "建议不是事实；逐条核实且不能整篇strong答案直接入训。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M08",
+    "title": "无依据补充与关键遗漏",
+    "category": "model_observation",
+    "status": "open",
+    "evidence": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/REPORT.zh-CN.md",
+    "evidence_sha256": "0e1da7133305416aa1e179b8778d70ad4a3f44e188707f0347acc148d36c2413",
+    "label_rule": "主旨和重要限制、忠实性分开标注；不强迫列所有实现细节。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M09",
+    "title": "无交付终止，当前结果与下一步未形成闭环",
+    "category": "capability_gap",
+    "status": "unverified_next_step",
+    "evidence": "data/experiments/RWKV_ATOMIC_CHANGE_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "57c707ecfd444bec7ff23c36683307c65652b63dd4de73c185062f8e2d655c91",
+    "label_rule": "未输出建议不是错误建议；补采明确操作完成后的真实轨迹。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "E01",
+    "title": "观察顺序与接管重复注入",
+    "category": "engineering",
+    "status": "fixed_regression_required",
+    "evidence": "data/experiments/RWKV_ASSISTED_AGENT_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "e73a7fece2fb82475c83fef30fc98b84c9bd4da6241e90f3431c1d4e20e632bf",
+    "label_rule": "已红绿修复；排除修复前损坏输入，不当模型错误标签。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "E02",
+    "title": "摘要验收过细、全或无压平质量",
+    "category": "evaluation",
+    "status": "known_invalid_interpretation",
+    "evidence": "data/experiments/RWKV_READ_SUMMARY_BASELINE_R5_20260912/REPORT.zh-CN.md",
+    "evidence_sha256": "0e1da7133305416aa1e179b8778d70ad4a3f44e188707f0347acc148d36c2413",
+    "label_rule": "保留旧分数但不以0/8等价不会总结；不把评分缺陷喂给模型。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "E03",
+    "title": "建议模板偏向摘要而非未完成操作",
+    "category": "input_design",
+    "status": "hypothesis",
+    "evidence": "data/experiments/RWKV_ASSISTED_RECOVERY_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "19ab67926aa996642bd539fafc5b86d5b75273ad0e88d37d9cbcadbdfc8890d8",
+    "label_rule": "单独验证语义适配，未证明是重复根因。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "E04",
+    "title": "历史重复计数使建议续跑提前终止",
+    "category": "policy_interaction",
+    "status": "hypothesis",
+    "evidence": "data/experiments/RWKV_ASSISTED_RECOVERY_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "19ab67926aa996642bd539fafc5b86d5b75273ad0e88d37d9cbcadbdfc8890d8",
+    "label_rule": "保留真实预算；不把未获得的调用机会当模型已尝试失败。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "E05",
+    "title": "依赖任务集成与共享冲突未闭合",
+    "category": "engineering_gap",
+    "status": "not_implemented",
+    "evidence": "data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/REPORT.zh-CN.md",
+    "evidence_sha256": "06d6db15646f3950f034861fa3f8a83a2f33722936d1328473aa2985e51003c4",
+    "label_rule": "实现与系统回归负责，不能靠StateTune修工程缺口。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "R01",
+    "title": "简短读取参数说明固定组有效",
+    "category": "positive_control",
+    "status": "retain_regression",
+    "evidence": "data/experiments/RWKV_READ_PARAMETER_DESCRIPTION_R4_20260912/REPORT.zh-CN.md",
+    "evidence_sha256": "0e051cdfefe85bc20d49825598a7ff9eeae6ccc82717b42653b5fb8d3c10a6fb",
+    "label_rule": "21/21与独立3/3分别保留，防止新训练破坏已成立能力。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "R02",
+    "title": "已有明确修改和真实测试成功样本",
+    "category": "positive_control",
+    "status": "retain_after_provenance_review",
+    "evidence": "data/experiments/RWKV_SINGLE_EDIT_BASELINE_R1_20260913/REPORT.zh-CN.md",
+    "evidence_sha256": "b9f5ae4db5e015e7852250f5e8fc5ae3513ab24254eb1b685fac1abeefdf89e7",
+    "label_rule": "有6/8任务成功，但部分final受旧边界干预，不把所有成功称自然自主完成。",
+    "training_admission": "not_admitted; requires original-trace reconstruction and validated correction"
+  },
+  {
+    "id": "M10",
+    "title": "已给明确修法却写回原错误内容",
+    "category": "model_observation",
+    "status": "observed_candidate_not_corrected",
+    "evidence": "data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/NOOP_WRITE_CANDIDATE.json",
+    "evidence_sha256": "63fee645299265b250d747e2911ae32664f298bfd1dbc48aaf97a03d2b79d7f8",
+    "label_rule": "选择写入工具不代表实现了修改；需核对实际差异和行为。",
+    "training_admission": "not_admitted"
+  },
+  {
+    "id": "M11",
+    "title": "写入成功被误当作完成要求的修改",
+    "category": "model_observation",
+    "status": "confirmed_unfixed",
+    "evidence": "data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/FALSE_MODIFICATION_CANDIDATE.json",
+    "evidence_sha256": "59782fc47d13f66c29216f214eeb7533deab8c66a01f28af78e3fa8812cbe84c",
+    "label_rule": "I/O成功不等于语义修改；依据文件真实内容及差异报告，不能将任务要求复述为已完成事实。未运行测试的正确披露单独保留。",
+    "training_admission": "not_admitted; verified correction still required"
+  }
+]
