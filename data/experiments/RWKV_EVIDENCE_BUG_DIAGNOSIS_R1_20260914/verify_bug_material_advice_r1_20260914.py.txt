@@ -1,0 +1,9 @@
+from pathlib import Path
+import json,shutil,subprocess,hashlib
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914';m=d/'materials';parent=m/'runs/repeat-1/RESULT.json';result=json.loads(parent.read_text())
+assert 'fetchmany 参数改为 None' in result['final']
+workspace=m/'external_advice_check_r1';shutil.copytree(json.loads((d/'REGISTRATION.json').read_text())['source'],workspace,ignore=shutil.ignore_patterns('__pycache__'))
+p=workspace/'document_index/query.py';s=p.read_text();assert 'else -1' in s;p.write_text(s.replace('else -1','else None'))
+run=subprocess.run([str(r/'.venv/bin/python'),'-B','test_query_limit.py'],cwd=workspace,capture_output=True,text=True,timeout=30)
+record={'source_answer':str(parent),'source_answer_sha256':hashlib.sha256(parent.read_bytes()).hexdigest(),'interpretation':'Literal external verification only: replace default fetchmany(-1) by fetchmany(None), exactly as prose recommendation. Not a model-authored patch or RWKV execution.','change':{'old':'else -1','new':'else None'},'returncode':run.returncode,'stdout':run.stdout,'stderr':run.stderr}
+(m/'EXTERNAL_ADVICE_CHECK_R1.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n');assert run.returncode!=0;print(run.stderr)

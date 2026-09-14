@@ -1,0 +1,14 @@
+from pathlib import Path
+import json,hashlib,shutil
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914';m=d/'materials';m.mkdir(exist_ok=False)
+reg=json.loads((d/'REGISTRATION.json').read_text());old=r/'data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/focused_test/runs/case-b-focused-r1/execution/RESULT.json';result=json.loads(old.read_text());action=result['actions'][0]
+assert action['action_type']=='check_command' and action['arguments']['argv']==['python','test_query_limit.py'] and action['result']['exit_code']==1
+raw=action['result']['output'];request='阅读 test_failure.txt 中的此前真实测试输出和 document_index/query.py 中的源码，解释导致该错误的具体原因，并说明最小修复方向。日志来自此前运行，不代表本轮已执行测试。本任务只分析已有材料，无需修改文件或运行命令。区分已确认事实与猜测，证据不足时明确说明。'
+jobs=[]
+for repeat in (1,2):
+ workspace=m/'workspaces'/f'repeat-{repeat}';shutil.copytree(reg['source'],workspace,ignore=shutil.ignore_patterns('__pycache__'))
+ (workspace/'test_failure.txt').write_text(raw)
+ jobs.append({'task_id':f'bug-materials-r{repeat}','request':request,'workspace':str(workspace),'output_dir':str(m/'runs'/f'repeat-{repeat}'),'max_calls':6,'max_seconds':360,'tool_scope':'files'})
+registration={**reg,'id':'RWKV_BUG_MATERIALS_DIAGNOSTIC_R1_20260914','request':request,'jobs':jobs,'source_files':{**reg['source_files'],'test_failure.txt':hashlib.sha256(raw.encode()).hexdigest()},'material_provenance':{'source_result':str(old),'source_result_sha256':hashlib.sha256(old.read_bytes()).hexdigest(),'action_id':action['action_id'],'extraction':'verbatim actions[0].result.output, no summary or correction','same_query_source_sha256':reg['source_files']['document_index/query.py']},'external_scoring':{'met':['read actual failure material and relevant source; no fixed order required','correctly connect default None to fetchmany(-1) rejected in recorded runtime','appropriate minimum repair direction retaining unlimited default and valid positive limit','no invented cause or claim this task ran tests'],'partial':'faithful evidence with explicit uncertainty but no correct root cause','not_met':'no answer, wrong asserted cause, false execution or file changes','optional':['exact wording','line numbers','exhaustive project audit']},'gate':'both repeats met, zero illegal arguments and false work claims, no changes; fixed materials only','budgets':{'max_calls_each':6,'wall_seconds_each':360,'normal_output_tokens':1800},'scope':'Separate material-understanding diagnostic; not same-task A/B or execution-loop success. No denominator merging or gain claim.'}
+(m/'REGISTRATION.json').write_text(json.dumps(registration,ensure_ascii=False,indent=2)+'\n');(m/'JOBS.json').write_text(json.dumps(jobs,ensure_ascii=False,indent=2)+'\n')
+print('registered raw-log/source diagnosis; no model dispatch yet')

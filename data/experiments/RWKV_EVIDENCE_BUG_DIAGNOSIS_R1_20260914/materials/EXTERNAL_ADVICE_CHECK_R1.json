@@ -1,0 +1,12 @@
+{
+  "source_answer": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914/materials/runs/repeat-1/RESULT.json",
+  "source_answer_sha256": "d6e094bf8205e41e2906746b5f7781375620c86e78c410fae4158d78571be77b",
+  "interpretation": "Literal external verification only: replace default fetchmany(-1) by fetchmany(None), exactly as prose recommendation. Not a model-authored patch or RWKV execution.",
+  "change": {
+    "old": "else -1",
+    "new": "else None"
+  },
+  "returncode": 1,
+  "stdout": "",
+  "stderr": "E\n======================================================================\nERROR: test_query_limit (__main__.LimitTests.test_query_limit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914/materials/external_advice_check_r1/test_query_limit.py\", line 19, in test_query_limit\n    self.assertEqual(query(db,'hello'),full)\n                     ~~~~~^^^^^^^^^^^^\n  File \"/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914/materials/external_advice_check_r1/document_index/query.py\", line 14, in query\n    rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else None)\nTypeError: an integer is required\n\n----------------------------------------------------------------------\nRan 1 test in 0.142s\n\nFAILED (errors=1)\n"
+}

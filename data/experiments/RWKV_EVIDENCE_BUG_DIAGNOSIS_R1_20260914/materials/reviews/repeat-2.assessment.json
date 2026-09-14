@@ -1,0 +1,97 @@
+{
+  "schema": "rwkv-lh.task-review-assessment.v1",
+  "run_id": "bug-materials-r2",
+  "task_id": "material_diagnosis",
+  "arm": "material_diagnosis",
+  "repeat": 2,
+  "scope": "retrospective",
+  "contract_sha256": "8a7b7722a2085e734719bbf9af8bffd290c5d71745d3eece9667ab8522f45962",
+  "run_sha256": "a62de23e9d20cf81434efda41b0bf61ecebcda0b310bb27ec95d8cc186e86d08",
+  "review_sha256": "51ebbc872c99c54f04c4f4b91735aa575c7da44fe895f13305938cf595c1eddf",
+  "execution_identity_sha256": "b3ca01d707d4e77dc589bd7f1fb8083ec9098e2a93a592ba69e110c335b6cda6",
+  "outcome": "not_met",
+  "delivered": true,
+  "termination": "submitted",
+  "assistance": "rwkv_independent",
+  "requirement_results": [
+    {
+      "id": "diagnosis",
+      "status": "met",
+      "reason": "定位到默认None转为负值后调用fetchmany的异常；不是normalize或SQL表达式。源码实现是三元表达式，第二遍用赋值描述不精确但未改变这一因果路径。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "id": "repair",
+      "status": "unmet",
+      "reason": "第一遍建议传None会TypeError；第二遍默认调用返回一行而非全部，明确传None也会失败。外部验证不是RWKV执行。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "fetchmany 使用默认值 -1（即不限制行数）",
+      "reason": "同一原测试在建议对应的验证副本仍失败；默认取全部应与fetchmany默认/None区分。",
+      "impact": "直接采用会引入新的异常或遗漏结果，不能作为合格修复方向。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "validity_reason": "原任务、文件、预算与生产链核对；回答和外部验证分别归属。",
+  "factuality": "material_issue",
+  "false_work_claims": 0,
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "材料组给出错误API修复建议；执行组在预算内持续读取而未执行。没有据此推断单一内部模型机制。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "confirmed_root_causes": [],
+  "diagnostics": {
+    "model_calls": 3,
+    "input_tokens": 10213,
+    "output_tokens": 220,
+    "protocol_rejections": 0,
+    "feedback_consumed": 0,
+    "tool_errors": 0
+  },
+  "eligible_for_gain": false
+}

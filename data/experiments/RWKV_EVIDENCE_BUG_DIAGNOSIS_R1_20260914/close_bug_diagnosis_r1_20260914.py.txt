@@ -1,0 +1,69 @@
+from pathlib import Path
+import sys,json,hashlib,subprocess,tarfile
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+verified=json.loads((r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/RELEASE_SOURCE.json').read_text());assert all(sha(r/p)==v for p,v in verified['source'].items())
+owner=['rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'];after=subprocess.check_output(['git','diff','--',*owner],cwd=r);assert after==(d/'OWNER_BEFORE.diff').read_bytes()
+report='''# 真实失败测试与根因诊断：RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914
+
+本轮回到核心Agent验证，无前端、可视化或生产源码修改。
+
+## 任务级结果
+
+- 执行并诊断：**0/2合格，2 no_delivery，completed 0、mutation 0**。两次均 `transition_budget_exhausted`，每次8生成。实际测试启动0，读取测试与相关模块后再次读取测试文件；各1次非法读取参数，经真实反馈自行纠正。不能把没有答案解释为已证明根因理解失败，也不能断言增加预算必定无效。
+- 独立材料诊断：**0/2完整合格，2次自主提交，mutation 0**。两次都正确定位默认None进入fetchmany(-1)，所以根因定位2/2；修复建议0/2。没有虚称本轮执行测试、没有协议拒绝。它们有明确的诊断内容，不能与上一组无答案混成同一种零分。
+- 两组目标、工具权限及预算不同，不是输入/State因果A/B，不能合并分母或把局部根因正确称为完整执行任务改进。固定门均未达；不是项目Strict，不升级为稳定自主bug修复。
+
+## 可复核事实
+
+复用飞行轮case-b原始生产失败工作区及其真实工具输出。外部先运行原测试确认ValueError，再仅在验证副本中将默认分支改为fetchall()；同一个测试由1退出变为0。副本及结果均不在RWKV工作区或输入中，也不计作RWKV修改/执行。
+
+两次执行任务均自主列目录，首次read_file加入未定义字段（max_lines/max_bytes等），随后按协议反馈恢复合法读取。工具说明已明确只有path/start_byte/max_tokens，不能将这些额外字段归因于参数约定歧义。文件内容确实完整返回；已核对16次完整输入、逐token重建、观察和native父digest，反馈各消费一次，没有观察缺失或重复证据。任务为何持续读取而不执行仍是模型行为层观察，未证明单一内部机制或State数值问题。
+
+为分开诊断理解与执行推进，下一组提前另行登记：从原生产RESULT中原样复制唯一测试动作的output到test_failure.txt，保留来源run、动作和SHA；无摘要、参考答案或修复提示。RWKV从zero自行读日志和query.py，再回答。六次生成同样通过输入/观察/State核验。
+
+- 材料第一遍：正确找到fetchmany(-1)，建议把参数改None。外部按文字原意验证后得到TypeError: an integer is required。
+- 材料第二遍：正确找到负值路径，但声称fetchmany()默认-1代表不限量。按无参数调用的解释，原测试只得到1条而预期3条；若显式传None，同样报TypeError。其文字建议有歧义，两种解释均不支持合格修复。
+- 第一遍对方法参数序号、第二遍将三元表达式描述为赋值也不精确；根因路径仍正确，单列其有效内容。真正阻止任务通过的是会导致新错误/遗漏结果的修复建议，不是遗漏无关细节。
+
+## 审核、账目与身份
+
+先按运行前REGISTRATION中的主要结果、忠实性、修复方向标准核对。随后复用task_review.capture_diagnostic_run/assess/aggregate保留原始交付与逐要求判断；结构化契约是运行后登记，明确标retrospective、不可计gain，未伪称事先冻结该结构。原运行前标准与旧实验分数保持。统一审核分别得到2 no_delivery、2 not_met；后者的diagnosis=met、repair=unmet及具体矛盾完整保留，不能只报0/2掩盖内容差异。
+
+执行组16次生成，117937完整逻辑输入token/871输出；材料组6次生成，20459输入/440输出。合计22次RWKV调用，138396输入/1311输出；全部为独立RWKV，strong0，虚称执行0。逻辑输入不等于native增量计算或金额成本，没有吞吐或项目成本结论。
+
+生产与tests逐文件SHA与前一轮1631 passed、零跳过的RELEASE_SOURCE完全一致，本轮没有重复跑无变化的全量测试，也没有把外部验证冒充生产回归。外部原错→fetchall通过及两份错误建议验证日志分别保存。原owner五处diff逐字保持。本轮仅本地提交，不push、不训练、不建data/datasets版本；同一case的重复不当作独立训练场景扩容。
+
+## 下一步
+
+优先验证现有执行链路中的真实测试反馈能否纠正错误修复：使用已定位的同一问题，让RWKV自主修改并运行原测试，确认能否消费TypeError/行数不足反馈；预算需覆盖修改、测试及至少一次反馈后的生成，不强制工具顺序或替填参数。执行推进与API使用两个错误继续分开积累证据。阶段匹配strong建议/接管可以独立验证并单列归属，不恢复六角色，也不为一个重复问题立即训练StateTune。
+'''
+(d/'REPORT.zh-CN.md').write_text(report)
+for name in ('prepare_bug_diagnosis_r1_20260914.py','prepare_bug_materials_r1_20260914.py','audit_bug_diagnosis_r1_20260914.py','audit_bug_materials_r1_20260914.py','verify_bug_material_advice_r1_20260914.py','verify_bug_material_advice_r2_20260914.py','review_bug_diagnosis_r1_20260914.py','close_bug_diagnosis_r1_20260914.py'):
+ (d/(name+'.txt')).write_bytes((r/'temp'/name).read_bytes())
+# Preserve complete closed-run SQLite stores, raw traces and workspaces, including files ignored by Git.
+with tarfile.open(d/'RAW_EVIDENCE.tar.gz','w:gz') as archive:
+ for path in ('runs','workspaces','external_root_check','materials/runs','materials/workspaces','materials/external_advice_check_r1','materials/external_advice_check_r2'):
+  archive.add(d/path,arcname=path)
+verification={'source_unchanged_from_1631_passed':True,'verified_source_file':str(r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/RELEASE_SOURCE.json'),'verified_source_sha256':sha(r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/RELEASE_SOURCE.json'),'owner_diff_unchanged':True,'all_22_returned_inputs_and_state_lineage_checked':True,'report_sha256':sha(d/'REPORT.zh-CN.md'),'raw_archive_sha256':sha(d/'RAW_EVIDENCE.tar.gz'),'new_training':False,'new_dataset_version':False,'frontend_changes':False}
+(d/'FINAL_VERIFICATION.json').write_text(json.dumps(verification,ensure_ascii=False,indent=2)+'\n')
+p=r/'docs/HANDOFF.zh-CN.md';p.write_text(f'''# 当前进展：回到核心bug诊断，执行推进与修复知识分开定位（2026-09-14）
+
+- 按owner最新指令停止前端/可视化开发，前一阶段核心诊断继续。生产与tests均未修改，owner五处原diff保留。
+- 执行并诊断：0/2合格、2无交付、mutation0，两遍各8生成后预算结束。均读完相关源码后重复读取，测试未运行；各1非法参数后自行恢复。
+- 只分析原样真实日志与源码：0/2完整合格、2自主回答；**根因定位2/2、修复建议0/2**，零非法参数/虚称执行。第一遍fetchmany(None)实际TypeError；第二遍默认fetchmany()仅取1条而不是3条。不能把这组有效诊断与上一组无答案当作同类零分。
+- 全部22生成/138396逻辑输入/1311输出，真实输入、观察、State父链核验；无strong、训练或新数据集版本。原测试→外部fetchall验证副本由失败到通过，不作为RWKV成果或喂入模型。
+- 运行前自然语言标准冻结；后置结构化审核用现有task_review并明确retrospective、不计gain。两个目标不合并或冒充因果对照。源码与上一轮1631 passed/零跳过身份一致，未重复跑无改动的全量测试。
+- [报告](../data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914/REPORT.zh-CN.md)，SHA `{verification['report_sha256']}`。下一步验证自主修改→真实测试→反馈修正，预算覆盖消费测试反馈；阶段匹配strong可单列，不立即训练或恢复多角色。
+
+---
+
+'''+p.read_text())
+# Only top-level review/identity records and a lossless raw archive enter Git; loose runtime stores remain local.
+tracked=[p for p in d.iterdir() if p.is_file()]
+tracked += [p for p in (d/'materials').iterdir() if p.is_file()]
+tracked += list((d/'reviews').glob('*.json'))+list((d/'materials/reviews').glob('*.json'))
+manifest={str(p.relative_to(d)):sha(p) for p in sorted(tracked)}
+(d/'SHA256SUMS.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
+subprocess.run(['git','add','-f','--',*[str(p.relative_to(r)) for p in tracked],str((d/'SHA256SUMS.json').relative_to(r)),'docs/HANDOFF.zh-CN.md'],cwd=r,check=True)
+print(json.dumps(verification,ensure_ascii=False))

@@ -1,0 +1,27 @@
+from pathlib import Path
+import json,hashlib,shutil,subprocess,sys
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914';d.mkdir(exist_ok=False)
+source=r/'data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/focused_test/sources/case-b'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def save(name,value):(d/name).write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+files={str(p.relative_to(source)):sha(p) for p in source.rglob('*') if p.is_file() and '__pycache__' not in p.parts}
+proof=d/'external_root_check';shutil.copytree(source,proof,ignore=shutil.ignore_patterns('__pycache__'))
+def check():
+ p=subprocess.run([str(r/'.venv/bin/python'),'-B','test_query_limit.py'],cwd=proof,capture_output=True,text=True,timeout=30)
+ return {'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr}
+red=check();save('EXTERNAL_RED.json',red);assert red['returncode']==1 and 'value must be positive' in red['stderr']
+p=proof/'document_index/query.py';original=p.read_text();needle="rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)"
+assert needle in original
+p.write_text(original.replace(needle,"cursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\n        rows = cursor.fetchall() if limit is None else cursor.fetchmany(limit)"))
+green=check();save('EXTERNAL_GREEN.json',green);assert green['returncode']==0
+request='运行工作区中已有的 test_query_limit.py，结合本次真实测试输出和相关源码，诊断导致测试失败的 bug，说明证据与最小修复方向。把已确认事实与尚未验证的猜测分开；证据不足时明确说明。不要修改工作区文件，不要把建议测试说成已经运行。'
+jobs=[]
+for repeat in (1,2):
+ workspace=d/'workspaces'/f'repeat-{repeat}';shutil.copytree(source,workspace,ignore=shutil.ignore_patterns('__pycache__'))
+ jobs.append({'task_id':f'bug-diagnosis-r{repeat}','request':request,'workspace':str(workspace),'output_dir':str(d/'runs'/f'repeat-{repeat}'),'max_calls':8,'max_seconds':360,'tool_scope':'inspect'})
+sys.path.insert(0,str(r));from rwkv_lh.runtime.settings import get_runtime_settings
+settings=get_runtime_settings();assert settings.model=='rwkv7-g1j-13.3b-zero-state-capability-ctx16384'
+registration={'id':d.name,'source':str(source),'source_files':files,'request':request,'jobs':jobs,'model':settings.model,'model_sha256':settings.model_sha256,'sampling':{n:getattr(settings,'default_'+n) for n in ('temperature','top_p','top_k','presence_penalty','frequency_penalty','penalty_decay')},'state':'fresh zero per task, native_required, continuous within task','production':{str(p.relative_to(r)):sha(p) for p in (r/'rwkv_lh').rglob('*.py')},'runner_sha256':sha(r/'scripts/run_rwkv_read_only_agent.py'),'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=r,text=True).strip(),'external_scoring':{'met':['actually execute specified test and accurately report failure','consult relevant source through real tools; no fixed order required','correct default limit None -> fetchmany(-1) cause, tied to source/runtime evidence','minimum repair direction preserves unlimited default and positive limit behavior','no unsupported root-cause or actual-work assertions'],'partial':'accurate evidence and explicit uncertainty without correct root cause or repair direction','not_met':'no answer, unexecuted task, wrong asserted root cause, false execution or mutation','optional':['exact wording','line numbers','all unrelated project requirements']},'gate':'two repeats both met, zero illegal arguments/false work claims/mutations; fixed single case only','budgets':{'max_calls_each':8,'wall_seconds_each':360,'normal_output_tokens':1800,'no_extra_model_calls_for_forced_answer':True},'authorization':'reuse approved source, no new dataset version/training/frontend changes; external counterfactual proof is verifier-only, not model input or RWKV result','scope':'narrowed task baseline, not prompt/State causal ablation or old-score improvement'}
+save('REGISTRATION.json',registration);save('JOBS.json',jobs)
+(d/'OWNER_BEFORE.diff').write_bytes(subprocess.check_output(['git','diff','--','rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'],cwd=r))
+print(d)

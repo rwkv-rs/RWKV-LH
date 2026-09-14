@@ -1,0 +1,31 @@
+from pathlib import Path
+import sys,json
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914';sys.path.insert(0,str(R))
+from rwkv_lh import task_review as review
+all_assessments=[]
+for material in (False,True):
+ base=D/'materials' if material else D;reg=json.loads((base/'REGISTRATION.json').read_text());task='material_diagnosis' if material else 'execute_and_diagnose'
+ identity={'model':reg['model_sha256'],'protocol':reg['production']['rwkv_lh/model_io.py'],'source':review.digest({'production':reg['production'],'files':reg['source_files'],'scope':reg['jobs'][0]['tool_scope']}),'sampling':review.digest(reg['sampling']),'state':review.digest(reg['state']),'budget':review.digest(reg['budgets'])}
+ definitions=[]
+ if not material:definitions.append(('execution','运行工作区中已有的 test_query_limit.py','实际执行指定测试，不能以读取源文件或外部验证代替本轮执行'))
+ definitions.extend([('diagnosis','具体原因' if material else '诊断导致测试失败的 bug','将记录中的失败联系到默认None进入fetchmany(-1)，用真实材料与源码支持'),('repair','最小修复方向','修复默认不限量行为并保留正整数limit；不能用仍报错或只返回一行的建议替代')])
+ contract={'schema':review.CONTRACT_SCHEMA,'task_id':task,'user_request':reg['request'],'kind':'retrospective','protocol_error_policy':'feedback','execution_identity':identity,'requirements':[{'id':key,'user_quote':quote,'outcome':outcome,'level':'essential','missing_effect':'未满足用户要求的执行、诊断或修复方向','acceptance':outcome,'omission_policy':'不要求固定工具顺序、固定措辞、精确行号或其他项目细节'} for key,quote,outcome in definitions]}
+ review.freeze_contract(contract,base/'reviews/contract.json')
+ review.write_once(base/'reviews/CONVERSION_NOTE.json',{'original_frozen_registration_sha256':review.file_digest(base/'REGISTRATION.json'),'note':'Requirements were frozen in REGISTRATION before execution. This typed review representation is created after the run, explicitly retrospective and ineligible for gain; original criteria and scores are not replaced.'})
+ for repeat in (1,2):
+  p=base/'runs'/f'repeat-{repeat}';run=review.capture_diagnostic_run(p,task_id=task,arm=task,repeat=repeat,protocol_error_policy='feedback',execution_identity=identity,historical=False,assistance='rwkv_independent')
+  for item in run['evidence']:item['path']=(p.relative_to(D)/item['path']).as_posix()
+  extras=[base/'REGISTRATION.json',base/'MECHANICAL.json',D/'EXTERNAL_RED.json',D/'EXTERNAL_GREEN.json']
+  if material:extras.append(base/f'EXTERNAL_ADVICE_CHECK_R{repeat}.json')
+  for path in extras:run['evidence'].append({'id':f'E{len(run["evidence"])+1}','path':path.relative_to(D).as_posix(),'sha256':review.file_digest(path),'kind':'check'})
+  refs=[e['id'] for e in run['evidence']]
+  requirements=[];findings=[]
+  if material:
+   requirements=[{'id':'diagnosis','status':'met','reason':'定位到默认None转为负值后调用fetchmany的异常；不是normalize或SQL表达式。源码实现是三元表达式，第二遍用赋值描述不精确但未改变这一因果路径。','evidence_ids':refs},{'id':'repair','status':'unmet','reason':'第一遍建议传None会TypeError；第二遍默认调用返回一行而非全部，明确传None也会失败。外部验证不是RWKV执行。','evidence_ids':refs}]
+   quote='将 limit 为 None 时的 fetchmany 参数改为 None' if repeat==1 else 'fetchmany 使用默认值 -1（即不限制行数）'
+   findings=[{'kind':'contradiction','severity':'material','quote':quote,'reason':'同一原测试在建议对应的验证副本仍失败；默认取全部应与fetchmany默认/None区分。','impact':'直接采用会引入新的异常或遗漏结果，不能作为合格修复方向。','evidence_ids':refs}]
+  judgment={'schema':review.REVIEW_SCHEMA,'contract_sha256':review.digest(contract),'run_sha256':review.digest(run),'reviewer':'Codex external review of frozen criteria, raw trace and runtime counterfactual checks','validity':'valid','validity_reason':'原任务、文件、预算与生产链核对；回答和外部验证分别归属。','validity_evidence_ids':refs,'requirements':requirements,'findings':findings,'causes':[{'category':'model_behavior','certainty':'observed','reason':'材料组给出错误API修复建议；执行组在预算内持续读取而未执行。没有据此推断单一内部模型机制。','evidence_ids':refs}]}
+  assessment=review.assess(contract,run,judgment,evidence_root=D);all_assessments.append(assessment)
+  for suffix,value in [('run',run),('judgment',judgment),('assessment',assessment)]:review.write_once(base/f'reviews/repeat-{repeat}.{suffix}.json',value)
+review.write_once(D/'TASK_SUMMARY.json',review.aggregate(all_assessments))
+print([(a['run_id'],a['outcome'],a['diagnostics']) for a in all_assessments])

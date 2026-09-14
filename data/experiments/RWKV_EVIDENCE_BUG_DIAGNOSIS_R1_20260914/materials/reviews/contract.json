@@ -1,0 +1,38 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "material_diagnosis",
+    "user_request": "阅读 test_failure.txt 中的此前真实测试输出和 document_index/query.py 中的源码，解释导致该错误的具体原因，并说明最小修复方向。日志来自此前运行，不代表本轮已执行测试。本任务只分析已有材料，无需修改文件或运行命令。区分已确认事实与猜测，证据不足时明确说明。",
+    "kind": "retrospective",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "5a029a69968b9403ac7a73cb26212bcf89ba1cbeb9ddcc7968cccab4af27b775",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "3ee30f02eccc8f4c103f31aad91ff040b1003518daf4277a79d3c48296bc4825",
+      "budget": "3291bca790a4bcf897c230426d89ea7058bf1fbd6cd1c57d981e4a99511f9662"
+    },
+    "requirements": [
+      {
+        "id": "diagnosis",
+        "user_quote": "具体原因",
+        "outcome": "将记录中的失败联系到默认None进入fetchmany(-1)，用真实材料与源码支持",
+        "level": "essential",
+        "missing_effect": "未满足用户要求的执行、诊断或修复方向",
+        "acceptance": "将记录中的失败联系到默认None进入fetchmany(-1)，用真实材料与源码支持",
+        "omission_policy": "不要求固定工具顺序、固定措辞、精确行号或其他项目细节"
+      },
+      {
+        "id": "repair",
+        "user_quote": "最小修复方向",
+        "outcome": "修复默认不限量行为并保留正整数limit；不能用仍报错或只返回一行的建议替代",
+        "level": "essential",
+        "missing_effect": "未满足用户要求的执行、诊断或修复方向",
+        "acceptance": "修复默认不限量行为并保留正整数limit；不能用仍报错或只返回一行的建议替代",
+        "omission_policy": "不要求固定工具顺序、固定措辞、精确行号或其他项目细节"
+      }
+    ]
+  },
+  "sha256": "8a7b7722a2085e734719bbf9af8bffd290c5d71745d3eece9667ab8522f45962"
+}

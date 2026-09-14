@@ -1,0 +1,86 @@
+{
+  "schema": "rwkv-lh.task-review-judgment.v1",
+  "contract_sha256": "8a7b7722a2085e734719bbf9af8bffd290c5d71745d3eece9667ab8522f45962",
+  "run_sha256": "78b46c0886a392c5bb6fe16690d757f5df930df2ebd1d03981f633efd1c1fbe0",
+  "reviewer": "Codex external review of frozen criteria, raw trace and runtime counterfactual checks",
+  "validity": "valid",
+  "validity_reason": "原任务、文件、预算与生产链核对；回答和外部验证分别归属。",
+  "validity_evidence_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8"
+  ],
+  "requirements": [
+    {
+      "id": "diagnosis",
+      "status": "met",
+      "reason": "定位到默认None转为负值后调用fetchmany的异常；不是normalize或SQL表达式。源码实现是三元表达式，第二遍用赋值描述不精确但未改变这一因果路径。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "id": "repair",
+      "status": "unmet",
+      "reason": "第一遍建议传None会TypeError；第二遍默认调用返回一行而非全部，明确传None也会失败。外部验证不是RWKV执行。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "kind": "contradiction",
+      "severity": "material",
+      "quote": "将 limit 为 None 时的 fetchmany 参数改为 None",
+      "reason": "同一原测试在建议对应的验证副本仍失败；默认取全部应与fetchmany默认/None区分。",
+      "impact": "直接采用会引入新的异常或遗漏结果，不能作为合格修复方向。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ],
+  "causes": [
+    {
+      "category": "model_behavior",
+      "certainty": "observed",
+      "reason": "材料组给出错误API修复建议；执行组在预算内持续读取而未执行。没有据此推断单一内部模型机制。",
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8"
+      ]
+    }
+  ]
+}

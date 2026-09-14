@@ -1,0 +1,9 @@
+from pathlib import Path
+import json,shutil,subprocess,hashlib
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_EVIDENCE_BUG_DIAGNOSIS_R1_20260914';m=d/'materials';parent=m/'runs/repeat-2/RESULT.json';result=json.loads(parent.read_text());assert 'fetchmany 使用默认值 -1' in result['final']
+w=m/'external_advice_check_r2';shutil.copytree(json.loads((d/'REGISTRATION.json').read_text())['source'],w,ignore=shutil.ignore_patterns('__pycache__'))
+p=w/'document_index/query.py';s=p.read_text();old="rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchmany(limit if limit is not None else -1)";assert old in s
+p.write_text(s.replace(old,"cursor = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),))\n        rows = cursor.fetchmany() if limit is None else cursor.fetchmany(limit)"))
+c=subprocess.run([str(r/'.venv/bin/python'),'-B','test_query_limit.py'],cwd=w,capture_output=True,text=True,timeout=30)
+record={'source_answer_sha256':hashlib.sha256(parent.read_bytes()).hexdigest(),'interpretation':'Prose is inconsistent: explicitly passing None fails as in R1; independently test its claimed no-argument default-means-unlimited interpretation. This external translation is not a model-authored patch or RWKV execution.','returncode':c.returncode,'stdout':c.stdout,'stderr':c.stderr}
+(m/'EXTERNAL_ADVICE_CHECK_R2.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n');assert c.returncode!=0;print(c.stderr)

@@ -1,0 +1,47 @@
+{
+  "contract": {
+    "schema": "rwkv-lh.task-review-contract.v1",
+    "task_id": "execute_and_diagnose",
+    "user_request": "运行工作区中已有的 test_query_limit.py，结合本次真实测试输出和相关源码，诊断导致测试失败的 bug，说明证据与最小修复方向。把已确认事实与尚未验证的猜测分开；证据不足时明确说明。不要修改工作区文件，不要把建议测试说成已经运行。",
+    "kind": "retrospective",
+    "protocol_error_policy": "feedback",
+    "execution_identity": {
+      "model": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+      "protocol": "364c7f17b4febf58dc693810b2c70186f58dfd1e16acfeecc55c3f2bcb729f3f",
+      "source": "d9c164540d1c58b8e237c61a25d6f96f12bce32cfdc12d56d49313bc6f401d23",
+      "sampling": "9eb22d44278cbce808b7e8a37cdb2adae1a4c555036b25f9aeaba1cba7de8ff3",
+      "state": "3ee30f02eccc8f4c103f31aad91ff040b1003518daf4277a79d3c48296bc4825",
+      "budget": "da732f761a753602ff987a571395544fb116c5b18bcc13dc55fb7151a6d52bdb"
+    },
+    "requirements": [
+      {
+        "id": "execution",
+        "user_quote": "运行工作区中已有的 test_query_limit.py",
+        "outcome": "实际执行指定测试，不能以读取源文件或外部验证代替本轮执行",
+        "level": "essential",
+        "missing_effect": "未满足用户要求的执行、诊断或修复方向",
+        "acceptance": "实际执行指定测试，不能以读取源文件或外部验证代替本轮执行",
+        "omission_policy": "不要求固定工具顺序、固定措辞、精确行号或其他项目细节"
+      },
+      {
+        "id": "diagnosis",
+        "user_quote": "诊断导致测试失败的 bug",
+        "outcome": "将记录中的失败联系到默认None进入fetchmany(-1)，用真实材料与源码支持",
+        "level": "essential",
+        "missing_effect": "未满足用户要求的执行、诊断或修复方向",
+        "acceptance": "将记录中的失败联系到默认None进入fetchmany(-1)，用真实材料与源码支持",
+        "omission_policy": "不要求固定工具顺序、固定措辞、精确行号或其他项目细节"
+      },
+      {
+        "id": "repair",
+        "user_quote": "最小修复方向",
+        "outcome": "修复默认不限量行为并保留正整数limit；不能用仍报错或只返回一行的建议替代",
+        "level": "essential",
+        "missing_effect": "未满足用户要求的执行、诊断或修复方向",
+        "acceptance": "修复默认不限量行为并保留正整数limit；不能用仍报错或只返回一行的建议替代",
+        "omission_policy": "不要求固定工具顺序、固定措辞、精确行号或其他项目细节"
+      }
+    ]
+  },
+  "sha256": "2f8ee0d65b8f580d48d2ae2adc9aa8d2f9317a6903045f4b4c45246d3d40864b"
+}
