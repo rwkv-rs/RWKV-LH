@@ -111,3 +111,5 @@ Agent Strict、完成率、mutation 和终止原因持续观察；最终组合�
 
 
 最新R3已完成128条结构复核和100条回答人工语义审核：98回答保留、2歧义隔离；28读取+24回答代表形成52行引用建议，未改旧数据/评分。历史同批已训练384步并因验收退化NO_KEEP，不盲目重训。GPU0完整回归1710 passed（321.23s）。[完整记录](../data/experiments/RWKV_EXISTING_DATA_AUDIT_R3_20260914/REPORT.zh-CN.md)。Owner随后明确授权离线期间继续推进，按[下一轮范围与预算](../data/experiments/RWKV_EXISTING_DATA_AUDIT_R3_20260914/NEXT_AUTHORIZATION.zh-CN.md)先补编码freeze及训练一致性验证，再有条件冻结新数据/训练；此前“本轮不训练”只描述已完成审计轮。
+
+2026-09-15 全量转移覆盖核查：60行输入仅包含读取/目录观察，没有命令执行后或修改后边界；4个命令目标的future执行证明不能倒灌输入。19工具菜单仍含10读取/10回答目标，不能简化归因于菜单。下一批优先真实失败→修实现→复验→忠实交付边界。[证据](../data/experiments/RWKV_TRAINING_TRANSITION_COVERAGE_R1_20260915/REPORT.zh-CN.md)。
