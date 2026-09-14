@@ -57,6 +57,9 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
     starts = {e['request_id']: e for e in events if e['type'] == 'model_session_generation_started'}
     parent_trace = run_root / 'PARENT_TRACE.jsonl'
     ancestors = [json.loads(line) for line in parent_trace.read_text().splitlines()] if parent_trace.is_file() else []
+    from .read_only_agent import generation_trace_integrity
+    core.require(generation_trace_integrity(events)['paired']
+                 and generation_trace_integrity(ancestors)['paired'], 'incomplete or duplicate generation trace')
     history = [e for e in ancestors if e['type'] == 'model_session_generation_returned'] + returned
     generations = {e['candidate_checkpoint_id']: e['raw_generation'] for e in history}
     core.require(len(generations) == len(history) and bool(returned), 'missing/duplicate generation identity')

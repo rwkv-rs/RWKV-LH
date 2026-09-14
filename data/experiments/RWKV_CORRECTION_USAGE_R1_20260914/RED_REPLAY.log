@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_replay_rejects_unreturned_or_duplicate_generation_requests ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_replay_rejects_unreturned0')
+
+    def test_replay_rejects_unreturned_or_duplicate_generation_requests(tmp_path):
+        import json
+        from rwkv_lh.direct_trace_data import replay_run
+        root = _recent_coding_trace(tmp_path)
+        path = root / 'model_trace.jsonl'
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        started = next(e for e in events if e['type'] == 'model_session_generation_started')
+        events.append(started)
+        path.write_text(''.join(json.dumps(e) + '\n' for e in events))
+>       with pytest.raises(ValueError, match='generation trace'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_direct_statetune.py:142: Failed
+=========================== short test summary info ============================
+FAILED tests/test_direct_statetune.py::test_replay_rejects_unreturned_or_duplicate_generation_requests
+1 failed, 12 deselected in 0.78s

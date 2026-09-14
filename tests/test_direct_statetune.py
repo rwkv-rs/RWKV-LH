@@ -128,3 +128,16 @@ def test_replay_rejects_changed_goal_instead_of_trusting_recorded_prompt(tmp_pat
     p.write_text(json.dumps(state))
     with pytest.raises(ValueError, match='literal request digest mismatch'):
         replay_run(root, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+
+
+def test_replay_rejects_unreturned_or_duplicate_generation_requests(tmp_path):
+    import json
+    from rwkv_lh.direct_trace_data import replay_run
+    root = _recent_coding_trace(tmp_path)
+    path = root / 'model_trace.jsonl'
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+    started = next(e for e in events if e['type'] == 'model_session_generation_started')
+    events.append(started)
+    path.write_text(''.join(json.dumps(e) + '\n' for e in events))
+    with pytest.raises(ValueError, match='generation trace'):
+        replay_run(root, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')

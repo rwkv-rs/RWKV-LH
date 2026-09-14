@@ -1,0 +1,20 @@
+.F................                                                       [100%]
+=================================== FAILURES ===================================
+___________________ test_noop_correction_is_not_a_valid_edit ___________________
+
+candidate = {'run_root': PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_noop_correction_is_not_a_0/source'), 'ch...tent": "value = 1\\n"}}\n```', 'model_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def test_noop_correction_is_not_a_valid_edit(candidate):
+        target = json.dumps(call('write_file', path='a.py', content='value = 1\n')) + model_io.JSON_CALL_STOP_SUFFIXES[0]
+        candidate['target_text'] = target
+        for review in candidate['reviews']: review['target_sha256'] = sha(target)
+>       assert validate_coding_correction(**candidate)['status'] == 'no_effective_change'
+E       AssertionError: assert 'verification_failed' == 'no_effective_change'
+E         
+E         - no_effective_change
+E         + verification_failed
+
+tests/test_coding_corrections.py:50: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_coding_corrections.py::test_noop_correction_is_not_a_valid_edit
+1 failed, 17 passed in 0.29s
