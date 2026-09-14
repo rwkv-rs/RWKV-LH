@@ -1,0 +1,22 @@
+from pathlib import Path
+import sys,json
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914'
+contract=json.loads((D/'reviews/contract.json').read_text())['contract'];assessments=[]
+for repeat in (1,2):
+ p=D/'runs'/f'repeat-{repeat}'/'execution';delivery=json.loads((p.parent/'DELIVERY.json').read_text())
+ run=v.capture_diagnostic_run(p,task_id=contract['task_id'],arm='rwkv_independent',repeat=repeat,protocol_error_policy='feedback',execution_identity=contract['execution_identity'],historical=False,assistance='rwkv_independent')
+ # Separate stores intentionally share task ID; namespace review identifier by immutable run directory.
+ run['run_id']=str(p.parent.relative_to(D))+'/'+run['run_id']
+ for e in run['evidence']:e['path']=str(p.relative_to(D)/e['path'])
+ for path,kind in [(D/'REGISTRATION.json','identity'),(D/'MECHANICAL.json','check'),(D/'external'/f'repeat-{repeat}'/'CHECK.json','check'),(p.parent/'DELIVERY.json','trace'),(p.parent/'INITIAL_FILES.json','source')]+[(p.parent/'workspace'/q,'artifact') for q in delivery['changed_files'] if (p.parent/'workspace'/q).is_file()]:
+  eid=f'E{len(run["evidence"])+1}';run['evidence'].append({'id':eid,'path':str(path.relative_to(D)),'sha256':v.file_digest(path),'kind':kind})
+  if kind=='artifact':run['artifact_ids'].append(eid)
+ refs=[e['id'] for e in run['evidence']]
+ assert run['answer'] is None and not run['artifact_ids'],'Requires actual delivered-result adjudication, do not assign no_delivery'
+ judgment={'schema':v.REVIEW_SCHEMA,'contract_sha256':v.digest(contract),'run_sha256':v.digest(run),'reviewer':'Codex external review of original trace and frozen contract','validity':'valid','validity_reason':'同一冻结源码、任务和工作区；独立zero，原始观察及State父链重建通过。现有重复预算保持；未改评分。','validity_evidence_ids':refs,'requirements':[],'findings':[],'causes':[{'category':'model_behavior','certainty':'observed','reason':'预算内仅阅读/重复阅读，没有修改、真实测试或最终回答；不能据此推断失败反馈修复能力或内部机制。','evidence_ids':refs}]}
+ a=v.assess(contract,run,judgment,evidence_root=D);assessments.append(a)
+ for name,value in [('run',run),('judgment',judgment),('assessment',a)]:v.write_once(D/f'reviews/repeat-{repeat}.{name}.json',value)
+v.write_once(D/'TASK_SUMMARY.json',v.aggregate(assessments))
+print([(a['run_id'],a['outcome'],a['diagnostics']) for a in assessments])

@@ -1,0 +1,15 @@
+from pathlib import Path
+import sys,subprocess,shutil,json
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import task_review as v
+D=R/'data/experiments/RWKV_QUERY_REPAIR_FEEDBACK_R1_20260914'
+for name,source in [('original',D/'source')]+[(f'repeat-{i}',D/'runs'/f'repeat-{i}'/'workspace') for i in (1,2) if (D/'runs'/f'repeat-{i}'/'DELIVERY.json').exists()]:
+ out=D/'external'/name
+ if out.exists():continue
+ shutil.copytree(source,out/'workspace')
+ test=(D/'source/test_query_limit.py').read_bytes()
+ unchanged=(source/'test_query_limit.py').is_file() and (source/'test_query_limit.py').read_bytes()==test
+ (out/'workspace/test_query_limit.py').write_bytes(test)
+ p=subprocess.run([sys.executable,'-B','test_query_limit.py'],cwd=out/'workspace',capture_output=True,text=True,timeout=60)
+ v.write_once(out/'CHECK.json',{'attribution':'external verifier, never model execution or input','command':[sys.executable,'-B','test_query_limit.py'],'original_test_preserved':unchanged,'test_sha256':v.file_digest(D/'source/test_query_limit.py'),'exit_code':p.returncode,'stdout':p.stdout,'stderr':p.stderr,'source_files':{str(q.relative_to(source)):v.file_digest(q) for q in source.rglob('*') if q.is_file()}})
+ print(name,p.returncode,p.stderr,flush=True)
