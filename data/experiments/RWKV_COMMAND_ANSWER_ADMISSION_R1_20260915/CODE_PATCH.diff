@@ -1,0 +1,65 @@
+diff --git a/rwkv_lh/direct_trace_data.py b/rwkv_lh/direct_trace_data.py
+index 59794227..3d831c12 100644
+--- a/rwkv_lh/direct_trace_data.py
++++ b/rwkv_lh/direct_trace_data.py
+@@ -217,6 +217,48 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
+     return {'sample_id': row['sample_id'], 'input_token_ids': list(source), 'target_token_ids': list(target)}
+ 
+ 
++def _complete_observed_text_hashes(result: Mapping) -> list[str]:
++    """Bind labels to complete visible file text or typed command streams."""
++    observation = result.get('observation', {})
++    if observation.get('projection_complete') is not True:
++        return []
++    if observation.get('adapter') != 'command_streams':
++        if 'exact_spans' not in observation:
++            return []
++        text = ''.join(span['content'] for span in observation['exact_spans'])
++        return [hashlib.sha256(text.encode()).hexdigest()]
++    core.require(result.get('action_type') in ('check_command', 'run_command')
++                 and observation.get('fact_authority') == 'exit_code_and_exact_stream_spans',
++                 'command evidence authority differs')
++    hashes = []
++    names = set()
++    for stream in result.get('command_streams', []):
++        core.require(stream.get('stream') in ('stdout', 'stderr', 'combined')
++                     and stream['stream'] not in names, 'command stream identity differs')
++        names.add(stream['stream'])
++        core.require(stream.get('projection_complete') is True, 'command stream is incomplete')
++        parts = []
++        offset = 0
++        for span in stream.get('exact_spans', []):
++            text = span['content']
++            encoded = text.encode()
++            core.require(span.get('start_byte') == offset
++                         and span.get('end_byte') == offset + len(encoded)
++                         and span.get('content_sha256') == hashlib.sha256(encoded).hexdigest()
++                         and span.get('snapshot_sha256') == stream.get('stream_sha256'),
++                         'command span content or range differs')
++            offset += len(encoded)
++            parts.append(text)
++        text = ''.join(parts)
++        checksum = hashlib.sha256(text.encode()).hexdigest()
++        core.require(offset == stream.get('stream_bytes')
++                     and len(text) == stream.get('stream_chars')
++                     and checksum == stream.get('stream_sha256'), 'command stream content differs')
++        hashes.append(checksum)
++    core.require('combined' not in names or len(names) == 1, 'mixed combined and separate streams')
++    return hashes
++
++
+ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapping, output: Path) -> dict:
+     """Publish only reviewed rows rechecked against sealed native production traces."""
+     from rwkv_lh.statetune_data import sealed, FREEZE_SCHEMA, DATASET_SCHEMA
+@@ -306,10 +348,7 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
+                 current = state.model_states.get(current.parent_checkpoint_id)
+             for event_id in visible:
+                 event = state.model_events[event_id]
+-                observation = event.payload.get('result', {}).get('observation', {})
+-                if observation.get('projection_complete'):
+-                    text = ''.join(span['content'] for span in observation.get('exact_spans', []))
+-                    content_hashes.append(hashlib.sha256(text.encode()).hexdigest())
++                content_hashes.extend(_complete_observed_text_hashes(event.payload.get('result', {})))
+             core.require(row['source_content_sha256'] in content_hashes, 'summary target uses unobserved source')
+     coverage = registration['minimum_coverage']
+     core.require(len({row['source_id'] for row in rows}) >= coverage['source_files']
