@@ -47,8 +47,8 @@ def validate_split_isolation(records: Sequence[Mapping]) -> None:
 def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
     """Rebuild every generation input using production bootstrap/event renderers.
 
-    The caller seals all source files first. Workspace must still match its
-    frozen read-only snapshot. No inference, fabricated tool result, or target
+    The caller seals all source files first. Recorded workspace identity is
+    preserved; tools are never executed. No inference, fabricated tool result, or target
     construction occurs here.
     """
     state = RunState.from_dict(json.loads((run_root / 'state_snapshot.json').read_text()))
@@ -64,13 +64,13 @@ def replay_run(run_root: Path, model_sha256: str) -> dict[str, dict]:
     session = ModelSession(client=object(), settings=RuntimeSettings(base_url='http://unused.invalid', api_key='', model='replay-only', tool_disclosure_mode='full'))
     result_path = run_root / 'RESULT.json'
     scope = json.loads(result_path.read_text()).get('tool_scope') if result_path.is_file() else None
-    if scope is None:
+    if scope in (None, 'coding'):
         harness = ActionHarness()
     else:
         from rwkv_lh.read_only_agent import ReadOnlyHarness
         harness = ReadOnlyHarness(tool_scope=scope)
     model = LongHorizonModel(session, harness=harness)
-    replay_goal = model.create_literal_goal(state.goal.request, str(run_root / 'workspace'),
+    replay_goal = model.create_literal_goal(state.goal.request, state.goal.workspace_root,
                                                 constraints=state.goal.constraints, runtime_policy=state.goal.runtime_policy)
     initial = RunState(run_id=state.run_id, goal=replay_goal)
     bootstrap = model_io.render_bootstrap(model.direct_definitions(), model._assignment(initial, recent_limit=None))

@@ -1,6 +1,6 @@
 # 当前缺陷与StateTune来源登记
 
-更新：2026-09-14。当前登记18项问题或保留项，不宣称未知缺陷已经穷尽。来源和SHA见[机器台账](../data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/DEFECT_REGISTER.json)。这不是已准入训练数据，工程/评分问题不能混作模型标签。
+更新：2026-09-14。当前登记19项问题或保留项，不宣称未知缺陷已经穷尽。来源和SHA见[机器台账](../data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/DEFECT_REGISTER.json)。这不是已准入训练数据，工程/评分问题不能混作模型标签。
 
 |ID|问题|分类/状态|标注或处理原则|
 |---|---|---|---|
@@ -23,4 +23,9 @@
 |M10|已给明确修法却写回原错误内容|model_observation / observed_candidate_not_corrected|选择写入工具不代表实现了修改；需核对实际差异和行为。|
 |M11|写入成功被误当作完成要求的修改|model_observation / confirmed_unfixed|I/O成功不等于语义修改；依据文件真实内容及差异报告，不能将任务要求复述为已完成事实。未运行测试的正确披露单独保留。|
 
+|E06|编码trace离线重放误用只读菜单|engineering / fixed_targeted_regression|本轮修复coding scope及记录工作区身份；重放成功不代表模型答案正确。|
+
 正向纠正、合法例外、既有成功样本均保留。重复读取有时合理；如实报告测试失败不是虚假完成；下一步建议不是执行事实。1万条目标见[数据计划](STATETUNE_10000_PLAN.zh-CN.md)。
+
+
+归并边界与下一阶段见[展开分析](DEFECT_GROUPING_AND_NEXT_STAGE.zh-CN.md)。

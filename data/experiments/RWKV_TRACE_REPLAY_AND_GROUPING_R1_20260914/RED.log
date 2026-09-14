@@ -1,0 +1,49 @@
+..........FF                                                             [100%]
+=================================== FAILURES ===================================
+____ test_current_coding_trace_replays_original_menu_and_workspace_identity ____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_current_coding_trace_repl0')
+
+    def test_current_coding_trace_replays_original_menu_and_workspace_identity(tmp_path):
+        from rwkv_lh.direct_trace_data import replay_run
+>       rows = replay_run(_recent_coding_trace(tmp_path), '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_direct_statetune.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/direct_trace_data.py:71: in replay_run
+    harness = ReadOnlyHarness(tool_scope=scope)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.read_only_agent.ReadOnlyHarness object at 0x7ab447ed4e10>
+tool_scope = 'coding', args = (), kwargs = {}
+
+    def __init__(self, *args, tool_scope='inspect', **kwargs):
+        if tool_scope not in ('files', 'inspect'):
+>           raise ValueError('unknown read-only tool scope')
+E           ValueError: unknown read-only tool scope
+
+rwkv_lh/read_only_agent.py:39: ValueError
+_____ test_replay_rejects_changed_goal_instead_of_trusting_recorded_prompt _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_replay_rejects_changed_go0')
+
+    def test_replay_rejects_changed_goal_instead_of_trusting_recorded_prompt(tmp_path):
+        import json
+        from rwkv_lh.direct_trace_data import replay_run
+        root = _recent_coding_trace(tmp_path)
+        p = root / 'state_snapshot.json'
+        state = json.loads(p.read_text()); state['goal']['request'] = 'Different user task'
+        p.write_text(json.dumps(state))
+>       with pytest.raises(ValueError, match='bootstrap replay differs'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'bootstrap replay differs'
+E         Actual message: 'literal request digest mismatch'
+
+tests/test_direct_statetune.py:129: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_direct_statetune.py::test_current_coding_trace_replays_original_menu_and_workspace_identity
+FAILED tests/test_direct_statetune.py::test_replay_rejects_changed_goal_instead_of_trusting_recorded_prompt
+2 failed, 10 passed in 1.01s

@@ -94,3 +94,37 @@ def test_current_read_only_advice_trace_replays_only_new_calls_with_real_parent_
     row=next(iter(rows.values()))
     assert 'Requested review advice:' in row['input_text']
     assert row['recomputed'] is True
+
+
+def _recent_coding_trace(tmp_path):
+    from pathlib import Path
+    import tarfile
+    archive = Path(__file__).resolve().parents[1] / 'data/experiments/RWKV_EXPLICIT_EDIT_R1_20260914/EVIDENCE.tar.gz'
+    prefix = 'runs/atomic-2/execution/'
+    with tarfile.open(archive) as tar:
+        members = [m for m in tar.getmembers() if m.name in
+                   [prefix + name for name in ('RESULT.json', 'state_snapshot.json', 'model_trace.jsonl')]]
+        assert len(members) == 3
+        tar.extractall(tmp_path, members=members, filter='data')
+    return tmp_path / prefix
+
+
+def test_current_coding_trace_replays_original_menu_and_workspace_identity(tmp_path):
+    from rwkv_lh.direct_trace_data import replay_run
+    rows = replay_run(_recent_coding_trace(tmp_path), '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
+    assert len(rows) == 4
+    assert all(row['recomputed'] for row in rows.values())
+    assert any('write_file' in row['raw_generation']['raw_output'] for row in rows.values())
+    # Replay preserves the wrong original answer; it does not certify a label.
+    assert any('已执行' in row['raw_generation']['raw_output'] for row in rows.values())
+
+
+def test_replay_rejects_changed_goal_instead_of_trusting_recorded_prompt(tmp_path):
+    import json
+    from rwkv_lh.direct_trace_data import replay_run
+    root = _recent_coding_trace(tmp_path)
+    p = root / 'state_snapshot.json'
+    state = json.loads(p.read_text()); state['goal']['request'] = 'Different user task'
+    p.write_text(json.dumps(state))
+    with pytest.raises(ValueError, match='literal request digest mismatch'):
+        replay_run(root, '559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65')
