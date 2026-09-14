@@ -108,3 +108,6 @@ State入口整改已完成：四产品入口统一保留显式profile，缺省�
 
 
 GC 空队列性能根因已修复：旧服务8409历史State时每次空GC仍全表解码核验，实测8–9秒；新逻辑无待回收键直接返回，非空安全检查保留。红→绿及GPU0全套1758 passed。独立新服务真实CLI脚本任务1/1、2生成、零非法调用、无修改、8.54秒；不是项目Strict/训练收益。原服务不动，新服务29621只用GPU0/zero。详见 data/experiments/RWKV_NATIVE_GC_EMPTY_QUEUE_R1_20260914/REPORT.zh-CN.md。四个已有局部修复目标正以24 calls/600s和24K窗口重新采集，条件不同不直接称对照收益。
+
+
+优质纠正采集已封存：GC修复后四局部修复0/4，完整51生成仍重复读取，无修改；两个强修复后的工作区验证任务也未独立验证完成。2条强模型原样编辑红→绿，加1条实际失败测试命令，经两审核及fresh执行后在新v2冻结，共57行，最长24455/24576tokens。文本歧义及错审候选未准入，人工误称sqlite_io.py不存在的错误已留痕纠正。详情 RWKV_FOCUSED_CORRECTION_CAMPAIGN_R1_20260914。训练R2从zero计划342步（6epochs，上限400步/4h/80GiB）正在GPU0执行，结果未知；原门槛不变。复用字节相同数值训练源码及24K兼容证明，生产评测用GC修复源码，唯一model_io相同。训练退出自动恢复原服务，GC侧服务暂停待评测后按原launch重建；不要对已停止的transient unit直接start。启动SSH引号错误0步已保留。所有固定评测两臂重新运行，尚不读confirmation/holdout、不push。详见 RWKV_UNIFIED_CORRECTION_TRAIN_R2_20260914/PREPARATION_SHA256.json。
