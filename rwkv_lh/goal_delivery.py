@@ -1,4 +1,5 @@
 """Opt-in bounded RWKV-first delivery; terminal routing has no acceptance authority."""
+from .job_budget import task_deadline
 from dataclasses import dataclass
 import math
 from pathlib import Path
@@ -27,6 +28,7 @@ def validate_goal_job(job):
         raise ValueError('positive goal budgets required; RWKV allowance cannot exceed total')
 
 
+@task_deadline
 def run_goal_job(job, *, settings):
     """Attempt RWKV, then at most one takeover on a recorded no-delivery stall.
 

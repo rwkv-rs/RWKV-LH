@@ -10,6 +10,7 @@ import threading
 import time
 import traceback
 
+from .job_budget import WallDeadlineExpired as _WallDeadlineExpired
 from .controller import LongHorizonController
 from .harness import ActionHarness
 from .model import LongHorizonModel
@@ -53,10 +54,6 @@ class ReadOnlyBudgetExpired(TimeoutError):
         self.reason = reason
 
 
-class _WallDeadlineExpired(BaseException):
-    """Do not let protocol recovery or best-effort audit hooks swallow a deadline."""
-
-
 class _BudgetedSession:
     def __init__(self, session, limit, deadline, audit_errors=()):
         self.session, self.limit, self.deadline = session, limit, deadline
@@ -85,6 +82,21 @@ class _ReadOnlyController(LongHorizonController):
         if decision.command.name not in {d['name'] for d in self.harness.g1i_tool_definitions()}:
             raise PermissionError('operation outside selected read-only scope')
         return super()._execute_decision(state, decision)
+
+
+def append_pending_observations(state, controller, model, parent):
+    while (pending := controller._first_unappended_action_observation(state)) is not None:
+        parent = model._append_event(state, parent, pending, controller._persist_callback)
+    return parent
+
+
+def generation_trace_integrity(records):
+    started = [r['request_id'] for r in records if r['type'] == 'model_session_generation_started']
+    returned = [r['request_id'] for r in records if r['type'] == 'model_session_generation_returned']
+    return {'paired': (len(started) == len(set(started)) and len(returned) == len(set(returned))
+                       and set(started) == set(returned)),
+            'started': len(started), 'returned': len(returned),
+            'unresolved': sorted(set(started) - set(returned))}
 
 
 def _save(path, value):
@@ -192,7 +204,9 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
     def deadline(signum, frame):
         raise _WallDeadlineExpired('wall budget exhausted')
     old_handler = signal.signal(signal.SIGALRM, deadline)
-    old_timer = signal.setitimer(signal.ITIMER_REAL, job.max_seconds)
+    old_timer = signal.getitimer(signal.ITIMER_REAL)
+    allowance = min(job.max_seconds, old_timer[0]) if old_timer[0] else job.max_seconds
+    signal.setitimer(signal.ITIMER_REAL, allowance)
     try:
         if prepare_state is not None:
             if job.reconsider_from:
@@ -204,7 +218,7 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
             initial_causal_count = len(state.causal_order)
         harness = harness_factory()
         model = LongHorizonModel(session_factory(settings=settings, audit_hook=audit), harness=harness)
-        model.session = _BudgetedSession(model.session, job.max_calls, started + job.max_seconds, audit_errors)
+        model.session = _BudgetedSession(model.session, job.max_calls, started + allowance, audit_errors)
         if state is None:
             store = LongHorizonStore(output / 'state', checkpoint_retention=1000)
             goal = model.create_literal_goal(job.request, str(workspace), runtime_policy={
@@ -225,7 +239,9 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
             controller._persist(state, 'run_started', {
                 **continuation, 'reason': 'owner_requested_reconsideration',
                 'resumed': True, 'supersedes_terminal_event_id': terminal_id})
-            model._append_event(state, state.model_states[continuation['parent_checkpoint_id']], event, controller._persist_callback)
+            parent = append_pending_observations(state, controller, model,
+                state.model_states[continuation['parent_checkpoint_id']])
+            model._append_event(state, parent, event, controller._persist_callback)
         if before_run is not None:
             before_run(state, controller, model)
         controller.run(state.run_id)
@@ -237,11 +253,14 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, old_handler)
-        if old_timer[0]:
-            signal.setitimer(signal.ITIMER_REAL, max(.001, old_timer[0] - (time.monotonic()-started)), old_timer[1])
+        remaining = old_timer[0] - (time.monotonic()-started)
+        if old_timer[0] and remaining > 0:
+            signal.setitimer(signal.ITIMER_REAL, remaining, old_timer[1])
     if state is not None:
         state = store.load(state.run_id)
     generations = [r for r in records if r['type'] == 'model_session_generation_started']
+    integrity = generation_trace_integrity(records)
+    trace_complete = not audit_errors and integrity['paired']
     items = []
     for event in state.model_events.values() if state is not None else ():
         if event.event_type != 'action_result':
@@ -276,14 +295,16 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
               'termination_reason': termination_reason,
               'termination_evidence': boundary.to_dict() if boundary and error is None else error,
               'command_executions': commands,
-              'acceptance': 'unreviewable' if audit_errors else 'not_evaluated',
+              'acceptance': 'not_evaluated' if trace_complete else 'unreviewable',
               'assistance': 'strong_takeover' if execution_authority == 'strong_takeover' else
                             'strong_advised' if continuation and continuation.get('advice_model') else 'rwkv_independent',
               'execution_model': settings.model,
               'execution_authority': execution_authority,
               'continuation': continuation,
               'error': error, 'status': state.status.value if state is not None else 'not_started',
-              'trace_complete': not audit_errors, 'trace_errors': audit_errors, 'tool_scope': job.tool_scope,
+              'trace_complete': trace_complete, 'trace_persistence_ok': not audit_errors,
+              'generation_returned': integrity['returned'], 'unresolved_request_ids': integrity['unresolved'],
+              'trace_errors': audit_errors, 'tool_scope': job.tool_scope,
               'generation_started': len(generations), 'protocol_rejections': state.protocol_rejections if state is not None else 0,
               'actions': [a.to_dict() for a in state.actions.values()] if state is not None else [],
               'elapsed_seconds': time.monotonic()-started}

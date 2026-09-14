@@ -1,0 +1,41 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_pool_crash_preserves_other_results_and_marks_unknown_calls ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_pool_crash_preserves_othe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79e17ecd9e00>
+
+    def test_pool_crash_preserves_other_results_and_marks_unknown_calls(tmp_path, monkeypatch):
+        from concurrent.futures import Future
+        from concurrent.futures.process import BrokenProcessPool
+        import rwkv_lh.agent_batch as batch
+        source = tmp_path / 'source'; source.mkdir()
+        jobs = [ReadOnlyJob(name, 'Read', str(source), str(tmp_path / name)) for name in ('ok', 'dead')]
+        class Pool:
+            def __init__(self, **kwargs): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def map(self, *args): raise BrokenProcessPool('controlled hard worker exit')
+            def submit(self, function, arguments):
+                future = Future()
+                if arguments[0].task_id == 'ok':
+                    future.set_result({'id': 'ok', 'final': 'raw', 'termination': 'submitted', 'acceptance': 'not_evaluated'})
+                else:
+                    future.set_exception(BrokenProcessPool('controlled hard worker exit'))
+                return future
+        monkeypatch.setattr(batch, 'ProcessPoolExecutor', Pool)
+        results = batch.run_agent_jobs(jobs, settings=settings(), concurrency=2)
+        assert results[0]['final'] == 'raw'
+        assert results[1]['termination'] == 'error'
+        assert results[1]['termination_reason'] == 'worker_process_lost'
+        assert results[1]['generation_started'] is None
+        assert results[1]['final'] is None
+>       assert (tmp_path / 'dead/BATCH_ERROR.json').is_file()
+E       AssertionError: assert False
+E        +  where False = is_file()
+E        +    where is_file = (PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_pool_crash_preserves_othe0') / 'dead/BATCH_ERROR.json').is_file
+
+tests/test_direct_engineering_boundaries.py:89: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_direct_engineering_boundaries.py::test_pool_crash_preserves_other_results_and_marks_unknown_calls
+1 failed, 7 deselected in 0.07s

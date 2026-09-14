@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_read_only_reconsideration_delivers_pending_observation_before_advice ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_read_only_reconsideration0')
+
+    def test_read_only_reconsideration_delivers_pending_observation_before_advice(tmp_path):
+        import json
+        source = tmp_path / 'source'; source.mkdir(); (source / 'a').write_text('actual')
+        run_read_only_job(ReadOnlyJob('parent', 'Read a', str(source), str(tmp_path / 'parent'), max_calls=1),
+            settings=settings(), session_factory=factory([call('read_file', path='a')]))
+        job = ReadOnlyJob('child', 'Read a', str(source), str(tmp_path / 'child'),
+            reconsider_from=str(tmp_path / 'parent'), advice='Check the evidence', advice_model='test-adviser')
+        run_read_only_job(job, settings=settings(), session_factory=factory([call('final_answer', text='actual')]))
+        state = json.loads((tmp_path / 'child/state_snapshot.json').read_text())
+        events = list(state['model_events'].values())
+        observation = next(i for i,e in enumerate(events) if e['event_type'] == 'action_result')
+        advice = next(i for i,e in enumerate(events) if 'advice' in e['event_type'])
+>       assert observation < advice
+E       assert 1 < 0
+
+tests/test_direct_engineering_boundaries.py:144: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_direct_engineering_boundaries.py::test_read_only_reconsideration_delivers_pending_observation_before_advice
+1 failed, 7 deselected in 1.26s

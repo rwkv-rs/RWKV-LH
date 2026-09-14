@@ -1,14 +1,17 @@
 """Explicit advice or takeover of a recorded direct task in an isolated workspace."""
+from .job_budget import task_deadline
 from dataclasses import dataclass, replace, asdict
 from pathlib import Path
 import hashlib
 import json
 import shutil
 import subprocess
+import os
+import signal
 import sys
 
 from .coding_agent import _RecordedHarness, _inventory
-from .read_only_agent import ReadOnlyJob, ReadOnlyHarness, _ReadOnlyController, _run_job, _save
+from .read_only_agent import ReadOnlyJob, ReadOnlyHarness, _ReadOnlyController, _run_job, _save, generation_trace_integrity, append_pending_observations
 from .controller import LongHorizonController
 from .model_session import create_model_session, ModelSession
 from .schema import RunState, RunStatus, ModelEvent
@@ -52,6 +55,10 @@ def load_parent(job):
         raise ValueError('parent answer or State mismatch')
     if not result.get('trace_complete', False):
         raise ValueError('incomplete parent trace')
+    trace = [json.loads(line) for line in (previous / 'model_trace.jsonl').read_text().splitlines()]
+    integrity = generation_trace_integrity(trace)
+    if not integrity['paired'] or integrity['started'] != result['generation_started']:
+        raise ValueError('parent generation trace is incomplete or inconsistent')
     if LongHorizonStore(previous / 'state', checkpoint_retention=1000).load(state.run_id).to_dict() != state.to_dict():
         raise ValueError('parent store differs from recorded snapshot')
     workspace = Path(state.goal.workspace_root).resolve(strict=True)
@@ -117,8 +124,7 @@ def continue_assisted(job, *, settings, session_factory=create_model_session,
         controller._persist_callback(state, 'run_started', {'reason': 'explicit_' + job.mode,
             'resumed': True, 'parent_checkpoint_id': parent.checkpoint_id})
         if job.mode == 'advice':
-            while (pending := controller._first_unappended_action_observation(state)) is not None:
-                parent = model._append_event(state, parent, pending, controller._persist_callback)
+            parent = append_pending_observations(state, controller, model, parent)
             event = make_advice_event('ADVICE-' + job.task_id, advice, 'external_strong_model', advice_model)
         else:
             if model.session.transport != 'prompt_replay':
@@ -157,6 +163,23 @@ def continue_assisted(job, *, settings, session_factory=create_model_session,
     return result
 
 
+def _run_worker(command, payload, timeout):
+    """Keep the worker and its descendants in a cancellable process group."""
+    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, start_new_session=True) as process:
+        try:
+            stdout, stderr = process.communicate(payload, timeout=timeout)
+        except BaseException:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.communicate(timeout=5)
+            raise
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+@task_deadline
 def run_assisted_job(job, *, settings):
     load_parent(job)
     output = Path(job.output_dir).resolve()
@@ -166,8 +189,7 @@ def run_assisted_job(job, *, settings):
     command = ['unshare', '--user', '--map-root-user', '--mount', '--propagation', 'private',
                sys.executable, '-m', 'rwkv_lh.assisted_agent']
     payload = {'job': asdict(job), 'settings': asdict(settings)}
-    completed = subprocess.run(command, input=json.dumps(payload), text=True, capture_output=True,
-                               timeout=job.max_seconds + 240)
+    completed = _run_worker(command, json.dumps(payload), job.max_seconds)
     if completed.returncode:
         raise RuntimeError('assisted worker failed: ' + completed.stderr[-2000:])
     return json.loads((output / 'DELIVERY.json').read_text())

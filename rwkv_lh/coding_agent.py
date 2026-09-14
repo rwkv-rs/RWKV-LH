@@ -1,4 +1,5 @@
 """Coding tasks in a copied workspace, using the production execution loop."""
+from .job_budget import task_deadline
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
@@ -40,14 +41,20 @@ class _RecordedHarness(ActionHarness):
         self.index += 1
         directory = self.output / 'tool_snapshots' / f'{self.index:03d}'
         directory.mkdir(parents=True)
-        shutil.copytree(goal.workspace_root, directory / 'before', symlinks=True)
-        _save(directory / 'call.json', {'action_type': action.action_type, 'arguments': action.arguments})
+        definition = self.definition(action.action_type)
+        snapshot_needed = not definition.read_only or definition.side_effect
+        if snapshot_needed:
+            shutil.copytree(goal.workspace_root, directory / 'before', symlinks=True)
+        _save(directory / 'call.json', {'action_type': action.action_type, 'arguments': action.arguments,
+              'snapshot_policy': 'before_after' if snapshot_needed else 'observation_only'})
         try:
             return super().execute(action, goal)
         finally:
-            shutil.copytree(goal.workspace_root, directory / 'after', symlinks=True)
+            if snapshot_needed:
+                shutil.copytree(goal.workspace_root, directory / 'after', symlinks=True)
 
 
+@task_deadline
 def run_coding_job(job, *, settings, session_factory=create_model_session):
     """Deliver original answers and file changes; submission does not assert acceptance.
 
@@ -79,6 +86,9 @@ def run_coding_job(job, *, settings, session_factory=create_model_session):
     result = _run_job(inner, settings=settings, session_factory=session_factory,
                       harness_factory=lambda: _RecordedHarness(execution),
                       controller_type=LongHorizonController, allowed_scopes=('coding',))
+    if result['termination_reason'] == 'wall_budget_exhausted':
+        return {**result, 'workspace': str(workspace), 'source_workspace': str(source),
+                'changed_files': None, 'final_files': None}
     after = _inventory(workspace)
     delivery = {**result, 'workspace': str(workspace), 'source_workspace': str(source),
                 'changed_files': sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p)),

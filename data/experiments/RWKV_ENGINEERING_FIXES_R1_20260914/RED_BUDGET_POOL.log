@@ -1,0 +1,117 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_______ test_goal_repeated_noop_does_not_force_final_or_hide_new_action ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red_2/test_goal_repeated_noop_does_n0')
+
+    def test_goal_repeated_noop_does_not_force_final_or_hide_new_action(tmp_path):
+        source = tmp_path / 'source'
+        source.mkdir()
+        (source / 'a.txt').write_text('old')
+        result = run_coding_job(CodingJob('noop', 'Fix a.txt', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([
+                call('write_file', path='a.txt', content='old'),
+                call('write_file', path='a.txt', content='old'),
+                call('write_file', path='a.txt', content='fixed'),
+                call('final_answer', text='Changed a.txt.')]))
+>       assert (Path(result['workspace']) / 'a.txt').read_text() == 'fixed'
+E       AssertionError: assert 'old' == 'fixed'
+E         
+E         - fixed
+E         + old
+
+tests/test_engineering_boundaries.py:19: AssertionError
+____________ test_missing_generation_response_is_not_complete_trace ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red_2/test_missing_generation_respon0')
+
+    def test_missing_generation_response_is_not_complete_trace(tmp_path):
+        class Client:
+            model_name = 'test-rwkv'
+            def text_completion(self, *args, **kwargs):
+                raise ConnectionError('controlled missing response')
+        def create(**kwargs):
+            return ModelSession(Client(), **kwargs)
+        source = tmp_path / 'source'
+        source.mkdir()
+        result = run_read_only_job(ReadOnlyJob('lost', 'Read', str(source), str(tmp_path / 'run'), max_calls=1),
+            settings=settings(), session_factory=create)
+        assert result['generation_started'] == 1
+>       assert result['trace_complete'] is False
+E       assert True is False
+
+tests/test_engineering_boundaries.py:36: AssertionError
+____________ test_copy_time_exhausts_task_budget_before_model_start ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red_2/test_copy_time_exhausts_task_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73af323630b0>
+
+    def test_copy_time_exhausts_task_budget_before_model_start(tmp_path, monkeypatch):
+        import time
+        import rwkv_lh.coding_agent as coding
+        source = tmp_path / 'source'; source.mkdir()
+        original = coding.shutil.copytree
+        def slow(*args, **kwargs):
+            time.sleep(.2)
+            return original(*args, **kwargs)
+        monkeypatch.setattr(coding.shutil, 'copytree', slow)
+        def forbidden(**kwargs):
+            raise AssertionError('model started after preparation exhausted budget')
+        started = time.monotonic()
+        result = run_coding_job(CodingJob('slowcopy', 'Read', str(source), str(tmp_path / 'run'), max_seconds=.03),
+            settings=settings(), session_factory=forbidden)
+>       assert result['termination'] == 'budget'
+E       AssertionError: assert 'error' == 'budget'
+E         
+E         - budget
+E         + error
+
+tests/test_engineering_boundaries.py:57: AssertionError
+_______ test_pool_crash_preserves_other_results_and_marks_unknown_calls ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red_2/test_pool_crash_preserves_othe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73af32225150>
+
+    def test_pool_crash_preserves_other_results_and_marks_unknown_calls(tmp_path, monkeypatch):
+        from concurrent.futures import Future
+        from concurrent.futures.process import BrokenProcessPool
+        import rwkv_lh.agent_batch as batch
+        source = tmp_path / 'source'; source.mkdir()
+        jobs = [ReadOnlyJob(name, 'Read', str(source), str(tmp_path / name)) for name in ('ok', 'dead')]
+        class Pool:
+            def __init__(self, **kwargs): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def map(self, *args): raise BrokenProcessPool('controlled hard worker exit')
+            def submit(self, function, arguments):
+                future = Future()
+                if arguments[0].task_id == 'ok':
+                    future.set_result({'id': 'ok', 'final': 'raw', 'termination': 'submitted', 'acceptance': 'not_evaluated'})
+                else:
+                    future.set_exception(BrokenProcessPool('controlled hard worker exit'))
+                return future
+        monkeypatch.setattr(batch, 'ProcessPoolExecutor', Pool)
+>       results = batch.run_agent_jobs(jobs, settings=settings(), concurrency=2)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_engineering_boundaries.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+rwkv_lh/agent_batch.py:90: in run_agent_jobs
+    return list(pool.map(_worker, [(job, settings) for job in jobs]))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_engineering_boundaries.test_pool_crash_preserves_other_results_and_marks_unknown_calls.<locals>.Pool object at 0x73af2e7e9010>
+args = (<function _worker at 0x73af2e8132e0>, [(ReadOnlyJob(task_id='ok', request='Read', workspace='/home/chase/GitHub/RWKV-..., state_transport='native_required', state_profile_id='', state_profile_sha256='', state_profile_delivery='request'))])
+
+>   def map(self, *args): raise BrokenProcessPool('controlled hard worker exit')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   concurrent.futures.process.BrokenProcessPool: controlled hard worker exit
+
+tests/test_engineering_boundaries.py:74: BrokenProcessPool
+=========================== short test summary info ============================
+FAILED tests/test_engineering_boundaries.py::test_goal_repeated_noop_does_not_force_final_or_hide_new_action
+FAILED tests/test_engineering_boundaries.py::test_missing_generation_response_is_not_complete_trace
+FAILED tests/test_engineering_boundaries.py::test_copy_time_exhausts_task_budget_before_model_start
+FAILED tests/test_engineering_boundaries.py::test_pool_crash_preserves_other_results_and_marks_unknown_calls
+4 failed in 2.41s

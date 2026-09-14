@@ -1,0 +1,23 @@
+diff --git a/rwkv_lh/controller.py b/rwkv_lh/controller.py
+index 90a0c596..3ff7c800 100644
+--- a/rwkv_lh/controller.py
++++ b/rwkv_lh/controller.py
+@@ -714,7 +714,8 @@ class LongHorizonController:
+                     0,
+                 )
+                 if (
+-                    action.status == ActionStatus.SUCCEEDED
++                    not self._goal_self_termination_only(state)
++                    and action.status == ActionStatus.SUCCEEDED
+                     and definition.side_effect
+                     and definition.idempotent
+                     and definition.network_access == "none"
+@@ -5333,6 +5334,8 @@ class LongHorizonController:
+     ) -> ModelEvent | None:
+         """Recover a committed repeat boundary without replaying a mutation."""
+ 
++        if self._goal_self_termination_only(state):
++            return None
+         for event_id in reversed(state.causal_order):
+             event = state.causal_records[event_id]
+             if event.event_type != "idempotent_mutation_repeat_boundary":

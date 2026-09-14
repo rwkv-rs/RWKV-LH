@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_assistance_rejects_missing_parent_response_despite_old_complete_flag ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_assistance_rejects_missin0')
+
+    def test_assistance_rejects_missing_parent_response_despite_old_complete_flag(tmp_path):
+        import json
+        import pytest
+        from rwkv_lh.assisted_agent import AssistedJob, load_parent
+        source = tmp_path / 'source'; source.mkdir()
+        run_read_only_job(ReadOnlyJob('parent', 'Read', str(source), str(tmp_path / 'parent')),
+            settings=settings(), session_factory=factory([call('final_answer', text='raw')]))
+        path = tmp_path / 'parent/model_trace.jsonl'
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        path.write_text(''.join(json.dumps(e) + '\n' for e in events if e['type'] != 'model_session_generation_returned'))
+>       with pytest.raises(ValueError, match='parent generation trace'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_engineering_boundaries.py:128: Failed
+=========================== short test summary info ============================
+FAILED tests/test_engineering_boundaries.py::test_assistance_rejects_missing_parent_response_despite_old_complete_flag
+1 failed, 6 deselected in 0.99s

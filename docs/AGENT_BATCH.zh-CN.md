@@ -48,3 +48,19 @@ coding任务可以显式设置`on_stall: "takeover"`及`rwkv_max_calls`。例如
 max_calls是两种模型合计的生成上限；rwkv_max_calls是RWKV可用上限，现有重复保护可能让其提前结束。max_seconds按已用时间扣减后分给接管；复制/清理可能超时，DELIVERY中的workflow记录完整端到端elapsed及是否超出，不是主机进程硬截止保证。provider错误时未知调用数用null保留，不记零成本。
 
 输出包含rwkv/原运行、可选takeover/续跑、POLICY.json、ROUTING.json和DELIVERY.json。最终文本/工作区引用来自实际执行者；workflow.id是外层任务ID，结果id保留实际子运行身份。输入的一句话目标保持不变，不给模型指定正确补丁或工具顺序。
+
+## 显式依赖与保守集成（2026-09-14 工程整改）
+
+仍使用 `scripts/run_rwkv_agent.py --jobs /absolute/jobs.json --concurrency 2`。
+JSON任务可增加 `"depends_on": ["前置任务ID"]`。调用方声明依赖，程序不拆解用户目标。
+
+- 无依赖任务照常并发；有依赖的任务当前只支持普通 coding 任务，不隐式开启strong。
+- 单前置任务：核对交付清单，将真实工作区复制为后续任务输入；后续任务是明确声明的新任务，使用独立State。
+- 多前置任务：要求相同初始文件清单，只合并不冲突的文件内容变化。修改/删除冲突、文件/目录冲突、基线不同或产物被改动均拒绝，记录blocked/error，不自动猜修法。
+- 后续任务的用户要求可以是测试、检查或继续修改；仍由RWKV选择工具和参数。依赖提交只表示有材料可继续，不等于外部验收通过。
+- 多父集成针对文件内容；空目录、纯权限变化和一般Git语义合并不属于当前支持范围。显式冲突解决、任意分叉基线重建仍是后续能力。
+- 普通调度异常、进程池故障和依赖阻塞记录到任务输出目录的 `BATCH_ERROR.json`。未知调用数为null，不伪造零成本或RWKV独立完成。
+
+编码、协助和整目标入口的准备阶段纳入同一协作式wall deadline，内层不得续出更长预算。取消协助worker会清理其进程组。清理/落盘可能超时，`end_to_end_seconds`和`wall_allowance_exceeded`如实记录；这不是操作系统硬资源配额。
+
+`trace_complete`现在要求日志无写入错误且生成请求/返回配对；`trace_persistence_ok`仅说明日志写入，`unresolved_request_ids`列出未收到返回的请求。它仍不等于native张量正确或所有token可重放，后者由专用验证器检查。

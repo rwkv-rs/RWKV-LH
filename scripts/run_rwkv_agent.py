@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.agent_batch import run_agent_jobs
+from rwkv_lh.agent_integration import run_agent_workflow
 from rwkv_lh.assisted_agent import AssistedJob
 from rwkv_lh.coding_agent import CodingJob
 from rwkv_lh.goal_delivery import GoalJob
@@ -20,8 +21,14 @@ def main():
     parser.add_argument('--concurrency', type=int, default=1)
     args = parser.parse_args()
     jobs = []
+    dependencies = {}
     for row in json.loads(args.jobs.read_text()):
         row = dict(row)
+        parents = row.pop('depends_on', [])
+        if not isinstance(parents, list):
+            parser.error('depends_on must be an array of task IDs')
+        if parents:
+            dependencies[row['task_id']] = parents
         if 'assistance' in row:
             row['mode'] = row.pop('assistance')
             jobs.append(AssistedJob(**row))
@@ -41,7 +48,8 @@ def main():
     settings = replace(get_runtime_settings(), return_token_ids=True,
                        state_transport='native_required', state_profile_id='zero',
                        state_profile_sha256='0'*64, tool_disclosure_mode='full')
-    results = run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency)
+    results = (run_agent_workflow(jobs, dependencies, settings=settings, concurrency=args.concurrency)
+               if dependencies else run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency))
     print(json.dumps(results, ensure_ascii=False, indent=2))
     return 0 if all(r['termination'] == 'submitted' for r in results) else 1
 

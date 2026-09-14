@@ -1,0 +1,47 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_goal_repeated_noop_does_not_force_final_or_hide_new_action ________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red/test_goal_repeated_noop_does_n0')
+
+    def test_goal_repeated_noop_does_not_force_final_or_hide_new_action(tmp_path):
+        source = tmp_path / 'source'
+        source.mkdir()
+        (source / 'a.txt').write_text('old')
+        result = run_coding_job(CodingJob('noop', 'Fix a.txt', str(source), str(tmp_path / 'run')),
+            settings=settings(), session_factory=factory([
+                call('write_file', path='a.txt', content='old'),
+                call('write_file', path='a.txt', content='old'),
+                call('write_file', path='a.txt', content='fixed'),
+                call('final_answer', text='Changed a.txt.')]))
+>       assert (Path(result['workspace']) / 'a.txt').read_text() == 'fixed'
+E       AssertionError: assert 'old' == 'fixed'
+E         
+E         - fixed
+E         + old
+
+tests/test_engineering_boundaries.py:19: AssertionError
+____________ test_missing_generation_response_is_not_complete_trace ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/engineering_red/test_missing_generation_respon0')
+
+    def test_missing_generation_response_is_not_complete_trace(tmp_path):
+        class Client:
+            model_name = 'test-rwkv'
+            def text_completion(self, *args, **kwargs):
+                raise ConnectionError('controlled missing response')
+        def create(**kwargs):
+            return ModelSession(Client(), **kwargs)
+        source = tmp_path / 'source'
+        source.mkdir()
+        result = run_read_only_job(ReadOnlyJob('lost', 'Read', str(source), str(tmp_path / 'run'), max_calls=1),
+            settings=settings(), session_factory=create)
+        assert result['generation_started'] == 1
+>       assert result['trace_complete'] is False
+E       assert True is False
+
+tests/test_engineering_boundaries.py:36: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_engineering_boundaries.py::test_goal_repeated_noop_does_not_force_final_or_hide_new_action
+FAILED tests/test_engineering_boundaries.py::test_missing_generation_response_is_not_complete_trace
+2 failed in 2.23s

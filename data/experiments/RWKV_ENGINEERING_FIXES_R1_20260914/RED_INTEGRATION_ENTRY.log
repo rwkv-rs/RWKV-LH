@@ -1,0 +1,52 @@
+........F                                                                [100%]
+=================================== FAILURES ===================================
+_________________ test_cli_exposes_dependencies_in_same_entry __________________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_cli_exposes_dependencies_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bfca0bff20>
+capsys = <_pytest.capture.CaptureFixture object at 0x79bfca220ad0>
+
+    def test_cli_exposes_dependencies_in_same_entry(tmp_path, monkeypatch, capsys):
+        import scripts.run_rwkv_agent as cli
+        jobs = tmp_path / 'jobs.json'
+        jobs.write_text(json.dumps([{'task_id': 'a', 'request': 'Read', 'workspace': str(tmp_path),
+            'output_dir': str(tmp_path / 'out'), 'tool_scope': 'coding', 'depends_on': []}]))
+        monkeypatch.setattr('sys.argv', ['run_rwkv_agent', '--jobs', str(jobs)])
+        monkeypatch.setattr(cli, 'load_local_env', lambda *a: None)
+        monkeypatch.setattr(cli, 'get_runtime_settings', settings)
+        seen = []
+        monkeypatch.setattr(cli, 'run_agent_jobs', lambda jobs, **kwargs:
+            seen.extend(jobs) or [{'termination': 'submitted'}])
+>       assert cli.main() == 0
+               ^^^^^^^^^^
+
+tests/test_agent_integration.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def main():
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument('--jobs', type=Path, required=True,
+                            help='JSON array: task_id, request, workspace, output_dir, tool_scope, budgets')
+        parser.add_argument('--concurrency', type=int, default=1)
+        args = parser.parse_args()
+        jobs = []
+        for row in json.loads(args.jobs.read_text()):
+            row = dict(row)
+            if 'assistance' in row:
+                row['mode'] = row.pop('assistance')
+                jobs.append(AssistedJob(**row))
+                continue
+            scope = row.pop('tool_scope', 'files')
+            recovery = row.pop('on_stall', None)
+            if recovery is not None and (recovery != 'takeover' or scope != 'coding'):
+                parser.error('on_stall supports takeover for coding tasks only')
+            if scope == 'coding':
+                row['source_workspace'] = row.pop('workspace')
+>               jobs.append(GoalJob(**row) if recovery else CodingJob(**row))
+                                                            ^^^^^^^^^^^^^^^^
+E               TypeError: CodingJob.__init__() got an unexpected keyword argument 'depends_on'
+
+scripts/run_rwkv_agent.py:35: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_agent_integration.py::test_cli_exposes_dependencies_in_same_entry
+1 failed, 8 passed in 4.53s
