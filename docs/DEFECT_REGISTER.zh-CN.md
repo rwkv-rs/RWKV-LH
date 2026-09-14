@@ -102,3 +102,8 @@ M12/M13可以进入统一多缺陷训练批次，但纠正依据不同，不能�
 
 
 E21（2026-09-15）：配置的sampling被固定常量覆盖，真实frequency0.0使标0.2对照INVALID。已修复Session默认解析/四个调用/实际采样记录及基准元数据，1781全绿。它是工程配置缺陷，不是RWKV负例；R2须新冻结两臂。历史原始采样和无效对照不重写。
+
+
+E22（2026-09-15）：Goal显式续跑的新预算继承已耗尽的成功重复/协议累计次数，strong读一次即再次中断。已按既有run_yielded epoch修复并1787全绿，原累计证据不删；真实任务需接管R2另验收。
+
+E23（观测边界）：StrongCompletion的实际HTTP请求未带Session本地sampling字段，供应商默认采样未知。strong_trace原始wire/usage是有效证据；不得把本地Session sampling称为已发送参数。RWKV native采样传递已另修复验证，不能混为同一实验。后续若比较强模型采样，须先明确适配和审计语义，不将其当RWKV训练负例。

@@ -255,6 +255,18 @@ class LongHorizonController:
             for event in state.causal_records.values()
         )
 
+    def _identical_result_count(self, state: RunState, fingerprint: str) -> int:
+        """Scope repeat limits to the Goal epoch without erasing observations."""
+        if not self._goal_self_termination_only(state):
+            return state.observation_counts.get(fingerprint, 0)
+        start = self._goal_epoch_start_sequence(state)
+        return sum(
+            event.event_type == "action_finished"
+            and event.sequence > start
+            and event.payload.get("action", {}).get("observation_fingerprint") == fingerprint
+            for event in state.causal_records.values()
+        )
+
     @property
     def max_actions(self) -> int | None:
         """Compatibility surface for non-atom top-level runs only."""
@@ -563,7 +575,11 @@ class LongHorizonController:
                             ),
                         },
                     )
-                    if state.protocol_rejections >= self._MAX_PROTOCOL_REJECTIONS:
+                    if self._lifecycle_budget_count(
+                        state,
+                        event_type="protocol_rejection_recorded",
+                        bounded_total=state.protocol_rejections,
+                    ) >= self._MAX_PROTOCOL_REJECTIONS:
                         terminal_reason = "protocol_rejection_budget_exhausted"
                         break
                     pending_events = [ModelEvent(
@@ -645,7 +661,11 @@ class LongHorizonController:
                                 "action_executed": False,
                             },
                         )
-                        if state.protocol_rejections >= self._MAX_PROTOCOL_REJECTIONS:
+                        if self._lifecycle_budget_count(
+                            state,
+                            event_type="protocol_rejection_recorded",
+                            bounded_total=state.protocol_rejections,
+                        ) >= self._MAX_PROTOCOL_REJECTIONS:
                             terminal_reason = "protocol_rejection_budget_exhausted"
                             break
                         pending_events = [
@@ -709,9 +729,8 @@ class LongHorizonController:
                     terminal_reason = "identical_failure_budget_exhausted"
                     break
                 definition = self.harness.definition(action.action_type)
-                identical_result_count = state.observation_counts.get(
-                    action.observation_fingerprint,
-                    0,
+                identical_result_count = self._identical_result_count(
+                    state, action.observation_fingerprint
                 )
                 if (
                     not self._goal_self_termination_only(state)
@@ -3840,7 +3859,11 @@ class LongHorizonController:
                         "action_executed": False,
                     },
                 )
-                if state.protocol_rejections >= self._MAX_PROTOCOL_REJECTIONS:
+                if self._lifecycle_budget_count(
+                    state,
+                    event_type="protocol_rejection_recorded",
+                    bounded_total=state.protocol_rejections,
+                ) >= self._MAX_PROTOCOL_REJECTIONS:
                     terminal_reason = "protocol_rejection_budget_exhausted"
                     break
                 wave_rejections.append(

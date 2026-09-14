@@ -67,3 +67,5 @@ trace → 错误归因 → 经验证纠正 → 获准数据版本 → StateTune 
 
 
 公开执行结果的`status`表示本次交付终止（completed/interrupted/failed），`state_status`保留内部durable State状态；可续State仍为running不意味着请求还在执行。`completed`与`submitted`均不代表外部验收合格，最终质量由独立验收决定。
+
+Goal显式续跑的重复成功/失败和协议错误预算现按已有run_yielded边界统计，历史观察及计数仍完整累计；新尝试不会因为父轮已达到阈值而首次读取即结束。调用方总预算、一次接管上限和每轮保护阈值不变。强模型采样以实际provider wire为准，当前未显式发送的字段为未知默认，不能使用Session本地值代替。
