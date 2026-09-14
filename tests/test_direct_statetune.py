@@ -169,3 +169,23 @@ def test_coding_training_rows_only_accept_reviewed_atomic_edits(function,params,
     else:
         with pytest.raises(ValueError,match='atomic correction'):
             normalize_direct_row(row,**args)
+
+
+def test_command_training_label_accepts_real_failure_feedback_authority_only_for_commands():
+    import json
+    from pathlib import Path
+    from rwkv_lh.direct_trace_data import normalize_direct_row
+    from rwkv_lh.token_budget import tokenizer
+    from test_unified_controller import call
+    path=Path(__file__).resolve().parents[1]/'data/datasets/rwkv_direct_fact_fidelity_v1/train.jsonl'
+    row=json.loads(path.read_text().splitlines()[0])
+    row.update(label_authority='verified_command',command_validation={'path':'fixture.json','sha256':'a'*64})
+    row['target_text']=json.dumps(call('check_command',argv=['python3','-m','unittest']))+model_io.JSON_CALL_STOP_SUFFIXES[0]
+    row['target_token_ids']=tokenizer().encode(row['target_text'])
+    row['reviews']=[{'reviewer':r,'accepted':True,'visible_evidence_only':True,
+        'target_sha256':hashlib.sha256(row['target_text'].encode()).hexdigest(),
+        'input_sha256':hashlib.sha256(row['input_text'].encode()).hexdigest()} for r in ('test-one','test-two')]
+    args=dict(model_sha256=row['model_sha256'],context_tokens=32768,vocab_size=65536,bos_token_id=0)
+    assert normalize_direct_row(row,**args)['target_token_ids']==row['target_token_ids']
+    row['command_validation']={}
+    with pytest.raises(ValueError,match='command proof'):normalize_direct_row(row,**args)

@@ -91,3 +91,6 @@ Owner最新要求：只使用物理GPU 0。后续本地测试及模型进程显�
 编码freeze增量已实现：verified_coding原子编辑经封存报告绑定与fresh红绿验证后进入统一freeze，训练加载校验编码证明SHA；真实旧候选原样复验证exit 1→0，非RWKV新成绩。正式数据版本/新训练仍0。下一步补多来源修改与测试反馈，再按已获授权冻结一个GPU0训练候选；旧GPU1训练脚本不可直接复用。[本轮记录](../data/experiments/RWKV_CODING_FREEZE_R1_20260914/REPORT.zh-CN.md)。
 
 编码freeze最终回归：GPU0 1725 passed、0 skipped（318.89s），新增15项；原样真实候选在补全源快照逐文件清单后再次红→绿。两次中间测试干扰/源码变化拒绝日志保留，未放宽回归。owner五处修改SHA不变。当前仍无新Agent能力分数、新训练步数或新正式数据版本；授权已记录，下一步针对“读过但不选择修改/测试”的真实边界补纠正和反馈覆盖，然后统一冻结训练与验收，不能直接复用旧GPU1启动身份。
+
+
+PROGRESS_CORRECTIONS R1：两个真实停滞边界的强模型原样下一步均为实际测试，复现ValueError（exit1），不是修复完成。新增verified_command按源request/action/快照绑定、fresh执行及固定退出/输出准入，失败测试可监督有效诊断。完整GPU0 1735 passed（323.77s）。Owner再次要求持续做到训练和真实Code Agent，不再按小阶段停下。54条统一数据已冻结，最长20551tokens；下一轮GPU0长输入训练验证、一个候选和固定验收正在推进。详情见data/experiments/RWKV_PROGRESS_CORRECTIONS_R1_20260914/REPORT.zh-CN.md。

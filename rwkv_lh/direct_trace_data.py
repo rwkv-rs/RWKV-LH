@@ -157,18 +157,24 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
     if authority == 'executed_read':
         core.require(command.name == 'read_file' and row.get('executed_action_id')
                      and row.get('real_tool_success') is True, 'read label lacks execution proof')
-    elif authority in ('independent_review', 'verified_coding'):
+    elif authority in ('independent_review', 'verified_coding', 'verified_command'):
         target_sha = hashlib.sha256(raw_target.encode()).hexdigest()
         reviewers = row.get('reviews', [])
         if authority == 'independent_review':
             core.require(command.name == 'final_answer' and set(command.arguments) == {'text'}
                          and isinstance(command.arguments['text'], str) and bool(command.arguments['text'].strip()),
                          'summary label requires final answer')
-        else:
+        elif authority == 'verified_coding':
             core.require(command.name in ('write_file', 'replace_text')
                          and isinstance(row.get('correction_validation'), Mapping)
                          and set(row['correction_validation']) == {'path', 'sha256'},
                          'coding label requires sealed atomic correction proof')
+            executed_arguments(command)
+        else:
+            core.require(command.name in ('check_command', 'run_command')
+                         and isinstance(row.get('command_validation'), Mapping)
+                         and set(row['command_validation']) == {'path', 'sha256'},
+                         'command label requires sealed command proof')
             executed_arguments(command)
         core.require(len({r.get('reviewer') for r in reviewers}) >= 2
                      and all(isinstance(r.get('reviewer'), str) and bool(r['reviewer'].strip()) and r.get('accepted') is True and r.get('target_sha256') == target_sha
@@ -221,6 +227,7 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
     lookup = {s['source_id']: s for s in sources}
     identities = set()
     coding_proofs = []
+    command_proofs = []
     for row in rows:
         normalize_direct_row(row, model_sha256=registration['model_sha256'], context_tokens=registration['context_tokens'],
                              vocab_size=registration['vocab_size'], bos_token_id=registration['bos_token_id'])
@@ -251,6 +258,13 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                     source_files=sealed(source['manifest'])['files'],
                     model_sha256=registration['model_sha256'], output=Path(temporary) / 'validation')
                 coding_proofs.append({'sample_id': row['sample_id'], 'validation': proof})
+        elif row['label_authority'] == 'verified_command':
+            from .command_corrections import revalidate_training_command
+            with tempfile.TemporaryDirectory(prefix='rwkv-command-freeze-') as temporary:
+                proof = revalidate_training_command(row, run_root=source['run_root'],
+                    source_files=sealed(source['manifest'])['files'],
+                    model_sha256=registration['model_sha256'], output=Path(temporary) / 'validation')
+                command_proofs.append({'sample_id': row['sample_id'], 'validation': proof})
         else:
             # Only observations in this generation's ancestry may justify labels.
             content_hashes = []
@@ -277,6 +291,10 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         core.require(type(coverage.get('coding_boundaries')) is int
                      and 0 < coverage['coding_boundaries'] <= coding_count,
                      'coding coverage must be explicitly registered')
+    if command_proofs:
+        core.require(type(coverage.get('command_boundaries')) is int
+                     and 0 < coverage['command_boundaries'] <= len(command_proofs),
+                     'command coverage must be explicitly registered')
     counts = {'train': len(rows), **{split: sum(c['split'] == split for c in regression['cases'])
                                    for split in ('dev', 'confirmation')}}
     core.require(all(counts[k] >= registration['minimum_counts'][k] > 0 for k in counts), 'direct minimum counts not met')
@@ -289,6 +307,8 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         shutil.copyfile(registration['regression_registration']['path'], staging / 'regression.json')
         if coding_proofs:
             (staging / 'coding_validation.json').write_bytes(_canonical_bytes({'rows': coding_proofs}) + b'\n')
+        if command_proofs:
+            (staging / 'command_validation.json').write_bytes(_canonical_bytes({'rows': command_proofs}) + b'\n')
         version, protocol_sha = protocol_identity()
         manifest = {'schema_version': DATASET_SCHEMA, 'purpose': 'frozen_role_training', 'role': ROLE,
                     'input_protocol': version, 'protocol_sha256': protocol_sha,
@@ -304,6 +324,9 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         if coding_proofs:
             manifest['coding_validation'] = {'file': 'coding_validation.json',
                 'sha256': core.sha256_file(staging / 'coding_validation.json'), 'count': len(coding_proofs)}
+        if command_proofs:
+            manifest['command_validation'] = {'file': 'command_validation.json',
+                'sha256': core.sha256_file(staging / 'command_validation.json'), 'count': len(command_proofs)}
         (staging / 'manifest.json').write_bytes(_canonical_bytes(manifest) + b'\n')
         _publish_no_replace(staging, output)
         return manifest
