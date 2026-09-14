@@ -20,6 +20,8 @@
 
 本轮完整目标入口：显式on_stall=takeover后RWKV先执行，停滞时按剩余预算最多接管一次。固定三任务3/3交付：RWKV独立2、接管1。查询RWKV用12次后重复保护中断，strong用3次修改并测试；不是RWKV独立修复已稳定。完整1650测试通过。
 
+最新单处修改验证0/2：RWKV分别7/11次生成后重复读取中断，未修改、未回答。任务仍包含自行判断修法，不能据此否定真正单步执行；下一步分离诊断与明确操作执行。已清理101个有核验存档的temp/data重复文件，生产架构未改。
+
 ## 能力和限制
 
 - 固定单步读取、部分文档总结及明确测试执行已有成功证据。
@@ -45,6 +47,7 @@
 
 |记录|作用|
 |---|---|
+|[单处修改与清理](../data/experiments/RWKV_ATOMIC_CHANGE_R1_20260914/REPORT.zh-CN.md)|0/2，保留失败；清理46脚本与55验证副本|
 |[完整目标阶段](../data/experiments/RWKV_GOAL_DELIVERY_R1_20260914/REPORT.zh-CN.md)|固定3/3：RWKV独立2、接管1；RWKV24/总32额度，实际停滞如实保留|
 |[失败恢复阶段](../data/experiments/RWKV_ASSISTED_RECOVERY_R1_20260914/REPORT.zh-CN.md)|建议0/2、接管2/2；一个固定问题，未改变生产源码|
 |[显式协助阶段](../data/experiments/RWKV_ASSISTED_AGENT_R1_20260914/REPORT.zh-CN.md)|清理旧入口、建议续State与接管新文本根、回归及真实验证|
