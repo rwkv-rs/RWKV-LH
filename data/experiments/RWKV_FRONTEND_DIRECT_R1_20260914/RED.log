@@ -1,0 +1,49 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___________ test_direct_worker_uses_shared_loop_and_preserves_answer ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_direct_worker_uses_shared0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd4e16eefd0>
+
+    def test_direct_worker_uses_shared_loop_and_preserves_answer(tmp_path, monkeypatch):
+        from rwkv_lh import web_worker
+        from test_read_only_agent import factory
+        from test_unified_controller import call, settings
+        repository, metadata = create_repository_run(tmp_path, "UI-DIRECT")
+        root = repository.run_root(metadata["run_id"])
+>       monkeypatch.setattr(web_worker, "direct_settings", settings)
+E       AttributeError: <module 'rwkv_lh.web_worker' from '/home/chase/GitHub/RWKV-LH/rwkv_lh/web_worker.py'> has no attribute 'direct_settings'
+
+tests/test_web_ui.py:110: AttributeError
+____________ test_direct_worker_budget_stops_without_forced_answer _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_direct_worker_budget_stop0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd4e1813e10>
+
+    def test_direct_worker_budget_stops_without_forced_answer(tmp_path, monkeypatch):
+        from rwkv_lh import web_worker
+        from test_read_only_agent import factory
+        from test_unified_controller import call, settings
+        repository, metadata = create_repository_run(tmp_path, "UI-BUDGET")
+        root = repository.run_root(metadata["run_id"])
+>       monkeypatch.setattr(web_worker, "direct_settings", settings)
+E       AttributeError: <module 'rwkv_lh.web_worker' from '/home/chase/GitHub/RWKV-LH/rwkv_lh/web_worker.py'> has no attribute 'direct_settings'
+
+tests/test_web_ui.py:131: AttributeError
+_________ test_frontend_defaults_direct_and_rejects_unsupported_scope __________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_frontend_defaults_direct_0')
+
+    def test_frontend_defaults_direct_and_rejects_unsupported_scope(tmp_path):
+        repository, metadata = create_repository_run(tmp_path)
+        request = repository.request_document(metadata["run_id"])
+>       assert request["runtime"] == "direct_rwkv"
+               ^^^^^^^^^^^^^^^^^^
+E       KeyError: 'runtime'
+
+tests/test_web_ui.py:145: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_web_ui.py::test_direct_worker_uses_shared_loop_and_preserves_answer
+FAILED tests/test_web_ui.py::test_direct_worker_budget_stops_without_forced_answer
+FAILED tests/test_web_ui.py::test_frontend_defaults_direct_and_rejects_unsupported_scope
+3 failed, 11 deselected in 2.97s

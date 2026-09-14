@@ -1,0 +1,123 @@
+from pathlib import Path
+root=Path('/home/chase/GitHub/RWKV-LH')
+p=root/'rwkv_lh/web_worker.py';s=p.read_text();a=s.index('def run(run_root:');b=s.index('\ndef parse_args()',a)
+s=s[:a]+'''def direct_settings():
+    from dataclasses import replace
+    from rwkv_lh.runtime.settings import get_runtime_settings
+    return replace(get_runtime_settings(), return_token_ids=True,
+                   state_transport="native_required", state_profile_id="zero",
+                   state_profile_sha256="0" * 64, tool_disclosure_mode="full")
+
+
+def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
+    if resume:
+        raise ValueError("direct frontend resume is not yet supported; preserve this run and create a new task")
+    request = read_json(run_root / "request.json")
+    if not isinstance(request, dict) or request.get("runtime") != "direct_rwkv":
+        raise ValueError("historical runtime is read-only; create a new direct RWKV task")
+    scope = request["tool_scope"]
+    goal = request["request"]
+    if request.get("constraints"):
+        goal += "\\n\\n用户补充要求：\\n" + "\\n".join(request["constraints"])
+    update_metadata(run_root, active=True, phase="controller_running", pid=os.getpid(),
+                    worker_started_at=utc_now(), error="")
+    settings = direct_settings()
+    # No credentials enter persisted configuration. The shared executor records
+    # actual input, output, observations and native State relations.
+    atomic_write_json(run_root / "runtime.json", {
+        key: value for key, value in vars(settings).items()
+        if key not in {"api_key", "cf_access_client_id", "cf_access_client_secret", "proxy_url"}
+    })
+    if scope == "coding":
+        result = run_coding_job(CodingJob(
+            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
+            max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
+    else:
+        result = run_read_only_job(ReadOnlyJob(
+            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "execution"),
+            max_transitions, request["max_seconds"], tool_scope=scope),
+            settings=settings, session_factory=create_model_session)
+    atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
+    submitted = result["termination"] == "submitted"
+    execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
+    update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
+                    pid=None, status="submitted" if submitted else "interrupted",
+                    state_created=(execution / "state_snapshot.json").exists(),
+                    termination_reason=result["termination_reason"],
+                    worker_finished_at=utc_now(), result_path="result.json", error="")
+    return 0 if submitted else 1
+
+''' + s[b:]
+a=s.index('from rwkv_lh.model import');b=s.index('from rwkv_lh.web_ui import',a)
+s=s[:a]+'''from rwkv_lh.model_session import create_model_session
+from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
+from rwkv_lh.coding_agent import CodingJob, run_coding_job
+'''+s[b:];s=s.replace('import time\n','');p.write_text(s)
+p=root/'rwkv_lh/web_ui.py';s=p.read_text();a=s.index('from rwkv_lh.exact_tool_selector');b=s.index('from rwkv_lh.retrieval',a);s=s[:a]+s[b:];s=s.replace('from rwkv_lh.supervisor_openai import SupervisorAPISettings\n','')
+a=s.index('        supervisor_mode = str(');b=s.index('        raw_seed_files',a)
+s=s[:a]+'''        if payload.get("supervisor_mode") not in (None, "direct_rwkv"):
+            raise ValueError("supervisor_mode must be direct_rwkv")
+        if payload.get("state_router_shadow", False) is not False:
+            raise ValueError("state_router_shadow is retired")
+        if retrieval.mode != "offline":
+            raise ValueError("direct frontend currently requires offline retrieval")
+        scope = payload.get("tool_scope", "files")
+        if scope not in ("files", "inspect", "coding"):
+            raise ValueError("unknown tool_scope")
+        max_transitions = payload.get("max_transitions", 6)
+        max_seconds = payload.get("max_seconds", 300)
+        if type(max_transitions) is not int or not 1 <= max_transitions <= 100:
+            raise ValueError("max_transitions must be an integer between 1 and 100")
+        if type(max_seconds) not in (int, float) or not 1 <= max_seconds <= 3600:
+            raise ValueError("max_seconds must be between 1 and 3600")
+''' +s[b:]
+s=s.replace('"supervisor_mode": supervisor_mode,','"runtime": "direct_rwkv",\n            "supervisor_mode": "direct_rwkv",\n            "tool_scope": scope,\n            "max_seconds": max_seconds,')
+a=s.index('    def store(self, run_id:');b=s.index('    def summary(',a)
+s=s[:a]+'''    def execution_root(self, run_id: str) -> Path:
+        root = self.run_root(run_id)
+        request = self.request_document(run_id)
+        if request.get("runtime") == "direct_rwkv":
+            return root / ("delivery/execution" if request.get("tool_scope") == "coding" else "execution")
+        return root
+
+    def workspace_root(self, run_id: str) -> Path:
+        root = self.run_root(run_id)
+        delivery = root / "delivery" / "workspace"
+        return delivery if delivery.is_dir() else root / "workspace"
+
+    def state_root(self, run_id: str) -> Path:
+        direct = self.execution_root(run_id) / "state"
+        return direct if direct.exists() else self.run_root(run_id) / "state"
+
+    def store(self, run_id: str) -> LongHorizonStore:
+        return LongHorizonStore(self.state_root(run_id), checkpoint_retention=100_000)
+
+    def state_available(self, run_id: str) -> bool:
+        return (self.state_root(run_id) / "long_horizon.db").is_file()
+
+''' +s[b:]
+s=s.replace('if metadata.get("state_created"):', 'if self.state_available(run_id):')
+s=s.replace('if not metadata.get("state_created"):', 'if not self.state_available(run_id):')
+s=s.replace('path = self.run_root(run_id) / "model_trace.jsonl"','path = self.execution_root(run_id) / "model_trace.jsonl"')
+s=s.replace('workspace = self.run_root(run_id) / "workspace"','workspace = self.workspace_root(run_id)')
+s=s.replace('database = run_root / "state" / "long_horizon.db"','database = self.state_root(run_id) / "long_horizon.db"')
+s=s.replace('f"{run_id}/state/long_horizon.db",','f"{run_id}/{database.relative_to(run_root).as_posix()}",')
+s=s.replace('        run_root = self.repository.run_root(run_id)\n        # The child', '        if resume:\n            raise ValueError("direct frontend resume is not yet supported")\n        run_root = self.repository.run_root(run_id)\n        # The child')
+a=s.index('            if path == "/api/runtime/topology":');b=s.index('            if path == "/api/runs":',a)
+s=s[:a]+'''            if path == "/api/runtime/topology":
+                from rwkv_lh.web_worker import direct_settings
+                client = OpenAICompatibleRWKVClient(settings=direct_settings())
+                try:
+                    executor = client.health().to_dict()
+                finally:
+                    client.close()
+                self.send_json({"runtime": "direct_rwkv", "executor": executor,
+                                "harness": {"available": True, "scope": "isolated workspace"},
+                                "strong_assistance": "not enabled in frontend"})
+                return
+''' +s[b:]
+s=s.replace('"awaiting_all_zero_baseline"','"fixed_task_diagnostics_only"')
+a=s.index('                        "can": [');b=s.index('                        "latest_formal"',a)
+s=s[:a]+'''                        "can": ["读取指定文件回答问题", "只读搜索与指定测试", "隔离副本中的代码修改（实验性）", "下载真实输入输出、工具结果与 State 审计包"],
+                        "cannot": ["提交回答不代表外部验收通过", "通用 bug 诊断与多文件交付仍不稳定", "当前前端未启用强模型协助或续跑"],
+''' +s[b:];p.write_text(s)

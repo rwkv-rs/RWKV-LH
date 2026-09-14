@@ -54,7 +54,7 @@ def test_manual_repository_rejects_retired_architecture_selection(tmp_path: Path
         repository.create(
             {"request": "test", "state_router_shadow": True, "seed_files": []}
         )
-    with pytest.raises(ValueError, match="stateful_goal"):
+    with pytest.raises(ValueError, match="direct_rwkv"):
         repository.create(
             {"request": "test", "supervisor_mode": "contract_graph"}
         )
@@ -101,76 +101,52 @@ def test_result_payload_preserves_controller_final_output_exactly(tmp_path: Path
     assert payload["final_output_matches_persisted_rwkv"] is True
 
 
-def test_goal_worker_waits_for_runtime_recovery_instead_of_stopping(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-RETRY")
-    run_root = repository.run_root(metadata["run_id"])
-    attempts = 0
-
-    class _RecoveredController:
-        def run(self, run_id: str):
-            store = LongHorizonStore(run_root / "state")
-            state = store.load(run_id)
-            state = store.save(
-                state,
-                causal_event=CausalEventDraft.create(
-                    "run_completed",
-                    {
-                        "decision_id": "D-RWKV-RECOVERED",
-                        "output_source": "rwkv_explicit_final_answer_text",
-                        "final_output": "RWKV completed after recovery.",
-                    },
-                    subject_id=run_id,
-                ),
-            )
-            return SimpleNamespace(
-                state=state,
-                final_output=state.final_output,
-                transitions=1,
-            )
-
-    def build(*_args, **_kwargs):
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise RuntimeError("native state service unavailable")
-        return _RecoveredController()
-
-    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
-    monkeypatch.setattr("rwkv_lh.web_worker.time.sleep", lambda _seconds: None)
-
-    assert run_web_worker(run_root, resume=False, max_transitions=2) == 0
-    assert attempts == 2
-    result = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
-    assert result["status"] == "completed"
-    assert result["continuation_count"] == 1
-    metadata_after = repository.metadata("UI-GOAL-RETRY")
-    assert metadata_after["phase"] == "finished"
-    stored = LongHorizonStore(run_root / "state").load("UI-GOAL-RETRY")
-    assert stored.status is RunStatus.COMPLETED
+def test_direct_worker_uses_shared_loop_and_preserves_answer(tmp_path, monkeypatch):
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    repository, metadata = create_repository_run(tmp_path, "UI-DIRECT")
+    root = repository.run_root(metadata["run_id"])
+    monkeypatch.setattr(web_worker, "direct_settings", settings)
+    monkeypatch.setattr(web_worker, "create_model_session", factory([
+        call("read_file", path="input.txt"),
+        call("final_answer", text="  原始回答\n"),
+    ]))
+    assert run_web_worker(root, resume=False, max_transitions=2) == 0
+    summary = repository.summary(metadata["run_id"])
+    assert summary["result"]["final_output"] == "  原始回答\n"
+    assert summary["result"]["acceptance"] == "not_evaluated"
+    assert summary["result"]["generation_started"] == 2
+    assert repository.trace(metadata["run_id"])["total"] > 0
+    assert repository.events(metadata["run_id"])["events"]
+    assert summary["state"]["actions"][0]["operation"] == "read_file"
 
 
-def test_goal_worker_does_not_retry_deterministic_identity_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-IDENTITY")
-    run_root = repository.run_root(metadata["run_id"])
-    attempts = 0
+def test_direct_worker_budget_stops_without_forced_answer(tmp_path, monkeypatch):
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    repository, metadata = create_repository_run(tmp_path, "UI-BUDGET")
+    root = repository.run_root(metadata["run_id"])
+    monkeypatch.setattr(web_worker, "direct_settings", settings)
+    monkeypatch.setattr(web_worker, "create_model_session", factory([call("read_file", path="input.txt")]))
+    assert run_web_worker(root, resume=False, max_transitions=1) == 1
+    result = repository.summary(metadata["run_id"])["result"]
+    assert result["final_output"] is None
+    assert result["termination"] == "budget"
+    assert repository.metadata(metadata["run_id"])["status"] == "interrupted"
+    with pytest.raises(ValueError, match="resume"):
+        run_web_worker(root, resume=True, max_transitions=1)
 
-    def build(*_args, **_kwargs):
-        nonlocal attempts
-        attempts += 1
-        raise ValueError("G1J Selector-Intent Head identity mismatch")
 
-    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
-
-    with pytest.raises(ValueError, match="identity mismatch"):
-        run_web_worker(run_root, resume=False, max_transitions=2)
-
-    assert attempts == 1
+def test_frontend_defaults_direct_and_rejects_unsupported_scope(tmp_path):
+    repository, metadata = create_repository_run(tmp_path)
+    request = repository.request_document(metadata["run_id"])
+    assert request["runtime"] == "direct_rwkv"
+    assert request["tool_scope"] == "files"
+    assert request["max_seconds"] == 300
+    with pytest.raises(ValueError, match="tool_scope"):
+        repository.create({"request": "test", "tool_scope": "invented"})
 
 
 def test_export_contains_consistent_sqlite_snapshot_and_full_state_exports(tmp_path: Path) -> None:
@@ -239,7 +215,7 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         assert status == 200
         assert capabilities["latest_formal"] is None
         assert capabilities["latest_diagnostic"] is None
-        assert capabilities["validation_status"] == "awaiting_all_zero_baseline"
+        assert capabilities["validation_status"] == "fixed_task_diagnostics_only"
         assert capabilities["experimental"] is True
         status, created = request_json(
             base + "/api/runs",
@@ -266,3 +242,85 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_browser_direct_demo_submission_and_raw_result(tmp_path, monkeypatch):
+    from playwright.sync_api import sync_playwright, expect
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    server = build_server('127.0.0.1', 0, tmp_path)
+    fake = FakeManager(server.repository)
+    server.manager = fake
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(web_worker, 'direct_settings', settings)
+    monkeypatch.setattr(web_worker, 'create_model_session', factory([
+        call('read_file', path='verify_public.py'),
+        call('final_answer', text='  仅健康检查，不证明事务。\n'),
+    ]))
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page = browser.new_page()
+            errors = []
+            page.on('pageerror', lambda error: errors.append(str(error)))
+            page.route('**/api/runtime/topology', lambda route: route.fulfill(
+                json={'executor': {'available': True, 'model': 'test'}, 'harness': {'available': True}}))
+            page.goto(f'http://127.0.0.1:{server.server_port}')
+            page.locator('[data-demo="read-health"]').click()
+            expect(page.locator('.seed-path')).to_have_value('verify_public.py')
+            expect(page.locator('#toolScope')).to_have_value('files')
+            page.locator('#startButton').click()
+            expect(page.locator('#runView')).to_be_visible()
+            run_id = fake.launched[0]
+            assert run_web_worker(server.repository.run_root(run_id), resume=False, max_transitions=2) == 0
+            page.evaluate('pollRun()')
+            expect(page.locator('#finalOutput')).to_have_text('  仅健康检查，不证明事务。\n', use_inner_text=False)
+            assert page.locator('#finalOutput').text_content() == '  仅健康检查，不证明事务。\n'
+            expect(page.locator('#runStatus')).to_have_text('submitted')
+            expect(page.locator('#acceptanceBadge')).to_have_text('未进行外部验收')
+            expect(page.locator('#resumeButton')).to_be_hidden()
+            page.locator('[data-tab="execution"]').click()
+            expect(page.locator('#actionList')).to_contain_text('read_file')
+            with page.expect_download() as download_info:
+                page.locator('#exportButton').click()
+            download_info.value.save_as(tmp_path / 'browser-audit.zip')
+            history = page.locator('#runList').bounding_box()
+            item = page.locator('.run-item').first.bounding_box()
+            assert item['width'] <= history['width']
+            # Switching task IDs must not temporarily attach the previous
+            # answer to the new identity while its response is delayed.
+            server.repository.create({'run_id': 'UI-NEXT', 'request': 'A different task'})
+            page.evaluate('loadRuns()')
+            pending = []
+            page.route('**/api/runs/UI-NEXT', lambda route: pending.append(route))
+            page.locator('[data-run-id="UI-NEXT"]').click()
+            expect(page.locator('#runId')).to_have_text('UI-NEXT')
+            expect(page.locator('#finalOutput')).not_to_contain_text('仅健康检查', timeout=1000)
+            expect(page.locator('#runStatus')).not_to_have_text('submitted', timeout=1000)
+            for route in pending:
+                route.abort()
+            assert not errors
+            browser.close()
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=5)
+
+
+def test_direct_coding_worker_serves_modified_copy_and_exports_state(tmp_path, monkeypatch):
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    repository = ManualRunRepository(tmp_path)
+    metadata = repository.create({'request': 'write output', 'tool_scope': 'coding'})
+    run_id = metadata['run_id']
+    monkeypatch.setattr(web_worker, 'direct_settings', settings)
+    monkeypatch.setattr(web_worker, 'create_model_session', factory([
+        call('write_file', path='out.txt', content='delivered'), call('final_answer', text='written')]))
+    assert run_web_worker(repository.run_root(run_id), resume=False, max_transitions=2) == 0
+    assert repository.file_bytes(run_id, 'out.txt')[0] == b'delivered'
+    assert not (repository.run_root(run_id) / 'workspace/out.txt').exists()
+    assert repository.trace(run_id)['total'] > 0
+    archive = zipfile.ZipFile(io.BytesIO(repository.export_zip(run_id)))
+    assert f'{run_id}/delivery/execution/state/long_horizon.db' in archive.namelist()
+    assert f'{run_id}/state-export.json' in archive.namelist()

@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,re,time,urllib.request
+from playwright.sync_api import sync_playwright,expect
+r=Path('/home/chase/GitHub/RWKV-LH');out=r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914'
+rows=json.loads((out/'LIVE_BROWSER_RESULTS.json').read_text())
+with sync_playwright() as pw:
+ browser=pw.chromium.launch(headless=True)
+ for row in rows:
+  runid=row['run_id'];page=browser.new_page(viewport={'width':1440,'height':1100});page.goto('http://127.0.0.1:8766')
+  page.locator('[data-run-id="'+runid+'"]').click()
+  expect(page.locator('#runStatus')).to_have_text(re.compile('submitted|interrupted|failed|blocked'),timeout=390000)
+  with urllib.request.urlopen('http://127.0.0.1:8766/api/runs/'+runid) as response:row['collected_summary']=json.load(response)
+  row['displayed_final']=page.locator('#finalOutput').text_content()
+  page.screenshot(path=str(out/f'{row["demo"]}-r{row["repeat"]}-result.png'),full_page=True)
+  with page.expect_download() as dl:page.locator('#exportButton').click()
+  dl.value.save_as(out/f'{row["demo"]}-r{row["repeat"]}-audit.zip')
+  (out/'RECOVERED_BROWSER_RESULTS.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
+  print(json.dumps({'id':runid,'result':row['collected_summary'].get('result',{})},ensure_ascii=False),flush=True)
+  page.close()
+ browser.close()

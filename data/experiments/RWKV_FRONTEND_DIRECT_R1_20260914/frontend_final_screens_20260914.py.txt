@@ -1,0 +1,10 @@
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+r=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914')
+with sync_playwright() as pw:
+ b=pw.chromium.launch(headless=True);p=b.new_page(viewport={'width':1440,'height':1100});p.goto('http://127.0.0.1:8766');p.locator('[data-demo="read-health"]').wait_for();p.screenshot(path=str(r/'FINAL_HOME.png'),full_page=True)
+ for task in ('UI-20260913-235451-604a9e','UI-20260913-235550-123f72'):
+  p.locator('[data-run-id="'+task+'"]').click();expect(p.locator('#runStatus')).to_have_text('submitted');p.screenshot(path=str(r/(task+'-FINAL.png')),full_page=True)
+  p.locator('[data-tab="execution"]').click();expect(p.locator('#actionList details')).to_have_count(1);p.locator('#actionList summary').click();p.screenshot(path=str(r/(task+'-TOOL.png')),full_page=True)
+  p.locator('[data-tab="overview"]').click()
+ b.close()

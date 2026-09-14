@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>RWKV Goal Studio</title>
-    <meta name="description" content="Strong Planner、独立 RWKV 角色 State 与证据驱动验收的自主项目工作台">
+    <meta name="description" content="RWKV 自主选择工具、执行与回答的本地工作台">
     <link rel="stylesheet" href="/assets/styles.css">
   </head>
   <body>
@@ -20,7 +20,7 @@
       <div class="header-actions">
         <button id="topologyButton" class="system-pill" type="button">
           <span id="systemDot" class="live-dot pending"></span>
-          <span id="systemLabel">正在连接双 RWKV 运行栈</span>
+          <span id="systemLabel">正在连接 RWKV</span>
         </button>
         <button id="newGoalButton" class="button button-primary" type="button">新建目标</button>
       </div>
@@ -41,36 +41,26 @@
       <section class="workspace">
         <section id="createView" class="create-view">
           <div class="hero-copy">
-            <p class="kicker"><span></span> STRONG PLAN · RWKV BUILD</p>
-            <h1>说出目标，<br><em>让项目自己生长。</em></h1>
-            <p>强模型只规划，2.9B 只选择工具意图，13.3B 只执行，独立 Auditor State 根据真实证据审核。</p>
+            <p class="kicker"><span></span> RWKV · CODE AGENT</p>
+            <h1>给出任务，<br><em>查看真实执行。</em></h1>
+            <p>RWKV 自主选择工具和参数，Harness 返回真实结果。同一任务延续 State，回答与验收分开记录。</p>
           </div>
 
           <form id="goalForm" class="goal-composer">
-            <label for="goalInput">你想创建什么？</label>
-            <textarea id="goalInput" required maxlength="100000" placeholder="例如：帮我做一个简洁的个人记账网页，可以记录收入支出并显示本月统计。"></textarea>
-            <div class="suggestions" aria-label="示例目标">
-              <button type="button" data-goal="帮我做一个简洁的个人记账网页，可以记录收入和支出，自动显示本月统计，刷新后数据还在。">个人记账</button>
-              <button type="button" data-goal="帮我做一个适合手机使用的习惯打卡网页，能够记录连续打卡天数和今天的完成情况。">习惯打卡</button>
-              <button type="button" data-goal="帮我做一个有质感的个人作品展示网页，包含项目介绍、技能和联系方式。">作品主页</button>
-            </div>
+            <label for="goalInput">你想完成什么任务？</label>
+            <textarea id="goalInput" required maxlength="100000" placeholder="选择下面的演示，或添加文件后描述你的任务。"></textarea>
+            <div id="demoButtons" class="suggestions" aria-label="已登记演示任务"></div>
 
-            <details class="advanced-settings">
+            <details class="advanced-settings" open>
               <summary>项目设置 <span>可选</span></summary>
               <div class="settings-grid">
-                <label>网络
-                  <select id="networkPolicy">
-                    <option value="offline">离线创建</option>
-                    <option value="auto_public">允许检索公开资料</option>
-                  </select>
+                <label>工具权限
+                  <select id="toolScope"><option value="files">指定文件阅读</option><option value="inspect">只读检查与运行测试</option><option value="coding">修改隔离副本（实验性）</option></select>
                 </label>
-                <label>执行预算
-                  <select id="transitionBudget">
-                    <option value="300">标准</option>
-                    <option value="500">深度</option>
-                    <option value="160">快速预览</option>
-                  </select>
+                <label>模型调用上限
+                  <select id="transitionBudget"><option value="6">6 次</option><option value="12">12 次</option><option value="24">24 次</option></select>
                 </label>
+                <label>时间上限（秒）<input id="secondsBudget" type="number" min="1" max="3600" value="300"></label>
               </div>
               <label for="constraintInput">补充要求</label>
               <textarea id="constraintInput" class="small-textarea" placeholder="例如：不要使用外部依赖；页面优先适配手机。"></textarea>
@@ -79,21 +69,15 @@
             </details>
 
             <div class="composer-footer">
-              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>Contract Graph · 自动验收</small></div>
-              <button id="startButton" class="launch-button" type="submit"><span>开始创建</span><b>→</b></button>
+              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>自主执行 · 提交不等于验收</small></div>
+              <button id="startButton" class="launch-button" type="submit"><span>开始执行</span><b>→</b></button>
             </div>
             <p id="formMessage" class="form-message" role="status"></p>
           </form>
 
           <section class="topology-preview">
             <div class="section-heading"><p>当前运行架构</p><span>LIVE TOPOLOGY</span></div>
-            <div id="topologyCards" class="topology-cards">
-              <article><span class="node-index">01</span><strong>Planner</strong><p>连接中</p></article>
-              <article><span class="node-index">02</span><strong>Selector</strong><p>连接中</p></article>
-              <article><span class="node-index">03</span><strong>Executor</strong><p>连接中</p></article>
-              <article><span class="node-index">04</span><strong>Auditor</strong><p>独立审核 State</p></article>
-              <article><span class="node-index">05</span><strong>Harness</strong><p>本地证据层</p></article>
-            </div>
+            <div id="topologyCards" class="topology-cards"></div>
           </section>
         </section>
 
@@ -110,25 +94,19 @@
             </div>
           </header>
 
-          <div class="phase-track" aria-label="目标执行阶段">
-            <div data-phase="understand"><span>1</span><strong>理解目标</strong><small>Planner</small></div>
-            <i></i><div data-phase="plan"><span>2</span><strong>拆解计划</strong><small>Goal PlanPatch</small></div>
-            <i></i><div data-phase="build"><span>3</span><strong>自主创建</strong><small>RWKV</small></div>
-            <i></i><div data-phase="verify"><span>4</span><strong>证据验收</strong><small>Reviewer</small></div>
-            <i></i><div data-phase="complete"><span>5</span><strong>交付结果</strong><small>Artifacts</small></div>
-          </div>
+          <p>执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。</p>
 
           <div class="metric-strip">
-            <div><span>步骤进度</span><strong id="obligationMetric">0 / 0</strong></div>
+            <div><span>外部验收</span><strong id="obligationMetric">0 / 0</strong></div>
             <div><span>RWKV Actions</span><strong id="actionMetric">0</strong></div>
             <div><span>证据记录</span><strong id="evidenceMetric">0</strong></div>
-            <div><span>生成文件</span><strong id="fileMetric">0</strong></div>
+            <div><span>工作区文件</span><strong id="fileMetric">0</strong></div>
             <div><span>模型请求</span><strong id="requestMetric">0</strong></div>
           </div>
 
           <nav class="run-tabs" aria-label="运行内容">
             <button class="active" data-tab="overview" type="button">总览</button>
-            <button data-tab="contract" type="button">目标与计划 <span id="contractCount">0</span></button>
+            <button data-tab="contract" type="button">用户目标 <span id="contractCount">0</span></button>
             <button data-tab="execution" type="button">RWKV 执行 <span id="executionCount">0</span></button>
             <button data-tab="evidence" type="button">证据与验收 <span id="evidenceCount">0</span></button>
             <button data-tab="artifacts" type="button">项目产物 <span id="artifactCount">0</span></button>
@@ -142,8 +120,8 @@
                 <div id="liveActivity" class="live-activity"><p class="empty-copy">等待第一个因果事件。</p></div>
               </article>
               <article class="surface result-surface">
-                <div class="surface-heading"><h3>最终交付</h3><span id="acceptanceBadge" class="review-badge pending">等待验收</span></div>
-                <pre id="finalOutput">项目仍在创建中。</pre>
+                <div class="surface-heading"><h3>原始回答</h3><span id="acceptanceBadge" class="review-badge pending">等待验收</span></div>
+                <pre id="finalOutput">尚无回答。</pre>
               </article>
             </div>
             <article id="errorPanel" class="surface error-surface hidden">
@@ -156,16 +134,12 @@
               <div class="surface-heading"><h3>不可变 Goal</h3><code id="goalDigest">—</code></div>
               <p id="goalRequest"></p>
             </article>
-            <div id="obligationBoard" class="obligation-board"><p class="empty-copy">Planner 尚未提交义务。</p></div>
+            <div id="obligationBoard" class="obligation-board"><p class="empty-copy">按用户目标验收，不限定工具顺序。</p></div>
             <article class="surface graph-surface"><div class="surface-heading"><h3>当前滚动步骤</h3><span id="nodeCount">0 steps</span></div><div id="graphNodes" class="graph-nodes"></div></article>
           </div>
 
           <div id="executionTab" class="tab-panel">
-            <div class="lane-banner">
-              <div><span>SELECTOR LANE</span><strong>S60 · 2.9B · GPU2</strong><small>只选择 operation</small></div>
-              <b>→</b>
-              <div><span>EXECUTOR LANE</span><strong>G3 · 13.3B · GPU1</strong><small>参数、执行与 Final</small></div>
-            </div>
+            <p>RWKV 自主生成调用和参数 → Harness 执行 → 观察与 State 延续 → RWKV 回答</p>
             <div id="actionList" class="action-grid"><p class="empty-copy">等待 RWKV Action。</p></div>
           </div>
 
@@ -186,7 +160,7 @@
 
           <div id="rawTab" class="tab-panel">
             <div class="audit-toolbar">
-              <div><button class="active" data-audit="trace" type="button">RWKV / Supervisor I/O</button><button data-audit="events" type="button">CausalEvent</button></div>
+              <div><button class="active" data-audit="trace" type="button">RWKV 输入 / 输出</button><button data-audit="events" type="button">CausalEvent</button></div>
               <span>原始记录 · 不改写</span>
             </div>
             <div id="rawTimeline" class="raw-timeline"><p class="empty-copy">等待审计记录。</p></div>

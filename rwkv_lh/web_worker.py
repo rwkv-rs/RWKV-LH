@@ -5,20 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import time
 import traceback
 from pathlib import Path
 from typing import Any, Mapping
 
-from rwkv_lh.model import LongHorizonModel
-from rwkv_lh.product_runtime import build_product_controller
-from rwkv_lh.retrieval import (
-    RetrievalRuntimeConfig,
-    retrieval_policy_from_goal,
-    runtime_policy_document,
-)
-from rwkv_lh.store import LongHorizonStore
-from rwkv_lh.run_lifecycle import goal_self_termination_only
+from rwkv_lh.model_session import create_model_session
+from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
+from rwkv_lh.coding_agent import CodingJob, run_coding_job
 from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
 
 
@@ -54,141 +47,51 @@ def result_payload(state: Any, final_output: str, transitions: int) -> dict[str,
     }
 
 
+def direct_settings():
+    from dataclasses import replace
+    from rwkv_lh.runtime.settings import get_runtime_settings
+    return replace(get_runtime_settings(), return_token_ids=True,
+                   state_transport="native_required", state_profile_id="zero",
+                   state_profile_sha256="0" * 64, tool_disclosure_mode="full")
+
+
 def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
-    request = read_json(run_root / "request.json")
-    if not isinstance(request, dict):
-        raise ValueError("request.json is missing or invalid")
-    run_id = str(request["run_id"])
-    workspace = (run_root / "workspace").resolve()
-    store = LongHorizonStore(run_root / "state", checkpoint_retention=100_000)
-    trace_path = run_root / "model_trace.jsonl"
     if resume:
-        state = store.load(run_id)
-        config = retrieval_policy_from_goal(state.goal)
+        raise ValueError("direct frontend resume is not yet supported; preserve this run and create a new task")
+    request = read_json(run_root / "request.json")
+    if not isinstance(request, dict) or request.get("runtime") != "direct_rwkv":
+        raise ValueError("historical runtime is read-only; create a new direct RWKV task")
+    scope = request["tool_scope"]
+    goal = request["request"]
+    if request.get("constraints"):
+        goal += "\n\n用户补充要求：\n" + "\n".join(request["constraints"])
+    update_metadata(run_root, active=True, phase="controller_running", pid=os.getpid(),
+                    worker_started_at=utc_now(), error="")
+    settings = direct_settings()
+    # No credentials enter persisted configuration. The shared executor records
+    # actual input, output, observations and native State relations.
+    atomic_write_json(run_root / "runtime.json", {
+        key: value for key, value in vars(settings).items()
+        if key not in {"api_key", "cf_access_client_id", "cf_access_client_secret", "proxy_url"}
+    })
+    if scope == "coding":
+        result = run_coding_job(CodingJob(
+            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
+            max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
     else:
-        config = RetrievalRuntimeConfig.from_dict(request.get("retrieval_policy"))
-    update_metadata(
-        run_root,
-        active=True,
-        phase="resuming" if resume else "creating_literal_request",
-        pid=os.getpid(),
-        worker_started_at=utc_now(),
-        error="",
-    )
-    if not resume:
-        goal = LongHorizonModel.create_literal_goal(
-            str(request["request"]),
-            str(workspace),
-            constraints=[str(item) for item in request.get("constraints") or []],
-            runtime_policy=runtime_policy_document(
-                config,
-                supervisor_mode=str(
-                    request.get("supervisor_mode") or "stateful_goal"
-                ),
-                execution_mode=str(request.get("execution_mode") or "bounded"),
-            ),
-        )
-        state = store.create_run(goal, run_id)
-        update_metadata(
-            run_root,
-            state_created=True,
-            phase="controller_running",
-            request=state.goal.request,
-            goal_digest=state.goal.digest,
-        )
-
-    def append_model_trace(event: Mapping[str, Any]) -> None:
-        append_jsonl(trace_path, {**dict(event), "source": "rwkv"})
-
-    def append_supervisor_trace(event: Mapping[str, Any]) -> None:
-        append_jsonl(trace_path, {**dict(event), "source": "strong_supervisor"})
-
-    goal_mode = goal_self_termination_only(state.goal)
-    continuation_count = 0
-    next_call_is_resume = resume
-    controller = None
-    result = None
-    while True:
-        try:
-            if controller is None:
-                state = store.load(run_id)
-                controller = build_product_controller(
-                    store,
-                    state,
-                    state_root=run_root,
-                    max_transitions=max_transitions,
-                    model_audit_hook=append_model_trace,
-                    supervisor_audit_hook=append_supervisor_trace,
-                )
-            result = (
-                controller.resume(run_id)
-                if next_call_is_resume
-                else controller.run(run_id)
-            )
-            next_call_is_resume = True
-        except (ValueError, TypeError, AssertionError):
-            # Configuration, identity, schema and architecture mismatches are
-            # deterministic. Retrying them forever only burns a worker while
-            # preserving the same invalid inputs.
-            raise
-        except Exception as exc:
-            if not goal_mode:
-                raise
-            # Runtime/service failure is a wait boundary, never a Goal terminal
-            # authority.  Rebuild product adapters on the next attempt so a
-            # restored native-state service can be adopted without user action.
-            continuation_count += 1
-            controller = None
-            update_metadata(
-                run_root,
-                active=True,
-                phase="goal_waiting_runtime",
-                status=store.load(run_id).status.value,
-                continuation_count=continuation_count,
-                continuation_reason=f"{type(exc).__name__}: {exc}"[:1000],
-                error="",
-            )
-            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
-            continue
-        if not goal_mode or result.state.status.value != "running":
-            break
-        continuation_count += 1
-        payload = result_payload(result.state, result.final_output, result.transitions)
-        payload["continuation_count"] = continuation_count
-        atomic_write_json(run_root / "result.json", payload)
-        latest = result.state.causal_records[result.state.causal_order[-1]]
-        reason = str(latest.payload.get("reason") or "goal_continuation")
-        update_metadata(
-            run_root,
-            active=True,
-            phase="goal_continuing",
-            status=result.state.status.value,
-            revision=result.state.revision,
-            continuation_count=continuation_count,
-            continuation_reason=reason,
-            error="",
-        )
-        if reason.endswith("_unavailable") or reason.endswith("_failure"):
-            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
-    if result is None:
-        raise RuntimeError("worker produced no controller result")
-    payload = result_payload(result.state, result.final_output, result.transitions)
-    payload["continuation_count"] = continuation_count
-    atomic_write_json(run_root / "result.json", payload)
-    update_metadata(
-        run_root,
-        active=False,
-        phase=(
-            "blocked" if result.state.status.value == "blocked" else "finished"
-        ),
-        pid=None,
-        status=result.state.status.value,
-        revision=result.state.revision,
-        worker_finished_at=utc_now(),
-        result_path="result.json",
-        error="",
-    )
-    return 0
+        result = run_read_only_job(ReadOnlyJob(
+            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "execution"),
+            max_transitions, request["max_seconds"], tool_scope=scope),
+            settings=settings, session_factory=create_model_session)
+    atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
+    submitted = result["termination"] == "submitted"
+    execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
+    update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
+                    pid=None, status="submitted" if submitted else "interrupted",
+                    state_created=(execution / "state_snapshot.json").exists(),
+                    termination_reason=result["termination_reason"],
+                    worker_finished_at=utc_now(), result_path="result.json", error="")
+    return 0 if submitted else 1
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,29 +1,31 @@
 # RWKV-LH
 
-当前状态（2026-09-09）：Planner / Stage Checker 已切到独立强模型配置，修复计划解析失败时原始 JSON 丢失、语义错误误报服务不可用及不同传输的完成判定差异。Agent 最新完整对比仍是历史 R7：A/B 各 Strict **0/12**、completed **0/12**、mutation **0**；当前链路 R3 由 owner 暂停，10 题有终止记录，动作与 mutation 均为 0，不能作为完整 12 题成绩。2.9B Selector 已部署并通过 Native 训练后端数值验证，正式 optimizer steps 仍为 0。证据与限制见 [当前交接](docs/HANDOFF.zh-CN.md) 和 [Planner 修复报告](data/experiments/PLANNER_STRONG_ROUTING_R1_20260909/REPORT.zh-CN.md)。
+为 RWKV 构建专属 Harness 与 Code Agent。RWKV 是默认执行主体，自主选择工具、参数和下一步；Harness 执行真实工具、传递观察、延续 State、隔离任务并记录证据。强模型按需补足困难任务，成果归属单独记录。
 
-RWKV-LH 是使用 RWKV 分角色推理与持久化因果记录的 Agent 运行时。产品入口只有 `rwkv-stateful-goal-loop.v7` 一条控制链。
+在相同交付质量下降低总成本、缩短交付时间、提高吞吐是产品的优化目标，当前不预设这些收益已经成立。
+
+当前前端接入已经用于读取、检查与修改诊断的共享执行闭环：
 
 ```text
-Strong Planner
-  -> Controller：操作范围、目标类型与机械事实
-  -> Selector 2.9B
-  -> Executor 13.3B
-  -> Harness
-  -> Mechanical Evidence Gate
-  -> Step Auditor 13.3B
-  -> Strong Stage Checker
-  -> Finalizer 13.3B
-  -> Final Auditor 13.3B
+用户任务与文件 → RWKV → 工具调用 → Harness → 真实观察与连续 State → RWKV → 原始回答
 ```
 
-全局权威状态是 append-only causal ledger。各角色使用独立 ModelSession；Selector 三种菜单顺序分别从 fresh initial State 求值，Executor 新动作重新初始化，Auditor / Finalizer 按边界初始化。跨动作事实由 ledger 有界投影回输入，WKV 是角色局部的派生缓存。
+独立任务从 zero State 开始；工具由用户选定的权限范围限制，具体调用与参数仍由 RWKV 决定。模型提交回答不等于外部验收通过；预算耗尽如实中断，不补写答案。
 
-每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v5、Executor 为 v5、Step Auditor 为 v4、Finalizer 为 v2、Final Auditor 为 v3。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
+## 前端演示
 
-StateTune 按 **Selector → Executor → Step Auditor → Finalizer → Final Auditor** 推进。当前角色的数据和预注册验证条件满足后训练，固定其 State，再收集下一角色的真实问题；后序角色未到达不阻止前序角色。Agent 低分是改进对象，正式保留组合仍须通过 Agent 验收。owner 已取消固定三轮上限，后续按指标、预算和实际训练 run 管理。
+在 WSL 中启动一次：
 
-当前管线支持生产 trace 重建、冻结前序 State、语义复核与独立纠正目标、角色覆盖和固定回归审计；只输出候选文件。本轮未冻结正式角色数据或启动训练，当前优化器训练器仍需按实际 backend 接通和验证，见 [StateTune 现状](docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。模型升级复用同一架构，优先调整模型/词表/State/上下文/传输适配，不自动恢复旧协议或旧 State。
+```bash
+cd /home/chase/GitHub/RWKV-LH
+.venv/bin/python scripts/run_web_ui.py --port 8766 --data-root data/frontend_runs
+```
+
+浏览器打开 **http://localhost:8766**。点击“阅读健康检查脚本”或“运行递归扫描测试”，检查自动填入的任务和原始文件，再点击“开始执行”。之后在任务记录里查看原始回答、真实工具结果与完整审计，并可下载审计包。
+
+演示按钮会重新调用真实 RWKV，不播放预制答案。指定测试曾连续两次执行并准确报告通过；这不证明通用 bug 诊断或项目交付稳定。本轮真实前端验证结果及调用说明见 [前端指南](docs/FRONTEND_DEMO.zh-CN.md)。
+
+当前支持指定文件问答、只读搜索/测试，以及修改隔离副本（实验性）。新任务不经过旧 Planner/Selector/Auditor 多角色入口；前端尚未接入强模型协助及 State 续跑，旧记录保留供查阅。模型仍可能重复读取、错误诊断或无回答终止。
 
 ## 文档与记录
 

@@ -1,0 +1,135 @@
+EFF                                                                      [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_restarted_web_manager_does_not_spawn_over_persisted_live_worker _
+
+self = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest'), mode = 448
+parents = False, exist_ok = False
+
+    def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+        """
+        Create a new directory at this given path.
+        """
+        try:
+>           os.mkdir(self, mode)
+E           FileExistsError: [Errno 17] File exists: '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest'
+
+../../.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/pathlib/_local.py:722: FileExistsError
+=================================== FAILURES ===================================
+__ test_child_holds_worker_claim_until_exit_even_without_published_pid[False] __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_child_holds_worker_claim_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x794360243e10>
+publication_fails = False
+
+    @pytest.mark.parametrize("publication_fails", [False, True])
+    def test_child_holds_worker_claim_until_exit_even_without_published_pid(tmp_path, monkeypatch, publication_fails):
+        repository, metadata = create_repository_run(tmp_path)
+        run_id = metadata["run_id"]
+        real_popen = subprocess.Popen
+        children = []
+    
+        def spawn_waiting_child(command, **kwargs):
+            child = real_popen(
+                [sys.executable, "-c", "import sys; sys.stdin.buffer.read(1)"],
+                stdin=subprocess.PIPE, **kwargs,
+            )
+            children.append(child)
+            return child
+    
+        def publish(run_root, **values):
+            if publication_fails and values.get("pid") is not None:
+                raise RuntimeError("simulated PID publication failure")
+            return update_metadata(run_root, **values)
+    
+        monkeypatch.setattr("rwkv_lh.web_ui.subprocess.Popen", spawn_waiting_child)
+        monkeypatch.setattr("rwkv_lh.web_ui.update_metadata", publish)
+        # Exercise the inherited OS claim independently of PID discovery.
+        monkeypatch.setattr(ManualRunManager, "_managed_pid_alive", lambda *args: False)
+        try:
+            manager = ManualRunManager(repository)
+            if publication_fails:
+                with pytest.raises(RuntimeError, match="publication failure"):
+                    manager.launch(run_id)
+                assert repository.metadata(run_id)["pid"] is None
+            else:
+                manager.launch(run_id)
+            with pytest.raises(RuntimeError, match="already active"):
+>               ManualRunManager(repository).launch(run_id, resume=True)
+
+tests/test_engineering_boundaries.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.web_ui.ManualRunManager object at 0x794360008410>
+run_id = 'UI-TEST', resume = True
+
+    def launch(self, run_id: str, *, resume: bool = False) -> dict[str, Any]:
+        if resume:
+>           raise ValueError("direct frontend resume is not yet supported")
+E           ValueError: direct frontend resume is not yet supported
+
+rwkv_lh/web_ui.py:431: ValueError
+__ test_child_holds_worker_claim_until_exit_even_without_published_pid[True] ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_child_holds_worker_claim_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79435ffe20f0>
+publication_fails = True
+
+    @pytest.mark.parametrize("publication_fails", [False, True])
+    def test_child_holds_worker_claim_until_exit_even_without_published_pid(tmp_path, monkeypatch, publication_fails):
+        repository, metadata = create_repository_run(tmp_path)
+        run_id = metadata["run_id"]
+        real_popen = subprocess.Popen
+        children = []
+    
+        def spawn_waiting_child(command, **kwargs):
+            child = real_popen(
+                [sys.executable, "-c", "import sys; sys.stdin.buffer.read(1)"],
+                stdin=subprocess.PIPE, **kwargs,
+            )
+            children.append(child)
+            return child
+    
+        def publish(run_root, **values):
+            if publication_fails and values.get("pid") is not None:
+                raise RuntimeError("simulated PID publication failure")
+            return update_metadata(run_root, **values)
+    
+        monkeypatch.setattr("rwkv_lh.web_ui.subprocess.Popen", spawn_waiting_child)
+        monkeypatch.setattr("rwkv_lh.web_ui.update_metadata", publish)
+        # Exercise the inherited OS claim independently of PID discovery.
+        monkeypatch.setattr(ManualRunManager, "_managed_pid_alive", lambda *args: False)
+        try:
+            manager = ManualRunManager(repository)
+            if publication_fails:
+                with pytest.raises(RuntimeError, match="publication failure"):
+                    manager.launch(run_id)
+                assert repository.metadata(run_id)["pid"] is None
+            else:
+                manager.launch(run_id)
+            with pytest.raises(RuntimeError, match="already active"):
+>               ManualRunManager(repository).launch(run_id, resume=True)
+
+tests/test_engineering_boundaries.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.web_ui.ManualRunManager object at 0x794360122780>
+run_id = 'UI-TEST', resume = True
+
+    def launch(self, run_id: str, *, resume: bool = False) -> dict[str, Any]:
+        if resume:
+>           raise ValueError("direct frontend resume is not yet supported")
+E           ValueError: direct frontend resume is not yet supported
+
+rwkv_lh/web_ui.py:431: ValueError
+=============================== warnings summary ===============================
+tests/test_engineering_boundaries.py::test_restarted_web_manager_does_not_spawn_over_persisted_live_worker
+  /home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/_pytest/pathlib.py:95: PytestWarning: (rm_rf) error removing /home/chase/GitHub/RWKV-LH/data/test_runs/pytest
+  <class 'OSError'>: [Errno 39] Directory not empty: '/home/chase/GitHub/RWKV-LH/data/test_runs/pytest'
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_engineering_boundaries.py::test_restarted_web_manager_does_not_spawn_over_persisted_live_worker
+FAILED tests/test_engineering_boundaries.py::test_child_holds_worker_claim_until_exit_even_without_published_pid[False]
+FAILED tests/test_engineering_boundaries.py::test_child_holds_worker_claim_until_exit_even_without_published_pid[True]
+2 failed, 8 deselected, 1 warning, 1 error in 0.24s

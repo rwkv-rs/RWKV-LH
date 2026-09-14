@@ -1,0 +1,66 @@
+from pathlib import Path
+import json,hashlib
+r=Path('/home/chase/GitHub/RWKV-LH');p=r/'tests/test_web_ui.py';s=p.read_text().replace('match="stateful_goal"','match="direct_rwkv"').replace('["actions"][0]["action_type"]','["actions"][0]["operation"]').replace('"awaiting_all_zero_baseline"','"fixed_task_diagnostics_only"');p.write_text(s)
+source=r/'data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/focused_test/sources/case-a'
+verify=r/'data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace/verify_public.py'
+def seed(p,base): return {'path':p.relative_to(base).as_posix(),'content':p.read_text()}
+demos=[{'id':'read-health','title':'阅读健康检查脚本','request':'阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。','tool_scope':'files','max_transitions':6,'max_seconds':300,'seed_files':[seed(verify,verify.parent)],'source':str(verify.relative_to(r))},
+{'id':'run-recursive','title':'运行递归扫描测试','request':'运行工作区中已有的 check_recursive.py，根据本次真实执行的输出说明测试是否通过。不要修改工作区文件。若没有成功执行，就如实说明未执行及原因；不要把建议、预期或仅外层命令退出0说成测试通过。','tool_scope':'inspect','max_transitions':6,'max_seconds':240,'seed_files':[seed(p,source) for p in sorted(source.rglob('*')) if p.is_file() and '__pycache__' not in p.parts], 'source':str(source.relative_to(r))}]
+(r/'rwkv_lh/goal_web_assets/demo_tasks.json').write_text(json.dumps(demos,ensure_ascii=False,indent=2)+'\n')
+p=r/'rwkv_lh/web_ui.py';s=p.read_text().replace('            if path == "/api/capabilities":','            if path == "/api/demos":\n                self.send_json({"demos": read_json(ASSET_ROOT / "demo_tasks.json", [])})\n                return\n            if path == "/api/capabilities":');p.write_text(s)
+p=r/'rwkv_lh/goal_web_assets/index.html';s=p.read_text();s=s.replace('Strong Planner、独立 RWKV 角色 State 与证据驱动验收的自主项目工作台','RWKV 自主选择工具、执行与回答的本地工作台').replace('正在连接双 RWKV 运行栈','正在连接 RWKV').replace('STRONG PLAN · RWKV BUILD','RWKV · CODE AGENT').replace('说出目标，<br><em>让项目自己生长。</em>','给出任务，<br><em>查看真实执行。</em>').replace('强模型只规划，2.9B 只选择工具意图，13.3B 只执行，独立 Auditor State 根据真实证据审核。','RWKV 自主选择工具和参数，Harness 返回真实结果。同一任务延续 State，回答与验收分开记录。').replace('你想创建什么？','你想完成什么任务？').replace('例如：帮我做一个简洁的个人记账网页，可以记录收入支出并显示本月统计。','选择下面的演示，或添加文件后描述你的任务。')
+a=s.index('            <div class="suggestions"');b=s.index('\n            <details',a);s=s[:a]+'            <div id="demoButtons" class="suggestions" aria-label="已登记演示任务"></div>\n'+s[b:]
+s=s.replace('<details class="advanced-settings">','<details class="advanced-settings" open>')
+a=s.index('                <label>网络');b=s.index('              <label for="constraintInput"',a)
+s=s[:a]+'''                <label>工具权限
+                  <select id="toolScope"><option value="files">指定文件阅读</option><option value="inspect">只读检查与运行测试</option><option value="coding">修改隔离副本（实验性）</option></select>
+                </label>
+                <label>模型调用上限
+                  <select id="transitionBudget"><option value="6">6 次</option><option value="12">12 次</option><option value="24">24 次</option></select>
+                </label>
+                <label>时间上限（秒）<input id="secondsBudget" type="number" min="1" max="3600" value="300"></label>
+              </div>
+''' +s[b:]
+s=s.replace('Contract Graph · 自动验收','自主执行 · 提交不等于验收').replace('开始创建','开始执行')
+a=s.index('            <div id="topologyCards"');b=s.index('\n          </section>',a);s=s[:a]+'            <div id="topologyCards" class="topology-cards"></div>'+s[b:]
+a=s.index('          <div class="phase-track"');b=s.index('\n          <div class="metric-strip">',a);s=s[:a]+'          <p>执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。</p>\n'+s[b:]
+s=s.replace('步骤进度','外部验收').replace('生成文件','工作区文件').replace('目标与计划','用户目标').replace('最终交付','原始回答').replace('项目仍在创建中。','尚无回答。').replace('Planner 尚未提交义务。','按用户目标验收，不限定工具顺序。').replace('RWKV / Supervisor I/O','RWKV 输入 / 输出')
+a=s.index('            <div class="lane-banner">');b=s.index('            <div id="actionList"',a);s=s[:a]+'            <p>RWKV 自主生成调用和参数 → Harness 执行 → 观察与 State 延续 → RWKV 回答</p>\n'+s[b:];p.write_text(s)
+p=r/'rwkv_lh/goal_web_assets/app.js';s=p.read_text();s=s.replace('      app.topology.supervisor?.configured\n      && app.topology.selector?.available\n      && app.topology.executor?.available','      app.topology.executor?.available').replace('双 RWKV 运行栈已就绪','RWKV 直接执行已就绪')
+a=s.index('    { index: "01", name: "Strong Planner"');b=s.index('    { index: "04", name: "Evidence Harness"',a);s=s[:a]+'    { index: "01", name: "RWKV Agent", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 工具选择、参数与回答` },\n'+s[b:]
+a=s.index('      retrieval_policy: {');b=s.index('      seed_files:',a);s=s[:a]+'''      max_seconds: Number($("secondsBudget").value),
+      tool_scope: $("toolScope").value,
+''' +s[b:]
+s=s.replace('const status = statusClass(state.status || metadata.status || metadata.phase);','const direct = summary.request?.runtime === "direct_rwkv";\n  const status = statusClass(direct ? (metadata.status || metadata.phase) : (state.status || metadata.status || metadata.phase));')
+s=s.replace('const resumable = !metadata.active', 'const resumable = !direct && !metadata.active')
+s=s.replace('$("obligationMetric").textContent = `${satisfied} / ${contract.obligations.length}`;','$("obligationMetric").textContent = direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;')
+s=s.replace('$("currentPhaseLabel").textContent = phaseLabel(current);','$("currentPhaseLabel").textContent = direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);')
+s=s.replace('$("finalOutput").textContent = output || "项目仍在创建中。";','$("finalOutput").textContent = output || (summary.metadata?.active ? "RWKV 执行中，尚无回答。" : "本次运行未提交回答。");')
+s=s.replace('  const verdicts = Object.values(contract.verdicts);\n  const allPassed', '  const verdicts = Object.values(contract.verdicts);\n  const allPassed',1)
+s=s.replace('$("acceptanceBadge").textContent = allPassed ?', '$("acceptanceBadge").textContent = summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ?')
+s=s.replace('Planner 尚未提交义务。','按用户目标验收，不要求固定步骤。').replace('执行图尚未生成。','RWKV 自主选择下一步；工具调用见执行页。')
+s=s.replace('$("requestMetric").textContent = state.model_request_count ??', '$("requestMetric").textContent = summary.result?.generation_started ?? state.model_request_count ??')
+s=s.replace('  await Promise.all([loadTopology(), loadRuns()]);','''  await Promise.all([loadTopology(), loadRuns(), loadDemos()]);''')
+s+='''
+async function loadDemos() {
+  try {
+    const { demos } = await api("/api/demos");
+    $("demoButtons").replaceChildren();
+    demos.forEach((demo) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.textContent = demo.title; button.dataset.demo = demo.id;
+      button.addEventListener("click", () => {
+        $("goalInput").value = demo.request;
+        $("toolScope").value = demo.tool_scope;
+        $("transitionBudget").value = demo.max_transitions;
+        $("secondsBudget").value = demo.max_seconds;
+        $("constraintInput").value = "";
+        $("seedFiles").replaceChildren();
+        demo.seed_files.forEach((file) => addSeedFile(file.path, file.content));
+        $("formMessage").textContent = "已填入任务和原始文件。点击开始执行会发起新的真实模型调用。";
+      });
+      $("demoButtons").appendChild(button);
+    });
+  } catch (error) { $("formMessage").textContent = error.message; }
+}
+''';p.write_text(s)

@@ -1,0 +1,1298 @@
+diff --git a/README.md b/README.md
+index 0c844df4..9f533f8d 100644
+--- a/README.md
++++ b/README.md
+@@ -1,29 +1,31 @@
+ # RWKV-LH
+ 
+-当前状态（2026-09-09）：Planner / Stage Checker 已切到独立强模型配置，修复计划解析失败时原始 JSON 丢失、语义错误误报服务不可用及不同传输的完成判定差异。Agent 最新完整对比仍是历史 R7：A/B 各 Strict **0/12**、completed **0/12**、mutation **0**；当前链路 R3 由 owner 暂停，10 题有终止记录，动作与 mutation 均为 0，不能作为完整 12 题成绩。2.9B Selector 已部署并通过 Native 训练后端数值验证，正式 optimizer steps 仍为 0。证据与限制见 [当前交接](docs/HANDOFF.zh-CN.md) 和 [Planner 修复报告](data/experiments/PLANNER_STRONG_ROUTING_R1_20260909/REPORT.zh-CN.md)。
++为 RWKV 构建专属 Harness 与 Code Agent。RWKV 是默认执行主体，自主选择工具、参数和下一步；Harness 执行真实工具、传递观察、延续 State、隔离任务并记录证据。强模型按需补足困难任务，成果归属单独记录。
+ 
+-RWKV-LH 是使用 RWKV 分角色推理与持久化因果记录的 Agent 运行时。产品入口只有 `rwkv-stateful-goal-loop.v7` 一条控制链。
++在相同交付质量下降低总成本、缩短交付时间、提高吞吐是产品的优化目标，当前不预设这些收益已经成立。
++
++当前前端接入已经用于读取、检查与修改诊断的共享执行闭环：
+ 
+ ```text
+-Strong Planner
+-  -> Controller：操作范围、目标类型与机械事实
+-  -> Selector 2.9B
+-  -> Executor 13.3B
+-  -> Harness
+-  -> Mechanical Evidence Gate
+-  -> Step Auditor 13.3B
+-  -> Strong Stage Checker
+-  -> Finalizer 13.3B
+-  -> Final Auditor 13.3B
++用户任务与文件 → RWKV → 工具调用 → Harness → 真实观察与连续 State → RWKV → 原始回答
+ ```
+ 
+-全局权威状态是 append-only causal ledger。各角色使用独立 ModelSession；Selector 三种菜单顺序分别从 fresh initial State 求值，Executor 新动作重新初始化，Auditor / Finalizer 按边界初始化。跨动作事实由 ledger 有界投影回输入，WKV 是角色局部的派生缓存。
++独立任务从 zero State 开始；工具由用户选定的权限范围限制，具体调用与参数仍由 RWKV 决定。模型提交回答不等于外部验收通过；预算耗尽如实中断，不补写答案。
++
++## 前端演示
++
++在 WSL 中启动一次：
++
++```bash
++cd /home/chase/GitHub/RWKV-LH
++.venv/bin/python scripts/run_web_ui.py --port 8766 --data-root data/frontend_runs
++```
+ 
+-每个角色只保留一个协议模块，输入共用 `build_prompt_source()` 与该模块的 renderer。Selector 为 v5、Executor 为 v5、Step Auditor 为 v4、Finalizer 为 v2、Final Auditor 为 v3。所有旧模块、兼容角色输入、合成数据生成/评测链和旧数据已从工作树删除，不保留 stub 或本地归档。
++浏览器打开 **http://localhost:8766**。点击“阅读健康检查脚本”或“运行递归扫描测试”，检查自动填入的任务和原始文件，再点击“开始执行”。之后在任务记录里查看原始回答、真实工具结果与完整审计，并可下载审计包。
+ 
+-StateTune 按 **Selector → Executor → Step Auditor → Finalizer → Final Auditor** 推进。当前角色的数据和预注册验证条件满足后训练，固定其 State，再收集下一角色的真实问题；后序角色未到达不阻止前序角色。Agent 低分是改进对象，正式保留组合仍须通过 Agent 验收。owner 已取消固定三轮上限，后续按指标、预算和实际训练 run 管理。
++演示按钮会重新调用真实 RWKV，不播放预制答案。指定测试曾连续两次执行并准确报告通过；这不证明通用 bug 诊断或项目交付稳定。本轮真实前端验证结果及调用说明见 [前端指南](docs/FRONTEND_DEMO.zh-CN.md)。
+ 
+-当前管线支持生产 trace 重建、冻结前序 State、语义复核与独立纠正目标、角色覆盖和固定回归审计；只输出候选文件。本轮未冻结正式角色数据或启动训练，当前优化器训练器仍需按实际 backend 接通和验证，见 [StateTune 现状](docs/STATETUNE_DATA_PIPELINE_STATUS.zh-CN.md)。模型升级复用同一架构，优先调整模型/词表/State/上下文/传输适配，不自动恢复旧协议或旧 State。
++当前支持指定文件问答、只读搜索/测试，以及修改隔离副本（实验性）。新任务不经过旧 Planner/Selector/Auditor 多角色入口；前端尚未接入强模型协助及 State 续跑，旧记录保留供查阅。模型仍可能重复读取、错误诊断或无回答终止。
+ 
+ ## 文档与记录
+ 
+diff --git a/docs/FRONTEND_DEMO.zh-CN.md b/docs/FRONTEND_DEMO.zh-CN.md
+new file mode 100644
+index 00000000..1bdbe164
+--- /dev/null
++++ b/docs/FRONTEND_DEMO.zh-CN.md
+@@ -0,0 +1,49 @@
++# 前端演示与调用方式（2026-09-14）
++
++产品目标是 RWKV 自己的 Code Agent / Harness。今天的实例限定为可核对的文件阅读和指定测试，不代表通用项目自动交付能力。
++
++## 使用方式
++
++当前工作机在 WSL 启动服务后，Windows 浏览器访问 **http://localhost:8766**；WSL 内可访问 **http://127.0.0.1:8766**。
++
++```bash
++cd /home/chase/GitHub/RWKV-LH
++.venv/bin/python scripts/run_web_ui.py --port 8766 --data-root data/frontend_runs
++```
++
++运行身份读取已有 `.env.local` 的 Executor 配置。当前连接为 `http://127.0.0.1:29613/v1`，模型 `rwkv7-g1j-13.3b-zero-state-capability-ctx16384`；前端新任务使用 native_required、zero State、精确 token 记录。服务详情按钮显示连接状态。若 SSH 转发在重启后消失，需在 WSL 恢复部署连接；页面不会伪造就绪状态。
++
++1. 点击一个演示按钮。它只填入用户任务和原始文件，不填答案或指定工具顺序。
++2. 检查“工具权限”、调用上限、时间上限和已有文件，点击“开始执行”。可自行添加文本/代码文件并修改任务。
++3. 总览显示原始回答和终止原因；“RWKV 执行”显示真实参数与工具结果；“完整审计”提供模型输入、输出及因果事件。
++4. 点击“下载审计包”保存文件、trace、State 数据库一致性快照与结果。左侧历史记录可随时重新打开。
++
++`submitted` 表示提交了回答，**不是验收通过**；`interrupted` 表示预算或其他边界停止。前端默认显示“未进行外部验收”。无回答会明确显示，不强制模型写总结。
++
++## 两个固定实例
++
++| 实例 | 操作与期望 | 权限与预算 |
++| --- | --- | --- |
++| 阅读健康检查脚本 | 读取 `verify_public.py`，说明 HTTP `/health`、200 与 `ok=true` 的检查，以及不证明事务行为的限制。没有真实执行，不能声称测试已运行。 | files；6 次 / 300 秒 |
++| 运行递归扫描测试 | 运行现有 `check_recursive.py`，依据实际 stdout JSON 与退出码说明结果；验证递归路径及字段/内容保留。不能扩大为整个索引项目全部合格。 | inspect；6 次 / 240 秒 |
++
++原文件复用已获准实验；文件来源登记在 `rwkv_lh/goal_web_assets/demo_tasks.json`。文件会复制到每次独立工作区，评分要点不进入模型输入。指定测试历史两次任务合格证据见 `data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/focused_test/REPORT.zh-CN.md`。
++
++本轮输入、评分、预算、模型、源码已提前登记于 `data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/REGISTRATION.json`；新结果以该轮报告为准，失败和采集异常一并保留。
++
++## API（前端使用同一入口）
++
++`GET /api/demos` 返回任务、原始文件和预算。将某个 demo 的 `request`、`seed_files`、`tool_scope`、`max_transitions`、`max_seconds` 交给 `POST /api/runs` 即可启动。新任务默认 `files`，6 次调用、300 秒；工具范围可选 `files` / `inspect` / `coding`。
++
++`GET /api/runs/<id>` 查看状态和原始结果；`/trace` 查看模型事件；`/events` 查看因果事件；`/files` 查看工作区；`/export` 下载证据。调用仍由 RWKV 选择，不根据 demo ID 或路径特判。
++
++`coding` 修改单独复制的 `delivery/workspace`，前端文件页和导出展示该副本；不会写回输入文件。前端暂不自动续跑、接管、推送或训练。需要新任务时明确重新提交，旧任务和 State 证据保留。
++
++## 本轮已核对成功记录
++
++2026-09-14，真实浏览器串行两遍：**4/4任务合格**，零非法参数、零虚称执行、零无回答终止；每项均自主调用一次工具再提交回答。只证明这两个固定实例内通过。
++
++- 阅读脚本：`UI-20260913-235300-075260`、`UI-20260913-235451-604a9e`。
++- 运行测试：`UI-20260913-235356-88c5a5`、`UI-20260913-235550-123f72`。
++
++Run ID使用UTC日期，页面时间按本地时区显示。左侧最新两条是第二遍实例，可直接打开演示；点击演示按钮则重新真实运行。首批另外四次并发记录单列，不合并为串行门或性能收益。完整核对见 `EXTERNAL_REVIEW.json`、`MECHANICAL.json`和各次审计ZIP。
+diff --git a/pyproject.toml b/pyproject.toml
+index c72f6838..e0582b61 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -43,6 +43,7 @@ rwkv_lh = [
+   "goal_web_assets/*.html",
+   "goal_web_assets/*.css",
+   "goal_web_assets/*.js",
++  "goal_web_assets/*.json",
+ ]
+ "benchmarks.rwkv_e2e.rwkv_e2e_30" = ["tasks.json", "acceptance.json"]
+ "benchmarks.rwkv_e2e.rwkv_e2e_lh12" = ["tasks.json", "acceptance.json"]
+diff --git a/rwkv_lh/goal_web_assets/app.js b/rwkv_lh/goal_web_assets/app.js
+index f2f3bd71..b806f931 100644
+--- a/rwkv_lh/goal_web_assets/app.js
++++ b/rwkv_lh/goal_web_assets/app.js
+@@ -83,13 +83,11 @@ async function loadTopology() {
+   try {
+     app.topology = await api("/api/runtime/topology");
+     const healthy = Boolean(
+-      app.topology.supervisor?.configured
+-      && app.topology.selector?.available
+-      && app.topology.executor?.available
++      app.topology.executor?.available
+       && app.topology.harness?.available
+     );
+     dot.className = `live-dot ${healthy ? "" : "offline"}`;
+-    $("systemLabel").textContent = healthy ? "双 RWKV 运行栈已就绪" : "部分运行服务不可用";
++    $("systemLabel").textContent = healthy ? "RWKV 直接执行已就绪" : "部分运行服务不可用";
+     renderTopology();
+   } catch (error) {
+     dot.className = "live-dot offline";
+@@ -102,9 +100,7 @@ function renderTopology() {
+   if (!app.topology) return;
+   const topology = app.topology;
+   const cards = [
+-    { index: "01", name: "Strong Planner", ok: topology.supervisor?.configured, detail: `${topology.supervisor?.model || "未配置"} · Goal Loop` },
+-    { index: "02", name: "RWKV Selector", ok: topology.selector?.available, detail: `${topology.selector?.model || "2.9B"} · ${topology.selector?.device || "GPU2"}` },
+-    { index: "03", name: "RWKV Executor", ok: topology.executor?.available, detail: `${topology.executor?.model || "13.3B"} · ${topology.executor?.device || "GPU1"}` },
++    { index: "01", name: "RWKV Agent", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 工具选择、参数与回答` },
+     { index: "04", name: "Evidence Harness", ok: topology.harness?.available, detail: `${topology.harness?.scope || "isolated"} · append-only` },
+   ];
+   $("topologyCards").innerHTML = cards.map((card) => `
+@@ -151,12 +147,8 @@ async function submitGoal(event) {
+       request: $("goalInput").value.trim(),
+       constraints: $("constraintInput").value.split("\n").map((item) => item.trim()).filter(Boolean),
+       max_transitions: Number($("transitionBudget").value),
+-      retrieval_policy: {
+-        mode: $("networkPolicy").value,
+-        explicit_approval: false,
+-        public_workspace_paths: [],
+-      },
+-      supervisor_mode: "stateful_goal",
++      max_seconds: Number($("secondsBudget").value),
++      tool_scope: $("toolScope").value,
+       seed_files: seedFiles(),
+     };
+     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });
+@@ -195,6 +187,12 @@ async function selectRun(runId) {
+   $("runView").classList.remove("hidden");
+   $("runId").textContent = runId;
+   $("runObjective").textContent = "正在恢复持久状态…";
++  // Clear every task projection before fetching the new identity. Otherwise
++  // a slow response temporarily labels the previous answer as this task's.
++  renderRun();
++  $("filePreviewName").textContent = "选择文件预览";
++  $("filePreviewMeta").textContent = "";
++  $("filePreview").textContent = "";
+   renderRuns();
+   await pollRun();
+   const phase = app.summary?.metadata?.phase;
+@@ -276,11 +274,12 @@ function renderRun() {
+   const summary = app.summary || {};
+   const metadata = summary.metadata || {};
+   const state = summary.state || {};
+-  const status = statusClass(state.status || metadata.status || metadata.phase);
++  const direct = summary.request?.runtime === "direct_rwkv";
++  const status = statusClass(direct ? (metadata.status || metadata.phase) : (state.status || metadata.status || metadata.phase));
+   const contract = contractData();
+   const satisfied = Object.values(contract.verdicts).filter((item) => item.status === "satisfied").length;
+   const current = currentPhase(contract, status);
+-  const actions = state.actions || [];
++  const actions = summary.result?.actions || state.actions || [];
+   const evidenceEvents = app.events.filter(isEvidenceEvent);
+ 
+   $("runId").textContent = metadata.run_id || app.selectedRun;
+@@ -289,20 +288,20 @@ function renderRun() {
+   $("runStatus").className = `status-chip ${status}`;
+   $("runStatus").textContent = status;
+   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
+-  const resumable = !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
++  const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
+   $("resumeButton").classList.toggle("hidden", !resumable);
+ 
+-  $("obligationMetric").textContent = `${satisfied} / ${contract.obligations.length}`;
++  $("obligationMetric").textContent = direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
+   $("actionMetric").textContent = actions.length;
+   $("evidenceMetric").textContent = evidenceEvents.length;
+   $("fileMetric").textContent = app.files.length;
+-  $("requestMetric").textContent = state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
++  $("requestMetric").textContent = summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
+   $("contractCount").textContent = contract.obligations.length;
+   $("executionCount").textContent = actions.length;
+   $("evidenceCount").textContent = evidenceEvents.length;
+   $("artifactCount").textContent = app.files.length;
+   $("rawCount").textContent = app.traces.length + app.events.length;
+-  $("currentPhaseLabel").textContent = phaseLabel(current);
++  $("currentPhaseLabel").textContent = direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
+ 
+   renderPhases(current, status);
+   renderOverview(summary, contract);
+@@ -337,11 +336,11 @@ function renderOverview(summary, contract) {
+   $("liveActivity").innerHTML = recent.length ? recent.map((item) => `
+     <div class="activity-item"><i></i><time>${escapeHtml(time(item.timestamp))}</time><strong>${escapeHtml(eventHeadline(item))}</strong></div>`).join("") : '<p class="empty-copy">等待第一个因果事件。</p>';
+   const output = summary.result?.final_output ?? summary.state?.final_output ?? "";
+-  $("finalOutput").textContent = output || "项目仍在创建中。";
++  $("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ? "RWKV 执行中，尚无回答。" : "本次运行未提交回答。");
+   const verdicts = Object.values(contract.verdicts);
+   const allPassed = Boolean(contract.obligations.length) && verdicts.length >= contract.obligations.length && verdicts.every((item) => item.status === "satisfied");
+   const contradicted = verdicts.some((item) => item.status === "contradicted");
+-  $("acceptanceBadge").textContent = allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
++  $("acceptanceBadge").textContent = summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
+   $("acceptanceBadge").className = `review-badge ${allPassed ? "pass" : contradicted ? "fail" : "pending"}`;
+   const errors = [summary.metadata?.error, ...(summary.state?.errors || []).map(pretty)].filter(Boolean);
+   $("errorPanel").classList.toggle("hidden", !errors.length);
+@@ -355,13 +354,13 @@ function renderContract(summary, contract) {
+     const verdict = contract.verdicts[item.obligation_id] || {};
+     const status = verdict.status || "open";
+     return `<article class="obligation ${escapeHtml(status)}"><header><code>${escapeHtml(item.obligation_id)}</code><span>${escapeHtml(status)}</span></header><p>${escapeHtml(item.predicate || item.request_clause || "待解析义务")}</p></article>`;
+-  }).join("") : '<p class="empty-copy">Planner 尚未提交义务。</p>';
++  }).join("") : '<p class="empty-copy">按用户目标验收，不要求固定步骤。</p>';
+   $("nodeCount").textContent = `${contract.nodes.length} steps`;
+   $("graphNodes").innerHTML = contract.nodes.length ? contract.nodes.map((node) => {
+     const atom = node.atom || {};
+     const outcome = contract.outcomes[atom.atom_id || node.node_id] || {};
+     return `<article class="graph-node"><header><code>${escapeHtml(node.node_id || atom.atom_id)}</code><span>${escapeHtml(outcome.status || "pending")}</span></header><strong>${escapeHtml(atom.objective || "RWKV step")}</strong><p>依赖：${escapeHtml((atom.depends_on || node.depends_on || []).join(", ") || "无")}</p></article>`;
+-  }).join("") : '<p class="empty-copy">执行图尚未生成。</p>';
++  }).join("") : '<p class="empty-copy">RWKV 自主选择下一步；工具调用见执行页。</p>';
+ }
+ 
+ function renderActions(actions) {
+@@ -371,6 +370,7 @@ function renderActions(actions) {
+       <code>${escapeHtml(action.operation || action.action_type || "operation")}</code>
+       <p>${escapeHtml(action.action_id || "")} · ${escapeHtml((action.artifact_refs || []).join(", ") || "无产物")}</p>
+       <span class="action-status">${escapeHtml(action.status || "pending")}</span>
++      ${action.arguments ? `<details><summary>真实调用与工具结果</summary><pre>${escapeHtml(pretty({arguments: action.arguments, result: action.result}))}</pre></details>` : ""}
+     </article>`).join("") : '<p class="empty-copy">等待 RWKV Action。</p>';
+ }
+ 
+@@ -462,5 +462,27 @@ document.addEventListener("DOMContentLoaded", async () => {
+     document.querySelectorAll("[data-audit]").forEach((item) => item.classList.toggle("active", item === button));
+     renderRaw();
+   }));
+-  await Promise.all([loadTopology(), loadRuns()]);
++  await Promise.all([loadTopology(), loadRuns(), loadDemos()]);
+ });
++
++async function loadDemos() {
++  try {
++    const { demos } = await api("/api/demos");
++    $("demoButtons").replaceChildren();
++    demos.forEach((demo) => {
++      const button = document.createElement("button");
++      button.type = "button"; button.textContent = demo.title; button.dataset.demo = demo.id;
++      button.addEventListener("click", () => {
++        $("goalInput").value = demo.request;
++        $("toolScope").value = demo.tool_scope;
++        $("transitionBudget").value = demo.max_transitions;
++        $("secondsBudget").value = demo.max_seconds;
++        $("constraintInput").value = "";
++        $("seedFiles").replaceChildren();
++        demo.seed_files.forEach((file) => addSeedFile(file.path, file.content));
++        $("formMessage").textContent = "已填入任务和原始文件。点击开始执行会发起新的真实模型调用。";
++      });
++      $("demoButtons").appendChild(button);
++    });
++  } catch (error) { $("formMessage").textContent = error.message; }
++}
+diff --git a/rwkv_lh/goal_web_assets/demo_tasks.json b/rwkv_lh/goal_web_assets/demo_tasks.json
+new file mode 100644
+index 00000000..3e6e51e8
+--- /dev/null
++++ b/rwkv_lh/goal_web_assets/demo_tasks.json
+@@ -0,0 +1,64 @@
++[
++  {
++    "id": "read-health",
++    "title": "阅读健康检查脚本",
++    "request": "阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
++    "tool_scope": "files",
++    "max_transitions": 6,
++    "max_seconds": 300,
++    "seed_files": [
++      {
++        "path": "verify_public.py",
++        "content": "\"\"\"Optional health-only smoke: python verify_public.py HOST PORT.\n\nThis intentionally does not certify booking/order behavior.\n\"\"\"\nimport http.client\nimport json\nimport sys\nconnection = http.client.HTTPConnection(sys.argv[1], int(sys.argv[2]), timeout=5)\nconnection.request('GET', '/health')\nresponse = connection.getresponse()\nassert response.status == 200 and json.loads(response.read())['ok'] is True\nconnection.close()\nprint('health smoke passed; transactional behavior still requires tests')\n"
++      }
++    ],
++    "source": "data/experiments/COORDINATOR_ATOMIC_ACTOR_STATE_ABLATION_R5_20260912/arm_b_atomic/cases/RP-API-01/workspace/verify_public.py"
++  },
++  {
++    "id": "run-recursive",
++    "title": "运行递归扫描测试",
++    "request": "运行工作区中已有的 check_recursive.py，根据本次真实执行的输出说明测试是否通过。不要修改工作区文件。若没有成功执行，就如实说明未执行及原因；不要把建议、预期或仅外层命令退出0说成测试通过。",
++    "tool_scope": "inspect",
++    "max_transitions": 6,
++    "max_seconds": 240,
++    "seed_files": [
++      {
++        "path": "README.md",
++        "content": "# 增量文档索引维护\n\n这是已有的多文件 Python SQLite 索引工具。用户报告子目录文档找不到、删除文件仍出现、相同时间戳内容变更被忽略，以及 Unicode 查询不一致。修复通用扫描/增量更新/查询/持久化路径，保持 CLI 接口，说明验证方法。可调整内部模块；不需要外部包或在线服务。\n\nPython 3.11+ 标准库，入口 `index_cli.py`。成功退出 0，stdout 最后一行 JSON 对象；非法输入或损坏数据非 0。所有运行 DB 路径由参数指定。\n\n- `python index_cli.py sync --root DOCS --db DB`：递归索引 DOCS 下扩展名为 .md/.txt 的 UTF-8 普通文件（扩展名不区分大小写）。相对路径用 POSIX `/`；跳过符号链接文件和目录，不读取链接指向的外部数据。文件名、内容保持 Unicode。忽略其他扩展名。\n- 同步按内容变化识别更新，mtime/size 相同也可能变化；文件删除应从索引删除。返回 `{added,updated,deleted,unchanged,generation}`，按文件计数。generation 从 0 开始，只有新增/内容修改/删除时加 1；纯重复同步不增加。\n- 一次扫描中任一目标文件不能严格 UTF-8 解码或发生读取错误，整次同步失败，已有文档/查询结果/代数不能部分更新。不存在的 root 失败。一个 DB 绑定首次 root 的绝对路径，不允许换 root 后静默混用。\n- `python index_cli.py query --db DB --text TEXT`：非空查询，对内容进行 Unicode NFC 规范化后 casefold 的字面子串匹配；TEXT 同样处理。`Straße` 应匹配 `STRASSE`，组合/分解的 é 等价。返回 `{count,matches:[{path:相对路径},...]}`，每文档一次，按路径升序；没有匹配返回空数组。禁止把 SQL 通配符或正则表达式当作查询语法。\n- `python index_cli.py status --db DB` → `{document_count,generation,root}`；query/status 不修改索引，不存在 DB 应失败。\n\n进程重新执行后仍应保留原索引，不要求源文件在查询时仍存在。样例 docs 只用于手工演示；请实际验证增删改、同时间戳、Unicode、坏文件原子失败和重启。更新 README 操作说明。\n"
++      },
++      {
++        "path": "check_recursive.py",
++        "content": "\"\"\"Public behavioral test for the requested collect API; no repair implementation.\"\"\"\nfrom pathlib import Path\nimport runpy,tempfile,json,hashlib,sys\nsys.dont_write_bytecode=True\nrootdir=Path(__file__).resolve().parent\ncollect=runpy.run_path(str(rootdir/'document_index/documents.py'))['collect']\nwith tempfile.TemporaryDirectory(prefix='.public-check-',dir=rootdir) as td:\n root=Path(td);(root/'sub/deep').mkdir(parents=True)\n samples={'top.md':b'TOP','sub/nested.md':'中文 Mixed'.encode(),'sub/deep/bottom.md':b'BAD\\xff'}\n for name,data in samples.items():(root/name).write_bytes(data)\n (root/'sub/ignore.txt').write_text('not markdown')\n rows=collect(root);actual=sorted(row['path'] for row in rows);expected=['bottom.md','nested.md','top.md']\n checks={'recursive_paths':actual==expected,'original_fields_and_content':all(set(r)=={'path','content','digest','search','mtime'} and any(r['content']==b.decode('utf-8',errors='replace') and r['search']==b.decode('utf-8',errors='replace').lower() and r['digest']==hashlib.sha256(b).hexdigest() for b in samples.values()) for r in rows)}\n print(json.dumps({'checks':checks,'expected_paths':expected,'actual_paths':actual,'passed':all(checks.values())},ensure_ascii=False))\n sys.exit(0 if all(checks.values()) else 1)\n"
++      },
++      {
++        "path": "docs/welcome.md",
++        "content": "# 项目说明\n欢迎使用文档索引。\n"
++      },
++      {
++        "path": "docs/团队/notes.txt",
++        "content": "Café 与 Straße 是 Unicode 查询样例。\n"
++      },
++      {
++        "path": "document_index/__init__.py",
++        "content": ""
++      },
++      {
++        "path": "document_index/documents.py",
++        "content": "from __future__ import annotations\nimport hashlib\nimport pathlib\n\ndef normalize(value):\n    return value.lower()\n\ndef collect(root):\n    rows = []\n    for path in sorted(root.glob('**/*.md')):\n        content = path.read_bytes()\n        text = content.decode('utf-8', errors='replace')\n        rows.append({'path': path.name, 'content': text,\n                     'digest': hashlib.sha256(content).hexdigest(),\n                     'search': normalize(text), 'mtime': path.stat().st_mtime_ns})\n    return rows\n"
++      },
++      {
++        "path": "document_index/query.py",
++        "content": "from __future__ import annotations\nfrom .documents import normalize\nfrom .store import existing\n\ndef query(database, text):\n    if not text.strip():\n        raise ValueError('query must be nonempty')\n    with existing(database) as connection:\n        rows = connection.execute('SELECT path FROM documents WHERE instr(search,?) > 0 ORDER BY path', (normalize(text),)).fetchall()\n    matches = [{'path': row[0]} for row in rows]\n    return {'count': len(matches), 'matches': matches}\n"
++      },
++      {
++        "path": "document_index/store.py",
++        "content": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n"
++      },
++      {
++        "path": "index_cli.py",
++        "content": "from __future__ import annotations\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\nfrom document_index.documents import collect\nfrom document_index.store import synchronize, status\nfrom document_index.query import query\n\ndef main():\n    parser = argparse.ArgumentParser(description='Incremental Unicode document index')\n    commands = parser.add_subparsers(dest='command', required=True)\n    sync = commands.add_parser('sync'); sync.add_argument('--root', required=True); sync.add_argument('--db', required=True)\n    find = commands.add_parser('query'); find.add_argument('--db', required=True); find.add_argument('--text', required=True)\n    info = commands.add_parser('status'); info.add_argument('--db', required=True)\n    arguments = parser.parse_args()\n    try:\n        database = Path(arguments.db)\n        if arguments.command == 'sync':\n            root = Path(arguments.root).resolve()\n            result = synchronize(database, root, collect(root))\n        elif arguments.command == 'query':\n            result = query(database, arguments.text)\n        else:\n            result = status(database)\n        print(json.dumps(result, ensure_ascii=False))\n        return 0\n    except Exception as error:\n        print(json.dumps({'error': type(error).__name__ + ': ' + str(error)}, ensure_ascii=False), file=sys.stderr)\n        return 2\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n"
++      }
++    ],
++    "source": "data/experiments/RWKV_FLIGHT_CAMPAIGN_R1_20260913/focused_test/sources/case-a"
++  }
++]
+diff --git a/rwkv_lh/goal_web_assets/index.html b/rwkv_lh/goal_web_assets/index.html
+index 9652b4f8..1b7f06e5 100644
+--- a/rwkv_lh/goal_web_assets/index.html
++++ b/rwkv_lh/goal_web_assets/index.html
+@@ -5,7 +5,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1">
+     <meta name="color-scheme" content="dark">
+     <title>RWKV Goal Studio</title>
+-    <meta name="description" content="Strong Planner、独立 RWKV 角色 State 与证据驱动验收的自主项目工作台">
++    <meta name="description" content="RWKV 自主选择工具、执行与回答的本地工作台">
+     <link rel="stylesheet" href="/assets/styles.css">
+   </head>
+   <body>
+@@ -20,7 +20,7 @@
+       <div class="header-actions">
+         <button id="topologyButton" class="system-pill" type="button">
+           <span id="systemDot" class="live-dot pending"></span>
+-          <span id="systemLabel">正在连接双 RWKV 运行栈</span>
++          <span id="systemLabel">正在连接 RWKV</span>
+         </button>
+         <button id="newGoalButton" class="button button-primary" type="button">新建目标</button>
+       </div>
+@@ -41,36 +41,26 @@
+       <section class="workspace">
+         <section id="createView" class="create-view">
+           <div class="hero-copy">
+-            <p class="kicker"><span></span> STRONG PLAN · RWKV BUILD</p>
+-            <h1>说出目标，<br><em>让项目自己生长。</em></h1>
+-            <p>强模型只规划，2.9B 只选择工具意图，13.3B 只执行，独立 Auditor State 根据真实证据审核。</p>
++            <p class="kicker"><span></span> RWKV · CODE AGENT</p>
++            <h1>给出任务，<br><em>查看真实执行。</em></h1>
++            <p>RWKV 自主选择工具和参数，Harness 返回真实结果。同一任务延续 State，回答与验收分开记录。</p>
+           </div>
+ 
+           <form id="goalForm" class="goal-composer">
+-            <label for="goalInput">你想创建什么？</label>
+-            <textarea id="goalInput" required maxlength="100000" placeholder="例如：帮我做一个简洁的个人记账网页，可以记录收入支出并显示本月统计。"></textarea>
+-            <div class="suggestions" aria-label="示例目标">
+-              <button type="button" data-goal="帮我做一个简洁的个人记账网页，可以记录收入和支出，自动显示本月统计，刷新后数据还在。">个人记账</button>
+-              <button type="button" data-goal="帮我做一个适合手机使用的习惯打卡网页，能够记录连续打卡天数和今天的完成情况。">习惯打卡</button>
+-              <button type="button" data-goal="帮我做一个有质感的个人作品展示网页，包含项目介绍、技能和联系方式。">作品主页</button>
+-            </div>
++            <label for="goalInput">你想完成什么任务？</label>
++            <textarea id="goalInput" required maxlength="100000" placeholder="选择下面的演示，或添加文件后描述你的任务。"></textarea>
++            <div id="demoButtons" class="suggestions" aria-label="已登记演示任务"></div>
+ 
+-            <details class="advanced-settings">
++            <details class="advanced-settings" open>
+               <summary>项目设置 <span>可选</span></summary>
+               <div class="settings-grid">
+-                <label>网络
+-                  <select id="networkPolicy">
+-                    <option value="offline">离线创建</option>
+-                    <option value="auto_public">允许检索公开资料</option>
+-                  </select>
++                <label>工具权限
++                  <select id="toolScope"><option value="files">指定文件阅读</option><option value="inspect">只读检查与运行测试</option><option value="coding">修改隔离副本（实验性）</option></select>
+                 </label>
+-                <label>执行预算
+-                  <select id="transitionBudget">
+-                    <option value="300">标准</option>
+-                    <option value="500">深度</option>
+-                    <option value="160">快速预览</option>
+-                  </select>
++                <label>模型调用上限
++                  <select id="transitionBudget"><option value="6">6 次</option><option value="12">12 次</option><option value="24">24 次</option></select>
+                 </label>
++                <label>时间上限（秒）<input id="secondsBudget" type="number" min="1" max="3600" value="300"></label>
+               </div>
+               <label for="constraintInput">补充要求</label>
+               <textarea id="constraintInput" class="small-textarea" placeholder="例如：不要使用外部依赖；页面优先适配手机。"></textarea>
+@@ -79,21 +69,15 @@
+             </details>
+ 
+             <div class="composer-footer">
+-              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>Contract Graph · 自动验收</small></div>
+-              <button id="startButton" class="launch-button" type="submit"><span>开始创建</span><b>→</b></button>
++              <div class="mode-lock"><span class="live-dot"></span><strong>Goal 模式</strong><small>自主执行 · 提交不等于验收</small></div>
++              <button id="startButton" class="launch-button" type="submit"><span>开始执行</span><b>→</b></button>
+             </div>
+             <p id="formMessage" class="form-message" role="status"></p>
+           </form>
+ 
+           <section class="topology-preview">
+             <div class="section-heading"><p>当前运行架构</p><span>LIVE TOPOLOGY</span></div>
+-            <div id="topologyCards" class="topology-cards">
+-              <article><span class="node-index">01</span><strong>Planner</strong><p>连接中</p></article>
+-              <article><span class="node-index">02</span><strong>Selector</strong><p>连接中</p></article>
+-              <article><span class="node-index">03</span><strong>Executor</strong><p>连接中</p></article>
+-              <article><span class="node-index">04</span><strong>Auditor</strong><p>独立审核 State</p></article>
+-              <article><span class="node-index">05</span><strong>Harness</strong><p>本地证据层</p></article>
+-            </div>
++            <div id="topologyCards" class="topology-cards"></div>
+           </section>
+         </section>
+ 
+@@ -110,25 +94,19 @@
+             </div>
+           </header>
+ 
+-          <div class="phase-track" aria-label="目标执行阶段">
+-            <div data-phase="understand"><span>1</span><strong>理解目标</strong><small>Planner</small></div>
+-            <i></i><div data-phase="plan"><span>2</span><strong>拆解计划</strong><small>Goal PlanPatch</small></div>
+-            <i></i><div data-phase="build"><span>3</span><strong>自主创建</strong><small>RWKV</small></div>
+-            <i></i><div data-phase="verify"><span>4</span><strong>证据验收</strong><small>Reviewer</small></div>
+-            <i></i><div data-phase="complete"><span>5</span><strong>交付结果</strong><small>Artifacts</small></div>
+-          </div>
++          <p>执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。</p>
+ 
+           <div class="metric-strip">
+-            <div><span>步骤进度</span><strong id="obligationMetric">0 / 0</strong></div>
++            <div><span>外部验收</span><strong id="obligationMetric">0 / 0</strong></div>
+             <div><span>RWKV Actions</span><strong id="actionMetric">0</strong></div>
+             <div><span>证据记录</span><strong id="evidenceMetric">0</strong></div>
+-            <div><span>生成文件</span><strong id="fileMetric">0</strong></div>
++            <div><span>工作区文件</span><strong id="fileMetric">0</strong></div>
+             <div><span>模型请求</span><strong id="requestMetric">0</strong></div>
+           </div>
+ 
+           <nav class="run-tabs" aria-label="运行内容">
+             <button class="active" data-tab="overview" type="button">总览</button>
+-            <button data-tab="contract" type="button">目标与计划 <span id="contractCount">0</span></button>
++            <button data-tab="contract" type="button">用户目标 <span id="contractCount">0</span></button>
+             <button data-tab="execution" type="button">RWKV 执行 <span id="executionCount">0</span></button>
+             <button data-tab="evidence" type="button">证据与验收 <span id="evidenceCount">0</span></button>
+             <button data-tab="artifacts" type="button">项目产物 <span id="artifactCount">0</span></button>
+@@ -142,8 +120,8 @@
+                 <div id="liveActivity" class="live-activity"><p class="empty-copy">等待第一个因果事件。</p></div>
+               </article>
+               <article class="surface result-surface">
+-                <div class="surface-heading"><h3>最终交付</h3><span id="acceptanceBadge" class="review-badge pending">等待验收</span></div>
+-                <pre id="finalOutput">项目仍在创建中。</pre>
++                <div class="surface-heading"><h3>原始回答</h3><span id="acceptanceBadge" class="review-badge pending">等待验收</span></div>
++                <pre id="finalOutput">尚无回答。</pre>
+               </article>
+             </div>
+             <article id="errorPanel" class="surface error-surface hidden">
+@@ -156,16 +134,12 @@
+               <div class="surface-heading"><h3>不可变 Goal</h3><code id="goalDigest">—</code></div>
+               <p id="goalRequest"></p>
+             </article>
+-            <div id="obligationBoard" class="obligation-board"><p class="empty-copy">Planner 尚未提交义务。</p></div>
++            <div id="obligationBoard" class="obligation-board"><p class="empty-copy">按用户目标验收，不限定工具顺序。</p></div>
+             <article class="surface graph-surface"><div class="surface-heading"><h3>当前滚动步骤</h3><span id="nodeCount">0 steps</span></div><div id="graphNodes" class="graph-nodes"></div></article>
+           </div>
+ 
+           <div id="executionTab" class="tab-panel">
+-            <div class="lane-banner">
+-              <div><span>SELECTOR LANE</span><strong>S60 · 2.9B · GPU2</strong><small>只选择 operation</small></div>
+-              <b>→</b>
+-              <div><span>EXECUTOR LANE</span><strong>G3 · 13.3B · GPU1</strong><small>参数、执行与 Final</small></div>
+-            </div>
++            <p>RWKV 自主生成调用和参数 → Harness 执行 → 观察与 State 延续 → RWKV 回答</p>
+             <div id="actionList" class="action-grid"><p class="empty-copy">等待 RWKV Action。</p></div>
+           </div>
+ 
+@@ -186,7 +160,7 @@
+ 
+           <div id="rawTab" class="tab-panel">
+             <div class="audit-toolbar">
+-              <div><button class="active" data-audit="trace" type="button">RWKV / Supervisor I/O</button><button data-audit="events" type="button">CausalEvent</button></div>
++              <div><button class="active" data-audit="trace" type="button">RWKV 输入 / 输出</button><button data-audit="events" type="button">CausalEvent</button></div>
+               <span>原始记录 · 不改写</span>
+             </div>
+             <div id="rawTimeline" class="raw-timeline"><p class="empty-copy">等待审计记录。</p></div>
+diff --git a/rwkv_lh/goal_web_assets/styles.css b/rwkv_lh/goal_web_assets/styles.css
+index 7659ea61..b82dfead 100644
+--- a/rwkv_lh/goal_web_assets/styles.css
++++ b/rwkv_lh/goal_web_assets/styles.css
+@@ -50,13 +50,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
+ .history-rail { border-right: 1px solid var(--line); padding: 25px 16px; display: flex; flex-direction: column; min-height: calc(100vh - 78px); position: sticky; top: 78px; height: calc(100vh - 78px); }
+ .rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 7px 16px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+ .rail-heading strong { color: var(--lime); font: 11px var(--mono); }
+-.run-list { display: grid; gap: 7px; overflow-y: auto; padding-right: 3px; }
+-.run-item { width: 100%; border: 1px solid transparent; border-radius: 12px; padding: 11px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
++.run-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; overflow-y: auto; padding-right: 3px; }
++.run-item { min-width: 0; width: 100%; border: 1px solid transparent; border-radius: 12px; padding: 11px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+ .run-item:hover { background: rgba(255,255,255,.025); }
+ .run-item.active { border-color: rgba(201,255,98,.28); background: rgba(201,255,98,.055); }
+ .run-item div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+-.run-item strong { color: var(--muted); font: 9px var(--mono); }
+-.run-item span { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
++.run-item strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 9px var(--mono); }
++.run-item span { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+ .run-item span.completed { background: var(--mint); }
+ .run-item span.failed, .run-item span.stopped { background: var(--red); }
+ .run-item p { margin: 7px 0 0; overflow: hidden; color: #c7cbc7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+@@ -272,3 +272,11 @@ select, input { height: 42px; padding: 0 12px; }
+   .lane-banner > b { transform: rotate(90deg); }
+   .topology-row { grid-template-columns: 1fr; }
+ }
++
++/* Keep answers readable during a live demo; raw audit remains compact. */
++.result-surface pre { font-size: 14px; line-height: 1.8; }
++.run-title h2 { font-size: clamp(22px, 2vw, 30px); line-height: 1.4; }
++.run-item span.submitted { background: var(--mint); }
++.run-item span.interrupted { background: var(--amber); }
++.action-card details { grid-column: 1 / -1; min-width: 0; }
++.action-card details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+diff --git a/rwkv_lh/web_ui.py b/rwkv_lh/web_ui.py
+index 1a8dc47e..8e4c8b66 100644
+--- a/rwkv_lh/web_ui.py
++++ b/rwkv_lh/web_ui.py
+@@ -26,13 +26,9 @@ from typing import Any, Mapping
+ from urllib.parse import parse_qs, unquote, urlparse
+ 
+ from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
+-from rwkv_lh.exact_tool_selector.native_network_client import (
+-    NativeNetworkSelectorSettings,
+-)
+ from rwkv_lh.retrieval import RetrievalRuntimeConfig
+ from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
+ from rwkv_lh.store import LongHorizonStore, StateRecoveryError
+-from rwkv_lh.supervisor_openai import SupervisorAPISettings
+ from rwkv_lh.trace_projection import project_run_activity
+ 
+ 
+@@ -146,19 +142,21 @@ class ManualRunRepository:
+         if not isinstance(raw_retrieval, Mapping):
+             raise ValueError("retrieval_policy must be an object")
+         retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
+-        supervisor_mode = str(
+-            payload.get("supervisor_mode") or "stateful_goal"
+-        ).strip()
+-        if supervisor_mode != "stateful_goal":
+-            raise ValueError("supervisor_mode must be stateful_goal")
++        if payload.get("supervisor_mode") not in (None, "direct_rwkv"):
++            raise ValueError("supervisor_mode must be direct_rwkv")
+         if payload.get("state_router_shadow", False) is not False:
+             raise ValueError("state_router_shadow is retired")
+-        try:
+-            max_transitions = int(payload.get("max_transitions", 200))
+-        except (TypeError, ValueError) as exc:
+-            raise ValueError("max_transitions must be an integer") from exc
+-        if not 1 <= max_transitions <= 500:
+-            raise ValueError("max_transitions must be between 1 and 500")
++        if retrieval.mode != "offline":
++            raise ValueError("direct frontend currently requires offline retrieval")
++        scope = payload.get("tool_scope", "files")
++        if scope not in ("files", "inspect", "coding"):
++            raise ValueError("unknown tool_scope")
++        max_transitions = payload.get("max_transitions", 6)
++        max_seconds = payload.get("max_seconds", 300)
++        if type(max_transitions) is not int or not 1 <= max_transitions <= 100:
++            raise ValueError("max_transitions must be an integer between 1 and 100")
++        if type(max_seconds) not in (int, float) or not 1 <= max_seconds <= 3600:
++            raise ValueError("max_seconds must be between 1 and 3600")
+         raw_seed_files = payload.get("seed_files") or []
+         if not isinstance(raw_seed_files, list) or len(raw_seed_files) > 100:
+             raise ValueError("seed_files must be an array with at most 100 items")
+@@ -200,7 +198,10 @@ class ManualRunRepository:
+             "request": request,
+             "constraints": constraints,
+             "retrieval_policy": retrieval.to_dict(),
+-            "supervisor_mode": supervisor_mode,
++            "runtime": "direct_rwkv",
++            "supervisor_mode": "direct_rwkv",
++            "tool_scope": scope,
++            "max_seconds": max_seconds,
+             "execution_mode": "goal",
+             "max_transitions": max_transitions,
+             "seed_files": [
+@@ -259,13 +260,32 @@ class ManualRunRepository:
+             raise FileNotFoundError(f"request document missing: {run_id}")
+         return document
+ 
++    def execution_root(self, run_id: str) -> Path:
++        root = self.run_root(run_id)
++        request = self.request_document(run_id)
++        if request.get("runtime") == "direct_rwkv":
++            return root / ("delivery/execution" if request.get("tool_scope") == "coding" else "execution")
++        return root
++
++    def workspace_root(self, run_id: str) -> Path:
++        root = self.run_root(run_id)
++        delivery = root / "delivery" / "workspace"
++        return delivery if delivery.is_dir() else root / "workspace"
++
++    def state_root(self, run_id: str) -> Path:
++        direct = self.execution_root(run_id) / "state"
++        return direct if direct.exists() else self.run_root(run_id) / "state"
++
+     def store(self, run_id: str) -> LongHorizonStore:
+-        return LongHorizonStore(self.run_root(run_id) / "state", checkpoint_retention=100_000)
++        return LongHorizonStore(self.state_root(run_id), checkpoint_retention=100_000)
++
++    def state_available(self, run_id: str) -> bool:
++        return (self.state_root(run_id) / "long_horizon.db").is_file()
+ 
+     def summary(self, run_id: str) -> dict[str, Any]:
+         metadata = self.metadata(run_id)
+         output: dict[str, Any] = {"metadata": metadata, "request": self.request_document(run_id)}
+-        if metadata.get("state_created"):
++        if self.state_available(run_id):
+             try:
+                 state = self.store(run_id).load(run_id)
+             except StateRecoveryError as exc:
+@@ -298,13 +318,13 @@ class ManualRunRepository:
+ 
+     def full_state(self, run_id: str) -> dict[str, Any]:
+         metadata = self.metadata(run_id)
+-        if not metadata.get("state_created"):
++        if not self.state_available(run_id):
+             return {"run_id": run_id, "state": None}
+         return {"run_id": run_id, "state": self.store(run_id).load(run_id).to_dict()}
+ 
+     def events(self, run_id: str, *, after: int = 0, limit: int = 500) -> dict[str, Any]:
+         metadata = self.metadata(run_id)
+-        if not metadata.get("state_created"):
++        if not self.state_available(run_id):
+             return {"events": [], "last_event_id": after}
+         records = [
+             item for item in self.store(run_id).event_records(run_id) if int(item["event_id"]) > after
+@@ -316,7 +336,7 @@ class ManualRunRepository:
+ 
+     def trace(self, run_id: str, *, after: int = 0, limit: int = 300) -> dict[str, Any]:
+         self.metadata(run_id)
+-        path = self.run_root(run_id) / "model_trace.jsonl"
++        path = self.execution_root(run_id) / "model_trace.jsonl"
+         if not path.is_file():
+             return {"events": [], "next_offset": after, "total": 0}
+         lines = path.read_text(encoding="utf-8").splitlines()
+@@ -334,7 +354,7 @@ class ManualRunRepository:
+ 
+     def files(self, run_id: str) -> list[dict[str, Any]]:
+         self.metadata(run_id)
+-        workspace = self.run_root(run_id) / "workspace"
++        workspace = self.workspace_root(run_id)
+         rows = []
+         for path in sorted(workspace.rglob("*")):
+             if not path.is_file() or path.is_symlink():
+@@ -352,7 +372,7 @@ class ManualRunRepository:
+ 
+     def file_bytes(self, run_id: str, relative_value: str) -> tuple[bytes, str]:
+         self.metadata(run_id)
+-        workspace = self.run_root(run_id) / "workspace"
++        workspace = self.workspace_root(run_id)
+         path = within(workspace, normalize_relative_path(relative_value))
+         if not path.is_file() or path.is_symlink():
+             raise FileNotFoundError(relative_value)
+@@ -372,14 +392,14 @@ class ManualRunRepository:
+                 ):
+                     continue
+                 archive.write(path, arcname=f"{run_id}/{path.relative_to(run_root).as_posix()}")
+-            database = run_root / "state" / "long_horizon.db"
++            database = self.state_root(run_id) / "long_horizon.db"
+             if database.is_file():
+                 source = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+                 snapshot = sqlite3.connect(":memory:")
+                 try:
+                     source.backup(snapshot)
+                     archive.writestr(
+-                        f"{run_id}/state/long_horizon.db",
++                        f"{run_id}/{database.relative_to(run_root).as_posix()}",
+                         snapshot.serialize(),
+                     )
+                     state = self.store(run_id).load(run_id)
+@@ -421,6 +441,8 @@ class ManualRunManager:
+             if ((process is not None and process.poll() is None)
+                     or self._managed_pid_alive(run_id, metadata.get("pid"))):
+                 raise RuntimeError("run is already active")
++            if resume:
++                raise ValueError("direct frontend resume is not yet supported")
+             request = self.repository.request_document(run_id)
+             update_metadata(
+                 run_root,
+@@ -579,35 +601,24 @@ class WebHandler(BaseHTTPRequestHandler):
+         parsed = urlparse(self.path)
+         path = parsed.path
+         try:
++            if path == "/api/demos":
++                self.send_json({"demos": read_json(ASSET_ROOT / "demo_tasks.json", [])})
++                return
+             if path == "/api/capabilities":
+                 settings = get_runtime_settings()
+                 self.send_json(
+                     {
+                         "product": "RWKV Goal Studio",
+                         "experimental": True,
+-                        "validation_status": "awaiting_all_zero_baseline",
++                        "validation_status": "fixed_task_diagnostics_only",
+                         "runtime": {
+                             "model": settings.model,
+                             "endpoint": settings.base_url,
+                             "backend_profile": settings.backend_profile,
+                             "max_model_len": settings.max_model_len,
+                         },
+-                        "can": [
+-                            "可以尝试：隔离工作区内的 bug 修复、小中型项目创建、受限命令与公开检索",
+-                            "可以审计：查看当前任务的模型调用、Harness 结果、文件变化和终止原因",
+-                            "可以恢复：根据持久化任务记录恢复执行",
+-                        ],
+-                        "cannot": [
+-                            "当前统一协议尚未建立两遍 all-zero 基线，不能视为可靠 Agent 发布版本",
+-                            "不能稳定闭环通用 bug 修复或中型网页项目；真实轨迹仍会误选工具并漏写文件",
+-                            "联网检索成功不等于联网项目成功；证据到项目文件的执行链仍未通过",
+-                            "不能操作浏览器或隐式外发工作区数据；敏感数据和未知来源策略拒绝",
+-                            "不能直接管理真实 Git 仓库、提交、PR、部署或云服务",
+-                            "不能处理图片、PDF、Word、Excel、幻灯片等专用文档工作流",
+-                            "不能安装系统软件，也不能任意执行 shell 或访问隔离工作区外文件",
+-                            "不能在运行中向用户追问并根据新回答继续多轮协作",
+-                            "不能用其他模型替 RWKV 修复协议、判断答案或改写最终输出",
+-                        ],
++                        "can": ["读取指定文件回答问题", "只读搜索与指定测试", "隔离副本中的代码修改（实验性）", "下载真实输入输出、工具结果与 State 审计包"],
++                        "cannot": ["提交回答不代表外部验收通过", "通用 bug 诊断与多文件交付仍不稳定", "当前前端未启用强模型协助或续跑"],
+                         "latest_formal": None,
+                         "latest_diagnostic": None,
+                     }
+@@ -622,84 +633,15 @@ class WebHandler(BaseHTTPRequestHandler):
+                 self.send_json(health)
+                 return
+             if path == "/api/runtime/topology":
+-                executor_client = OpenAICompatibleRWKVClient()
++                from rwkv_lh.web_worker import direct_settings
++                client = OpenAICompatibleRWKVClient(settings=direct_settings())
+                 try:
+-                    executor = executor_client.health().to_dict()
++                    executor = client.health().to_dict()
+                 finally:
+-                    executor_client.close()
+-                selector_settings = NativeNetworkSelectorSettings.from_env()
+-                selector: dict[str, Any]
+-                if selector_settings is None:
+-                    selector = {
+-                        "available": False,
+-                        "error": "Selector identity is not configured",
+-                    }
+-                else:
+-                    try:
+-                        with urllib.request.urlopen(
+-                            selector_settings.base_url.rstrip("/") + "/healthz",
+-                            timeout=3,
+-                        ) as response:
+-                            selector_health = json.loads(
+-                                response.read().decode("utf-8")
+-                            )
+-                        actual_identity = selector_health.get("runtime_identity")
+-                        expected_identity = selector_settings.runtime_identity()
+-                        selector = {
+-                            "available": (
+-                                selector_health.get("status") == "ok"
+-                                and actual_identity == expected_identity
+-                            ),
+-                            "model": selector_settings.model,
+-                            "profile": selector_settings.state_profile_id,
+-                            "input_protocol": selector_settings.input_protocol,
+-                            "identity_verified": actual_identity == expected_identity,
+-                        }
+-                    except (OSError, ValueError, urllib.error.URLError) as exc:
+-                        selector = {
+-                            "available": False,
+-                            "model": selector_settings.model,
+-                            "error": f"{type(exc).__name__}: {exc}",
+-                        }
+-                try:
+-                    supervisor_settings = SupervisorAPISettings.from_env()
+-                    supervisor = {
+-                        "configured": True,
+-                        "model": supervisor_settings.model,
+-                        "mode": "stateful_goal",
+-                        "fallback_count": len(supervisor_settings.fallback_models),
+-                    }
+-                except (OSError, ValueError) as exc:
+-                    supervisor = {
+-                        "configured": False,
+-                        "error": f"{type(exc).__name__}: {exc}",
+-                    }
+-                self.send_json(
+-                    {
+-                        "schema_version": "rwkv-lh.goal-ui-topology.v1",
+-                        "supervisor": supervisor,
+-                        "selector": {
+-                            **selector,
+-                            "device": os.environ.get(
+-                                "RWKV_LH_SELECTOR_DEVICE_LABEL", "local GPU0"
+-                            ),
+-                        },
+-                        "executor": {
+-                            **executor,
+-                            "profile": os.environ.get(
+-                                "RWKV_STATE_PROFILE_ID", ""
+-                            ),
+-                            "device": os.environ.get(
+-                                "RWKV_LH_EXECUTOR_DEVICE_LABEL", "remote GPU0"
+-                            ),
+-                        },
+-                        "harness": {
+-                            "available": True,
+-                            "scope": "isolated workspace",
+-                            "audit": "append-only CausalEvent",
+-                        },
+-                    }
+-                )
++                    client.close()
++                self.send_json({"runtime": "direct_rwkv", "executor": executor,
++                                "harness": {"available": True, "scope": "isolated workspace"},
++                                "strong_assistance": "not enabled in frontend"})
+                 return
+             if path == "/api/runs":
+                 rows = []
+diff --git a/rwkv_lh/web_worker.py b/rwkv_lh/web_worker.py
+index 2cd4e362..d43eed8e 100644
+--- a/rwkv_lh/web_worker.py
++++ b/rwkv_lh/web_worker.py
+@@ -5,20 +5,13 @@ from __future__ import annotations
+ import argparse
+ import json
+ import os
+-import time
+ import traceback
+ from pathlib import Path
+ from typing import Any, Mapping
+ 
+-from rwkv_lh.model import LongHorizonModel
+-from rwkv_lh.product_runtime import build_product_controller
+-from rwkv_lh.retrieval import (
+-    RetrievalRuntimeConfig,
+-    retrieval_policy_from_goal,
+-    runtime_policy_document,
+-)
+-from rwkv_lh.store import LongHorizonStore
+-from rwkv_lh.run_lifecycle import goal_self_termination_only
++from rwkv_lh.model_session import create_model_session
++from rwkv_lh.read_only_agent import ReadOnlyJob, run_read_only_job
++from rwkv_lh.coding_agent import CodingJob, run_coding_job
+ from rwkv_lh.web_ui import atomic_write_json, read_json, update_metadata, utc_now
+ 
+ 
+@@ -54,141 +47,51 @@ def result_payload(state: Any, final_output: str, transitions: int) -> dict[str,
+     }
+ 
+ 
++def direct_settings():
++    from dataclasses import replace
++    from rwkv_lh.runtime.settings import get_runtime_settings
++    return replace(get_runtime_settings(), return_token_ids=True,
++                   state_transport="native_required", state_profile_id="zero",
++                   state_profile_sha256="0" * 64, tool_disclosure_mode="full")
++
++
+ def run(run_root: Path, *, resume: bool, max_transitions: int) -> int:
+-    request = read_json(run_root / "request.json")
+-    if not isinstance(request, dict):
+-        raise ValueError("request.json is missing or invalid")
+-    run_id = str(request["run_id"])
+-    workspace = (run_root / "workspace").resolve()
+-    store = LongHorizonStore(run_root / "state", checkpoint_retention=100_000)
+-    trace_path = run_root / "model_trace.jsonl"
+     if resume:
+-        state = store.load(run_id)
+-        config = retrieval_policy_from_goal(state.goal)
++        raise ValueError("direct frontend resume is not yet supported; preserve this run and create a new task")
++    request = read_json(run_root / "request.json")
++    if not isinstance(request, dict) or request.get("runtime") != "direct_rwkv":
++        raise ValueError("historical runtime is read-only; create a new direct RWKV task")
++    scope = request["tool_scope"]
++    goal = request["request"]
++    if request.get("constraints"):
++        goal += "\n\n用户补充要求：\n" + "\n".join(request["constraints"])
++    update_metadata(run_root, active=True, phase="controller_running", pid=os.getpid(),
++                    worker_started_at=utc_now(), error="")
++    settings = direct_settings()
++    # No credentials enter persisted configuration. The shared executor records
++    # actual input, output, observations and native State relations.
++    atomic_write_json(run_root / "runtime.json", {
++        key: value for key, value in vars(settings).items()
++        if key not in {"api_key", "cf_access_client_id", "cf_access_client_secret", "proxy_url"}
++    })
++    if scope == "coding":
++        result = run_coding_job(CodingJob(
++            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "delivery"),
++            max_transitions, request["max_seconds"]), settings=settings, session_factory=create_model_session)
+     else:
+-        config = RetrievalRuntimeConfig.from_dict(request.get("retrieval_policy"))
+-    update_metadata(
+-        run_root,
+-        active=True,
+-        phase="resuming" if resume else "creating_literal_request",
+-        pid=os.getpid(),
+-        worker_started_at=utc_now(),
+-        error="",
+-    )
+-    if not resume:
+-        goal = LongHorizonModel.create_literal_goal(
+-            str(request["request"]),
+-            str(workspace),
+-            constraints=[str(item) for item in request.get("constraints") or []],
+-            runtime_policy=runtime_policy_document(
+-                config,
+-                supervisor_mode=str(
+-                    request.get("supervisor_mode") or "stateful_goal"
+-                ),
+-                execution_mode=str(request.get("execution_mode") or "bounded"),
+-            ),
+-        )
+-        state = store.create_run(goal, run_id)
+-        update_metadata(
+-            run_root,
+-            state_created=True,
+-            phase="controller_running",
+-            request=state.goal.request,
+-            goal_digest=state.goal.digest,
+-        )
+-
+-    def append_model_trace(event: Mapping[str, Any]) -> None:
+-        append_jsonl(trace_path, {**dict(event), "source": "rwkv"})
+-
+-    def append_supervisor_trace(event: Mapping[str, Any]) -> None:
+-        append_jsonl(trace_path, {**dict(event), "source": "strong_supervisor"})
+-
+-    goal_mode = goal_self_termination_only(state.goal)
+-    continuation_count = 0
+-    next_call_is_resume = resume
+-    controller = None
+-    result = None
+-    while True:
+-        try:
+-            if controller is None:
+-                state = store.load(run_id)
+-                controller = build_product_controller(
+-                    store,
+-                    state,
+-                    state_root=run_root,
+-                    max_transitions=max_transitions,
+-                    model_audit_hook=append_model_trace,
+-                    supervisor_audit_hook=append_supervisor_trace,
+-                )
+-            result = (
+-                controller.resume(run_id)
+-                if next_call_is_resume
+-                else controller.run(run_id)
+-            )
+-            next_call_is_resume = True
+-        except (ValueError, TypeError, AssertionError):
+-            # Configuration, identity, schema and architecture mismatches are
+-            # deterministic. Retrying them forever only burns a worker while
+-            # preserving the same invalid inputs.
+-            raise
+-        except Exception as exc:
+-            if not goal_mode:
+-                raise
+-            # Runtime/service failure is a wait boundary, never a Goal terminal
+-            # authority.  Rebuild product adapters on the next attempt so a
+-            # restored native-state service can be adopted without user action.
+-            continuation_count += 1
+-            controller = None
+-            update_metadata(
+-                run_root,
+-                active=True,
+-                phase="goal_waiting_runtime",
+-                status=store.load(run_id).status.value,
+-                continuation_count=continuation_count,
+-                continuation_reason=f"{type(exc).__name__}: {exc}"[:1000],
+-                error="",
+-            )
+-            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
+-            continue
+-        if not goal_mode or result.state.status.value != "running":
+-            break
+-        continuation_count += 1
+-        payload = result_payload(result.state, result.final_output, result.transitions)
+-        payload["continuation_count"] = continuation_count
+-        atomic_write_json(run_root / "result.json", payload)
+-        latest = result.state.causal_records[result.state.causal_order[-1]]
+-        reason = str(latest.payload.get("reason") or "goal_continuation")
+-        update_metadata(
+-            run_root,
+-            active=True,
+-            phase="goal_continuing",
+-            status=result.state.status.value,
+-            revision=result.state.revision,
+-            continuation_count=continuation_count,
+-            continuation_reason=reason,
+-            error="",
+-        )
+-        if reason.endswith("_unavailable") or reason.endswith("_failure"):
+-            time.sleep(min(30.0, float(2 ** min(continuation_count - 1, 5))))
+-    if result is None:
+-        raise RuntimeError("worker produced no controller result")
+-    payload = result_payload(result.state, result.final_output, result.transitions)
+-    payload["continuation_count"] = continuation_count
+-    atomic_write_json(run_root / "result.json", payload)
+-    update_metadata(
+-        run_root,
+-        active=False,
+-        phase=(
+-            "blocked" if result.state.status.value == "blocked" else "finished"
+-        ),
+-        pid=None,
+-        status=result.state.status.value,
+-        revision=result.state.revision,
+-        worker_finished_at=utc_now(),
+-        result_path="result.json",
+-        error="",
+-    )
+-    return 0
++        result = run_read_only_job(ReadOnlyJob(
++            request["run_id"], goal, str(run_root / "workspace"), str(run_root / "execution"),
++            max_transitions, request["max_seconds"], tool_scope=scope),
++            settings=settings, session_factory=create_model_session)
++    atomic_write_json(run_root / "result.json", {**result, "final_output": result["final"]})
++    submitted = result["termination"] == "submitted"
++    execution = run_root / ("delivery/execution" if scope == "coding" else "execution")
++    update_metadata(run_root, active=False, phase="finished" if submitted else "blocked",
++                    pid=None, status="submitted" if submitted else "interrupted",
++                    state_created=(execution / "state_snapshot.json").exists(),
++                    termination_reason=result["termination_reason"],
++                    worker_finished_at=utc_now(), result_path="result.json", error="")
++    return 0 if submitted else 1
+ 
+ 
+ def parse_args() -> argparse.Namespace:
+diff --git a/tests/test_web_ui.py b/tests/test_web_ui.py
+index d27d0edd..c4e3b6fd 100644
+--- a/tests/test_web_ui.py
++++ b/tests/test_web_ui.py
+@@ -54,7 +54,7 @@ def test_manual_repository_rejects_retired_architecture_selection(tmp_path: Path
+         repository.create(
+             {"request": "test", "state_router_shadow": True, "seed_files": []}
+         )
+-    with pytest.raises(ValueError, match="stateful_goal"):
++    with pytest.raises(ValueError, match="direct_rwkv"):
+         repository.create(
+             {"request": "test", "supervisor_mode": "contract_graph"}
+         )
+@@ -101,76 +101,52 @@ def test_result_payload_preserves_controller_final_output_exactly(tmp_path: Path
+     assert payload["final_output_matches_persisted_rwkv"] is True
+ 
+ 
+-def test_goal_worker_waits_for_runtime_recovery_instead_of_stopping(
+-    tmp_path: Path,
+-    monkeypatch: pytest.MonkeyPatch,
+-) -> None:
+-    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-RETRY")
+-    run_root = repository.run_root(metadata["run_id"])
+-    attempts = 0
+-
+-    class _RecoveredController:
+-        def run(self, run_id: str):
+-            store = LongHorizonStore(run_root / "state")
+-            state = store.load(run_id)
+-            state = store.save(
+-                state,
+-                causal_event=CausalEventDraft.create(
+-                    "run_completed",
+-                    {
+-                        "decision_id": "D-RWKV-RECOVERED",
+-                        "output_source": "rwkv_explicit_final_answer_text",
+-                        "final_output": "RWKV completed after recovery.",
+-                    },
+-                    subject_id=run_id,
+-                ),
+-            )
+-            return SimpleNamespace(
+-                state=state,
+-                final_output=state.final_output,
+-                transitions=1,
+-            )
+-
+-    def build(*_args, **_kwargs):
+-        nonlocal attempts
+-        attempts += 1
+-        if attempts == 1:
+-            raise RuntimeError("native state service unavailable")
+-        return _RecoveredController()
+-
+-    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
+-    monkeypatch.setattr("rwkv_lh.web_worker.time.sleep", lambda _seconds: None)
+-
+-    assert run_web_worker(run_root, resume=False, max_transitions=2) == 0
+-    assert attempts == 2
+-    result = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
+-    assert result["status"] == "completed"
+-    assert result["continuation_count"] == 1
+-    metadata_after = repository.metadata("UI-GOAL-RETRY")
+-    assert metadata_after["phase"] == "finished"
+-    stored = LongHorizonStore(run_root / "state").load("UI-GOAL-RETRY")
+-    assert stored.status is RunStatus.COMPLETED
+-
+-
+-def test_goal_worker_does_not_retry_deterministic_identity_failure(
+-    tmp_path: Path,
+-    monkeypatch: pytest.MonkeyPatch,
+-) -> None:
+-    repository, metadata = create_repository_run(tmp_path, "UI-GOAL-IDENTITY")
+-    run_root = repository.run_root(metadata["run_id"])
+-    attempts = 0
+-
+-    def build(*_args, **_kwargs):
+-        nonlocal attempts
+-        attempts += 1
+-        raise ValueError("G1J Selector-Intent Head identity mismatch")
+-
+-    monkeypatch.setattr("rwkv_lh.web_worker.build_product_controller", build)
+-
+-    with pytest.raises(ValueError, match="identity mismatch"):
+-        run_web_worker(run_root, resume=False, max_transitions=2)
+-
+-    assert attempts == 1
++def test_direct_worker_uses_shared_loop_and_preserves_answer(tmp_path, monkeypatch):
++    from rwkv_lh import web_worker
++    from test_read_only_agent import factory
++    from test_unified_controller import call, settings
++    repository, metadata = create_repository_run(tmp_path, "UI-DIRECT")
++    root = repository.run_root(metadata["run_id"])
++    monkeypatch.setattr(web_worker, "direct_settings", settings)
++    monkeypatch.setattr(web_worker, "create_model_session", factory([
++        call("read_file", path="input.txt"),
++        call("final_answer", text="  原始回答\n"),
++    ]))
++    assert run_web_worker(root, resume=False, max_transitions=2) == 0
++    summary = repository.summary(metadata["run_id"])
++    assert summary["result"]["final_output"] == "  原始回答\n"
++    assert summary["result"]["acceptance"] == "not_evaluated"
++    assert summary["result"]["generation_started"] == 2
++    assert repository.trace(metadata["run_id"])["total"] > 0
++    assert repository.events(metadata["run_id"])["events"]
++    assert summary["state"]["actions"][0]["operation"] == "read_file"
++
++
++def test_direct_worker_budget_stops_without_forced_answer(tmp_path, monkeypatch):
++    from rwkv_lh import web_worker
++    from test_read_only_agent import factory
++    from test_unified_controller import call, settings
++    repository, metadata = create_repository_run(tmp_path, "UI-BUDGET")
++    root = repository.run_root(metadata["run_id"])
++    monkeypatch.setattr(web_worker, "direct_settings", settings)
++    monkeypatch.setattr(web_worker, "create_model_session", factory([call("read_file", path="input.txt")]))
++    assert run_web_worker(root, resume=False, max_transitions=1) == 1
++    result = repository.summary(metadata["run_id"])["result"]
++    assert result["final_output"] is None
++    assert result["termination"] == "budget"
++    assert repository.metadata(metadata["run_id"])["status"] == "interrupted"
++    with pytest.raises(ValueError, match="resume"):
++        run_web_worker(root, resume=True, max_transitions=1)
++
++
++def test_frontend_defaults_direct_and_rejects_unsupported_scope(tmp_path):
++    repository, metadata = create_repository_run(tmp_path)
++    request = repository.request_document(metadata["run_id"])
++    assert request["runtime"] == "direct_rwkv"
++    assert request["tool_scope"] == "files"
++    assert request["max_seconds"] == 300
++    with pytest.raises(ValueError, match="tool_scope"):
++        repository.create({"request": "test", "tool_scope": "invented"})
+ 
+ 
+ def test_export_contains_consistent_sqlite_snapshot_and_full_state_exports(tmp_path: Path) -> None:
+@@ -239,7 +215,7 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
+         assert status == 200
+         assert capabilities["latest_formal"] is None
+         assert capabilities["latest_diagnostic"] is None
+-        assert capabilities["validation_status"] == "awaiting_all_zero_baseline"
++        assert capabilities["validation_status"] == "fixed_task_diagnostics_only"
+         assert capabilities["experimental"] is True
+         status, created = request_json(
+             base + "/api/runs",
+@@ -266,3 +242,85 @@ def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tm
+         server.shutdown()
+         server.server_close()
+         thread.join(timeout=5)
++
++
++def test_browser_direct_demo_submission_and_raw_result(tmp_path, monkeypatch):
++    from playwright.sync_api import sync_playwright, expect
++    from rwkv_lh import web_worker
++    from test_read_only_agent import factory
++    from test_unified_controller import call, settings
++    server = build_server('127.0.0.1', 0, tmp_path)
++    fake = FakeManager(server.repository)
++    server.manager = fake
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    monkeypatch.setattr(web_worker, 'direct_settings', settings)
++    monkeypatch.setattr(web_worker, 'create_model_session', factory([
++        call('read_file', path='verify_public.py'),
++        call('final_answer', text='  仅健康检查，不证明事务。\n'),
++    ]))
++    try:
++        with sync_playwright() as pw:
++            browser = pw.chromium.launch(headless=True)
++            page = browser.new_page()
++            errors = []
++            page.on('pageerror', lambda error: errors.append(str(error)))
++            page.route('**/api/runtime/topology', lambda route: route.fulfill(
++                json={'executor': {'available': True, 'model': 'test'}, 'harness': {'available': True}}))
++            page.goto(f'http://127.0.0.1:{server.server_port}')
++            page.locator('[data-demo="read-health"]').click()
++            expect(page.locator('.seed-path')).to_have_value('verify_public.py')
++            expect(page.locator('#toolScope')).to_have_value('files')
++            page.locator('#startButton').click()
++            expect(page.locator('#runView')).to_be_visible()
++            run_id = fake.launched[0]
++            assert run_web_worker(server.repository.run_root(run_id), resume=False, max_transitions=2) == 0
++            page.evaluate('pollRun()')
++            expect(page.locator('#finalOutput')).to_have_text('  仅健康检查，不证明事务。\n', use_inner_text=False)
++            assert page.locator('#finalOutput').text_content() == '  仅健康检查，不证明事务。\n'
++            expect(page.locator('#runStatus')).to_have_text('submitted')
++            expect(page.locator('#acceptanceBadge')).to_have_text('未进行外部验收')
++            expect(page.locator('#resumeButton')).to_be_hidden()
++            page.locator('[data-tab="execution"]').click()
++            expect(page.locator('#actionList')).to_contain_text('read_file')
++            with page.expect_download() as download_info:
++                page.locator('#exportButton').click()
++            download_info.value.save_as(tmp_path / 'browser-audit.zip')
++            history = page.locator('#runList').bounding_box()
++            item = page.locator('.run-item').first.bounding_box()
++            assert item['width'] <= history['width']
++            # Switching task IDs must not temporarily attach the previous
++            # answer to the new identity while its response is delayed.
++            server.repository.create({'run_id': 'UI-NEXT', 'request': 'A different task'})
++            page.evaluate('loadRuns()')
++            pending = []
++            page.route('**/api/runs/UI-NEXT', lambda route: pending.append(route))
++            page.locator('[data-run-id="UI-NEXT"]').click()
++            expect(page.locator('#runId')).to_have_text('UI-NEXT')
++            expect(page.locator('#finalOutput')).not_to_contain_text('仅健康检查', timeout=1000)
++            expect(page.locator('#runStatus')).not_to_have_text('submitted', timeout=1000)
++            for route in pending:
++                route.abort()
++            assert not errors
++            browser.close()
++    finally:
++        server.shutdown(); server.server_close(); thread.join(timeout=5)
++
++
++def test_direct_coding_worker_serves_modified_copy_and_exports_state(tmp_path, monkeypatch):
++    from rwkv_lh import web_worker
++    from test_read_only_agent import factory
++    from test_unified_controller import call, settings
++    repository = ManualRunRepository(tmp_path)
++    metadata = repository.create({'request': 'write output', 'tool_scope': 'coding'})
++    run_id = metadata['run_id']
++    monkeypatch.setattr(web_worker, 'direct_settings', settings)
++    monkeypatch.setattr(web_worker, 'create_model_session', factory([
++        call('write_file', path='out.txt', content='delivered'), call('final_answer', text='written')]))
++    assert run_web_worker(repository.run_root(run_id), resume=False, max_transitions=2) == 0
++    assert repository.file_bytes(run_id, 'out.txt')[0] == b'delivered'
++    assert not (repository.run_root(run_id) / 'workspace/out.txt').exists()
++    assert repository.trace(run_id)['total'] > 0
++    archive = zipfile.ZipFile(io.BytesIO(repository.export_zip(run_id)))
++    assert f'{run_id}/delivery/execution/state/long_horizon.db' in archive.namelist()
++    assert f'{run_id}/state-export.json' in archive.namelist()

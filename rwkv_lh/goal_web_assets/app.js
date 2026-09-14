@@ -83,13 +83,11 @@ async function loadTopology() {
   try {
     app.topology = await api("/api/runtime/topology");
     const healthy = Boolean(
-      app.topology.supervisor?.configured
-      && app.topology.selector?.available
-      && app.topology.executor?.available
+      app.topology.executor?.available
       && app.topology.harness?.available
     );
     dot.className = `live-dot ${healthy ? "" : "offline"}`;
-    $("systemLabel").textContent = healthy ? "双 RWKV 运行栈已就绪" : "部分运行服务不可用";
+    $("systemLabel").textContent = healthy ? "RWKV 直接执行已就绪" : "部分运行服务不可用";
     renderTopology();
   } catch (error) {
     dot.className = "live-dot offline";
@@ -102,9 +100,7 @@ function renderTopology() {
   if (!app.topology) return;
   const topology = app.topology;
   const cards = [
-    { index: "01", name: "Strong Planner", ok: topology.supervisor?.configured, detail: `${topology.supervisor?.model || "未配置"} · Goal Loop` },
-    { index: "02", name: "RWKV Selector", ok: topology.selector?.available, detail: `${topology.selector?.model || "2.9B"} · ${topology.selector?.device || "GPU2"}` },
-    { index: "03", name: "RWKV Executor", ok: topology.executor?.available, detail: `${topology.executor?.model || "13.3B"} · ${topology.executor?.device || "GPU1"}` },
+    { index: "01", name: "RWKV Agent", ok: topology.executor?.available, detail: `${topology.executor?.model || "RWKV"} · 工具选择、参数与回答` },
     { index: "04", name: "Evidence Harness", ok: topology.harness?.available, detail: `${topology.harness?.scope || "isolated"} · append-only` },
   ];
   $("topologyCards").innerHTML = cards.map((card) => `
@@ -151,12 +147,8 @@ async function submitGoal(event) {
       request: $("goalInput").value.trim(),
       constraints: $("constraintInput").value.split("\n").map((item) => item.trim()).filter(Boolean),
       max_transitions: Number($("transitionBudget").value),
-      retrieval_policy: {
-        mode: $("networkPolicy").value,
-        explicit_approval: false,
-        public_workspace_paths: [],
-      },
-      supervisor_mode: "stateful_goal",
+      max_seconds: Number($("secondsBudget").value),
+      tool_scope: $("toolScope").value,
       seed_files: seedFiles(),
     };
     const result = await api("/api/runs", { method: "POST", body: JSON.stringify(payload) });
@@ -195,6 +187,12 @@ async function selectRun(runId) {
   $("runView").classList.remove("hidden");
   $("runId").textContent = runId;
   $("runObjective").textContent = "正在恢复持久状态…";
+  // Clear every task projection before fetching the new identity. Otherwise
+  // a slow response temporarily labels the previous answer as this task's.
+  renderRun();
+  $("filePreviewName").textContent = "选择文件预览";
+  $("filePreviewMeta").textContent = "";
+  $("filePreview").textContent = "";
   renderRuns();
   await pollRun();
   const phase = app.summary?.metadata?.phase;
@@ -276,11 +274,12 @@ function renderRun() {
   const summary = app.summary || {};
   const metadata = summary.metadata || {};
   const state = summary.state || {};
-  const status = statusClass(state.status || metadata.status || metadata.phase);
+  const direct = summary.request?.runtime === "direct_rwkv";
+  const status = statusClass(direct ? (metadata.status || metadata.phase) : (state.status || metadata.status || metadata.phase));
   const contract = contractData();
   const satisfied = Object.values(contract.verdicts).filter((item) => item.status === "satisfied").length;
   const current = currentPhase(contract, status);
-  const actions = state.actions || [];
+  const actions = summary.result?.actions || state.actions || [];
   const evidenceEvents = app.events.filter(isEvidenceEvent);
 
   $("runId").textContent = metadata.run_id || app.selectedRun;
@@ -289,20 +288,20 @@ function renderRun() {
   $("runStatus").className = `status-chip ${status}`;
   $("runStatus").textContent = status;
   $("exportButton").href = `/api/runs/${encodeURIComponent(app.selectedRun)}/export`;
-  const resumable = !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
+  const resumable = !direct && !metadata.active && metadata.state_created && ["interrupted", "stopped", "failed", "blocked"].includes(status);
   $("resumeButton").classList.toggle("hidden", !resumable);
 
-  $("obligationMetric").textContent = `${satisfied} / ${contract.obligations.length}`;
+  $("obligationMetric").textContent = direct ? "未评审" : `${satisfied} / ${contract.obligations.length}`;
   $("actionMetric").textContent = actions.length;
   $("evidenceMetric").textContent = evidenceEvents.length;
   $("fileMetric").textContent = app.files.length;
-  $("requestMetric").textContent = state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
+  $("requestMetric").textContent = summary.result?.generation_started ?? state.model_request_count ?? app.traces.filter((item) => item.type === "model_request_started").length;
   $("contractCount").textContent = contract.obligations.length;
   $("executionCount").textContent = actions.length;
   $("evidenceCount").textContent = evidenceEvents.length;
   $("artifactCount").textContent = app.files.length;
   $("rawCount").textContent = app.traces.length + app.events.length;
-  $("currentPhaseLabel").textContent = phaseLabel(current);
+  $("currentPhaseLabel").textContent = direct ? (summary.result?.termination_reason || "RWKV 执行中") : phaseLabel(current);
 
   renderPhases(current, status);
   renderOverview(summary, contract);
@@ -337,11 +336,11 @@ function renderOverview(summary, contract) {
   $("liveActivity").innerHTML = recent.length ? recent.map((item) => `
     <div class="activity-item"><i></i><time>${escapeHtml(time(item.timestamp))}</time><strong>${escapeHtml(eventHeadline(item))}</strong></div>`).join("") : '<p class="empty-copy">等待第一个因果事件。</p>';
   const output = summary.result?.final_output ?? summary.state?.final_output ?? "";
-  $("finalOutput").textContent = output || "项目仍在创建中。";
+  $("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ? "RWKV 执行中，尚无回答。" : "本次运行未提交回答。");
   const verdicts = Object.values(contract.verdicts);
   const allPassed = Boolean(contract.obligations.length) && verdicts.length >= contract.obligations.length && verdicts.every((item) => item.status === "satisfied");
   const contradicted = verdicts.some((item) => item.status === "contradicted");
-  $("acceptanceBadge").textContent = allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
+  $("acceptanceBadge").textContent = summary.request?.runtime === "direct_rwkv" ? "未进行外部验收" : allPassed ? "证据验收通过" : contradicted ? "发现矛盾" : "等待验收";
   $("acceptanceBadge").className = `review-badge ${allPassed ? "pass" : contradicted ? "fail" : "pending"}`;
   const errors = [summary.metadata?.error, ...(summary.state?.errors || []).map(pretty)].filter(Boolean);
   $("errorPanel").classList.toggle("hidden", !errors.length);
@@ -355,13 +354,13 @@ function renderContract(summary, contract) {
     const verdict = contract.verdicts[item.obligation_id] || {};
     const status = verdict.status || "open";
     return `<article class="obligation ${escapeHtml(status)}"><header><code>${escapeHtml(item.obligation_id)}</code><span>${escapeHtml(status)}</span></header><p>${escapeHtml(item.predicate || item.request_clause || "待解析义务")}</p></article>`;
-  }).join("") : '<p class="empty-copy">Planner 尚未提交义务。</p>';
+  }).join("") : '<p class="empty-copy">按用户目标验收，不要求固定步骤。</p>';
   $("nodeCount").textContent = `${contract.nodes.length} steps`;
   $("graphNodes").innerHTML = contract.nodes.length ? contract.nodes.map((node) => {
     const atom = node.atom || {};
     const outcome = contract.outcomes[atom.atom_id || node.node_id] || {};
     return `<article class="graph-node"><header><code>${escapeHtml(node.node_id || atom.atom_id)}</code><span>${escapeHtml(outcome.status || "pending")}</span></header><strong>${escapeHtml(atom.objective || "RWKV step")}</strong><p>依赖：${escapeHtml((atom.depends_on || node.depends_on || []).join(", ") || "无")}</p></article>`;
-  }).join("") : '<p class="empty-copy">执行图尚未生成。</p>';
+  }).join("") : '<p class="empty-copy">RWKV 自主选择下一步；工具调用见执行页。</p>';
 }
 
 function renderActions(actions) {
@@ -371,6 +370,7 @@ function renderActions(actions) {
       <code>${escapeHtml(action.operation || action.action_type || "operation")}</code>
       <p>${escapeHtml(action.action_id || "")} · ${escapeHtml((action.artifact_refs || []).join(", ") || "无产物")}</p>
       <span class="action-status">${escapeHtml(action.status || "pending")}</span>
+      ${action.arguments ? `<details><summary>真实调用与工具结果</summary><pre>${escapeHtml(pretty({arguments: action.arguments, result: action.result}))}</pre></details>` : ""}
     </article>`).join("") : '<p class="empty-copy">等待 RWKV Action。</p>';
 }
 
@@ -462,5 +462,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll("[data-audit]").forEach((item) => item.classList.toggle("active", item === button));
     renderRaw();
   }));
-  await Promise.all([loadTopology(), loadRuns()]);
+  await Promise.all([loadTopology(), loadRuns(), loadDemos()]);
 });
+
+async function loadDemos() {
+  try {
+    const { demos } = await api("/api/demos");
+    $("demoButtons").replaceChildren();
+    demos.forEach((demo) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.textContent = demo.title; button.dataset.demo = demo.id;
+      button.addEventListener("click", () => {
+        $("goalInput").value = demo.request;
+        $("toolScope").value = demo.tool_scope;
+        $("transitionBudget").value = demo.max_transitions;
+        $("secondsBudget").value = demo.max_seconds;
+        $("constraintInput").value = "";
+        $("seedFiles").replaceChildren();
+        demo.seed_files.forEach((file) => addSeedFile(file.path, file.content));
+        $("formMessage").textContent = "已填入任务和原始文件。点击开始执行会发起新的真实模型调用。";
+      });
+      $("demoButtons").appendChild(button);
+    });
+  } catch (error) { $("formMessage").textContent = error.message; }
+}

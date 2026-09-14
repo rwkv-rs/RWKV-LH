@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,time,re,urllib.request,hashlib
+from playwright.sync_api import sync_playwright,expect
+r=Path('/home/chase/GitHub/RWKV-LH');out=r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914'
+registration=json.loads((out/'REGISTRATION.json').read_text())
+registration['source']={str(p.relative_to(r)):hashlib.sha256(p.read_bytes()).hexdigest() for directory in ('rwkv_lh','tests') for p in sorted((r/directory).rglob('*')) if p.is_file() and '__pycache__' not in p.parts}
+registration['previous_batch']='Original four runs were accidentally concurrent after browser CSP polling error. Preserved as diagnostic successes, not serial gate evidence. This next batch has identical tasks/criteria/settings/budgets, manager guard priority fix only.'
+(out/'SERIAL_REGISTRATION.json').write_text(json.dumps(registration,ensure_ascii=False,indent=2)+'\n')
+def get(path):
+ with urllib.request.urlopen('http://127.0.0.1:8766'+path,timeout=30) as response:return json.load(response)
+rows=[]
+with sync_playwright() as pw:
+ browser=pw.chromium.launch(headless=True)
+ for repeat in (1,2):
+  for demo in ('read-health','run-recursive'):
+   page=browser.new_page(viewport={'width':1440,'height':1100});errors=[]
+   page.on('pageerror',lambda e:errors.append(str(e)))
+   page.goto('http://127.0.0.1:8766');page.locator('[data-demo="'+demo+'"]').click()
+   page.screenshot(path=str(out/f'serial-{demo}-r{repeat}-input.png'),full_page=True)
+   with page.expect_response(lambda response: response.url.endswith('/api/runs') and response.request.method=='POST') as response:
+    page.locator('#startButton').click()
+   runid=response.value.json()['run']['run_id'];row={'demo':demo,'repeat':repeat,'run_id':runid,'started_monotonic':time.monotonic()}
+   print(json.dumps({'started':row}),flush=True)
+   expect(page.locator('#runStatus')).to_have_text(re.compile('submitted|interrupted|failed|blocked'),timeout=390000)
+   row['summary']=get('/api/runs/'+runid)
+   row['displayed_final']=page.locator('#finalOutput').text_content();row['displayed_status']=page.locator('#runStatus').text_content()
+   page.screenshot(path=str(out/f'serial-{demo}-r{repeat}-result.png'),full_page=True)
+   with page.expect_download() as download:page.locator('#exportButton').click()
+   download.value.save_as(out/f'serial-{demo}-r{repeat}-audit.zip')
+   row['elapsed_monotonic']=time.monotonic()-row['started_monotonic'];row['page_errors']=errors
+   rows.append(row);(out/'SERIAL_BROWSER_RESULTS.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
+   print(json.dumps({'finished':runid,'status':row['summary']['metadata'],'final':row['summary'].get('result',{}).get('final')},ensure_ascii=False),flush=True)
+   page.close()
+ browser.close()

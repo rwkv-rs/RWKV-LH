@@ -1,0 +1,267 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_browser_direct_demo_submission_and_raw_result ______________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_browser_direct_demo_submi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7348639f15b0>
+
+    def test_browser_direct_demo_submission_and_raw_result(tmp_path, monkeypatch):
+        from playwright.sync_api import sync_playwright, expect
+        from rwkv_lh import web_worker
+        from test_read_only_agent import factory
+        from test_unified_controller import call, settings
+        server = build_server('127.0.0.1', 0, tmp_path)
+        fake = FakeManager(server.repository)
+        server.manager = fake
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        monkeypatch.setattr(web_worker, 'direct_settings', settings)
+        monkeypatch.setattr(web_worker, 'create_model_session', factory([
+            call('read_file', path='verify_public.py'),
+            call('final_answer', text='  仅健康检查，不证明事务。\n'),
+        ]))
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True)
+                page = browser.new_page()
+                errors = []
+                page.on('pageerror', lambda error: errors.append(str(error)))
+                page.route('**/api/runtime/topology', lambda route: route.fulfill(
+                    json={'executor': {'available': True, 'model': 'test'}, 'harness': {'available': True}}))
+                page.goto(f'http://127.0.0.1:{server.server_port}')
+                page.locator('[data-demo="read-health"]').click()
+                expect(page.locator('.seed-path')).to_have_value('verify_public.py')
+                expect(page.locator('#toolScope')).to_have_value('files')
+                page.locator('#startButton').click()
+                expect(page.locator('#runView')).to_be_visible()
+                run_id = fake.launched[0]
+                assert run_web_worker(server.repository.run_root(run_id), resume=False, max_transitions=2) == 0
+                page.evaluate('pollRun()')
+                expect(page.locator('#finalOutput')).to_have_text('  仅健康检查，不证明事务。\n', use_inner_text=False)
+                assert page.locator('#finalOutput').text_content() == '  仅健康检查，不证明事务。\n'
+                expect(page.locator('#runStatus')).to_have_text('submitted')
+                expect(page.locator('#acceptanceBadge')).to_have_text('未进行外部验收')
+                expect(page.locator('#resumeButton')).to_be_hidden()
+                page.locator('[data-tab="execution"]').click()
+                expect(page.locator('#actionList')).to_contain_text('read_file')
+                with page.expect_download() as download_info:
+                    page.locator('#exportButton').click()
+                download_info.value.save_as(tmp_path / 'browser-audit.zip')
+                history = page.locator('#runList').bounding_box()
+                item = page.locator('.run-item').first.bounding_box()
+                assert item['width'] <= history['width']
+                # Switching task IDs must not temporarily attach the previous
+                # answer to the new identity while its response is delayed.
+                server.repository.create({'run_id': 'UI-NEXT', 'request': 'A different task'})
+                page.evaluate('loadRuns()')
+                pending = []
+                page.route('**/api/runs/UI-NEXT', lambda route: pending.append(route))
+                page.locator('[data-run-id="UI-NEXT"]').click()
+                expect(page.locator('#runId')).to_have_text('UI-NEXT')
+>               expect(page.locator('#finalOutput')).not_to_contain_text('仅健康检查', timeout=1000)
+E               AssertionError: Locator expected not to contain text '仅健康检查'
+E               Actual value:   仅健康检查，不证明事务。
+E                
+E               Call log:
+E                 - Expect "to_contain_text" with timeout 1000ms
+E                 - waiting for locator("#finalOutput")
+E                   11 × locator resolved to <pre id="finalOutput">  仅健康检查，不证明事务。↵</pre>
+E                      - unexpected value "  仅健康检查，不证明事务。
+E               "
+E               
+E               Aria snapshot:
+E               - banner:
+E                 - link "RWKV Goal Studio 首页":
+E                   - /url: /
+E                   - text: R
+E                   - strong: RWKV Goal
+E                   - text: 自主项目工作台
+E                 - button "RWKV 直接执行已就绪"
+E                 - button "新建目标"
+E               - main:
+E                 - complementary:
+E                   - text: 项目记录
+E                   - strong: "2"
+E                   - button "UI-NEXT A different task":
+E                     - strong: UI-NEXT
+E                     - paragraph: A different task
+E                   - button "UI-20260914-000220-948987 阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。":
+E                     - strong: UI-20260914-000220-948987
+E                     - paragraph: 阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。
+E                   - text: LOCAL · PRIVATE
+E                   - paragraph: 所有产物仅写入隔离工作区。
+E                 - paragraph: UI-NEXT
+E                 - heading "正在恢复持久状态…" [level=2]
+E                 - text: submitted
+E                 - link "下载审计包":
+E                   - /url: /api/runs/UI-20260914-000220-948987/export
+E                 - paragraph: 执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。
+E                 - text: 外部验收
+E                 - strong: 未评审
+E                 - text: RWKV Actions
+E                 - strong: "1"
+E                 - text: 证据记录
+E                 - strong: "2"
+E                 - text: 工作区文件
+E                 - strong: "1"
+E                 - text: 模型请求
+E                 - strong: "2"
+E                 - navigation "运行内容":
+E                   - button "总览"
+E                   - button "用户目标 0"
+E                   - button "RWKV 执行 1"
+E                   - button "证据与验收 2"
+E                   - button "项目产物 1"
+E                   - button "完整审计 17"
+E                 - paragraph: RWKV 自主生成调用和参数 → Harness 执行 → 观察与 State 延续 → RWKV 回答
+E                 - article:
+E                   - text: "01"
+E                   - code: read_file
+E                   - paragraph: A00001 · ART-77a32f727364701768aa
+E                   - text: succeeded
+E                   - group: 真实调用与工具结果
+
+tests/test_web_ui.py:300: AssertionError
+----------------------------- Captured stderr call -----------------------------
+14/Sep/2026 08:02:19 "GET / HTTP/1.1" 200 -
+14/Sep/2026 08:02:19 "GET /assets/styles.css HTTP/1.1" 200 -
+14/Sep/2026 08:02:19 "GET /assets/app.js HTTP/1.1" 200 -
+14/Sep/2026 08:02:19 "GET /api/runs HTTP/1.1" 200 -
+14/Sep/2026 08:02:19 "GET /api/demos HTTP/1.1" 200 -
+14/Sep/2026 08:02:20 "POST /api/runs HTTP/1.1" 201 -
+14/Sep/2026 08:02:20 "GET /api/runs HTTP/1.1" 200 -
+14/Sep/2026 08:02:20 "GET /api/runs/UI-20260914-000220-948987 HTTP/1.1" 200 -
+14/Sep/2026 08:02:20 "GET /api/runs/UI-20260914-000220-948987/events?after=0&limit=1200 HTTP/1.1" 200 -
+14/Sep/2026 08:02:20 "GET /api/runs/UI-20260914-000220-948987/trace?after=0&limit=800 HTTP/1.1" 200 -
+14/Sep/2026 08:02:20 "GET /api/runs/UI-20260914-000220-948987/files HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-20260914-000220-948987/trace?after=0&limit=800 HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-20260914-000220-948987/files HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-20260914-000220-948987 HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-20260914-000220-948987/events?after=0&limit=1200 HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-20260914-000220-948987/export HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-NEXT/trace?after=0&limit=800 HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-NEXT/events?after=0&limit=1200 HTTP/1.1" 200 -
+14/Sep/2026 08:02:21 "GET /api/runs/UI-NEXT/files HTTP/1.1" 200 -
+------------------------------ Captured log call -------------------------------
+ERROR    asyncio:base_events.py:1879 Exception in callback Connection.dispatch.<locals>._done_callback() at /home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_connection.py:470
+handle: <Handle Connection.dispatch.<locals>._done_callback() at /home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_connection.py:470>
+Traceback (most recent call last):
+  File "/home/chase/GitHub/RWKV-LH/tests/test_web_ui.py", line 300, in test_browser_direct_demo_submission_and_raw_result
+    expect(page.locator('#finalOutput')).not_to_contain_text('仅健康检查', timeout=1000)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 21748, in not_to_contain_text
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.not_to_contain_text(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        )
+        ^
+    )
+    ^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_assertions.py", line 327, in not_to_contain_text
+    await self._not.to_contain_text(expected, useInnerText, timeout, ignoreCase)
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_assertions.py", line 301, in to_contain_text
+    await self._expect_impl(
+    ...<9 lines>...
+    )
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_assertions.py", line 126, in _expect_impl
+    _record_soft_or_raise(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        AssertionError(
+        ^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        self._is_soft,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_assertions.py", line 60, in _record_soft_or_raise
+    raise error
+AssertionError: Locator expected not to contain text '仅健康检查'
+Actual value:   仅健康检查，不证明事务。
+ 
+Call log:
+  - Expect "to_contain_text" with timeout 1000ms
+  - waiting for locator("#finalOutput")
+    11 × locator resolved to <pre id="finalOutput">  仅健康检查，不证明事务。↵</pre>
+       - unexpected value "  仅健康检查，不证明事务。
+"
+
+Aria snapshot:
+- banner:
+  - link "RWKV Goal Studio 首页":
+    - /url: /
+    - text: R
+    - strong: RWKV Goal
+    - text: 自主项目工作台
+  - button "RWKV 直接执行已就绪"
+  - button "新建目标"
+- main:
+  - complementary:
+    - text: 项目记录
+    - strong: "2"
+    - button "UI-NEXT A different task":
+      - strong: UI-NEXT
+      - paragraph: A different task
+    - button "UI-20260914-000220-948987 阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。":
+      - strong: UI-20260914-000220-948987
+      - paragraph: 阅读指定文件 verify_public.py，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。
+    - text: LOCAL · PRIVATE
+    - paragraph: 所有产物仅写入隔离工作区。
+  - paragraph: UI-NEXT
+  - heading "正在恢复持久状态…" [level=2]
+  - text: submitted
+  - link "下载审计包":
+    - /url: /api/runs/UI-20260914-000220-948987/export
+  - paragraph: 执行顺序由 RWKV 决定；中断、回答提交与任务验收分别记录。
+  - text: 外部验收
+  - strong: 未评审
+  - text: RWKV Actions
+  - strong: "1"
+  - text: 证据记录
+  - strong: "2"
+  - text: 工作区文件
+  - strong: "1"
+  - text: 模型请求
+  - strong: "2"
+  - navigation "运行内容":
+    - button "总览"
+    - button "用户目标 0"
+    - button "RWKV 执行 1"
+    - button "证据与验收 2"
+    - button "项目产物 1"
+    - button "完整审计 17"
+  - paragraph: RWKV 自主生成调用和参数 → Harness 执行 → 观察与 State 延续 → RWKV 回答
+  - article:
+    - text: "01"
+    - code: read_file
+    - paragraph: A00001 · ART-77a32f727364701768aa
+    - text: succeeded
+    - group: 真实调用与工具结果
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 471, in _done_callback
+    exc = future.exception()
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 308, in _on_route
+    handled = await route_handler.handle(route)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_helper.py", line 430, in handle
+    return await self._handle_internal(route)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chase/GitHub/RWKV-LH/.venv/lib/python3.13/site-packages/playwright/_impl/_helper.py", line 472, in _handle_internal
+    return await handled_future
+           ^^^^^^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+=========================== short test summary info ============================
+FAILED tests/test_web_ui.py::test_browser_direct_demo_submission_and_raw_result
+1 failed, 15 deselected in 3.30s

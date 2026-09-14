@@ -1,0 +1,8 @@
+from playwright.sync_api import sync_playwright
+import json
+with sync_playwright() as pw:
+ b=pw.chromium.launch(headless=True);p=b.new_page(viewport={'width':1440,'height':1000});p.goto('http://127.0.0.1:8766');p.locator('.run-item').first.wait_for()
+ parent=p.locator('#runList').bounding_box();child=p.locator('.run-item').first.bounding_box()
+ print(json.dumps({'list':parent,'item':child}),flush=True)
+ assert child['width'] <= parent['width'], 'history item overflows its column'
+ b.close()

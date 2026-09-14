@@ -1,0 +1,15 @@
+from pathlib import Path
+p=Path('/home/chase/GitHub/RWKV-LH/tests/test_web_ui.py');s=p.read_text();needle="            assert not errors\n            browser.close()";replacement='''            # Switching task IDs must not temporarily attach the previous
+            # answer to the new identity while its response is delayed.
+            server.repository.create({'run_id': 'UI-NEXT', 'request': 'A different task'})
+            page.evaluate('loadRuns()')
+            pending = []
+            page.route('**/api/runs/UI-NEXT', lambda route: pending.append(route))
+            page.locator('[data-run-id="UI-NEXT"]').click()
+            expect(page.locator('#runId')).to_have_text('UI-NEXT')
+            expect(page.locator('#finalOutput')).not_to_contain_text('仅健康检查', timeout=1000)
+            expect(page.locator('#runStatus')).not_to_have_text('submitted', timeout=1000)
+            for route in pending:
+                route.abort()
+            assert not errors
+            browser.close()''';assert needle in s;s=s.replace(needle,replacement);p.write_text(s)

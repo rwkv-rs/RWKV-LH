@@ -1,0 +1,2 @@
+from pathlib import Path
+r=Path('/home/chase/GitHub/RWKV-LH');p=r/'rwkv_lh/web_ui.py';s=p.read_text().replace('        if resume:\n            raise ValueError("direct frontend resume is not yet supported")\n        run_root = self.repository.run_root(run_id)','        run_root = self.repository.run_root(run_id)');needle='            request = self.repository.request_document(run_id)\n            update_metadata(';s=s.replace(needle,'            if resume:\n                raise ValueError("direct frontend resume is not yet supported")\n'+needle);p.write_text(s)

@@ -1,0 +1,9 @@
+from pathlib import Path
+p=Path('/home/chase/GitHub/RWKV-LH/rwkv_lh/goal_web_assets/app.js');s=p.read_text();needle='  $("runObjective").textContent = "正在恢复持久状态…";\n  renderRuns();';replacement='''  $("runObjective").textContent = "正在恢复持久状态…";
+  // Clear every task projection before fetching the new identity. Otherwise
+  // a slow response temporarily labels the previous answer as this task's.
+  renderRun();
+  $("filePreviewName").textContent = "选择文件预览";
+  $("filePreviewMeta").textContent = "";
+  $("filePreview").textContent = "";
+  renderRuns();''';assert needle in s;s=s.replace(needle,replacement);s=s.replace('$("finalOutput").textContent = output || (summary.metadata?.active ?', '$("finalOutput").textContent = !summary.metadata ? "正在加载任务记录…" : output || (summary.metadata?.active ?');p.write_text(s)

@@ -50,13 +50,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .history-rail { border-right: 1px solid var(--line); padding: 25px 16px; display: flex; flex-direction: column; min-height: calc(100vh - 78px); position: sticky; top: 78px; height: calc(100vh - 78px); }
 .rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 7px 16px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .rail-heading strong { color: var(--lime); font: 11px var(--mono); }
-.run-list { display: grid; gap: 7px; overflow-y: auto; padding-right: 3px; }
-.run-item { width: 100%; border: 1px solid transparent; border-radius: 12px; padding: 11px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.run-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; overflow-y: auto; padding-right: 3px; }
+.run-item { min-width: 0; width: 100%; border: 1px solid transparent; border-radius: 12px; padding: 11px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
 .run-item:hover { background: rgba(255,255,255,.025); }
 .run-item.active { border-color: rgba(201,255,98,.28); background: rgba(201,255,98,.055); }
 .run-item div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.run-item strong { color: var(--muted); font: 9px var(--mono); }
-.run-item span { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.run-item strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 9px var(--mono); }
+.run-item span { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
 .run-item span.completed { background: var(--mint); }
 .run-item span.failed, .run-item span.stopped { background: var(--red); }
 .run-item p { margin: 7px 0 0; overflow: hidden; color: #c7cbc7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -272,3 +272,11 @@ select, input { height: 42px; padding: 0 12px; }
   .lane-banner > b { transform: rotate(90deg); }
   .topology-row { grid-template-columns: 1fr; }
 }
+
+/* Keep answers readable during a live demo; raw audit remains compact. */
+.result-surface pre { font-size: 14px; line-height: 1.8; }
+.run-title h2 { font-size: clamp(22px, 2vw, 30px); line-height: 1.4; }
+.run-item span.submitted { background: var(--mint); }
+.run-item span.interrupted { background: var(--amber); }
+.action-card details { grid-column: 1 / -1; min-width: 0; }
+.action-card details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }

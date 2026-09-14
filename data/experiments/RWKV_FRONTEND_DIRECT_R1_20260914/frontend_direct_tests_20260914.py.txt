@@ -1,0 +1,52 @@
+from pathlib import Path
+p=Path('/home/chase/GitHub/RWKV-LH/tests/test_web_ui.py')
+s=p.read_text();start=s.index('def test_goal_worker_waits_for_runtime_recovery');end=s.index('def test_export_contains',start)
+s=s[:start]+'''def test_direct_worker_uses_shared_loop_and_preserves_answer(tmp_path, monkeypatch):
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    repository, metadata = create_repository_run(tmp_path, "UI-DIRECT")
+    root = repository.run_root(metadata["run_id"])
+    monkeypatch.setattr(web_worker, "direct_settings", settings)
+    monkeypatch.setattr(web_worker, "create_model_session", factory([
+        call("read_file", path="input.txt"),
+        call("final_answer", text="  原始回答\\n"),
+    ]))
+    assert run_web_worker(root, resume=False, max_transitions=2) == 0
+    summary = repository.summary(metadata["run_id"])
+    assert summary["result"]["final_output"] == "  原始回答\\n"
+    assert summary["result"]["acceptance"] == "not_evaluated"
+    assert summary["result"]["generation_started"] == 2
+    assert repository.trace(metadata["run_id"])["total"] > 0
+    assert repository.events(metadata["run_id"])["events"]
+    assert summary["state"]["actions"][0]["action_type"] == "read_file"
+
+
+def test_direct_worker_budget_stops_without_forced_answer(tmp_path, monkeypatch):
+    from rwkv_lh import web_worker
+    from test_read_only_agent import factory
+    from test_unified_controller import call, settings
+    repository, metadata = create_repository_run(tmp_path, "UI-BUDGET")
+    root = repository.run_root(metadata["run_id"])
+    monkeypatch.setattr(web_worker, "direct_settings", settings)
+    monkeypatch.setattr(web_worker, "create_model_session", factory([call("read_file", path="input.txt")]))
+    assert run_web_worker(root, resume=False, max_transitions=1) == 1
+    result = repository.summary(metadata["run_id"])["result"]
+    assert result["final_output"] is None
+    assert result["termination"] == "budget"
+    assert repository.metadata(metadata["run_id"])["status"] == "interrupted"
+    with pytest.raises(ValueError, match="resume"):
+        run_web_worker(root, resume=True, max_transitions=1)
+
+
+def test_frontend_defaults_direct_and_rejects_unsupported_scope(tmp_path):
+    repository, metadata = create_repository_run(tmp_path)
+    request = repository.request_document(metadata["run_id"])
+    assert request["runtime"] == "direct_rwkv"
+    assert request["tool_scope"] == "files"
+    assert request["max_seconds"] == 300
+    with pytest.raises(ValueError, match="tool_scope"):
+        repository.create({"request": "test", "tool_scope": "invented"})
+
+
+'''+s[end:];p.write_text(s)

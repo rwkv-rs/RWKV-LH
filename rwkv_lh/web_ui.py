@@ -26,13 +26,9 @@ from typing import Any, Mapping
 from urllib.parse import parse_qs, unquote, urlparse
 
 from rwkv_lh.runtime.openai_compat import OpenAICompatibleRWKVClient
-from rwkv_lh.exact_tool_selector.native_network_client import (
-    NativeNetworkSelectorSettings,
-)
 from rwkv_lh.retrieval import RetrievalRuntimeConfig
 from rwkv_lh.runtime.settings import PROJECT_ROOT, get_runtime_settings
 from rwkv_lh.store import LongHorizonStore, StateRecoveryError
-from rwkv_lh.supervisor_openai import SupervisorAPISettings
 from rwkv_lh.trace_projection import project_run_activity
 
 
@@ -146,19 +142,21 @@ class ManualRunRepository:
         if not isinstance(raw_retrieval, Mapping):
             raise ValueError("retrieval_policy must be an object")
         retrieval = RetrievalRuntimeConfig.from_dict(raw_retrieval)
-        supervisor_mode = str(
-            payload.get("supervisor_mode") or "stateful_goal"
-        ).strip()
-        if supervisor_mode != "stateful_goal":
-            raise ValueError("supervisor_mode must be stateful_goal")
+        if payload.get("supervisor_mode") not in (None, "direct_rwkv"):
+            raise ValueError("supervisor_mode must be direct_rwkv")
         if payload.get("state_router_shadow", False) is not False:
             raise ValueError("state_router_shadow is retired")
-        try:
-            max_transitions = int(payload.get("max_transitions", 200))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("max_transitions must be an integer") from exc
-        if not 1 <= max_transitions <= 500:
-            raise ValueError("max_transitions must be between 1 and 500")
+        if retrieval.mode != "offline":
+            raise ValueError("direct frontend currently requires offline retrieval")
+        scope = payload.get("tool_scope", "files")
+        if scope not in ("files", "inspect", "coding"):
+            raise ValueError("unknown tool_scope")
+        max_transitions = payload.get("max_transitions", 6)
+        max_seconds = payload.get("max_seconds", 300)
+        if type(max_transitions) is not int or not 1 <= max_transitions <= 100:
+            raise ValueError("max_transitions must be an integer between 1 and 100")
+        if type(max_seconds) not in (int, float) or not 1 <= max_seconds <= 3600:
+            raise ValueError("max_seconds must be between 1 and 3600")
         raw_seed_files = payload.get("seed_files") or []
         if not isinstance(raw_seed_files, list) or len(raw_seed_files) > 100:
             raise ValueError("seed_files must be an array with at most 100 items")
@@ -200,7 +198,10 @@ class ManualRunRepository:
             "request": request,
             "constraints": constraints,
             "retrieval_policy": retrieval.to_dict(),
-            "supervisor_mode": supervisor_mode,
+            "runtime": "direct_rwkv",
+            "supervisor_mode": "direct_rwkv",
+            "tool_scope": scope,
+            "max_seconds": max_seconds,
             "execution_mode": "goal",
             "max_transitions": max_transitions,
             "seed_files": [
@@ -259,13 +260,32 @@ class ManualRunRepository:
             raise FileNotFoundError(f"request document missing: {run_id}")
         return document
 
+    def execution_root(self, run_id: str) -> Path:
+        root = self.run_root(run_id)
+        request = self.request_document(run_id)
+        if request.get("runtime") == "direct_rwkv":
+            return root / ("delivery/execution" if request.get("tool_scope") == "coding" else "execution")
+        return root
+
+    def workspace_root(self, run_id: str) -> Path:
+        root = self.run_root(run_id)
+        delivery = root / "delivery" / "workspace"
+        return delivery if delivery.is_dir() else root / "workspace"
+
+    def state_root(self, run_id: str) -> Path:
+        direct = self.execution_root(run_id) / "state"
+        return direct if direct.exists() else self.run_root(run_id) / "state"
+
     def store(self, run_id: str) -> LongHorizonStore:
-        return LongHorizonStore(self.run_root(run_id) / "state", checkpoint_retention=100_000)
+        return LongHorizonStore(self.state_root(run_id), checkpoint_retention=100_000)
+
+    def state_available(self, run_id: str) -> bool:
+        return (self.state_root(run_id) / "long_horizon.db").is_file()
 
     def summary(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
         output: dict[str, Any] = {"metadata": metadata, "request": self.request_document(run_id)}
-        if metadata.get("state_created"):
+        if self.state_available(run_id):
             try:
                 state = self.store(run_id).load(run_id)
             except StateRecoveryError as exc:
@@ -298,13 +318,13 @@ class ManualRunRepository:
 
     def full_state(self, run_id: str) -> dict[str, Any]:
         metadata = self.metadata(run_id)
-        if not metadata.get("state_created"):
+        if not self.state_available(run_id):
             return {"run_id": run_id, "state": None}
         return {"run_id": run_id, "state": self.store(run_id).load(run_id).to_dict()}
 
     def events(self, run_id: str, *, after: int = 0, limit: int = 500) -> dict[str, Any]:
         metadata = self.metadata(run_id)
-        if not metadata.get("state_created"):
+        if not self.state_available(run_id):
             return {"events": [], "last_event_id": after}
         records = [
             item for item in self.store(run_id).event_records(run_id) if int(item["event_id"]) > after
@@ -316,7 +336,7 @@ class ManualRunRepository:
 
     def trace(self, run_id: str, *, after: int = 0, limit: int = 300) -> dict[str, Any]:
         self.metadata(run_id)
-        path = self.run_root(run_id) / "model_trace.jsonl"
+        path = self.execution_root(run_id) / "model_trace.jsonl"
         if not path.is_file():
             return {"events": [], "next_offset": after, "total": 0}
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -334,7 +354,7 @@ class ManualRunRepository:
 
     def files(self, run_id: str) -> list[dict[str, Any]]:
         self.metadata(run_id)
-        workspace = self.run_root(run_id) / "workspace"
+        workspace = self.workspace_root(run_id)
         rows = []
         for path in sorted(workspace.rglob("*")):
             if not path.is_file() or path.is_symlink():
@@ -352,7 +372,7 @@ class ManualRunRepository:
 
     def file_bytes(self, run_id: str, relative_value: str) -> tuple[bytes, str]:
         self.metadata(run_id)
-        workspace = self.run_root(run_id) / "workspace"
+        workspace = self.workspace_root(run_id)
         path = within(workspace, normalize_relative_path(relative_value))
         if not path.is_file() or path.is_symlink():
             raise FileNotFoundError(relative_value)
@@ -372,14 +392,14 @@ class ManualRunRepository:
                 ):
                     continue
                 archive.write(path, arcname=f"{run_id}/{path.relative_to(run_root).as_posix()}")
-            database = run_root / "state" / "long_horizon.db"
+            database = self.state_root(run_id) / "long_horizon.db"
             if database.is_file():
                 source = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
                 snapshot = sqlite3.connect(":memory:")
                 try:
                     source.backup(snapshot)
                     archive.writestr(
-                        f"{run_id}/state/long_horizon.db",
+                        f"{run_id}/{database.relative_to(run_root).as_posix()}",
                         snapshot.serialize(),
                     )
                     state = self.store(run_id).load(run_id)
@@ -421,6 +441,8 @@ class ManualRunManager:
             if ((process is not None and process.poll() is None)
                     or self._managed_pid_alive(run_id, metadata.get("pid"))):
                 raise RuntimeError("run is already active")
+            if resume:
+                raise ValueError("direct frontend resume is not yet supported")
             request = self.repository.request_document(run_id)
             update_metadata(
                 run_root,
@@ -579,35 +601,24 @@ class WebHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path == "/api/demos":
+                self.send_json({"demos": read_json(ASSET_ROOT / "demo_tasks.json", [])})
+                return
             if path == "/api/capabilities":
                 settings = get_runtime_settings()
                 self.send_json(
                     {
                         "product": "RWKV Goal Studio",
                         "experimental": True,
-                        "validation_status": "awaiting_all_zero_baseline",
+                        "validation_status": "fixed_task_diagnostics_only",
                         "runtime": {
                             "model": settings.model,
                             "endpoint": settings.base_url,
                             "backend_profile": settings.backend_profile,
                             "max_model_len": settings.max_model_len,
                         },
-                        "can": [
-                            "可以尝试：隔离工作区内的 bug 修复、小中型项目创建、受限命令与公开检索",
-                            "可以审计：查看当前任务的模型调用、Harness 结果、文件变化和终止原因",
-                            "可以恢复：根据持久化任务记录恢复执行",
-                        ],
-                        "cannot": [
-                            "当前统一协议尚未建立两遍 all-zero 基线，不能视为可靠 Agent 发布版本",
-                            "不能稳定闭环通用 bug 修复或中型网页项目；真实轨迹仍会误选工具并漏写文件",
-                            "联网检索成功不等于联网项目成功；证据到项目文件的执行链仍未通过",
-                            "不能操作浏览器或隐式外发工作区数据；敏感数据和未知来源策略拒绝",
-                            "不能直接管理真实 Git 仓库、提交、PR、部署或云服务",
-                            "不能处理图片、PDF、Word、Excel、幻灯片等专用文档工作流",
-                            "不能安装系统软件，也不能任意执行 shell 或访问隔离工作区外文件",
-                            "不能在运行中向用户追问并根据新回答继续多轮协作",
-                            "不能用其他模型替 RWKV 修复协议、判断答案或改写最终输出",
-                        ],
+                        "can": ["读取指定文件回答问题", "只读搜索与指定测试", "隔离副本中的代码修改（实验性）", "下载真实输入输出、工具结果与 State 审计包"],
+                        "cannot": ["提交回答不代表外部验收通过", "通用 bug 诊断与多文件交付仍不稳定", "当前前端未启用强模型协助或续跑"],
                         "latest_formal": None,
                         "latest_diagnostic": None,
                     }
@@ -622,84 +633,15 @@ class WebHandler(BaseHTTPRequestHandler):
                 self.send_json(health)
                 return
             if path == "/api/runtime/topology":
-                executor_client = OpenAICompatibleRWKVClient()
+                from rwkv_lh.web_worker import direct_settings
+                client = OpenAICompatibleRWKVClient(settings=direct_settings())
                 try:
-                    executor = executor_client.health().to_dict()
+                    executor = client.health().to_dict()
                 finally:
-                    executor_client.close()
-                selector_settings = NativeNetworkSelectorSettings.from_env()
-                selector: dict[str, Any]
-                if selector_settings is None:
-                    selector = {
-                        "available": False,
-                        "error": "Selector identity is not configured",
-                    }
-                else:
-                    try:
-                        with urllib.request.urlopen(
-                            selector_settings.base_url.rstrip("/") + "/healthz",
-                            timeout=3,
-                        ) as response:
-                            selector_health = json.loads(
-                                response.read().decode("utf-8")
-                            )
-                        actual_identity = selector_health.get("runtime_identity")
-                        expected_identity = selector_settings.runtime_identity()
-                        selector = {
-                            "available": (
-                                selector_health.get("status") == "ok"
-                                and actual_identity == expected_identity
-                            ),
-                            "model": selector_settings.model,
-                            "profile": selector_settings.state_profile_id,
-                            "input_protocol": selector_settings.input_protocol,
-                            "identity_verified": actual_identity == expected_identity,
-                        }
-                    except (OSError, ValueError, urllib.error.URLError) as exc:
-                        selector = {
-                            "available": False,
-                            "model": selector_settings.model,
-                            "error": f"{type(exc).__name__}: {exc}",
-                        }
-                try:
-                    supervisor_settings = SupervisorAPISettings.from_env()
-                    supervisor = {
-                        "configured": True,
-                        "model": supervisor_settings.model,
-                        "mode": "stateful_goal",
-                        "fallback_count": len(supervisor_settings.fallback_models),
-                    }
-                except (OSError, ValueError) as exc:
-                    supervisor = {
-                        "configured": False,
-                        "error": f"{type(exc).__name__}: {exc}",
-                    }
-                self.send_json(
-                    {
-                        "schema_version": "rwkv-lh.goal-ui-topology.v1",
-                        "supervisor": supervisor,
-                        "selector": {
-                            **selector,
-                            "device": os.environ.get(
-                                "RWKV_LH_SELECTOR_DEVICE_LABEL", "local GPU0"
-                            ),
-                        },
-                        "executor": {
-                            **executor,
-                            "profile": os.environ.get(
-                                "RWKV_STATE_PROFILE_ID", ""
-                            ),
-                            "device": os.environ.get(
-                                "RWKV_LH_EXECUTOR_DEVICE_LABEL", "remote GPU0"
-                            ),
-                        },
-                        "harness": {
-                            "available": True,
-                            "scope": "isolated workspace",
-                            "audit": "append-only CausalEvent",
-                        },
-                    }
-                )
+                    client.close()
+                self.send_json({"runtime": "direct_rwkv", "executor": executor,
+                                "harness": {"available": True, "scope": "isolated workspace"},
+                                "strong_assistance": "not enabled in frontend"})
                 return
             if path == "/api/runs":
                 rows = []

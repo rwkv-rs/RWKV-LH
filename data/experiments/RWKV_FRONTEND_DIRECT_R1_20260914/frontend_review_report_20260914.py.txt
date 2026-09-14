@@ -1,0 +1,65 @@
+from pathlib import Path
+import json,hashlib
+r=Path('/home/chase/GitHub/RWKV-LH');d=r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914'
+mechanical=json.loads((d/'MECHANICAL.json').read_text());serial=json.loads((d/'SERIAL_BROWSER_RESULTS.json').read_text());prior=json.loads((d/'RECOVERED_BROWSER_RESULTS.json').read_text());rows=[]
+for b in serial+prior:
+ summary=b.get('collected_summary') or b['summary'];result=summary['result'];a=result['actions'];m=next(x for x in mechanical['runs'] if x['run']==b['run_id'])
+ assert b['displayed_final']==result['final']==result['final_output']
+ assert result['termination']=='submitted' and result['generation_started']==2 and result['protocol_rejections']==0 and len(a)==1
+ if b['demo']=='read-health':
+  assert a[0]['action_type']=='read_file' and a[0]['arguments']['path']=='verify_public.py'
+  note='人工按预登记主要信息核对：健康端点、200/ok判断和不验证预订/订单的限制均覆盖；未声称真实运行。未因省略超时、关闭连接等细节扣整组分。'
+ else:
+  assert a[0]['action_type']=='check_command'
+  assert a[0]['result']['exit_code']==0 and json.loads(a[0]['result']['output'])['passed'] is True
+  assert all(json.loads(a[0]['result']['output'])['checks'].values())
+  note='实际运行指定脚本，stdout为checks全true与passed=true；回答准确报告该项测试通过，未扩大为项目全部要求通过。'
+  if '工作区中的三个文件' in result['final']:note+=' 沿用预登记minor规则：将临时测试夹具称为工作区文件是轻微措辞问题，不改变实际测试通过含义。'
+ rows.append({'id':b['run_id'],'batch':'serial_gate' if b in serial else 'concurrent_diagnostic','demo':b['demo'],'repeat':b['repeat'],'task_verdict':'met','review_method':'external human-style semantic review by Codex; no reference answer sent to RWKV','review':note,'submitted':True,'mutation_count':0,'termination_reason':result['termination_reason'],'model_calls':result['generation_started'],'protocol_rejections':result['protocol_rejections'],'input_tokens':sum(c['input_tokens'] for c in m['calls']),'output_tokens':sum(c['output_tokens'] for c in m['calls']),'elapsed_monotonic_seconds':result['elapsed_seconds'],'final':result['final']})
+(d/'EXTERNAL_REVIEW.json').write_text(json.dumps({'rows':rows,'serial_gate':'PASS: 4/4, both fixed tasks pass twice; original raw first batch separate','limitations':['Not project Strict or universal stability','Parallel first batch was unplanned; no throughput/cost benefit claim','No price/energy measurement; no qualified-project cost claim','Readonly-only task acceptance; coding UI has engineering integration tests, not a new real coding capability acceptance']},ensure_ascii=False,indent=2)+'\n')
+serialrows=[x for x in rows if x['batch']=='serial_gate'];priorrows=[x for x in rows if x['batch']!='serial_gate']
+report='''# RWKV_FRONTEND_DIRECT_R1_20260914
+
+## 任务级结果
+
+- 固定串行组：2 个任务 × 2 遍，**4/4 合格、4/4 自主提交、mutation 0**；全部 `answer_submitted`，零非法参数、零虚称执行、零无总结终止。固定门通过，不能称为项目级 Strict 或普遍稳定。
+- 首批采集脚本遭遇 CSP unsafe-eval 拒绝，错误地继续启动后续任务，实际成为并发4；4/4 任务事后核对合格，原采集错误、原JSON与恢复读取记录保留，**不并入串行门或宣称并发收益**。
+- 读取脚本需说明健康检查和业务验证边界，一般实现细节允许省略；指定测试需真实执行、stdout checks/pass与退出码共同成立，回答不得扩大为全项目通过。外部语义核对不按固定实现路径或逐字答案匹配，全部原文见 EXTERNAL_REVIEW。
+- 指定测试若把临时测试夹具称为“工作区文件”，按预登记规则记录为minor；没有隐藏这一措辞问题。
+
+## 执行与 State
+
+'''
+for name,items in [('串行组',serialrows),('首批并发诊断',priorrows)]:
+ report+=f"- {name}：{sum(x['model_calls'] for x in items)} 次 RWKV 生成，精确完整逻辑输入 {sum(x['input_tokens'] for x in items)} token / 输出 {sum(x['output_tokens'] for x in items)} token。每次任务一次自主工具调用、一次自主回答。\n"
+report+='''- 全部16次原始输入用生产 bootstrap/event renderer重建，与完整prompt token IDs逐一相等；核对zero配置、模型SHA、native父digest、工具观察完整性和只注入一次。保存重建输入、原始输出、精确token、完整工具结果与State树。该检查不等于验证内部张量数值语义。
+- 调用、耗时和身份详见 MECHANICAL、EXTERNAL_REVIEW、8个下载审计包。无强模型调用、无训练、新数据集版本或服务源码变更。原始文件来自已有获准实验，仅打包到前端演示材料，不产生训练数据。
+
+## 工程整改
+
+1. 已确认前端原来依赖旧 strong Planner / Selector / Auditor 产品入口，与近期直接RWKV诊断链路不同。现在 worker 调用现有 `run_read_only_job` / `run_coding_job`，两者复用同一个生产 `_run_job`、Controller 和输入构造，UI不渲染模型协议或改写回答。新任务不增加角色或补偿调用。旧记录仅可查阅；本轮没有大规模重构其他历史CLI入口。
+2. 用户明确选择 files/inspect/coding 权限、调用与墙钟预算。独立任务zero、连续执行State延续。预算耗尽如实interrupted；提交显示submitted/未外部验收。暂不提供未经验证的State续跑，拒绝无上限自动恢复。
+3. 证据、State、文件与ZIP导出跟随真实执行目录；coding文件页展示复制后的delivery/workspace。原输入和模型回答不重写。
+4. 删除前端多角色就绪依赖和自动验收/通用项目演示承诺，加入两份有来源的演示任务与文件；没有预制答案、路径特判或强制工具顺序。
+5. 回归发现续跑拒绝检查先于活动任务互斥检查，保留原活动任务检查优先级后27相关测试通过。实际互斥锁、继承worker claim和PID恢复规则保留。
+6. 浏览器发现长任务将197px历史列撑到1052px。红灯实际测量后修为194px，加入持久浏览器回归；增大回答字号。**布局改动在全部真实串行任务结束后进行**，最终源码与模型运行冻结仅CSS、浏览器测试断言有差异，不改变模型输入/执行/State链路。
+
+## 过程与限制
+
+- RED.log：三项新入口回归先失败；GREEN / BROWSER_AND_UNIT / MANAGER_BROWSER_GREEN / FINAL_BROWSER_GREEN记录逐步通过。两个旧worker无限重试测试由直接执行、原文与硬预算测试替代，旧角色依赖不保留为第二执行路径。
+- 首次全量有3项检查顺序失败；另一次并行pytest错误共享默认basetemp，引发数据库目录删除的基础设施失败。保留原日志；后续pytest串行执行。中间全量在布局修复前主动中止，不能算通过；最终以FULL_TESTS_VERIFIED.log完整结果为准。
+- 原owner五处diff逐字保持，未包含在本轮提交。测试运行身份包含这些原有工作区修改，最终源码清单明确登记；不声称远端提交和含owner修改的本地工作树字节相同。
+- 前端会运行真实模型，重演不保证每次成功。当前示例合格不代表通用bug诊断、强模型协作或多文件自主交付可靠。下一步继续围绕失败测试→源码→有证据诊断，并在前端显式区分独立、建议与接管。
+
+## 演示
+
+打开 http://localhost:8766，点击“阅读健康检查脚本”或“运行递归扫描测试”→开始执行。历史成功记录也可直接打开、查看真实调用及下载证据。
+
+串行成功记录：
+'''
+for row in serialrows:report+=f"- {row['demo']} 第{row['repeat']}遍：`{row['id']}`，{row['elapsed_monotonic_seconds']:.2f}秒。\n"
+(d/'REPORT.zh-CN.md').write_text(report)
+# Store the actual scripts as reproducible evidence without production depending on temp.
+for name in ('frontend_direct_tests_20260914.py','frontend_direct_impl_20260914.py','frontend_assets_20260914.py','frontend_freeze_20260914.py','frontend_live_demo_20260914.py','frontend_collect_existing_20260914.py','frontend_serial_demo_20260914.py','audit_frontend_direct_20260914.py','frontend_layout_probe_20260914.py','frontend_layout_fix_20260914.py','frontend_review_report_20260914.py'):
+ (d/(name+'.txt')).write_bytes((r/'temp'/name).read_bytes())
+print('serial',len(serialrows),'prior',len(priorrows),'tokens',sum(x['input_tokens']+x['output_tokens'] for x in rows))

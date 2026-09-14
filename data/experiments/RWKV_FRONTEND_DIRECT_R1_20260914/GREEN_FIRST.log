@@ -1,0 +1,79 @@
+.F.......F...F                                                           [100%]
+=================================== FAILURES ===================================
+________ test_manual_repository_rejects_retired_architecture_selection _________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_manual_repository_rejects0')
+
+    def test_manual_repository_rejects_retired_architecture_selection(tmp_path: Path) -> None:
+        repository = ManualRunRepository(tmp_path)
+        with pytest.raises(ValueError, match="retired"):
+            repository.create(
+                {"request": "test", "state_router_shadow": True, "seed_files": []}
+            )
+>       with pytest.raises(ValueError, match="stateful_goal"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'stateful_goal'
+E         Actual message: 'supervisor_mode must be direct_rwkv'
+
+tests/test_web_ui.py:57: AssertionError
+___________ test_direct_worker_uses_shared_loop_and_preserves_answer ___________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_direct_worker_uses_shared0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76ec645c9b70>
+
+    def test_direct_worker_uses_shared_loop_and_preserves_answer(tmp_path, monkeypatch):
+        from rwkv_lh import web_worker
+        from test_read_only_agent import factory
+        from test_unified_controller import call, settings
+        repository, metadata = create_repository_run(tmp_path, "UI-DIRECT")
+        root = repository.run_root(metadata["run_id"])
+        monkeypatch.setattr(web_worker, "direct_settings", settings)
+        monkeypatch.setattr(web_worker, "create_model_session", factory([
+            call("read_file", path="input.txt"),
+            call("final_answer", text="  原始回答\n"),
+        ]))
+        assert run_web_worker(root, resume=False, max_transitions=2) == 0
+        summary = repository.summary(metadata["run_id"])
+        assert summary["result"]["final_output"] == "  原始回答\n"
+        assert summary["result"]["acceptance"] == "not_evaluated"
+        assert summary["result"]["generation_started"] == 2
+        assert repository.trace(metadata["run_id"])["total"] > 0
+        assert repository.events(metadata["run_id"])["events"]
+>       assert summary["state"]["actions"][0]["action_type"] == "read_file"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'action_type'
+
+tests/test_web_ui.py:122: KeyError
+__ test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model ___
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_http_api_serves_ui_capabi0')
+
+    def test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model(tmp_path: Path) -> None:
+        repository = ManualRunRepository(tmp_path)
+        server = build_server("127.0.0.1", 0, tmp_path)
+        fake = FakeManager(repository)
+        server.repository = repository
+        server.manager = fake  # type: ignore[assignment]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            status, capabilities = request_json(base + "/api/capabilities")
+            assert status == 200
+            assert capabilities["latest_formal"] is None
+            assert capabilities["latest_diagnostic"] is None
+>           assert capabilities["validation_status"] == "awaiting_all_zero_baseline"
+E           AssertionError: assert 'fixed_task_diagnostics_only' == 'awaiting_all_zero_baseline'
+E             
+E             - awaiting_all_zero_baseline
+E             + fixed_task_diagnostics_only
+
+tests/test_web_ui.py:218: AssertionError
+----------------------------- Captured stderr call -----------------------------
+14/Sep/2026 07:42:25 "GET /api/capabilities HTTP/1.1" 200 -
+=========================== short test summary info ============================
+FAILED tests/test_web_ui.py::test_manual_repository_rejects_retired_architecture_selection
+FAILED tests/test_web_ui.py::test_direct_worker_uses_shared_loop_and_preserves_answer
+FAILED tests/test_web_ui.py::test_http_api_serves_ui_capabilities_and_creates_scoped_run_without_model
+3 failed, 11 passed in 2.10s

@@ -1,0 +1,36 @@
+from pathlib import Path
+import json,time,urllib.request,hashlib
+from playwright.sync_api import sync_playwright
+r=Path('/home/chase/GitHub/RWKV-LH');out=r/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914'
+def get(path):
+ with urllib.request.urlopen('http://127.0.0.1:8766'+path,timeout=30) as response:return json.load(response)
+rows=[]
+with sync_playwright() as pw:
+ browser=pw.chromium.launch(headless=True)
+ for repeat in (1,2):
+  for demo in ('read-health','run-recursive'):
+   page=browser.new_page(viewport={'width':1440,'height':1100});errors=[]
+   page.on('pageerror',lambda e:errors.append(str(e)))
+   page.goto('http://127.0.0.1:8766')
+   page.locator('[data-demo="'+demo+'"]').click()
+   page.screenshot(path=str(out/f'{demo}-r{repeat}-input.png'),full_page=True)
+   with page.expect_response(lambda response: response.url.endswith('/api/runs') and response.request.method=='POST') as response:
+    page.locator('#startButton').click()
+   runid=response.value.json()['run']['run_id']
+   row={'demo':demo,'repeat':repeat,'run_id':runid,'started_monotonic':time.monotonic()}
+   print(json.dumps({'started':row}),flush=True)
+   try:
+    page.wait_for_function('app.summary && ["finished","blocked","failed","stopped"].includes(app.summary.metadata.phase)',timeout=390000)
+    row['summary']=get('/api/runs/'+runid)
+    row['displayed_final']=page.locator('#finalOutput').text_content()
+    row['displayed_status']=page.locator('#runStatus').text_content()
+    page.screenshot(path=str(out/f'{demo}-r{repeat}-result.png'),full_page=True)
+    with page.expect_download() as download:
+     page.locator('#exportButton').click()
+    download.value.save_as(out/f'{demo}-r{repeat}-audit.zip')
+   except Exception as e: row['browser_error']=str(e);row['summary']=get('/api/runs/'+runid)
+   row['elapsed_monotonic']=time.monotonic()-row['started_monotonic'];row['page_errors']=errors
+   rows.append(row);(out/'LIVE_BROWSER_RESULTS.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
+   print(json.dumps({'finished':runid,'status':row['summary']['metadata'],'final':row['summary'].get('result',{}).get('final')},ensure_ascii=False),flush=True)
+   page.close()
+ browser.close()
