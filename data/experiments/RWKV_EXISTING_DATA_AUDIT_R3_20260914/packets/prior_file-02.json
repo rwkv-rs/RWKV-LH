@@ -1,0 +1,85 @@
+{
+  "source_id": "prior_file-02",
+  "family": "CLI",
+  "goal": "阅读指定文件 README.md，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+  "source_content": "# Team timebook\n\nImplement `timebook.py` using only Python's standard library and durable SQLite storage. Commands:\n\n- `python timebook.py add DB --id ID --project PROJECT --start ISO --end ISO`\n- `python timebook.py import DB INPUT_JSON`\n- `python timebook.py stats DB --from YYYY-MM-DD --to YYYY-MM-DD`\n\nAn event has exactly `id`, `project`, `start`, `end`, all nonempty strings. Preserve nonempty IDs/project names exactly; reject whitespace-only ones. Timestamps use ISO 8601 with explicit UTC offset or Z, whole-second precision, and end strictly after start. Import is a JSON array of events. No overlap restriction is imposed: recorded durations are summed independently.\n\nEvents are identified globally by ID. Normalize timestamps to UTC for duplicate comparisons. Reimporting an identical ID/project/time interval is a no-op; a conflicting ID is an error. An invalid record or conflicting ID rejects the entire import transaction, including earlier valid records from that batch. Empty imports are valid. Add and import print `{\"inserted\": N, \"duplicates\": N}`; add follows the same duplicate rules. A new DB is created as needed.\n\nStats uses UTC calendar dates and a half-open range `[from, to)`, where `to` is the excluded midnight. Reject invalid or reversed/empty date ranges. Split intervals at UTC midnight and clip to the requested range, including leap days and offset conversions. Return `{\"days\": [{\"date\": \"YYYY-MM-DD\", \"projects\": {\"project\": integer_seconds}, \"total_seconds\": integer_seconds}], \"total_seconds\": integer_seconds}`. Include only days with recorded duration, ordered chronologically; project keys must be emitted in sorted order. Empty results contain an empty days array and total 0. Each CLI invocation is a new process, so persistence and duplicate detection must survive restarts. Errors exit nonzero with diagnostics; successful stdout is one JSON document. Include your own tests and update this README with usage and verification instructions.\n",
+  "source_reference": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/prior_file-02/workspace/README.md",
+    "sha256": "2104c21d27b554108203cf006101ed8b8e565d82598f6c2c5d11c85d5507dfb6"
+  },
+  "run_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/prior_file-02",
+  "rows": [
+    {
+      "sample_id": "prior_file-02-read-1",
+      "authority": "executed_read",
+      "checkpoint": "CP-1c74e46f37f64285",
+      "input_sha256": "00298fcbdfc72a1aab9c3b9d8681a7507de8430c05eaa8f479025bf126cb742f",
+      "target_sha256": "0c4497f4ec60f503139f794228214c0f88920801ee2b83e40a416d0586559d34",
+      "answer": null,
+      "raw_target": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\", \"max_tokens\": 4096, \"start_byte\": 0}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v2",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "8c8e9221cadafe8fa4f5e6e9bf432dba1f574239493090992cbdf0460f77fe6d",
+      "answer": "README.md 是“Team timebook”项目说明，要求仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个子命令。事件含 id、project、start、end 四个非空字符串字段；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，end 必须严格晚于 start；不限制时间重叠，时长独立累加。事件按 ID 全局标识，重复比较时归一化到 UTC：相同 ID/项目/区间重导入为无操作，ID 冲突报错；任一条无效或冲突会拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates 计数。stats 按 UTC 日历日期与半开区间 [from,to) 统计，跨午夜拆分并裁剪，返回 days 数组及 total_seconds 的 JSON，只包含有记录的日期，项目键按排序输出。README 还要求自带测试并在其中更新用法与验证说明。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 是“Team timebook”项目说明，要求仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个子命令。事件含 id、project、start、end 四个非空字符串字段；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，end 必须严格晚于 start；不限制时间重叠，时长独立累加。事件按 ID 全局标识，重复比较时归一化到 UTC：相同 ID/项目/区间重导入为无操作，ID 冲突报错；任一条无效或冲突会拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates 计数。stats 按 UTC 日历日期与半开区间 [from,to) 统计，跨午夜拆分并裁剪，返回 days 数组及 total_seconds 的 JSON，只包含有记录的日期，项目键按排序输出。README 还要求自带测试并在其中更新用法与验证说明。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v3",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "5eec0df72ec0950275b5b093b4b12fb4fd187991dc3292d8108e959a6e013eda",
+      "answer": "README.md 是 'Team timebook' 项目说明：用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个 CLI 子命令（add DB --id --project --start --end；import DB INPUT_JSON；stats DB --from --to）。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名须原样保留，拒绝纯空白；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，end 严格晚于 start。导入是 JSON 数组，不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较时归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突为错误；任一条无效或冲突会拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates。stats 使用 UTC 日历日期和半开区间 [from,to)，拒绝无效或反向/空区间；按 UTC 午夜拆分并裁剪，返回 days 数组与 total_seconds，只含有记录的日期，项目键排序；空结果 days 为空、total 为 0。每次 CLI 是新进程，持久化与重复检测须跨重启；错误非零退出并给诊断，成功 stdout 为一个 JSON 文档；README 要求自带测试并更新用法与验证说明。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 是 'Team timebook' 项目说明：用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个 CLI 子命令（add DB --id --project --start --end；import DB INPUT_JSON；stats DB --from --to）。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名须原样保留，拒绝纯空白；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，end 严格晚于 start。导入是 JSON 数组，不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较时归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突为错误；任一条无效或冲突会拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates。stats 使用 UTC 日历日期和半开区间 [from,to)，拒绝无效或反向/空区间；按 UTC 午夜拆分并裁剪，返回 days 数组与 total_seconds，只含有记录的日期，项目键排序；空结果 days 为空、total 为 0。每次 CLI 是新进程，持久化与重复检测须跨重启；错误非零退出并给诊断，成功 stdout 为一个 JSON 文档；README 要求自带测试并更新用法与验证说明。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v4",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "76ed99020af5e5ffe00ac55cb5e62b44c7fedbec879dd00f9efd04a6c73f1d24",
+      "answer": "README.md 是“Team timebook”需求说明，不构成已实现证明。它要求仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个命令：add DB --id ID --project PROJECT --start ISO --end ISO；import DB INPUT_JSON；stats DB --from YYYY-MM-DD --to YYYY-MM-DD。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名原样保留，纯空白拒绝。时间戳为带显式 UTC 偏移或 Z 的 ISO 8601，整秒精度，end 严格晚于 start。import 接 JSON 事件数组；不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较先归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突报错；任一条无效或冲突拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates 的计数；新库按需创建。stats 用 UTC 日历日期和半开区间 [from,to)，to 为不包含的午夜；拒绝无效或反向/空范围；跨 UTC 午夜拆分并裁剪，含闰日和偏移转换；返回 days（仅有记录日期，按时间排序，projects 键排序）和 total_seconds；空结果 days 空、total 0。每次 CLI 是新进程，持久化与去重须跨重启。错误非零退出，成功 stdout 一个 JSON 文档；README 还要求自带测试并更新用法与验证说明。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 是“Team timebook”需求说明，不构成已实现证明。它要求仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个命令：add DB --id ID --project PROJECT --start ISO --end ISO；import DB INPUT_JSON；stats DB --from YYYY-MM-DD --to YYYY-MM-DD。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名原样保留，纯空白拒绝。时间戳为带显式 UTC 偏移或 Z 的 ISO 8601，整秒精度，end 严格晚于 start。import 接 JSON 事件数组；不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较先归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突报错；任一条无效或冲突拒绝整批导入，空导入有效。add/import 输出 inserted 与 duplicates 的计数；新库按需创建。stats 用 UTC 日历日期和半开区间 [from,to)，to 为不包含的午夜；拒绝无效或反向/空范围；跨 UTC 午夜拆分并裁剪，含闰日和偏移转换；返回 days（仅有记录日期，按时间排序，projects 键排序）和 total_seconds；空结果 days 空、total 0。每次 CLI 是新进程，持久化与去重须跨重启。错误非零退出，成功 stdout 一个 JSON 文档；README 还要求自带测试并更新用法与验证说明。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v5",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "83545e92e2b028bba4fa74d3b136dfb95708318797c790950d4ee99dcbd46dc9",
+      "answer": "README.md 是 Team timebook 的需求说明，而非已实现证明。它要求只用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三条命令。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名原样保留，纯空白拒绝；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，且 end 严格晚于 start。import 接收 JSON 事件数组，不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较先归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突报错；任一条无效或冲突会拒绝整批导入，空导入有效；add 遵循相同重复规则。add/import 输出 inserted 与 duplicates 计数，新库按需创建。stats 使用 UTC 日历日期和半开区间 [from, to)，to 为不包含的午夜；拒绝无效、反向或空范围；跨 UTC 午夜拆分并裁剪，处理闰日与偏移转换；返回 days 数组和 total_seconds，仅含有记录的日期，projects 键排序；空结果 days 为空、total 为 0。每次 CLI 是新进程，持久化和重复检测须跨重启；错误非零退出并给诊断，成功 stdout 为一个 JSON 文档。README 还要求自带测试并更新用法与验证说明。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 是 Team timebook 的需求说明，而非已实现证明。它要求只用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三条命令。事件含 id、project、start、end 四个非空字符串；非空 ID/项目名原样保留，纯空白拒绝；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，且 end 严格晚于 start。import 接收 JSON 事件数组，不限制重叠，时长独立累加。事件按 ID 全局标识；重复比较先归一化到 UTC；相同 ID/项目/区间重导入为 no-op，ID 冲突报错；任一条无效或冲突会拒绝整批导入，空导入有效；add 遵循相同重复规则。add/import 输出 inserted 与 duplicates 计数，新库按需创建。stats 使用 UTC 日历日期和半开区间 [from, to)，to 为不包含的午夜；拒绝无效、反向或空范围；跨 UTC 午夜拆分并裁剪，处理闰日与偏移转换；返回 days 数组和 total_seconds，仅含有记录的日期，projects 键排序；空结果 days 为空、total 为 0。每次 CLI 是新进程，持久化和重复检测须跨重启；错误非零退出并给诊断，成功 stdout 为一个 JSON 文档。README 还要求自带测试并更新用法与验证说明。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v6",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "345e4fb5d8c53acd35a93fa7ce925a509d0be916c30676b1b010959427ba5b6c",
+      "answer": "README 要求实现 timebook.py：仅用 Python 标准库和 SQLite 持久化。每条 CLI 调用都是新进程，因此持久化和重复检测须跨重启存活。事件恰含 id、project、start、end 四个非空字符串字段；非空 ID 和项目名须原样保留，纯空白应拒绝。时间戳使用 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 必须严格晚于 start。提供 add、import、stats 命令；import 接收 JSON 事件数组，ID 全局标识，时间戳归一化到 UTC 后比较：相同 ID、项目和区间重复导入为 no-op，冲突 ID 报错并拒绝整批导入，空导入有效；add 遵循同样重复规则。没有重叠限制，时长独立求和。add 和 import 成功时输出 inserted 与 duplicates 计数的 JSON 对象。stats 使用 UTC 日历日期和半开区间 [from, to)，拒绝无效、反向或空区间；按 UTC 午夜拆分并裁剪到区间，覆盖闰日和偏移转换。输出 days、按项目整数秒和 total_seconds；只包含有记录的日子，按时间排序，项目键按序；空结果 days 为空数组且 total_seconds 为 0。错误非零退出并给出诊断，成功 stdout 是一个 JSON 文档。README 还要求自带测试并更新使用与验证说明。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 要求实现 timebook.py：仅用 Python 标准库和 SQLite 持久化。每条 CLI 调用都是新进程，因此持久化和重复检测须跨重启存活。事件恰含 id、project、start、end 四个非空字符串字段；非空 ID 和项目名须原样保留，纯空白应拒绝。时间戳使用 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 必须严格晚于 start。提供 add、import、stats 命令；import 接收 JSON 事件数组，ID 全局标识，时间戳归一化到 UTC 后比较：相同 ID、项目和区间重复导入为 no-op，冲突 ID 报错并拒绝整批导入，空导入有效；add 遵循同样重复规则。没有重叠限制，时长独立求和。add 和 import 成功时输出 inserted 与 duplicates 计数的 JSON 对象。stats 使用 UTC 日历日期和半开区间 [from, to)，拒绝无效、反向或空区间；按 UTC 午夜拆分并裁剪到区间，覆盖闰日和偏移转换。输出 days、按项目整数秒和 total_seconds；只包含有记录的日子，按时间排序，项目键按序；空结果 days 为空数组且 total_seconds 为 0。错误非零退出并给出诊断，成功 stdout 是一个 JSON 文档。README 还要求自带测试并更新使用与验证说明。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v7",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "9ffdbcfce352d9cba6bdf47f810a6490caab361e2f941216cf99e83c7572f13d",
+      "answer": "README.md 是“Team timebook”的实现任务说明：需仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个 CLI；事件字段为 id、project、start、end，均须非空字符串，ID/project 原样保存但拒绝纯空白；时间戳为 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 严格晚于 start。导入为 JSON 数组，无重叠限制，时长独立相加；按 ID 全局标识，比较时归一到 UTC；相同 id/project/区间可重复导入视为 no-op，冲突 ID 报错，单条无效或冲突会回滚整批导入，空导入有效。add 与 import 输出 {\"inserted\": N, \"duplicates\": N}。stats 用 UTC 日历日、半开区间 [from,to)，按 UTC 午夜切分并裁剪，支持闰日和偏移换算，返回 days 及 total_seconds，按日期排序、项目键排序，仅含有记录时长的日期；空结果为 days 空数组且 total_seconds 为 0。每次 CLI 为新进程，持久化和重复检测须跨重启；错误非零退出并输出诊断，成功 stdout 为单个 JSON 文档。文档还要求自带测试并更新 README 说明用法与验证。局限：以上只来自 README 规范，未观察到 timebook.py 实际实现或测试运行。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 是“Team timebook”的实现任务说明：需仅用 Python 标准库和持久化 SQLite 实现 timebook.py，提供 add、import、stats 三个 CLI；事件字段为 id、project、start、end，均须非空字符串，ID/project 原样保存但拒绝纯空白；时间戳为 ISO 8601、显式 UTC 偏移或 Z、整秒精度，且 end 严格晚于 start。导入为 JSON 数组，无重叠限制，时长独立相加；按 ID 全局标识，比较时归一到 UTC；相同 id/project/区间可重复导入视为 no-op，冲突 ID 报错，单条无效或冲突会回滚整批导入，空导入有效。add 与 import 输出 {\\\"inserted\\\": N, \\\"duplicates\\\": N}。stats 用 UTC 日历日、半开区间 [from,to)，按 UTC 午夜切分并裁剪，支持闰日和偏移换算，返回 days 及 total_seconds，按日期排序、项目键排序，仅含有记录时长的日期；空结果为 days 空数组且 total_seconds 为 0。每次 CLI 为新进程，持久化和重复检测须跨重启；错误非零退出并输出诊断，成功 stdout 为单个 JSON 文档。文档还要求自带测试并更新 README 说明用法与验证。局限：以上只来自 README 规范，未观察到 timebook.py 实际实现或测试运行。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-02-v8",
+      "authority": "independent_review",
+      "checkpoint": "CP-5c9d45777bbe4077",
+      "input_sha256": "6c4841c80bee16770dc302b8a73677e9785d7858ff3fbc39fc6db106aa33fcea",
+      "target_sha256": "93e6e2fe0448dcc013b344f76d65fc07ce166599f9423070e070f812c2daedbf",
+      "answer": "README.md 标题为 Team timebook，是一份任务说明而非实现记录：要求仅用 Python 标准库与 SQLite 实现 timebook.py，提供 add、import、stats 三条命令；事件由 id、project、start、end 四个非空字符串组成，空白串须拒绝；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，且 end 严格晚于 start。import 接收 JSON 数组，ID 全局唯一，比较前将时间归一为 UTC；相同 ID、project、区间重复导入为 no-op，冲突 ID 报错并使整批导入回滚，含此前该批有效记录，空导入有效；add 与 import 输出 inserted 和 duplicates 计数，数据库按需新建。stats 使用 UTC 日历日与半开区间，跨 UTC 零点拆分并裁剪到区间，含闰日与偏移换算，非法或倒置空区间须拒绝；返回按日期升序的 days，其中项目键按字典序，附带总计秒数，仅含有记录时长的日期，空结果 days 为空、总计为 0。文档要求每次 CLI 为新进程仍保持持久化与重复检测，错误非零退出并给出诊断，成功时 stdout 仅一个 JSON 文档，并自行附带测试、更新 README 的用法与验证说明。本次只完整读取了 README.md，未观察到 timebook.py 源码或测试实际运行。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 标题为 Team timebook，是一份任务说明而非实现记录：要求仅用 Python 标准库与 SQLite 实现 timebook.py，提供 add、import、stats 三条命令；事件由 id、project、start、end 四个非空字符串组成，空白串须拒绝；时间戳为带显式 UTC 偏移或 Z 的 ISO 8601 整秒精度，且 end 严格晚于 start。import 接收 JSON 数组，ID 全局唯一，比较前将时间归一为 UTC；相同 ID、project、区间重复导入为 no-op，冲突 ID 报错并使整批导入回滚，含此前该批有效记录，空导入有效；add 与 import 输出 inserted 和 duplicates 计数，数据库按需新建。stats 使用 UTC 日历日与半开区间，跨 UTC 零点拆分并裁剪到区间，含闰日与偏移换算，非法或倒置空区间须拒绝；返回按日期升序的 days，其中项目键按字典序，附带总计秒数，仅含有记录时长的日期，空结果 days 为空、总计为 0。文档要求每次 CLI 为新进程仍保持持久化与重复检测，错误非零退出并给出诊断，成功时 stdout 仅一个 JSON 文档，并自行附带测试、更新 README 的用法与验证说明。本次只完整读取了 README.md，未观察到 timebook.py 源码或测试实际运行。\"}}\n```"
+    }
+  ]
+}

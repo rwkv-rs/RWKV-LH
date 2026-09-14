@@ -1,0 +1,49 @@
+{
+  "source_id": "index_requirements_first",
+  "family": "MAINT",
+  "goal": "阅读以下文件：README.md、document_index/store.py。以源码为依据说明实际实现的行为、与需求的差距或有证据的缺陷。将需求描述、代码推断、本次实际工具操作和未执行的验证建议分开。不要修改文件，不补充没有源码支持的实现，不声称运行未执行的测试。",
+  "source_content": "from __future__ import annotations\nimport sqlite3\n\ndef existing(database):\n    return sqlite3.connect(database)\n\ndef synchronize(database, root, documents):\n    with sqlite3.connect(database) as connection:\n        connection.execute('CREATE TABLE IF NOT EXISTS documents (path TEXT PRIMARY KEY, content TEXT NOT NULL, digest TEXT NOT NULL, search TEXT NOT NULL, mtime INTEGER NOT NULL)')\n        connection.execute('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)')\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        old = dict(connection.execute('SELECT path,mtime FROM documents'))\n        counts = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}\n        for row in documents:\n            if old.get(row['path']) == row['mtime']:\n                counts['unchanged'] += 1\n                continue\n            counts['updated' if row['path'] in old else 'added'] += 1\n            connection.execute('INSERT OR REPLACE INTO documents VALUES (?,?,?,?,?)', (row['path'], row['content'], row['digest'], row['search'], row['mtime']))\n            connection.commit()\n        generation = int(metadata.get('generation', '0')) + 1\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('root',?)\", (str(root),))\n        connection.execute(\"INSERT OR REPLACE INTO metadata VALUES ('generation',?)\", (str(generation),))\n        return {**counts, 'generation': generation}\n\ndef status(database):\n    with existing(database) as connection:\n        metadata = dict(connection.execute('SELECT key,value FROM metadata'))\n        count = connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0]\n        return {'document_count': count, 'generation': int(metadata['generation']), 'root': metadata['root']}\n",
+  "source_reference": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/index_requirements_first/workspace/document_index/store.py",
+    "sha256": "e4361550a79cddee0af5821d2bfc4b1e32dbb5cddd4e0528d92d458854b02e03"
+  },
+  "run_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/index_requirements_first",
+  "rows": [
+    {
+      "sample_id": "index_requirements_first-read-2",
+      "authority": "executed_read",
+      "checkpoint": "CP-076d53b9475e4fa2",
+      "input_sha256": "3ee1284918bf3d662ad67234aa6ce18158e4d473f7c21764870ef010e4e26259",
+      "target_sha256": "2e60346fc24cec02ef55857d6d990e0f9a1bee8fec522cb63d51b84d9a55f67c",
+      "answer": null,
+      "raw_target": "{\"function\": \"read_file\", \"params\": {\"path\": \"document_index/store.py\"}}\n```"
+    },
+    {
+      "sample_id": "index_requirements_first-v5",
+      "authority": "independent_review",
+      "checkpoint": "CP-823b879111fb4707",
+      "input_sha256": "768bc2a32c095934da296c3224559aecc53e0671f5cd1e667c00ce64c551cfe8",
+      "target_sha256": "55b805e1ea8766e92e37f9c3324561115acc559516f099e8475f0115085e0f81",
+      "answer": "证据来源：本次仅执行两次 read_file，分别完整读取 README.md（2194 字节，eof、未截断）与 document_index/store.py（1789 字节，eof、未截断）；未改动任何文件，未运行 index_cli.py 或测试。\n需求（README.md 文本，非已验证实现）：sync 递归索引 .md/.txt，相对路径用 POSIX、跳过符号链接；按内容而非 mtime/size 判变化；删除须从索引移除；返回 {added,updated,deleted,unchanged,generation} 且仅增/改/删时 generation 加 1；任一目标文件非严格 UTF-8 或读取失败则整次原子失败；DB 绑定首次 root；query 对内容与 TEXT 做 NFC 后 casefold 的字面子串匹配（Straße 匹配 STRASSE），按路径升序每文档一次；query/status 不写库。\n代码推断的差距（store.py）：unchanged 仅比较 mtime，同时间戳的内容变更会被漏掉；没有删除分支，deleted 恒为 0 且旧行残留；generation 每次调用无条件加 1；root 直接覆盖写入，换 root 不报错；循环内逐条 commit、无整体事务，因此读取中途失败无法保证原子性；该文件内未见 query 及 NFC/casefold 实现，只写入 search 列。\n未执行的验证建议：sync 增/改/删、同 mtime 改内容、Unicode 查询、坏 UTF-8 原子失败、重启持久性、换 root 报错；工作区清单中没有 index_cli.py 与样例 docs，其 CLI 行为无法核实。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"证据来源：本次仅执行两次 read_file，分别完整读取 README.md（2194 字节，eof、未截断）与 document_index/store.py（1789 字节，eof、未截断）；未改动任何文件，未运行 index_cli.py 或测试。\\n需求（README.md 文本，非已验证实现）：sync 递归索引 .md/.txt，相对路径用 POSIX、跳过符号链接；按内容而非 mtime/size 判变化；删除须从索引移除；返回 {added,updated,deleted,unchanged,generation} 且仅增/改/删时 generation 加 1；任一目标文件非严格 UTF-8 或读取失败则整次原子失败；DB 绑定首次 root；query 对内容与 TEXT 做 NFC 后 casefold 的字面子串匹配（Straße 匹配 STRASSE），按路径升序每文档一次；query/status 不写库。\\n代码推断的差距（store.py）：unchanged 仅比较 mtime，同时间戳的内容变更会被漏掉；没有删除分支，deleted 恒为 0 且旧行残留；generation 每次调用无条件加 1；root 直接覆盖写入，换 root 不报错；循环内逐条 commit、无整体事务，因此读取中途失败无法保证原子性；该文件内未见 query 及 NFC/casefold 实现，只写入 search 列。\\n未执行的验证建议：sync 增/改/删、同 mtime 改内容、Unicode 查询、坏 UTF-8 原子失败、重启持久性、换 root 报错；工作区清单中没有 index_cli.py 与样例 docs，其 CLI 行为无法核实。\"}}\n```"
+    },
+    {
+      "sample_id": "index_requirements_first-v6",
+      "authority": "independent_review",
+      "checkpoint": "CP-823b879111fb4707",
+      "input_sha256": "768bc2a32c095934da296c3224559aecc53e0671f5cd1e667c00ce64c551cfe8",
+      "target_sha256": "20326222d91eee56cf56ddf0a54fac7b3a2c54cd1f27b9f1929f4862c8209419",
+      "answer": "已成功读取 README.md（2194字节，完整）与 document_index/store.py（1789字节，完整）。需求（README）要求：sync 递归索引 .md/.txt UTF-8 普通文件，扩展名不区分大小写，POSIX 相对路径，跳过符号链接；按内容变化识别更新与删除；返回 added、updated、deleted、unchanged、generation，generation 从 0 起仅增删改加 1；坏文件、读错、root 不存在应整次失败且不部分更新；DB 绑定首次 root；query 对内容和 TEXT 做 NFC 后 casefold 字面子串匹配，如 Straße 匹配 STRASSE；status 不修改；重启保留索引。源码推断（store.py）：synchronize 建 documents(path 主键、content、digest、search、mtime) 与 metadata；用旧 path→mtime 比较，相同仅计 unchanged，否则新增或更新并 INSERT OR REPLACE，每行 commit；随后无条件把 generation 加 1 并写 root、generation。status 读 metadata 和 COUNT(*)。证据差距：仅按 mtime 判断会漏掉同时间戳内容变更；无删除逻辑，deleted 恒 0；纯重复同步也增 generation；未见 root 绑定检查；已读片段未见查询、扫描、UTF-8 原子性实现。本次实际工具操作：read_file README.md 与 read_file document_index/store.py 均 success=true、complete=true；未执行测试、未修改文件。建议验证：改内容同 mtime、删除、重复同步、坏文件、换 root、Unicode 查询、重启；需检查 index_cli.py 与其他模块后才能断言完整行为。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已成功读取 README.md（2194字节，完整）与 document_index/store.py（1789字节，完整）。需求（README）要求：sync 递归索引 .md/.txt UTF-8 普通文件，扩展名不区分大小写，POSIX 相对路径，跳过符号链接；按内容变化识别更新与删除；返回 added、updated、deleted、unchanged、generation，generation 从 0 起仅增删改加 1；坏文件、读错、root 不存在应整次失败且不部分更新；DB 绑定首次 root；query 对内容和 TEXT 做 NFC 后 casefold 字面子串匹配，如 Straße 匹配 STRASSE；status 不修改；重启保留索引。源码推断（store.py）：synchronize 建 documents(path 主键、content、digest、search、mtime) 与 metadata；用旧 path→mtime 比较，相同仅计 unchanged，否则新增或更新并 INSERT OR REPLACE，每行 commit；随后无条件把 generation 加 1 并写 root、generation。status 读 metadata 和 COUNT(*)。证据差距：仅按 mtime 判断会漏掉同时间戳内容变更；无删除逻辑，deleted 恒 0；纯重复同步也增 generation；未见 root 绑定检查；已读片段未见查询、扫描、UTF-8 原子性实现。本次实际工具操作：read_file README.md 与 read_file document_index/store.py 均 success=true、complete=true；未执行测试、未修改文件。建议验证：改内容同 mtime、删除、重复同步、坏文件、换 root、Unicode 查询、重启；需检查 index_cli.py 与其他模块后才能断言完整行为。\"}}\n```"
+    },
+    {
+      "sample_id": "index_requirements_first-v8",
+      "authority": "independent_review",
+      "checkpoint": "CP-823b879111fb4707",
+      "input_sha256": "768bc2a32c095934da296c3224559aecc53e0671f5cd1e667c00ce64c551cfe8",
+      "target_sha256": "a6b61b752283647dd54ef9dbdce6c695dec48bf41c80dd3ee273a7d8d2fcea3c",
+      "answer": "实际工具操作：成功读取README.md（0–2194字节，2194字节，成功）和document_index/store.py（0–1789字节，1789字节，成功），工作区摘要未变。\n需求（README）：CLI index_cli.py；sync按内容识别变化、删除、返回计数与generation；原子失败；DB绑定首次root；query做NFC+casefold子串匹配；status不修改。\n实际实现（store.py）：仅existing、synchronize、status；synchronize按mtime比较，mtime相同即unchanged，不检测内容变化；不处理删除；每次同步generation加1；逐行commit；未校验root；无query。\n差距/缺陷推断：同mtime内容变更、删除、Unicode查询、原子回滚、root绑定均无源码支持。\n未执行验证：可运行sync/query/status检查增删改、同mtime、Unicode、坏文件、重启；本次未运行测试。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"实际工具操作：成功读取README.md（0–2194字节，2194字节，成功）和document_index/store.py（0–1789字节，1789字节，成功），工作区摘要未变。\\n需求（README）：CLI index_cli.py；sync按内容识别变化、删除、返回计数与generation；原子失败；DB绑定首次root；query做NFC+casefold子串匹配；status不修改。\\n实际实现（store.py）：仅existing、synchronize、status；synchronize按mtime比较，mtime相同即unchanged，不检测内容变化；不处理删除；每次同步generation加1；逐行commit；未校验root；无query。\\n差距/缺陷推断：同mtime内容变更、删除、Unicode查询、原子回滚、root绑定均无源码支持。\\n未执行验证：可运行sync/query/status检查增删改、同mtime、Unicode、坏文件、重启；本次未运行测试。\"}}\n```"
+    }
+  ]
+}

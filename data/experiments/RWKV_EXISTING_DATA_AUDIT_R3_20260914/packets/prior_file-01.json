@@ -1,0 +1,85 @@
+{
+  "source_id": "prior_file-01",
+  "family": "CLI",
+  "goal": "阅读指定文件 README.md，总结其主要内容。只依据文件中的信息回答，不补充未经文件支持的事实。",
+  "source_content": "# Portable team-folder backup\n\nImplement `backup.py` with Python standard library only. Support these commands from any working directory:\n\n- `python backup.py snapshot SOURCE ARCHIVE`\n- `python backup.py restore ARCHIVE DESTINATION`\n\nSOURCE is a directory; ARCHIVE must be outside it. Include regular files recursively (including hidden, binary, Unicode names and zero-byte files) and preserve empty directories. Reject symbolic links and other non-regular entries. A failed snapshot must not replace a previous ARCHIVE. Directory/file permissions and timestamps do not need preservation.\n\nUse a ZIP archive with a UTF-8 `manifest.json`: `version` is 1, `directories` lists relative POSIX directory paths, and `files` lists objects with `path`, byte `size`, and lowercase `sha256`. File payloads use ZIP member names `files/<relative path>`. Do not add ZIP directory entries. This is an interoperability format, not an instruction to trust the archive.\n\nRestore must validate version, unique names, declared members, file sizes and digests before replacing DESTINATION. Reject undeclared/duplicate members, absolute paths, parent traversal, backslashes, invalid normalized paths and file/directory conflicts. Symlink destinations are invalid. Existing directory contents are replaced only after complete validation; corrupt input or another failure must leave the previous destination intact. Successful restore must not retain old files. Invalid input must never write outside the destination staging area. Support an empty directory snapshot and restore.\n\nEach successful command writes one JSON object to stdout: `files` and `bytes` count restored/snapshotted regular files and their total original byte size. Failures exit nonzero and explain the problem on stderr. Each invocation is a separate process; no process-memory state is available. Keep staging files beside their final target so replacement can be atomic on the same filesystem. Provide self-authored unit tests and document how to use and validate the utility.\n",
+  "source_reference": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/prior_file-01/workspace/README.md",
+    "sha256": "4176ebc6353f7ea618903e5632e5408030b5ed55e711463c56687fec73b3a033"
+  },
+  "run_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/prior_file-01",
+  "rows": [
+    {
+      "sample_id": "prior_file-01-read-1",
+      "authority": "executed_read",
+      "checkpoint": "CP-b3d24f9774374091",
+      "input_sha256": "ecbfec19c2454c719f43233254ec1935361268bbebaa2013db11b0fe83a566e9",
+      "target_sha256": "1b92798cc0af45551f6051cf12339943b792712e6805f33b2ad2d56722834f8b",
+      "answer": null,
+      "raw_target": "{\"function\": \"read_file\", \"params\": {\"path\": \"README.md\", \"start_byte\": 0, \"max_tokens\": 4096}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v1",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "3993f0e34af1d0b3f9d335d4686192d4ab592638ad9f8d3411a244f2c8357fad",
+      "answer": "README.md 要求仅用 Python 标准库实现 backup.py，提供 snapshot 与 restore。snapshot SOURCE ARCHIVE：SOURCE 为目录，ARCHIVE 必须在其外；递归收录所有常规文件（含隐藏、二进制、Unicode 名与零字节文件），保留空目录，拒绝符号链接和其他非普通条目；失败不得替换旧 ARCHIVE。归档为 ZIP，含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 列 path、size、sha256；载荷成员名为 files/<路径>，不加 ZIP 目录条目。restore ARCHIVE DESTINATION：替换前校验 version、名称唯一、声明成员、大小与摘要，拒绝未声明/重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径、文件/目录冲突；符号链接目标无效；完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 和 bytes 统计常规文件数量与总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换；需自编单元测试并说明使用与验证方法。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 要求仅用 Python 标准库实现 backup.py，提供 snapshot 与 restore。snapshot SOURCE ARCHIVE：SOURCE 为目录，ARCHIVE 必须在其外；递归收录所有常规文件（含隐藏、二进制、Unicode 名与零字节文件），保留空目录，拒绝符号链接和其他非普通条目；失败不得替换旧 ARCHIVE。归档为 ZIP，含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 列 path、size、sha256；载荷成员名为 files/<路径>，不加 ZIP 目录条目。restore ARCHIVE DESTINATION：替换前校验 version、名称唯一、声明成员、大小与摘要，拒绝未声明/重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径、文件/目录冲突；符号链接目标无效；完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 和 bytes 统计常规文件数量与总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换；需自编单元测试并说明使用与验证方法。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v2",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "a9f36e9cdd854d33b8743ab56914beaff3338200965e4da42680dc773a09a29c",
+      "answer": "README.md 要求仅用 Python 标准库实现一个可移植的团队文件夹备份工具 backup.py，支持 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两个命令。SOURCE 应为目录，ARCHIVE 必须位于其外。snapshot 递归包含常规文件（含隐藏、二进制、Unicode 名称和零字节文件），保留空目录，拒绝符号链接及其他非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档为 ZIP，内含 UTF-8 的 manifest.json：version 为 1，directories 列相对 POSIX 目录路径，files 每项含 path、字节 size 和小写 sha256；载荷成员名为 files/<相对路径>，不添加 ZIP 目录条目。restore 在替换 DESTINATION 前校验 version、名称唯一性、声明成员、文件大小与摘要，拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 与 bytes 统计常规文件数量和总原始字节；失败非零退出并在 stderr 说明。每次调用是独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 要求仅用 Python 标准库实现一个可移植的团队文件夹备份工具 backup.py，支持 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两个命令。SOURCE 应为目录，ARCHIVE 必须位于其外。snapshot 递归包含常规文件（含隐藏、二进制、Unicode 名称和零字节文件），保留空目录，拒绝符号链接及其他非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档为 ZIP，内含 UTF-8 的 manifest.json：version 为 1，directories 列相对 POSIX 目录路径，files 每项含 path、字节 size 和小写 sha256；载荷成员名为 files/<相对路径>，不添加 ZIP 目录条目。restore 在替换 DESTINATION 前校验 version、名称唯一性、声明成员、文件大小与摘要，拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 与 bytes 统计常规文件数量和总原始字节；失败非零退出并在 stderr 说明。每次调用是独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v3",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "c67c0462af29e2095e7e5b89d1eb06767e86c2bf4afd0f83c5cecea91c6a2335",
+      "answer": "README.md 说明一个仅用 Python 标准库实现的可移植团队文件夹备份工具 backup.py。它要求提供 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两个命令；SOURCE 是目录，ARCHIVE 必须位于 SOURCE 之外。snapshot 递归收录常规文件（含隐藏、二进制、Unicode 名称与零字节文件），保留空目录，拒绝符号链接等非普通条目，失败不得替换旧 ARCHIVE。归档为 ZIP，内含 UTF-8 manifest.json：version 为 1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size 与小写 sha256；载荷成员名为 files/<相对路径>，不添加 ZIP 目录条目。restore 必须在替换 DESTINATION 前校验 version、名称唯一、声明成员、大小与摘要，并拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 与 bytes 统计常规文件数量及总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 说明一个仅用 Python 标准库实现的可移植团队文件夹备份工具 backup.py。它要求提供 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两个命令；SOURCE 是目录，ARCHIVE 必须位于 SOURCE 之外。snapshot 递归收录常规文件（含隐藏、二进制、Unicode 名称与零字节文件），保留空目录，拒绝符号链接等非普通条目，失败不得替换旧 ARCHIVE。归档为 ZIP，内含 UTF-8 manifest.json：version 为 1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size 与小写 sha256；载荷成员名为 files/<相对路径>，不添加 ZIP 目录条目。restore 必须在替换 DESTINATION 前校验 version、名称唯一、声明成员、大小与摘要，并拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录快照与恢复。成功命令向 stdout 输出 JSON，files 与 bytes 统计常规文件数量及总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v4",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "f3e7657f7a703dacb187ca0b3b338b3f52370f20ceb6b789919507e4956da4a1",
+      "answer": "README.md 要求仅用 Python 标准库实现可移植的团队文件夹备份工具 backup.py，提供 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两条命令。SOURCE 为目录，ARCHIVE 必须在其外。\n\nsnapshot 递归包含常规文件（含隐藏、二进制、Unicode 名称、零字节文件），保留空目录，拒绝符号链接及其他非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档是 ZIP，内含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size 与小写 sha256；载荷成员名为 files/<相对路径>，不加 ZIP 目录条目。\n\nrestore 在替换 DESTINATION 前校验 version、名称唯一性、声明成员、文件大小与摘要，拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录的快照与恢复。\n\n成功命令向 stdout 输出一个 JSON 对象，files 和 bytes 统计常规文件数量与总原始字节；失败非零退出并在 stderr 说明。每次调用是独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 要求仅用 Python 标准库实现可移植的团队文件夹备份工具 backup.py，提供 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION 两条命令。SOURCE 为目录，ARCHIVE 必须在其外。\\n\\nsnapshot 递归包含常规文件（含隐藏、二进制、Unicode 名称、零字节文件），保留空目录，拒绝符号链接及其他非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档是 ZIP，内含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size 与小写 sha256；载荷成员名为 files/<相对路径>，不加 ZIP 目录条目。\\n\\nrestore 在替换 DESTINATION 前校验 version、名称唯一性、声明成员、文件大小与摘要，拒绝未声明或重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。完整校验后才替换，失败保留原目标，成功不保留旧文件，无效输入不得写出目标暂存区。支持空目录的快照与恢复。\\n\\n成功命令向 stdout 输出一个 JSON 对象，files 和 bytes 统计常规文件数量与总原始字节；失败非零退出并在 stderr 说明。每次调用是独立进程，暂存文件与最终目标同文件系统以便原子替换，并需自编单元测试、说明使用与验证方法。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v5",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "5f3fed32fdf5618301f8cb67b32816d27fc098863f9504681fec0d5196530e3a",
+      "answer": "README.md 规定仅用 Python 标准库实现 backup.py，支持 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION。SOURCE 为目录，ARCHIVE 须在其外。snapshot 递归收录常规文件（含隐藏、二进制、Unicode 名、零字节文件），保留空目录，拒绝符号链接等非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档为 ZIP，内含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size、小写 sha256；载荷成员名为 files/<相对路径>，不加 ZIP 目录条目；该格式用于互操作，不代表可信任归档。restore 替换前校验 version、名称唯一、声明成员、大小与摘要，拒绝未声明/重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径、文件/目录冲突；符号链接目标无效。完整校验后才替换；失败保留原目标，成功不保留旧文件，无效输入不得写出暂存区。支持空目录。成功命令 stdout 输出 JSON，files 与 bytes 统计常规文件数和总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换；需自编单元测试并说明使用与验证方法。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README.md 规定仅用 Python 标准库实现 backup.py，支持 snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION。SOURCE 为目录，ARCHIVE 须在其外。snapshot 递归收录常规文件（含隐藏、二进制、Unicode 名、零字节文件），保留空目录，拒绝符号链接等非普通条目；失败不得替换旧 ARCHIVE，权限和时间戳无需保留。归档为 ZIP，内含 UTF-8 manifest.json：version=1，directories 列相对 POSIX 目录路径，files 项含 path、字节 size、小写 sha256；载荷成员名为 files/<相对路径>，不加 ZIP 目录条目；该格式用于互操作，不代表可信任归档。restore 替换前校验 version、名称唯一、声明成员、大小与摘要，拒绝未声明/重复成员、绝对路径、父目录遍历、反斜杠、非法规范化路径、文件/目录冲突；符号链接目标无效。完整校验后才替换；失败保留原目标，成功不保留旧文件，无效输入不得写出暂存区。支持空目录。成功命令 stdout 输出 JSON，files 与 bytes 统计常规文件数和总原始字节；失败非零退出并在 stderr 说明。每次调用独立进程，暂存文件与最终目标同文件系统以便原子替换；需自编单元测试并说明使用与验证方法。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v6",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "5e6d4eae893713326cb6b312a2fa46aa6264ef050920c3b0d01da1a11579ab1e",
+      "answer": "README.md 要求仅用 Python 标准库实现 backup.py，支持从任意工作目录运行 `python backup.py snapshot SOURCE ARCHIVE` 和 `python backup.py restore ARCHIVE DESTINATION`。SOURCE 是目录，ARCHIVE 须在其外；递归包含普通文件（含零字节）并保留空目录，拒绝符号链接等非普通条目；失败 snapshot 不得替换旧 ARCHIVE，权限/时间戳无需保留。归档为 ZIP 加 UTF-8 `manifest.json`：`version` 为 1，`directories` 列相对 POSIX 目录路径，`files` 列含 `path`、字节 `size`、小写 `sha256` 的对象；载荷成员名为 `files/<relative path>`，不添加 ZIP 目录条目；该格式用于互操作，不代表可信任归档。restore 在替换 DESTINATION 前须校验版本、名称唯一、声明成员、大小与摘要，拒绝重复/未声明成员、绝对路径、父穿越、反斜杠、无效规范化路径、文件/目录冲突和符号链接目标；只在完整校验后替换，失败保持旧目标，成功不保留旧文件，无效输入不得写出暂存区。成功命令向 stdout 写 JSON，`files` 与 `bytes` 统计普通文件数及原始总字节；失败非零退出并写 stderr；每次调用独立进程，无内存状态；暂存放在最终目标旁以利同文件系统原子替换。还需自编单元测试并文档化使用与验证。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 要求仅用 Python 标准库实现 backup.py，支持从任意工作目录运行 `python backup.py snapshot SOURCE ARCHIVE` 和 `python backup.py restore ARCHIVE DESTINATION`。SOURCE 是目录，ARCHIVE 须在其外；递归包含普通文件（含零字节）并保留空目录，拒绝符号链接等非普通条目；失败 snapshot 不得替换旧 ARCHIVE，权限/时间戳无需保留。归档为 ZIP 加 UTF-8 `manifest.json`：`version` 为 1，`directories` 列相对 POSIX 目录路径，`files` 列含 `path`、字节 `size`、小写 `sha256` 的对象；载荷成员名为 `files/<relative path>`，不添加 ZIP 目录条目；该格式用于互操作，不代表可信任归档。restore 在替换 DESTINATION 前须校验版本、名称唯一、声明成员、大小与摘要，拒绝重复/未声明成员、绝对路径、父穿越、反斜杠、无效规范化路径、文件/目录冲突和符号链接目标；只在完整校验后替换，失败保持旧目标，成功不保留旧文件，无效输入不得写出暂存区。成功命令向 stdout 写 JSON，`files` 与 `bytes` 统计普通文件数及原始总字节；失败非零退出并写 stderr；每次调用独立进程，无内存状态；暂存放在最终目标旁以利同文件系统原子替换。还需自编单元测试并文档化使用与验证。\"}}\n```"
+    },
+    {
+      "sample_id": "prior_file-01-v7",
+      "authority": "independent_review",
+      "checkpoint": "CP-8f83bc2a30d04cf4",
+      "input_sha256": "8f9d03fdd2ba303e0d40204c489466118ca6f7daf1a507dd34e7b0c829a39a1e",
+      "target_sha256": "2a99a131f058895b2d6d27177f6b256681293c9762b96a7d6db28e039d2e234c",
+      "answer": "README.md 是待实现工具 backup.py 的规范。要求仅用 Python 标准库，支持 python backup.py snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION。快照递归包含常规文件（含隐藏、二进制、Unicode 名、零字节文件）并保留空目录，拒绝符号链接等非常规项；ARCHIVE 必须在 SOURCE 外；失败不得替换旧 ARCHIVE。格式为 ZIP，含 UTF-8 manifest.json，version 为 1；directories 列相对 POSIX 目录，files 列 path、字节 size、小写 sha256；负载成员名为 files/<相对路径>，不添加 ZIP 目录项。恢复须先校验 version、名称唯一、声明成员、size 与摘要，拒绝未声明/重复成员、绝对路径、父目录穿越、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。仅完整校验后替换 DESTINATION，失败保留旧内容；成功恢复不得保留旧文件；非法输入不得写出暂存区；支持空目录快照与恢复。成功命令向 stdout 输出一个 JSON 对象，计数 files 和 bytes；失败非零退出并 stderr 说明；每次调用独立进程，无进程内存状态；暂存文件与最终目标同文件系统以支持原子替换。还要求自编单元测试并记录使用与验证方法。限制：以上均为 README 所述规范，当前工作区清单只观察到 README.md，未观察到 backup.py 或测试已实现。",
+      "raw_target": "{\"function\": \"final_answer\", \"params\": {\"text\": \"README.md 是待实现工具 backup.py 的规范。要求仅用 Python 标准库，支持 python backup.py snapshot SOURCE ARCHIVE 与 restore ARCHIVE DESTINATION。快照递归包含常规文件（含隐藏、二进制、Unicode 名、零字节文件）并保留空目录，拒绝符号链接等非常规项；ARCHIVE 必须在 SOURCE 外；失败不得替换旧 ARCHIVE。格式为 ZIP，含 UTF-8 manifest.json，version 为 1；directories 列相对 POSIX 目录，files 列 path、字节 size、小写 sha256；负载成员名为 files/<相对路径>，不添加 ZIP 目录项。恢复须先校验 version、名称唯一、声明成员、size 与摘要，拒绝未声明/重复成员、绝对路径、父目录穿越、反斜杠、非法规范化路径及文件/目录冲突；符号链接目标无效。仅完整校验后替换 DESTINATION，失败保留旧内容；成功恢复不得保留旧文件；非法输入不得写出暂存区；支持空目录快照与恢复。成功命令向 stdout 输出一个 JSON 对象，计数 files 和 bytes；失败非零退出并 stderr 说明；每次调用独立进程，无进程内存状态；暂存文件与最终目标同文件系统以支持原子替换。还要求自编单元测试并记录使用与验证方法。限制：以上均为 README 所述规范，当前工作区清单只观察到 README.md，未观察到 backup.py 或测试已实现。\"}}\n```"
+    }
+  ]
+}

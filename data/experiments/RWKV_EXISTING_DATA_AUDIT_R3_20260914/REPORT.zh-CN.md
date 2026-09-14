@@ -1,0 +1,21 @@
+# R3：现有直接执行数据全量复核
+
+本轮没有新Agent运行，Strict/completed/mutation均不适用；没有新增模型调用或optimizer step。审核结果不能视为模型能力提升。
+
+128/128行通过来源封存、生产输入重建及State父链核验；其中28条读取对应真实成功执行，100条回答均可在生成前观察中找到全文。人工完整阅读100条回答与24组主要材料后，98条可保留，2条因表述歧义隔离待澄清。这是人工审查结论，不是新一轮独立API审核或绝对正确保证。
+
+隔离项：migration_requirements_first-v6对restore返回schema_version语义的推断不明确；rag_state_tokens-v8可能把训练数组编码等同于实际teacher forcing及已验证EOS语义。其余主要内容仍有价值，不将这些回答整体计零，不修改原评分和原目标文本。
+
+## 重复与训练历史
+
+100条回答仅覆盖24个实际回答边界。建议保留每边界一个清楚的代表，连同28条真实读取得到52行引用清单；74条其余合格变体原样保留但不当新增独立覆盖。REPRESENTATIVE_PROPOSAL.json只是引用清单，未出版数据版本。
+
+同一128条数据此前已训练：direct-fact-r1-20260913完成384 optimizer steps，连同此前108步为该活动已知累计492步（不是项目全部历史总数）。候选State SHA f7a4faf14be208fa737c46f9f8a7fb56d8e2819db82d38401dee61042496a58b，原EVALUATION_DECISION为NO_KEEP：摘要4/8，相对zero8/8退化；诊断1/6；读取保持21+3。这里只引用既有验收决定，不重读确认题、不重算旧评分。训练loss下降不是交付质量改善。
+
+因此不立即重复训练原批或仅因缩减到52行便声称修复。下一步补有效修改/反馈的真实覆盖及训练准入，检查输入mask/State初始化/导出加载与生产一致性，再冻结混合训练对照。模型失败不是训练禁令，但来源可信和训练可复核是前提。
+
+## 验证与局限
+
+GPU0完整回归1710 passed、0 skipped，321.23秒。本轮未改生产代码；先前helper首次将包含生产stop后缀的训练目标直接传parser而失败，已保留失败源码，修正仅移除精确stop用于离线解析，不改训练目标。
+
+原数据train SHA 17c774f5a1ee141b3860b8f3f102fef1adffb4237e55a6699c44ddfaa290eb3d，manifest SHA 79b8ef89885fafdca5d3ce1cb2004b226f8bd13c4fb91edf09792785093f3a41。逐条证据见MANUAL_REVIEWS、STRUCTURE_AUDIT；文件清单见EVIDENCE_SHA256.json。owner五处修改保留。未push。

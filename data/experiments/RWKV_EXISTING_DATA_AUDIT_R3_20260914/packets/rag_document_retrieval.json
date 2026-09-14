@@ -1,0 +1,49 @@
+{
+  "source_id": "rag_document_retrieval",
+  "family": "RAG",
+  "goal": "阅读 document_retrieval.py，说明源码实际实现的主要行为、重要限制及涉及数字或类型的对应关系。只依据文件，不把名称、注释中的意图或可能用途当作额外已实现功能；区分代码推断和本次真正执行的工具操作，未运行的测试只可作为建议。不要修改文件。",
+  "source_content": "\"\"\"Document RRF followed by BM25 inside selected documents; no semantic rules.\"\"\"\nimport asyncio\n\n\nasync def document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit):\n    initial = await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, collapse_documents=True)\n        for query in queries))\n    scores, votes = {}, []\n    for query_index, group in enumerate(initial):\n        seen = set()\n        for rank, hit in enumerate(group, 1):\n            if hit.document_id in seen:\n                continue\n            seen.add(hit.document_id)\n            weight = 1 / (60 + rank)\n            scores[hit.document_id] = scores.get(hit.document_id, 0) + weight\n            votes.append({\"query_index\": query_index, \"document_id\": hit.document_id,\n                          \"best_chunk_id\": hit.node_id, \"rank\": rank, \"rrf_contribution\": weight})\n    selected = sorted(scores, key=lambda document: -scores[document])[:document_limit]\n    expanded = (await asyncio.gather(*(asyncio.to_thread(index.search_chunks, query,\n        candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, document_ids=selected)\n        for query in queries))) if selected else [[] for _ in queries]\n    if any(hit.document_id not in selected for group in expanded for hit in group):\n        raise ValueError(\"document-scoped search returned an unselected document\")\n    return expanded, {\"scope\": \"documents\", \"selected_document_ids\": selected,\n        \"document_limit\": document_limit, \"rrf_scores\": scores, \"rrf_votes\": votes,\n        \"document_candidates\": [[h.document_id for h in group] for group in initial],\n        \"expanded_chunk_ids\": [[h.node_id for h in group] for group in expanded],\n        \"passage_query_policy\": \"each original model query, restricted to the selected documents\"}\n",
+  "source_reference": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/rag_document_retrieval/workspace/document_retrieval.py",
+    "sha256": "d099f369efe0aaef62ab99f168af68a70678c11491835a1f2ec8b3978a7f038d"
+  },
+  "run_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/rag_document_retrieval",
+  "rows": [
+    {
+      "sample_id": "rag_document_retrieval-read-1",
+      "authority": "executed_read",
+      "checkpoint": "CP-6e974af5d70f4bc7",
+      "input_sha256": "ba8c5ed202c80ea6fa2a1c4990c1280bba54c6c5a996696088a69dbb412cfb9e",
+      "target_sha256": "cf7fc1ec95319d8e30f0327a5d549d817c011fa48d670280af20a2eebac2286c",
+      "answer": null,
+      "raw_target": "{\"function\": \"read_file\", \"params\": {\"path\": \"document_retrieval.py\", \"max_tokens\": 8192, \"start_byte\": 0}}\n```"
+    },
+    {
+      "sample_id": "rag_document_retrieval-v6",
+      "authority": "independent_review",
+      "checkpoint": "CP-cdc695517cdb4fe5",
+      "input_sha256": "88bdc461b64839dce54a6dc5e685bb5174d598c1cf118ff49316e65c3e15a3c3",
+      "target_sha256": "abd5d6b8fe290c1d262000e496941a2437e07279fe8d0072be9b4d366f347512",
+      "answer": "本次仅 read_file 读取 document_retrieval.py 全文件（1882 字节、493 tokens，sha256 一致），未测试、未修改。源码定义 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先对每个 query 并行调用 index.search_chunks，传 candidate_k、knowledge_base_id 与 collapse_documents=True 做初始文档候选；再按 rank 从 1 起算 weight=1/(60+rank)，同一 query 内按 document_id 去重累加到 scores，并生成 votes（query_index、document_id、best_chunk_id=node_id、rank、rrf_contribution）；然后按分数降序取前 document_limit 个文档为 selected。selected 非空时，再对每个 query 并行调用 index.search_chunks，传相同 candidate_k、knowledge_base_id 和 document_ids=selected，否则 expanded 为等长空列表；若二次结果出现未选中文档，抛 ValueError。返回 expanded 与 metadata，其中 scope='documents'，并记录 selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。注意：本文件只做 RRF 选文档与二次检索编排；BM25/语义规则未在本文件实现，二次评分由 index.search_chunks 决定；未运行测试，故不能报告测试结果。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"本次仅 read_file 读取 document_retrieval.py 全文件（1882 字节、493 tokens，sha256 一致），未测试、未修改。源码定义 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先对每个 query 并行调用 index.search_chunks，传 candidate_k、knowledge_base_id 与 collapse_documents=True 做初始文档候选；再按 rank 从 1 起算 weight=1/(60+rank)，同一 query 内按 document_id 去重累加到 scores，并生成 votes（query_index、document_id、best_chunk_id=node_id、rank、rrf_contribution）；然后按分数降序取前 document_limit 个文档为 selected。selected 非空时，再对每个 query 并行调用 index.search_chunks，传相同 candidate_k、knowledge_base_id 和 document_ids=selected，否则 expanded 为等长空列表；若二次结果出现未选中文档，抛 ValueError。返回 expanded 与 metadata，其中 scope='documents'，并记录 selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。注意：本文件只做 RRF 选文档与二次检索编排；BM25/语义规则未在本文件实现，二次评分由 index.search_chunks 决定；未运行测试，故不能报告测试结果。\"}}\n```"
+    },
+    {
+      "sample_id": "rag_document_retrieval-v7",
+      "authority": "independent_review",
+      "checkpoint": "CP-cdc695517cdb4fe5",
+      "input_sha256": "88bdc461b64839dce54a6dc5e685bb5174d598c1cf118ff49316e65c3e15a3c3",
+      "target_sha256": "b188a04e3976a6f16ed5ab7f181e4638c1c97edff989dcac90b065a153642761",
+      "answer": "目的：阅读并说明源码。本次通过 read_file 完整读取 document_retrieval.py（0-1882 字节，493 token，30 行），未运行测试、未修改文件。源码实现 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先 asyncio.gather 对每个 query 以 asyncio.to_thread 调 index.search_chunks(... candidate_k, knowledge_base_id, collapse_documents=True)，做文档级 RRF；每个 query 内用 seen 去重 document_id，rank 从 1 开始，weight=1/(60+rank)，按 document_id 累加 scores，并记录 votes。随后按 -score 排序取前 document_limit 个文档；若 selected 非空，再对每个 query 调 search_chunks 并传 document_ids=selected，否则返回空组。最后校验 expanded 中 hit.document_id 不在 selected 则抛 ValueError，返回 expanded 与 metadata。限制：注释称文档 RRF 后接 BM25 且无语义规则，但源码只显式实现文档级 RRF 与二次检索调用；BM25/语义规则是否由 index.search_chunks 提供本文件无法证明。candidate_k、knowledge_base_id、document_limit 无默认值，且未注解类型；依赖 hit 有 document_id、node_id。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"目的：阅读并说明源码。本次通过 read_file 完整读取 document_retrieval.py（0-1882 字节，493 token，30 行），未运行测试、未修改文件。源码实现 async document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)：先 asyncio.gather 对每个 query 以 asyncio.to_thread 调 index.search_chunks(... candidate_k, knowledge_base_id, collapse_documents=True)，做文档级 RRF；每个 query 内用 seen 去重 document_id，rank 从 1 开始，weight=1/(60+rank)，按 document_id 累加 scores，并记录 votes。随后按 -score 排序取前 document_limit 个文档；若 selected 非空，再对每个 query 调 search_chunks 并传 document_ids=selected，否则返回空组。最后校验 expanded 中 hit.document_id 不在 selected 则抛 ValueError，返回 expanded 与 metadata。限制：注释称文档 RRF 后接 BM25 且无语义规则，但源码只显式实现文档级 RRF 与二次检索调用；BM25/语义规则是否由 index.search_chunks 提供本文件无法证明。candidate_k、knowledge_base_id、document_limit 无默认值，且未注解类型；依赖 hit 有 document_id、node_id。\"}}\n```"
+    },
+    {
+      "sample_id": "rag_document_retrieval-v8",
+      "authority": "independent_review",
+      "checkpoint": "CP-cdc695517cdb4fe5",
+      "input_sha256": "88bdc461b64839dce54a6dc5e685bb5174d598c1cf118ff49316e65c3e15a3c3",
+      "target_sha256": "8dd57ac653b4f863e22f297fdf5969e9f99a509d17ee92720627ecd7393c1d69",
+      "answer": "已执行 read_file：path=document_retrieval.py，start_byte=0，max_tokens=8192；完整读取1882字节、493 tokens、30行，sha256一致，未修改文件。源码实际定义异步 document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)。对每个 query 并发调用 index.search_chunks(query, candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, collapse_documents=True)，得 initial。逐组按 rank 从1起、用 document_id 去重；weight=1/(60+rank)累加为 RRF 分数，并记录 query_index、document_id、best_chunk_id=hit.node_id、rank、rrf_contribution=weight。随后 selected=sorted(scores, key=lambda d:-scores[d])[:document_limit]；若非空，再对每个 query 并发调用 index.search_chunks(...document_ids=selected)，且仍用同一 candidate_k；空 selected 时每 query 返回空列表。若扩展结果含未选 document_id，抛 ValueError。返回 expanded 与元数据，包含 scope='documents'、selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。限制：去重按 document_id；截断由 document_limit 控制；RRF 常数60、rank从1；candidate_k 仅透传；未运行测试，行为为源码推断。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"已执行 read_file：path=document_retrieval.py，start_byte=0，max_tokens=8192；完整读取1882字节、493 tokens、30行，sha256一致，未修改文件。源码实际定义异步 document_groups(index, queries, *, candidate_k, knowledge_base_id, document_limit)。对每个 query 并发调用 index.search_chunks(query, candidate_k=candidate_k, knowledge_base_id=knowledge_base_id, collapse_documents=True)，得 initial。逐组按 rank 从1起、用 document_id 去重；weight=1/(60+rank)累加为 RRF 分数，并记录 query_index、document_id、best_chunk_id=hit.node_id、rank、rrf_contribution=weight。随后 selected=sorted(scores, key=lambda d:-scores[d])[:document_limit]；若非空，再对每个 query 并发调用 index.search_chunks(...document_ids=selected)，且仍用同一 candidate_k；空 selected 时每 query 返回空列表。若扩展结果含未选 document_id，抛 ValueError。返回 expanded 与元数据，包含 scope='documents'、selected_document_ids、document_limit、rrf_scores、rrf_votes、document_candidates、expanded_chunk_ids、passage_query_policy。限制：去重按 document_id；截断由 document_limit 控制；RRF 常数60、rank从1；candidate_k 仅透传；未运行测试，行为为源码推断。\"}}\n```"
+    }
+  ]
+}

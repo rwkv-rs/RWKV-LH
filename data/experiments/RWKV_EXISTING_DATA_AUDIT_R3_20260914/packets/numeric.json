@@ -1,0 +1,76 @@
+{
+  "source_id": "numeric",
+  "family": "RAG",
+  "goal": "阅读 README.md，准确说明文中 Reader 和 Writer 的实验结果。区分模型或候选标签、实验分数、分子与分母；保留原文中的数字及其对应对象，不推算文件没有报告的成绩。再说明这些数字可以支持和不能支持的结论。只依据文件回答。",
+  "source_content": "# RWKVRAG — RWKV 原生 RAG\n\n基于 `bm250820` 的 `2bbc406125e7e030eda98b11993dc13fc4534ca4` 开发，当前优化分支为 `chase/rwkv-native-rag-rebuild`。\n\n**RWKV 2.9B + OpenSearch BM25，不使用 embedding。** 模型负责问题规划、证据判断与回答；代码负责检索组织、传输、来源与格式校验。原始模型输出保持不变。\n\n## StateTune 实践\n\n[StateTune经验总结](docs/statetune-experience.md)记录本轮如何从真实trace发现问题、生成2000条纠错数据、完成六组state训练，以及改善与失败。\n\nReader在60道受控阅读挑战中从48/60提高到60/60。Writer明显减少失控重复；固定36题的独立抽样中，Writer300有据可用17/36，零state为10/36，扩大到1400条没有继续提高。Planner出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。\n\n- [数据与训练入口](llamaindex-retrieval/statetune/README.md)\n- [原始实验记录、权重和恢复方式](docs/artifacts.md)\n- [最新训练核验](llamaindex-retrieval/eval/trace-training-20260911/TRAINING-VERIFIED.json)\n- [最新评测汇总](llamaindex-retrieval/eval/trace-eval-20260911/RESULTS.md)\n\n## 使用\n\n通用安装与接口见[Python服务说明](llamaindex-retrieval/README.md)，现有环境的管理方式见[本地部署说明](llamaindex-retrieval/deploy/local/README.md)。本地页面为 <http://127.0.0.1:18440/admin/#/search>，通过后端 `POST /v1/ask` 执行真实RAG；API接口文档为 `/docs`。现有前端已恢复用于人工试用。\n\n仅使用指定的RWKV7 G1j 2.9B。训练后的state必须显式选择；训练完成不等于应用默认配置已经切换。2026-09-11测试结束后，按用户要求保留比较服务，没有恢复原问答服务。\n\n现有页面已接入此前评测使用的 **5000篇FineWiki中文文章、45960个原文片段**。选择“FineWiki 中文百科（5000篇）”即可试用，文件列表支持完整分页。[试用指南、13道测试题与参考答案](docs/wiki-rag-test-guide.md)包含原文依据、接入方法和实际试用记录，适合转发学习。\n\n复杂多问、长历史、缺证据与引用仍有已知错误。服务可访问不代表所有场景已可靠。架构约束见[ARCHITECTURE_RULES.md](llamaindex-retrieval/ARCHITECTURE_RULES.md)。\n\n## 开发验证\n\n```bash\ncd llamaindex-retrieval\nuv sync --frozen --extra dev\nuv run pytest -q\n```\n\n历史实验的独立重放需要先按[归档说明](docs/artifacts.md)恢复相应文件；普通代码测试所需的小型固定材料保留在Git中。发布时的实际检查结果见 `artifacts/statetune-20260911/VALIDATION.json`。\n\n仓库保留维护中的代码、训练入口、正式数据和必要测试材料；原始调用、冻结源码与过时实验说明统一归档。旧Git提交保持不变。\n",
+  "source_reference": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/numeric/workspace/README.md",
+    "sha256": "922bc4e213822f291340c6bf8c65bd21e0f090fd5e3b3ba6ac39a4cd88edb2dc"
+  },
+  "run_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_FACT_STATETUNE_CAMPAIGN_R1_20260913/seeds/numeric",
+  "rows": [
+    {
+      "sample_id": "numeric-read-1",
+      "authority": "executed_read",
+      "checkpoint": "CP-2bed75533c204322",
+      "input_sha256": "559b652ae752acce7cc032789b8df4acbc6cd8f3454d9d1b475356be0ea73aa1",
+      "target_sha256": "1eb185aacb8cd38bc17624f987bbac2210f63552d8b91e71339c34098d0a5db1",
+      "answer": null,
+      "raw_target": "{\"function\": \"read_file\", \"params\": {\"max_tokens\": 4096, \"path\": \"README.md\", \"start_byte\": 0}}\n```"
+    },
+    {
+      "sample_id": "numeric-v1",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "d8efb63c5665cf7404bfd10a75b202038c7292cfaea68cced3222482fa640baa",
+      "answer": "README 记录：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 明显减少失控重复，固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。可支持的结论：在上述受限挑战/抽样内，Reader 的受控阅读得分提高；Writer300 的有据可用样本数高于零 state，但扩大数据量未继续提高。不能支持的结论：不能视为全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能把不同指标直接比较；不能据此断言其他场景已可靠。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 记录：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60；Writer 明显减少失控重复，固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高；Planner 出现格式退步，空证据和冲突处理仍不可靠。可支持的结论：在上述受限挑战/抽样内，Reader 的受控阅读得分提高；Writer300 的有据可用样本数高于零 state，但扩大数据量未继续提高。不能支持的结论：不能视为全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能把不同指标直接比较；不能据此断言其他场景已可靠。\"}}\n```"
+    },
+    {
+      "sample_id": "numeric-v2",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "33a6fd8cb7868d3bd03dc7ecb93d1e8adcd3d0059e0ea8b5ae8d916c3eb45e0e",
+      "answer": "README 报告：Reader 在 60 道受控阅读挑战中由 48/60 提高到 60/60，分子分母分别对应答对题数与挑战题数。Writer 明显减少失控重复；在固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条后没有继续提高；这里 17/36 和 10/36 分别对应两个候选标签下的有据可用题数与抽样题数。Planner 出现格式退步，空证据和冲突处理仍不可靠。能支持的结论限于上述挑战/抽样：Reader 成绩提高，Writer300 优于零 state 且增加数据量未继续提升。不能支持全场景准确率或模型能力上限；不能把 Reader、Writer 的指标直接等同或外推未报告成绩；也不能据此断言其他场景已可靠。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 报告：Reader 在 60 道受控阅读挑战中由 48/60 提高到 60/60，分子分母分别对应答对题数与挑战题数。Writer 明显减少失控重复；在固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条后没有继续提高；这里 17/36 和 10/36 分别对应两个候选标签下的有据可用题数与抽样题数。Planner 出现格式退步，空证据和冲突处理仍不可靠。能支持的结论限于上述挑战/抽样：Reader 成绩提高，Writer300 优于零 state 且增加数据量未继续提升。不能支持全场景准确率或模型能力上限；不能把 Reader、Writer 的指标直接等同或外推未报告成绩；也不能据此断言其他场景已可靠。\"}}\n```"
+    },
+    {
+      "sample_id": "numeric-v4",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "447294f795f5fac16aa586a6a729f69ada2ea7f5228dd569c1be72f1438d72b9",
+      "answer": "README 中 Reader 与 Writer 的实验结果如下：Reader 在 60 道受控阅读挑战中的成绩从 48/60 提高到 60/60，分子是达到该成绩的题数，分母是受控挑战总题数 60。Writer 明显减少失控重复；在固定 36 题的独立抽样中，候选标签 Writer300 有据可用为 17/36，零 state 为 10/36，这里分子是有据可用题数，分母是抽样总题数 36；扩大到 1400 条后没有继续提高。可支持的结论仅限这些受控挑战/抽样：Reader 在该挑战中分数提高，Writer300 在该抽样中的有据可用数高于零 state，但增加数量未继续提升。不能支持的结论：不能把这些数字当作全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能将 Reader 与 Writer 的不同指标直接等同或比较；也不能据此断言其他场景已可靠。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 中 Reader 与 Writer 的实验结果如下：Reader 在 60 道受控阅读挑战中的成绩从 48/60 提高到 60/60，分子是达到该成绩的题数，分母是受控挑战总题数 60。Writer 明显减少失控重复；在固定 36 题的独立抽样中，候选标签 Writer300 有据可用为 17/36，零 state 为 10/36，这里分子是有据可用题数，分母是抽样总题数 36；扩大到 1400 条后没有继续提高。可支持的结论仅限这些受控挑战/抽样：Reader 在该挑战中分数提高，Writer300 在该抽样中的有据可用数高于零 state，但增加数量未继续提升。不能支持的结论：不能把这些数字当作全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能将 Reader 与 Writer 的不同指标直接等同或比较；也不能据此断言其他场景已可靠。\"}}\n```"
+    },
+    {
+      "sample_id": "numeric-v5",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "599f6fa671ef38d064556bac6e2f5221ea5078cbdbdfdf8f41720eb133ba0efb",
+      "answer": "README 记录：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60，分子是达到该成绩的题数，分母是受控挑战题数 60。Writer 明显减少失控重复；在固定 36 题的独立抽样中，候选 Writer300 有据可用 17/36，零 state 为 10/36，这里分子是有据可用题数，分母是抽样题数 36；扩大到 1400 条后没有继续提高。可支持：限于上述受控挑战/抽样，Reader 成绩提高，Writer300 的有据可用数高于零 state，且增加数据量未继续提升。不能支持：不能当作全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能把 Reader 与 Writer 的不同指标直接等同或比较；也不能据此断言其他场景已可靠。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"README 记录：Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60，分子是达到该成绩的题数，分母是受控挑战题数 60。Writer 明显减少失控重复；在固定 36 题的独立抽样中，候选 Writer300 有据可用 17/36，零 state 为 10/36，这里分子是有据可用题数，分母是抽样题数 36；扩大到 1400 条后没有继续提高。可支持：限于上述受控挑战/抽样，Reader 成绩提高，Writer300 的有据可用数高于零 state，且增加数据量未继续提升。不能支持：不能当作全场景准确率或模型能力上限；不能推算文件未报告的成绩；不能把 Reader 与 Writer 的不同指标直接等同或比较；也不能据此断言其他场景已可靠。\"}}\n```"
+    },
+    {
+      "sample_id": "numeric-v6",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "8a6282dbc4f42195c266891d34d9b168258e01f02ac59083e1040afc3b96d7b0",
+      "answer": "根据 README.md，Reader 在 60 道受控阅读挑战中由 48/60 提高到 60/60。Writer 明显减少失控重复；固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高。此外 Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。数字能支持：在上述受控/固定抽样条件下，Reader 得分提升，Writer300 在该抽样中优于零 state，扩至 1400 条无继续提升。数字不能支持：全场景准确率、模型能力上限、其他未报告候选或条件、训练后 state 已默认切换等结论；文件另称训练后 state 须显式选择。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"根据 README.md，Reader 在 60 道受控阅读挑战中由 48/60 提高到 60/60。Writer 明显减少失控重复；固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高。此外 Planner 出现格式退步，空证据和冲突处理仍不可靠。这些结果不是全场景准确率，也不代表模型能力上限。数字能支持：在上述受控/固定抽样条件下，Reader 得分提升，Writer300 在该抽样中优于零 state，扩至 1400 条无继续提升。数字不能支持：全场景准确率、模型能力上限、其他未报告候选或条件、训练后 state 已默认切换等结论；文件另称训练后 state 须显式选择。\"}}\n```"
+    },
+    {
+      "sample_id": "numeric-v7",
+      "authority": "independent_review",
+      "checkpoint": "CP-58f8a7ebe0f94a71",
+      "input_sha256": "ea49ad40b0f6d1b53b18d713830297b8e690497895f8ace867c4f8f9b016d029",
+      "target_sha256": "f66bddf29e061a992154dde5bc69ca97eced6ef1c55f8bd920a909bd71aff9b3",
+      "answer": "仅据 README.md：StateTune 实践部分报告，Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60。Writer 明显减少失控重复；固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高。Planner 出现格式退步，空证据和冲突处理仍不可靠。以上可支持：这些特定实验/抽样中 Reader 与 Writer 有改善，Writer300 与零 state 存在 17/36 对 10/36 的差异。不能支持：60/60 或 17/36 代表全场景准确率，也不能推出模型能力上限；未报告的其他指标、候选和泛化结论不能由文件得出。",
+      "raw_target": "{\"function\":\"final_answer\",\"params\":{\"text\":\"仅据 README.md：StateTune 实践部分报告，Reader 在 60 道受控阅读挑战中从 48/60 提高到 60/60。Writer 明显减少失控重复；固定 36 题的独立抽样中，Writer300 有据可用 17/36，零 state 为 10/36，扩大到 1400 条没有继续提高。Planner 出现格式退步，空证据和冲突处理仍不可靠。以上可支持：这些特定实验/抽样中 Reader 与 Writer 有改善，Writer300 与零 state 存在 17/36 对 10/36 的差异。不能支持：60/60 或 17/36 代表全场景准确率，也不能推出模型能力上限；未报告的其他指标、候选和泛化结论不能由文件得出。\"}}\n```"
+    }
+  ]
+}
