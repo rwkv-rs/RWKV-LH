@@ -294,31 +294,11 @@ def _run_job(job, *, settings, session_factory, harness_factory, controller_type
     return result
 
 
-def _worker(arguments):
-    job, settings = arguments
-    return run_read_only_job(job, settings=settings)
-
 
 def run_read_only_jobs(jobs, *, settings, concurrency=1):
-    """Schedule whole independent tasks; never split a task or merge its State."""
-    from concurrent.futures import ProcessPoolExecutor
-    from multiprocessing import get_context
+    """Read-only entry into the shared independent-task scheduler."""
+    from .agent_batch import run_agent_jobs
     jobs = list(jobs)
-    if concurrency < 1:
-        raise ValueError('positive concurrency required')
-    if len({job.task_id for job in jobs}) != len(jobs):
-        raise ValueError('duplicate task IDs')
-    paths = [Path(job.output_dir).resolve() for job in jobs]
-    for index, path in enumerate(paths):
-        if path.exists():
-            raise FileExistsError(path)
-        if any(path == other or path in other.parents or other in path.parents
-               for other in paths[:index]):
-            raise ValueError('overlapping task outputs')
-        if any(path == Path(job.workspace).resolve() or Path(job.workspace).resolve() in path.parents
-               for job in jobs):
-            raise ValueError('audit output overlaps a task workspace')
-    if concurrency == 1:
-        return [_worker((job, settings)) for job in jobs]
-    with ProcessPoolExecutor(max_workers=concurrency, mp_context=get_context('spawn')) as pool:
-        return list(pool.map(_worker, [(job, settings) for job in jobs]))
+    if not all(isinstance(job, ReadOnlyJob) for job in jobs):
+        raise ValueError('read-only jobs required')
+    return run_agent_jobs(jobs, settings=settings, concurrency=concurrency)

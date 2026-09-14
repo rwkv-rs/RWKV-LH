@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914';reg=json.loads((D/'LIVE_REGISTRATION.json').read_text());m=json.loads((D/'MECHANICAL.json').read_text())
+review={'scope':'pre-registered functional smoke; not comparative quality gain or project Strict','tasks':[]}
+for row in m:
+ root=D/'live'/row['id'];p=root/('execution' if row['id']=='run-recursive' else '');r=json.loads((p/'RESULT.json').read_text());assert r['termination']=='submitted'
+ if row['id']=='read-health':
+  reason='原回答准确说明GET /health、HTTP200及JSON ok=true；明确不验证预订/订单，未宣称本轮执行。'
+ else:
+  a=r['actions'][0];out=json.loads(a['result']['output']);assert a['action_type'] in ('check_command','run_command') and a['result']['exit_code']==0 and out['passed'] is True and all(out['checks'].values());assert json.loads((root/'DELIVERY.json').read_text())['changed_files']==[]
+  reason='原回答的执行、通过与expected/actual路径数组均与真实工具输出一致；文件未改。'
+ review['tasks'].append({'id':row['id'],'qualified':True,'submitted':True,'mutation_count':0,'false_work_claims':0,'reason':reason,'result_sha256':hashlib.sha256((p/'RESULT.json').read_bytes()).hexdigest(),'calls':len(row['calls']),'input_tokens':sum(c['input_tokens'] for c in row['calls']),'output_tokens':sum(c['output_tokens'] for c in row['calls'])})
+assert all(hashlib.sha256((D/p).read_bytes()).hexdigest()==s for p,s in reg['files'].items())
+review['source_files_unchanged']=True
+(D/'LIVE_REVIEW.json').write_text(json.dumps(review,ensure_ascii=False,indent=2)+'\n');print(review)

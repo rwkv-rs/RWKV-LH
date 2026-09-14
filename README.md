@@ -12,6 +12,10 @@
 
 独立任务从 zero State 开始；工具由用户选定的权限范围限制，具体调用与参数仍由 RWKV 决定。模型提交回答不等于外部验收通过；预算耗尽如实中断，不补写答案。
 
+## 当前架构与统一入口
+
+[当前架构和职责](docs/ARCHITECTURE.zh-CN.md) · [独立任务批量运行](docs/AGENT_BATCH.zh-CN.md)。推荐 `scripts/run_rwkv_agent.py`，支持读取、检查和修改任务共用独立调度器；不自动合并并行修改。
+
 ## 前端演示
 
 在 WSL 中启动一次：

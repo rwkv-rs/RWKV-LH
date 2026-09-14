@@ -1,3 +1,5 @@
+> 当前产品架构与入口统一见 [ARCHITECTURE.zh-CN.md](ARCHITECTURE.zh-CN.md)。下文的多角色构造和阶段历史用于追溯及研究，不要求当前直接执行入口启用旧角色；数据授权、真实证据及回归规则仍适用。
+
 # Controller 与角色的链路契约
 
 状态：2026-09-10，交接架构整改 R1 已提交并实测，REALPROJECT R1 为 Strict 0/12、completed 0/12、mutation 0；首次生成的数值 State 捕获边界仍有偏差。R2 当前完整回归 1341 passed、0 skipped，两道原始失败输入的真实 GPU 与重启验证已通过；工程通过不等于 Agent 或完整交接验收通过。最新证据与各轮 SHA 见 [当前交接](HANDOFF.zh-CN.md)。

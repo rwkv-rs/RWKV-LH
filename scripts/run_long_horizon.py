@@ -1,4 +1,4 @@
-"""Create, resume, and inspect persistent Long-Horizon Agent runs."""
+"""Historical role-loop research and run inspection; current product: run_rwkv_agent.py."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from rwkv_lh.trace_projection import (
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the local RWKV Long-Horizon Agent")
+    parser = argparse.ArgumentParser(description="Historical role-loop research CLI; current product uses run_rwkv_agent.py")
     parser.add_argument(
         "--state-directory",
         default="data/runs",
@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         "--supervisor",
         choices=("stateful_goal",),
         default="stateful_goal",
-        help="Use the current RWKV Stateful Goal Loop v3 product architecture",
+        help="Historical Stateful Goal Loop research mode",
     )
     start.add_argument(
         "--network-policy",

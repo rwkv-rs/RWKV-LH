@@ -1,0 +1,12 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_AGENT_ARCHITECTURE_BATCH_R1_20260914'
+old=json.loads((R/'data/experiments/RWKV_FRONTEND_DIRECT_R1_20260914/SERIAL_REGISTRATION.json').read_text());jobs=[];files={}
+for demo in old['demos']:
+ root=D/'sources'/demo['id'];root.mkdir(parents=True)
+ for f in demo['seed_files']:
+  p=root/f['path'];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(f['content']);files[str(p.relative_to(D))]=hashlib.sha256(p.read_bytes()).hexdigest()
+ jobs.append({'task_id':demo['id'],'request':demo['request'],'workspace':str(root),'output_dir':str(D/'live'/demo['id']),'tool_scope':'files' if demo['id']=='read-health' else 'coding','max_calls':6,'max_seconds':300})
+(D/'JOBS.json').write_text(json.dumps(jobs,ensure_ascii=False,indent=2)+'\n')
+reg={'scope':'one concurrent mixed batch, integration smoke not performance comparison','concurrency':2,'jobs':jobs,'review':old['review'],'source_provenance':'verbatim approved SERIAL_REGISTRATION seed_files; no new dataset version','files':files,'settings':old['settings'],'production':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (R/'rwkv_lh').rglob('*.py')},'gate':'both tasks meet frozen main requirements, no false claims or file changes; no broad stability claim','limits':'run-recursive uses coding copied workspace; not identical permissions to historical inspect task; source must remain unchanged; no fixed tool order'}
+(D/'LIVE_REGISTRATION.json').write_text(json.dumps(reg,ensure_ascii=False,indent=2)+'\n')

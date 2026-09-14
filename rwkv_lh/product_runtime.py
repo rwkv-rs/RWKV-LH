@@ -1,4 +1,6 @@
-"""Construct one product Controller from immutable persisted run policy."""
+"""Historical role-loop construction for research and persisted-run inspection.
+
+Current direct product jobs use read_only_agent/coding_agent and agent_batch."""
 
 from __future__ import annotations
 

@@ -1,3 +1,5 @@
+> 当前产品架构与入口统一见 [ARCHITECTURE.zh-CN.md](ARCHITECTURE.zh-CN.md)。下文的多角色构造和阶段历史用于追溯及研究，不要求当前直接执行入口启用旧角色；数据授权、真实证据及回归规则仍适用。
+
 # G1J 分角色 Agent：唯一协议、数据来源与验收规范
 
 更新日期：2026-09-11。适用于当前生产、数据抽取、训练登记和评测；owner 最新指令优先。当前结果见[当前交接](HANDOFF.zh-CN.md)：轮次 A Strict 0/4、completed 0/4、mutation 0，真实 execute 覆盖 KEEP；双 AI 复核及当前源码重放后候选 status=valid，24 条/9 边界，仍低于预注册 30/10。冻结重放接口已修复、全套 1479 passed；未 freeze、smoke 或训练，optimizer steps=0。下一步补独立生产采集，数据政策与五个评测 anchor 不变。A KEEP 后 B 不启动；Executor 保持 1800。首次 freeze 不虚构 prior，复用既有 regression 才要求三重 pin；Agent 低分不是禁训理由。后续规范门槛不因结果改写。
