@@ -46,3 +46,9 @@ validated_candidate表示该来源绑定、原子修改和固定检查通过，�
 - 远端GPU秒、峰值显存仍为null。本轮不是项目总成本/吞吐测量完成，也不据此宣称便宜或并发收益成立。
 
 后续在获准真实任务中完善原生服务用量与调用身份，外部按同质量交付计算每个合格任务成本。工程增强不构成无限延期StateTune的理由；训练门槛见统一StateTune计划。
+
+## 原样候选审核（离线）
+
+`review-packet --input /absolute/original-input.txt --candidate /absolute/raw-candidate.json` 打包原始输入和候选；`review-check --packet /absolute/packet.json --judgment /absolute/review.json` 检查审核引文、身份和判断一致性。仍通过上述同一脚本调用，输出JSON；退出0仅表示校验完成，必须读取accepted，不代表训练准入。
+
+唯一离线说明/构造函数为 rwkv_lh/correction_review.py 的 REVIEW_INSTRUCTION / build_review_packet。最终回答与下一步工具调用分别审核，参数/答案保持原样。它不进入Controller，不取代真实测试，也不证明引用能支持断言。当前固定对照仅4/6满足预先登记判断，API错误仍被模型漏过；不得自动发布候选。[对照及来源记录](../data/experiments/RWKV_CORRECTION_REVIEW_R2_20260914/REPORT.zh-CN.md)。
