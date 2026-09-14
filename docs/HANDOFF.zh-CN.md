@@ -36,6 +36,8 @@
 
 Owner补充StateTune社区证据：约3000条数据的G1J 7B Three.js展示改善，当前只作外部复现线索。明确zero低分不是训练禁令；训练门槛是来源/纠正可信、协议State身份、隔离回归及授权预算，不等所有工程增强完成。下一步盘点获准真实来源与可验证纠正、覆盖缺口，推进统一多缺陷训练准备。
 
+已查看Lightning CUDA、Preen及RWKV-APP State-Tuning Studio的文档/源码，[参考核对与下一阶段](../data/experiments/RWKV_STATETUNE_REFERENCES_R1_20260914/REPORT.zh-CN.md)。Lightning作为候选训练/推理后端，Preen借鉴mask/导出验证，Studio借鉴run管理。外部训练text格式、截断和State轴语义不可直接混入当前链路；先做有界兼容验证，数据准备主线继续，不等待换后端才训练。未构建或启动外部训练/UI。
+
 ## 能力和限制
 
 - 固定单步读取、部分文档总结及明确测试执行已有成功证据。
