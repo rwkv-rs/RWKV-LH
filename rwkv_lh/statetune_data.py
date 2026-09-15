@@ -243,6 +243,11 @@ def admit_dataset(reference: Mapping, *, role: str, expected_regression: str, mo
         core.require(role == 'direct_actor' and manifest.get('command_validation', {}).get('count') == command_count,
                      'frozen command validation count differs')
         _member(root, manifest['command_validation'])
+    stdio_count = sum(row.get('label_authority') == 'verified_stdio' for row in raw_rows)
+    if stdio_count:
+        core.require(role == 'direct_actor' and manifest.get('stdio_validation', {}).get('count') == stdio_count,
+                     'frozen stdio validation count differs')
+        _member(root, manifest['stdio_validation'])
     rows = [normalize_row(row, role=role, model_sha256=model_sha256, context_tokens=context_tokens,
                           vocab_size=vocab_size, bos_token_id=bos_token_id)
             for row in raw_rows]

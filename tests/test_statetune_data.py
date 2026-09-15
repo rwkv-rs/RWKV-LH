@@ -11,6 +11,40 @@ from rwkv_lh.role_trace_artifacts import ARTIFACT_SCHEMA, build_artifacts, split
 from rwkv_lh.token_budget import VOCAB_PATH, tokenizer
 
 
+@pytest.mark.parametrize("damage", ["missing", "wrong_count", "tampered_file", "valid"])
+def test_stdio_training_requires_frozen_execution_proof(tmp_path, monkeypatch, damage):
+    manifest, _ = frozen(tmp_path)
+    version, protocol_sha = data._protocol("direct_actor")
+    manifest.update(role="direct_actor", input_protocol=version, protocol_sha256=protocol_sha)
+    sample = row()
+    sample.update(label_authority="verified_stdio")
+    train_ref = write(tmp_path / "train.jsonl", sample)
+    manifest["train"]["sha256"] = train_ref["sha256"]
+    proof = write(tmp_path / "stdio_validation.json", {"rows": ["opaque sealed execution evidence"]})
+    manifest["stdio_validation"] = {"file": "stdio_validation.json", "sha256": proof["sha256"], "count": 1}
+    if damage == "missing":
+        manifest.pop("stdio_validation")
+    elif damage == "wrong_count":
+        manifest["stdio_validation"]["count"] = 2
+    elif damage == "tampered_file":
+        (tmp_path / "stdio_validation.json").write_text("tampered")
+    reference = write(tmp_path / "manifest.json", manifest)
+    normalized = []
+    def normalize(value, **kwargs):
+        normalized.append(value)
+        return {"sample_id": value["sample_id"]}
+    monkeypatch.setattr(data, "normalize_row", normalize)
+    def load():
+        return data.admit_dataset(reference, role="direct_actor", expected_regression="a" * 64,
+            model_sha256="b" * 64, context_tokens=16384, vocab_size=65536, bos_token_id=0)
+    if damage == "valid":
+        assert len(load()[1]) == 1
+    else:
+        with pytest.raises(ValueError):
+            load()
+        assert not normalized
+
+
 def write(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False) + "\n")
     return {"path": str(path), "sha256": core.sha256_file(path)}
