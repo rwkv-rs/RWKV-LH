@@ -10,6 +10,8 @@
 
 原始目标原文保留，源路径仅以环境映射说明进入目标；不重写模型实际工具参数。外部 assistant/tool 历史、源工具 schema、参考答案不注入。多轮用户目标和多模态输入明确拒绝，等待逐任务复建；system/developer 中若有必需业务信息，须先完成来源与环境审核，不能假定仅提取 user 就保持完整语义。证据文件的 SHA 只能证明身份，不能自动证明复建内容正确。
 
+R5 另外拒绝 user 中已知的外部提交命令、单 action/bash 代码块协议签名；这是保守签名检查，不是完整语义认证。不能自动删掉命中段落放行，须先审核业务目标与源 Harness 指令的范围。当前范围转换尚未实现；旧转换包也因源码身份变化必须重新登记。逐题缺项见 `data/experiments/RWKV_SFT_ENVIRONMENT_R5_20260915/RECONSTRUCTION_INVENTORY.jsonl`。
+
 转换产物包含私有原始材料、初始工作区副本、CONVERSION.json、PREVIEW.json 和 inventory.jsonl。预览通过当前生产 model_io 输入函数构建，保存精确 token；没有另造训练协议。正式队列默认核验转换记录及当前源码/协议身份，任意手写任务不能绕过；`--engineering-inventory` 只用于显式工程夹具，不计正式采集。
 
 执行后用 `scripts/prepare_coding_collection.py export-boundaries --run-root /absolute/execution --model-sha256 <SHA> --output /absolute/new_evidence` 重建真实输入、token、State 和生成前快照。输出仅为边界证据，training_rows=0；错误输出原样保留，未来经真实纠正、验证、去重和既有训练准入后才生成目标与 mask。不完整轨迹导出失败时保留原件，不能补写缺失观察。

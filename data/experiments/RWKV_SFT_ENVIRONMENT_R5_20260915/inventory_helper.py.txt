@@ -1,0 +1,63 @@
+import hashlib
+import json
+import re
+from collections import Counter
+from pathlib import Path
+from rwkv_lh.collection_conversion import initial_goal
+
+ROOT=Path('/home/chase/GitHub/RWKV-LH')
+OUT=ROOT/'data/experiments/RWKV_SFT_ENVIRONMENT_R5_20260915'
+rows={}
+old=ROOT/'data/experiments/RWKV_ULTRADATA_EXPANSION_R1_20260915/Code-Agent_ROWS.json'
+for entry in json.loads(old.read_text())['rows']:
+    row=entry['row']
+    rows[row['uuid']]={'row':row,'locations':[{'path':str(old),'row_idx':entry['row_idx']} ]}
+for path in sorted(OUT.glob('*.prefix')):
+    offset=0
+    for line in path.read_bytes().split(b'\n')[:-1]:
+        row=json.loads(line)
+        location={'path':str(path),'offset':offset,'bytes':len(line),'raw_row_sha256':hashlib.sha256(line).hexdigest()}
+        offset+=len(line)+1
+        if row['uuid'] in rows:
+            assert rows[row['uuid']]['row']==row, 'overlapping source content differs'
+            rows[row['uuid']]['locations'].append(location)
+        else:rows[row['uuid']]={'row':row,'locations':[location]}
+inventory=[]
+for uuid,entry in sorted(rows.items()):
+    row=entry['row']
+    messages=row['messages']
+    try:
+        goal=initial_goal(row,'sft_agent')
+        conversion='text_goal_extractable_requires_environment_and_semantic_review'
+        error=None
+    except ValueError as exc:
+        goal=None;conversion='rejected_pending_goal_reconstruction';error=str(exc)
+    references=[]
+    for index,message in enumerate(messages):
+        if message.get('role')=='system':continue
+        content=message.get('content','')
+        if not isinstance(content,str):continue
+        for match in re.finditer(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[^\s<>`"\)]+)?',content):
+            references.append({'message_index':index,'role':message['role'],'url':match.group(),
+                               'status':'reference_only_not_initial_revision_proof'})
+    rejected_git=[index for index,message in enumerate(messages)
+                  if message.get('role')=='tool' and 'git commands are not allowed' in str(message.get('content',''))]
+    raw=json.dumps(row,sort_keys=True,ensure_ascii=False).encode()
+    inventory.append({'uuid':uuid,'source':row['source'],'source_locations':entry['locations'],
+        'canonical_row_sha256':hashlib.sha256(raw).hexdigest(),'conversion_status':conversion,'conversion_error':error,
+        'goal_sha256':hashlib.sha256(goal.encode()).hexdigest() if goal else None,
+        'github_references':references,'source_git_denial_message_indices':rejected_git,
+        'missing':['verified_initial_repository_snapshot','original_test_fixture_binding','dependency_environment_binding','external_acceptance_contract'],
+        'formal_admitted':False,'native_executions':0,'training_rows':0})
+(OUT/'RECONSTRUCTION_INVENTORY.jsonl').write_text(''.join(json.dumps(row,ensure_ascii=False)+'\n' for row in inventory))
+summary={'unique_source_uuids':len(inventory),'source_trajectories_not_unique_tasks':True,
+         'source_counts':dict(Counter(r['source'] for r in inventory)),
+         'conversion_counts':dict(Counter(r['conversion_status'] for r in inventory)),
+         'rows_with_source_git_denials':sum(bool(r['source_git_denial_message_indices']) for r in inventory),
+         'formal_admitted':0,'native_executions':0,'training_rows':0,
+         'sampling':'First 2 MiB of each of seven pinned shards, plus existing 50 rows; not representative/random or full-corpus audit.',
+         'identity_limit':'HTTP prefixes retained with digest and response headers. Full LFS object digests not verified; no production admission.',
+         'protocol_module_sha256':hashlib.sha256((ROOT/'rwkv_lh/model_io.py').read_bytes()).hexdigest(),
+         'converter_sha256':hashlib.sha256((ROOT/'rwkv_lh/collection_conversion.py').read_bytes()).hexdigest()}
+(OUT/'SUMMARY.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
+print(json.dumps(summary,ensure_ascii=False))

@@ -48,6 +48,17 @@ def initial_goal(row, source_kind):
         raise ValueError('unsupported source adapter')
     if not isinstance(goal, str) or not goal.strip():
         raise ValueError('complete text goal required; multimodal/partial tasks need reconstruction')
+    # Some releases put source-harness instructions inside the user turn.
+    # Preserve the original evidence; never regex-strip it into a guessed goal.
+    # This is a conservative known-signature guard, not semantic certification.
+    external_protocol_markers = (
+        'complete_task_and_submit_final_output',
+        'every response must contain exactly one action',
+        'the action must be enclosed in triple backticks',
+    )
+    normalized = ' '.join(goal.casefold().split())
+    if any(marker in normalized for marker in external_protocol_markers):
+        raise ValueError('embedded external harness protocol requires reviewed goal reconstruction')
     return goal
 
 

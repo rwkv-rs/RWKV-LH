@@ -94,6 +94,17 @@ def test_followup_user_goal_requires_explicit_reconstruction():
             {'role':'assistant','content':'done'},{'role':'user','content':'also preserve B'}]},'sft_agent')
 
 
+@pytest.mark.parametrize('instruction', [
+    'Submit using `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`.',
+    'Every response must contain exactly one action',
+    'The action must be enclosed in triple backticks',
+])
+def test_embedded_external_harness_protocol_requires_goal_review(instruction):
+    row={'messages':[{'role':'user','content':'Fix connection handling.\n'+instruction}]}
+    with pytest.raises(ValueError,match='embedded external harness'):
+        initial_goal(row,'sft_agent')
+
+
 def test_cannot_replace_baseline_by_rehashing_only_the_item(tmp_path):
     from rwkv_lh.collection_conversion import verify_conversion
     source=tmp_path/'source.json';source.write_text(json.dumps({'uuid':'one','messages':[{'role':'user','content':'Fix parser.'}]}))
