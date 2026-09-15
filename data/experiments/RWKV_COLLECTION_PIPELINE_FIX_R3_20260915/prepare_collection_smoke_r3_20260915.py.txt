@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,hashlib,sys
+root=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(root))
+from rwkv_lh.workspace_snapshot import tree_identity
+from rwkv_lh.runtime.settings import direct_agent_settings,get_runtime_settings
+from rwkv_lh.collection_execution import service_fingerprint
+base=root/'data/experiments/RWKV_COLLECTION_PIPELINE_FIX_R3_20260915'
+prior=root/'data/experiments/RWKV_COLLECTION_300_R1_20260915/REGISTRATION.json'
+registration=json.loads(prior.read_text())
+rows=[]
+for case in registration['cases'][:2]:
+    for name,digest in case['files'].items():
+        assert hashlib.sha256((Path(case['workspace'])/name).read_bytes()).hexdigest()==digest
+    private=base/'smoke_private'/case['id'];private.mkdir(parents=True)
+    source=private/'source.json';source.write_text(json.dumps(case,ensure_ascii=False,sort_keys=True))
+    acceptance=private/'acceptance.json';acceptance.write_text(json.dumps({'kind':'manual_rubric','criteria':[case['rubric'],'Do not modify existing files or claim to have authored them.']},ensure_ascii=False))
+    workspace=Path(case['workspace'])
+    rows.append({'source_id':'engineering-smoke/'+case['id'], 'purpose':'reused engineering regression; not new collection or training',
+        'source_path':str(source),'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+        'acceptance_path':str(acceptance),'acceptance_sha256':hashlib.sha256(acceptance.read_bytes()).hexdigest(),
+        'environment_sha256':hashlib.sha256(json.dumps(tree_identity(workspace,allow_links=False),sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest(),
+        'job':{'task_id':'PIPELINE-'+case['id'],'request':case['request'],'workspace':str(workspace),
+               'output_dir':str(base/'smoke_runs'/case['id']),'tool_scope':'coding','max_calls':12,'max_seconds':240}})
+(base/'smoke_inventory.jsonl').write_text(''.join(json.dumps(row,ensure_ascii=False)+'\n' for row in rows))
+(base/'SMOKE_REGISTRATION.json').write_text(json.dumps({'source_registration_sha256':hashlib.sha256(prior.read_bytes()).hexdigest(),
+ 'inventory_sha256':hashlib.sha256((base/'smoke_inventory.jsonl').read_bytes()).hexdigest(),
+ 'purpose':'production wiring smoke, not new tasks or StateTune efficacy', 'model_calls_limit':24,'max_hours':.25,'concurrency':1,'gpu':0,
+ 'service':service_fingerprint(direct_agent_settings(get_runtime_settings()))},ensure_ascii=False,indent=2))

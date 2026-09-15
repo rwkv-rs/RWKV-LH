@@ -10,11 +10,15 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import time
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rwkv_lh.workspace_snapshot import tree_identity
 from rwkv_lh.collection_queue import CollectionQueue
-from rwkv_lh.agent_batch import run_agent_jobs, validate_agent_jobs
+from rwkv_lh.agent_batch import validate_agent_jobs
+from rwkv_lh.collection_execution import dispatch, service_fingerprint
+from rwkv_lh.inference.uploaded_sources import source_inventory
+from rwkv_lh.collection_acceptance import load_contract
 from rwkv_lh.coding_agent import CodingJob
 from rwkv_lh.read_only_agent import ReadOnlyJob
 from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings
@@ -47,6 +51,7 @@ def verify_item(item):
             actual = hashlib.file_digest(stream, 'sha256').hexdigest()
         if actual != item[digest]:
             raise ValueError(f'{field} changed after freeze')
+    load_contract(item)
     tree = tree_identity(workspace, allow_links=False)
     actual = hashlib.sha256(json.dumps(tree, sort_keys=True, ensure_ascii=False,
                                       allow_nan=False).encode()).hexdigest()
@@ -58,7 +63,7 @@ def verify_item(item):
 
 def validate_inventory(queue):
     """Linear ancestor checks cover cross-batch workspace/output collisions."""
-    rows = [json.loads(row[0]) for row in queue.db.execute('SELECT payload FROM tasks')]
+    rows = list(queue.items())
     ids = [item['job']['task_id'] for item in rows]
     if len(ids) != len(set(ids)):
         raise ValueError('duplicate task IDs across inventory')
@@ -72,6 +77,13 @@ def validate_inventory(queue):
             raise ValueError('overlapping inventory paths')
     if any(any(p in output_set for p in source.parents) for source in sources):
         raise ValueError('output contains source workspace')
+    private_paths = {Path(item[field]).resolve() for item in rows
+                     for field in ('source_path', 'acceptance_path') if field in item}
+    for private in private_paths:
+        if private in sources or any(parent in sources for parent in private.parents):
+            raise ValueError('private evidence is visible in another task workspace')
+        if private in output_set or any(parent in output_set for parent in private.parents):
+            raise ValueError('task output overlaps private evidence')
 
 
 def main():
@@ -79,11 +91,31 @@ def main():
     parser.add_argument('--queue', type=Path, required=True)
     parser.add_argument('--inventory', type=Path, help='admit frozen JSONL; does not execute')
     parser.add_argument('--run', action='store_true')
+    parser.add_argument('--acknowledge-recovery', action='store_true', help='explicitly reset the persisted service failure circuit before resuming')
+    parser.add_argument('--status', action='store_true', help='read-only progress, does not acquire the runner lock')
+    parser.add_argument('--max-hours', type=float, default=36)
+    parser.add_argument('--failure-limit', type=int, default=3)
     parser.add_argument('--concurrency', type=int, default=1)
     parser.add_argument('--min-free-gib', type=int, default=20)
     args = parser.parse_args()
-    if args.concurrency < 1 or args.min_free_gib < 1 or (args.run and args.inventory):
+    import math
+    if (args.concurrency < 1 or args.min_free_gib < 1 or args.failure_limit < 1
+            or not math.isfinite(args.max_hours) or args.max_hours <= 0
+            or sum(bool(x) for x in (args.run, args.inventory, args.status)) > 1):
         parser.error('positive limits required; admission and execution are separate')
+    if args.acknowledge_recovery and not args.run:
+        parser.error('--acknowledge-recovery requires --run')
+    if args.status:
+        import sqlite3
+        with sqlite3.connect(args.queue.resolve().as_uri() + '?mode=ro', uri=True) as db:
+            counts = dict(db.execute('SELECT status, COUNT(*) FROM tasks GROUP BY status'))
+            results = [json.loads(row[0]) for row in db.execute('SELECT result FROM tasks WHERE result IS NOT NULL')]
+            print(json.dumps({'counts': counts,
+                'model_started_tasks': sum(isinstance(r.get('generation_started'), int) and r['generation_started'] > 0 for r in results),
+                'submitted': sum(r.get('termination') == 'submitted' for r in results),
+                'trace_complete': sum(r.get('trace_complete') is True for r in results),
+                'acceptance_passed': sum(r.get('acceptance') == 'passed' for r in results)}, ensure_ascii=False))
+        return 0
     args.queue.parent.mkdir(parents=True, exist_ok=True)
     with args.queue.with_suffix('.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -109,32 +141,37 @@ def main():
                 identity = asdict(settings)
                 for field in ('api_key', 'cf_access_client_id', 'cf_access_client_secret'):
                     identity.pop(field, None)
-                frozen = args.queue.with_suffix('.runtime.json')
-                value = json.dumps(identity, sort_keys=True, indent=2)
-                if frozen.exists():
-                    if frozen.read_text() != value:
-                        raise ValueError('runtime settings changed; refusing mixed campaign')
-                else:
-                    with frozen.open('x') as output:
-                        output.write(value)
-                while True:
+                root = Path(__file__).resolve().parents[1]
+                source_identity = {'rwkv_lh/' + name: value
+                                   for name, value in source_inventory(root/'rwkv_lh').items()}
+                for path in (Path(__file__).resolve(), Path(__file__).with_name('audit_collection_sources.py'),
+                             root/'pyproject.toml', root/'uv.lock'):
+                    source_identity[str(path.relative_to(root))] = (hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size)
+                serving = service_fingerprint(settings)
+                inventory_identity = hashlib.sha256(json.dumps(list(queue.items()), sort_keys=True,
+                    ensure_ascii=False, allow_nan=False).encode()).hexdigest()
+                identity.update(source_files=source_identity, inventory_sha256=inventory_identity,
+                    concurrency=args.concurrency, max_hours=args.max_hours, failure_limit=args.failure_limit, service_identity=serving)
+                queue.seal(identity)
+                queue.db.execute("INSERT OR IGNORE INTO freeze VALUES ('deadline', ?)",
+                                 (str(time.time() + args.max_hours * 3600),))
+                deadline = float(queue.db.execute("SELECT value FROM freeze WHERE name='deadline'").fetchone()[0])
+                def capacity():
                     if shutil.disk_usage(args.queue.parent).free < args.min_free_gib * 1024**3:
-                        raise RuntimeError('disk reserve reached; pending tasks preserved')
-                    batch = []
-                    for _ in range(args.concurrency):
-                        item = queue.claim()
-                        if item is None:
-                            break
-                        batch.append(item)
-                    if not batch:
-                        break
-                    jobs = [verify_item(item) for item in batch]
-                    results = run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency)
-                    for item, result in zip(batch, results, strict=True):
-                        queue.finish(item['source_id'], result)
-                    print(json.dumps(queue.counts()), flush=True)
+                        raise RuntimeError('disk reserve reached')
+                if args.acknowledge_recovery:
+                    queue.db.execute('CREATE TABLE IF NOT EXISTS operational (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
+                    queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('failure_streak', '0')")
+                    queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('recovery_acknowledged', ?)", (str(time.time()),))
+                result = dispatch(queue, settings=settings, verify=verify_item,
+                    concurrency=args.concurrency, deadline=deadline,
+                    failure_limit=args.failure_limit, capacity_check=capacity, service_identity=serving)
+                print(json.dumps(result), flush=True)
+                return 0 if result['reason'] == 'exhausted' and not any(
+                    result['counts'].get(key, 0) for key in ('running', 'pending')) else 2
+
             print(json.dumps(queue.counts()), flush=True)
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

@@ -1,35 +1,45 @@
 # 真实 Agent 采集管线
 
-目标是 30,000 个独立、可复建任务的真实执行；不是 30,000 条参考回答，也不是自动入训。优先 SFT-Agent 和项目真实来源，RL 代码/长文任务补充。当前只实现队列和来源结构审计基础，尚未冻结 3 万题或启动大批模型执行。
+正式任务范围以 [Coding Agent 采集要求](CODING_AGENT_COLLECTION_SCOPE.zh-CN.md) 为准：真实仓库修复、实现、反馈及相关理解/验证，泛问答不用于凑数。
 
-## 当前入口
+目标为 30,000 个独立、可复建任务的真实执行；静态 SFT 轨迹不是新的执行，任务收据不是训练准入。SFT-Agent 和项目来源优先，RL 代码/长文补充。本轮修复运行管线；3 万条任务清单和 SFT 环境仍需完成复建与冻结，不能把工程回归当作规模采集结果。
 
-`scripts/audit_collection_sources.py --source /absolute/source.jsonl --revision PINNED_REVISION --output /absolute/audit.jsonl` 按行扫描 SFT-Agent，保存原始字节偏移、行 SHA、协议结构观察。结构合格不代表环境复建或参考回答正确。
+## 来源审计与入队
 
-`scripts/run_collection_queue.py --queue /absolute/queue.sqlite3 --inventory /absolute/admitted.jsonl` 事务性纳入已复建且事前登记验收的任务，失败整次回滚。
+`scripts/audit_collection_sources.py --source /absolute/source.jsonl --revision <40位修订SHA> --output /absolute/audit.jsonl` 流式结构审计。输出先写 `.partial`，每 100 行落盘恢复点，全部处理后才成为最终文件。中断后使用 `--resume`，核对源前缀和已写输出摘要后继续，不重复计行。异常格式单列，不冒充正确轨迹或可复建环境。
 
-每行需包含 source_id、source_path、source_sha256、environment_sha256、acceptance_path、acceptance_sha256、job。source_id 必须绑定数据集修订与原题身份，不使用生成调用编号；近重复家族切分仍须在上游完成。source_path 是保留的原始行文件；acceptance_path 是外部验收约定，两者在工作区之外，不传给模型。
+`scripts/run_collection_queue.py --queue /absolute/queue.sqlite3 --inventory /absolute/admitted.jsonl` 事务性纳入任务。每行必须包含 source_id、source_path、source_sha256、environment_sha256、acceptance_path、acceptance_sha256、job。
 
-环境摘要算法为 `SHA256(json.dumps(tree_identity(workspace, allow_links=False), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())`。实际运行前重新验证三个摘要，拒绝冻结后改变的来源、验收或工作区。
+source_path 是保留的原始题目行文件，不能指整个共享容器后把行编号丢掉。逐行 SHA 重复和相同 source_id 均拒绝；跨来源相似任务仍需上游家族去重，不宣称字节去重解决语义重复。
 
-job 字段严格为 task_id、request、workspace、output_dir、tool_scope、max_calls、max_seconds。tool_scope 仅 files / inspect / coding。拒绝 assistance、on_stall 等附加选项，不接强模型。
+验收文件只接受两种显式约定：`manual_rubric` 配非空 criteria，或 `stdio_exact` 配 cases 和 `comparison=exact_rstrip`。浮点容差、多解及其他不适用 exact 的题目不可伪装 stdio_exact。前者等待独立语义审核；后者复用隔离 stdio 验证器，仅判断代码产物，不把它算作完整回答忠实性。外部验证最多 30 秒，超过则记 unreviewable；原始执行收据在验证前已经保存。
 
-`--run --concurrency N` 使用生产直接 Agent 入口有界分批执行，只允许 zero State，保存无密钥的运行参数并拒绝恢复时变化。默认磁盘保留 20 GiB，`--min-free-gib` 可提高。运行前仍必须完成下列部署门，不能据此入口直接宣称已经具备 3 万题运行条件。
+所有源轨迹及验收文件均须位于全部模型可见工作区之外，也不能被任何任务输出覆盖。job 字段严格为 task_id、request、workspace、output_dir、tool_scope、max_calls、max_seconds。tool_scope 仅 files / inspect / coding，拒绝 assistance/on_stall。模型自主选择工具及参数；不注入参考答案或计划步骤。
 
-## 任务状态
+工作区摘要为 `SHA256(json.dumps(tree_identity(workspace, allow_links=False), sort_keys=True, ensure_ascii=False, allow_nan=False).encode())`。派发前检查源、验收和工作区真实字节；失败保持 pending、停止派发，不冒充在途任务。
 
-pending → running → recorded。recorded 仅指原始执行结果已落盘，不代表成功，不是训练准入。
+## 执行、停止与恢复
 
-SQLite WAL/FULL 和事务领取避免重复领取；进程锁防止两个队列主进程同时启动。中断后 running 不自动重跑，须核验真实 trace、Native 请求收据及 State 身份；当前没有自动恢复 running 的入口，避免未知执行被重复计数。保留原始任务失败，不自动纠正答案。
+执行入口：`scripts/run_collection_queue.py --queue /absolute/queue.sqlite3 --run --concurrency 1 --max-hours 36`。仅允许 zero State；冻结实际运行包全部文件、入口、依赖锁、任务清单、运行参数及服务身份。Native server_build 绑定服务器核验过的 engine/project manifest，另冻结 tokenizer_build、模型与上下文。每个 worker 开始前重新检查服务身份。不得在运行中改冻结源码或参数。
 
-## 大批运行前尚需完成
+持久进程池只保留有界在途任务，完成一个即写入队列，不等待整批。任务收到真实模型结果后，保存带 source/task/payload/result 摘要的原子收据；编码及只读任务均接入生成边界工作区快照，沿现有生产输入/State 路径执行。
 
-1. 固定修订扫描 SFT-Agent，定位可复建的源码版本及初始材料；不从未来回答反造初始环境。对不可复建项记录具体缺项。
-2. 上游完成跨来源相似任务去重、任务家族隔离及验收器绑定。现入口已检查全库存任务 ID、输出路径及跨批源目录重叠，但不能替代语义去重。
-3. 冻结模型、tokenizer、协议、完整部署源码 manifest、采样、任务预算和验收。现有参数快照不是完整源码 attestation 的替代品。
-4. 独立小批核验精确输入、输出 token、观察和 State 谱系；当前生产轨迹保存仍需证明满足大批恢复要求。
-5. Native 服务全局请求锁覆盖生成且使用共享 active_request_id；不得直接删锁。先测串行瓶颈与 State 隔离，再决定工程改动或稳定并发值。
-6. 完成任务级 State 释放、磁盘多卷水位和故障回压；当前只检查队列所在卷，尚不监控远端 State 卷。
-7. 外部验收结果与原始提交分开存储，跑后分类。现队列不执行隐藏验收、不自动产出错误标签。
+pending → running → recorded。recorded 只是结果落盘。启动时核验收据，恢复已完成条目；无有效收据的 running 明确报未决并返回非零，不能自动重试。此版本不自动重建未知 Native 请求续跑，需要依据真实 trace/Native 收据确认后处理，不能用重跑掩盖中断。
 
-只使用 GPU 0。本轮无教师纠错、无训练；保留成功和失败原始轨迹。当前 12 题固定回归及衍生内容不进入未来训练，最终 holdout 不读取。
+到全局截止后停止派发、收集在途结果；截止时间持久化，不因重启延长。连续基础设施/不完整 trace 达到 `--failure-limit`（默认 3）停发，状态跨重启保留。确认服务恢复后可显式 `--acknowledge-recovery` 清除停发计数，操作时间有记录，旧结果不删除。模型正常结束的错误答案不按基础设施错误处理。
+
+每次任务的最长生成执行时间受剩余全局预算约束；截止附近仍可能有最多 30 秒外部验收及收据收尾。已完成队列正常返回；未决、预算到期、预检查或服务故障返回非零。
+
+## 约每三小时检查
+
+`--status` 使用 SQLite 只读连接，不抢占正在执行的主进程锁。显示 pending/running/recorded，并从已落盘结果统计发生模型调用的任务、提交、trace 完整和验收状态；这些结果计数不包含仍在 running 的任务，也不把 submitted 当作合格。
+
+示例：`.venv/bin/python scripts/run_collection_queue.py --queue /absolute/queue.sqlite3 --status`。
+
+按 owner 最新指令，本轮不扩展磁盘自动监控/清理，不实现自动 State blob 删除。保留现有队列所在卷的低水位检查（默认 20 GiB）。人工检查时仍应查看远端 State/工作区存储；本地低水位不代表服务器容量。
+
+Native 服务全局请求锁保持原样，不直接移除。实际并发/吞吐仍需实测；客户端并发数不代表 GPU 真正并发。默认并发 1，未宣称“最大稳定并发”已经得到。
+
+## 开始规模采集前
+
+完成 SFT 原始环境复建、跨来源家族去重、任务与验收冻结，核验模型/服务部署身份，然后对实际题型做有界试跑和吞吐测量。现有工程冒烟仅复用历史两道任务，不计入新的 3 万条，也不测训练收益。不得读取最终 holdout；当前训练后固定 12 题及衍生内容仍排除出未来训练。仅 GPU 0，不启动教师纠正或训练。

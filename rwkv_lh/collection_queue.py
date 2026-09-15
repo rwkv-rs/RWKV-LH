@@ -24,6 +24,10 @@ class CollectionQueue:
             payload_sha256 TEXT NOT NULL, status TEXT NOT NULL,
             result TEXT, updated REAL NOT NULL)''')
 
+        self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS source_bytes_unique ON tasks(json_extract(payload, '$.source_sha256'))")
+        self.db.execute('CREATE INDEX IF NOT EXISTS tasks_status_idx ON tasks(status)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS freeze (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
+
     def __enter__(self):
         return self
 
@@ -38,6 +42,8 @@ class CollectionQueue:
             raise ValueError('source identity required')
         if not isinstance(item.get('job'), dict) or not item['job'].get('task_id'):
             raise ValueError('job identity required')
+        if self.db.execute('SELECT 1 FROM freeze LIMIT 1').fetchone():
+            raise ValueError('inventory is frozen')
         payload = _json(item)
         try:
             self.db.execute('INSERT INTO tasks VALUES (?, ?, ?, ?, NULL, ?)',
@@ -46,10 +52,34 @@ class CollectionQueue:
         except sqlite3.IntegrityError as exc:
             raise ValueError('duplicate source; frozen tasks cannot be replaced') from exc
 
-    def claim(self):
+    def items(self, status=None):
+        query = "SELECT source_id, payload, payload_sha256 FROM tasks"
+        args = ()
+        if status is not None:
+            query += " WHERE status=?"
+            args = (status,)
+        for source_id, payload, digest in self.db.execute(query + " ORDER BY rowid", args):
+            if hashlib.sha256(payload.encode()).hexdigest() != digest:
+                raise ValueError("task payload digest mismatch")
+            item = json.loads(payload)
+            if item["source_id"] != source_id:
+                raise ValueError("source identity mismatch")
+            yield item
+
+    def seal(self, identity):
+        value = _json(identity)
+        previous = self.db.execute("SELECT value FROM freeze WHERE name='campaign'").fetchone()
+        if previous and previous[0] != value:
+            raise ValueError("campaign identity changed")
+        self.db.execute("INSERT OR IGNORE INTO freeze VALUES ('campaign', ?)", (value,))
+
+    def claim(self, verify=None):
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            row = self.db.execute("SELECT source_id, payload FROM tasks WHERE status='pending' ORDER BY rowid LIMIT 1").fetchone()
+            item = next(self.items("pending"), None)
+            row = (item["source_id"], _json(item)) if item else None
+            if item is not None and verify is not None:
+                verify(item)
             if row:
                 self.db.execute("UPDATE tasks SET status='running', updated=? WHERE source_id=?", (time.time(), row[0]))
             self.db.execute('COMMIT')
@@ -59,6 +89,9 @@ class CollectionQueue:
         return json.loads(row[1]) if row else None
 
     def finish(self, source_id, result):
+        item = next((item for item in self.items("running") if item["source_id"] == source_id), None)
+        if item is None or result.get("id") != item["job"]["task_id"]:
+            raise ValueError("running task result identity mismatch")
         changed = self.db.execute("UPDATE tasks SET status='recorded', result=?, updated=? WHERE source_id=? AND status='running'",
                                   (_json(result), time.time(), source_id))
         if changed.rowcount != 1:

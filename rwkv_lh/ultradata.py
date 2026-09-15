@@ -86,7 +86,7 @@ def audit_trajectory(row: Mapping[str, Any]) -> dict:
             continue
         role = message.get("role")
         counts[str(role)] += 1
-        if role not in {"system", "user", "assistant", "tool"}:
+        if not isinstance(role, str) or role not in {"system", "user", "assistant", "tool"}:
             result["review_reasons"].append("unknown_message_role")
         if role == "assistant":
             if "loss" not in message:

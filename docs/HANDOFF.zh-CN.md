@@ -1,5 +1,11 @@
 # 当前交接（2026-09-15）
 
+**owner 最新采集方向：为真实 Coding Agent 准备数据，SFT Code-Agent/项目仓库任务优先；以修复、需求实现、真实测试反馈为核心，代码理解和验证说明服务于编程闭环，泛文档问答不凑 3 万条。两道历史公开检查仅工程冒烟。具体见 [Coding Agent 采集范围](CODING_AGENT_COLLECTION_SCOPE.zh-CN.md)。**
+
+
+**管线 R3：队列身份/冻结、私有材料隔离、逐题收据和中断恢复、生成前纠正快照、故障停发与只读进度入口已修复；最终 1859 回归全绿。复用历史两题真实冒烟 2/2 忠实完成，4 生成输入/State/观察/快照核验，0 mutation；不计新 3 万题或训练收益。磁盘自动管理按 owner 最新要求暂缓，约三小时人工检查；Native 并发上限和 SFT 复建/3 万题冻结仍待完成。详见 [R3报告](../data/experiments/RWKV_COLLECTION_PIPELINE_FIX_R3_20260915/REPORT.zh-CN.md)。**
+
+
 **长跑审计 R2：NO-GO。实际复现队列预检查后遗留 running、未决正常退出、payload 摘要未核验、结果身份未绑定、跨题私有参考暴露、坏 SFT 行中断及来源去重缺口。还确认新入口未接生成前纠正快照、远端 State 生命周期/容量及全局故障回压。上一轮 1843 回归不代表 36 小时运行就绪；本轮没有启动模型、训练或修复这些问题。详见 [审计报告](../data/experiments/RWKV_COLLECTION_PIPELINE_AUDIT_R2_20260915/REPORT.zh-CN.md)。**
 
 
