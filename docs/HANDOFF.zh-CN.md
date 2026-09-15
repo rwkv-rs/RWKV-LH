@@ -1,10 +1,10 @@
 # 当前交接（2026-09-14）
 
-**最新：UltraData首批20题×2遍已完成，修复换行证据缺陷后程序外测3/40、提交2、完整忠实交付0；真实输入/观察/State核验40/40，工程中断0。3份原始写入通过新快照重放，尚未正式准入；训练数据仍60，本轮强模型0/训练0。完整回归1822 passed、0 skipped，owner五文件保留、未push。详见[本轮结果](../data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/REPORT.zh-CN.md)。**
+**最新：本批53新题采集与分类完成，307生成/53链路核验通过，原任务交付0。Codex纠正25不同题目并完成隔离红绿和冻结时复验，统一v4正式85条（旧60+新25）；1833完整回归通过、0跳过。新训练0、原服务恢复空闲、owner修改保留、未push。详见[阶段报告](../data/experiments/RWKV_CODEX_UNIFIED_DATA_FREEZE_R1_20260915/REPORT.zh-CN.md)。**
 
-## owner授权Codex纠错与扩量（运行中）
+## owner授权Codex纠错与扩量（已完成本数据阶段）
 
-53个新UltraData Code任务已冻结启动，GPU0、RWKV独立、在线教师0；整批636调用/14400秒上限，结束后自动恢复原服务。247个既有真实生成边界已收集；当前Codex亲自编写6份纠正（3命令、3写入）均经真实执行验证，仍待正式准入，不把错误答案作为成功标签。仅3题6运行，未凑成6独立题；正式数据仍60、未新训练。详见RWKV_CODEX_CORRECTION_COLLECTION_R1_20260915/REPORT.zh-CN.md和RWKV_ULTRADATA_COLLECTION_R3_20260915/PLAN_AND_STATUS.zh-CN.md。当前未宣称扩量完成或已恢复服务。
+53个新任务全部完成，原始轨迹逐运行分类；25题纠正写入正式纳入统一v4，3份命令纠正仍待原审核门。5个不支持exact判题的来源隔离，26新题待教师纠正，队列位于RWKV_ULTRADATA_COLLECTION_R3_20260915/CONTINUATION_QUEUE.json。此前“运行中”状态已结束，原服务恢复空闲。
 
 ## 09:50续进：强模型恢复与真实接管
 

@@ -8,7 +8,11 @@ Owner明确：`rwkvrag`仅参考总结文档的方法。训练侧重点参考`rw
 
 持续采集思路对应此前NeoHorse参考记录：在真实学生执行轨迹上发现问题，由教师在当时可见证据上纠正，真实验证后入候选池，按缺口调整下一批采集，并由训练后新轨迹继续反馈。不直接移植新角色、路由或在线训练，不把教师接管成果归为学生独立能力。
 
-当前冻结训练60条。最近5条运行的12个生成边界已登记为可追溯队列，两个回答候选分别只有1/0有效审核，新增准入0。这是有界库存快照，不是已上线的自动持续调度器。详见[队列与处理规则](../data/experiments/RWKV_CONTINUOUS_CORRECTION_QUEUE_R1_20260915/REPORT.zh-CN.md)。批次按collected/candidate/reviewed/execution_verified/admitted或rejected区分，持续采集不等于持续无门槛训练。
+此前冻结训练60条。最近5条运行的12个生成边界已登记为可追溯队列，两个回答候选分别只有1/0有效审核，新增准入0。这是有界库存快照，不是已上线的自动持续调度器。详见[队列与处理规则](../data/experiments/RWKV_CONTINUOUS_CORRECTION_QUEUE_R1_20260915/REPORT.zh-CN.md)。批次按collected/candidate/reviewed/execution_verified/admitted或rejected区分，持续采集不等于持续无门槛训练。
+
+## 2026-09-15已完成首批扩量准入
+
+统一v4现为85条，旧60保留，新增25不同题目的Codex纠正写入；来源为真实RWKV生成边界，隔离原测试红绿并冻结复验。确定性stdio使用具名来源语义审核加真实执行合同，自由文本和命令不套用此门。当前新训练0；新增数据仍缺命令后/修改后反馈和事实回答覆盖，先补齐再规划统一训练，不按每个问题单独State。详见RWKV_CODEX_UNIFIED_DATA_FREEZE_R1_20260915。
 
 ## 最新优先级：质量先于数量
 

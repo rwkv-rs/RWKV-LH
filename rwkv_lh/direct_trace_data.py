@@ -188,6 +188,19 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
     if authority == 'executed_read':
         core.require(command.name == 'read_file' and row.get('executed_action_id')
                      and row.get('real_tool_success') is True, 'read label lacks execution proof')
+    elif authority == 'verified_stdio':
+        review = row.get('stdio_review', {})
+        core.require(command.name == 'write_file' and command.arguments.get('path') == 'solution.py'
+                     and isinstance(row.get('stdio_validation'), Mapping)
+                     and set(row['stdio_validation']) == {'path', 'sha256'},
+                     'stdio label requires sealed entry-point execution proof')
+        executed_arguments(command)
+        core.require(isinstance(review.get('reviewer'), str) and bool(review['reviewer'].strip())
+                     and review.get('accepted') is True and review.get('visible_evidence_only') is True
+                     and review.get('source_consistent') is True and review.get('output_contract') == 'exact_unique'
+                     and review.get('input_sha256') == hashlib.sha256(row['input_text'].encode()).hexdigest()
+                     and review.get('target_sha256') == hashlib.sha256(raw_target.encode()).hexdigest(),
+                     'stdio label lacks bound source review')
     elif authority in ('independent_review', 'verified_coding', 'verified_command'):
         target_sha = hashlib.sha256(raw_target.encode()).hexdigest()
         reviewers = row.get('reviews', [])
@@ -301,6 +314,7 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
     identities = set()
     coding_proofs = []
     command_proofs = []
+    stdio_proofs = []
     for row in rows:
         normalize_direct_row(row, model_sha256=registration['model_sha256'], context_tokens=registration['context_tokens'],
                              vocab_size=registration['vocab_size'], bos_token_id=registration['bos_token_id'])
@@ -324,6 +338,13 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
                          and target.arguments.get('path') == source['path']
                          and hashlib.sha256(action.result['output'].encode()).hexdigest() == row['source_content_sha256'],
                          'executed read target differs from actual command/result')
+        elif row['label_authority'] == 'verified_stdio':
+            from .stdio_corrections import revalidate_training_stdio
+            with tempfile.TemporaryDirectory(prefix='rwkv-stdio-freeze-') as temporary:
+                proof = revalidate_training_stdio(row, run_root=source['run_root'],
+                    source_files=sealed(source['manifest'])['files'],
+                    model_sha256=registration['model_sha256'], output=Path(temporary) / 'validation')
+                stdio_proofs.append({'sample_id': row['sample_id'], 'validation': proof})
         elif row['label_authority'] == 'verified_coding':
             from .coding_corrections import revalidate_training_correction
             with tempfile.TemporaryDirectory(prefix='rwkv-coding-freeze-') as temporary:
@@ -365,6 +386,10 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         core.require(type(coverage.get('command_boundaries')) is int
                      and 0 < coverage['command_boundaries'] <= len(command_proofs),
                      'command coverage must be explicitly registered')
+    if stdio_proofs:
+        core.require(type(coverage.get('stdio_boundaries')) is int
+                     and 0 < coverage['stdio_boundaries'] <= len(stdio_proofs),
+                     'stdio coverage must be explicitly registered')
     counts = {'train': len(rows), **{split: sum(c['split'] == split for c in regression['cases'])
                                    for split in ('dev', 'confirmation')}}
     core.require(all(counts[k] >= registration['minimum_counts'][k] > 0 for k in counts), 'direct minimum counts not met')
@@ -379,6 +404,8 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
             (staging / 'coding_validation.json').write_bytes(_canonical_bytes({'rows': coding_proofs}) + b'\n')
         if command_proofs:
             (staging / 'command_validation.json').write_bytes(_canonical_bytes({'rows': command_proofs}) + b'\n')
+        if stdio_proofs:
+            (staging / 'stdio_validation.json').write_bytes(_canonical_bytes({'rows': stdio_proofs}) + b'\n')
         version, protocol_sha = protocol_identity()
         manifest = {'schema_version': DATASET_SCHEMA, 'purpose': 'frozen_role_training', 'role': ROLE,
                     'input_protocol': version, 'protocol_sha256': protocol_sha,
@@ -397,6 +424,10 @@ def freeze_direct_dataset(registration: Mapping, *, registration_reference: Mapp
         if command_proofs:
             manifest['command_validation'] = {'file': 'command_validation.json',
                 'sha256': core.sha256_file(staging / 'command_validation.json'), 'count': len(command_proofs)}
+        if stdio_proofs:
+            manifest['stdio_validation'] = {'file': 'stdio_validation.json',
+                'sha256': core.sha256_file(staging / 'stdio_validation.json'), 'count': len(stdio_proofs),
+                'contract': 'one bound source review plus fresh isolated exact-output execution'}
         (staging / 'manifest.json').write_bytes(_canonical_bytes(manifest) + b'\n')
         _publish_no_replace(staging, output)
         return manifest
