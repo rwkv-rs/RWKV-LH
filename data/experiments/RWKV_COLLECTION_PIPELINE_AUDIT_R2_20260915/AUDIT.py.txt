@@ -1,0 +1,59 @@
+from pathlib import Path
+import hashlib,json,sys,subprocess
+from unittest.mock import patch
+root=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(root))
+from rwkv_lh.collection_queue import CollectionQueue
+from rwkv_lh.workspace_snapshot import tree_identity
+from scripts.run_collection_queue import verify_item,validate_inventory,main
+from rwkv_lh.runtime.settings import RuntimeSettings
+from rwkv_lh.ultradata import audit_trajectory
+base=root/'data/experiments/RWKV_COLLECTION_PIPELINE_AUDIT_R2_20260915'
+results=[]
+def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def fixture(name):
+    home=base/name;home.mkdir()
+    workspace=home/'workspace';workspace.mkdir();(workspace/'TASK.md').write_text('Engineering fixture, not collection data.')
+    source=home/'source.json';source.write_text('{}')
+    acceptance=home/'private.json';acceptance.write_text('{}')
+    return {'source_id':name,'source_path':str(source),'source_sha256':digest(source),
+        'acceptance_path':str(acceptance),'acceptance_sha256':digest(acceptance),
+        'environment_sha256':hashlib.sha256(json.dumps(tree_identity(workspace,allow_links=False),sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest(),
+        'job':{'task_id':name,'request':'Read TASK.md','workspace':str(workspace),
+               'output_dir':str(home/'output'),'tool_scope':'files','max_calls':2,'max_seconds':30}}
+# Failure before model invocation strands an already claimed task.
+a=fixture('preflight');db=base/'preflight.sqlite3'
+with CollectionQueue(db) as q:
+    q.admit(a);claimed=q.claim();Path(a['source_path']).write_text('changed')
+    try:verify_item(claimed)
+    except ValueError as e:results.append({'issue':'claim_before_preflight','error':str(e),'counts':q.counts(),'model_calls':0})
+# Entry point returns normally even with unresolved running work.
+settings=RuntimeSettings(base_url='http://127.0.0.1:1/v1',api_key='',model='audit-only',state_profile_id='zero',state_profile_sha256='0'*64)
+with patch('scripts.run_collection_queue.get_runtime_settings',return_value=settings),patch.object(sys,'argv',['run_collection_queue','--queue',str(db),'--run']):
+    returned=main()
+results.append({'issue':'unresolved_running_normal_exit','main_return':returned,'model_calls':0})
+# Stored payload digest is not actually checked at claim time.
+b=fixture('payload')
+with CollectionQueue(base/'payload.sqlite3') as q:
+    q.admit(b); altered=dict(b);altered['job']={**b['job'],'request':'Changed after freeze'}
+    q.db.execute('UPDATE tasks SET payload=?',(json.dumps(altered),))
+    got=q.claim();results.append({'issue':'payload_digest_not_verified','modified_request_returned':got['job']['request']})
+    q.finish(b['source_id'],{'id':'WRONG_TASK','termination':'error','generation_started':0})
+    results.append({'issue':'mismatched_result_accepted','counts':q.counts(),'recorded_model_calls':0})
+# Private reference for A can live in B's visible input tree.
+a=fixture('private_a');b=fixture('private_b'); secret=Path(b['job']['workspace'])/'hidden_answer.json';secret.write_text('{"answer":"private engineering sentinel"}')
+a['acceptance_path']=str(secret);a['acceptance_sha256']=digest(secret)
+b['environment_sha256']=hashlib.sha256(json.dumps(tree_identity(Path(b['job']['workspace']),allow_links=False),sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest()
+with CollectionQueue(base/'privacy.sqlite3') as q:
+    for x in (a,b):verify_item(x);q.admit(x)
+    validate_inventory(q)
+    results.append({'issue':'cross_task_private_reference_exposure','global_preflight':'accepted','visible_in_task':b['source_id']})
+# Structurally malformed source can crash the streaming audit, rather than quarantine.
+try:audit_trajectory({'messages':[{'role':[]}],'tools':[]})
+except Exception as e:results.append({'issue':'malformed_role_crashes_stream','type':type(e).__name__,'message':str(e)})
+# Same task under a second source ID passes admission and topology checks.
+a=fixture('dup_a');b=fixture('dup_b');b['source_path']=a['source_path'];b['source_sha256']=a['source_sha256']
+with CollectionQueue(base/'duplicates.sqlite3') as q:
+    for x in (a,b):verify_item(x);q.admit(x)
+    validate_inventory(q);results.append({'issue':'same_source_bytes_different_ids','counts':q.counts()})
+(base/'PROBES.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
+print(json.dumps(results,ensure_ascii=False,indent=2))

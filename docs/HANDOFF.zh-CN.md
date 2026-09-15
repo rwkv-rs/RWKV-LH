@@ -1,5 +1,8 @@
 # 当前交接（2026-09-15）
 
+**长跑审计 R2：NO-GO。实际复现队列预检查后遗留 running、未决正常退出、payload 摘要未核验、结果身份未绑定、跨题私有参考暴露、坏 SFT 行中断及来源去重缺口。还确认新入口未接生成前纠正快照、远端 State 生命周期/容量及全局故障回压。上一轮 1843 回归不代表 36 小时运行就绪；本轮没有启动模型、训练或修复这些问题。详见 [审计报告](../data/experiments/RWKV_COLLECTION_PIPELINE_AUDIT_R2_20260915/REPORT.zh-CN.md)。**
+
+
 **当前采集管线 R1：owner 最新要求先做 3 万独立任务真实执行，SFT-Agent 优先、项目来源与 RL 补充；不纠错、不调用强模型、不训练。已实现持久队列、冻结摘要核验、跨批路径预检、生产直接执行入口和流式结构审计；现存 SFT 56 记录/54 来源 ID 已审计，尚未复建计数。大批运行尚未启动，Native 全局请求锁和 State 回收/容量仍需验证。清理 experiments 字节码和可重建重复材料累计 38.8 MiB，原始证据保留；完整回归 1843 passed、0 skipped。详见 [采集管线](COLLECTION_PIPELINE.zh-CN.md) 和 [R1记录](../data/experiments/RWKV_COLLECTION_PIPELINE_R1_20260915/REPORT.zh-CN.md)。**
 
 
