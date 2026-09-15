@@ -14,6 +14,10 @@ rwkvrag仅参考总结文档的方法；StateTune重点参考Lightning CUDA、Pr
 
 近期训练实际使用LH Native，不是PEFT/train.py；不能混称。PEFT本地工作树9文件修改已保留，当前60条token/label通过binidx往返，61层State导出相等，optimizer0。文本入口追加EOT/截断、L2Wrap及G1J递归/梯度需对齐后再登记正式PEFT训练。详见RWKV_PEFT_TRAINING_CONTRACT_R1_20260915。三个社区项目为参考，持续纠正数据主线不取消。
 
+## 训练器选择（当前）
+
+对当前G1J/精确trace统一State，下一轮继续LH Native，PEFT作为后续有界对照，不直接切换。理由与CPU梯度差异证据见RWKV_TRAINER_SELECTION_R1_20260915；不声称Native质量或速度更优。原60条尚未扩充，审核恢复R2限定3请求且规则不变，新数据与训练器变更不混为一个收益。
+
 ## 产品与当前入口
 
 目标：为RWKV构建专属Harness和Code Agent；同质量下的成本、速度与吞吐是优化指标。当前架构只从[ARCHITECTURE](ARCHITECTURE.zh-CN.md)进入，历史设计不再作为互相竞争的产品入口说明。
