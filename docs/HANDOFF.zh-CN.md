@@ -6,6 +6,10 @@
 
 小生成2/2正常后，长审核有效1/4（两份引文锚点失败、一次连接重置），候选仍未入训。原UTC偏移任务接管恢复：strong实际测试红→修改→测试绿，隔离原测试/CLI均通过，代码修复1/1；最终说明误列两个原本已拒绝的偏移值，完整忠实交付0/1。4请求、69225输入/747输出token，归属strong_takeover。没有新增数据版本或训练；详见RWKV_POST_COMMAND_ANSWER_REVIEW_R1_20260915和RWKV_BOUNDED_CODE_RECOVERY_R5_20260915。
 
+## 参考范围与持续数据（owner最新）
+
+rwkvrag仅参考总结文档的方法；StateTune重点参考Lightning CUDA、Preen、RWKV-APP/statetuning。此前NeoHorse的学生轨迹教师纠正思路落实到可复核持续队列，最近5运行/12边界登记，新准入0，正式数据仍60。此队列是库存快照，未宣称自动采集调度已上线。见RWKV_CONTINUOUS_CORRECTION_QUEUE_R1_20260915。
+
 ## 产品与当前入口
 
 目标：为RWKV构建专属Harness和Code Agent；同质量下的成本、速度与吞吐是优化指标。当前架构只从[ARCHITECTURE](ARCHITECTURE.zh-CN.md)进入，历史设计不再作为互相竞争的产品入口说明。
