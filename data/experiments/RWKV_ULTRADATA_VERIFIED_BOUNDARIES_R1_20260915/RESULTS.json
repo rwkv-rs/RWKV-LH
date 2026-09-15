@@ -1,0 +1,77 @@
+[
+  {
+    "source_run": "data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00007-r1/execution",
+    "source_files": {
+      "RESULT.json": "80391626153948f24becbe8b63b9777e355e9a52473322cf6ee54b4d035db885",
+      "model_trace.jsonl": "a31935110dffe4ad6da113ac4e92556e790ed887bc4a22e5dfbb967db6424065",
+      "state_snapshot.json": "d9ddfafe025663f0095e79575d2a1219b99965aac8aeec1211e9803a1245f084"
+    },
+    "checkpoint_id": "CP-816fe76829a64d40",
+    "request_id": "MR-5d106fc8eff74614",
+    "input_checkpoint_id": "CP-77a7c2c3d81b4525",
+    "input_sha256": "6804b85a521c5784df631ba25d6f241b0147ba40d161cb67a7b997f23b0bf7e6",
+    "original_raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef main():\\n    s = sys.stdin.readline().rstrip('\\\\n')\\n    n = len(s)\\n    if n == 0:\\n        print(0)\\n        return\\n\\n    first_a = -1\\n    for i in range(n):\\n        if s[i] == 'A':\\n            first_a = i\\n            break\\n    if first_a == -1:\\n        print(0)\\n        return\\n\\n    last_z = -1\\n    for i in range(n - 1, -1, -1):\\n        if s[i] == 'Z':\\n            last_z = i\\n            break\\n    if last_z == -1:\\n        print(0)\\n        return\\n\\n    print(last_z - first_a + 1)\\n\\nif __name__ == '__main__':\\n    main()\\n\",\n    \"path\": \"solution.py\"\n  }\n}",
+    "target_text": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef main():\\n    s = sys.stdin.readline().rstrip('\\\\n')\\n    n = len(s)\\n    if n == 0:\\n        print(0)\\n        return\\n\\n    first_a = -1\\n    for i in range(n):\\n        if s[i] == 'A':\\n            first_a = i\\n            break\\n    if first_a == -1:\\n        print(0)\\n        return\\n\\n    last_z = -1\\n    for i in range(n - 1, -1, -1):\\n        if s[i] == 'Z':\\n            last_z = i\\n            break\\n    if last_z == -1:\\n        print(0)\\n        return\\n\\n    print(last_z - first_a + 1)\\n\\nif __name__ == '__main__':\\n    main()\\n\",\n    \"path\": \"solution.py\"\n  }\n}\n```",
+    "target_unchanged": true,
+    "source_task": "Code_00007",
+    "original_task_submitted": true,
+    "source_assistance": "rwkv_independent",
+    "baseline_pass": false,
+    "tool_success": true,
+    "after_pass": true,
+    "external_test_count": 25,
+    "candidate_status": "fresh_execution_verified",
+    "training_admitted": false,
+    "next_gate": "Explicit automated-proof admission contract; not invented double semantic review."
+  },
+  {
+    "source_run": "data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00013-r1/execution",
+    "source_files": {
+      "RESULT.json": "a6e61c5701e6b2784d46d659f164f7f1c620bb9d713bccc74c39051156464de6",
+      "model_trace.jsonl": "5351f9c32a13a2cfd17458ec05b3cbfb4d7eee05701fede73d8dbdd9e4a3d7e9",
+      "state_snapshot.json": "ef1b8678d661eab2784f7e48e4138636ee6a5682ef4acfa75a22902ce95268b0"
+    },
+    "checkpoint_id": "CP-6b4b69c46d174b03",
+    "request_id": "MR-03034f3d882d466c",
+    "input_checkpoint_id": "CP-b97abb7343f74407",
+    "input_sha256": "84bf1a2a718f0c0d198dfeceb3de82fc444b75f31a62a17c7fa55436a94fe9f7",
+    "original_raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef solve():\\n    N = int(sys.stdin.readline())\\n    S = sys.stdin.readline().strip()\\n    \\n    balance = 0\\n    insert_left = 0\\n    insert_right = 0\\n    \\n    for ch in S:\\n        if ch == '(':\\n            balance += 1\\n        else:\\n            balance -= 1\\n        if balance < 0:\\n            insert_left += 1\\n            balance += 1\\n    \\n    insert_right = balance\\n    \\n    result = '(' * insert_left + S + ')' * insert_right\\n    print(result)\\n\\nif __name__ == '__main__':\\n    solve()\\n\",\n    \"path\": \"solution.py\"\n  }\n}",
+    "target_text": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef solve():\\n    N = int(sys.stdin.readline())\\n    S = sys.stdin.readline().strip()\\n    \\n    balance = 0\\n    insert_left = 0\\n    insert_right = 0\\n    \\n    for ch in S:\\n        if ch == '(':\\n            balance += 1\\n        else:\\n            balance -= 1\\n        if balance < 0:\\n            insert_left += 1\\n            balance += 1\\n    \\n    insert_right = balance\\n    \\n    result = '(' * insert_left + S + ')' * insert_right\\n    print(result)\\n\\nif __name__ == '__main__':\\n    solve()\\n\",\n    \"path\": \"solution.py\"\n  }\n}\n```",
+    "target_unchanged": true,
+    "source_task": "Code_00013",
+    "original_task_submitted": false,
+    "source_assistance": "rwkv_independent",
+    "baseline_pass": false,
+    "tool_success": true,
+    "after_pass": true,
+    "external_test_count": 30,
+    "candidate_status": "fresh_execution_verified",
+    "training_admitted": false,
+    "next_gate": "Explicit automated-proof admission contract; not invented double semantic review."
+  },
+  {
+    "source_run": "data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00019-r2/execution",
+    "source_files": {
+      "RESULT.json": "4668fb77feaebb10695e1146e54345303b876798a79b3ce5da2420c6e8ed6527",
+      "model_trace.jsonl": "de1431aeb104824ce23673dcd9b607a99f9cfb28cb52305e7fef42e81643ea3d",
+      "state_snapshot.json": "095c354384091ce2c8ebed4990b08569898f36c70573243204cf291459e0fbdb"
+    },
+    "checkpoint_id": "CP-4a52513fd6ed4b6f",
+    "request_id": "MR-dbffce7ba22545fe",
+    "input_checkpoint_id": "CP-1f0f910e280244fb",
+    "input_sha256": "744625890630a3bcebbcd06fce017b37cc047318736ff975bed64d81af25f7d8",
+    "original_raw_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef is_perfect_power(n):\\n    if n < 2:\\n        return False\\n    for b in range(2, int(n**0.5) + 1):\\n        p = 2\\n        while True:\\n            val = b ** p\\n            if val > n:\\n                break\\n            if val == n:\\n                return True\\n            p += 1\\n    return False\\n\\ndef main():\\n    X = int(sys.stdin.readline().strip())\\n    ans = 1\\n    for x in range(2, X + 1):\\n        if is_perfect_power(x):\\n            ans = x\\n    print(ans)\\n\\nif __name__ == \\\"__main__\\\":\\n    main()\\n\",\n    \"path\": \"solution.py\"\n  }\n}",
+    "target_text": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef is_perfect_power(n):\\n    if n < 2:\\n        return False\\n    for b in range(2, int(n**0.5) + 1):\\n        p = 2\\n        while True:\\n            val = b ** p\\n            if val > n:\\n                break\\n            if val == n:\\n                return True\\n            p += 1\\n    return False\\n\\ndef main():\\n    X = int(sys.stdin.readline().strip())\\n    ans = 1\\n    for x in range(2, X + 1):\\n        if is_perfect_power(x):\\n            ans = x\\n    print(ans)\\n\\nif __name__ == \\\"__main__\\\":\\n    main()\\n\",\n    \"path\": \"solution.py\"\n  }\n}\n```",
+    "target_unchanged": true,
+    "source_task": "Code_00019",
+    "original_task_submitted": false,
+    "source_assistance": "rwkv_independent",
+    "baseline_pass": false,
+    "tool_success": true,
+    "after_pass": true,
+    "external_test_count": 30,
+    "candidate_status": "fresh_execution_verified",
+    "training_admitted": false,
+    "next_gate": "Explicit automated-proof admission contract; not invented double semantic review."
+  }
+]
