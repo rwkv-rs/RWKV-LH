@@ -2,6 +2,10 @@
 
 **最新：R4已训练60条/180步，固定任务zero10/20、候选12/20，但自主修复与来源数字未过，NO_KEEP。创建迁移0/2对0/2；先测试措辞修复对照各0/4；独立窄任务“真实运行失败测试并报告”zero4/4，不等于修复通过。全部60训练输入缺少命令后/修改后观察，新增2份待独立审核材料尚未入训。命令流回答准入工程修复完成，1802 passed、0 skipped。原zero服务恢复空闲，临时任务停止、owner修改保留、只GPU0、未push。详见[阶段总报告](../data/experiments/RWKV_AUTONOMOUS_CAMPAIGN_REPORT_R1_20260915/REPORT.zh-CN.md)。**
 
+## 09:50续进：强模型恢复与真实接管
+
+小生成2/2正常后，长审核有效1/4（两份引文锚点失败、一次连接重置），候选仍未入训。原UTC偏移任务接管恢复：strong实际测试红→修改→测试绿，隔离原测试/CLI均通过，代码修复1/1；最终说明误列两个原本已拒绝的偏移值，完整忠实交付0/1。4请求、69225输入/747输出token，归属strong_takeover。没有新增数据版本或训练；详见RWKV_POST_COMMAND_ANSWER_REVIEW_R1_20260915和RWKV_BOUNDED_CODE_RECOVERY_R5_20260915。
+
 ## 产品与当前入口
 
 目标：为RWKV构建专属Harness和Code Agent；同质量下的成本、速度与吞吐是优化指标。当前架构只从[ARCHITECTURE](ARCHITECTURE.zh-CN.md)进入，历史设计不再作为互相竞争的产品入口说明。
