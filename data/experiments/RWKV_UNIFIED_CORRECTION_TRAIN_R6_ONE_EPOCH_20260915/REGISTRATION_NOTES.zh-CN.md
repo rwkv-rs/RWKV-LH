@@ -1,0 +1,1 @@
+R6注册：用户本轮授权一轮训练及测试、服务器清理。训练run direct-unified-r6-one-epoch-20260915，期望75更新。EVALUATION_REGISTRATION沿用R5的原round_id/registered_at表示评分来源，comparison_note明确R6用途；任务、文件及阈值不改，正式执行身份以新的RUN_REGISTRATION为准。12题已见的开发诊断，不是新盲测；不进入训练。对照重新运行zero A/B与一轮候选，三轮R5成绩单独保留历史比较。没有源码变化，数值兼容证据复用R5；本轮仍重新执行完整工程回归。
