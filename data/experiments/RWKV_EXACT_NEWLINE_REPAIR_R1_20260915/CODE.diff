@@ -1,0 +1,67 @@
+diff --git a/rwkv_lh/harness.py b/rwkv_lh/harness.py
+index bfb981a6..90497d6c 100644
+--- a/rwkv_lh/harness.py
++++ b/rwkv_lh/harness.py
+@@ -1821,7 +1821,7 @@ class ActionHarness:
+             raise HarnessError("replace_text requires non-empty old text")
+         if self._base_snapshot_is_stale(path, arguments):
+             try:
+-                content = path.read_text(encoding="utf-8")
++                content = path.read_bytes().decode("utf-8")
+             except UnicodeDecodeError:
+                 content = old
+             if old not in content and (not new or new in content):
+@@ -1832,7 +1832,7 @@ class ActionHarness:
+                     output="replacement already present; replay converged",
+                 )
+         base_sha256 = self._verify_base_snapshot(path, arguments)
+-        content = path.read_text(encoding="utf-8")
++        content = path.read_bytes().decode("utf-8")
+         replace_all = bool(arguments.get("all", False))
+         expected = content.count(old) if replace_all else arguments.get("count", 1)
+         if replace_all and expected == 0:
+@@ -1869,7 +1869,7 @@ class ActionHarness:
+             raise HarnessError("remove_line requires non-empty line text")
+         if self._base_snapshot_is_stale(path, arguments):
+             try:
+-                lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
++                lines = path.read_bytes().decode("utf-8").splitlines(keepends=True)
+             except UnicodeDecodeError:
+                 lines = [target]
+             if not any(line.rstrip("\r\n") == target for line in lines):
+@@ -1880,7 +1880,7 @@ class ActionHarness:
+                     output="exact line already absent; replay converged",
+                 )
+         base_sha256 = self._verify_base_snapshot(path, arguments)
+-        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
++        lines = path.read_bytes().decode("utf-8").splitlines(keepends=True)
+         remove_all = bool(arguments.get("all", False))
+         matching_lines = sum(
+             line.rstrip("\r\n") == target for line in lines
+@@ -2469,7 +2469,7 @@ class ActionHarness:
+         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+         if not path.is_file():
+             raise HarnessError("read_file requires a regular file")
+-        content = path.read_text(encoding=str(arguments.get("encoding") or "utf-8"))
++        content = path.read_bytes().decode(str(arguments.get("encoding") or "utf-8"))
+         relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
+         try:
+             chunk = slice_text_from_byte_cursor(
+@@ -2511,7 +2511,7 @@ class ActionHarness:
+         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+         if not path.is_file():
+             raise HarnessError("read_json requires a regular file")
+-        source = path.read_text(encoding="utf-8")
++        source = path.read_bytes().decode("utf-8")
+         source_encoded = source.encode("utf-8")
+         source_bytes = len(source_encoded)
+         relative = path.relative_to(Path(goal.workspace_root).resolve()).as_posix()
+@@ -2625,7 +2625,7 @@ class ActionHarness:
+ 
+     def _bind_evidence(self, goal: GoalState, arguments: dict[str, Any]) -> ActionResult:
+         path = self.resolve_path(goal, arguments.get("path", ""), must_exist=True)
+-        source_text = path.read_text(encoding="utf-8")
++        source_text = path.read_bytes().decode("utf-8")
+         lines = source_text.splitlines(keepends=True)
+         start_line = max(1, int(arguments.get("start_line", 1)))
+         end_line = int(arguments.get("end_line", start_line))

@@ -1,0 +1,9 @@
+# 精确文件换行保留修复 R1
+
+真实入口：UltraData Code_00007及另外8题包含CRLF；原读取将其转换成LF，artifact按原始文件hash、chunk按转换后内容hash，产生ObservationProjectionError。R1两遍18个工程中断原样保留，不算模型错误。
+
+全同类路径核对：read_file字节cursor、read_json解析错误字节定位、bind_evidence来源hash/字节范围，以及replace_text/remove_line对未修改文本的保留。均改为读取原始bytes再严格解码，不自动改变换行。JSON结构更新本来重序列化，不承诺保留原格式；没有为题目或扩展名特判。实际工具参数及模型答案不修补。
+
+先读/证据5个真实有效失败回归，再修复；补充替换/删行2个失败回归后修复。最初测试夹具误把结构化JSON诊断当工具失败，并走了未公开bind入口，错误日志保留，夹具先纠正后重跑5红。最终定向13 passed，完整1822 passed、0 skipped，GPU0。服务端Native State代码未改，客户端Harness独立冻结R2同20题两遍复验。
+
+本轮不以工程单测代替模型能力验证、不重算旧实验分数。原工作区五文件owner修改保留，只有harness与新回归属于本轮代码提交。完整输入字节范围一致性在真实重跑后另报；CRLF修复不等于RWKV已经会编程。
