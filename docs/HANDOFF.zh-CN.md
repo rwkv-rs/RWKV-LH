@@ -1,5 +1,7 @@
 # 当前交接（2026-09-15）
 
+**R9：全7分片完成完整SHA验证和结构审计，共69,895条源记录；curl18两轮失败及Range恢复原始证据保留。全量来源索引完成，仍不能算69,895个可运行环境。新增Loguru Code_Agent_000009公开0.7.0重实例化，真实atexit崩溃复现、普通日志对照通过、57公开测试通过、正式转换准入1题。WSL后台unit `rwkv-lh-coding-collection-r9.service`已实际调用RWKV，24calls/1200s，配置并发4但有效1；会自动封存trace并做隔离代码检查，最终语义验收另列。不是3万题全量采集，未训练/教师/push。Owner最新要求部署验证后停止监测、会后自行检查；不要自动新建监控。状态与用法见[R9报告](../data/experiments/RWKV_COLLECTION_DEPLOY_R9_20260915/REPORT.zh-CN.md)。**
+
 **Owner要求完成测试后后台运行、自行检查：R8已在本地WSL用户systemd启动4路SFT Code完整分片下载与结构审计（固定7分片14.89GB），真实下载已核验；独立冻结审计源码、完整大小/SHA后才审计，最长36小时，不配置Codex监控。当前是来源准备，RWKV执行/训练仍0，不是3万有效任务已经开始；环境复建与任务冻结仍待完成。服务`rwkv-lh-sft-source-r8.service`，状态位于`data/experiments/RWKV_SFT_BACKGROUND_R8_20260915/STATUS.json`，WSL和本机10808代理须保持运行。R7远端GPU0快速推理服务已独立常驻。[后台运行与检查](../data/experiments/RWKV_SFT_BACKGROUND_R8_20260915/REPORT.zh-CN.md)。**
 
 **并发R7已完成：旧服务8/8、修复后8/8、并发负载48/48均忠实完成；仅两个历史检查目标的重复执行，不计3万条或项目Strict。默认服务补上已验证的空GC快速返回，保留8506条历史State；同并发2的两任务平均136.26→13.30秒（10.24倍，工程修复收益）。8任务两遍并发2约47秒、4约44秒、8仍约44秒，同类短任务先显式用4。128/128生成重建通过，零协议/State错误，1870回归全绿。默认GPU0服务及本地模型别名已切到`rwkv7-g1j-13.3b-zero-state-capability-ctx16384-gc-r7`，完整源码manifest核验，旧启动脚本和日志保留。全局请求/生成锁仍限制真实GPU并行，下一轮先请求上下文、State同步和缓存压力回归，再验证安全批处理；SFT环境绑定继续，不用重复题凑数。教师/训练0，未push。[R7完整证据](../data/experiments/RWKV_CONCURRENCY_R7_20260915/REPORT.zh-CN.md)。**
