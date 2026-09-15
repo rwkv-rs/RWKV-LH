@@ -1,5 +1,7 @@
 # 当前交接（2026-09-15）
 
+**Owner要求完成测试后后台运行、自行检查：R8已在本地WSL用户systemd启动4路SFT Code完整分片下载与结构审计（固定7分片14.89GB），真实下载已核验；独立冻结审计源码、完整大小/SHA后才审计，最长36小时，不配置Codex监控。当前是来源准备，RWKV执行/训练仍0，不是3万有效任务已经开始；环境复建与任务冻结仍待完成。服务`rwkv-lh-sft-source-r8.service`，状态位于`data/experiments/RWKV_SFT_BACKGROUND_R8_20260915/STATUS.json`，WSL和本机10808代理须保持运行。R7远端GPU0快速推理服务已独立常驻。[后台运行与检查](../data/experiments/RWKV_SFT_BACKGROUND_R8_20260915/REPORT.zh-CN.md)。**
+
 **并发R7已完成：旧服务8/8、修复后8/8、并发负载48/48均忠实完成；仅两个历史检查目标的重复执行，不计3万条或项目Strict。默认服务补上已验证的空GC快速返回，保留8506条历史State；同并发2的两任务平均136.26→13.30秒（10.24倍，工程修复收益）。8任务两遍并发2约47秒、4约44秒、8仍约44秒，同类短任务先显式用4。128/128生成重建通过，零协议/State错误，1870回归全绿。默认GPU0服务及本地模型别名已切到`rwkv7-g1j-13.3b-zero-state-capability-ctx16384-gc-r7`，完整源码manifest核验，旧启动脚本和日志保留。全局请求/生成锁仍限制真实GPU并行，下一轮先请求上下文、State同步和缓存压力回归，再验证安全批处理；SFT环境绑定继续，不用重复题凑数。教师/训练0，未push。[R7完整证据](../data/experiments/RWKV_CONCURRENCY_R7_20260915/REPORT.zh-CN.md)。**
 
 **AnyIO R6：完成公开4.6.0固定版本重实例化和真实试采（不是原采样快照恢复）。任务0/1，提交/工具调用/修改均0；12次协议拒绝中断，481.72秒：1额外字段、1重复正则至1800token、9空围栏、1外来function_call及无依据action_executed。12/12输入/State/快照核验，预览相同；两种Python外部检查均5/7，公开TLS均45/45，缺陷仍在。1870回归全绿，教师/训练0，仅GPU0。下一步按同样绑定方式补不同任务采集失败，再测独立任务并发；不把本题失败当复建失败，也不直接扩3万。详见[R6报告](../data/experiments/RWKV_ANYIO_RECONSTRUCTION_R6_20260915/REPORT.zh-CN.md)。**

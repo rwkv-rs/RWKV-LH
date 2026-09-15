@@ -1,0 +1,13 @@
+import importlib.util,json,hashlib,sys
+from pathlib import Path
+root=Path('/home/chase/GitHub/RWKV-LH');spec=importlib.util.spec_from_file_location('r8',root/'temp/background_sft_inventory_r8_20260915.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+p=root/'data/experiments/RWKV_SFT_BACKGROUND_R8_20260915/preflight';p.mkdir();m.P=p
+raw=(root/'data/experiments/RWKV_SFT_ENVIRONMENT_R5_20260915/Code_Agent_part-1-of-7.prefix').open('rb').readline()
+for name,sha in [('valid',hashlib.sha256(raw).hexdigest()),('corrupt','0'*64)]:
+ f=p/name;f.mkdir();(f/'source.jsonl').write_bytes(raw)
+ r=m.work({'path':name+'.jsonl','size':len(raw),'lfs':{'oid':sha}})
+ assert r['phase']==('failed' if name=='corrupt' else 'source_audit_complete_requires_environment')
+ assert not r['executed_tasks'] and not r['training_rows']
+ if name=='corrupt':assert not (f/'audit.jsonl').exists()
+ print(name,r['phase'])
+# Existing production source auditor is exercised by the valid fixture.
