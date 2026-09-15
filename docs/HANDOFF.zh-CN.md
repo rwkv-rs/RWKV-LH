@@ -10,6 +10,10 @@
 
 rwkvrag仅参考总结文档的方法；StateTune重点参考Lightning CUDA、Preen、RWKV-APP/statetuning。此前NeoHorse的学生轨迹教师纠正思路落实到可复核持续队列，最近5运行/12边界登记，新准入0，正式数据仍60。此队列是库存快照，未宣称自动采集调度已上线。见RWKV_CONTINUOUS_CORRECTION_QUEUE_R1_20260915。
 
+## RWKV-PEFT训练项目（owner提醒）
+
+近期训练实际使用LH Native，不是PEFT/train.py；不能混称。PEFT本地工作树9文件修改已保留，当前60条token/label通过binidx往返，61层State导出相等，optimizer0。文本入口追加EOT/截断、L2Wrap及G1J递归/梯度需对齐后再登记正式PEFT训练。详见RWKV_PEFT_TRAINING_CONTRACT_R1_20260915。三个社区项目为参考，持续纠正数据主线不取消。
+
 ## 产品与当前入口
 
 目标：为RWKV构建专属Harness和Code Agent；同质量下的成本、速度与吞吐是优化指标。当前架构只从[ARCHITECTURE](ARCHITECTURE.zh-CN.md)进入，历史设计不再作为互相竞争的产品入口说明。

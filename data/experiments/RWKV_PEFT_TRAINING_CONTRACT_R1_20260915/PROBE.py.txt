@@ -1,0 +1,28 @@
+from pathlib import Path
+import sys,json,hashlib,importlib.util,subprocess
+import torch,numpy as np
+R=Path('/home/chase/GitHub/RWKV-LH');P=R.parent/'RWKV-PEFT';sys.path.insert(0,str(R))
+from rwkv_lh.statetune_core import collate_samples
+D=R/'data/experiments/RWKV_PEFT_TRAINING_CONTRACT_R1_20260915';D.mkdir(exist_ok=False)
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+def module(name,path):
+ spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);sys.modules[name]=m;spec.loader.exec_module(m);return m
+pins={n:sha(P/n) for n in ['rwkvt/state_tuning.py','rwkvt/dataset/binidx.py','rwkvt/dataset/SFTdataset.py','rwkvt/lightning_train/light_rwkv.py','train.py']}
+reg={'purpose':'CPU exact-data transport and state container readback only; zero optimizer steps, no full-model logits/gradient equivalence claim','peft_head':subprocess.check_output(['git','-C',str(P),'rev-parse','HEAD'],text=True).strip(),'peft_unstaged':subprocess.check_output(['git','-C',str(P),'diff','--numstat'],text=True),'peft_source_sha256':pins,'dataset_manifest_sha256':sha(R/'data/datasets/rwkv_direct_unified_corrections_v3/manifest.json'),'helper_sha256':sha(Path(__file__))}
+(D/'REGISTRATION.json').write_text(json.dumps(reg,indent=2)+'\n')
+state_module=module('peft_contract_state',P/'rwkvt/state_tuning.py');binidx=module('peft_contract_binidx',P/'rwkvt/dataset/binidx.py')
+source=R/'data/models/statetune/direct-unified-r4-20260915/candidate.pth';before=sha(source);values=torch.load(source,map_location='cpu',weights_only=True);exported=state_module.vllm_state_dict(values,expected_layers=61);assert set(exported)==set(values) and all(torch.equal(values[k],exported[k]) for k in values);assert sha(source)==before
+rows=[json.loads(l) for l in (R/'data/datasets/rwkv_direct_unified_corrections_v3/train.jsonl').read_text().splitlines()];assert len(rows)==60
+arrays={'input':[],'label':[]};target_count=0
+for row in rows:
+ batch=collate_samples([row],context_tokens=24576);arrays['input'].append(batch['input_ids'][0].numpy().astype(np.int32));arrays['label'].append(batch['labels'][0].numpy().astype(np.int32));target_count+=int(batch['labels'].ne(-100).sum())
+for kind,seq in arrays.items():
+ prefix=D/('probe.'+kind)
+ with Path(str(prefix)+'.bin').open('wb') as f:
+  for a in seq:f.write(a.tobytes())
+ with binidx.MMapIndexedDataset.Index.writer(str(prefix)+'.idx',np.int32) as w:w.write([len(a) for a in seq],list(range(len(seq)+1)))
+ loaded=binidx.MMapIndexedDataset(str(prefix),skip_warmup=True);assert len(loaded)==60
+ for i,a in enumerate(seq):assert np.array_equal(loaded[i],a)
+assert all(sha(P/n)==h for n,h in pins.items())
+out={'sample_count':60,'input_and_label_roundtrip_exact':True,'supervised_target_tokens':target_count,'extra_eot_added':False,'truncation':False,'retokenization':False,'state_layers':len(exported),'state_shape':list(next(iter(exported.values())).shape),'state_dtype':str(next(iter(exported.values())).dtype),'peft_export_equal':True,'candidate_sha256':before,'optimizer_steps':0,'limits':'Tests PEFT binidx loader and checkpoint helper, not full PEFT Dataset/collator/trainer, G1J recurrence, gradients or serving logits. Experimental representation of existing data, not new dataset version.'}
+(D/'RESULT.json').write_text(json.dumps(out,indent=2)+'\n');print(out)
