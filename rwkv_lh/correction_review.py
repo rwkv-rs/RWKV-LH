@@ -25,7 +25,10 @@ Distinguish final_answer from next_action:
 Actual patch execution and tests are a separate external gate, not proof to invent in the label.
 For final_answer, list the material factual assertions in claims, including supported assertions.
 Each quote is an exact substring of the decoded candidate answer. For supported or contradicted
-claims, evidence_quote must be an exact, nonempty substring of actual_rwkv_input; explain the
+claims, evidence_quote must be an exact, nonempty substring of actual_rwkv_input or of ONE
+JSON string literal decoded once from that input. Do not join fields, insert ellipses,
+invent digests, or recursively decode quoted documents. The validator binds the original
+byte range; this proves location, not factual support. Explain the
 relation in reason. Unsupported claims may have empty evidence_quote. Check that quoted evidence
 actually entails the assertion: mere keyword overlap is insufficient. Missing an important part
 of the user goal belongs in issues, not a fabricated quotation. For next_action, claims may be
@@ -77,6 +80,33 @@ def build_review_packet(*, actual_rwkv_input, candidate):
     }
 
 
+def _evidence_binding(text, quote):
+    """Locate exact text or one decoded JSON literal, never repair a quotation."""
+    direct = text.find(quote)
+    if direct >= 0:
+        return {'representation': 'raw', 'byte_start': len(text[:direct].encode()),
+                'byte_end': len(text[:direct + len(quote)].encode())}
+    decoder = json.JSONDecoder()
+    position = 0
+    while position < len(text):
+        start = text.find('"', position)
+        if start < 0:
+            break
+        try:
+            value, end = decoder.raw_decode(text, start)
+        except ValueError:
+            position = start + 1
+            continue
+        position = end
+        if isinstance(value, str) and quote in value:
+            return {'representation': 'json_string',
+                    'byte_start': len(text[:start].encode()),
+                    'byte_end': len(text[:end].encode()),
+                    'decoded_char_start': value.index(quote),
+                    'decoded_char_end': value.index(quote) + len(quote)}
+    return None
+
+
 def validate_review(packet, judgment):
     expected = build_review_packet(actual_rwkv_input=packet['actual_rwkv_input'], candidate=packet['candidate'])
     _require(packet == expected, 'review packet binding differs')
@@ -90,6 +120,7 @@ def validate_review(packet, judgment):
     text = command.arguments.get('text', '') if command.name == 'final_answer' else packet['candidate']
     _require(packet['review_scope'] != 'final_answer' or bool(claims) or not judgment['accepted'],
              'accepted final requires claim audit')
+    bindings = []
     for claim in claims:
         _require(isinstance(claim, dict) and set(claim) == {'quote', 'status', 'evidence_quote', 'reason'},
                  'claim fields differ')
@@ -99,10 +130,13 @@ def validate_review(packet, judgment):
         quote = claim['evidence_quote']
         _require(isinstance(quote, str) and (bool(quote.strip()) or claim['status'] == 'unsupported'),
                  'claim evidence required')
-        _require(not quote or quote in packet['actual_rwkv_input'], 'claim citation not in visible input')
+        binding = _evidence_binding(packet['actual_rwkv_input'], quote) if quote else None
+        _require(not quote or binding is not None, 'claim citation not in visible input')
+        bindings.append(binding)
     _require(not judgment['accepted'] or all(c['status'] == 'supported' for c in claims),
              'unsupported or contradicted claim cannot be accepted')
     _require(judgment['accepted'] == (not issues), 'acceptance and issues disagree')
     return {**judgment, 'input_sha256': packet['input_sha256'],
             'candidate_sha256': packet['candidate_sha256'], 'training_admitted': False,
+            'evidence_bindings': bindings,
             'validation_scope': 'Anchors and consistency only; semantic truth and completeness require review.'}

@@ -97,3 +97,33 @@ def test_parser_never_repairs_candidate(source):
     p = source['numeric']
     with pytest.raises(ValueError):
         build_review_packet(actual_rwkv_input=p['actual_rwkv_input'], candidate=p['candidate'][:-1])
+
+
+def test_decoded_json_evidence_preserves_original_byte_binding(source):
+    p = packet(source, 'numeric')
+    evidence = 'AssertionError: 0 == 0 : {"inserted": 1, "duplicates": 0}'
+    actual = 'Observation: ' + json.dumps({'stderr': evidence}, ensure_ascii=False)
+    p = build_review_packet(actual_rwkv_input=actual, candidate=p['candidate'])
+    from rwkv_lh.model_io import parse_model_command
+    answer = parse_model_command(p['candidate']).arguments['text']
+    j = {'accepted': True, 'issues': [], 'assessment': 'Anchor mechanism only, not semantic approval.',
+         'claims': [{'quote': answer, 'status': 'supported', 'evidence_quote': evidence,
+                     'reason': 'Test fixture checks source binding only.'}]}
+    result = validate_review(p, j)
+    binding = result['evidence_bindings'][0]
+    raw = actual.encode()[binding['byte_start']:binding['byte_end']].decode()
+    assert binding['representation'] == 'json_string'
+    assert json.loads(raw) == evidence
+    assert result['training_admitted'] is False
+
+
+@pytest.mark.parametrize('quote', ['alpha...omega', 'alphaomega', 'future result'])
+def test_evidence_cannot_join_decoded_fields(source, quote):
+    p = packet(source, 'numeric')
+    p = build_review_packet(actual_rwkv_input='Observation: '+json.dumps({'a':'alpha','b':'omega'}), candidate=p['candidate'])
+    from rwkv_lh.model_io import parse_model_command
+    answer = parse_model_command(p['candidate']).arguments['text']
+    j = {'accepted': True, 'issues': [], 'assessment': 'Invalid join.',
+         'claims': [{'quote': answer, 'status': 'supported', 'evidence_quote': quote, 'reason':'No continuous source.'}]}
+    with pytest.raises(ValueError, match='visible input'):
+        validate_review(p, j)
