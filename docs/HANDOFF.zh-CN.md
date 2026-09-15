@@ -18,6 +18,10 @@ rwkvrag仅参考总结文档的方法；StateTune重点参考Lightning CUDA、Pr
 
 按owner要求已删除训练器比较/选择文档与对应交接结论。审核单层JSON证据解码已修复并保留原始字节定位，红→绿与1806完整回归通过；原始输入/候选不改，不拼接、不递归解码、不引入未来证据。新R3审核1/4有效，混合转义和多加引号仍拒绝，未重算旧分数或新增训练数据。见RWKV_REVIEW_EVIDENCE_BINDING_R1_20260915。
 
+## 外部数据与第一版独立执行（owner最新）
+
+优先利用UltraData-RL Code题目/测试构建真实RWKV采集任务，SFT-Agent作为可复建任务及行为覆盖来源，不直接伪装原生State trace。已重新读取50条Code轨迹、复核6条RL样本；Tool-Use接口500。下一步先20独立任务低成本试采，再扩100，首批强调用预算0，统一State而非按问题拆分。正式数据仍60；详见RWKV_ULTRADATA_EXPANSION_R1_20260915/PLAN.zh-CN.md。
+
 ## 产品与当前入口
 
 目标：为RWKV构建专属Harness和Code Agent；同质量下的成本、速度与吞吐是优化指标。当前架构只从[ARCHITECTURE](ARCHITECTURE.zh-CN.md)进入，历史设计不再作为互相竞争的产品入口说明。
