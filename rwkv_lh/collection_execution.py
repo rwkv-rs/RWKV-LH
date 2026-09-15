@@ -118,6 +118,7 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
     if failures >= failure_limit:
         return {'reason': 'infrastructure_failure_limit', 'counts': queue.counts()}
     reason = 'exhausted'
+    failure_detail = None
     with ProcessPoolExecutor(max_workers=concurrency, mp_context=get_context('spawn')) as pool:
         active = {}
         stop = False
@@ -132,7 +133,8 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                     def preflight(value):
                         prepared.append(verify(value))
                     item = queue.claim(verify=preflight)
-                except Exception:
+                except Exception as exc:
+                    failure_detail = {'stage':'preflight', 'type':type(exc).__name__, 'message':str(exc)}
                     reason, stop = 'preflight_or_capacity_failed', True
                     break
                 if item is None:
@@ -144,7 +146,8 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                     remaining = max(0.001, deadline - time.time())
                     job = replace(job, max_seconds=min(job.max_seconds, remaining))
                     active[pool.submit(execute, item, job, settings, service_identity)] = item
-                except Exception:
+                except Exception as exc:
+                    failure_detail = {'stage':'dispatch', 'source_id':item['source_id'], 'type':type(exc).__name__, 'message':str(exc)}
                     reason, stop = 'dispatch_outcome_unknown', True
                     break
             if not active:
@@ -157,7 +160,8 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                     queue.finish(item['source_id'], result)
                     failures = failures + 1 if result.get('trace_complete') is not True else 0
                     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('failure_streak', ?)", (str(failures),))
-                except Exception:
+                except Exception as exc:
+                    failure_detail = {'stage':'worker_or_receipt', 'source_id':item['source_id'], 'type':type(exc).__name__, 'message':str(exc)}
                     reason, stop = 'worker_or_receipt_outcome_unknown', True
                     continue
                 if failures >= failure_limit:
@@ -166,5 +170,5 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
     if queue.counts().get('running', 0):
         reason = 'unresolved_running'
     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('last_stop', ?)",
-                     (_json({'reason': reason, 'time': time.time()}),))
-    return {'reason': reason, 'counts': queue.counts()}
+                     (_json({'reason': reason, 'time': time.time(), 'error':failure_detail}),))
+    return {'reason': reason, 'counts': queue.counts(), 'error':failure_detail}

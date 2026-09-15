@@ -38,8 +38,11 @@ def make_job(row):
     return ReadOnlyJob(**row, tool_scope=scope)
 
 
-def verify_item(item):
+def verify_item(item, *, require_conversion=False):
     """Check bytes, not just the spelling of the registered digests."""
+    if require_conversion:
+        from rwkv_lh.collection_conversion import verify_conversion
+        verify_conversion(item)
     job = make_job(item['job'])
     workspace = Path(item['job']['workspace']).resolve(strict=True)
     for field, digest in (('source_path', 'source_sha256'),
@@ -78,7 +81,7 @@ def validate_inventory(queue):
     if any(any(p in output_set for p in source.parents) for source in sources):
         raise ValueError('output contains source workspace')
     private_paths = {Path(item[field]).resolve() for item in rows
-                     for field in ('source_path', 'acceptance_path') if field in item}
+                     for field in ('source_path', 'acceptance_path', 'conversion_path') if field in item}
     for private in private_paths:
         if private in sources or any(parent in sources for parent in private.parents):
             raise ValueError('private evidence is visible in another task workspace')
@@ -89,6 +92,7 @@ def validate_inventory(queue):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--queue', type=Path, required=True)
+    parser.add_argument('--engineering-inventory', action='store_true', help='explicit legacy engineering smoke only; never count as formal collection')
     parser.add_argument('--inventory', type=Path, help='admit frozen JSONL; does not execute')
     parser.add_argument('--run', action='store_true')
     parser.add_argument('--acknowledge-recovery', action='store_true', help='explicitly reset the persisted service failure circuit before resuming')
@@ -110,12 +114,15 @@ def main():
         with sqlite3.connect(args.queue.resolve().as_uri() + '?mode=ro', uri=True) as db:
             counts = dict(db.execute('SELECT status, COUNT(*) FROM tasks GROUP BY status'))
             results = [json.loads(row[0]) for row in db.execute('SELECT result FROM tasks WHERE result IS NOT NULL')]
-            print(json.dumps({'counts': counts,
+            operations = dict(db.execute('SELECT name, value FROM operational')) if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='operational'").fetchone() else {}
+            print(json.dumps({'counts': counts, 'operation_state': operations,
                 'model_started_tasks': sum(isinstance(r.get('generation_started'), int) and r['generation_started'] > 0 for r in results),
                 'submitted': sum(r.get('termination') == 'submitted' for r in results),
                 'trace_complete': sum(r.get('trace_complete') is True for r in results),
                 'acceptance_passed': sum(r.get('acceptance') == 'passed' for r in results)}, ensure_ascii=False))
         return 0
+    def verified(item):
+        return verify_item(item, require_conversion=not args.engineering_inventory)
     args.queue.parent.mkdir(parents=True, exist_ok=True)
     with args.queue.with_suffix('.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -126,7 +133,7 @@ def main():
                     with args.inventory.open() as inventory:
                         for line in inventory:
                             item = json.loads(line)
-                            verify_item(item)
+                            verified(item)
                             queue.admit(item)
                     validate_inventory(queue)
                     queue.db.execute('COMMIT')
@@ -151,7 +158,7 @@ def main():
                 inventory_identity = hashlib.sha256(json.dumps(list(queue.items()), sort_keys=True,
                     ensure_ascii=False, allow_nan=False).encode()).hexdigest()
                 identity.update(source_files=source_identity, inventory_sha256=inventory_identity,
-                    concurrency=args.concurrency, max_hours=args.max_hours, failure_limit=args.failure_limit, service_identity=serving)
+                    concurrency=args.concurrency, max_hours=args.max_hours, failure_limit=args.failure_limit, service_identity=serving, engineering_inventory=args.engineering_inventory)
                 queue.seal(identity)
                 queue.db.execute("INSERT OR IGNORE INTO freeze VALUES ('deadline', ?)",
                                  (str(time.time() + args.max_hours * 3600),))
@@ -163,7 +170,7 @@ def main():
                     queue.db.execute('CREATE TABLE IF NOT EXISTS operational (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
                     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('failure_streak', '0')")
                     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('recovery_acknowledged', ?)", (str(time.time()),))
-                result = dispatch(queue, settings=settings, verify=verify_item,
+                result = dispatch(queue, settings=settings, verify=verified,
                     concurrency=args.concurrency, deadline=deadline,
                     failure_limit=args.failure_limit, capacity_check=capacity, service_identity=serving)
                 print(json.dumps(result), flush=True)

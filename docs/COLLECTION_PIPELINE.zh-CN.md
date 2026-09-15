@@ -2,7 +2,19 @@
 
 正式任务范围以 [Coding Agent 采集要求](CODING_AGENT_COLLECTION_SCOPE.zh-CN.md) 为准：真实仓库修复、实现、反馈及相关理解/验证，泛问答不用于凑数。
 
-目标为 30,000 个独立、可复建任务的真实执行；静态 SFT 轨迹不是新的执行，任务收据不是训练准入。SFT-Agent 和项目来源优先，RL 代码/长文补充。本轮修复运行管线；3 万条任务清单和 SFT 环境仍需完成复建与冻结，不能把工程回归当作规模采集结果。
+目标为 30,000 个独立、可复建任务的真实执行；静态 SFT 轨迹不是新的执行，任务收据不是训练准入。SFT-Agent 和项目来源优先，RL 代码补充，泛长文问答不凑数。3 万条任务清单和 SFT 环境仍需完成复建与冻结，不能把工程回归当作规模采集结果。
+
+## 格式转换（R4）
+
+正式入口先执行 `scripts/prepare_coding_collection.py prepare --source /absolute/row.json --binding /absolute/binding.json --output /absolute/new_bundle`。binding 登记来源 ID、修订、原始行 SHA、初始工作区 tree、复建证据及 SHA、私有验收及 SHA、任务类别和预算；SFT 另登记原始绝对工作区根路径。可复核示例见 `data/experiments/RWKV_CODING_CONVERSION_R4_20260915/project_binding.json`。
+
+原始目标原文保留，源路径仅以环境映射说明进入目标；不重写模型实际工具参数。外部 assistant/tool 历史、源工具 schema、参考答案不注入。多轮用户目标和多模态输入明确拒绝，等待逐任务复建；system/developer 中若有必需业务信息，须先完成来源与环境审核，不能假定仅提取 user 就保持完整语义。证据文件的 SHA 只能证明身份，不能自动证明复建内容正确。
+
+转换产物包含私有原始材料、初始工作区副本、CONVERSION.json、PREVIEW.json 和 inventory.jsonl。预览通过当前生产 model_io 输入函数构建，保存精确 token；没有另造训练协议。正式队列默认核验转换记录及当前源码/协议身份，任意手写任务不能绕过；`--engineering-inventory` 只用于显式工程夹具，不计正式采集。
+
+执行后用 `scripts/prepare_coding_collection.py export-boundaries --run-root /absolute/execution --model-sha256 <SHA> --output /absolute/new_evidence` 重建真实输入、token、State 和生成前快照。输出仅为边界证据，training_rows=0；错误输出原样保留，未来经真实纠正、验证、去重和既有训练准入后才生成目标与 mask。不完整轨迹导出失败时保留原件，不能补写缺失观察。
+
+R4 真实修复任务 0/1：7 次生成后重复读取中断，0 修改/0 提交；7/7 边界核验通过，首调用预览与真实输入逐 token 相同。现存 50 条 SFT Code 目标可提取，但初始仓库均未完成绑定，正式准入 0。此结果不代表 3 万题已就绪。
 
 ## 来源审计与入队
 
