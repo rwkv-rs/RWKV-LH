@@ -1,0 +1,16 @@
+from pathlib import Path
+import json, hashlib
+root=Path('/home/chase/GitHub/RWKV-LH')
+src=root/'data/experiments/RWKV_ULTRADATA_EXPANSION_R1_20260915/Code-Agent_ROWS.json'
+out=root/'data/experiments/RWKV_COLLECTION_PIPELINE_R1_20260915'
+raw=src.read_bytes(); rows=json.loads(raw)['rows']
+with (out/'sft_audit_input.jsonl').open('x') as stream:
+    for wrapped in rows:
+        if wrapped.get('truncated_cells'):
+            raise ValueError('truncated source is not eligible')
+        stream.write(json.dumps(wrapped['row'],ensure_ascii=False)+'\n')
+(out/'sft_audit_input.provenance.json').write_text(json.dumps({
+    'source_path':str(src.relative_to(root)),'source_sha256':hashlib.sha256(raw).hexdigest(),
+    'transformation':'JSON wrapper removal only; no environment reconstruction',
+    'row_indices':[r['row_idx'] for r in rows],
+    'output_sha256':hashlib.sha256((out/'sft_audit_input.jsonl').read_bytes()).hexdigest()},indent=2))

@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,hashlib,sys
+root=Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0,str(root))
+from rwkv_lh.ultradata import audit_trajectory
+base=root/'data/experiments/ARTICLE_DATA_REVIEW_R1_20260909/sft_audit'
+records=[]
+for p in [*sorted(base.glob('*rows.json')), root/'data/experiments/RWKV_ULTRADATA_EXPANSION_R1_20260915/Code-Agent_ROWS.json']:
+    obj=json.loads(p.read_text())
+    for wrapper in obj['rows']:
+        row=wrapper['row']
+        records.append({'source_file':str(p.relative_to(root)),
+                        'file_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+                        'row_idx':wrapper['row_idx'],'truncated_cells':wrapper.get('truncated_cells',[]),
+                        'audit':audit_trajectory(row),
+                        'admission':'requires_environment_reconstruction'})
+report={'executed_tasks':0,'training_rows':0,'records':records}
+out=root/'data/experiments/RWKV_COLLECTION_PIPELINE_R1_20260915/SFT_EXISTING_AUDIT.json'
+out.write_text(json.dumps(report,ensure_ascii=False,indent=2))
+for r in records:
+    a=r['audit']; print(Path(r['source_file']).name,r['row_idx'],'tools',a.get('tool_names'), 'truncated',r['truncated_cells'])

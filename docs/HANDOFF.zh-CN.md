@@ -1,5 +1,8 @@
 # 当前交接（2026-09-15）
 
+**当前采集管线 R1：owner 最新要求先做 3 万独立任务真实执行，SFT-Agent 优先、项目来源与 RL 补充；不纠错、不调用强模型、不训练。已实现持久队列、冻结摘要核验、跨批路径预检、生产直接执行入口和流式结构审计；现存 SFT 56 记录/54 来源 ID 已审计，尚未复建计数。大批运行尚未启动，Native 全局请求锁和 State 回收/容量仍需验证。清理 experiments 字节码和可重建重复材料累计 38.8 MiB，原始证据保留；完整回归 1843 passed、0 skipped。详见 [采集管线](COLLECTION_PIPELINE.zh-CN.md) 和 [R1记录](../data/experiments/RWKV_COLLECTION_PIPELINE_R1_20260915/REPORT.zh-CN.md)。**
+
+
 **最新R6：按owner要求完成同300条一轮训练（75更新、37217目标token），固定12题两遍×三组72任务/342生成。zero A16/24、zero B15/24、一轮候选14/24；历史三轮候选14/24。候选首次真实反馈修复1/8，但新建文件0/2（两次修改受保护测试），协议拒绝13次，NO_KEEP。全部输入/State审计通过、0传输中断，1837回归全绿。清理历史State277.05GiB，根盘约368GiB可用；原服务恢复，未push。详见[一轮训练测试报告](../data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R6_ONE_EPOCH_20260915/REPORT.zh-CN.md)。以下R5及“当前下一步”为历史状态；下一步以R6报告为准，补其他真实任务的需求→实现/失败反馈/保留测试/忠实收尾纠正，不训练这12题及其衍生内容。**
 
 **当前：统一StateTune R5已完成300条、3 epochs、225更新，候选加载校验通过。完整新12题×两遍×三组重测：zero A/B各15/24，候选14/24，NO_KEEP；未切换生产State。72任务/384生成输入与State谱系审计通过，0服务中断。已有代码修复三组均0/8，新建函数产物均2/2通过，但候选一次循环至预算耗尽无最终说明。首轮磁盘满的46次中断保留，不合并评分。已清理旧State及其他项目备份，详情见[本轮最终报告](../data/experiments/RWKV_UNIFIED_CORRECTION_TRAIN_R5_300_20260915/REPORT.zh-CN.md)。**

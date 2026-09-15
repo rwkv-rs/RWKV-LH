@@ -1,0 +1,22 @@
+from pathlib import Path
+import hashlib
+import json
+import subprocess
+root = Path('/home/chase/GitHub/RWKV-LH')
+base = root / 'data/experiments'
+tracked = set(subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0'))
+ledger = []
+# Only interpreter bytecode is reproducible without losing any experiment evidence.
+for path in base.rglob('*.pyc'):
+    if '__pycache__' not in path.parts or path.is_symlink():
+        continue
+    relative = str(path.relative_to(root))
+    if relative in tracked:
+        continue
+    raw = path.read_bytes()
+    ledger.append({'path': relative, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
+    path.unlink()
+report = {'policy': 'untracked Python bytecode only; original evidence untouched',
+          'files': ledger, 'bytes_removed': sum(x['bytes'] for x in ledger)}
+(base / 'RWKV_COLLECTION_PIPELINE_R1_20260915/CLEANUP.json').write_text(json.dumps(report, indent=2))
+print(json.dumps({'files_removed': len(ledger), 'bytes_removed': report['bytes_removed']}))
