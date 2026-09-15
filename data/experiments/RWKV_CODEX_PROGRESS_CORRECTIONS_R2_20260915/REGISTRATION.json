@@ -1,0 +1,21 @@
+{
+  "teacher": "current Codex assistant",
+  "source_registration_sha256": "ee7b70426f69a8f5af7e4841b704ed8454ba21f06f0c91858d0ef5a6fab4d3d8",
+  "helper_sha256": "8d4ca3ccfca7710164f6f31cdfa663fb403cde6733fb66d087b38edc9bb6d976",
+  "targets_frozen_before_tests": {
+    "Code_00007-r2": [
+      3,
+      "import sys\n\ns = sys.stdin.readline().strip()\nprint(s.rfind('Z') - s.find('A') + 1)\n"
+    ],
+    "Code_00013-r2": [
+      3,
+      "import sys\n\nn = int(sys.stdin.readline())\ns = sys.stdin.readline().strip()\nbalance = 0\nminimum = 0\nfor ch in s:\n    balance += 1 if ch == '(' else -1\n    minimum = min(minimum, balance)\nleft = -minimum\nright = balance + left\nprint('(' * left + s + ')' * right)\n"
+    ],
+    "Code_00019-r1": [
+      2,
+      "import sys\n\nx = int(sys.stdin.readline())\nbest = 1\nbase = 2\nwhile base * base <= x:\n    value = base * base\n    while value <= x:\n        best = max(best, value)\n        value *= base\n    base += 1\nprint(best)\n"
+    ]
+  },
+  "scope": "Correct original wrong write or redundant reread after full task observed; external checks validate only after target frozen; no hidden cases embedded into targets.",
+  "training_admitted": false
+}

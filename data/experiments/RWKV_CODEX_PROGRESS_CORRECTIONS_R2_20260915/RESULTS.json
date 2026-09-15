@@ -1,0 +1,62 @@
+[
+  {
+    "run": "Code_00007-r2",
+    "checkpoint_id": "CP-8664966d9eca4f20",
+    "request_id": "MR-d0d1b2c84a2a4c8e",
+    "original_output": "{\n  \"function\": \"write_file\",\n  \"params\": {\n    \"content\": \"import sys\\n\\ndef main():\\n    s = sys.stdin.readline().rstrip('\\\\n')\\n    n = len(s)\\n    if n == 0:\\n        print(0)\\n        return\\n\\n    first_a = -1\\n    last_z = -1\\n    for i, ch in enumerate(s):\\n        if ch == 'A':\\n            first_a = i\\n        if ch == 'Z':\\n            last_z = i\\n\\n    if first_a == -1 or last_z == -1 or last_z < first_a:\\n        print(0)\\n        return\\n\\n    print(last_z - first_a + 1)\\n\\nif __name__ == '__main__':\\n    main()\\n\",\n    \"path\": \"solution.py\"\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"import sys\\n\\ns = sys.stdin.readline().strip()\\nprint(s.rfind('Z') - s.find('A') + 1)\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "input_sha256": "8d2fd27d43704835df7d7b44cf7b820ad8b23b4d79f287b60fffc80584d4d341",
+    "source_sha256": {
+      "RESULT.json": "33d9720667d2aff9236fb8526d0f76cf13215f53f76932fc6d0620297d6efc6c",
+      "model_trace.jsonl": "2ab0ae291cc83305d58a3e85dfbe350fe454674729604c2dd42921f5e2f2ec82",
+      "state_snapshot.json": "033b3fa9e28f93a6f305693ba5ef15a9d675c487e1f8a64c841c2d91ab338863"
+    },
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 25,
+    "tool_success": true,
+    "status": "execution_verified_candidate",
+    "training_admitted": false
+  },
+  {
+    "run": "Code_00013-r2",
+    "checkpoint_id": "CP-3e9fe42d861a4a26",
+    "request_id": "MR-695567364ec347fb",
+    "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"TASK.md\",\n    \"start_byte\": 1331\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"import sys\\n\\nn = int(sys.stdin.readline())\\ns = sys.stdin.readline().strip()\\nbalance = 0\\nminimum = 0\\nfor ch in s:\\n    balance += 1 if ch == '(' else -1\\n    minimum = min(minimum, balance)\\nleft = -minimum\\nright = balance + left\\nprint('(' * left + s + ')' * right)\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "input_sha256": "38199fa671db46ccd845309785eeb2cf38d921554190326c2592718e1e89a178",
+    "source_sha256": {
+      "RESULT.json": "a7e8bdb092993993dd211dec706512dda9f8249f213cb325b909b1a604cec87d",
+      "model_trace.jsonl": "51cb72fc349ea68a2a33caeb5c584401421c95cfd8a018af832bfb99159d5b25",
+      "state_snapshot.json": "942d70a683f78cfad1b16baf372c2f2a58fb5b5bf63194e1aa6033060b48cae4"
+    },
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 30,
+    "tool_success": true,
+    "status": "execution_verified_candidate",
+    "training_admitted": false
+  },
+  {
+    "run": "Code_00019-r1",
+    "checkpoint_id": "CP-0e8557e2d66a4d36",
+    "request_id": "MR-3fba6d2449c34378",
+    "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"import sys\\n\\nx = int(sys.stdin.readline())\\nbest = 1\\nbase = 2\\nwhile base * base <= x:\\n    value = base * base\\n    while value <= x:\\n        best = max(best, value)\\n        value *= base\\n    base += 1\\nprint(best)\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "input_sha256": "d2ce2cfd63fdefa24e170594d69078808ed68dcebcdb937a64f57f5e8317468d",
+    "source_sha256": {
+      "RESULT.json": "e8abda0768947e37846c49e968ab782c9b88f9fa68de90347b48ca565293d702",
+      "model_trace.jsonl": "06a19efbc7665dd8871b8e5872a6896dd82c3bfa393e0fc14e05088a9f43284a",
+      "state_snapshot.json": "37984fcd5a824a325330481e14b90fe86b27f8eca1f287766d0153a98441e3f7"
+    },
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 30,
+    "tool_success": true,
+    "status": "execution_verified_candidate",
+    "training_admitted": false
+  }
+]
