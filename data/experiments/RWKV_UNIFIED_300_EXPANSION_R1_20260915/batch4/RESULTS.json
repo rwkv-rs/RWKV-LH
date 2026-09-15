@@ -1,0 +1,53 @@
+[
+  {
+    "id": "Code_00001",
+    "source_run": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00001-r1/execution",
+    "checkpoint_id": "CP-6d741ab76d51460e",
+    "request_id": "MR-7bf41100995d4eea",
+    "input_checkpoint_id": "CP-d3e1b0344a914e4d",
+    "input_sha256": "84b4a9c50a6bffe0ff78a5c5966c2978006afd589fcf9262710c97615643fc60",
+    "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\",\n    \"start_byte\": 3578,\n    \"max_tokens\": 4096\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"import sys,math\\nr,c,x,y,d,l=map(int,sys.stdin.buffer.read().split());mod=10**9+7;ans=0\\nfor mask in range(16):\\n    rows=set();cols=set()\\n    if mask&1:rows.add(0)\\n    if mask&2:rows.add(x-1)\\n    if mask&4:cols.add(0)\\n    if mask&8:cols.add(y-1)\\n    cells=(x-len(rows))*(y-len(cols))\\n    if cells<d+l:continue\\n    ways=math.comb(cells,d+l)*math.comb(d+l,d)\\n    ans+=-ways if mask.bit_count()%2 else ways\\nprint(ans*(r-x+1)*(c-y+1)%mod)\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 15,
+    "status": "execution_verified_candidate",
+    "training_admitted": false,
+    "source_snapshot": "generation_snapshots/MR-7bf41100995d4eea/before"
+  },
+  {
+    "id": "Code_00002",
+    "source_run": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00002-r1/execution",
+    "checkpoint_id": "CP-4c6380389bdd4c89",
+    "request_id": "MR-7011dabed25b4ff7",
+    "input_checkpoint_id": "CP-e8bdff30e80c46c7",
+    "input_sha256": "b1bb8f9dd180d846985237801189ea17d573312ea0583ab560e12a3b28e31984",
+    "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\",\n    \"start_byte\": 1558,\n    \"end_byte\": 3116\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"n=int(input());depth=n.bit_length();x=1;turn=0\\nwhile x<=n:\\n    x=2*x+int((turn==0)==(depth%2==1));turn^=1\\nprint('Takahashi' if turn==0 else 'Aoki')\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 40,
+    "status": "execution_verified_candidate",
+    "training_admitted": false,
+    "source_snapshot": "generation_snapshots/MR-7011dabed25b4ff7/before"
+  },
+  {
+    "id": "Code_00006",
+    "source_run": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_ULTRADATA_CODE_PILOT_R2_20260915/runs/Code_00006-r1/execution",
+    "checkpoint_id": "CP-3c29571c27c54239",
+    "request_id": "MR-27008257b78e43e0",
+    "input_checkpoint_id": "CP-c245403d66d64ecd",
+    "input_sha256": "6d1ccf1c4db7e352f04973041207ef339fb38b91b4652596a0a806a770b1f522",
+    "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"TASK.md\",\n    \"start_byte\": 0\n  }\n}",
+    "target_text": "{\"function\": \"write_file\", \"params\": {\"path\": \"solution.py\", \"content\": \"s=input().strip();pattern='WBWBWWBWBWBW'*3\\nfor offset,name in zip((0,2,4,5,7,9,11),('Do','Re','Mi','Fa','So','La','Si')):\\n    if pattern[offset:offset+20]==s:print(name);break\\n\"}}\n```",
+    "teacher": "current Codex assistant",
+    "baseline_pass": false,
+    "after_pass": true,
+    "test_count": 7,
+    "status": "execution_verified_candidate",
+    "training_admitted": false,
+    "source_snapshot": "generation_snapshots/MR-27008257b78e43e0/before"
+  }
+]

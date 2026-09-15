@@ -1,0 +1,1 @@
+Owner 本轮书面授权：在现有150条上再添加150条，目标统一StateTune训练数据总计300条。本轮可创建rwkv_direct_unified_corrections_v6；只进行真实轨迹采集、Codex纠正、证据审核和冻结，不启动训练、不push。只使用物理GPU0，保留owner修改。300是数据规模目标，不预设为当前任务最佳训练规模。
