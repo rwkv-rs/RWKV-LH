@@ -1,0 +1,23 @@
+from pathlib import Path
+import sys,json,time,datetime,hashlib,dataclasses
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh.runtime.settings import load_local_env
+from rwkv_lh.supervisor_openai import SupervisorAPISettings,OpenAICompatibleSupervisorClient
+load_local_env(R/'.env.local');s=dataclasses.replace(SupervisorAPISettings.from_env(),read_timeout_seconds=45,connect_timeout_seconds=10)
+D=R/'data/experiments/RWKV_STRONG_AVAILABILITY_R1_20260915';D.mkdir(exist_ok=False)
+reg={'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'model':s.model,'endpoint':s.base_url+'/chat/completions','requests':2,'retry':0,'max_output_tokens':64,'read_timeout':45,'scope':'Tiny generation and production SSE decoder availability only, no task execution, no training, no capability score','source_sha256':hashlib.sha256((R/'rwkv_lh/supervisor_openai.py').read_bytes()).hexdigest()}
+(D/'REGISTRATION.json').write_text(json.dumps(reg,indent=2)+'\n');results=[]
+for streaming in [False,True]:
+ events=[];client=OpenAICompatibleSupervisorClient(s,audit_hook=events.append)
+ body={'model':s.model,'messages':[{'role':'user','content':'Return exactly this JSON object: {"status":"ok"}'}],'max_tokens':64,'response_format':{'type':'json_object'},'thinking':{'type':'disabled'},'stream':streaming}
+ start=time.monotonic();out={'stream':streaming,'request':body,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ try:
+  response,data,error=client._post_completion(s.base_url+'/chat/completions',body,audit_context={'purpose':'availability_probe'})
+  out['http_status']=response.status_code
+  if not streaming or response.status_code>=400:out['response_text']=response.text;data=response.json() if response.status_code<400 else None
+  out['response']=data;out['error']=type(error).__name__ if error else None
+  if data:
+   choice=data.get('choices',[{}])[0];content=choice.get('message',{}).get('content');out['content']=content;out['finish_reason']=choice.get('finish_reason');out['usage']=data.get('usage');out['passed']=json.loads(content)=={'status':'ok'} and out['finish_reason']=='stop' and not error
+ except Exception as e:out['error']=type(e).__name__;out['passed']=False
+ out['elapsed_seconds']=time.monotonic()-start;out['stream_audit']=events;results.append(out)
+ (D/'RESULTS.json').write_text(json.dumps(results,ensure_ascii=False,indent=2)+'\n');print(json.dumps({k:v for k,v in out.items() if k not in ['request','response_text','response','stream_audit']},ensure_ascii=False),flush=True)
