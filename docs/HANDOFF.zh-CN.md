@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**R13采集已完成：累计1024条RL任务（另5条SFT）；本轮512条、15提交/5产物验收通过、56条修改、4078生成，512条trace完整且State全部released，两个blobs目录0文件。R10＋R13共24提交/8产物通过，非项目Strict。已停止两张卡的采集服务。owner授权开始本地纠错试验R15：固定20真实失败（8协议/8重复读取/4失败提交），原失败20/20复现；Coder-Next FP8权重已完整校验，独立vLLM0.29.0在GPU0＋3已启动。默认custom all-reduce启动卡顿，关闭后API及实际生成成功，首题已真实写入solution.py；20题后台纠错进行中，任务验收待完成、训练0；看`RWKV_LOCAL_TEACHER_PILOT_R15_20260916/STATUS.json`，不能把等待服务当模型已运行。**
+
 **R13已启动：新增512条RL Code已全部准备并冻结，GPU0＋2、并发4后台采集，目标累计1024条；14:30快照新增13/累计525留痕，4执行中，0提交/0产物通过、1条修改。13条79生成完整封存并自动退休State。5条SFT另计，不纠错不训练。36小时总预算；服务`rwkv-lh-continuous-collection-r13.service`。初始admitted156将在批次边界更新，ready已512。详见[R13报告](../data/experiments/RWKV_COLLECTION_R13_20260916/REPORT.zh-CN.md)。**
 
 **R12已完成：512 RL全部留痕，9提交、3原代码验收通过；512/4024生成边界及5 SFT封存后回收，State目录净减少401.80 GiB，撤回R11副本另清理约1.09 GiB。1887回归全绿；GPU0/2新服务实际各3生成后自动退休，两个新blobs目录均0文件。服务端新增64 GiB磁盘保留门。旧R10消费者已停止，不是3万条完成；后续新批使用当前代码重新冻结，默认逐任务退休。强模型/训练0，owner五处修改不变。详情见[R12报告](../data/experiments/RWKV_STATE_LIFECYCLE_R12_20260916/REPORT.zh-CN.md)。**

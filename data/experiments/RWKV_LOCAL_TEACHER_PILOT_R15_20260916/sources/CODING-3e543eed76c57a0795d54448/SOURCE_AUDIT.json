@@ -1,0 +1,74 @@
+{
+  "id": "CODING-3e543eed76c57a0795d54448",
+  "stratum": "protocol",
+  "source_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_08072/converted/run/execution",
+  "manifest": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_08072/converted/run.retirement/MANIFEST.json",
+  "manifest_sha256": "95b711f93277f4a9738704ff3c4f80919c495a44534b13c5cad7a55b7cd0357d",
+  "checkpoint": "CP-84810e9063d54e68",
+  "request_id": "MR-631ef980702344d7",
+  "snapshot": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_08072/converted/run/execution/generation_snapshots/MR-631ef980702344d7/before",
+  "input_sha256": "dd7b29a4066a624ac975cd0dbfee65f188b787a7c7c5583327a81d26ce9727a7",
+  "original_tool": "INVALID",
+  "original_output": "```\n\n",
+  "source_result_sha256": "ffb3145d123066d674f4224c13a0f239ed515832a4bd0c38be10bed08a6e8cb0",
+  "conversion": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_08072/converted/item.json",
+  "trace_summary": [
+    {
+      "checkpoint": "CP-2b7c36fd9c234938",
+      "output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"path\": \".\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-1097a2c81c254ee8",
+      "output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-026b760ac1874d56",
+      "output": "{\n  \"function\": \"read_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"TASK.md\",\n    \"start_byte\": 0\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-82ec963396a34a9b",
+      "output": "{\n  \"function\": \"read_text\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"path\": \"TASK.md\",\n    \"start_byte\": 0\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-b0292df9f2944670",
+      "output": "{\"function\":\"read_text\",\"params\":{\"max_tokens\":4096,\"path\":\"TASK.md\",\"start_byte\":0}}"
+    },
+    {
+      "checkpoint": "CP-d2cf4aa93ffe4ce1",
+      "output": "```\n"
+    },
+    {
+      "checkpoint": "CP-386b01fa6a844de1",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-5a83a5644ac6448a",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-ad892c6f50074324",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-7dcb85ee109941db",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-bb6fea8a265b402b",
+      "output": "```\n"
+    },
+    {
+      "checkpoint": "CP-b122f9ecca7242fa",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-2bca1eec40a34619",
+      "output": "```\n\n"
+    },
+    {
+      "checkpoint": "CP-84810e9063d54e68",
+      "output": "```\n\n"
+    }
+  ],
+  "source_task": "CowCow has arrived in a country famous for its soda for a trip.\n\nThe map of this country includes $n$ cities connected by $n-1$ roads, such that any two cities are connected by a path. The cities produce sodas of various flavors. While traveling on road $i$, CowCow will consume $w_i$ units of soda. CowCow loves drinking soda, but excessive consumption is harmful to health. Therefore, he hopes that during his trip, the average daily soda consumption is as close as possible to a given positive integer $k$.\n\nAdditionally, CowCow wants his travel plan to be as interesting as possible. He will choose a starting city and travel to a new city each day via a road, ending his journey in some city.\n\nCowCow is eager to start drinking cola, so he asks you to design a travel plan that minimizes the value of $|P - k|$ (where $P$ is the average daily soda consumption). Please tell him the minimum value, which should be the integer part of this minimum value (i.e., floor the value and output it).\n\n## Input Format\n\nThe first line contains two positive integers $n$ and $k$.\n\nThe next $n-1$ lines each contain three positive integers $u_i$, $v_i$, and $w_i$, indicating that there is a road of length $w_i$ connecting city $u_i$ and city $v_i$.\n\nIntegers on the same line are separated by a single space.\n\n## Output Format\n\nA single line containing an integer, which is the integer part of the minimum value (i.e., the floored value).\n\n## Sample Input and Output\n\n### Sample Input #1\n\n```\n5 21\n1 2 9\n1 3 27\n1 4 3\n1 5 12\n```\n\n### Sample Output #1\n\n```\n1\n```\n\n## Notes/Hints\n\n### Sample Explanation\n\nIn the graph, the path $5 \\to 1 \\to 3$ is the most suitable route. The total soda consumption is $27 + 12 = 39$, and the average daily soda consumption is $39 \\div 2 = 19.5$. The absolute difference from $k$ is $|19.5 - 21| = 1.5$, which, when floored, gives $1$. Thus, the answer is $1$.\n\n### Data Range\n\nFor $20\\%$ of the data, $n \\leq 1000$.\n\nFor another $20\\%$ of the data, there is an edge connecting node $i$ (for $1 \\leq i \\leq n-1$) and node $i+1$.\n\nFor another $20\\%$ of the data, the data forms a complete binary tree with node $1$ as the root (in a complete binary tree, there is a road between node $i$ (for $2 \\leq i \\leq n$) and node $\\lfloor i \\div 2 \\rfloor$).\n\nFor another $20\\%$ of the data, all nodes except node $1$ have a road connecting to node $1$.\n\nFor $100\\%$ of the data, $1 \\leq n \\leq 5 \\times 10^4$, $0 \\leq w_i \\leq 10^{13}$, $0 \\leq k \\leq 10^{13}$.\n\nThe input will be given via stdin and the output should be printed to stdout by your code.\n\nNow solve the problem by providing the code.\n"
+}

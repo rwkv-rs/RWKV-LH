@@ -1,0 +1,38 @@
+{
+  "id": "CODING-04a1f41a51546ec06a42cdce",
+  "stratum": "progress",
+  "source_root": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_18114/converted/run/execution",
+  "manifest": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_18114/converted/run.retirement/MANIFEST.json",
+  "manifest_sha256": "67d6cfd83322f1936a8c7e3c34011282a0df43086bfbafc9ce3089dce4ef8d9c",
+  "checkpoint": "CP-9ea336e3325945bd",
+  "request_id": "MR-b5b15da7f6a74484",
+  "snapshot": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_18114/converted/run/execution/generation_snapshots/MR-b5b15da7f6a74484/before",
+  "input_sha256": "2b439d8bdf7e6b6a0cd51dc6f446f81f451abc9e799d096618c7b5c43dd2214d",
+  "original_tool": "read_file",
+  "original_output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}",
+  "source_result_sha256": "0041aa62ebabf05ee36e1f2bcc9861b3f9a3d69d533ea7407fa86821541cbf31",
+  "conversion": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_COLLECTION_R13_20260916/rl_prepared/tasks/Code_18114/converted/item.json",
+  "trace_summary": [
+    {
+      "checkpoint": "CP-bbb53fc0f5124a8f",
+      "output": "{\n  \"function\": \"list_directory\",\n  \"params\": {\n    \"path\": \".\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-d13202bf5a064f33",
+      "output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"max_tokens\": 4096,\n    \"max_lines\": 800,\n    \"max_chars\": 4096,\n    \"path\": \"TASK.md\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-0407b597f3ab4529",
+      "output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-588d9f86432641c7",
+      "output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}"
+    },
+    {
+      "checkpoint": "CP-9ea336e3325945bd",
+      "output": "{\n  \"function\": \"read_file\",\n  \"params\": {\n    \"path\": \"TASK.md\"\n  }\n}"
+    }
+  ],
+  "source_task": "Alice and Bob play ping-pong with simplified rules.\n\nDuring the game, the player serving the ball commences a play. The server strikes the ball then the receiver makes a return by hitting the ball back. Thereafter, the server and receiver must alternately make a return until one of them doesn't make a return.\n\nThe one who doesn't make a return loses this play. The winner of the play commences the next play. Alice starts the first play.\n\nAlice has x stamina and Bob has y. To hit the ball (while serving or returning) each player spends 1 stamina, so if they don't have any stamina, they can't return the ball (and lose the play) or can't serve the ball (in this case, the other player serves the ball instead). If both players run out of stamina, the game is over.\n\nSometimes, it's strategically optimal not to return the ball, lose the current play, but save the stamina. On the contrary, when the server commences a play, they have to hit the ball, if they have some stamina left.\n\nBoth Alice and Bob play optimally and want to, firstly, maximize their number of wins and, secondly, minimize the number of wins of their opponent.\n\nCalculate the resulting number of Alice's and Bob's wins.\nInput\n\nThe first line contains a single integer t (1 ≤ t ≤ 10^4) — the number of test cases.\n\nThe first and only line of each test case contains two integers x and y (1 ≤ x, y ≤ 10^6) — Alice's and Bob's initial stamina.\n\nOutput\n\nFor each test case, print two integers — the resulting number of Alice's and Bob's wins, if both of them play optimally.\n\nExample\n\nInput\n\n\n3\n1 1\n2 1\n1 7\n\n\nOutput\n\n\n0 1\n1 1\n0 7\n\nNote\n\nIn the first test case, Alice serves the ball and spends 1 stamina. Then Bob returns the ball and also spends 1 stamina. Alice can't return the ball since she has no stamina left and loses the play. Both of them ran out of stamina, so the game is over with 0 Alice's wins and 1 Bob's wins.\n\nIn the second test case, Alice serves the ball and spends 1 stamina. Bob decides not to return the ball — he loses the play but saves stamina. Alice, as the winner of the last play, serves the ball in the next play and spends 1 more stamina. This time, Bob returns the ball and spends 1 stamina. Alice doesn't have any stamina left, so she can't return the ball and loses the play. Both of them ran out of stamina, so the game is over with 1 Alice's and 1 Bob's win.\n\nIn the third test case, Alice serves the ball and spends 1 stamina. Bob returns the ball and spends 1 stamina. Alice ran out of stamina, so she can't return the ball and loses the play. Bob, as a winner, serves the ball in the next 6 plays. Each time Alice can't return the ball and loses each play. The game is over with 0 Alice's and 7 Bob's wins.\n\nThe input will be given via stdin and the output should be printed to stdout by your code.\n\nNow solve the problem by providing the code.\n"
+}
