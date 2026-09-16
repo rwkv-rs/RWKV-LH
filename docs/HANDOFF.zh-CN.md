@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**最新R16：R15实际已在第3题240秒HTTP超时后停止（前2题产物0通过、17题未运行），下方“20题后台进行中”仅是历史。已修复教师请求与任务剩余预算不一致、服务器AppArmor沙箱配置、系统Python虚拟环境链接在沙箱内不可见的问题；真实服务器stdin/写入/私有文件隔离和stdio正确/错误/超时检查通过，1890完整回归通过、0跳过。同20题已重新冻结，在服务器`rwkv-lh-server-teacher-r16.service`运行，调度/工具/测试/记录全在rwkv-82，直接18243端口，不依赖本地模型转发。首快照2提交/0修改/0产物通过，第3题生成中；前两题仍只给计划，完整任务/语义审核待完成。模型暂保持Coder-Next FP8，Qwen3.8作为后续独立候选；输入封装影响尚未证实。训练0，未push，owner五处修改不变。见[R16记录](../data/experiments/RWKV_SERVER_TEACHER_R16_20260916/REPORT.zh-CN.md)，实时状态以服务器outputs/STATUS.json为准。**
+
 **R13采集已完成：累计1024条RL任务（另5条SFT）；本轮512条、15提交/5产物验收通过、56条修改、4078生成，512条trace完整且State全部released，两个blobs目录0文件。R10＋R13共24提交/8产物通过，非项目Strict。已停止两张卡的采集服务。owner授权开始本地纠错试验R15：固定20真实失败（8协议/8重复读取/4失败提交），原失败20/20复现；Coder-Next FP8权重已完整校验，独立vLLM0.29.0在GPU0＋3已启动。默认custom all-reduce启动卡顿，关闭后API及实际生成成功，首题已真实写入solution.py；20题后台纠错进行中，任务验收待完成、训练0；看`RWKV_LOCAL_TEACHER_PILOT_R15_20260916/STATUS.json`，不能把等待服务当模型已运行。**
 
 **R13已启动：新增512条RL Code已全部准备并冻结，GPU0＋2、并发4后台采集，目标累计1024条；14:30快照新增13/累计525留痕，4执行中，0提交/0产物通过、1条修改。13条79生成完整封存并自动退休State。5条SFT另计，不纠错不训练。36小时总预算；服务`rwkv-lh-continuous-collection-r13.service`。初始admitted156将在批次边界更新，ready已512。详见[R13报告](../data/experiments/RWKV_COLLECTION_R13_20260916/REPORT.zh-CN.md)。**

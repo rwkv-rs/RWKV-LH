@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_system_python_symlink_in_venv_is_rebased_into_sandbox __________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_system_python_symlink_in_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b0855978050>
+
+    def test_system_python_symlink_in_venv_is_rebased_into_sandbox(tmp_path, monkeypatch):
+        system_python = Path('/usr/bin/python3').resolve(strict=True)
+        venv = tmp_path / 'venv'
+        (venv / 'bin').mkdir(parents=True)
+        executable = venv / 'bin/python'
+        executable.symlink_to(system_python)
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        monkeypatch.setattr(sys, 'prefix', str(venv))
+        monkeypatch.setattr(sys, 'executable', str(executable))
+        goal = GoalState.create(request='sandbox regression', workspace_root=str(workspace), constraints=[])
+        command, _ = ActionHarness()._bubblewrap_command(goal, workspace, [str(executable), '-B', 'solution.py'])
+>       assert command[-3] == '/opt/rwkv-lh-venv/bin/python'
+E       AssertionError: assert '/home/chase/...nv/bin/python' == '/opt/rwkv-lh-venv/bin/python'
+E         
+E         - /opt/rwkv-lh-venv/bin/python
+E         + /home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_system_python_symlink_in_0/venv/bin/python
+
+tests/test_sandbox_system_python_symlink.py:21: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_sandbox_system_python_symlink.py::test_system_python_symlink_in_venv_is_rebased_into_sandbox
+1 failed in 0.11s

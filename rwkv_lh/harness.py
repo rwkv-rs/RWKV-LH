@@ -3017,7 +3017,17 @@ class ActionHarness:
                     Path("/workspace") / resolved_executable.relative_to(workspace)
                 )
             elif resolved_executable.is_relative_to(Path("/usr")):
-                pass
+                # A system-Python virtualenv uses a symlink outside /usr.
+                # Preserve its virtualenv identity at the mounted path; the
+                # original host /home path is deliberately absent in the sandbox.
+                original_executable = Path(executable)
+                if original_executable.is_absolute():
+                    if original_executable.is_relative_to(venv_root):
+                        child_argv[0] = str(
+                            sandbox_venv / original_executable.relative_to(venv_root)
+                        )
+                    else:
+                        child_argv[0] = str(resolved_executable)
             elif resolved_executable.is_relative_to(configured_runtime_root):
                 runtime_root = configured_runtime_root
                 child_argv[0] = str(
@@ -3118,7 +3128,8 @@ class ActionHarness:
                 ]
             )
             sandbox_path = f"{sandbox_runtime / 'bin'}:{sandbox_path}"
-        if include_project_venv or any(
+        if (include_project_venv
+                or Path(child_argv[0]).is_relative_to(sandbox_venv)) or any(
             Path(argument).is_absolute()
             and Path(argument).exists()
             and Path(argument).resolve(strict=True).is_relative_to(venv_root)
