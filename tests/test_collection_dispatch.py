@@ -27,6 +27,43 @@ def job(item):
     return CodingJob(item['job']['task_id'],'engineering fixture','unused',item['job']['output_dir'],2,3)
 
 
+def test_two_replicas_keep_each_task_on_one_service_and_drain_inventory(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from threading import Barrier
+    monkeypatch.setattr(execution, 'ProcessPoolExecutor', TestPool)
+    barrier = Barrier(2)
+    calls = []
+    def worker(item, task, settings, service_identity=None):
+        calls.append((task.task_id, settings.base_url, service_identity))
+        if len(calls) <= 2:
+            barrier.wait(timeout=3)
+        result = {'id': task.task_id, 'trace_complete': True, 'generation_started': 1,
+                  'termination': 'interrupted', 'termination_reason': 'model_budget'}
+        execution.save_receipt(item, result)
+        return result
+    monkeypatch.setattr(execution, 'execute', worker)
+    replicas = [(SimpleNamespace(base_url='http://gpu0'), {'model': 'same'}),
+                (SimpleNamespace(base_url='http://gpu2'), {'model': 'same'})]
+    with CollectionQueue(tmp_path/'q') as queue:
+        for name in ('one', 'two', 'three', 'four', 'five'):
+            admit(queue, tmp_path, name)
+        result = execution.dispatch(queue, settings=None, verify=job, concurrency=2,
+            deadline=time.time()+10, replicas=replicas)
+        assert result['reason'] == 'exhausted'
+        assert queue.counts() == {'recorded': 5}
+    assert len({c[0] for c in calls}) == 5
+    assert {c[1] for c in calls[:2]} == {'http://gpu0', 'http://gpu2'}
+    assert all(c[2] == {'model': 'same'} for c in calls)
+
+
+def test_replica_count_cannot_silently_exceed_worker_count(tmp_path):
+    import pytest
+    with CollectionQueue(tmp_path/'q') as queue:
+        with pytest.raises(ValueError, match='replica'):
+            execution.dispatch(queue, settings=None, verify=job, concurrency=1,
+                deadline=time.time()+10, replicas=[(None, {}), (None, {})])
+
+
 def test_fast_receipt_is_committed_before_slow_task_finishes(tmp_path, monkeypatch):
     monkeypatch.setattr(execution,'ProcessPoolExecutor',TestPool)
     observed=[]

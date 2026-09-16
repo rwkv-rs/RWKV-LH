@@ -1,4 +1,8 @@
-# 当前交接（2026-09-15）
+# 当前交接（2026-09-16）
+
+**R10：owner 明确双卡采集、结束后纠错，并允许 RL Code 补充且与 SFT 分开统计。GPU 0＋2 已运行同权重/同源码身份的独立 Native 副本，GPU 1、3 不动；连续批次消费者已部署，已实证第一批32题结束后自动进入第二批。冻结供给为5个SFT来源AnyIO公开版本功能任务＋512个新RL Code补充题（21批），不是3万题就绪。SFT试采5题均未修改/未提交，61生成重建核验通过；两卡各抽查1条RL轨迹共10边界也通过。模型失败保留原件，不纠错、不训练、不push。最终1876工程回归全绿、0跳过。长跑使用独立冻结源码，状态见 `data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/campaign/STATUS.json`，详细证据见[R10报告](../data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/REPORT.zh-CN.md)。补足SFT可复建来源和剩余3万目标仍未完成；空供给须明确 waiting_for_bound_tasks，不把常驻进程当作采集。**
+
+**R9交付纠正：昨晚仅运行1个Loguru任务，约30.6秒后重复读取中断、0修改/0提交，随后没有后续任务；没有持续采集七小时。69,895条仅是SFT下载/结构审计数量，不是新执行或新训练数据。以下R9的“后台启动”描述保留为历史，不能视为大批部署完成。GPU2遗留Selector已停止；GPU1属rwkv账号的Lightning CUDA 7B服务，chase无停止权限，owner最新要求暂不处理。**
 
 **R9：全7分片完成完整SHA验证和结构审计，共69,895条源记录；curl18两轮失败及Range恢复原始证据保留。全量来源索引完成，仍不能算69,895个可运行环境。新增Loguru Code_Agent_000009公开0.7.0重实例化，真实atexit崩溃复现、普通日志对照通过、57公开测试通过、正式转换准入1题。WSL后台unit `rwkv-lh-coding-collection-r9.service`已实际调用RWKV，24calls/1200s，配置并发4但有效1；会自动封存trace并做隔离代码检查，最终语义验收另列。不是3万题全量采集，未训练/教师/push。Owner最新要求部署验证后停止监测、会后自行检查；不要自动新建监控。状态与用法见[R9报告](../data/experiments/RWKV_COLLECTION_DEPLOY_R9_20260915/REPORT.zh-CN.md)。**
 

@@ -57,3 +57,17 @@ Native 服务全局请求锁保持原样，不直接移除。R7已部署空GC快
 ## 开始规模采集前
 
 完成 SFT 原始环境复建、跨来源家族去重、任务与验收冻结，核验模型/服务部署身份，然后对实际题型做有界试跑和吞吐测量。现有工程冒烟仅复用历史两道任务，不计入新的 3 万条，也不测训练收益。不得读取最终 holdout；当前训练后固定 12 题及衍生内容仍排除出未来训练。仅 GPU 0，不启动教师纠正或训练。
+
+## R10：双服务与连续批次（2026-09-16）
+
+`run_collection_queue.py --replicas /absolute/replicas.json --concurrency 4` 支持两套独立 Native 服务。配置是 `[{"base_url":"http://127.0.0.1:29613/v1"},{"base_url":"http://127.0.0.1:29635/v1"}]`；模型、采样、State 初始化保持一致，服务 model/server_build/tokenizer/context 身份必须相等。每项任务全程固定一个服务；不跨服务迁移 State、不删 Native 请求锁。收据记录真实服务端点。
+
+连续入口为 `scripts/run_collection_campaign.py --root /absolute/campaign --replicas /absolute/replicas.json --env-file /absolute/.env.local --target-tasks 30000 --concurrency 4 --max-hours 36`。启动前将当前源码和依赖锁冻结到独立目录，从冻结入口运行，避免日后工作树修改改变长跑身份。
+
+供给方先完成来源、环境、验收和转换，再原子发布 `ready/<batch>.json`。文件必须登记 batch_id、inventory 绝对路径、inventory_sha256、逐 source_id 的已审核 families 映射。该映射不是程序推断业务类别的入口；跨批 source ID、源字节、任务族、任务 ID 和输出路径重复会拒绝。已有批次不可替换；每批仍由原队列核验完整转换证据并冻结。批次之间同时检查私有来源/验收与所有工作区的隔离。
+
+一批完成会自动领取下一批。模型失败但轨迹完整可以继续采集；未决任务、工程异常或不完整轨迹会停发等待核查。整个 campaign 的截止时间跨重启保持，批次运行预算也持久化。空供给明确写 `waiting_for_bound_tasks`，不能称为模型运行；不足目标不会报告 `collection_recorded`，也不会因此切换教师或训练。该入口只消费已经批准的任务，不会凭空复建未知仓库。
+
+R10 实际部署 GPU 0＋2；GPU 1、3 未改动。调度/工具工作区在本地 WSL，推理服务在服务器；本机和 WSL 必须保持运行，SSH 隧道由用户 systemd 管理。实际冻结供给是 5 个已试采 SFT 来源任务及 512 个 RL Code 补充任务，后者 21 批；还不是 3 万可运行题。RL 使用固定修订的 12 个 512 MiB 前缀，只取完整行；前缀身份与 HTTP Range 验证不等于整分片 LFS SHA 验证。286 项因旧题、资源、比较规则、截断等未准入，原始材料与拒绝记录保留。
+
+当前状态：`data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/campaign/STATUS.json`；逐批细节仍使用 `run_collection_queue.py --queue <campaign/batches/<batch>/queue.sqlite3> --status` 只读查询。服务名 `rwkv-lh-continuous-collection-r10.service`。SFT 与 RL 分别统计，收集完成后才进入独立纠错阶段；当前教师调用和新增训练数据均为零。

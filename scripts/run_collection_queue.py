@@ -4,7 +4,7 @@ Only direct jobs are accepted. Interrupted in-flight rows require reconciliation
 this entry point never retries them automatically or assigns acceptance labels.
 """
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import fcntl
 import hashlib
 import json
@@ -89,6 +89,34 @@ def validate_inventory(queue):
             raise ValueError('task output overlaps private evidence')
 
 
+def collection_replicas(settings, path, concurrency):
+    """Bind independent identical-model endpoints, never route individual steps."""
+    if path is None:
+        return [(settings, service_fingerprint(settings))]
+    rows = json.loads(path.read_text())
+    if not isinstance(rows, list) or not rows or len(rows) > concurrency:
+        raise ValueError('replica list requires at least one worker per endpoint')
+    services, seen = [], set()
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {'base_url'}:
+            raise ValueError('replicas specify base_url only; model and sampling stay identical')
+        url = row['base_url']
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError('invalid replica URL')
+        url = url.rstrip('/')
+        if url in seen:
+            raise ValueError('duplicate replica endpoint')
+        seen.add(url)
+        replica = replace(settings, base_url=url)
+        identity = service_fingerprint(replica)
+        if services and identity != services[0][1]:
+            raise ValueError('replica model/source identity differs')
+        services.append((replica, identity))
+    return services
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--queue', type=Path, required=True)
@@ -100,6 +128,7 @@ def main():
     parser.add_argument('--max-hours', type=float, default=36)
     parser.add_argument('--failure-limit', type=int, default=3)
     parser.add_argument('--concurrency', type=int, default=1)
+    parser.add_argument('--replicas', type=Path, help='JSON list of independent base_url endpoints for the same frozen model')
     parser.add_argument('--min-free-gib', type=int, default=20)
     args = parser.parse_args()
     import math
@@ -154,11 +183,14 @@ def main():
                 for path in (Path(__file__).resolve(), Path(__file__).with_name('audit_collection_sources.py'),
                              root/'pyproject.toml', root/'uv.lock'):
                     source_identity[str(path.relative_to(root))] = (hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size)
-                serving = service_fingerprint(settings)
+                replicas = collection_replicas(settings, args.replicas, args.concurrency)
+                serving = replicas[0][1]
                 inventory_identity = hashlib.sha256(json.dumps(list(queue.items()), sort_keys=True,
                     ensure_ascii=False, allow_nan=False).encode()).hexdigest()
                 identity.update(source_files=source_identity, inventory_sha256=inventory_identity,
                     concurrency=args.concurrency, max_hours=args.max_hours, failure_limit=args.failure_limit, service_identity=serving, engineering_inventory=args.engineering_inventory)
+                if args.replicas:
+                    identity['replicas'] = [{'base_url': s.base_url, 'service_identity': i} for s, i in replicas]
                 queue.seal(identity)
                 queue.db.execute("INSERT OR IGNORE INTO freeze VALUES ('deadline', ?)",
                                  (str(time.time() + args.max_hours * 3600),))
@@ -172,7 +204,8 @@ def main():
                     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('recovery_acknowledged', ?)", (str(time.time()),))
                 result = dispatch(queue, settings=settings, verify=verified,
                     concurrency=args.concurrency, deadline=deadline,
-                    failure_limit=args.failure_limit, capacity_check=capacity, service_identity=serving)
+                    failure_limit=args.failure_limit, capacity_check=capacity, service_identity=serving,
+                    replicas=replicas)
                 print(json.dumps(result), flush=True)
                 return 0 if result['reason'] == 'exhausted' and not any(
                     result['counts'].get(key, 0) for key in ('running', 'pending')) else 2

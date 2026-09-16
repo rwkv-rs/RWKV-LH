@@ -1,0 +1,28 @@
+from pathlib import Path
+import concurrent.futures,json,subprocess,hashlib,time
+root=Path('/home/chase/GitHub/RWKV-LH');p=root/'data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/rl_sources';p.mkdir(exist_ok=True)
+tree=json.loads((root/'data/experiments/ARTICLE_DATA_REVIEW_R1_20260909/rl_audit/dataset_tree.json').read_text())
+shards=[r for r in tree if r['path'].startswith('data/Code/') and r['path'].endswith('.jsonl')]
+revision='e6ecfa733708a4c54b5a98c3ca0fd16fc6923790';limit=512*1024*1024
+(p/'REGISTRATION.json').write_text(json.dumps({'revision':revision,'shards':shards,'prefix_bytes_each':limit,'concurrency':4,'whole_file_sha_verified':False,'purpose':'separately counted RL Code supplement; no reference in model input; no teacher/training'},indent=2))
+def work(item):
+ name=Path(item['path']).stem;out=p/name;out.mkdir(exist_ok=True)
+ url='https://huggingface.co/datasets/openbmb/UltraData-RL-2609/resolve/'+revision+'/'+item['path']+'?r10prefix='+str(limit)
+ partial=out/'prefix.download'
+ with (out/'download.log').open('a') as log:
+  proc=subprocess.run(['curl','--fail','--location','--silent','--show-error','--retry','3','--connect-timeout','30','--max-time','1200','--range',f'0-{limit-1}','--dump-header',str(out/'headers.txt'),'--output',str(partial),'--',url],stdout=log,stderr=subprocess.STDOUT)
+ if proc.returncode:raise RuntimeError(name+' download failed '+str(proc.returncode))
+ headers=(out/'headers.txt').read_text().lower()
+ if partial.stat().st_size!=limit or f'content-range: bytes 0-{limit-1}/' not in headers:raise ValueError(name+' unexpected range')
+ final=out/'source.prefix';partial.rename(final)
+ with final.open('rb') as f:sha=hashlib.file_digest(f,'sha256').hexdigest()
+ reg={'path':item['path'],'revision':revision,'url':url,'prefix_bytes':limit,'sha256':sha,'whole_file_sha_verified':False,'upstream_whole_file':item}
+ (out/'FETCH.json').write_text(json.dumps(reg,indent=2));print(name,'ready',sha,flush=True)
+ return reg
+if __name__=='__main__':
+ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+  futures={pool.submit(work,item):item for item in shards};results=[]
+  for f in concurrent.futures.as_completed(futures):
+   try:results.append(f.result())
+   except Exception as exc:results.append({'path':futures[f]['path'],'error':str(exc)});print(str(exc),flush=True)
+   (p/'STATUS.json').write_text(json.dumps({'completed':len(results),'total':len(shards),'results':results},indent=2))

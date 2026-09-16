@@ -90,6 +90,8 @@ def execute(item, job, settings, service_identity=None):
                   'termination_reason': 'collection_worker_failed', 'trace_complete': False,
                   'generation_started': None, 'acceptance': 'unreviewable',
                   'error': {'type': type(exc).__name__, 'message': str(exc)}}
+    result['collection_service'] = {'base_url': getattr(settings, 'base_url', None),
+                                    'identity': service_identity}
     result["external_acceptance"] = {"status": "pending_verification"}
     save_receipt(item, result)
     def expired(signum, frame):
@@ -108,8 +110,14 @@ def execute(item, job, settings, service_identity=None):
 
 
 def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
-             capacity_check=lambda: None, service_identity=None):
+             capacity_check=lambda: None, service_identity=None, replicas=None):
     """Drain in-flight work at cutoff; no newly queued work after an infra fault."""
+    services = list(replicas) if replicas is not None else [(settings, service_identity)]
+    if not services or concurrency < len(services):
+        raise ValueError('each replica requires at least one worker slot')
+    # A slot owns one endpoint for the entire task. State is never migrated
+    # between services, and a model failure still advances to the next task.
+    free_slots = list(range(concurrency))
     if reconcile(queue):
         return {'reason': 'unresolved_running', 'counts': queue.counts()}
     queue.db.execute('CREATE TABLE IF NOT EXISTS operational (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
@@ -145,7 +153,9 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                     job = prepared[0]
                     remaining = max(0.001, deadline - time.time())
                     job = replace(job, max_seconds=min(job.max_seconds, remaining))
-                    active[pool.submit(execute, item, job, settings, service_identity)] = item
+                    slot = free_slots.pop(0)
+                    task_settings, task_identity = services[slot % len(services)]
+                    active[pool.submit(execute, item, job, task_settings, task_identity)] = (item, slot)
                 except Exception as exc:
                     failure_detail = {'stage':'dispatch', 'source_id':item['source_id'], 'type':type(exc).__name__, 'message':str(exc)}
                     reason, stop = 'dispatch_outcome_unknown', True
@@ -154,7 +164,8 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                 break
             done, _ = wait(active, return_when=FIRST_COMPLETED)
             for future in done:
-                item = active.pop(future)
+                item, slot = active.pop(future)
+                free_slots.append(slot)
                 try:
                     result = future.result()
                     queue.finish(item['source_id'], result)

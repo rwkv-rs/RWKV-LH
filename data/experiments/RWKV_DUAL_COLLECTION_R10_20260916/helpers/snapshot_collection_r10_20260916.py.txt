@@ -1,0 +1,13 @@
+from pathlib import Path
+import sqlite3,json,collections,time
+p=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_DUAL_COLLECTION_R10_20260916')
+rows=[];queues=[]
+for queue in [p/'queue.sqlite3',*sorted((p/'campaign/batches').glob('*/queue.sqlite3'))]:
+ with sqlite3.connect(queue.resolve().as_uri()+'?mode=ro',uri=True) as db:
+  counts=dict(db.execute('SELECT status,count(*) FROM tasks GROUP BY status'))
+  queues.append({'path':str(queue),'counts':counts})
+  for source,payload,raw in db.execute('SELECT source_id,payload,result FROM tasks WHERE result IS NOT NULL'):
+   item=json.loads(payload);r=json.loads(raw)
+   rows.append({'source':source,'task_id':r['id'],'kind':item.get('coding_task_kind'),'termination':r.get('termination'),'reason':r.get('termination_reason'),'trace_complete':r.get('trace_complete'),'generation_returned':r.get('generation_returned'),'protocol_rejections':r.get('protocol_rejections'),'changed_files':r.get('changed_files'),'artifact_acceptance':r.get('external_acceptance',{}).get('status'),'assistance':r.get('assistance'),'elapsed_seconds':r.get('elapsed_seconds'),'service':r.get('collection_service'),'receipt':str(Path(item['job']['output_dir'])/'COLLECTION_RECEIPT.json')})
+result={'captured_at':time.time(),'queues':queues,'rows':rows,'counts_by_kind':dict(collections.Counter(r['kind'] for r in rows)),'reason_counts':dict(collections.Counter(r['reason'] for r in rows)),'task_submission_not_acceptance':True,'teacher_calls':0,'training_rows':0}
+(p/'PROGRESS_SNAPSHOT.json').write_text(json.dumps(result,indent=2));print(json.dumps({'recorded':len(rows),'by_kind':result['counts_by_kind'],'reasons':result['reason_counts'],'queues':queues},indent=2))

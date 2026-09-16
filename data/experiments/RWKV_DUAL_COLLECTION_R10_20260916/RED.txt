@@ -1,0 +1,49 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_two_replicas_keep_each_task_on_one_service_and_drain_inventory ______
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_two_replicas_keep_each_ta0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x735bc36935c0>
+
+    def test_two_replicas_keep_each_task_on_one_service_and_drain_inventory(tmp_path, monkeypatch):
+        from types import SimpleNamespace
+        from threading import Barrier
+        monkeypatch.setattr(execution, 'ProcessPoolExecutor', TestPool)
+        barrier = Barrier(2)
+        calls = []
+        def worker(item, task, settings, service_identity=None):
+            calls.append((task.task_id, settings.base_url, service_identity))
+            if len(calls) <= 2:
+                barrier.wait(timeout=3)
+            result = {'id': task.task_id, 'trace_complete': True, 'generation_started': 1,
+                      'termination': 'interrupted', 'termination_reason': 'model_budget'}
+            execution.save_receipt(item, result)
+            return result
+        monkeypatch.setattr(execution, 'execute', worker)
+        replicas = [(SimpleNamespace(base_url='http://gpu0'), {'model': 'same'}),
+                    (SimpleNamespace(base_url='http://gpu2'), {'model': 'same'})]
+        with CollectionQueue(tmp_path/'q') as queue:
+            for name in ('one', 'two', 'three', 'four', 'five'):
+                admit(queue, tmp_path, name)
+>           result = execution.dispatch(queue, settings=None, verify=job, concurrency=2,
+                deadline=time.time()+10, replicas=replicas)
+E           TypeError: dispatch() got an unexpected keyword argument 'replicas'
+
+tests/test_collection_dispatch.py:50: TypeError
+____________ test_replica_count_cannot_silently_exceed_worker_count ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_replica_count_cannot_sile0')
+
+    def test_replica_count_cannot_silently_exceed_worker_count(tmp_path):
+        import pytest
+        with CollectionQueue(tmp_path/'q') as queue:
+            with pytest.raises(ValueError, match='replica'):
+>               execution.dispatch(queue, settings=None, verify=job, concurrency=1,
+                    deadline=time.time()+10, replicas=[(None, {}), (None, {})])
+E               TypeError: dispatch() got an unexpected keyword argument 'replicas'
+
+tests/test_collection_dispatch.py:63: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_collection_dispatch.py::test_two_replicas_keep_each_task_on_one_service_and_drain_inventory
+FAILED tests/test_collection_dispatch.py::test_replica_count_cannot_silently_exceed_worker_count
+2 failed, 7 deselected in 0.23s
