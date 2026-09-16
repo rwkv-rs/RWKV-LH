@@ -177,3 +177,17 @@ def test_collection_worker_captures_generation_boundary(tmp_path,monkeypatch):
     assert events[0]['type']=='correction_generation_snapshot_saved'
     assert events[1]['type']=='model_session_generation_started'
     assert (tmp_path/'a/execution/generation_snapshots/test-request/before/source.txt').read_text()=='actual before bytes'
+
+
+def test_storage_retirement_failure_stops_further_dispatch(tmp_path,monkeypatch):
+    monkeypatch.setattr(execution,'ProcessPoolExecutor',TestPool)
+    def worker(item,task,settings,service_identity=None):
+        result={'id':task.task_id,'trace_complete':True,'storage_retirement':{'status':'failed'}}
+        execution.save_receipt(item,result)
+        return result
+    monkeypatch.setattr(execution,'execute',worker)
+    with CollectionQueue(tmp_path/'q') as queue:
+        for name in ('first','next'):admit(queue,tmp_path,name)
+        outcome=execution.dispatch(queue,settings=None,verify=job,concurrency=1,deadline=time.time()+10)
+        assert outcome['reason']=='storage_retirement_failed'
+        assert queue.counts()=={'recorded':1,'pending':1}

@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**R12已完成：512 RL全部留痕，9提交、3原代码验收通过；512/4024生成边界及5 SFT封存后回收，State目录净减少401.80 GiB，撤回R11副本另清理约1.09 GiB。1887回归全绿；GPU0/2新服务实际各3生成后自动退休，两个新blobs目录均0文件。服务端新增64 GiB磁盘保留门。旧R10消费者已停止，不是3万条完成；后续新批使用当前代码重新冻结，默认逐任务退休。强模型/训练0，owner五处修改不变。详情见[R12报告](../data/experiments/RWKV_STATE_LIFECYCLE_R12_20260916/REPORT.zh-CN.md)。**
+
 **R11清理已按owner新指令停止：旧 full-trace runtime 与原 State 保留；eval-results 和 chase/rwkv-skills 在停止指令前已删除。GPU0/2恢复原启动路径及冻结身份，R10采集已续跑（暂停前284条RL留痕，非通过数）；预算/任务不变。详见[R11记录](../data/experiments/RWKV_STORAGE_CLEANUP_R11_20260916/REPORT.zh-CN.md)。**
 
 **R10：owner 明确双卡采集、结束后纠错，并允许 RL Code 补充且与 SFT 分开统计。GPU 0＋2 已运行同权重/同源码身份的独立 Native 副本，GPU 1、3 不动；连续批次消费者已部署，已实证第一批32题结束后自动进入第二批。冻结供给为5个SFT来源AnyIO公开版本功能任务＋512个新RL Code补充题（21批），不是3万题就绪。SFT试采5题均未修改/未提交，61生成重建核验通过；两卡各抽查1条RL轨迹共10边界也通过。模型失败保留原件，不纠错、不训练、不push。最终1876工程回归全绿、0跳过。长跑使用独立冻结源码，状态见 `data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/campaign/STATUS.json`，详细证据见[R10报告](../data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/REPORT.zh-CN.md)。补足SFT可复建来源和剩余3万目标仍未完成；空供给须明确 waiting_for_bound_tasks，不把常驻进程当作采集。**

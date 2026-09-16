@@ -106,7 +106,33 @@ def execute(item, job, settings, service_identity=None):
         signal.setitimer(signal.ITIMER_REAL, *old_timer)
         signal.signal(signal.SIGALRM, previous)
     save_receipt(item, result)
+    # Collection jobs are immutable evidence, not interactive resumable runs.
+    # Seal full inputs and workspace snapshots before retiring acceleration State.
+    if result.get('trace_complete') is True:
+        try:
+            result['storage_retirement'] = retire_execution(evidence, output, settings, service_identity)
+        except Exception as exc:
+            result['storage_retirement'] = {'status':'failed','error':str(exc)}
+        save_receipt(item, result)
     return result
+
+
+def retire_execution(evidence, output, settings, service_identity):
+    from .collection_retirement import seal_run, release_sealed_run
+    state = json.loads((evidence/'state_snapshot.json').read_text())
+    models = {cp['native_state_metadata']['model_sha256']
+              for cp in state['model_states'].values() if cp.get('native_state_ref')}
+    if len(models) != 1:
+        raise ValueError('retirement requires one explicit source model')
+    sealed = output.parent / (output.name + '.retirement')
+    seal_run(evidence, sealed, models.pop())
+    client = OpenAICompatibleRWKVClient(settings)
+    try:
+        release_sealed_run(evidence, sealed, client, expected_service=service_identity)
+    finally:
+        client.close()
+    return {'status':'released','evidence':str(sealed),
+            'resume_policy':'fresh verified input replay; old native handles retired'}
 
 
 def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
@@ -169,13 +195,16 @@ def dispatch(queue, *, settings, verify, concurrency, deadline, failure_limit=3,
                 try:
                     result = future.result()
                     queue.finish(item['source_id'], result)
-                    failures = failures + 1 if result.get('trace_complete') is not True else 0
+                    if result.get('storage_retirement', {}).get('status') == 'failed':
+                        reason, stop = 'storage_retirement_failed', True
+                    failures = (failure_limit if result.get('storage_retirement', {}).get('status') == 'failed'
+                                else failures + 1 if result.get('trace_complete') is not True else 0)
                     queue.db.execute("INSERT OR REPLACE INTO operational VALUES ('failure_streak', ?)", (str(failures),))
                 except Exception as exc:
                     failure_detail = {'stage':'worker_or_receipt', 'source_id':item['source_id'], 'type':type(exc).__name__, 'message':str(exc)}
                     reason, stop = 'worker_or_receipt_outcome_unknown', True
                     continue
-                if failures >= failure_limit:
+                if failures >= failure_limit and not stop:
                     reason, stop = 'infrastructure_failure_limit', True
             print(_json({'counts': queue.counts(), 'stop_reason': reason if stop else None}), flush=True)
     if queue.counts().get('running', 0):

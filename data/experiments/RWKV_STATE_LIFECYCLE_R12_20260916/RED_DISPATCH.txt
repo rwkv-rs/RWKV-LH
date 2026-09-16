@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_storage_retirement_failure_stops_further_dispatch ____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_storage_retirement_failur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78a83cf0eea0>
+
+    def test_storage_retirement_failure_stops_further_dispatch(tmp_path,monkeypatch):
+        monkeypatch.setattr(execution,'ProcessPoolExecutor',TestPool)
+        def worker(item,task,settings,service_identity=None):
+            result={'id':task.task_id,'trace_complete':True,'storage_retirement':{'status':'failed'}}
+            execution.save_receipt(item,result)
+            return result
+        monkeypatch.setattr(execution,'execute',worker)
+        with CollectionQueue(tmp_path/'q') as queue:
+            for name in ('first','next'):admit(queue,tmp_path,name)
+            outcome=execution.dispatch(queue,settings=None,verify=job,concurrency=1,deadline=time.time()+10)
+>           assert outcome['reason']=='storage_retirement_failed'
+E           AssertionError: assert 'exhausted' == 'storage_retirement_failed'
+E             
+E             - storage_retirement_failed
+E             + exhausted
+
+tests/test_collection_dispatch.py:192: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"counts": {"pending": 1, "recorded": 1}, "stop_reason": null}
+{"counts": {"recorded": 2}, "stop_reason": null}
+=========================== short test summary info ============================
+FAILED tests/test_collection_dispatch.py::test_storage_retirement_failure_stops_further_dispatch
+1 failed, 9 deselected in 0.23s

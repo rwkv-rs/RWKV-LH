@@ -29,6 +29,7 @@ from rwkv_lh.runtime.protocol import (
     normalize_stop_token_ids,
 )
 from rwkv_lh.runtime.native_state import (
+    NATIVE_STATE_LIFECYCLE_VERSION,
     NATIVE_STATE_PROTOCOL_VERSION,
     NativeStateCacheBinding,
     NativeStateCandidate,
@@ -889,6 +890,23 @@ class OpenAICompatibleRWKVClient:
             ),
         )
         return self._native_snapshot(data, expected_binding=cache_binding)
+
+    def state_release(
+        self, *, states: Sequence[Mapping[str, str]],
+        release_import_aliases: bool = False,
+    ) -> dict[str, Any]:
+        """Retire explicitly selected checkpoints through journaled recovery.
+
+        The caller owns the run lifecycle. Closing an HTTP client must never
+        retire a resumable run. The service validates aliases and live requests.
+        """
+        return self._native_request("release", {
+            "schema_version": NATIVE_STATE_PROTOCOL_VERSION,
+            "model": self.model_name,
+            "lifecycle_protocol": NATIVE_STATE_LIFECYCLE_VERSION,
+            "states": [dict(state) for state in states],
+            "release_import_aliases": release_import_aliases,
+        })
 
     def close(self) -> None:
         self._main_session.close()

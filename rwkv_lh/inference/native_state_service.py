@@ -9,9 +9,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, replace
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -158,6 +160,7 @@ class RWKVNativeStateService:
         return {
             "schema_version": PROTOCOL_VERSION,
             "model": self.model_name,
+            "state_storage": self.storage_status(),
             "prompt_replay": False,
             "tools": {"native_tool_calls": False},
             "recurrent_state": {
@@ -346,6 +349,20 @@ class RWKVNativeStateService:
                 # result queryable and expose deferred GC instead of resampling.
                 self.gc_last_error = type(exc).__name__
 
+    def storage_status(self) -> dict[str, Any]:
+        """Report the serving host's State filesystem, not the client's disk."""
+        if self.journal is None:
+            return {"available": False}
+        path = Path(os.getenv("VLLM_RWKV7_NATIVE_STATE_DIR") or str(self.journal.path.parent))
+        while not path.exists():
+            path = path.parent
+        usage = shutil.disk_usage(path)
+        reserve = int(os.getenv("RWKV_NATIVE_STATE_MIN_FREE_BYTES", str(64 * 1024**3)))
+        if reserve < 0:
+            raise ValueError("Native State disk reserve must be nonnegative")
+        return {"available": True, "free_bytes": usage.free,
+                "reserve_bytes": reserve, "can_allocate": usage.free >= reserve}
+
     async def dispatch(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_ready()
         self._validate_model(payload)
@@ -361,6 +378,8 @@ class RWKVNativeStateService:
             self._active_request_id = payload["request_id"]
             try:
                 try:
+                    if operation not in {"release", "rollback"} and not self.storage_status().get("can_allocate"):
+                        raise HTTPException(status_code=507, detail="Native State disk reserve reached; cleanup remains available")
                     if operation == "fork":
                         body = await self.append(payload, fork=True)
                     else:

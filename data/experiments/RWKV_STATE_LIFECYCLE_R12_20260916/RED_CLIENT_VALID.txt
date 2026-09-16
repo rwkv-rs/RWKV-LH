@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_release_uses_recoverable_native_request_and_keeps_identity ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a75811783e0>
+
+    def test_release_uses_recoverable_native_request_and_keeps_identity(monkeypatch):
+        client = OpenAICompatibleRWKVClient(RuntimeSettings(base_url='http://unused',api_key='',model='test'))
+        calls=[]
+        identity={'state_ref':'WKV-'+'a'*32,'state_digest':'b'*64,'cache_binding_digest':'c'*64}
+        def request(op,payload):
+            calls.append((op,payload))
+            return {'released_state_refs':[identity['state_ref']]}
+        monkeypatch.setattr(client,'_native_request',request)
+>       result=client.state_release(states=[identity],release_import_aliases=True)
+               ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'OpenAICompatibleRWKVClient' object has no attribute 'state_release'. Did you mean: 'state_create'?
+
+tests/test_native_retirement_client.py:14: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_native_retirement_client.py::test_release_uses_recoverable_native_request_and_keeps_identity
+1 failed in 0.03s
