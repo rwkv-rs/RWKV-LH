@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**R11清理已按owner新指令停止：旧 full-trace runtime 与原 State 保留；eval-results 和 chase/rwkv-skills 在停止指令前已删除。GPU0/2恢复原启动路径及冻结身份，R10采集已续跑（暂停前284条RL留痕，非通过数）；预算/任务不变。详见[R11记录](../data/experiments/RWKV_STORAGE_CLEANUP_R11_20260916/REPORT.zh-CN.md)。**
+
 **R10：owner 明确双卡采集、结束后纠错，并允许 RL Code 补充且与 SFT 分开统计。GPU 0＋2 已运行同权重/同源码身份的独立 Native 副本，GPU 1、3 不动；连续批次消费者已部署，已实证第一批32题结束后自动进入第二批。冻结供给为5个SFT来源AnyIO公开版本功能任务＋512个新RL Code补充题（21批），不是3万题就绪。SFT试采5题均未修改/未提交，61生成重建核验通过；两卡各抽查1条RL轨迹共10边界也通过。模型失败保留原件，不纠错、不训练、不push。最终1876工程回归全绿、0跳过。长跑使用独立冻结源码，状态见 `data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/campaign/STATUS.json`，详细证据见[R10报告](../data/experiments/RWKV_DUAL_COLLECTION_R10_20260916/REPORT.zh-CN.md)。补足SFT可复建来源和剩余3万目标仍未完成；空供给须明确 waiting_for_bound_tasks，不把常驻进程当作采集。**
 
 **R9交付纠正：昨晚仅运行1个Loguru任务，约30.6秒后重复读取中断、0修改/0提交，随后没有后续任务；没有持续采集七小时。69,895条仅是SFT下载/结构审计数量，不是新执行或新训练数据。以下R9的“后台启动”描述保留为历史，不能视为大批部署完成。GPU2遗留Selector已停止；GPU1属rwkv账号的Lightning CUDA 7B服务，chase无停止权限，owner最新要求暂不处理。**
