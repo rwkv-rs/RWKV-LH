@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**最新 R18：已移除教师 --enforce-eager，CUDA Graph/编译实测启用；固定双请求短输出预热后27.2→82.7 token/s（3.04倍），不是任务通过率。首2题输出预算耗尽原件保留，切换中断2题封存后显式重试；1024队列已用新服务恢复。模型unit `rwkv-lh-teacher-graph-r18.service`，端口/队列目录不变。仍未改思考预算，未训练、未push。见[R18报告](../data/experiments/RWKV_TEACHER_CUDAGRAPH_R18_20260916/REPORT.zh-CN.md)。**
+
 **最新 R17：已部署 Qwen3.8-27B BF16（官方固定 revision、262144 上下文）到服务器 GPU 0＋3，API 18244。Owner 明确授权全部 1024 条 RL 入纠错队列；来源已全部校验并冻结，双进程后台服务 `rwkv-lh-teacher-1024-r17.service` 已真实调用模型，首两题自主读取 TASK.md 后继续生成。8 个历史原产物通过任务先重验，教师产物通过与语义审核、训练准入分开。1024 不是纠错成功数，训练准入仍 0。教师输入改为目标＋工具＋不可信原候选＋本轮真实观察，保留完整审计；每题 24 调用/1800 秒、每次 16384 输出 token，服务原生 256K，实际 tokenizer 预检。全回归 1894 passed、0 skipped。R16 已结束于 13/20 尝试、11 提交、8 修改、0/13 产物通过；旧 20 题 R17 等待消费者已停且零生成，避免重复。未训练、未 push。详见 [R17 报告](../data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/REPORT.zh-CN.md)。下方运行中描述均为历史，实时以服务器全量执行目录 outputs/STATUS.json 为准。**
 
 **最新R16：R15实际已在第3题240秒HTTP超时后停止（前2题产物0通过、17题未运行），下方“20题后台进行中”仅是历史。已修复教师请求与任务剩余预算不一致、服务器AppArmor沙箱配置、系统Python虚拟环境链接在沙箱内不可见的问题；真实服务器stdin/写入/私有文件隔离和stdio正确/错误/超时检查通过，1890完整回归通过、0跳过。同20题已重新冻结，在服务器`rwkv-lh-server-teacher-r16.service`运行，调度/工具/测试/记录全在rwkv-82，直接18243端口，不依赖本地模型转发。首快照2提交/0修改/0产物通过，第3题生成中；前两题仍只给计划，完整任务/语义审核待完成。模型暂保持Coder-Next FP8，Qwen3.8作为后续独立候选；输入封装影响尚未证实。训练0，未push，owner五处修改不变。见[R16记录](../data/experiments/RWKV_SERVER_TEACHER_R16_20260916/REPORT.zh-CN.md)，实时状态以服务器outputs/STATUS.json为准。**
