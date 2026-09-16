@@ -1,0 +1,54 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_teacher_reasoning_only_length_stop_is_task_budget_not_service_failure __
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_teacher_reasoning_only_le0')
+
+    def test_teacher_reasoning_only_length_stop_is_task_budget_not_service_failure(tmp_path):
+        from rwkv_lh.strong_session import StrongCompletion
+        settings = SupervisorAPISettings(base_url='http://localhost:18244/v1',api_key='',model='test',stage_checker_model='test')
+        client = StrongCompletion(settings, tmp_path, 1)
+        def response(**kwargs):
+            client.audit({'type':'supervisor_response_envelope_received','raw_response':{
+                'choices':[{'finish_reason':'length','message':{'content':None,'reasoning_content':'unfinished'}}]}})
+        client.client._request_json = response
+        with pytest.raises(ReadOnlyBudgetExpired,match='output budget'):
+>           client.text_completion('source input')
+
+tests/test_teacher_context_budget.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <rwkv_lh.strong_session.StrongCompletion object at 0x77e2aee49160>
+prompt = 'source input', max_tokens = 1800, stop = None
+
+    def text_completion(self, prompt, max_tokens=1800, stop=None):
+        if self.calls >= self.max_calls:
+            raise RuntimeError('strong request budget exhausted')
+        self.calls += 1
+        start = len(self.events)
+        system_prompt, request_payload = (
+            self.input_builder() if self.input_builder is not None else (prompt, {})
+        )
+        try:
+            self.client._request_json(phase='explicit_takeover', run_id=self.output.parent.name,
+                request_digest=hashlib.sha256(prompt.encode()).hexdigest(), system_prompt=system_prompt,
+                request_payload=request_payload, schema={'type': 'object'}, max_tokens=max_tokens)
+        except SupervisorProtocolError:
+            if not any(e['type'] == 'supervisor_response_envelope_received' for e in self.events[start:]):
+                raise
+        envelopes = [e for e in self.events[start:] if e['type'] == 'supervisor_response_envelope_received']
+        if len(envelopes) != 1:
+            raise ValueError('one original strong response required')
+        raw = envelopes[0]['raw_response']
+        if len(raw['choices']) != 1:
+            raise ValueError('one original strong choice required')
+        choice = raw['choices'][0]
+        content = choice['message']['content']
+        if not isinstance(content, str):
+>           raise ValueError('strong content must be text')
+E           ValueError: strong content must be text
+
+rwkv_lh/strong_session.py:51: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_teacher_context_budget.py::test_teacher_reasoning_only_length_stop_is_task_budget_not_service_failure
+1 failed, 1 passed in 0.04s

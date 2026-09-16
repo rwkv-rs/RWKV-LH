@@ -13,10 +13,11 @@ class AuditedStrongClient(OpenAICompatibleSupervisorClient):
 
 
 class StrongCompletion:
-    def __init__(self, settings, output, max_calls):
+    def __init__(self, settings, output, max_calls, *, input_builder=None):
         self.model_name = settings.model
         self.events, self.output, self.calls, self.max_calls = [], output, 0, max_calls
         self.client = AuditedStrongClient(settings, audit_hook=self.audit)
+        self.input_builder = input_builder
 
     def audit(self, event):
         self.events.append(dict(event))
@@ -28,10 +29,13 @@ class StrongCompletion:
             raise RuntimeError('strong request budget exhausted')
         self.calls += 1
         start = len(self.events)
+        system_prompt, request_payload = (
+            self.input_builder() if self.input_builder is not None else (prompt, {})
+        )
         try:
             self.client._request_json(phase='explicit_takeover', run_id=self.output.parent.name,
-                request_digest=hashlib.sha256(prompt.encode()).hexdigest(), system_prompt=prompt,
-                request_payload={}, schema={'type': 'object'}, max_tokens=max_tokens)
+                request_digest=hashlib.sha256(prompt.encode()).hexdigest(), system_prompt=system_prompt,
+                request_payload=request_payload, schema={'type': 'object'}, max_tokens=max_tokens)
         except SupervisorProtocolError:
             if not any(e['type'] == 'supervisor_response_envelope_received' for e in self.events[start:]):
                 raise
@@ -43,6 +47,10 @@ class StrongCompletion:
             raise ValueError('one original strong choice required')
         choice = raw['choices'][0]
         content = choice['message']['content']
+        if not content and choice.get('finish_reason') == 'length':
+            from .read_only_agent import ReadOnlyBudgetExpired
+            raise ReadOnlyBudgetExpired('teacher output budget exhausted before action content',
+                                        'output_budget_exhausted')
         if not isinstance(content, str):
             raise ValueError('strong content must be text')
         return SimpleNamespace(content=content, finish_reason=choice['finish_reason'],

@@ -5,17 +5,55 @@ import math
 import time
 
 from .read_only_agent import ReadOnlyBudgetExpired
-from .strong_session import StrongCompletion
+from .strong_session import StrongCompletion, AuditedStrongClient
+
+
+class ContextCheckedTeacherClient(AuditedStrongClient):
+    def __init__(self, settings, *, max_context_tokens, audit_hook=None):
+        super().__init__(settings, audit_hook=audit_hook)
+        self.max_context_tokens = max_context_tokens
+
+    def _post_completion(self, endpoint, body, *, audit_context):
+        # Count the actual teacher chat template on the serving engine, rather
+        # than reusing RWKV token estimates. This is tokenization, not generation.
+        request = {key: body[key] for key in
+                   ('model', 'messages', 'tools', 'chat_template', 'chat_template_kwargs')
+                   if key in body}
+        if body.get('reasoning_effort') is not None:
+            request['chat_template_kwargs'] = dict(request.get('chat_template_kwargs') or {},
+                                                   reasoning_effort=body['reasoning_effort'])
+        response = self._session().post(
+            self.settings.base_url.removesuffix('/v1') + '/tokenize',
+            headers=self._headers(), json=request,
+            timeout=(self.settings.connect_timeout_seconds, self.settings.read_timeout_seconds),
+            verify=self.settings.verify_tls)
+        response.raise_for_status()
+        counted = response.json()
+        count = counted['count']
+        if type(count) is not int or count < 0 or len(counted['tokens']) != count:
+            raise ValueError('invalid teacher tokenizer accounting')
+        self._emit({'type': 'teacher_context_checked', 'prompt_tokens': count,
+                    'requested_output_tokens': body['max_tokens'],
+                    'max_context_tokens': self.max_context_tokens, **audit_context})
+        if count + body['max_tokens'] > self.max_context_tokens:
+            raise ReadOnlyBudgetExpired('teacher context budget exhausted; input not truncated',
+                                        'context_budget_exhausted')
+        return super()._post_completion(endpoint, body, audit_context=audit_context)
 
 
 class DeadlineStrongCompletion(StrongCompletion):
     def __init__(self, settings, output, max_calls, *, max_seconds,
-                 expected_input_sha256=None, require_exact_tokens=True):
+                 expected_input_sha256=None, require_exact_tokens=True,
+                 input_builder=None, max_context_tokens=None):
         if not math.isfinite(max_seconds) or max_seconds <= 0:
             raise ValueError('positive finite teacher execution budget required')
         settings = replace(settings, retry_attempts=1, semantic_repair_attempts=0,
                            fallback_models=(), plan_cache_enabled=False)
-        super().__init__(settings, output, max_calls)
+        super().__init__(settings, output, max_calls, input_builder=input_builder)
+        if max_context_tokens is not None:
+            self.client.close()
+            self.client = ContextCheckedTeacherClient(
+                settings, max_context_tokens=max_context_tokens, audit_hook=self.audit)
         self.deadline = time.monotonic() + max_seconds
         self.expected_input_sha256 = expected_input_sha256
         self.require_exact_tokens = require_exact_tokens
