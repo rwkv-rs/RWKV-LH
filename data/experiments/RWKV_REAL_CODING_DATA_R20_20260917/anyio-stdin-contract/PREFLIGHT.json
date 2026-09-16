@@ -1,0 +1,49 @@
+{
+  "action_type": "check_command",
+  "success": true,
+  "output": "src/anyio/_core/_subprocesses.py run_process parameters: ['command', 'input', 'stdout', 'stderr', 'check', 'cwd', 'env', 'startupinfo', 'creationflags', 'start_new_session', 'pass_fds', 'user', 'group', 'extra_groups', 'umask']\nTraceback (most recent call last):\n  File \"<string>\", line 10, in <module>\n    assert 'stdin' in args, 'run_process lacks explicit stdin parameter'\n           ^^^^^^^^^^^^^^^\nAssertionError: run_process lacks explicit stdin parameter\n",
+  "exit_code": 1,
+  "artifacts": [],
+  "evidence": [],
+  "metadata": {
+    "argv": [
+      "python",
+      "-B",
+      "-c",
+      "import ast\nfrom pathlib import Path\nfound = False\nfor path in Path('src').rglob('*.py'):\n for node in ast.walk(ast.parse(path.read_text())):\n  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == 'run_process':\n   found = True\n   args = [x.arg for x in node.args.posonlyargs + node.args.args + node.args.kwonlyargs]\n   print(str(path), 'run_process parameters:', args, flush=True)\n   assert 'stdin' in args, 'run_process lacks explicit stdin parameter'\nassert found, 'run_process definition not located'"
+    ],
+    "resolved_argv": [
+      "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+      "-B",
+      "-c",
+      "import ast\nfrom pathlib import Path\nfound = False\nfor path in Path('src').rglob('*.py'):\n for node in ast.walk(ast.parse(path.read_text())):\n  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == 'run_process':\n   found = True\n   args = [x.arg for x in node.args.posonlyargs + node.args.args + node.args.kwonlyargs]\n   print(str(path), 'run_process parameters:', args, flush=True)\n   assert 'stdin' in args, 'run_process lacks explicit stdin parameter'\nassert found, 'run_process definition not located'"
+    ],
+    "executable_resolution": "python_alias_to_project_runtime",
+    "cwd": ".",
+    "output_truncated": false,
+    "command_streams": {
+      "stdout": {
+        "start_byte": 0,
+        "end_byte": 228,
+        "chars": 228,
+        "bytes": 228,
+        "sha256": "6b0192d0ecfc728c330dc92ca86de132f4738451ec5b2ef1ad4cf91ee21ff2b6"
+      },
+      "stderr": {
+        "start_byte": 228,
+        "end_byte": 462,
+        "chars": 234,
+        "bytes": 234,
+        "sha256": "d28ed14a48437d6134e90ff0af492c9de199687d931ef25d76c4223281ffdcd5"
+      }
+    },
+    "sandboxed": true,
+    "sandbox_backend": "bubblewrap",
+    "expected_exit_code": 1,
+    "exit_code_matched": true,
+    "workspace_ephemeral": true,
+    "writes_discarded": true
+  },
+  "error": null,
+  "outcome_type": "success"
+}

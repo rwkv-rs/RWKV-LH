@@ -1,0 +1,11 @@
+{
+  "accepted": true,
+  "issues": [],
+  "assessment": "The candidate proposes a check_command that uses Python's ast module to walk src/**/*.py files, find run_process function definitions, and verify whether a stdin parameter exists. The expected_exit_code of 1 correctly anticipates that the assertion will fail (stdin is not yet implemented), confirming the current state before making changes. The parameters are grounded: python -B -c is a valid invocation, the ast-based approach is appropriate for locating function signatures without knowing the exact file path (the directory listing was truncated and mostly showed .deps), and the 30-second timeout is reasonable for a quick AST parse. The scope is appropriate as a read-only diagnostic. This advances the goal by establishing the baseline state of run_process before modification. One minor note: the script assumes source lives under src/, which is the standard AnyIO layout, but this is a reasonable assumption given the project structure visible in the manifest (pyproject.toml, README.rst at root). The use of node.args.posonlyargs is valid for Python 3.13 as evidenced by the .so filename in the workspace.",
+  "claims": [],
+  "input_sha256": "f30c892a86c25360af954247c75aa1baa14ef785ba11467d0930a8f83037582b",
+  "candidate_sha256": "9ad4b09f2d7216bea4ab0ae9c3442ee3c10b3a3669fbc10db79e1b7ee158ad0f",
+  "training_admitted": false,
+  "evidence_bindings": [],
+  "validation_scope": "Anchors and consistency only; semantic truth and completeness require review."
+}

@@ -1,0 +1,26 @@
+Implement the following request in this AnyIO repository. Investigate, modify and verify autonomously, then report actual changes, checks and remaining limitations.
+
+# [FEATURE] Accept stdin argument in run_process()
+
+## Problem Statement
+The `anyio.run_process()` function does not accept a `stdin` argument, limiting how users can provide input to subprocesses. This creates an inconsistency with other Python async libraries and the standard subprocess module.
+
+## Missing Capability
+The ability to pass file-like objects, `subprocess.PIPE`, `subprocess.DEVNULL`, or other stdin configurations to subprocesses created via `anyio.run_process()`.
+
+## Use Case
+Users need to run subprocesses and connect their standard input to files, pipes, or other file-like objects. This is a common requirement when chaining processes together, reading input from files, or integrating with external tools that expect specific stdin configurations.
+
+## Current Limitation
+Currently, `anyio.run_process()` only supports providing input through the `input` parameter, which accepts bytes. Users cannot connect stdin to a file object, use `subprocess.PIPE` for inter-process communication, or use `subprocess.DEVNULL` to explicitly discard input.
+
+## Workaround (if any)
+Users must use the lower-level `anyio.open_process()` function instead, which requires more manual handling of process streams and completion. This adds complexity and boilerplate code for simple subprocess execution scenarios.
+
+## Proposed Behavior
+The `anyio.run_process()` function should accept a `stdin` parameter that supports the same values as `asyncio.create_subprocess_exec()`, `trio.run_process()`, and `subprocess.run()`, including file-like objects, `subprocess.PIPE`, `subprocess.DEVNULL`, and `None`.
+
+## Additional Context
+This feature would bring `anyio.run_process()` into alignment with similar functions in the Python ecosystem, making it easier for users to migrate code or work across different async libraries. The function should maintain clear behavior when both `stdin` and `input` are specified, preventing ambiguous configurations.
+
+See TASK_ENVIRONMENT.md for the actual public-version environment. Original preinstalled private tests are unavailable. Preserve existing tests; do not change them to conceal failures.

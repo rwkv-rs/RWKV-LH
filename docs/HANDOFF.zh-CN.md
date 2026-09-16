@@ -1,5 +1,7 @@
 # 当前交接（2026-09-16）
 
+**最新 R20（2026-09-17）：已正式冻结3条真实仓库诊断动作纠正，Loguru栈深度复现、AnyIO stdin签名缺口、AnyIO临时文件公开API缺口；3任务/2仓库，项目修复完成0，训练0。双隔离Qwen审核＋实际Harness复验＋生产重放/16K/target-only mask＋既有固定回归隔离门通过，442目标token；增量包位于 `RWKV_REAL_CODING_DATA_R20_20260917/frozen_increment/`，不新增datasets版本。1894回归全绿、0跳过。1024队列已暂停，19留痕/0产物通过，2未决中断需核对；不要误读为仍运行。R19首次seed预检失败0模型调用，修正后2048两题仍重复调用中断；4096限定对照后台继续，未推广。未训练、未push。见[R20报告](../data/experiments/RWKV_REAL_CODING_DATA_R20_20260917/REPORT.zh-CN.md)。**
+
 **最新 R18：已移除教师 --enforce-eager，CUDA Graph/编译实测启用；固定双请求短输出预热后27.2→82.7 token/s（3.04倍），不是任务通过率。首2题输出预算耗尽原件保留，切换中断2题封存后显式重试；1024队列已用新服务恢复。模型unit `rwkv-lh-teacher-graph-r18.service`，端口/队列目录不变。仍未改思考预算，未训练、未push。见[R18报告](../data/experiments/RWKV_TEACHER_CUDAGRAPH_R18_20260916/REPORT.zh-CN.md)。**
 
 **最新 R17：已部署 Qwen3.8-27B BF16（官方固定 revision、262144 上下文）到服务器 GPU 0＋3，API 18244。Owner 明确授权全部 1024 条 RL 入纠错队列；来源已全部校验并冻结，双进程后台服务 `rwkv-lh-teacher-1024-r17.service` 已真实调用模型，首两题自主读取 TASK.md 后继续生成。8 个历史原产物通过任务先重验，教师产物通过与语义审核、训练准入分开。1024 不是纠错成功数，训练准入仍 0。教师输入改为目标＋工具＋不可信原候选＋本轮真实观察，保留完整审计；每题 24 调用/1800 秒、每次 16384 输出 token，服务原生 256K，实际 tokenizer 预检。全回归 1894 passed、0 skipped。R16 已结束于 13/20 尝试、11 提交、8 修改、0/13 产物通过；旧 20 题 R17 等待消费者已停且零生成，避免重复。未训练、未 push。详见 [R17 报告](../data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/REPORT.zh-CN.md)。下方运行中描述均为历史，实时以服务器全量执行目录 outputs/STATUS.json 为准。**

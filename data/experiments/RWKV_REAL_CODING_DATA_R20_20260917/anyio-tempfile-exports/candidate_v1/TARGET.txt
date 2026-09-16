@@ -1,0 +1,2 @@
+{"function": "run_command", "params": {"argv": ["python", "-B", "-c", "import sys\nsys.path[:0] = ['src', '.deps']\nimport anyio\nnames = ['TemporaryFile', 'NamedTemporaryFile', 'SpooledTemporaryFile', 'TemporaryDirectory']\nmissing = [name for name in names if not hasattr(anyio, name)]\nprint('Missing public tempfile APIs:', missing, flush=True)\nassert not missing, 'requested temporary-file APIs unavailable'"], "timeout": 30, "expected_exit_code": 0}}
+```

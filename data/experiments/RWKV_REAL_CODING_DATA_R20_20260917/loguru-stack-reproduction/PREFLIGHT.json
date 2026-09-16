@@ -1,0 +1,49 @@
+{
+  "action_type": "check_command",
+  "success": true,
+  "output": "Traceback (most recent call last):\n  File \"<string>\", line 4, in <module>\n    logger.opt(depth=1000000).info('stack-unavailable-probe')\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/loguru/_logger.py\", line 2014, in info\n    __self._log(\"INFO\", False, __self._options, __message, args, kwargs)\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/loguru/_logger.py\", line 1905, in _log\n    frame = get_frame(depth + 2)\nValueError: call stack is not deep enough\n",
+  "exit_code": 1,
+  "artifacts": [],
+  "evidence": [],
+  "metadata": {
+    "argv": [
+      "python",
+      "-B",
+      "-c",
+      "from loguru import logger\nlogger.remove()\nlogger.add(lambda message: print(str(message), end=''))\nlogger.opt(depth=1000000).info('stack-unavailable-probe')"
+    ],
+    "resolved_argv": [
+      "/home/chase/.local/share/uv/python/cpython-3.13.11-linux-x86_64-gnu/bin/python3.13",
+      "-B",
+      "-c",
+      "from loguru import logger\nlogger.remove()\nlogger.add(lambda message: print(str(message), end=''))\nlogger.opt(depth=1000000).info('stack-unavailable-probe')"
+    ],
+    "executable_resolution": "python_alias_to_project_runtime",
+    "cwd": ".",
+    "output_truncated": false,
+    "command_streams": {
+      "stdout": {
+        "start_byte": 0,
+        "end_byte": 0,
+        "chars": 0,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "start_byte": 0,
+        "end_byte": 535,
+        "chars": 535,
+        "bytes": 535,
+        "sha256": "2703881fb72c967c9d4d703d9e73c1d26b4a29a045a15f8f9533f7c686b21e46"
+      }
+    },
+    "sandboxed": true,
+    "sandbox_backend": "bubblewrap",
+    "expected_exit_code": 1,
+    "exit_code_matched": true,
+    "workspace_ephemeral": true,
+    "writes_discarded": true
+  },
+  "error": null,
+  "outcome_type": "success"
+}

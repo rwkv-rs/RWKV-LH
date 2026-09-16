@@ -1,0 +1,11 @@
+{
+  "accepted": true,
+  "issues": [],
+  "assessment": "The candidate is a check_command that imports anyio (with src and .deps on sys.path) and asserts the four tempfile APIs (TemporaryFile, NamedTemporaryFile, SpooledTemporaryFile, TemporaryDirectory) are present. Since the feature has not yet been implemented, the assert will fail and Python exits with code 1, matching expected_exit_code=1. This is a valid diagnostic step to confirm the baseline state before implementation. The src path is a standard Python project layout assumption (the workspace manifest is truncated and does not explicitly list src, but pyproject.toml exists which is consistent with a src-layout or flat-layout project). The .deps path is confirmed in the workspace manifest. The -B flag avoids cache writes, appropriate for check_command. The timeout of 30s is reasonable for a simple import. The command is non-mutating and scoped appropriately as an investigation step. No material defects identified.",
+  "claims": [],
+  "input_sha256": "1169b9d1b07ccf3f8818b96eb204bcd10f70d11d627c590036c9e0efe69fdb18",
+  "candidate_sha256": "ff312f07b9f3944b295dd5f6ba8626c37e0d73b3bd8d18ae26fdc30172146724",
+  "training_admitted": false,
+  "evidence_bindings": [],
+  "validation_scope": "Anchors and consistency only; semantic truth and completeness require review."
+}

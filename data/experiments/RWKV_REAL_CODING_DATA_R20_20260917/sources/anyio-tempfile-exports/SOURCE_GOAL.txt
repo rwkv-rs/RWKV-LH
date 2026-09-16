@@ -1,0 +1,26 @@
+Implement the following request in this AnyIO repository. Investigate, modify and verify autonomously, then report actual changes, checks and remaining limitations.
+
+# [FEATURE] Async temporary file and directory handling
+
+## Problem Statement
+When working with temporary files or directories in asynchronous code, developers must use Python's standard synchronous tempfile module. These blocking operations can block the event loop, which defeats the purpose of using async/await patterns and can cause performance issues in high-concurrency applications.
+
+## Missing Capability
+AnyIO lacks asynchronous context managers and utilities for creating and managing temporary files and directories. There is no async equivalent to Python's tempfile module functions like TemporaryFile, NamedTemporaryFile, SpooledTemporaryFile, and TemporaryDirectory.
+
+## Use Case
+Applications that need to process data asynchronously often require temporary storage for intermediate results. For example, a web server handling file uploads might need to store uploaded files temporarily before processing them. Using synchronous tempfile operations in such async applications would block the event loop and reduce throughput.
+
+## Current Limitation
+Developers must either use blocking synchronous tempfile operations (which harms performance) or implement their own async wrappers around the standard library's tempfile module. This adds boilerplate code and potential for errors, especially around proper cleanup of temporary resources.
+
+## Workaround (if any)
+Developers can manually wrap synchronous tempfile operations using thread pools, but this requires writing custom wrapper code for each use case and ensuring proper cleanup of temporary resources. This approach is error-prone and adds unnecessary complexity.
+
+## Proposed Behavior
+AnyIO should provide asynchronous context managers and utilities that mirror Python's tempfile module functionality. These should support async file operations, automatically clean up resources when exiting the context, and integrate seamlessly with AnyIO's existing async file I/O capabilities.
+
+## Additional Context
+The implementation should handle all common tempfile use cases including anonymous temporary files, named temporary files, spooled temporary files (in-memory until a size threshold), and temporary directories. These should work with both binary and text modes.
+
+See TASK_ENVIRONMENT.md for the actual public-version environment. Original preinstalled private tests are unavailable. Preserve existing tests; do not change them to conceal failures.
