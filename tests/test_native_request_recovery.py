@@ -414,7 +414,10 @@ def test_client_recovers_original_durable_result_after_response_loss(tmp_path, m
         if operation == "import":
             return client.state_import(export_record={"locator": "fixture"}, cache_binding=binding)
         kwargs = {"lane_id": binding.lane_id, "text": "fixture", "cache_binding": binding}
-        if operation != "create":
+        if operation == "create":
+            # Repeat this allocation, not an independent task with equal text.
+            kwargs["request_id"] = "CREATE-CP-persisted-fixture"
+        else:
             kwargs["parent_state_ref"] = "parent"
         return getattr(client, "state_" + operation)(**kwargs)
 

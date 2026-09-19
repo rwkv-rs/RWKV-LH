@@ -1,0 +1,82 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_______ test_independent_identical_creates_allocate_distinct_request_ids _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x70eb0a3fcfc0>
+
+    def test_independent_identical_creates_allocate_distinct_request_ids(monkeypatch):
+        client, requests = capturing_client(monkeypatch)
+        binding = _cache_binding()
+        for _ in range(2):
+            client.state_create(lane_id=binding.lane_id, text="same task", cache_binding=binding)
+>       assert requests[0]["request_id"] != requests[1]["request_id"]
+E       AssertionError: assert 'NR-c1341c4455eec8e528e87110fc00decfd1e66d1e834b29338dd1710d9bd83056' != 'NR-c1341c4455eec8e528e87110fc00decfd1e66d1e834b29338dd1710d9bd83056'
+
+tests/test_native_allocation_identity.py:31: AssertionError
+__________ test_explicit_allocation_retry_preserves_request_identity ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x70eb0a3fcd60>
+
+    def test_explicit_allocation_retry_preserves_request_identity(monkeypatch):
+        client, requests = capturing_client(monkeypatch)
+        binding = _cache_binding()
+        for _ in range(2):
+>           client.state_create(lane_id=binding.lane_id, text="same task", cache_binding=binding,
+                                request_id="CREATE-CP-persistent")
+E           TypeError: OpenAICompatibleRWKVClient.state_create() got an unexpected keyword argument 'request_id'
+
+tests/test_native_allocation_identity.py:39: TypeError
+______ test_bootstrap_allocations_use_distinct_persistent_checkpoint_ids _______
+
+    def test_bootstrap_allocations_use_distinct_persistent_checkpoint_ids():
+        class Client(FakeNativeStateClient):
+            def state_create(self, *, lane_id, text, cache_binding, request_id=None):
+                self.ids.append(request_id)
+                return self._snapshot(text, cache_binding)
+    
+        client = Client([])
+        client.ids = []
+        session = NativeRWKVModelSession(client, settings=session_settings())
+        definitions = [FINAL_ANSWER_DEFINITION]
+        first = session.bootstrap(ModelLaneKind.ACTION, "same task", definitions, lane_id="LANE:ACTION")
+        second = session.bootstrap(ModelLaneKind.ACTION, "same task", definitions, lane_id="LANE:ACTION")
+        assert first.transcript == second.transcript
+>       assert client.ids == [f"CREATE-{first.checkpoint_id}", f"CREATE-{second.checkpoint_id}"]
+E       AssertionError: assert [None, None] == ['CREATE-CP-2...ebd5a0214c1e']
+E         
+E         At index 0 diff: None != 'CREATE-CP-2a2f35f9836c41b7'
+E         Use -v to get more diff
+
+tests/test_native_allocation_identity.py:58: AssertionError
+__________ test_prepared_checkpoint_recovery_reuses_its_allocation_id __________
+
+    def test_prepared_checkpoint_recovery_reuses_its_allocation_id():
+        class Client(FakeNativeStateClient):
+            def state_create(self, *, lane_id, text, cache_binding, request_id=None):
+                self.ids.append(request_id)
+                return self._snapshot(text, cache_binding)
+    
+        client = Client([])
+        client.ids = []
+        session = NativeRWKVModelSession(client, settings=session_settings())
+        checkpoint = session.prepare_bootstrap(
+            ModelLaneKind.ACTION, "same task", [FINAL_ANSWER_DEFINITION], lane_id="LANE:ACTION")
+        import copy
+        persisted = copy.deepcopy(checkpoint.to_dict())
+        session.materialize_input(checkpoint, {checkpoint.checkpoint_id: checkpoint})
+        recovered_session = NativeRWKVModelSession(client, settings=session_settings())
+        recovered = recovered_session.import_checkpoint(persisted)
+        recovered_session.materialize_input(recovered, {recovered.checkpoint_id: recovered})
+>       assert client.ids == [f"CREATE-{checkpoint.checkpoint_id}"] * 2
+E       AssertionError: assert [None, None] == ['CREATE-CP-d...bd9e9ada4f36']
+E         
+E         At index 0 diff: None != 'CREATE-CP-d260bd9e9ada4f36'
+E         Use -v to get more diff
+
+tests/test_native_allocation_identity.py:79: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_native_allocation_identity.py::test_independent_identical_creates_allocate_distinct_request_ids
+FAILED tests/test_native_allocation_identity.py::test_explicit_allocation_retry_preserves_request_identity
+FAILED tests/test_native_allocation_identity.py::test_bootstrap_allocations_use_distinct_persistent_checkpoint_ids
+FAILED tests/test_native_allocation_identity.py::test_prepared_checkpoint_recovery_reuses_its_allocation_id
+4 failed in 0.98s

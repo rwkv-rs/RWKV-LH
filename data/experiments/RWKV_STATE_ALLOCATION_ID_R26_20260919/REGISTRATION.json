@@ -1,0 +1,71 @@
+{
+  "round": "R26",
+  "root_cause": "Independent bootstrap checkpoints use identical fixed lane/input cache binding. Content-derived default create request identity replays the original receipt, including its explicitly retired State handle. New task then receives410 at generate.",
+  "evidence": [
+    {
+      "arm": "zero-a",
+      "checkpoint": "CP-c4dba9cf71194e71",
+      "lane": "LANE:ACTION",
+      "export": {
+        "authoritative": false,
+        "cache_binding_digest": "298e38b8f66ec861fcdbf9afa1fe56c5969e3aac4f619420990a8b3447dfa67f",
+        "cache_role": "disposable_acceleration",
+        "model": "rwkv-direct-product-r25-ctx24576",
+        "pending_token_id": 11,
+        "processed_token_count": 3016,
+        "protocol_version": "rwkv-lh.native-state.v1",
+        "schema_version": "rwkv-lh.native-state-export.v1",
+        "server_build": "0.23.1rc1.dev1942+g67f0c5996+native.f1207b33795047b0aaabec5d8efb5505b582c3d760b044002e5ba6a3ca424c68",
+        "state_digest": "73e7081b466a237241d8a9b65b09fe9d3823b6206b2dc19ec221676547aff423",
+        "state_format_version": "rwkv7-native-state-cache.v1",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_ref": "WKV-c92a7116ebb14aa38ef48c906d7ebafd",
+        "store_key": "73e7081b466a237241d8a9b65b09fe9d3823b6206b2dc19ec221676547aff423",
+        "tokenizer_build": "de7fdd082da6046ed2ab190d4c4165bcc9572d18954629932c918a9eef4ce4c6"
+      },
+      "trace_sha256": "5050355b437e223fee4414861b6d0b9b15b092061c7db13296e06fa3a08e8893"
+    },
+    {
+      "arm": "zero-b",
+      "checkpoint": "CP-6ebd767fb6cf4237",
+      "lane": "LANE:ACTION",
+      "export": {
+        "authoritative": false,
+        "cache_binding_digest": "298e38b8f66ec861fcdbf9afa1fe56c5969e3aac4f619420990a8b3447dfa67f",
+        "cache_role": "disposable_acceleration",
+        "model": "rwkv-direct-product-r25-ctx24576",
+        "pending_token_id": 11,
+        "processed_token_count": 3016,
+        "protocol_version": "rwkv-lh.native-state.v1",
+        "schema_version": "rwkv-lh.native-state-export.v1",
+        "server_build": "0.23.1rc1.dev1942+g67f0c5996+native.f1207b33795047b0aaabec5d8efb5505b582c3d760b044002e5ba6a3ca424c68",
+        "state_digest": "73e7081b466a237241d8a9b65b09fe9d3823b6206b2dc19ec221676547aff423",
+        "state_format_version": "rwkv7-native-state-cache.v1",
+        "state_profile_id": "zero",
+        "state_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state_ref": "WKV-c92a7116ebb14aa38ef48c906d7ebafd",
+        "store_key": "73e7081b466a237241d8a9b65b09fe9d3823b6206b2dc19ec221676547aff423",
+        "tokenizer_build": "de7fdd082da6046ed2ab190d4c4165bcc9572d18954629932c918a9eef4ce4c6"
+      },
+      "trace_sha256": "8d6b456af8c908f191c8fb39a011c7eda91d28d085658170bbc42a3f00fa7ce5"
+    }
+  ],
+  "scope": "Bind bootstrap/materialization/rollover create request identity to the persistent checkpoint ID; preserve per-request transport retry identity and original journal receipts. Independent bare client allocations get separate identities.",
+  "not_model_failure": true,
+  "r25_disposition": "Comparison invalid due to infrastructure failure after first valid submitted task. Preserve both traces, restart all arms after fix under new source manifest.",
+  "baseline_files": {
+    "rwkv_lh/model_session.py": "ad0b5fee8449ef6ab8e922004803fc8ca22b0b0eeccd2521b91bf3aafcfa9a43",
+    "rwkv_lh/runtime/openai_compat.py": "a21decedc321414af178f44e3c43661e94b8381ab875049e9ad81123bdca15f8",
+    "rwkv_lh/runtime/native_state.py": "42cc111daa5e86fb614004d9d32ddc94cc332139c8650b540f29ffd3d0e3571e",
+    "tests/test_model_session.py": "0e405294bcd4b3fab4a6a3bc692a3228d474ff1f2489d57ac44e66080b570f63"
+  },
+  "checks": [
+    "independent identical create allocations must have different request IDs",
+    "explicit create retry uses the same request ID",
+    "checkpoint materialization retry preserves its allocation identity",
+    "create release create generate succeeds with isolated handles",
+    "all engineering regressions pass",
+    "real fixed baseline all arms restarted; no rescore"
+  ]
+}

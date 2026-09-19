@@ -1,0 +1,88 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 15%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 26%]
+........................................................................ [ 30%]
+...............................................F......F................. [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 83%]
+........................................................................ [ 86%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 98%]
+.................................                                        [100%]
+=================================== FAILURES ===================================
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-create] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x704878b47f50>
+operation = 'create', lose_response = False
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+        result = invoke(client(monkeypatch, server), operation)
+        assert server.effects == 1
+        assert [method for method, _, _ in server.calls] == (['POST', 'GET'] if lose_response else ['POST'])
+        payload = server.calls[0][2]
+        if operation == 'generate':
+            assert payload['request_id'] == 'MR-durable-id'
+            assert result.content == 'unchanged raw bytes'
+        else:
+            without_id = {key: value for key, value in payload.items() if key != 'request_id'}
+>           assert payload['request_id'] == 'NR-' + digest({'operation': operation, 'payload': without_id})
+E           AssertionError: assert 'CREATE-2b7a7...a47939fef3eb4' == 'NR-0e62a41ce...e353a5263dbd0'
+E             
+E             - NR-0e62a41ce477feffc341f55c676d90289f67278acc36148b35ae353a5263dbd0
+E             + CREATE-2b7a7ff329454c0db82a47939fef3eb4
+
+tests/test_native_request_protocol.py:135: AssertionError
+_ test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-create] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7048789f8ec0>
+operation = 'create', lose_response = True
+
+    @pytest.mark.parametrize('operation', ['create', 'append', 'fork', 'generate', 'commit', 'rollback', 'import'])
+    @pytest.mark.parametrize('lose_response', [False, True])
+    def test_all_native_mutations_carry_identity_and_recover_without_resubmission(monkeypatch, operation, lose_response):
+        server = JournalServer(lose_response=lose_response)
+        result = invoke(client(monkeypatch, server), operation)
+        assert server.effects == 1
+        assert [method for method, _, _ in server.calls] == (['POST', 'GET'] if lose_response else ['POST'])
+        payload = server.calls[0][2]
+        if operation == 'generate':
+            assert payload['request_id'] == 'MR-durable-id'
+            assert result.content == 'unchanged raw bytes'
+        else:
+            without_id = {key: value for key, value in payload.items() if key != 'request_id'}
+>           assert payload['request_id'] == 'NR-' + digest({'operation': operation, 'payload': without_id})
+E           AssertionError: assert 'CREATE-f5a56...908d335bd03ef' == 'NR-0e62a41ce...e353a5263dbd0'
+E             
+E             - NR-0e62a41ce477feffc341f55c676d90289f67278acc36148b35ae353a5263dbd0
+E             + CREATE-f5a56cce248848ab881908d335bd03ef
+
+tests/test_native_request_protocol.py:135: AssertionError
+=============================== warnings summary ===============================
+tests/test_protocol_contract_inventory.py::test_scripts_tests_and_temp_use_shared_role_input_builders
+  /home/chase/GitHub/RWKV-LH/temp/author_batch32_r23_20260919.py:10: SyntaxWarning: invalid escape sequence '\.'
+    pattern=re.compile(r'[+-]?[0-9]+(?:\.[0-9]+(?:[eE][+-]?[0-9]+)?|[eE][+-]?[0-9]+)')
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[False-create]
+FAILED tests/test_native_request_protocol.py::test_all_native_mutations_carry_identity_and_recover_without_resubmission[True-create]
+2 failed, 1903 passed, 1 warning in 354.64s (0:05:54)

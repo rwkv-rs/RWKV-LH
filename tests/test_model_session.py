@@ -112,7 +112,7 @@ class FakeNativeStateClient:
             cache_binding_digest=cache_binding.digest,
         )
 
-    def state_create(self, *, lane_id: str, text: str, cache_binding):
+    def state_create(self, *, lane_id: str, text: str, cache_binding, request_id=None):
         self.calls.append(("create", text))
         return self._snapshot(text, cache_binding)
 

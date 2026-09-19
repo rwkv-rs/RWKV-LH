@@ -1,0 +1,6 @@
+from pathlib import Path
+import json
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_STATE_ALLOCATION_ID_R26_20260919';report=json.loads((D/'ORIGINAL_COLLECTION_IMPACT.json').read_text());B=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment/inputs'
+for r in report['records']:
+ s=json.loads((B/r['id']/'original/state_snapshot.json').read_text());assert s['model_states'][r['first_checkpoint']]['parent_checkpoint_id'] is None,r['id']
+(D/'ROOT_SELECTION_CHECK.json').write_text(json.dumps({'checked':len(report['records']),'all_selected_checkpoints_have_no_parent':True})+'\n');print('1024 initial roots verified')

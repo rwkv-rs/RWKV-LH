@@ -1,0 +1,3 @@
+from pathlib import Path
+import re
+R=Path('/home/chase/GitHub/RWKV-LH');log=(R/'data/test_runs/r26_full_pytest_20260919.log').read_text();items=[s for s in (R/'data/test_runs/r26_collection.txt').read_text().splitlines() if s.startswith('tests/') and '::' in s];outcomes=''.join(m[0] for line in log.splitlines() if (m:=re.match('[.FEsx]+',line)));print([(i,items[i] if i<len(items) else '?') for i,c in enumerate(outcomes) if c in 'FE'])

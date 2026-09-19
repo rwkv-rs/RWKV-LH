@@ -1046,7 +1046,8 @@ class NativeRWKVModelSession(ModelSession):
                 delta=item.transcript, parent_state_digest=str(parent.native_state_digest or "") if parent else "")
             snapshot = (self.native_client.state_append(parent_state_ref=self._state_ref(parent),
                 lane_id=item.lane_id, text=item.transcript, cache_binding=binding) if parent else
-                self.native_client.state_create(lane_id=item.lane_id, text=item.transcript, cache_binding=binding))
+                self.native_client.state_create(lane_id=item.lane_id, text=item.transcript, cache_binding=binding,
+                                               request_id=f"CREATE-{item.checkpoint_id}"))
             self._bind_snapshot(item, snapshot, binding)
             item.native_state_metadata.pop("native_input_pending", None)
             stored = checkpoints.get(item.checkpoint_id)
@@ -1108,6 +1109,7 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=identifier,
             text=transcript,
             cache_binding=binding,
+            request_id=f"CREATE-{checkpoint.checkpoint_id}",
         )
         checkpoint = self._bind_snapshot(checkpoint, snapshot, binding)
         self._emit(
@@ -1338,6 +1340,7 @@ class NativeRWKVModelSession(ModelSession):
             lane_id=checkpoint.lane_id,
             text=transcript,
             cache_binding=binding,
+            request_id=f"CREATE-{compact.checkpoint_id}",
         )
         compact = self._bind_snapshot(compact, snapshot, binding)
         self._emit(

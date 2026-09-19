@@ -1,0 +1,19 @@
+# R26：独立任务的State分配身份
+
+R25实际执行两次：第一题RWKV独立读取与回答通过原事实忠实评分（2次生成、0修改）；第二次因工程错误中断，另外46次未运行。整组比较INVALID，不能报告为模型1/2或训练收益，Strict不适用。训练0、子代理0、强模型API0。
+
+## 根因与修复
+
+两个独立checkpoint具有相同LANE:ACTION、初始文本和cache binding；create默认按内容生成请求ID，第二次创建重放第一次已完成回执，拿到显式退休的State handle，下一次generate返回410。回执不可变是正确恢复语义；缺的是新分配自身的身份。
+
+Native ModelSession的直接bootstrap、延迟materialize与rollover均使用持久化checkpoint ID作为create请求ID。同一持久化checkpoint重试仍是同一请求；新checkpoint获得新handle。独立直接客户端调用未指定ID时生成新ID，调用方要恢复同次分配须显式提供原ID。HTTP错误恢复在单次请求内继续复用同一prepared payload。
+
+不修改服务回执、不复活退休State，不改工具、模型参数、输入构造或模型答案。旧已提交State导入仍使用既有身份规则；append/fork绑定明确parent handle，普通独立根分配已隔离。源码中三处ModelSession create调用全部覆盖。本修复不代表所有State工程问题已经穷尽。
+
+## 回归与影响排查
+
+有效夹具下4个身份回归先失败；修复后5个隔离/恢复/生命周期检查通过，包括创建→释放→服务重启→重新创建相同文本→成功生成，旧回执仍原样可查询。75个网络恢复检查通过。第一次完整回归发现2个旧测试仍要求create必须内容寻址；改为明确持久化分配ID，保持恢复和单次执行断言不变。最终1905 passed、0 skipped、1个保留临时作者脚本转义警告，353.49秒。原失败日志和最初一个定义为空的无效测试夹具日志均保留，不作为有效红回归。
+
+全部1024条已获准RL采集的初始checkpoint逐条核验：1024个不同handle，均为无parent的初始checkpoint，没有model_transport_unavailable终止，未发现该问题导致的跨任务初始handle复用。此审计不替代全数值State验证，也不修改历史评分或训练标签。详情见ORIGINAL_COLLECTION_IMPACT.json和ROOT_SELECTION_CHECK.json。
+
+R23正式数据仍645，1000条目标、训练及成品能力验收未完成。新基线必须使用新的冻结源码完整重跑，不接着拼接R25两条记录。最终仍以用户任务和实际产物验收，提交回答不算验收。

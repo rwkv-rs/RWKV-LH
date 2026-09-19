@@ -197,6 +197,7 @@ class NativeRWKVStateClient(Protocol):
         lane_id: str,
         text: str,
         cache_binding: NativeStateCacheBinding,
+        request_id: str | None = None,
     ) -> NativeStateSnapshot: ...
 
     def state_append(

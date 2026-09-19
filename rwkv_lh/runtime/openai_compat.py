@@ -10,6 +10,7 @@ import time
 from urllib.parse import quote, urlencode
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
+from uuid import uuid4
 
 import requests
 
@@ -757,12 +758,18 @@ class OpenAICompatibleRWKVClient:
         lane_id: str,
         text: str,
         cache_binding: NativeStateCacheBinding,
+        request_id: str | None = None,
     ) -> NativeStateSnapshot:
+        # A cache binding describes content, not the lifetime of an allocation.
+        # ModelSession supplies its persistent checkpoint ID for recovery;
+        # standalone callers allocate fresh state unless they explicitly retry.
+        allocation_id = request_id if request_id is not None else f"CREATE-{uuid4().hex}"
         data = self._native_request(
             "create", self._native_payload(
                 cache_binding,
                 lane_id=str(lane_id),
                 delta=str(text),
+                request_id=allocation_id,
             ),
         )
         return self._native_snapshot(data, expected_binding=cache_binding)

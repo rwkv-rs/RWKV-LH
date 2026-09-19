@@ -93,7 +93,7 @@ def client(monkeypatch, server):
 def invoke(runtime, operation):
     args = dict(lane_id='LANE:ACTION', text='opaque transport payload', cache_binding=binding())
     if operation == 'create':
-        return runtime.state_create(**args)
+        return runtime.state_create(request_id='CREATE-CP-durable-id', **args)
     if operation in ('append', 'fork'):
         return getattr(runtime, 'state_' + operation)(parent_state_ref='WKV-parent', **args)
     if operation == 'generate':
@@ -130,6 +130,8 @@ def test_all_native_mutations_carry_identity_and_recover_without_resubmission(mo
     if operation == 'generate':
         assert payload['request_id'] == 'MR-durable-id'
         assert result.content == 'unchanged raw bytes'
+    elif operation == 'create':
+        assert payload['request_id'] == 'CREATE-CP-durable-id'
     else:
         without_id = {key: value for key, value in payload.items() if key != 'request_id'}
         assert payload['request_id'] == 'NR-' + digest({'operation': operation, 'payload': without_id})

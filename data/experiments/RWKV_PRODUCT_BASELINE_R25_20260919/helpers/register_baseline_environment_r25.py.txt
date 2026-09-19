@@ -1,0 +1,3 @@
+from pathlib import Path
+import json,hashlib
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_PRODUCT_BASELINE_R25_20260919');reg=json.loads((D/'REGISTRATION.json').read_text());(D/'STARTUP_ATTEMPT_01.json').write_text(json.dumps({'status':'failed_before_model_calls','error':'RWKV_LH_EXECUTOR_MODEL must not be empty','reason':'get_runtime_settings validates the server environment before dataclass overrides. New systemd unit has no model environment variable.','model_calls':0,'tasks_started':0,'fix':'Explicitly pass registered model via unit environment; runner/source/scoring/state/sampling unchanged.','environment':{'RWKV_LH_EXECUTOR_MODEL':reg['model']}},indent=2)+'\n')

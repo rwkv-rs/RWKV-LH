@@ -1,0 +1,55 @@
+"""Run independent direct RWKV tasks; raw submissions are not acceptance."""
+import argparse
+import json
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rwkv_lh.agent_batch import run_agent_jobs
+from rwkv_lh.agent_integration import run_agent_workflow
+from rwkv_lh.assisted_agent import AssistedJob
+from rwkv_lh.coding_agent import CodingJob
+from rwkv_lh.goal_delivery import GoalJob
+from rwkv_lh.read_only_agent import ReadOnlyJob
+from rwkv_lh.runtime.settings import direct_agent_settings, get_runtime_settings, load_local_env
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--jobs', type=Path, required=True,
+                        help='JSON array: task_id, request, workspace, output_dir, tool_scope, budgets')
+    parser.add_argument('--concurrency', type=int, default=1)
+    args = parser.parse_args()
+    jobs = []
+    dependencies = {}
+    for row in json.loads(args.jobs.read_text()):
+        row = dict(row)
+        parents = row.pop('depends_on', [])
+        if not isinstance(parents, list):
+            parser.error('depends_on must be an array of task IDs')
+        if parents:
+            dependencies[row['task_id']] = parents
+        if 'assistance' in row:
+            row['mode'] = row.pop('assistance')
+            jobs.append(AssistedJob(**row))
+            continue
+        scope = row.pop('tool_scope', 'files')
+        recovery = row.pop('on_stall', None)
+        if recovery is not None and (recovery != 'takeover' or scope != 'coding'):
+            parser.error('on_stall supports takeover for coding tasks only')
+        if scope == 'coding':
+            row['source_workspace'] = row.pop('workspace')
+            jobs.append(GoalJob(**row) if recovery else CodingJob(**row))
+        elif scope in ('files', 'inspect'):
+            jobs.append(ReadOnlyJob(**row, tool_scope=scope))
+        else:
+            parser.error('tool_scope must be files, inspect or coding')
+    load_local_env(Path(__file__).resolve().parents[1] / '.env.local')
+    settings = direct_agent_settings(get_runtime_settings())
+    results = (run_agent_workflow(jobs, dependencies, settings=settings, concurrency=args.concurrency)
+               if dependencies else run_agent_jobs(jobs, settings=settings, concurrency=args.concurrency))
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    return 0 if all(r['termination'] == 'submitted' for r in results) else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
