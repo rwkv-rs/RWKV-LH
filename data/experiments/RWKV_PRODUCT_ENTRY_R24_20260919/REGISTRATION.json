@@ -1,0 +1,31 @@
+{
+  "round": "R24",
+  "purpose": "Repair installed CLI to current direct RWKV CodingJob; preserve actual execution/State semantics.",
+  "owner_authorization": "Owner requests usable Code Agent product within two days and authorizes data completion, StateTune, testing, issue analysis/report. No subagents.",
+  "known_failure": "rwkv-lh --help raises ModuleNotFoundError because scripts.run_long_horizon was removed but pyproject console entry remained.",
+  "scope": [
+    "pyproject current coding entrypoint",
+    "README accurate current invocation",
+    "regression across installed/project command entrypoints"
+  ],
+  "not_scope": [
+    "frontend redesign",
+    "model protocol changes",
+    "model business choices",
+    "strong-model API usage",
+    "GitHub push"
+  ],
+  "baseline_files": {
+    "pyproject.toml": "0c133e9be033d2eda5ee486e5331ba8a1123c1887b9f4ec2c52d2690619b449d",
+    "README.md": "1f62ac7928b2a93e5693fc85310553d48e3be55d79d44bcfef5e9b733e81cf9e",
+    "scripts/run_rwkv_coding_agent.py": "0b4b1e82fdb1e1e1e8c657fe01a81e9bc425e6e136494ed7576415aa95602cfa",
+    "scripts/run_rwkv_agent.py": "15a1b5ef512fb781c5908d40f6048fb124c14390706191e1b476c432160364b8"
+  },
+  "pre_registered_checks": [
+    "current entrypoint import fails before fix and passes after",
+    "all declared console scripts help succeeds without model calls",
+    "complete tests including Torch/State/browser pass",
+    "owner five dirty files unchanged"
+  ],
+  "data_campaign": "R23 remains incomplete; product packaging is independent and does not count as training rows."
+}
