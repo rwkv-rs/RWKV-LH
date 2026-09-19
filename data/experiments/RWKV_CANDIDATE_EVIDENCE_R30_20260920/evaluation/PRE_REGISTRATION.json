@@ -1,0 +1,58 @@
+{
+  "round": "R30-evaluation-of-R29",
+  "purpose": "Evaluate completed authorized647 oneepoch State against freshly rerun zero controls; existing untrained development tasks, not finalholdout.",
+  "current_source_local_commit": "48912fe6d069433ec0ca240cd1c5bec975d8c0dd",
+  "source_manifest_sha256": "24b7cb9e23d20cdbed0868674d87c3c92236d268f16ab5f38b0cf2f4199556a1",
+  "model_manifest_sha256": "5d7fc93f1f282d49ea0bd059618297dc9629783cdb080c6d2e3e5448ee0109e0",
+  "model_sha256": "559371f5b9aef13189ae54b345ac096af4ad2b689996c05d89de687612b3ae65",
+  "engine_manifest_sha256": "016d3ac4af9c5eca71fa27b82d3fe71d4e029314bee3f0c1a1513bc00b839693",
+  "remote_root": "/home/chase/GitHub/RWKV-LH-unified-train-r29-647-20260920/evaluation_r30",
+  "server_only_execution": true,
+  "gpu": 0,
+  "other_gpus_untouched": true,
+  "port": 18266,
+  "model": "rwkv-direct-r29-647-r30-ctx24576",
+  "base_url": "http://127.0.0.1:18266/v1",
+  "state_init": "zero",
+  "state_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "sampling": {
+    "temperature": 0.1,
+    "top_p": 1.0,
+    "top_k": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "penalty_decay": 0.996
+  },
+  "context_tokens": 24576,
+  "output_tokens": 1800,
+  "cases_sha256": "11d664806306cf8b8271751d8138ac210b3382ba3206904728d6e471a6427036",
+  "scoring_sha256": "5c0c62a23c852a266eaa6ca1b64f52e997dc7839aa04e3e8c4af32007d9c0c54",
+  "arms": [
+    "zero-a",
+    "zero-b",
+    "candidate"
+  ],
+  "repeats": [
+    1,
+    2
+  ],
+  "max_tasks": 72,
+  "max_generation_calls": 1224,
+  "wall_budget_seconds": 28800,
+  "strong_model_calls": 0,
+  "training_calls": 0,
+  "success_criteria": {
+    "retention": "candidate全部24次任务合格，零非法调用和虚构执行，逐题不退于两组zero；不满足则NO_KEEP。",
+    "improvement": "总改善需超过zero-a与zero-b差值；分层配对结果，固定组稳定不称通用能力。"
+  },
+  "comparison_policy": "No changes to frozen execution source, cases, sampling, budgets or scoring between arms. Future candidate evaluated with same controls; baseline is development and excluded from training. Do not merge historical R6 results.",
+  "delivery": "Actual answers/artifacts/observations/state traces and independent acceptance, never submitted==pass.",
+  "environment": {
+    "RWKV_LH_EXECUTOR_MODEL": "rwkv-direct-r29-647-r30-ctx24576"
+  },
+  "training_registration": {
+    "path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_TRAIN_R29_647_20260920/training/REGISTRATION.json",
+    "sha256": "e10d24c4bba64d22775b02a9ec11fb8591471aa849fad6b9d645ff7b75e8c173"
+  },
+  "profiles_pending": "Candidate identity is bound only to the completed registered training output, before any evaluation call."
+}

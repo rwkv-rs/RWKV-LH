@@ -1,0 +1,29 @@
+.FF                                                                      [100%]
+=================================== FAILURES ===================================
+____ test_explicit_candidate_profile_seals_real_inputs_without_relabelling _____
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_explicit_candidate_profil0')
+
+    def test_explicit_candidate_profile_seals_real_inputs_without_relabelling(tmp_path):
+        before = hashlib.sha256((TRACE / 'state_snapshot.json').read_bytes()).hexdigest()
+        expected = profile()
+>       result = seal_run(TRACE, tmp_path / 'sealed', MODEL, expected_state_profile=expected)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: seal_run() got an unexpected keyword argument 'expected_state_profile'
+
+tests/test_candidate_evidence_retirement.py:30: TypeError
+_____________ test_candidate_cannot_be_sealed_as_a_different_state _____________
+
+tmp_path = PosixPath('/home/chase/GitHub/RWKV-LH/data/test_runs/pytest/test_candidate_cannot_be_seale0')
+
+    def test_candidate_cannot_be_sealed_as_a_different_state(tmp_path):
+        wrong = dict(profile(), sha256='a' * 64)
+        with pytest.raises(ValueError, match='profile'):
+>           seal_run(TRACE, tmp_path / 'sealed', MODEL, expected_state_profile=wrong)
+E           TypeError: seal_run() got an unexpected keyword argument 'expected_state_profile'
+
+tests/test_candidate_evidence_retirement.py:42: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_candidate_evidence_retirement.py::test_explicit_candidate_profile_seals_real_inputs_without_relabelling
+FAILED tests/test_candidate_evidence_retirement.py::test_candidate_cannot_be_sealed_as_a_different_state
+2 failed, 1 passed in 0.96s
