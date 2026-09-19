@@ -1,0 +1,174 @@
+"""Re-export reviewed labels; retain originals and re-execute real evidence gates."""
+from pathlib import Path
+import collections
+import concurrent.futures
+import copy
+import hashlib
+import json
+import sys
+
+R = Path('/home/chase/GitHub/RWKV-LH')
+sys.path.insert(0, str(R))
+from rwkv_lh import model_io
+from rwkv_lh.direct_trace_data import (freeze_direct_dataset, audit_source_similarity,
+                                      normalize_direct_row, ROLE)
+from rwkv_lh.statetune_data import FREEZE_SCHEMA, admit_dataset
+from rwkv_lh.statetune_core import collate_samples
+from rwkv_lh.stdio_corrections import validate_stdio_correction
+from rwkv_lh.token_budget import tokenizer
+
+D = R / 'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920'
+OLD = R / 'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919'
+read = lambda p: json.loads(Path(p).read_text())
+sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+ref = lambda p: {'path': str(p), 'sha256': sha(p)}
+
+
+def save(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode()
+    if path.exists():
+        assert path.read_bytes() == data, path
+    else:
+        path.write_bytes(data)
+    return ref(path)
+
+
+def main():
+    packages = [R / 'data/datasets/rwkv_direct_unified_corrections_v6',
+                R / 'data/experiments/RWKV_REAL_CODING_DATA_R20_20260917/frozen_increment',
+                R / 'data/experiments/RWKV_CODEX_FREEZE_R22_20260919/frozen_increment']
+    packages += sorted(p.parent / 'frozen_increment' for p in (OLD / 'batches').glob('*/RESULT.json'))
+    authorization = D / 'AUTHORIZATION.zh-CN.md'
+    if not authorization.exists():
+        authorization.write_text('Owner 2026-09-20：先用修复后的647条训练测试，继续补到1000条。当前Codex本人纠正；无独立审核子代理；保留旧样本与原始输出；仅GPU0。本轮先修正格式并重验，不改变参考答案、源任务或评分。\n')
+    first = read(packages[0] / 'manifest.json')
+    previous_reg = read(first['freeze_registration']['path'])
+    regression = previous_reg['regression_registration']
+    registration = {'round': 'R28', 'authorization': ref(authorization),
+                    'packages': [ref(p / 'manifest.json') for p in packages],
+                    'producer': ref(Path(__file__)), 'rows_expected': 647,
+                    'policy': 'One-to-one target envelope correction through ModelCommand.to_wire_dict; exact parameters, code, inputs, States and source boundaries unchanged; originals immutable; fresh evidence checks, no extra training examples.',
+                    'scope': 'All 647 rows, all label authorities; top-level and tool parameter contracts, strict stop, text/token/BOS, mask, context, source binding, split isolation, duplicate boundary checks.',
+                    'source': {str(p.relative_to(R)): sha(p) for p in sorted((R / 'rwkv_lh').rglob('*.py'))},
+                    'context_tokens': 24576, 'workers': 4, 'training_epochs': 1}
+    save(D / 'PRE_REGISTRATION.json', registration)
+    originals, sources = [], {}
+    for p in packages:
+        manifest = read(p / 'manifest.json')
+        assert sha(p / manifest['train']['file']) == manifest['train']['sha256']
+        for s in manifest['sources']:
+            if s['source_id'] in sources:
+                assert sources[s['source_id']] == s, s['source_id']
+            sources[s['source_id']] = s
+        originals += [json.loads(line) for line in (p / 'train.jsonl').read_text().splitlines()]
+    assert len(originals) == 647
+    assert len({(r['request_id'], r['input_checkpoint_id']) for r in originals}) == 647
+    stop = model_io.JSON_CALL_STOP_SUFFIXES[0]
+    args = dict(model_sha256=first['model_sha256'], context_tokens=24576, vocab_size=65536, bos_token_id=0)
+    audit, prepared = [], []
+    for original in originals:
+        row = copy.deepcopy(original)
+        target = row['target_text']
+        assert target.endswith(stop)
+        payload = json.loads(target[:-len(stop)])
+        command = model_io.parse_model_command(target[:-len(stop)])
+        before_error = None
+        try:
+            normalize_direct_row(row, **args)
+        except ValueError as error:
+            before_error = str(error)
+        changed = set(payload) != set(command.to_wire_dict())
+        if changed:
+            assert set(payload) == set(command.to_dict())
+            assert row['label_authority'] == 'verified_stdio'
+            assert before_error == 'training target must use the production function/params envelope'
+            target = json.dumps(command.to_wire_dict(), ensure_ascii=False) + stop
+            assert model_io.parse_model_command(target[:-len(stop)]) == command
+            row['target_text'] = target
+            row['target_token_ids'] = tokenizer().encode(target)
+            row['stdio_review']['target_sha256'] = hashlib.sha256(target.encode()).hexdigest()
+        else:
+            assert before_error is None, (row['sample_id'], before_error)
+        # Verify complete contract after the one allowed transformation, before
+        # any evidence is rebound or a new dataset is admitted.
+        normalize_direct_row(row, **args)
+        if command.name != 'final_answer':
+            from rwkv_lh.direct_trace_data import executed_arguments
+            executed_arguments(command)
+        batch = collate_samples([row], context_tokens=24576)
+        assert int(batch['labels'].ne(-100).sum()) == len(row['target_token_ids'])
+        assert row['input_text'] == original['input_text']
+        assert row['input_token_ids'] == original['input_token_ids']
+        item = {'sample_id': row['sample_id'], 'authority': row['label_authority'],
+                'original_target_sha256': hashlib.sha256(original['target_text'].encode()).hexdigest(),
+                'corrected_target_sha256': hashlib.sha256(target.encode()).hexdigest(),
+                'changed': changed, 'before_error': before_error,
+                'command_and_parameters_equal': True, 'input_unchanged': True,
+                'token_stop_mask_context_and_parameter_contract_passed': True}
+        audit.append(item)
+        prepared.append((row, changed))
+    save(D / 'ALL_ROW_FORMAT_AUDIT.json', {'rows': len(audit), 'affected_rows': sum(r['changed'] for r in audit),
+         'by_authority': dict(collections.Counter(r['authority'] for r in audit if r['changed'])),
+         'other_detected_format_errors': 0, 'samples': audit})
+    print('ALL_FORMATS_AUDITED', len(audit), 'affected', sum(r['changed'] for r in audit), flush=True)
+
+    def revalidate(item):
+        row, changed = item
+        if changed:
+            old_proof = read(row['stdio_validation']['path'])
+            assert sha(row['stdio_validation']['path']) == row['stdio_validation']['sha256']
+            out = D / 'validation' / row['sample_id']
+            if (out / 'VALIDATION.json').exists():
+                proof = read(out / 'VALIDATION.json')
+                assert proof['target_text'] == row['target_text']
+                assert proof['review'] == row['stdio_review']
+            else:
+                proof = validate_stdio_correction(run_root=old_proof['run_root'],
+                    checkpoint_id=row['candidate_checkpoint_id'], target_text=row['target_text'],
+                    model_sha256=row['model_sha256'], source_files=old_proof['source_files'],
+                    cases_reference=old_proof['cases_reference'], review=row['stdio_review'], output=out)
+            assert proof['status'] == 'validated_candidate', (row['sample_id'], proof['status'])
+            row['stdio_validation'] = ref(out / 'VALIDATION.json')
+            print('REVALIDATED', row['sample_id'], flush=True)
+        return row
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        rows = list(pool.map(revalidate, prepared))
+    source_list = list(sources.values())
+    similarity = audit_source_similarity([*source_list, *read(regression['path'])['cases']], threshold=0.9)
+    assert similarity['passed']
+    authority_counts = collections.Counter(r['label_authority'] for r in rows)
+    freeze = {'schema_version': FREEZE_SCHEMA, 'role': ROLE,
+              'authorization': ref(authorization),
+              'reviewed_rows': save(D / 'REVIEWED_ROWS.json', {'rows': rows}),
+              'regression_registration': regression, 'regression_fingerprint': regression['sha256'],
+              'sources': source_list, 'similarity_threshold': 0.9,
+              'similarity_audit': save(D / 'SIMILARITY_AUDIT.json', similarity),
+              'model_sha256': first['model_sha256'], 'context_tokens': 24576, 'vocab_size': 65536, 'bos_token_id': 0,
+              'minimum_counts': {'train': 647, 'dev': 4, 'confirmation': 4},
+              'minimum_coverage': {'source_files': len(source_list), 'families': len({s['family'] for s in source_list}),
+                                  'read_boundaries': authority_counts['executed_read'],
+                                  'summary_boundaries': authority_counts['independent_review'],
+                                  'coding_boundaries': authority_counts['verified_coding'],
+                                  'command_boundaries': authority_counts['verified_command'],
+                                  'stdio_boundaries': authority_counts['verified_stdio']},
+              'preparation_registration': ref(D / 'PRE_REGISTRATION.json'), 'generator': ref(Path(__file__))}
+    freeze_ref = save(D / 'FREEZE_REGISTRATION.json', freeze)
+    output = D / 'frozen_corrected'
+    if not output.exists():
+        freeze_direct_dataset(freeze, registration_reference=freeze_ref, output=output)
+    manifest, admitted = admit_dataset(ref(output / 'manifest.json'), role=ROLE,
+                                      expected_regression=regression['sha256'], **args)
+    save(D / 'RESULT.json', {'status': 'corrected_and_freshly_validated', 'rows': len(admitted),
+         'changed': sum(r['changed'] for r in audit), 'new_rows': 0, 'originals_preserved': True,
+         'manifest': ref(output / 'manifest.json'), 'authority_counts': dict(authority_counts),
+         'target_tokens': sum(len(r['target_token_ids']) for r in rows),
+         'input_tokens': sum(len(r['input_token_ids']) for r in rows),
+         'max_sequence_tokens': max(len(r['input_token_ids']) + len(r['target_token_ids']) - 1 for r in rows),
+         'training_started': False})
+    print('FROZEN', len(admitted), flush=True)
+
+
+if __name__ == '__main__':
+    main()

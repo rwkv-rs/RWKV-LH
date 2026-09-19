@@ -1,0 +1,19 @@
+from pathlib import Path
+import hashlib,json
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920'
+old=R/'temp/freeze_expansion_batch_r23_20260919.py';new=R/'temp/freeze_expansion_batch_r23_wire_r28_20260920.py'
+text=old.read_text()
+a="packages=[R/'data/datasets/rwkv_direct_unified_corrections_v6',R/'data/experiments/RWKV_REAL_CODING_DATA_R20_20260917/frozen_increment',R/'data/experiments/RWKV_CODEX_FREEZE_R22_20260919/frozen_increment']"
+b="packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected']"
+assert a in text;text=text.replace(a,b)
+text=text.replace("if p.parent.name<Q.name)", "if '35'<=p.parent.name<Q.name)")
+a="json.dumps({'name':'write_file','arguments':{'path':'solution.py','content':candidate.read_bytes().decode()}},ensure_ascii=False)"
+b="json.dumps(model_io.ModelCommand('write_file',{'path':'solution.py','content':candidate.read_bytes().decode()}).to_wire_dict(),ensure_ascii=False)"
+assert a in text;text=text.replace(a,b)
+assert not new.exists();new.write_text(text)
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+record={'old_producer':{'path':str(old),'sha256':sha(old)},'new_producer':{'path':str(new),'sha256':sha(new)},
+        'first_new_batch':'35','reason':'Use production ModelCommand wire serializer and corrected647 inventory. Old producer remains immutable evidence, not the continuation entry.',
+        'parameters_or_code_rewritten':False,'old_targets_modified':False}
+(D/'PRODUCER_REPAIR.json').write_text(json.dumps(record,indent=2)+'\n')
+print(json.dumps(record,indent=2))

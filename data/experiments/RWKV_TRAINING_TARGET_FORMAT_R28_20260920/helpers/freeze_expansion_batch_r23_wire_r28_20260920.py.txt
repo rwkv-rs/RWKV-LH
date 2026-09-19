@@ -1,0 +1,70 @@
+"""Mechanical production admission of explicitly Codex-reviewed R23 labels."""
+from pathlib import Path
+import sys,json,hashlib,concurrent.futures,traceback
+R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
+from rwkv_lh import model_io
+from rwkv_lh.direct_trace_data import freeze_direct_dataset,audit_source_similarity,protocol_identity,ROW_SCHEMA,ROLE
+from rwkv_lh.statetune_data import FREEZE_SCHEMA,admit_dataset
+from rwkv_lh.stdio_corrections import validate_stdio_correction
+from rwkv_lh.token_budget import tokenizer,VOCAB_PATH
+from rwkv_lh.statetune_core import collate_samples
+from rwkv_lh.role_trace_artifacts import byte_5gram_cosine
+D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';B=R/'data/experiments/RWKV_QWEN38_TEACHER_R17_20260916/bulk_deployment';Q=D/'batches'/sys.argv[1]
+sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
+ref=lambda p:{'path':str(p),'sha256':sha(p)}
+read=lambda p:json.loads(Path(p).read_text())
+def save(p,x):
+ p=Path(p);p.parent.mkdir(parents=True,exist_ok=True);data=(json.dumps(x,ensure_ascii=False,indent=2)+'\n').encode()
+ if p.exists():assert p.read_bytes()==data,f'immutable record differs: {p}'
+ else:p.write_bytes(data)
+ return ref(p)
+def main():
+ targets=read(Q/'TARGETS.json')['targets'];inventory={r['id']:r for r in read(P/'INVENTORY.json')['tasks']}
+ packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected']
+ packages += sorted(p for p in (D/'batches').glob('*/frozen_increment') if '35'<=p.parent.name<Q.name)
+ prior=[];old_sources={}
+ old=read(packages[0]/'manifest.json');oldreg=read(old['freeze_registration']['path']);regref=oldreg['regression_registration']
+ for p in packages:
+  m,_=admit_dataset(ref(p/'manifest.json'),role=ROLE,expected_regression=regref['sha256'],model_sha256=old['model_sha256'],context_tokens=24576,vocab_size=65536,bos_token_id=0)
+  prior += [json.loads(l) for l in (p/'train.jsonl').read_text().splitlines()]
+  for s in m['sources']:old_sources[s['source_content_sha256']]=s
+ save(Q/'PRE_REGISTRATION.json',{'campaign':ref(D/'REGISTRATION.json'),'owner_steering':ref(D/'OWNER_STEERING_20260919.json'),'targets':ref(Q/'TARGETS.json'),'producer':ref(Path(__file__)),'prior_packages':[ref(p/'manifest.json') for p in packages],'context_tokens':24576,'similarity_threshold':0.9,'per_case_seconds':3,'workers':4,'rejection':'fixed batch stops on any invalid row; no truncation or scoring changes'})
+ compared=[(s['id'],Path(s['content_reference']['path']).read_bytes().decode()) for s in old_sources.values()];nearest=[]
+ for t in targets:
+  task=P/'tasks'/t['id']/'TASK.md';assert sha(task)==t['task_sha256'];text=task.read_bytes().decode();best=max(({'id':ident,'cosine':byte_5gram_cosine(text,content)} for ident,content in compared),key=lambda x:x['cosine']);assert best['cosine']<0.9,(t['id'],best)
+  nearest.append({'id':t['id'],'nearest':best});compared.append((t['id'],text))
+ save(Q/'TRAIN_DUPLICATE_AUDIT.json',{'algorithm':'production UTF8 byte 5gram count cosine','threshold':0.9,'nearest':nearest,'passed':True})
+ def validate(t):
+  ident=t['id'];inp=B/'inputs'/ident;root=inp/'original';original=read(inp/'MANIFEST.json');binding=inventory[ident]['original_binding'];assert sha(inp/'MANIFEST.json')==binding['manifest_sha256']
+  candidate=Path(t['candidate_path']);assert sha(candidate)==t['solution_sha256'];task=P/'tasks'/ident/'TASK.md'
+  target=json.dumps(model_io.ModelCommand('write_file',{'path':'solution.py','content':candidate.read_bytes().decode()}).to_wire_dict(),ensure_ascii=False)+model_io.JSON_CALL_STOP_SUFFIXES[0]
+  review=dict(t['review'],input_sha256=t['input_sha256'],target_sha256=hashlib.sha256(target.encode()).hexdigest(),task_sha256=t['task_sha256'])
+  item=read(inp/'ITEM.json');assert sha(inp/'acceptance.json')==item['acceptance_sha256'];contract=read(inp/'acceptance.json');cases=save(R/'data/test_runs/r23_private_cases'/f'{ident}.json',contract['cases'])
+  output=Q/'validation'/ident
+  if (output/'VALIDATION.json').exists():v=read(output/'VALIDATION.json')
+  else:v=validate_stdio_correction(run_root=root,checkpoint_id=t['checkpoint'],target_text=target,model_sha256=t['model_sha256'],source_files=original['source_files'],cases_reference=cases,review=review,output=output)
+  assert v['status']=='validated_candidate',(ident,v['status'])
+  state=read(root/'state_snapshot.json');metas=[s['native_state_metadata'] for s in state['model_states'].values()];keys=('model_sha256','server_build','tokenizer_build','protocol_version','state_format_version');identity={k:metas[0].get(k) for k in keys};assert all(all(m.get(k)==identity[k] for k in keys) for m in metas)
+  collector=save(Q/'sources'/ident/'COLLECTOR.json',{'original_boundary_manifest':ref(inp/'MANIFEST.json'),'converter_sha256':original['converter_sha256'],'protocol_module_sha256':original['protocol_module_sha256'],'original_binding':binding,'reviewed_target_reference':ref(Q/'TARGETS.json')});server=save(Q/'sources'/ident/'SERVER_IDENTITY.json',identity)
+  sm=save(Q/'sources'/ident/'SOURCE_MANIFEST.json',{'source_type':'native_production_trace','model_sha256':t['model_sha256'],'collector_source_manifest_sha256':collector['sha256'],'collector_source_reference':collector,'server_identity_sha256':server['sha256'],'server_identity_reference':server,'files':original['source_files']})
+  source={'id':ident,'source_id':ident,'family':'ULTRADATA_RL_CODE','split':'train','run_root':str(root),'path':'TASK.md','source_content_sha256':sha(task),'content_reference':ref(task),'manifest':sm}
+  version,digest=protocol_identity();row={'schema_version':ROW_SCHEMA,'role':ROLE,'split':'train','sample_id':'r23-'+Q.name+'-'+ident,'source_id':ident,'family':source['family'],'source_manifest_sha256':sm['sha256'],'source_content_sha256':sha(task),'input_protocol':version,'protocol_sha256':digest,'model_sha256':t['model_sha256'],'tokenizer_sha256':sha(VOCAB_PATH),'recomputed':True,'input_token_source':'server_returned_full','candidate_checkpoint_id':t['checkpoint'],'input_checkpoint_id':v['input_checkpoint_id'],'request_id':v['request_id'],'input_text':v['input_text'],'input_token_ids':v['input_token_ids'],'target_text':target,'target_token_ids':tokenizer().encode(target),'label_authority':'verified_stdio','stdio_review':review,'stdio_validation':ref(output/'VALIDATION.json')}
+  batch=collate_samples([row],context_tokens=24576);assert batch['labels'].ne(-100).sum().item()==len(row['target_token_ids']);assert (row['request_id'],row['input_checkpoint_id']) not in {(r['request_id'],r['input_checkpoint_id']) for r in prior}
+  print('VALIDATED',ident,len(row['input_token_ids'])+len(row['target_token_ids'])-1,flush=True);return source,row
+ with concurrent.futures.ThreadPoolExecutor(4) as pool:pairs=list(pool.map(validate,targets))
+ sources=[s for s,r in pairs];rows=[r for s,r in pairs]
+ excludes=[]
+ for name in ('RWKV_UNIFIED_CORRECTION_TRAIN_R5_300_20260915','RWKV_UNIFIED_CORRECTION_TRAIN_R6_ONE_EPOCH_20260915'):
+  p=R/'data/experiments'/name/'evaluation/TRAINING_EXCLUSION.json';excluded={v for task in read(p)['tasks'] for v in task['files'].values()};assert not excluded&{r['source_content_sha256'] for r in rows};excludes.append(ref(p))
+ save(Q/'EXCLUSION_AUDIT.json',{'registered_hash_only':excludes,'passed':True,'holdout_read':False})
+ audit=audit_source_similarity([*sources,*read(regref['path'])['cases']],threshold=0.9);assert audit['passed']
+ reg={'schema_version':FREEZE_SCHEMA,'role':ROLE,'authorization':ref(D/'AUTHORIZATION.zh-CN.md'),'reviewed_rows':save(Q/'REVIEWED_ROWS.json',{'rows':rows}),'regression_registration':regref,'regression_fingerprint':regref['sha256'],'sources':sources,'similarity_threshold':0.9,'similarity_audit':save(Q/'SIMILARITY_AUDIT.json',audit),'model_sha256':old['model_sha256'],'context_tokens':24576,'vocab_size':65536,'bos_token_id':0,'minimum_counts':{'train':len(rows),'dev':4,'confirmation':4},'minimum_coverage':{'source_files':len(rows),'families':1,'read_boundaries':0,'summary_boundaries':0,'stdio_boundaries':len(rows)},'preparation_registration':ref(Q/'PRE_REGISTRATION.json'),'generator':ref(Path(__file__))}
+ registration=save(Q/'FREEZE_REGISTRATION.json',reg)
+ if not (Q/'frozen_increment').exists():freeze_direct_dataset(reg,registration_reference=registration,output=Q/'frozen_increment')
+ _,accepted=admit_dataset(ref(Q/'frozen_increment/manifest.json'),role=ROLE,expected_regression=regref['sha256'],model_sha256=old['model_sha256'],context_tokens=24576,vocab_size=65536,bos_token_id=0)
+ result={'batch':Q.name,'status':'frozen_loader_accepted','added_rows':len(accepted),'aggregate_rows':len(prior)+len(accepted),'manifest':ref(Q/'frozen_increment/manifest.json'),'input_tokens':sum(len(r['input_token_ids']) for r in rows),'target_tokens':sum(len(r['target_token_ids']) for r in rows),'max_sequence_tokens':max(len(r['input_token_ids'])+len(r['target_token_ids'])-1 for r in rows),'all_target_only_mask_passed':True,'model_calls':0,'subagent_calls':0,'optimizer_steps':0,'agent_runs':0}
+ save(Q/'RESULT.json',result);print('FROZEN',result,flush=True)
+if __name__=='__main__':
+ try:main()
+ except BaseException as e:
+  p=Q/'failures';p.mkdir(exist_ok=True);save(p/f'{len(list(p.glob("*.json")))+1:03}.json',{'type':type(e).__name__,'message':str(e),'traceback':traceback.format_exc()});raise

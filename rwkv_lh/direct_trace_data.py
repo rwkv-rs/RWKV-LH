@@ -182,7 +182,9 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
     raw_target = row['target_text']
     core.require(raw_target.endswith(model_io.JSON_CALL_STOP_SUFFIXES[0]), 'direct target needs exact production stop')
     command_text = raw_target[:-len(model_io.JSON_CALL_STOP_SUFFIXES[0])]
-    json.loads(command_text)  # No transport repair or first-object extraction for training targets.
+    envelope = json.loads(command_text)  # No transport repair or first-object extraction for training targets.
+    core.require(isinstance(envelope, dict) and set(envelope) == {'function', 'params'},
+                 'training target must use the production function/params envelope')
     command = model_io.parse_model_command(command_text)
     authority = row.get('label_authority')
     if authority == 'executed_read':

@@ -1,3 +1,13 @@
+# 最新R28格式修复完成（2026-09-20）
+
+647条已全部重新冻结；344条外层格式修复（R22 30＋R23 314），v6 300与R20 3原本一致。647条真实输入、token/mask/长度/参数/执行证据复验通过，1907工程回归全绿、0跳过。新包为`data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected/`，SHA与逐行映射见该轮RESULT和REPORT。旧样本保留，不计新增。后续扩量从新647包开始，使用`temp/freeze_expansion_batch_r23_wire_r28_20260920.py`，下一新批次35；不要再调用旧内部name/arguments生产器。
+
+Owner已授权先用修复后647条训练一轮、继续补到1000。R29冻结当前源码，GPU0、zero初始化、target-only mask、1epoch/162预计更新；已补当前依赖身份并重新做Native数值兼容。训练实际状态以R29远端ledger为准，不能由准备记录推断已训练。R27固定开发基线31/48（zero-a15/24，zero-b16/24），213生成/State核验通过；新建文件产物4/4但忠实交付3/4，已有代码修复0/16。R29须同源码重新对比zero/candidate，不拼接R27成绩。无子代理、无教师API、未push；owner五处修改保持。
+
+# 最新交付优先级（2026-09-19）
+
+Owner 要求尽快成品且不降质量。当前 R27 已在服务器 GPU 0 运行冻结的 48 次 zero 开发基线，外部验收尚未完成，不改两臂执行源码。R23 冻结包合计647条，但新全量格式审计确认344条目标使用name/arguments，而输入要求function/params；这些条目需保留原件后重新导出和验证，不能直接宣称本轮训练就绪。另303条使用要求的键。训练未启动，未push，无子代理。具体交付范围、证据和下一步见 `data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/PRODUCT_DELIVERY_PRIORITY.zh-CN.md`；全量逐行证据见同目录 `TARGET_ENVELOPE_AUDIT.json`。下方645等数量为旧检查点。
+
 # 当前工程检查点 R26（2026-09-19）
 
 R23正式645条，距1000差355，尚未训练。R24命令入口已修复；R25真实基线在第二次相同任务发生退休State回执复用而停止，首题原评分通过但整组比较INVALID，服务已停。R26已将create分配身份绑定到持久化checkpoint，保留同一请求恢复，1905完整回归通过/0跳过。1024原采集初始handles互异，无本类transport终止。必须新冻结源码后完整重跑基线；不把R25拼接为收益，不宣称成品完成。详见R26 REPORT与RESULT。Owner五处修改保持，未push，无子代理。
