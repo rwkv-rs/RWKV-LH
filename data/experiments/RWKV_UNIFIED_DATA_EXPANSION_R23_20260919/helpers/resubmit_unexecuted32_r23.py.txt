@@ -1,0 +1,3 @@
+from pathlib import Path
+import json
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');old=D/'batches/32b';target=[r for r in json.loads((old/'TARGETS.json').read_text())['targets'] if r['ordinal']==320];assert len(target)==1 and not (old/'validation'/target[0]['id']/'VALIDATION.json').exists();q=D/'batches/32d';q.mkdir();(q/'TARGETS.json').write_text(json.dumps({'targets':target,'reason':'Unexecuted due to batch fail-fast, same candidate and earlier-boundary binding; not a failed candidate retry.'},indent=2)+'\n')

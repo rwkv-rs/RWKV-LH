@@ -1,0 +1,3 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';original=(R/'temp/audit_expansion_checkpoint_r23.py').read_text();needle="assert actual==reg['source_identity'];packages=";replacement="phase=read(D/'PACKAGING_SOURCE_ADDENDUM_R24.json');assert actual==dict(reg['source_identity'],**phase['added_test_source']);packages=";assert needle in original;exec(compile(original.replace(needle,replacement),str(R/'temp/audit_expansion_checkpoint_r23.py'),'exec'))

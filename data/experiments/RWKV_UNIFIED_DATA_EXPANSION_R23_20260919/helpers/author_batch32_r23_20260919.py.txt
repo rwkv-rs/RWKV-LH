@@ -1,0 +1,98 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+263:('''import sys
+source=sys.stdin.buffer.read()
+sys.stdout.buffer.write(bytes(c if c in (10,13) else c-7 for c in source))
+''','The public paired sample identifies a constant ASCII shift of seven, including punctuation and spaces. Subtract seven from encoded characters and preserve newline bytes. No hidden cases inspected.'),
+286:('''import sys,re
+pattern=re.compile(r'[+-]?[0-9]+(?:\.[0-9]+(?:[eE][+-]?[0-9]+)?|[eE][+-]?[0-9]+)')
+for line in sys.stdin:
+ s=line.strip()
+ if s=='*':break
+ print(s+' is '+('legal.' if pattern.fullmatch(s) else 'illegal.'))
+''','Parse the entire Pascal floating literal. A decimal fraction requires digits on both sides; an exponent requires integral digits, with optional sign. Plain integers are not floating literals. Cases 1.,99 and empty exponent are explicitly rejected by public examples.'),
+295:('''import sys,math
+a=list(map(int,sys.stdin.buffer.read().split()));n,m,k=a[:3];prefix=[0]*(n+1)
+for i,x in enumerate(a[3:3+n],1):prefix[i]=prefix[i-1]^x
+block=max(1,int(n/max(1,math.sqrt(m))));queries=[]
+for i in range(m):
+ l,r=a[3+n+2*i:5+n+2*i];l-=1;b=l//block;queries.append((b,r if b%2==0 else -r,l,r,i))
+queries.sort();freq=[0]*(1<<20);left=0;right=-1;total=0;answers=[0]*m
+for _,__,l,r,index in queries:
+ while right<r:
+  right+=1;x=prefix[right];total+=freq[x^k];freq[x]+=1
+ while left>l:
+  left-=1;x=prefix[left];total+=freq[x^k];freq[x]+=1
+ while right>r:
+  x=prefix[right];freq[x]-=1;total-=freq[x^k];right-=1
+ while left<l:
+  x=prefix[left];freq[x]-=1;total-=freq[x^k];left+=1
+ answers[index]=total
+print('\\n'.join(map(str,answers)))
+''','Map subarrays to prefix-XOR pairs on inclusive indices l-1 through r. Mo ordering updates frequency counts; removal decrements before subtracting to handle k=0 without counting self-pairs. Values are below2^20 by the declared bound. Restore original query order.'),
+307:('''import sys
+from array import array
+a=list(map(int,sys.stdin.buffer.read().split()));queries=list(zip(a[1::2],a[2::2]));limit=max(x for x,y in queries);spf=array('I',[0])*(limit+1)
+for p in range(2,int(limit**0.5)+1):
+ if spf[p]==0:
+  for q in range(p*p,limit+1,p):
+   if spf[q]==0:spf[q]=p
+omega=bytearray(limit+1);prefix=array('I',[0])*(limit+1)
+for i in range(2,limit+1):
+ omega[i]=omega[i//spf[i]]+1 if spf[i] else 1;prefix[i]=prefix[i-1]+omega[i]
+print('\\n'.join(str(prefix[x]-prefix[y]) for x,y in queries))
+''','The optimal move removes one prime factor, so the answer is total prime multiplicity in a!/b!. Sieve a smallest factor, compute multiplicities with byte storage and prefix sums with32-bit unsigned storage; no enormous factorials. a=b returns0.'),
+312:('''import sys
+from collections import deque
+a=list(map(int,sys.stdin.buffer.read().split()));n,w,b,x=a[:4];counts=a[4:4+n];costs=a[4+n:4+2*n];dp=[w]
+for index,(count,cost) in enumerate(zip(counts,costs)):
+ if index:dp=[min(w+j*b,mana+x) if mana>=0 else -1 for j,mana in enumerate(dp)]
+ next_dp=[-1]*(len(dp)+count);queue=deque()
+ for j in range(len(next_dp)):
+  if j<len(dp) and dp[j]>=0:
+   value=dp[j]+j*cost
+   while queue and queue[-1][1]<=value:queue.pop()
+   queue.append((j,value))
+  while queue and queue[0][0]<j-count:queue.popleft()
+  if queue:
+   mana=queue[0][1]-j*cost
+   if mana>=0:next_dp[j]=mana
+ while len(next_dp)>1 and next_dp[-1]<0:next_dp.pop()
+ dp=next_dp
+print(max(j for j,mana in enumerate(dp) if mana>=0))
+''','Keep maximum remaining mana per summoned count. Before each later nest apply recovery capped at W+jB. Buying j-t birds costs(j-t)*cost; a sliding maximum of dp[t]+t*cost over t in[j-c,j] implements the bounded transition in linear time per layer. Negative mana states remain unreachable; handle cost0 and empty nests.'),
+320:('''import sys,itertools
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);m=next(v);edges=[]
+for _ in range(m):
+ a,b,w=next(v)-1,next(v)-1,next(v);edges.append((w,a,b))
+edges.sort();parent=list(range(n))
+def find(p,x):
+ while p[x]!=x:p[x]=p[p[x]];x=p[x]
+ return x
+answer=1
+for weight,group in itertools.groupby(edges,key=lambda x:x[0]):
+ pairs=[(find(parent,a),find(parent,b)) for _,a,b in group];pairs=[(a,b) for a,b in pairs if a!=b];roots=sorted({x for ab in pairs for x in ab});lookup={x:i for i,x in enumerate(roots)};pairs=[(lookup[a],lookup[b]) for a,b in pairs];base=list(range(len(roots)));rank=0
+ for a,b in pairs:
+  a=find(base,a);b=find(base,b)
+  if a!=b:base[a]=b;rank+=1
+ ways=0
+ for chosen in itertools.combinations(pairs,rank):
+  p=list(range(len(roots)));ok=True
+  for a,b in chosen:
+   a=find(p,a);b=find(p,b)
+   if a==b:ok=False;break
+   p[a]=b
+  ways+=ok
+ answer=answer*ways%31011
+ for a,b in pairs:
+  a=find(parent,roots[a]);b=find(parent,roots[b])
+  if a!=b:parent[a]=b
+print(answer if len({find(parent,i) for i in range(n)})==1 else 0)
+''','Kruskal contracts all lower-weight components. At each weight there are at most10edges, so enumerate rank-sized acyclic subsets; each is a maximum forest and choices multiply. Merge the whole weight class only after counting. Parallel contracted edges stay distinct; disconnected final graph has zero spanning trees.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH32.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

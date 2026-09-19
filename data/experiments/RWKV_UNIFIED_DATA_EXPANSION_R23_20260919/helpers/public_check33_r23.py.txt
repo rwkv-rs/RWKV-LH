@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,subprocess,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';rows=json.loads((D/'AUTHORED_BATCH33.json').read_text())['candidates'];files={r['ordinal']:r['candidate_path'] for r in rows}
+def run(i,s):
+ r=subprocess.run([str(R/'.venv/bin/python'),files[i]],input=s,text=True,capture_output=True,timeout=10);assert r.returncode==0,r.stderr;return r.stdout.strip()
+@functools.cache
+def win(n,k):return any(not win(n-t,2*t) for t in range(1,min(k,n-1)+1))
+queries=[(k,n) for k in range(1,30) for n in range(1,101)];expected=[sum(win(m,k) for m in range(1,n+1)) for k,n in queries];actual=list(map(int,run(357,str(len(queries))+'\n'+'\n'.join(f'{k} {n}' for k,n in queries)).split()));assert actual==expected
+stirling=[[0]*41 for _ in range(41)];stirling[0][0]=1;count=0
+# Check the exact parity expression used in the short standalone target.
+for n in range(41):
+ for m in range(41):
+  if n and m:stirling[n][m]=(stirling[n-1][m-1]+m*stirling[n-1][m])%2
+  got=int(n==0) if m==0 else 0 if n<m else int(((n-m)&((m-1)//2))==0)
+  assert got==stirling[n][m];count+=1
+assert run(389,'5 3\n')=='1'
+assert run(382,'5 2\n')=='2 3 5 8 11';assert run(382,'10 3\n')=='2 3 4 6 9 12 16 21 26 31'
+assert run(361,'6 7\n1 2\n2 1\n2 3\n1 4\n4 1\n4 5\n5 6\n')=='WDLDWL\nDWLLWL'
+assert run(385,'6\n1 1 0\n2 2 0\n2 0 3\n1 0 2\n2 1 3\n2 1 6\n')=='2\n2\n3\n2'
+(D/'PUBLIC_CROSSCHECKS_BATCH33.json').write_text(json.dumps({'misere_bruteforce_queries':len(queries),'stirling_parity_dp_cells':count,'public_samples':5,'passed':True,'not_training_rows':True,'private_cases_read':False},indent=2)+'\n');print('public crosschecks passed',len(queries),count)
