@@ -1,0 +1,7 @@
+from pathlib import Path
+import json
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');old=D/'batches/20c';rows=[r for r in json.loads((old/'TARGETS.json').read_text())['targets'] if not (old/'validation'/r['id']/'VALIDATION.json').exists()];assert [r['ordinal'] for r in rows]==[781,786,787];q=D/'batches/20e';q.mkdir();(q/'TARGETS.json').write_text(json.dumps({'targets':rows},indent=2)+'\n');(q/'RESUBMISSION_REASON.json').write_text(json.dumps({'reason':'Unexecuted after another task stopped prior batch; unchanged targets.','ordinals':[781,786,787]},indent=2)+'\n')
+x=json.loads((D/'AUTHORED_BATCH23b.json').read_text())
+for r in x['candidates']:
+ if r['ordinal']==894:r.update(checkpoint_override='CP-1f9e160b7f5c4fec',boundary_reason='Late total25313 exceeds24576. Explicit first actual write after full TASK input5613; no later information inserted.')
+(D/'BATCH23b_PREP_FAILURE.json').write_text(json.dumps({'ordinal':894,'total_tokens':25313,'limit':24576,'status':'rejected_over_context','new_registration':'23c'},indent=2)+'\n');(D/'AUTHORED_BATCH23c.json').write_text(json.dumps(x,indent=2)+'\n')

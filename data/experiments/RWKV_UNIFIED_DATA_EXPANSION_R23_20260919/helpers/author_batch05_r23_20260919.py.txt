@@ -1,0 +1,148 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+190:('''import sys
+print(bin(int(sys.stdin.read()))[2:].replace('1','2'))
+''','Ordering decimal strings over 0/2 is equivalent to ordering positive binary integers; preserve every zero and replace each binary one by two.'),
+198:('''import sys
+it=iter(sys.stdin.buffer.read().split());n=int(next(it));q=int(next(it));s=next(it);size=1
+while size<n:size*=2
+g=[(0,0,0,0,0,0)]*(2*size)
+def leaf(c):return (int(c==97),int(c==98),int(c==99),0,0,0)
+def merge(l,r):
+ a,b,c,ab,bc,abc=l;d,e,f,de,ef,def_=r
+ return a+d,b+e,c+f,min(a+de,ab+e),min(b+ef,bc+f),min(a+def_,ab+ef,abc+f)
+for i,c in enumerate(s):g[size+i]=leaf(c)
+for i in range(size-1,0,-1):g[i]=merge(g[2*i],g[2*i+1])
+out=[]
+for _ in range(q):
+ p=int(next(it))-1+size;c=next(it)[0];g[p]=leaf(c);p//=2
+ while p:g[p]=merge(g[2*p],g[2*p+1]);p//=2
+ out.append(str(g[1][5]))
+print('\\n'.join(out))
+''','Segment summaries maintain counts and minimum edits forbidding ab, bc, and abc subsequences. Every concatenation partitions a forbidden pattern at one of its possible boundaries.'),
+199:('''import sys
+v=sys.stdin.read().split();n,m,budget=map(int,v[:3]);budget=min(budget,n*m);global_dp=[0]+[-10**9]*budget
+for row in v[3:3+n]:
+ pref=[0]
+ for c in row:pref.append(pref[-1]+int(c))
+ old=[-10**9]*(m+1);old[0]=0;best=[0]
+ for k in range(1,min(m,budget)+1):
+  cur=[-10**9]*(m+1)
+  for j in range(k,m+1):
+   cur[j]=max(old[t]+max(pref[j]-pref[t],j-t-pref[j]+pref[t]) for t in range(k-1,j))
+  best.append(cur[m]);old=cur
+ new=[-10**9]*(budget+1)
+ for used,x in enumerate(global_dp):
+  if x<0:continue
+  for k,score in enumerate(best[:budget-used+1]):new[used+k]=max(new[used+k],x+score)
+ global_dp=new
+print(max(global_dp))
+''','Extending painted intervals into unpainted cells cannot reduce the score. Compute each row optimum for each number of runs, then allocate the shared stroke budget with knapsack.'),
+203:('''import sys,math
+it=iter(map(int,sys.stdin.buffer.read().split()));cases=next(it);out=[]
+for _ in range(cases):
+ n=next(it);k=next(it);d=[next(it) for _ in range(n)];lo=0;hi=min(d)*k+k*(k-1)//2
+ while lo<hi:
+  mid=(lo+hi)//2;count=0
+  for x in d:
+   b=2*x-1;count+=(math.isqrt(b*b+8*mid)-b)//2
+   if count>=k:break
+  if count>=k:hi=mid
+  else:lo=mid+1
+ out.append(str(lo))
+print('\\n'.join(out))
+''','Egg j arrives at j*D+j*(j-1)/2. Invert the quadratic with exact integer square roots, sum production, and binary-search the first sufficient time.'),
+206:('''import sys,math
+n,k=map(int,sys.stdin.read().split());multiple=1;i=1
+while i<=k:
+ multiple=math.lcm(multiple,i)
+ if multiple>n+1 or (n+1)%multiple:print('No');break
+ i+=1
+else:print('Yes')
+''','Distinct remainders modulo 1 through k force remainder i-1 at each modulus by induction. This is equivalent to lcm(1..k) dividing n+1, and the lcm bound terminates large k early.'),
+218:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,h=v[:2];dp={0:1};mod=1000000007
+for a in v[2:2+n]:
+ d=h-a;new={}
+ for opened,ways in dp.items():
+  if d!=opened and d!=opened+1:continue
+  new[d]=(new.get(d,0)+ways)%mod
+  if d>0:new[d-1]=(new.get(d-1,0)+ways*d)%mod
+ dp=new
+print(dp.get(0,0))
+''','At a position at most one interval begins and one ends. Required coverage determines whether a new interval starts; closing one of the currently open intervals supplies the multiplicity. Require no open intervals at the end.'),
+220:('''import sys
+v=sys.stdin.buffer.read().split();n=int(v[0]);s=v[1];q=int(v[2]);queries=[(int(v[3+2*i]),v[4+2*i][0]) for i in range(q)];tables={}
+for c in {c for m,c in queries}:
+ best=[0]*(n+1)
+ if c not in s:tables[c]=list(range(n+1));continue
+ for left in range(n):
+  wrong=0
+  for right in range(left,n):
+   wrong+=s[right]!=c;length=right-left+1
+   if length>best[wrong]:best[wrong]=length
+ for i in range(1,n+1):best[i]=max(best[i],best[i-1])
+ tables[c]=best
+print('\\n'.join(str(tables[c][m]) for m,c in queries))
+''','For each queried character, enumerate every substring and count required replacements. Prefix maxima turn exact replacement counts into at-most budgets, allowing constant-time repeated queries.'),
+222:('''import sys
+pairs={'A':'A','E':'3','H':'H','I':'I','J':'L','L':'J','M':'M','O':'O','S':'2','T':'T','U':'U','V':'V','W':'W','X':'X','Y':'Y','Z':'5','1':'1','2':'S','3':'E','5':'Z','8':'8'};out=[]
+for s in sys.stdin.read().split():
+ palindrome=s==s[::-1];mirror=all(pairs.get(a)==b for a,b in zip(s,s[::-1]));label=('a mirrored palindrome' if palindrome else 'a mirrored string') if mirror else ('a regular palindrome' if palindrome else 'not a palindrome');out.append(s+' -- is '+label+'.')
+print('\\n\\n'.join(out)+'\\n')
+''','Apply the explicitly listed mirror mapping and reversal independently of ordinary palindrome symmetry, retaining the four exact output labels.'),
+223:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));at=0;out=[];inf=10**9
+while at<len(v):
+ n=v[at];at+=1
+ if n<=0:break
+ g=[[] for _ in range(n)]
+ for _ in range(n-1):
+  a,b=v[at]-1,v[at+1]-1;at+=2;g[a].append(b);g[b].append(a)
+ parent=[-1]*n;order=[0];parent[0]=0
+ for x in order:
+  for y in g[x]:
+   if y!=parent[x]:parent[y]=x;order.append(y)
+ server=[0]*n;child_cover=[0]*n;parent_cover=[0]*n
+ for x in reversed(order):
+  children=[y for y in g[x] if parent[y]==x];server[x]=1+sum(min(server[y],parent_cover[y]) for y in children);base=sum(child_cover[y] for y in children);parent_cover[x]=base;child_cover[x]=min((base-child_cover[y]+server[y] for y in children),default=inf)
+ out.append(str(min(server[0],child_cover[0])))
+ if at<len(v):
+  separator=v[at];at+=1
+  if separator==-1:break
+print('\\n'.join(out))
+''','Tree DP distinguishes a server, a nonserver served by its parent, and a nonserver served by exactly one child. The latter two states forbid any additional server neighbor.'),
+227:('''import sys
+placements=[]
+def place(cols,down,up,path):
+ row=len(path)
+ if row==8:placements.append(tuple(path));return
+ for col in range(8):
+  a=1<<col;b=1<<(row+col);c=1<<(row-col+7)
+  if not(cols&a or down&b or up&c):place(cols|a,down|b,up|c,path+[col])
+place(0,0,0,[]);v=list(map(int,sys.stdin.buffer.read().split()));out=[]
+for i in range(v[0]):
+ board=v[1+64*i:65+64*i];out.append(str(max(sum(board[8*r+c] for r,c in enumerate(p)) for p in placements)))
+print('\\n'.join(out))
+''','Enumerate all nonattacking eight-queen placements once and maximize the actual eight selected cell scores independently for each board.'),
+229:('''import sys
+v=sys.stdin.read().split();at=0;out=[]
+def ip(s):
+ result=0
+ for x in s.split('.'):result=(result<<8)|int(x)
+ return result
+def fmt(x):return '.'.join(str((x>>shift)&255) for shift in (24,16,8,0))
+while at<len(v):
+ n=int(v[at]);at+=1;addresses=[ip(s) for s in v[at:at+n]];at+=n;low=min(addresses);high=max(addresses);bits=(low^high).bit_length();mask=((1<<32)-1)^((1<<bits)-1);out.extend((fmt(low&mask),fmt(mask)))
+print('\\n'.join(out))
+''','The common prefix of minimum and maximum IPv4 values is the common prefix of the entire set. Clear all lower differing bits to obtain the minimum covering network and its mask.'),
+230:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));print('\\n'.join('Case #'+str(i)+': '+str(2*n-1) for i,n in enumerate(v[1:1+v[0]],1)))
+''','A reversible chain needs symmetric copies of every off-center medicine and permits exactly one unique central medicine, giving the minimum 2*N-1 bottles.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH05.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

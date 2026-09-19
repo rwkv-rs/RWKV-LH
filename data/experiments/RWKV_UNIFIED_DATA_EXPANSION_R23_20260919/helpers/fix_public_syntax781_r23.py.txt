@@ -1,0 +1,12 @@
+from pathlib import Path
+import json,hashlib,subprocess,sys
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');p=D/'tasks/CODING-bf49e1a1955c1596f3b5edda';old=p/'candidate_01/solution.py';before=None
+try:compile(old.read_text(),str(old),'exec')
+except SyntaxError as e:before=str(e)
+assert before
+code=old.read_text().replace("print('\\n'.join(map(str,reversed(answer)))))","print('\\n'.join(map(str,reversed(answer))))");compile(code,'candidate02','exec');f=p/'candidate_02';f.mkdir();(f/'solution.py').write_text(code);a=json.loads((p/'candidate_01/AUTHOR.json').read_text());a['solution_sha256']=hashlib.sha256(code.encode()).hexdigest();(f/'AUTHOR.json').write_text(json.dumps(a,indent=2)+'\n');case='5\n3 1 9 2 7\n';actual=subprocess.run([sys.executable,str(f/'solution.py')],input=case,text=True,capture_output=True,check=True).stdout;assert actual=='2\n',actual
+(D/'PUBLIC_SYNTAX781_RED_GREEN.json').write_text(json.dumps({'before':before,'after_compile':'pass','public_input':case,'expected':'2\n','actual':actual,'original_preserved':True},indent=2)+'\n')
+x=json.loads((D/'AUTHORED_BATCH20.json').read_text())
+for r in x['candidates']:
+ if r['ordinal']==781:r['candidate_path']=str(f/'solution.py')
+(D/'AUTHORED_BATCH20b.json').write_text(json.dumps(x,indent=2)+'\n')

@@ -1,0 +1,116 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+315:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));r=next(it);c=next(it);n=next(it);points=[]
+def boundary(x,y):
+ if x==0:return y
+ if y==c:return c+x
+ if x==r:return c+r+c-y
+ if y==0:return 2*c+2*r-x
+ return None
+for i in range(n):
+ a=boundary(next(it),next(it));b=boundary(next(it),next(it))
+ if a is not None and b is not None:points.extend(((a,i),(b,i)))
+stack=[]
+for position,i in sorted(points):
+ if stack and stack[-1]==i:stack.pop()
+ else:stack.append(i)
+print('NO' if stack else 'YES')
+''','Only pairs with both endpoints on the rectangle boundary can separate other paths. In perimeter order these pairs must be nested or disjoint, checked by a stack; interior endpoints can be routed without creating a separating chord.'),
+319:('''import sys
+from collections import deque
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for case in range(1,next(it)+1):
+ m=next(it);storage=next(it);data=[tuple(next(it) for _ in range(5)) for _ in range(m)];source=2*m;sink=source+1;size=sink+1;g=[[] for _ in range(size)]
+ def add(x,y,capacity,cost):g[x].append([y,capacity,cost,len(g[y])]);g[y].append([x,0,-cost,len(g[x])-1])
+ for i,(cost,capacity,price,sales,life) in enumerate(data):
+  add(source,i,capacity,0);add(m+i,sink,sales,0)
+  for j in range(i,min(m,i+life+1)):add(i,m+j,capacity,cost+(j-i)*storage-data[j][2])
+ profit=0
+ while True:
+  d=[10**30]*size;d[source]=0;parent=[None]*size;inside=[False]*size;inside[source]=True;q=deque([source])
+  while q:
+   x=q.popleft();inside[x]=False
+   for index,(y,capacity,cost,rev) in enumerate(g[x]):
+    if capacity and d[x]+cost<d[y]:
+     d[y]=d[x]+cost;parent[y]=(x,index)
+     if not inside[y]:inside[y]=True;q.append(y)
+  if d[sink]>=0:break
+  amount=10**30;y=sink
+  while y!=source:x,index=parent[y];amount=min(amount,g[x][index][1]);y=x
+  y=sink
+  while y!=source:x,index=parent[y];edge=g[x][index];edge[1]-=amount;g[y][edge[3]][1]+=amount;y=x
+  profit-=amount*d[sink]
+ out.append('Case '+str(case)+': '+str(profit))
+print('\\n'.join(out))
+''','Production and sale month capacities form a bipartite min-cost flow network. Allowed edges respect each lot shelf life and include storage cost; augment only while a residual route increases total profit.'),
+321:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));required=sum(x<<i for i,x in enumerate(v));full=(1<<16)-1;left=sum(1<<(4*i) for i in range(4));right=left<<3;edge=left|right|15|(15<<12)
+def spread(bits):return ((bits&~left)>>1)|((bits&~right)<<1)|(bits<<4)|(bits>>4)
+def fill(seed,allowed):
+ seen=seed
+ while True:
+  new=seen|(spread(seen)&allowed)
+  if new==seen:return seen
+  seen=new
+answer=0;optional=full^required;part=optional
+while True:
+ mask=required|part
+ if fill(mask&-mask,mask)==mask:
+  outside=full^mask
+  if fill(outside&edge,outside)==outside:answer+=1
+ if part==0:break
+ part=(part-1)&optional
+print(answer)
+''','Enumerate cell subsets containing every village. A valid simple orthogonal enclosure requires one connected interior and no exterior hole; bitset flood fills check both without reading image-only details.'),
+330:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));n,m,k=v[:3];a=v[3:];residue=0;modulus=1
+for i,value in enumerate(a):
+ g=math.gcd(modulus,value);difference=-i-residue
+ if difference%g:print('NO');raise SystemExit
+ quotient=value//g;step=(difference//g*pow(modulus//g,-1,quotient))%quotient if quotient>1 else 0;residue+=modulus*step;modulus*=quotient;residue%=modulus
+ if modulus>n:print('NO');raise SystemExit
+start=residue or modulus
+print('YES' if start+k-1<=m and all(math.gcd(modulus,start+i)==x for i,x in enumerate(a)) else 'NO')
+''','Any feasible row is a multiple of all requested gcd values; its least possible choice is their lcm. Generalized CRT finds the required column residues, and exact gcd rechecks reject excessive common factors before accepting the bounded position.'),
+333:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[];prime=1000000007;exponent_mod=prime-1
+for _ in range(next(it)):
+ n=next(it);k=next(it);a=sorted(next(it) for _ in range(n));r=k-1;choose=[0]*n;value=1
+ for i in range(r,n):
+  if i>r:value=value*i//(i-r)
+  choose[i]=value%exponent_mod
+ total=choose[n-1];answer=1
+ for i,x in enumerate(a):answer=answer*pow(x,(total-choose[i]-choose[n-1-i])%exponent_mod,prime)%prime
+ out.append(str(answer))
+print('\\n'.join(out))
+''','An element contributes whenever a size-k subset contains it but does not make it the minimum or maximum. Subtract the two extreme binomial counts; compute the binomial column exactly before reducing exponents modulo p-1, avoiding invalid inverses modulo a composite.'),
+336:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];need=[0]*n;required=0
+for i in range(n-1,-1,-1):required=max(a[i]+1,required-1);need[i]=required
+marks=0;answer=0
+for i in range(n):marks=max(marks,need[i]);answer+=marks-a[i]-1
+print(answer)
+''','Future observations impose a lower bound on present mark counts because at most one new mark is added per day. Propagate those bounds backward, enforce nondecreasing counts forward, and sum marks below as total minus above minus one.'),
+342:('''import sys
+from itertools import groupby
+v=sys.stdin.read().split();n=int(v[0]);runs=[len(list(g)) for c,g in groupby(v[1])];bad=sum(runs[i]+runs[i+1]-1 for i in range(len(runs)-1));print(n*(n-1)//2-bad)
+''','Over a binary alphabet a length-at-least-two substring is bad exactly when it has two runs and one end run is a singleton. Each adjacent run pair contributes left_length+right_length-1 such substrings, subtracting the double-counted length-two case.'),
+344:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));x=next(it);k=next(it);known=[False]*(x+1)
+for _ in range(k):
+ kind=next(it);known[next(it)]=True
+ if kind==1:known[next(it)]=True
+low=0;high=0;run=0
+for i in range(1,x+1):
+ if i<x and not known[i]:run+=1
+ else:low+=(run+1)//2;high+=run;run=0
+print(low,high)
+''','Known rounds partition the unknown identifiers into independent runs. Each run can be all single Div2 rounds for the maximum or adjacent Div2/Div1 pairs plus an optional singleton for the minimum.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH08.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

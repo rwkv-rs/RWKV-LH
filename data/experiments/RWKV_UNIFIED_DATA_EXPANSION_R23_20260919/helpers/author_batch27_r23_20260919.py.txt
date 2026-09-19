@@ -1,0 +1,160 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+995:('''import sys
+w,h,a,b=map(int,sys.stdin.read().split());best=10**9
+for x,y in ((a,b),(b,a)):
+ if x>w or y>h:continue
+ count=0
+ while x<w:x*=2;count+=1
+ while y<h:y*=2;count+=1
+ best=min(best,count)
+print(best if best<10**9 else -1)
+''','Each fold can reduce one side by at most half, and any intermediate length between half and the original is attainable. Count doublings from the target to cover each original side, reject expansion, and test both rectangle orientations.'),
+997:('''import sys
+from collections import Counter
+v=list(map(int,sys.stdin.read().split()));n=v[0];a=v[1:n+1];b=v[n+1:];counts=Counter(a);duplicated=[x for x,c in counts.items() if c>1];allowed={x:any(x&y==x for y in duplicated) for x in counts};print(sum(score for x,score in zip(a,b) if allowed[x]))
+''','Every member needs another member whose known-algorithm set contains its own. Following these inclusions must reach a repeated identical set. Hence exactly the subsets of duplicated masks can participate; positive skills make including all such students optimal.'),
+1001:('''import sys,math
+v=iter(map(int,sys.stdin.read().split()));n=next(v);k=next(v);points=[(next(v),next(v)) for _ in range(n)];distance=[10**30]*n;distance[0]=0;used=[False]*n;edges=[]
+for step in range(n):
+ p=min((i for i in range(n) if not used[i]),key=distance.__getitem__);used[p]=True
+ if step:edges.append(distance[p])
+ x,y=points[p]
+ for j,(xx,yy) in enumerate(points):
+  if not used[j]:distance[j]=min(distance[j],(x-xx)**2+(y-yy)**2)
+edges.sort();print(f'{math.sqrt(edges[n-k]):.2f}')
+''','Build a Euclidean MST with dense Prim using squared distances. Removing the k-1 largest edges produces a maximum-spacing clustering; the smallest removed edge, indexed n-k in sorted MST edges, is its spacing.'),
+1002:('''import sys,math
+v=iter(sys.stdin.read().split());out=[]
+while True:
+ try:n=int(next(v))
+ except StopIteration:break
+ points=[(float(next(v)),float(next(v))) for i in range(n)]
+ def distance(i,j):return math.hypot(points[i][0]-points[j][0],points[i][1]-points[j][1])
+ if n<2:out.append('0.00');continue
+ dp=[distance(0,1)]
+ for j in range(2,n):
+  latest=min(dp[i]+distance(i,j) for i in range(j-1));edge=distance(j-1,j);dp=[x+edge for x in dp]+[latest]
+ out.append(f'{dp[-1]+distance(n-2,n-1):.2f}')
+print('\\n'.join(out))
+''','Bitonic-tourDP maintains two increasing paths covering every point through the current rightmost point. Either extend the rightmost endpoint or connect the other endpoint to the new point. Closing the final two endpoints yields the shortest permitted tour.'),
+1007:('''import sys,math
+v=iter(map(int,sys.stdin.read().split()));out=[]
+while True:
+ try:n=next(v)
+ except StopIteration:break
+ if n==0:break
+ c1=next(v);n1=next(v);c2=next(v);n2=next(v);g=math.gcd(n1,n2)
+ if n%g:out.append('failed');continue
+ a=n1//g;b=n2//g;total=n//g;x=(total*pow(a,-1,b))%b if b>1 else 0;y=(total-a*x)//b
+ if y<0:out.append('failed');continue
+ steps=y//a
+ if c1*b<c2*a:x+=steps*b;y-=steps*a
+ out.append(f'{x} {y}')
+print('\\n'.join(out))
+''','Solve the package-count Diophantine equation after dividing by the gcd. Obtain the smallest nonnegative first count by a modular inverse, then move along all nonnegative solutions toward the cheaper endpoint according to the exact linear cost slope.'),
+1008:('''import sys
+s=sys.stdin.read().strip();mod=1000000007
+if 'm' in s or 'w' in s:print(0)
+else:
+ previous=current=1
+ for i,c in enumerate(s):
+  value=current
+  if i and c in 'un' and s[i-1]==c:value=(value+previous)%mod
+  previous,current=current,value
+ print(current)
+''','Messages containing m or w cannot be generated. Otherwise every character can represent itself, and adjacent equal u or n can additionally represent w or m. PrefixDP counts these disjoint one-character and two-character endings.'),
+1010:('''import sys
+v=list(map(int,sys.stdin.read().split()));n=v[0];a=v[1:];mod=1000000007;dp=[1]
+for i in range(1,n):
+ prefix=[0]
+ for x in dp:prefix.append((prefix[-1]+x)%mod)
+ total=prefix[-1]
+ if a[i-1]>a[i]:dp=prefix
+ elif a[i-1]<a[i]:dp=[(total-x)%mod for x in prefix]
+ else:dp=[total]*(i+1)
+print(sum(dp)%mod)
+''','Every neighboring pair contributes the height of the later-cut tree, so optimality requires taller neighbors be cut first, with equal heights unconstrained. Count permutations of cut-time ranks satisfying these adjacent comparisons using prefix/suffix sums by the last rank.'),
+1011:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[];case=0
+while True:
+ try:n=next(v);m=next(v);t=next(v)
+ except StopIteration:break
+ if n==m==t==0:break
+ parent=list(range(n));degree=[0]*n
+ def find(x):
+  while parent[x]!=x:parent[x]=parent[parent[x]];x=parent[x]
+  return x
+ for _ in range(m):
+  a=next(v)-1;b=next(v)-1;degree[a]+=1;degree[b]+=1;parent[find(a)]=find(b)
+ odd={}
+ for i,d in enumerate(degree):
+  if d:root=find(i);odd[root]=odd.get(root,0)+d%2
+ trails=sum(max(1,count//2) for count in odd.values());case+=1;out.append(f'Case {case}: {(m+max(0,trails-1))*t}')
+print('\\n'.join(out))
+''','Each nonempty required-edge component decomposes into max(1,odd_degree_count/2) trails. Because the ambient graph is complete with uniform edge weight, joining all trails needs exactly one connecting edge per join. Isolated vertices require no visit.'),
+1013:('''import sys
+v=iter(sys.stdin.read().split());n=int(next(v));m=int(next(v));s=next(v);tree=[[0]*10 for _ in range(4*n)];lazy=[0]*(4*n)
+def build(p,l,r):
+ if l==r:tree[p][int(s[l])]=1;return
+ mid=(l+r)//2;build(p*2,l,mid);build(p*2+1,mid+1,r);tree[p]=[a+b for a,b in zip(tree[p*2],tree[p*2+1])]
+def rotate(p,k):
+ k%=10
+ if k:tree[p]=tree[p][-k:]+tree[p][:-k];lazy[p]=(lazy[p]+k)%10
+def update(p,l,r,a,b):
+ if a<=l and r<=b:
+  answer=sum(i*c for i,c in enumerate(tree[p]));rotate(p,1);return answer
+ if lazy[p]:rotate(p*2,lazy[p]);rotate(p*2+1,lazy[p]);lazy[p]=0
+ mid=(l+r)//2;answer=0
+ if a<=mid:answer+=update(p*2,l,mid,a,b)
+ if b>mid:answer+=update(p*2+1,mid+1,r,a,b)
+ tree[p]=[x+y for x,y in zip(tree[p*2],tree[p*2+1])];return answer
+build(1,0,n-1);out=[]
+for _ in range(m):out.append(str(update(1,0,n-1,int(next(v))-1,int(next(v))-1)))
+print('\\n'.join(out))
+''','Each segment stores a histogram of its ten digits. Incrementing modulo10 rotates the histogram, while a lazy offset composes pending rotations. Query the current weighted histogram sum before applying each range increment.'),
+1014:('''import sys
+n,m=map(int,sys.stdin.read().split());mod=998244353
+if n==2:print(0)
+else:
+ r=n-1;numerator=denominator=1
+ for i in range(1,r+1):numerator=numerator*(m-i+1)%mod;denominator=denominator*i%mod
+ print(numerator*pow(denominator,mod-2,mod)%mod*(n-2)%mod*pow(2,n-3,mod)%mod)
+''','Choose n-1 distinct values; the maximum is the unique peak. Choose one of the n-2 smaller values to duplicate once on each side, and independently assign each of the remaining n-3 values left or right. Strict order then determines each side uniquely.'),
+1019:('''import sys
+t1,t2,x1,x2,t0=map(int,sys.stdin.read().split())
+if t1==t2:print(x1,x2)
+elif t0==t1:print(x1,0)
+else:
+ cold=t0-t1;hot=t2-t0;best_a=0;best_b=x2;best_excess=hot*x2;best_total=x2
+ for b in range(1,x2+1):
+  a=min(x1,hot*b//cold);excess=hot*b-cold*a;total=a+b
+  if excess*best_total<best_excess*total or (excess*best_total==best_excess*total and total>best_total):best_a,best_b,best_excess,best_total=a,b,excess,total
+ print(best_a,best_b)
+''','For each hot-water flow, the largest feasible cold flow is closest to the target from above. Enumerate hot flow, compare temperature excess fractions by exact cross multiplication, and break ties by total flow. Equal-temperature and cold-only optima are explicit.'),
+1021:('''import sys
+v=sys.stdin.read().split();out=[]
+for s in v[1:1+int(v[0])]:
+ ok=int(s)%4==0
+ for left in range(len(s)):
+  for right in range(left+1,len(s)+1):
+   remaining=s[:left]+s[right:]
+   if remaining and int(remaining)>0 and int(remaining)%4==0:ok=True
+ out.append('Yes' if ok else 'No')
+print('\\n'.join(out))
+''','At most19 digits allow direct enumeration of every contiguous deletion interval, plus no deletion. Evaluate the remaining positive integer exactly, rejecting an empty string andzero, and test divisibility by4.'),
+1022:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+while True:
+ a=next(v);d=next(v)
+ if a==d==0:break
+ attack=[next(v) for _ in range(a)];defend=sorted(next(v) for _ in range(d));out.append('Y' if min(attack)<defend[1] else 'N')
+print('\\n'.join(out))
+''','An offside attacker exists exactly when the minimum attacking distance is strictly less than the second-smallest defending distance. Strict comparison correctly excludes equality and two tied last defenders.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH27.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

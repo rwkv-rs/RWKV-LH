@@ -1,0 +1,119 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+730:('''import sys
+cache={};out=[]
+for n in map(int,sys.stdin.read().split()):
+ if n not in cache:
+  base=10**(n//2);answer=[]
+  for root in range(base):
+   square=root*root
+   if square//base+square%base==root:answer.append(f'{square:0{n}d}')
+  cache[n]=answer
+ out.extend(cache[n])
+print('\\n'.join(out))
+''','Every qualifying number is a square below10^n; enumerate only its root below10^(n/2), split at the halfway power of10, and test the defining equality. Format with exactlyn digits including leading zeroes.'),
+731:('''import sys,heapq
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ a=next(v);b=next(v);c=next(v);n=next(v);low=[-1];high=[];total=1
+ for i in range(2,n+1):
+  x=(a*(-low[0])+b*i+c)%1000000007;total+=x
+  if x<=-low[0]:heapq.heappush(low,-x)
+  else:heapq.heappush(high,x)
+  if len(low)>len(high)+1:heapq.heappush(high,-heapq.heappop(low))
+  elif len(high)>len(low):heapq.heappush(low,-heapq.heappop(high))
+ out.append(str(total))
+print('\\n'.join(out))
+''','Two heaps maintain the lower median of all preceding terms. Keep the lower half one element larger or equal, generate each term modulo1e9+7, and sum terms without reducing the requested sum.'),
+732:('''import sys
+s,k=sys.stdin.read().split();k=int(k)
+print('impossible' if len(s)<k else max(0,k-len(set(s))))
+''','Each changed duplicate can introduce one new letter. Enough duplicates exist exactly when total string length is at leastK; otherwise reachingK distinct letters is impossible.'),
+734:('''import sys
+from collections import Counter
+lines=iter(sys.stdin.read().splitlines());words=set()
+for line in lines:
+ if line.strip()=='#':break
+ words.update(line.split())
+dictionary=[Counter(w) for w in words];out=[]
+for line in lines:
+ if line.strip()=='#':break
+ available=Counter(''.join(line.split()));out.append(str(sum(all(available[c]>=k for c,k in word.items()) for word in dictionary)))
+print('\\n'.join(out))
+''','The dictionary is supplied before the first# delimiter. Deduplicate dictionary entries and compare each word letter multiset with the puzzle multiset; letters can be unused but cannot be over-consumed.'),
+735:('''import sys
+from decimal import Decimal,localcontext,ROUND_CEILING,ROUND_HALF_UP
+out=[]
+for token in sys.stdin.read().split():
+ n=int(token)
+ with localcontext() as ctx:
+  ctx.prec=max(50,len(token)+30);z=Decimal(n)*(Decimal(2).ln()/Decimal(10).ln());e=int(z.to_integral_value(rounding=ROUND_CEILING));mantissa=(Decimal(10)**(Decimal(e)-z)).quantize(Decimal('.001'),rounding=ROUND_HALF_UP)
+  if mantissa==10:mantissa=Decimal('1.000');e-=1
+  out.append(f'2^-{n} = {mantissa:.3f}E-{e}')
+print('\\n'.join(out))
+''','Convert the exact exponent through high-precision log10(2), choose the ceiling exponent for normalized scientific notation, and round the mantissa to three decimals. Handle a rounded mantissa10 by renormalizing.'),
+737:('''import sys
+v=sys.stdin.read().split();s=v[0];t=v[1];table=list(map(int,v[2:18]));opening,extension=map(int,v[18:20]);index={c:i for i,c in enumerate('ATGC')};n=len(t);neg=-10**30
+best=[0]+[-opening-extension*(j-1) for j in range(1,n+1)];vertical=[neg]*(n+1)
+for i,x in enumerate(s,1):
+ current=[-opening-extension*(i-1)]+[neg]*n;newvertical=[neg]*(n+1);horizontal=neg
+ for j,y in enumerate(t,1):
+  newvertical[j]=max(best[j]-opening,vertical[j]-extension)
+  horizontal=max(current[j-1]-opening,horizontal-extension)
+  current[j]=max(best[j-1]+table[4*index[x]+index[y]],newvertical[j],horizontal)
+ best,vertical=current,newvertical
+print(best[-1])
+''','Global alignment DP separately tracks a gap in each sequence, charging openingA once and extensionB afterward. The overall best state allows adjacent gaps in opposite sequences as the public sample requires. Initialize prefix gaps explicitly; use linear memory.'),
+739:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+while True:
+ n=next(v);root=next(v)-1
+ if n==0:break
+ weight=[next(v) for _ in range(n)];size=[1]*n;parent=list(range(n));leader=list(range(n));alive=set(range(n));answer=sum(weight)
+ for _ in range(n-1):a=next(v)-1;b=next(v)-1;parent[b]=a
+ def find(x):
+  while leader[x]!=x:leader[x]=leader[leader[x]];x=leader[x]
+  return x
+ for _ in range(n-1):
+  chosen=-1
+  for x in alive:
+   if x!=root and (chosen<0 or weight[x]*size[chosen]>weight[chosen]*size[x]):chosen=x
+  p=find(parent[chosen]);answer+=size[p]*weight[chosen];size[p]+=size[chosen];weight[p]+=weight[chosen];leader[chosen]=p;alive.remove(chosen)
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Repeatedly merge the available nonroot block with maximum average weight into its prerequisite parent block. The scheduling exchange argument orders blocks by weight/length; merging adds parent_length*child_weight to the weighted completion cost. Compare ratios exactly by cross multiplication.'),
+740:('''import sys
+from collections import deque
+v=iter(map(int,sys.stdin.read().split()));n=next(v);m=next(v);g=[[] for _ in range(n)]
+for _ in range(m):a=next(v)-1;b=next(v)-1;g[a].append(b);g[b].append(a)
+d=[]
+for start in range(n):
+ dist=[-1]*n;dist[start]=0;q=deque([start])
+ while q:
+  x=q.popleft()
+  for y in g[x]:
+   if dist[y]<0:dist[y]=dist[x]+1;q.append(y)
+ d.append(dist)
+out=[]
+for _ in range(next(v)):
+ a=next(v)-1;b=next(v)-1;out.append(' '.join(str(x+1) for x in range(n) if d[a][x]+d[x][b]==d[a][b]))
+print('\\n'.join(out))
+''','All-pairs BFS computes unweighted shortest distances. A vertex belongs to some shortest path exactly when its two endpoint distances sum to the endpoint distance; scan vertices in increasing order.'),
+744:('''import sys
+v=iter(sys.stdin.read().split());out=[]
+for token in v:
+ n=int(token);s=next(v);stack=[0];cuts=0;deepest=-1;answer=0
+ for c in s:
+  depth=stack.pop()
+  if c=='1':cuts+=1;stack.extend((depth+1,depth+1))
+  elif depth>deepest:deepest=depth;answer=cuts
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Parse the preorder full-binary cutting tree with an explicit stack. A leaf depth determines its piece length; count encountered internal nodes and retain the count at the first leaf attaining maximum depth. No recursion limit is needed for20000-symbol inputs.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH19.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

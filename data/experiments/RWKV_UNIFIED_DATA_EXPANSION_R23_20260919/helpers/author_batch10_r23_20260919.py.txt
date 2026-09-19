@@ -1,0 +1,204 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+395:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);shift=0;low=-10**30;high=10**30
+for _ in range(n):
+ a=next(it);kind=next(it)
+ if kind==1:shift+=a;low+=a;high+=a
+ elif kind==2:low=max(low,a);high=max(high,a)
+ else:low=min(low,a);high=min(high,a)
+q=next(it);print('\\n'.join(str(min(high,max(low,next(it)+shift))) for _ in range(q)))
+''','The composition remains an additive shift clamped between two bounds. Update these three values for every operation, then answer each query once.'),
+397:('''import sys
+s,t=sys.stdin.read().split();n=len(s);m=len(t)
+if m>n:print(0);raise SystemExit
+periods=[d for d in range(1,m) if t[d:]==t[:-d]];ending=[-10**9]*(n-m+1);best=[0]*(n-m+1)
+for i in range(n-m+1):
+ value=best[i-1] if i else 0
+ if all(s[i+j]=='?' or s[i+j]==t[j] for j in range(m)):
+  candidate=1+(best[i-m] if i>=m else 0)
+  for d in periods:
+   if d>i:break
+   candidate=max(candidate,ending[i-d]+1)
+  ending[i]=candidate;value=max(value,candidate)
+ best[i]=value
+print(best[-1])
+''','A proposed occurrence must match all fixed letters. Compatible earlier occurrences either do not overlap or differ by a period of the pattern. DP over occurrence starts maximizes the count while enforcing every overlapping consistency constraint.'),
+398:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));queries=v[1:1+v[0]];wanted=set(queries);counts=[0]*10;answers={0:' '.join(map(str,counts))}
+for i in range(1,max(queries,default=0)+1):
+ for c in str(i):counts[int(c)]+=1
+ if i in wanted:answers[i]=' '.join(map(str,counts))
+print('\\n'.join(answers[i] for i in queries))
+''','Accumulate digit counts while enumerating 1 through the largest requested n, storing only requested prefix totals and preserving input case order.'),
+399:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));queries=[tuple(v[1+2*i:3+2*i]) for i in range(v[0])];limit=max((r for l,r in queries),default=1);prime=bytearray(b'\\x01')*(limit+1)
+for i in range(min(2,limit+1)):prime[i]=0
+for p in range(2,math.isqrt(limit)+1):
+ if prime[p]:prime[p*p::p]=b'\\x00'*((limit-p*p)//p+1)
+valid=[]
+for x in range(1,limit+1):
+ ok=True
+ for d in range(2,math.isqrt(x)+1):
+  if x%d==0 and (not prime[d] or not prime[x//d]):ok=False;break
+ if ok:valid.append(x)
+out=[]
+for l,r in queries:
+ values=[str(x) for x in valid if l<=x<=r];out.append(' '.join(values) if values else '-1')
+print('\\n'.join(out))
+''','Check the stated universal condition on every nontrivial divisor pair; sieve primality up to the explicit bound. One and primes satisfy the empty-divisor condition without adding an unstated composite-only restriction.'),
+400:('''import sys
+from collections import Counter
+c=Counter(sys.stdin.read().strip());k=len(c);possible=k==4 or k==3 and sum(c.values())>=4 or k==2 and min(c.values())>=2
+print('Yes' if possible else 'No')
+''','Each output must contain exactly two distinct symbols. Four distinct symbols partition directly; three require a repeated shared symbol; two require at least two copies of each. Other distinct-count cases are impossible.'),
+401:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];initial=v[2:2+n][::-1];coef=v[2+n:2+2*n];mod=4147
+def multiply(a,b):
+ c=[0]*(2*n-1)
+ for i,x in enumerate(a):
+  for j,y in enumerate(b):c[i+j]=(c[i+j]+x*y)%mod
+ for degree in range(2*n-2,n-1,-1):
+  value=c[degree]
+  for j,x in enumerate(coef):c[degree-j-1]=(c[degree-j-1]+value*x)%mod
+ return c[:n]
+result=[1]+[0]*(n-1);power=([0,1]+[0]*(n-2)) if n>1 else [coef[0]];exponent=m-1
+while exponent:
+ if exponent&1:result=multiply(result,power)
+ power=multiply(power,power);exponent//=2
+print(sum(x*y for x,y in zip(result,initial))%mod)
+''','Compute x^(m-1) modulo the recurrence characteristic polynomial with binary exponentiation, then apply the resulting linear combination to the correctly reversed initial conditions.'),
+406:('''import sys
+from itertools import accumulate
+v=list(map(int,sys.stdin.buffer.read().split()));n,budget=v[:2];items=[tuple(v[2+2*i:4+2*i]) for i in range(n)];base=min(x for x,y in items);groups=[[] for _ in range(4)]
+for price,value in items:groups[price-base].append(value)
+pref=[list(accumulate(sorted(g,reverse=True),initial=0)) for g in groups];answer=0
+for i,x in enumerate(pref[0]):
+ for j,y in enumerate(pref[1]):
+  for k,z in enumerate(pref[2]):
+   cost=i*base+j*(base+1)+k*(base+2)
+   if cost>budget:continue
+   take=min(len(pref[3])-1,(budget-cost)//(base+3));answer=max(answer,x+y+z+pref[3][take])
+print(answer)
+''','The stated global price range yields four price classes. For a chosen count from a class take its highest importance items; enumerate counts in three classes and optimally fill the fourth using nonnegative importance.'),
+407:('''import sys
+v=sys.stdin.read().split();at=0;out=[]
+while at<len(v):
+ x=float(v[at]);y=float(v[at+1]);n=int(v[at+2]);at+=3;points=[(float(v[at+2*i]),float(v[at+2*i+1])) for i in range(n+1)];at+=2*(n+1);best=float('inf');answer=points[0]
+ for (a,b),(c,d) in zip(points,points[1:]):
+  u=c-a;w=d-b;length=u*u+w*w;t=min(1,max(0,((x-a)*u+(y-b)*w)/length)) if length else 0;p=a+t*u;q=b+t*w;distance=(p-x)**2+(q-y)**2
+  if distance<best:best=distance;answer=p,q
+ out.extend(format(z,'.4f') for z in answer)
+print('\\n'.join(out))
+''','Project the point onto each segment, clamp its parameter to [0,1], and retain the globally nearest candidate. Degenerate segments reduce to their endpoint and output uses the sample four-decimal convention.'),
+408:('''import sys
+out=[];closing={')':'(',']':'[','}':'{','>':'<','*)':'(*'};opening=set(closing.values())
+for line in sys.stdin.read().splitlines():
+ stack=[];i=0;position=0;failure=None
+ while i<len(line):
+  token=line[i:i+2] if line[i:i+2] in ('(*','*)') else line[i];i+=len(token);position+=1
+  if token in opening:stack.append(token)
+  elif token in closing:
+   if not stack or stack.pop()!=closing[token]:failure=position;break
+ if failure is None and stack:failure=position+1
+ out.append('YES' if failure is None else 'NO '+str(failure))
+print('\\n'.join(out))
+''','Tokenize the two-character brackets as single positions, use a stack for the five matched kinds, and report the first wrong closing token or the end-of-input position when opens remain.'),
+409:('''import sys
+out=[]
+for n in map(int,sys.stdin.buffer.read().split()):
+ if n==0:break
+ out.append('Alice' if n%2==0 else 'Bob')
+print('\\n'.join(out))
+''','A perfect matching of an even square gives the first player a pairing strategy. For an odd square the board with the starting corner removed has a perfect matching, giving the second player the corresponding response strategy.'),
+410:('''import sys
+v=sys.stdin.read().split();s=v[1];out=[];vowels=set('aeiouy')
+for c in s:
+ if c in vowels and out and out[-1] in vowels:continue
+ out.append(c)
+print(''.join(out))
+''','Every maximal vowel run keeps its first vowel; stream the string while suppressing later adjacent vowels and retain the explicitly included y.'),
+416:('''import sys
+out=[]
+for n in map(int,sys.stdin.buffer.read().split()):
+ if n==0:break
+ lo=0;hi=1<<((n.bit_length()+5)//6)
+ while lo<hi:
+  mid=(lo+hi)//2
+  if mid**6<n:lo=mid+1
+  else:hi=mid
+ out.append('Special' if lo**6==n else 'Ordinary')
+print('\\n'.join(out))
+''','An integer is simultaneously a square and a cube exactly when it is a sixth power. Integer binary search avoids floating-point root and rounding errors.'),
+420:('''import sys
+n=int(sys.stdin.read());print(-1 if n&1 else ' '.join(str(1<<i) for i in range(n.bit_length()-1,0,-1) if n>>i&1))
+''','Uniqueness follows from binary representation; excluding 2^0 makes precisely the odd inputs impossible, and set bits give the descending decomposition.'),
+421:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));out=[]
+for i in range(v[0]):
+ n,r=v[1+2*i:3+2*i];k=min(r,n-1);out.append(str(k*(k+1)//2+int(r>=n)))
+print('\\n'.join(out))
+''','For week lengths below n, each starting column gives one distinct connected shape. All week lengths at least n contribute only the same horizontal shape, so sum 1..min(r,n-1) and add that single case when available.'),
+424:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,left,right=v[:3];dp=[1]+[0]*right
+for weight in v[3:3+n]:
+ for total in range(right,weight-1,-1):dp[total]+=dp[total-weight]
+print(sum(dp[left:right+1]))
+''','The explicit target bound is only 300, so descending 0/1 subset-sum counting is exact, efficient, and distinguishes equal-weight portions by their item identities.'),
+426:('''import sys
+lines=sys.stdin.buffer;actions=int(lines.readline());stack=[];out=[]
+for _ in range(actions):
+ parts=lines.readline().split();value=int(parts[0])
+ if value==-1:
+  index=stack[-1][2];out.append(str(len(stack)-index-1)+' '+stack[index][1]);del stack[index:]
+ elif value>0:
+  best=len(stack) if not stack or value<=stack[stack[-1][2]][0] else stack[-1][2];stack.append((value,parts[1].decode(),best))
+print('\\n'.join(out))
+''','Store each prefix minimum index on the pile, choosing the latest index on ties. A pickup reports the number above that index and removes exactly that suffix; zero-exercise books never enter the pile.'),
+431:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,q=v[:2];size=1
+while size<n:size*=2
+nodes=[[] for _ in range(2*size)]
+for i in range(q):
+ l,r,x=v[2+3*i:5+3*i];l=l-1+size;r=r+size
+ while l<r:
+  if l&1:nodes[l].append(x);l+=1
+  if r&1:r-=1;nodes[r].append(x)
+  l//=2;r//=2
+mask=(1<<(n+1))-1;answer=0;stack=[(1,1)]
+while stack:
+ index,bits=stack.pop()
+ for x in nodes[index]:bits=(bits|(bits<<x))&mask
+ if index>=size:
+  if index-size<n:answer|=bits
+ else:stack.extend(((2*index,bits),(2*index+1,bits)))
+values=[str(i) for i in range(1,n+1) if answer>>i&1];print(len(values));print(' '.join(values))
+''','Any achievable maximum is a subset sum of operations covering one position. Conversely selecting only such covering operations makes that position attain the sum and nowhere exceed it. Segment-tree path knapsacks enumerate these sums with immutable integer bitsets.'),
+433:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n=next(it);groups=next(it);a=sorted(next(it) for _ in range(n));prefix=[0]
+ for x in a:prefix.append(prefix[-1]+x)
+ def cost(l,r):
+  mid=(l+r-1)//2;return a[mid]*(mid-l)-(prefix[mid]-prefix[l])+(prefix[r]-prefix[mid+1])-a[mid]*(r-mid-1)
+ old=[0]+[10**30]*n
+ for count in range(1,min(groups,n)+1):
+  new=[10**30]*(n+1)
+  def compute(left,right,optlo,opthi):
+   if left>right:return
+   mid=(left+right)//2;best=10**30;arg=optlo
+   for split in range(optlo,min(mid-1,opthi)+1):
+    value=old[split]+cost(split,mid)
+    if value<best:best=value;arg=split
+   new[mid]=best;compute(left,mid-1,optlo,arg);compute(mid+1,right,arg,opthi)
+  compute(count,n,count-1,n-1);old=new
+ out.append(str(old[n]))
+print('\\n'.join(out))
+''','Optimal one-dimensional median clusters are contiguous after sorting. Prefix sums evaluate median deviation costs, and their Monge property enables divide-and-conquer DP over the bounded number of colors.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH10.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

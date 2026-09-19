@@ -1,0 +1,146 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+905:('''import sys
+from collections import deque
+sys.setrecursionlimit(10000)
+v=iter(sys.stdin.read().split());out=[]
+for _ in range(int(next(v))):
+ n=int(next(v));distance=float(next(v));floes=[tuple(int(next(v)) for j in range(4)) for i in range(n)];total=sum(x[2] for x in floes);source=2*n;arcs=[]
+ for i,(x,y,count,limit) in enumerate(floes):
+  arcs.append((source,2*i,count));arcs.append((2*i,2*i+1,limit))
+  for j,(xx,yy,_,__) in enumerate(floes):
+   if i!=j and (x-xx)**2+(y-yy)**2<=distance*distance+1e-9:arcs.append((2*i+1,2*j,total))
+ answer=[]
+ for target in range(n):
+  sink=2*target;g=[[] for _ in range(source+1)]
+  for a,b,c in arcs:g[a].append([b,c,len(g[b])]);g[b].append([a,0,len(g[a])-1])
+  flow=0
+  while flow<total:
+   level=[-1]*len(g);level[source]=0;q=deque([source])
+   while q:
+    a=q.popleft()
+    for b,c,r in g[a]:
+     if c and level[b]<0:level[b]=level[a]+1;q.append(b)
+   if level[sink]<0:break
+   it=[0]*len(g)
+   def dfs(a,pushed):
+    if a==sink:return pushed
+    while it[a]<len(g[a]):
+     e=g[a][it[a]];b,c,r=e
+     if c and level[b]==level[a]+1:
+      sent=dfs(b,min(c,pushed))
+      if sent:e[1]-=sent;g[b][r][1]+=sent;return sent
+     it[a]+=1
+    return 0
+   while flow<total:
+    sent=dfs(source,total-flow)
+    if not sent:break
+    flow+=sent
+  if flow==total:answer.append(str(target))
+ out.append(' '.join(answer) if answer else '-1')
+print('\\n'.join(out))
+''','Split each floe into arrival and departure nodes, limiting only departures as specified. A supersource supplies initial penguins and reachable jumps have unlimited capacity. For each candidate gathering floe use its arrival node as sink, rebuild residual capacities, and require flow equal to all penguins.'),
+906:('''import sys
+v=iter(sys.stdin.read().split());n=int(next(v));s=next(v);q=int(next(v));cache={};out=[]
+for _ in range(q):
+ budget=int(next(v));c=next(v);key=(budget,c)
+ if key not in cache:
+  left=wrong=best=0
+  for right,ch in enumerate(s):
+   wrong+=ch!=c
+   while wrong>budget:wrong-=s[left]!=c;left+=1
+   best=max(best,right-left+1)
+  cache[key]=best
+ out.append(str(cache[key]))
+print('\\n'.join(out))
+''','For each distinct repaint-budget/color query, a sliding window finds the longest interval containing at most that many mismatched characters. Cache repeated queries; at most26N distinct plans exist.'),
+907:('''import sys
+out=[]
+for n in map(int,sys.stdin.read().split()):
+ bound=1;stan=True
+ while bound<n:
+  bound*=9 if stan else 2
+  if bound>=n:break
+  stan=not stan
+ out.append('Stan wins.' if stan else 'Ollie wins.')
+print('\\n'.join(out))
+''','Optimal-play winning intervals alternate after multiplying their upper bound by9 and then2. Grow these exact integer thresholds until reaching the target, avoiding floating logarithm boundary errors.'),
+910:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ s=next(v);c=next(v);row=[next(v) for i in range(s)];last=[]
+ while row:
+  last.append(row[-1]);row=[row[i+1]-row[i] for i in range(len(row)-1)]
+ continuation=[]
+ for _ in range(c):
+  for j in range(len(last)-2,-1,-1):last[j]+=last[j+1]
+  continuation.append(str(last[0]))
+ out.append(' '.join(continuation))
+print('\\n'.join(out))
+''','Finite differences characterize the unique lowest-degree interpolating polynomial. Record each difference row final value and extend by summing upward, preserving exact integer arithmetic even when polynomial coefficients are fractional.'),
+911:('''import sys
+v=iter(sys.stdin.read().split());n=int(next(v));q=int(next(v));rows=set();cols=set();row_sum=col_sum=n*(n+1)//2;row_count=col_count=n;out=[]
+for _ in range(q):
+ op=next(v);x=int(next(v))
+ if op=='R':
+  if x in rows:out.append('0')
+  else:out.append(str(x*col_count+col_sum));rows.add(x);row_count-=1;row_sum-=x
+ else:
+  if x in cols:out.append('0')
+  else:out.append(str(x*row_count+row_sum));cols.add(x);col_count-=1;col_sum-=x
+print('\\n'.join(out))
+''','A cell remains nonzero exactly when neither its row nor column has been cleared. Track counts and index sums of uncleared rows and columns; each query sum follows directly from x+y, and repeated clears returnzero.'),
+922:('''import sys
+v=iter(map(int,sys.stdin.read().split()));n=next(v);k=next(v);a=[[next(v)-1 for j in range(n)] for i in range(n)];u,w=0,1;seen={};actors=[];target=k-1
+while (u,w) not in seen:
+ seen[u,w]=len(actors);actors.append(u)
+ if len(actors)-1==target:print(u+1);raise SystemExit
+ u,w=w,a[w][u]
+start=seen[u,w];index=start+(target-start)%(len(actors)-start);print(actors[index]+1)
+''','The deterministic state is the ordered pair of current speaker and recipient, not a single person. Detect repeated pairs and reduce the requested step by the cycle length, outputting the speaker with correct one-based indexing.'),
+926:('''import sys
+v=list(map(int,sys.stdin.read().split()));n,m=v[:2];weights=v[2:2+n];dp=[0]*(m+1);dp[0]=1
+for w in weights:
+ for x in range(m,w-1,-1):dp[x]=(dp[x]+dp[x-w])%10
+out=[]
+for w in weights:
+ remaining=dp.copy()
+ for x in range(w,m+1):remaining[x]=(dp[x]-remaining[x-w])%10
+ out.append(''.join(map(str,remaining[1:])))
+print('\\n'.join(out))
+''','Build the full0/1 subset-sum generating polynomial modulo10. For each lost item, divide out its factor(1+z^w) coefficientwise: remaining[x]=full[x]-remaining[x-w], processing upward. Equal-weight items remain distinct.'),
+927:('''import sys
+v=list(map(int,sys.stdin.read().split()));n,w=v[:2];bit=[0]*602;out=[]
+for count,score in enumerate(v[2:2+n],1):
+ p=score+1
+ while p<602:bit[p]+=1;p+=p&-p
+ rank=count-max(1,count*w//100)+1;index=0;step=512
+ while step:
+  j=index+step
+  if j<602 and bit[j]<rank:rank-=bit[j];index=j
+  step//=2
+ out.append(str(index))
+print(' '.join(out))
+''','Convert the required descending award rank into an ascending order statistic. A Fenwick tree over integer scores0..600 supports updates and binary lifting to select the cutoff. Compute percentage floors with integer multiplication and division.'),
+932:('''import sys
+n=int(sys.stdin.read());print(2*((1<<n.bit_length())-1))
+''','BothOR andXOR are bounded by the all-ones mask throughn highest bit. Choosing the highest power of2 at mostn and one less than that power attains this bound in both terms, with both operands positive because n>=2.'),
+934:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for m,n,t in zip(v,v,v):
+ dp=[-1]*(t+1);dp[0]=0
+ for x in range(1,t+1):
+  if x>=m and dp[x-m]>=0:dp[x]=max(dp[x],dp[x-m]+1)
+  if x>=n and dp[x-n]>=0:dp[x]=max(dp[x],dp[x-n]+1)
+ used=t
+ while dp[used]<0:used-=1
+ out.append(str(dp[used])+((' '+str(t-used)) if used<t else ''))
+print('\\n'.join(out))
+''','DP maximizes burgers for every exactly achievable duration. Select the greatest achievable time first to minimize waste, then its maximum count, matching the stated priority and omitting a zero-waste field.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH24.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

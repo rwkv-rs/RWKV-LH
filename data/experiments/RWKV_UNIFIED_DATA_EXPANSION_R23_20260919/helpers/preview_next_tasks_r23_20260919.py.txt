@@ -1,0 +1,5 @@
+from pathlib import Path
+import json,sys
+P=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917');rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+for i in range(int(sys.argv[1]),int(sys.argv[2])):
+ p=P/'tasks'/rows[i]['id']/'TASK.md';text=p.read_text();print('\nTASK',i,rows[i]['id'],len(text));print(text[:int(sys.argv[3])])

@@ -1,0 +1,9 @@
+from pathlib import Path
+import subprocess,sys
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919'
+for tag in sys.argv[1:]:
+ q=D/'batches'/tag
+ assert (q/'TARGETS.json').exists() and not (q/'PRE_REGISTRATION.json').exists()
+ with (q/'RUN.log').open('w') as log:r=subprocess.run([str(R/'.venv/bin/python'),str(R/'temp/freeze_expansion_batch_r23_20260919.py'),tag],cwd=R,stdout=log,stderr=subprocess.STDOUT)
+ print(tag,r.returncode,flush=True)
+ if r.returncode:raise SystemExit(r.returncode)

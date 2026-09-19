@@ -1,0 +1,218 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+967:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);m=next(v);edges=[]
+ for i in range(m):
+  a=next(v)-1;b=next(v)-1;c=next(v);edges.append((c.bit_length()-1,a,b))
+ parent=list(range(n));size=[1]*n
+ def find(x):
+  while parent[x]!=x:parent[x]=parent[parent[x]];x=parent[x]
+  return x
+ exponent=0
+ for w,a,b in sorted(edges):
+  a=find(a);b=find(b)
+  if a==b:continue
+  if size[a]<size[b]:a,b=b,a
+  parent[b]=a;size[a]+=size[b];exponent+=w
+ out.append(str(exponent+1))
+print('\\n'.join(out))
+''','Multiplication of power-of-two edge costs adds their integer exponents. Kruskal minimizes that sum, and a product2^E has exactlyE+1 positive divisors. Bit length extracts exponents exactly.'),
+968:('''import sys
+v=iter(map(int,sys.stdin.read().split()));n=next(v);polygons=[]
+for _ in range(n):polygons.append([(next(v),next(v)) for i in range(next(v))])
+result=polygons[0]
+for polygon in polygons[1:]:
+ for i,a in enumerate(polygon):
+  b=polygon[(i+1)%len(polygon)];dx=b[0]-a[0];dy=b[1]-a[1]
+  def side(p):return dx*(p[1]-a[1])-dy*(p[0]-a[0])
+  clipped=[]
+  if not result:break
+  previous=result[-1];old=side(previous)
+  for current in result:
+   value=side(current);inside=value>=-1e-9;was_inside=old>=-1e-9
+   if inside!=was_inside:
+    t=old/(old-value);clipped.append((previous[0]+t*(current[0]-previous[0]),previous[1]+t*(current[1]-previous[1])))
+   if inside:clipped.append(current)
+   previous=current;old=value
+  result=clipped
+area=abs(sum(p[0]*result[(i+1)%len(result)][1]-p[1]*result[(i+1)%len(result)][0] for i,p in enumerate(result)))/2
+print(f'{area:.3f}')
+''','A counterclockwise convex polygon is the intersection of the left half-planes of its edges. Clip the running polygon against every half-plane using segment-line intersections, then compute its shoelace area; empty intersections producezero.'),
+971:('''import sys
+from itertools import groupby
+v=sys.stdin.read().split();out=[]
+for s in v[1:1+int(v[0])]:
+ runs=[c for c,g in groupby(s)];out.append('YES' if runs==runs[::-1] else 'NO')
+print('\\n'.join(out))
+''','Operations shorten runs but cannot delete a run entirely. Thus the sequence of run characters is invariant, and a palindrome is possible exactly when that sequence is palindromic; reducing each run to one character proves sufficiency.'),
+973:('''import sys,math
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);m=next(v);a=next(v);d=next(v);divisors=[a+i*d for i in range(5)];answer=m-n+1
+ for mask in range(1,32):
+  multiple=1
+  for i in range(5):
+   if mask>>i&1:multiple=math.lcm(multiple,divisors[i])
+  count=m//multiple-(n-1)//multiple;answer+=count if mask.bit_count()%2==0 else -count
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Apply inclusion-exclusion to the five divisibility events, using least common multiples for intersections and floor differences for the inclusive interval. This also handles repeated divisors without ad-hoc cases.'),
+976:('''import sys
+sys.setrecursionlimit(100000)
+lines=sys.stdin.read().splitlines();out=[]
+for raw in lines[1:1+int(lines[0])]:
+ s=raw;p=0
+ def spaces():
+  global p
+  while p<len(s) and s[p].isspace():p+=1
+ def atom():
+  global p
+  spaces()
+  if p<len(s) and s[p]=='(':
+   p+=1;value=expression();spaces()
+   if p>=len(s) or s[p]!=')':raise ValueError
+   p+=1;return value
+  start=p
+  while p<len(s) and '0'<=s[p]<='9':p+=1
+  if p==start:raise ValueError
+  return int(s[start:p])
+ def product():
+  global p
+  value=atom();spaces()
+  while p<len(s) and s[p]=='*':p+=1;value*=atom();spaces()
+  return value
+ def expression():
+  global p
+  value=product();spaces()
+  while p<len(s) and s[p]=='+':p+=1;value+=product();spaces()
+  return value
+ try:
+  value=expression();spaces()
+  if p!=len(s):raise ValueError
+  out.append(str(value))
+ except (ValueError,RecursionError):out.append('ERROR')
+print('\\n'.join(out))
+''','Parse the stated expression grammar with recursive descent: atoms, multiplication, then addition. Require complete consumption and balanced parentheses; reject missing operands, implicit multiplication, unsupported operators, and nonnumeric tokens without evaluating arbitrary input.'),
+982:('''import sys
+k,a,b=map(int,sys.stdin.read().split());x,y=a//k,b//k
+print(x+y if a%k<=y*(k-1) and b%k<=x*(k-1) and x+y>0 else -1)
+''','Each player can win at most floor(total/k) sets. Taking both maxima leaves remainders that must fit as losing scores in the other player wins, each at mostk-1. If either remainder cannot fit even with maximum opposing wins, decreasing wins only worsens feasibility.'),
+986:('''import sys
+v=sys.stdin.read().split();n,k=map(int,v[:2]);trie=[{}]
+for s in v[2:]:
+ p=0
+ for c in s:
+  if c not in trie[p]:trie[p][c]=len(trie);trie.append({})
+  p=trie[p][c]
+win=[False]*len(trie);lose=[False]*len(trie)
+for p in range(len(trie)-1,-1,-1):
+ children=list(trie[p].values())
+ if not children:lose[p]=True
+ else:win[p]=any(not win[q] for q in children);lose[p]=any(not lose[q] for q in children)
+print('First' if win[0] and (lose[0] or k%2) else 'Second')
+''','A trie captures legal prefixes. Bottom-up normal and reversed terminal outcomes determine whether the starting player can force winning and losing a single game. If both are available the player controls the final game; if only winning is available parity matters.'),
+987:('''import sys
+v=iter(sys.stdin.read().split());out=[]
+while True:
+ try:n=int(next(v))
+ except StopIteration:break
+ m=int(next(v));awake=set(next(v));g={chr(i):set() for i in range(65,91)}
+ for i in range(m):
+  edge=next(v);a,b=edge;g[a].add(b);g[b].add(a)
+ years=0
+ while len(awake)<n:
+  new={a for a in g if a not in awake and len(g[a]&awake)>=3}
+  if not new:break
+  awake.update(new);years+=1
+ out.append(f'WAKE UP IN, {years}, YEARS' if len(awake)>=n else 'THIS BRAIN NEVER WAKES UP')
+print('\\n'.join(out))
+''','Simulate synchronous yearly rounds: newly awakened regions cannot help other regions until the next round. Sets avoid duplicate-neighbor counts, and declared region count detects isolated sleeping nodes missing from all edges.'),
+988:('''import sys
+mod=1000000007;v=iter(map(int,sys.stdin.read().split()));cases=[(next(v),next(v),next(v)) for _ in range(next(v))];maximum=max(n*m for n,m,r in cases);fact=[1]*(maximum+1)
+for i in range(1,maximum+1):fact[i]=fact[i-1]*i%mod
+inverse=[1]*(maximum+1);inverse[maximum]=pow(fact[maximum],mod-2,mod)
+for i in range(maximum,0,-1):inverse[i-1]=inverse[i]*i%mod
+def choose(n,k):return 0 if k<0 or k>n else fact[n]*inverse[k]%mod*inverse[n-k]%mod
+out=[]
+for n,m,r in cases:
+ answer=0
+ for rows in range(n+1):
+  cr=choose(n,rows)
+  for cols in range(m+1):
+   term=cr*choose(m,cols)%mod*choose((n-rows)*(m-cols),r)%mod
+   answer+=term if (rows+cols)%2==0 else -term
+ out.append(str(answer%mod))
+print('\\n'.join(out))
+''','Inclusion-exclusion over empty rows and empty columns leaves binomial((N-i)(M-j),R) placements. Precomputed factorials and modular inverses evaluate all coefficients; impossible covers naturally givezero.'),
+989:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+def floor_sum(n,m,a,b):
+ answer=0
+ while True:
+  if a>=m:answer+=(n-1)*n*(a//m)//2;a%=m
+  if b>=m:answer+=n*(b//m);b%=m
+  top=a*n+b
+  if top<m:return answer
+  n=top//m;b=top%m;m,a=a,m
+for books,people,initial in zip(v,v,v):
+ if books==people==initial==0:break
+ out.append(str(floor_sum(people,people,books,initial)))
+print('\\n'.join(out))
+''','The revenue is sum over i=0..m-1 of floor((n*i+x)/m). Euclidean floor-sum reduction computes it in logarithmic time even when m is10^15; no floating point or per-person loop is used.'),
+990:('''import sys,bisect
+v=iter(map(int,sys.stdin.read().split()));out=[]
+def groups(a):
+ result=[[] for _ in range(len(a)+1)];result[0]=[0]
+ for count,x in enumerate(a):
+  for k in range(count+1,0,-1):result[k].extend(s+x for s in result[k-1])
+ return result
+for _ in range(next(v)):
+ n=next(v);a=[next(v) for i in range(n)];left=groups(a[:n//2]);right=groups(a[n//2:]);total=sum(a);count=n//2;best=total
+ for x in right:x.sort()
+ for k,values in enumerate(left):
+  if not 0<=count-k<len(right):continue
+  other=right[count-k]
+  for s in values:
+   p=bisect.bisect_left(other,(total-2*s+1)//2)
+   for q in (p-1,p):
+    if 0<=q<len(other):best=min(best,abs(total-2*(s+other[q])))
+ out.append(str(best))
+print('\\n'.join(out))
+''','Meet in the middle enumerates subset sums grouped by selected count in each half. Choose exactly floor(n/2) coins and binary-search complementary sums nearest half the total, preserving the group-size constraint without value-sizedDP.'),
+992:('''import sys
+sys.setrecursionlimit(10000)
+v=iter(map(int,sys.stdin.read().split()));n=next(v);k=next(v);weights=[next(v) for i in range(n)];g=[[] for i in range(n)]
+for _ in range(n-1):
+ a=next(v)-1;b=next(v)-1;g[a].append(b);g[b].append(a)
+cap=k+1;bad=-10**30
+def dfs(a,parent):
+ dp=[bad]*(cap+1);dp[0]=weights[a];dp[cap]=0
+ for b in g[a]:
+  if b==parent:continue
+  child=dfs(b,a);shifted=[bad]*(cap+1)
+  for distance,value in enumerate(child):shifted[min(cap,distance+1)]=max(shifted[min(cap,distance+1)],value)
+  merged=[bad]*(cap+1)
+  for x,vx in enumerate(dp):
+   if vx==bad:continue
+   for y,vy in enumerate(shifted):
+    if vy!=bad and x+y>k:merged[min(x,y)]=max(merged[min(x,y)],vx+vy)
+  dp=merged
+ return dp
+print(max(dfs(0,-1)))
+''','TreeDP tracks the exact nearest selected-vertex distance, capped at k+1 for sufficiently far or empty choices. Shift child distances by one; merging is legal precisely when the two nearest distances sum above k. Keep the best weight for each resulting minimum distance.'),
+993:('''import sys
+v=sys.stdin.read().split();n,m=map(int,v[:2]);grid=v[2:];answer=0
+for i in range(n):
+ for j in range(m):
+  if grid[i][j]=='*' and (i==0 or grid[i-1][j]!='*') and (j==0 or grid[i][j-1]!='*'):answer+=1
+print(answer)
+''','The promised disjoint non-touching filled rectangles each have exactly one cell with neither a star above nor a star to its left. Count these upper-left corners in one pass.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH26.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

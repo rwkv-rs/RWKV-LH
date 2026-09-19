@@ -1,0 +1,119 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+939:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ k=next(v);mod=next(v);values=[next(v) for i in range(k)];poly=[1];a,b=1,2
+ for i in range(k):
+  root=a;new=[0]*(len(poly)+1)
+  for j,c in enumerate(poly):new[j]=(new[j]-root*c)%mod;new[j+1]=(new[j+1]+c)%mod
+  poly=new;a,b=b,(a+b)%mod
+ out.append(str(-sum(poly[j]*values[j] for j in range(k))%mod))
+print('\\n'.join(out))
+''','Construct the monic polynomial whose roots are the first k specified Fibonacci values. Every root power sequence satisfies its linear recurrence. Multiply that relation by each coefficient and sum; p(k+1) follows from p(1)..p(k), without reconstructing coefficients or dividing modulo M.'),
+940:('''import sys
+n,d=map(int,sys.stdin.read().split());mod=998244353;power=1;desc=pow(2,d,mod);cross=pow(2,d-2,mod) if d>=2 else 0;answer=0
+for depth in range(n):
+ h=n-1-depth;ways=desc if d<=h else 0
+ if d>=2:ways+=max(0,min(h,d-1)-max(1,d-h)+1)*cross
+ answer=(answer+power*ways)%mod;power=power*2%mod
+print(answer*2%mod)
+''','Count unordered endpoint pairs by their unique LCA. Either one endpoint is the LCA with depth D, or endpoints lie in different child subtrees at positive depths summing to D. Count feasible depth splits and multiply by the number of LCAs at each level, then double for ordered pairs.'),
+945:('''import sys
+v=list(map(int,sys.stdin.read().split()));n=v[0];a=sorted(v[1:n+1]);b=sorted(v[n+1:]);lo=left=0;hi=right=n-1;score=0
+while lo<=hi:
+ if a[hi]>b[right]:score+=100;hi-=1;right-=1
+ elif a[lo]>b[left]:score+=100;lo+=1;left+=1
+ else:
+  if a[lo]==b[right]:score+=50
+  lo+=1;right-=1
+print(score)
+''','Sorted two-ended matching: take a guaranteed strongest win, otherwise a guaranteed weakest win. If neither exists, sacrifice the weakest player against the opponent strongest; count a tie if equal. Exchange arguments preserve an optimum after each pairing.'),
+948:('''import sys
+out=[]
+for n in map(int,sys.stdin.read().split()):
+ if n==0:break
+ x=abs(n);f=['-1'] if n<0 else [];p=2
+ while p*p<=x:
+  while x%p==0:f.append(str(p));x//=p
+  p=3 if p==2 else p+2
+ if x>1:f.append(str(x))
+ out.append(str(n)+' = '+' x '.join(f))
+print('\\n'.join(out))
+''','Factor the absolute value by ascending trial divisors, prepend -1 for negative input, retain multiplicities, and stop at the zero sentinel. Integer square comparison ensures the remaining factor is prime.'),
+949:('''import sys,math
+v=iter(sys.stdin.read().replace(',',' ').split());out=[];tau=2*math.pi
+while True:
+ try:n=int(next(v))
+ except StopIteration:break
+ if not n:break
+ points=[(float(next(v)),float(next(v))) for _ in range(n)];best=1
+ for i,(x,y) in enumerate(points):
+  events=[];base=1
+  for j,(xx,yy) in enumerate(points):
+   if i==j:continue
+   dx=xx-x;dy=yy-y;dist=math.hypot(dx,dy)
+   if dist>2+1e-10:continue
+   if dist<1e-12:base+=1;continue
+   angle=math.atan2(dy,dx)%tau;delta=math.acos(min(1,dist/2));lo=(angle-delta)%tau;hi=(angle+delta)%tau
+   if lo<=hi:events.extend([(lo,-1),(hi,1)])
+   else:base+=1;events.extend([(hi,1),(lo,-1)])
+  count=base;best=max(best,count)
+  for angle,kind in sorted(events):
+   count-=kind;best=max(best,count)
+ out.append(str(best))
+print('\\n'.join(out))
+''','A maximum common overlap occurs on at least one unit-circle boundary. For each circle, every intersecting disk covers an angular interval; sweep closed intervals with entering events before leaving events. Split wraparound intervals and handle tangency inclusively. Since centers lie on the paper, projecting an exterior witness onto the square cannot increase distances.'),
+952:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);m=next(v);g=[[] for i in range(n)]
+ for i in range(m):
+  a=next(v)-1;b=next(v)-1;c=next(v);g[a].append((b,c));g[b].append((a,c))
+ value=[None]*n;ok=True
+ for root in range(n):
+  if value[root] is not None:continue
+  value[root]=0;stack=[root]
+  while stack:
+   a=stack.pop()
+   for b,c in g[a]:
+    wanted=value[a]^c
+    if value[b] is None:value[b]=wanted;stack.append(b)
+    elif value[b]!=wanted:ok=False
+ out.append('Yes' if ok else 'No')
+print('\\n'.join(out))
+''','Assign XOR potentials in each connected component. Every edge must equal the XOR of endpoint potentials; this is equivalent to every cycle having XOR zero, including self-loops and parallel-edge cycles.'),
+953:('''import sys
+v=sys.stdin.read().split();n,k=map(int,v[:2]);cards=[s.encode() for s in v[2:]];index={s:i for i,s in enumerate(cards)};answer=0
+for i,a in enumerate(cards):
+ for j in range(i+1,n):
+  b=cards[j];third=bytes(x if x==y else 236-x-y for x,y in zip(a,b))
+  if index.get(third,-1)>j:answer+=1
+print(answer)
+''','For each pair of distinct cards, the third card is uniquely determined featurewise: equal letters remain equal, unequal letters require the remaining S/E/T symbol. Look up that card and require increasing indices, counting each unordered triple exactly once.'),
+962:('''import sys
+mod=1000000007;v=iter(map(int,sys.stdin.read().split()));out=[];cache={}
+def multiply(a,b):
+ return [[sum(a[i][z]*b[z][j] for z in range(10))%mod for j in range(10)] for i in range(10)]
+for _ in range(next(v)):
+ n=next(v);k=next(v);powers=cache.setdefault(k,[[[int(abs(i-j)>=k) for j in range(10)] for i in range(10)]])
+ vector=[0]+[1]*9;exponent=n-1;bit=0
+ while exponent:
+  if bit==len(powers):powers.append(multiply(powers[-1],powers[-1]))
+  if exponent&1:vector=[sum(vector[i]*powers[bit][i][j] for i in range(10))%mod for j in range(10)]
+  exponent//=2;bit+=1
+ out.append(str(sum(vector)%mod))
+print('\\n'.join(out))
+''','Use a ten-state last-digit transition matrix allowing exactly the required adjacent differences. Initial digits exclude zero; later digits include zero. Binary exponentiation handles arbitrarily large N and cache powers by K across test cases.'),
+963:('''import sys
+v=list(map(int,sys.stdin.read().split()));n=v[0];a=v[1:];i=n-1
+while i>0 and a[i-1]<a[i]:i-=1
+print(i)
+''','Cows never moved from the front form an unchanged suffix, which must already be increasing. The longest increasing suffix can be preserved while inserting each preceding cow into its sorted position; therefore exactly the preceding prefix length moves suffice and are necessary.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH25.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

@@ -1,0 +1,124 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+592:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));t=next(v);cache={1:[0]};out=[]
+for _ in range(t):
+ a=next(v);b=next(v);n=next(v)
+ if n not in cache:
+  seq=[];x,y=0,1
+  while True:
+   seq.append(x);x,y=y,(x+y)%n
+   if x==0 and y==1:break
+  cache[n]=seq
+ seq=cache[n];out.append(str(seq[pow(a,b,len(seq))]))
+print('\\n'.join(out))
+''','Enumerate the Fibonacci residue period by the returning state (0,1), then reduce the exponentially large index with modular exponentiation. Modulus one is handled separately. The exponentiation interpretation is fixed by the public 2 3 example.'),
+594:('''import sys
+n,m,k=map(int,sys.stdin.read().split());mod=1000000007
+bad=[0]*(n+1);bad[0]=1;power=1;good=0
+for i in range(1,n+1):
+ power=power*m%mod
+ good=good*m%mod
+ if i==k:good=(good+m)%mod
+ elif i>k:good=(good+(m-1)*bad[i-k])%mod
+ bad[i]=(power-good)%mod
+print(good)
+''','An obtainable final string has a monochrome length-K run from its last stamp; conversely any such run permits stamping outward and restoring the run last. Count strings whose first length-K run appears at the last position, and extend already-valid strings. This gives an O(N) recurrence and handles K=1.'),
+603:('''import sys,bisect,math
+qs=[]
+for x in map(int,sys.stdin.read().split()):
+ if x==0:break
+ qs.append(x)
+if qs:
+ limit=1024
+ while True:
+  phi=list(range(limit+1))
+  for p in range(2,limit+1):
+   if phi[p]==p:
+    for j in range(p,limit+1,p):phi[j]-=phi[j]//p
+  sums=[0]*(limit+1);sums[1]=2
+  for i in range(2,limit+1):sums[i]=sums[i-1]+phi[i]
+  if sums[-1]>=max(qs):break
+  limit*=2
+ out=[]
+ for k in qs:
+  if k<=2:out.append(str(k-1)+'/1');continue
+  d=bisect.bisect_left(sums,k);rank=k-sums[d-1]
+  for a in range(1,d):
+   if math.gcd(a,d)==1:
+    rank-=1
+    if not rank:out.append(str(a)+'/'+str(d));break
+ print('\\n'.join(out))
+''','Group reduced fractions by denominator using Euler totients, with both 0/1 and 1/1 explicitly preceding denominator two. Binary-search cumulative counts and enumerate only the selected denominator; grow the sieve until it covers the requested ranks.'),
+605:('''import sys
+v=list(map(int,sys.stdin.read().split()));out=[]
+for n in v[1:1+v[0]]:
+ tax=0
+ for slab in range(1,6):tax+=max(0,min(250000,n-250000*slab))*(slab*5)//100
+ tax+=max(0,n-1500000)*30//100
+ out.append(str(n-tax))
+print('\\n'.join(out))
+''','Apply each marginal tax rate only to its slab, leaving the first250000 untaxed. The guaranteed multiples of100 allow exact integer tax arithmetic.'),
+609:('''import sys
+v=list(map(int,sys.stdin.read().split()));qs=v[1:1+v[0]];n=max(qs,default=0);ways=[0]*(n+1);ways[0]=1
+for i in range(1,22):
+ c=i**3
+ for x in range(c,n+1):ways[x]+=ways[x-c]
+print('\\n'.join(str(ways[x]) for x in qs))
+''','Unbounded coin-change DP iterates cube denominations outside amounts so it counts multisets of coins rather than payment order. Honor the source explicit test-count input.'),
+610:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);prefix=0;minimum=0;min_count=1;best=None;count=0
+ for i in range(n):
+  prefix+=next(v);value=prefix-minimum
+  if best is None or value>best:best=value;count=min_count
+  elif value==best:count+=min_count
+  if prefix<minimum:minimum=prefix;min_count=1
+  elif prefix==minimum:min_count+=1
+ out.append(str(best)+' '+str(count))
+print('\\n'.join(out))
+''','For each right endpoint, subtract the smallest earlier prefix and count all occurrences of that prefix. Update the earlier-prefix table only afterward, excluding empty subarrays and correctly counting ties and all-negative inputs.'),
+611:('''import sys
+from collections import deque
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);m=next(v);adj=[[] for _ in range(n)]
+for i in range(m):
+ a=next(v)-1;b=next(v)-1;adj[a].append((b,i))
+def bfs(skip):
+ d=[-1]*n;p=[None]*n;d[0]=0;q=deque([0])
+ while q:
+  x=q.popleft()
+  if x==n-1:break
+  for y,e in adj[x]:
+   if e!=skip and d[y]<0:d[y]=d[x]+1;p[y]=(x,e);q.append(y)
+ return d[-1],p
+base,parent=bfs(-1);answer=[base]*m
+if base>=0:
+ x=n-1;path=[]
+ while x:
+  x,e=parent[x];path.append(e)
+ for e in path:answer[e]=bfs(e)[0]
+print('\\n'.join(map(str,answer)))
+''','Deleting an edge outside one fixed shortest path cannot change that path. Rerun BFS only for edges on the chosen path, at most N-1, and identify edges individually.'),
+614:('''import sys,math
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);m=next(v);cost=[next(v) for _ in range(n)];neighbors=[[] for _ in range(n)]
+ for j in range(m):
+  a=next(v);b=next(v)-1;neighbors[b].append(a)
+ groups={}
+ for c,s in zip(cost,neighbors):
+  if s:
+   key=tuple(sorted(s));groups[key]=groups.get(key,0)+c
+ g=0
+ for x in groups.values():g=math.gcd(g,x)
+ out.append(str(g))
+print('\\n'.join(out))
+''','Right vertices with identical nonempty left-neighbor sets always contribute together. Inclusion-exclusion over queried left subsets recovers each such class sum, so the gcd of all union sums equals the gcd of these class sums. Empty-neighbor vertices never contribute; exact sorted tuples avoid hash-collision logic.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH14.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

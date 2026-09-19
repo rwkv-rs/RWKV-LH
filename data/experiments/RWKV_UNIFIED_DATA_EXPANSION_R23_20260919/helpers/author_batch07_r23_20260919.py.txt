@@ -1,0 +1,126 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+188:('''import sys,math
+v=sys.stdin.read().split();s=v[0];budget=int(v[1]);n=len(s);letters='KEY';positions=[[i for i,c in enumerate(s) if c==letter] for letter in letters];totals=list(map(len,positions))
+if budget>=n*(n-1)//2:
+ answer=math.factorial(n)
+ for total in totals:answer//=math.factorial(total)
+ print(answer);raise SystemExit
+before=[]
+for p in range(n):before.append([sum(x<p for x in arr) for arr in positions])
+dp={(0,0,0):{0:1}}
+for step in range(n):
+ new={}
+ for used,counts in dp.items():
+  for kind in range(3):
+   if used[kind]==totals[kind]:continue
+   p=positions[kind][used[kind]];cost=p-sum(min(used[j],before[p][j]) for j in range(3));key=list(used);key[kind]+=1;key=tuple(key);out=new.setdefault(key,{})
+   for old,ways in counts.items():
+    target=old+cost
+    if target<=budget:out[target]=out.get(target,0)+ways
+ dp=new
+print(sum(dp.get(tuple(totals),{}).values()))
+''','Match equal characters in their original order to minimize adjacent swaps. Appending the next occurrence costs the number of still-unselected positions preceding it; count distinct outputs by three used counts and exact inversion budget.'),
+272:('''import sys,math,functools
+v=list(map(int,sys.stdin.buffer.read().split()));a=v[1:];flipped=False
+while True:
+ even=sum(x%2==0 for x in a)
+ if even%2:win=True;break
+ odds=[i for i,x in enumerate(a) if x%2]
+ if len(odds)!=1 or a[odds[0]]==1:win=False;break
+ a[odds[0]]-=1;g=functools.reduce(math.gcd,a);a=[x//g for x in a];flipped=not flipped
+print('First' if win!=flipped else 'Second')
+''','Odd parity of even entries gives a winning decrement. With even parity, only a unique odd entry above one can change the gcd/parity structure; decrement it, normalize, and invert whose turn wins. Multiple odd entries or an immovable one are losing in that parity.'),
+273:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];up=[1]*n;down=[0]*n
+for i in range(n):
+ for j in range(i):
+  if a[j]>a[i]:down[i]=max(down[i],up[j]+1)
+  elif a[j]<a[i] and down[j]:up[i]=max(up[i],down[j]+1)
+print(max(max(up),max(down)))
+''','Two subsequence states distinguish odd-position peaks from even-position troughs. The first transition is strictly downward and every later comparison alternates, so equal heights never extend a sequence.'),
+282:('''import sys,datetime
+x,y=map(int,sys.stdin.read().split());print(sum(datetime.date(year,11,11).weekday()>=5 for year in range(x,y+1)))
+''','Use the Gregorian calendar over the explicitly bounded years 1900..3000 and count November 11 on Saturday or Sunday inclusively.'),
+284:('''import sys,heapq
+from collections import defaultdict
+v=list(map(int,sys.stdin.buffer.read().split()));events=defaultdict(list)
+for i in range(0,len(v),3):
+ l,h,r=v[i:i+3];events[l].append((-h,r));events[r]
+heap=[(0,float('inf'))];last=0;out=[]
+for x in sorted(events):
+ for event in events[x]:heapq.heappush(heap,event)
+ while heap[0][1]<=x:heapq.heappop(heap)
+ height=-heap[0][0]
+ if height!=last:out.extend((str(x),str(height)));last=height
+print(' '.join(out))
+''','Sweep all building endpoints, maintain the tallest still-active building in a heap, and emit exactly those coordinates at which the visible height changes.'),
+287:('''import sys
+from collections import Counter
+v=sys.stdin.buffer.read().split();at=0;out=[]
+while at<len(v):
+ n=int(v[at]);m=int(v[at+1]);at+=2
+ if n==m==0:break
+ counts=Counter(Counter(v[at:at+n]).values());at+=n;out.extend(str(counts[i]) for i in range(1,n+1))
+print('\\n'.join(out))
+''','First count identical DNA strings, then count how many distinct strings have each multiplicity; include all zero frequency bins through n.'),
+294:('''import sys,re,bisect
+lines=sys.stdin.read().splitlines();n=int(lines[0]);stack=[(-2**31,2**31-1)];assignments=[];coordinates={-2**31,2**31}
+for line in lines[1:n+1]:
+ s=line.strip()
+ if s.startswith('if'):
+  value=int(re.search(r'\\d+',s).group());low,high=stack[-1]
+  if '>' in s:low=max(low,value+1)
+  else:high=min(high,value-1)
+  stack.append((low,high))
+ elif s.startswith('}') :stack.pop()
+ else:
+  value=int(re.search(r'\\d+',s).group());low,high=stack[-1]
+  if low<=high:assignments.append((low,high,value));coordinates.update((low,high+1))
+coordinates=sorted(coordinates);values=[0]*(len(coordinates)-1)
+for low,high,value in assignments:
+ left=bisect.bisect_left(coordinates,low);right=bisect.bisect_left(coordinates,high+1)
+ for i in range(left,right):values[i]=value
+print(' '.join(map(str,sorted(set(values)))))
+''','Nested conditions intersect intervals of the immutable int32 input x. Collect assignments with their feasible intervals and replay them on coordinate-compressed regions; later writes override earlier ones exactly.'),
+297:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));cache={1:1};out=[]
+def length(x):
+ path=[]
+ while x not in cache:path.append(x);x=3*x+1 if x%2 else x//2
+ value=cache[x]
+ for p in reversed(path):value+=1;cache[p]=value
+ return value
+for i in range(0,len(v),2):
+ a,b=v[i:i+2];out.append(str(a)+' '+str(b)+' '+str(max(length(x) for x in range(min(a,b),max(a,b)+1))))
+print('\\n'.join(out))
+''','Memoize inclusive Collatz cycle lengths, inspect every integer between the endpoints, and preserve the original endpoint order in output.'),
+300:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];answer=[0]*(n+1)
+for left in range(n):
+ counts=[0]*(n+1);best=0;frequency=0
+ for right in range(left,n):
+  color=a[right];counts[color]+=1;value=counts[color]
+  if value>frequency or value==frequency and color<best:best=color;frequency=value
+  answer[best]+=1
+print(' '.join(map(str,answer[1:])))
+''','Enumerate intervals by fixed left endpoint; one arriving color is the only possible new mode. Track count ties with the required smaller-color priority and accumulate each interval once.'),
+310:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];rows=[]
+for i in range(n):
+ bits=0
+ for j in range(n):bits|=v[1+i*n+j]<<j
+ rows.append(bits)
+for k in range(n):
+ bit=1<<k;reachable=rows[k]
+ for i in range(n):
+  if rows[i]&bit:rows[i]|=reachable
+print('\\n'.join(' '.join(str((row>>j)&1) for j in range(n)) for row in rows))
+''','Bitset Warshall propagates directed reachability through each intermediate vertex. Diagonal entries become one only through actual nonempty cycles, matching the sample convention.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH07.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

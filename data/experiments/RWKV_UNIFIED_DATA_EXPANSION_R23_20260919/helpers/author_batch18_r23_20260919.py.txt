@@ -1,0 +1,116 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+702:('''import sys
+from collections import deque
+v=sys.stdin.buffer.read().split();h=int(v[0]);w=int(v[1]);grid=v[2:];d=[10**9]*(h*w);d[0]=0;q=deque([(0,0)]);offsets=[(a,b) for a in range(-2,3) for b in range(-2,3) if (a or b) and not(abs(a)==2 and abs(b)==2)]
+while q:
+ p,old=q.popleft()
+ if old!=d[p]:continue
+ if p==h*w-1:break
+ x,y=divmod(p,w)
+ for a,b in ((0,1),(0,-1),(1,0),(-1,0)):
+  xx=x+a;yy=y+b
+  if 0<=xx<h and 0<=yy<w and grid[xx][yy]==46:
+   z=xx*w+yy
+   if d[z]>old:d[z]=old;q.appendleft((z,old))
+ for a,b in offsets:
+  xx=x+a;yy=y+b
+  if 0<=xx<h and 0<=yy<w:
+   z=xx*w+yy
+   if d[z]>old+1:d[z]=old+1;q.append((z,old+1))
+print(d[-1])
+''','Use0-1BFS: neighboring open squares cost0, while one punch can connect to offsets in the5x5 neighborhood except the four far corners. This represents the2x2 square reached by punching next to the current route, without an exponential persistent-wall state.'),
+704:('''import sys
+v=list(map(int,sys.stdin.read().split()));truck=v[8:12];answer=0
+for a,b,c,d in (v[:4],v[4:8]):answer+=(c-a)*(d-b)-max(0,min(c,truck[2])-max(a,truck[0]))*max(0,min(d,truck[3])-max(b,truck[1]))
+print(answer)
+''','The two billboards have disjoint interiors, so subtract each intersection with the truck independently from its area. Clamp intersection widths and heights to zero for disjoint or touching rectangles.'),
+709:('''import sys
+from collections import deque
+v=sys.stdin.read().split();n=int(v[0]);k=int(v[1]);s=v[2];distance=[-1]*n;color=list(s);q=deque()
+for i in range(n):
+ if s[i]==s[(i-1)%n] or s[i]==s[(i+1)%n]:distance[i]=0;q.append(i)
+while q:
+ i=q.popleft()
+ for j in ((i-1)%n,(i+1)%n):
+  if distance[j]<0:distance[j]=distance[i]+1;color[j]=color[i];q.append(j)
+print(''.join(color[i] if 0<=distance[i]<=k else ('B' if s[i]=='W' else 'W') if k%2 else s[i] for i in range(n)))
+''','Equal neighboring chips are permanent stable sources whose color spreads one position per iteration. Multi-source BFS finds stabilization time and color; before stabilization a chip alternates each step. An entirely alternating circle has no sources and simply flips by parity.'),
+712:('''import sys
+from collections import deque
+v=iter(map(int,sys.stdin.read().split()));n=next(v);moves=[]
+for _ in range(2):moves.append([next(v) for j in range(next(v))])
+state=[[0]*n for _ in range(2)];remaining=[[len(moves[p])]*n for p in range(2)];q=deque()
+for p in range(2):state[p][0]=-1;q.append((p,0))
+while q:
+ p,x=q.popleft();other=1-p
+ for step in moves[other]:
+  y=(x-step)%n
+  if state[other][y]:continue
+  if state[p][x]==-1:state[other][y]=1;q.append((other,y))
+  else:
+   remaining[other][y]-=1
+   if remaining[other][y]==0:state[other][y]=-1;q.append((other,y))
+for p in range(2):print(' '.join({0:'Loop',1:'Win',-1:'Lose'}[x] for x in state[p][1:]))
+''','Retrograde game analysis starts with the black hole as losing for the player whose turn would follow entry. A predecessor of a losing state wins; a predecessor loses only when all moves lead to wins. Unresolved states allow indefinite play and areLoop.'),
+716:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);d=next(v);a=[next(v)-1 for i in range(n)]
+ if any((x-i)%d for i,x in enumerate(a)):out.append('-1');continue
+ answer=0
+ for r in range(d):
+  group=a[r::d];bit=[0]*(len(group)+1);seen=0
+  for x in group:
+   p=x//d+1;z=p;count=0
+   while z:count+=bit[z];z-=z&-z
+   answer+=seen-count;seen+=1
+   while p<len(bit):bit[p]+=1;p+=p&-p
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Allowed swaps preserve value residues moduloD, so every position must already contain the correct residue. Within each residue class, swaps are adjacent in value order; the minimum count is its permutation inversion count, equal for the inverse permutation. Fenwick trees sum these in O(NlogN).'),
+725:('''import sys,math
+v=list(map(int,sys.stdin.read().split()));n=v[0];p=[x-1 for x in v[1:n+1]];q=[x-1 for x in v[n+1:2*n+1]];cid=[-1]*n;pos=[0]*n;lengths=[]
+for start in range(n):
+ if cid[start]>=0:continue
+ c=len(lengths);x=start;length=0
+ while cid[x]<0:cid[x]=c;pos[x]=length;length+=1;x=q[x]
+ lengths.append(length)
+answer=0;modulus=1;ok=True
+for i,x in enumerate(p):
+ if cid[i]!=cid[x]:ok=False;break
+ m=lengths[cid[i]];r=(pos[i]-pos[x])%m;g=math.gcd(modulus,m)
+ if (r-answer)%g:ok=False;break
+ reduced=m//g
+ if reduced>1:answer+=modulus*((r-answer)//g*pow(modulus//g,-1,reduced)%reduced)
+ modulus*=reduced;answer%=modulus
+print(answer if ok else -1)
+''','Each value must remain in the target index cycle ofQ, and its required number of transitions gives a congruence modulo that cycle length. Merge all congruences with generalized CRT, rejecting incompatible residues and returning the least nonnegative solution.'),
+727:('''import sys
+from collections import Counter
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ count=Counter(next(v) for i in range(next(v)))
+ out.extend(f'{x}: {count[x]}' for x in sorted(count))
+print('\\n'.join(out))
+''','Equal contribution counts correspond to equal shades. Count frequencies and emit shade: frequency in ascending shade intensity, using the exact public output format.'),
+729:('''import sys
+v=sys.stdin.read().split();out=[];weights={'x':2,'y':4,'z':10}
+for s in v[1:1+int(v[0])]:
+ stack=[0];i=0
+ while i<len(s):
+  c=s[i];i+=1
+  if c=='(':stack.append(0);continue
+  value=stack.pop() if c==')' else weights[c];j=i
+  while i<len(s) and s[i].isdigit():i+=1
+  multiplier=int(s[j:i]) if i>j else 1;stack[-1]+=value*multiplier
+ out.append(str(stack[0]))
+print('\\n'.join(out))
+''','A stack holds subtotals for nested parentheses. Apply an optional multi-digit multiplier immediately after each atom or closed group, with default1 and the source weights2,4,10.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH18.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

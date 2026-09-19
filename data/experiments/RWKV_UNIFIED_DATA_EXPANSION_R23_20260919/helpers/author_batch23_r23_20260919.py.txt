@@ -1,0 +1,124 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+878:('''import sys
+s=sorted(sys.stdin.read().strip(),reverse=True);n=len(s);best=0
+for mask in range(1,(1<<n)-1):
+ a=b=0
+ for i,c in enumerate(s):
+  if mask>>i&1:a=10*a+int(c)
+  else:b=10*b+int(c)
+ if a and b:best=max(best,a*b)
+print(best)
+''','For any partition of digits, descending order maximizes each positive factor independently. Enumerate all nonempty proper subsets, construct both factors in descending order, and reject zero factors; no leading zero remains when a factor is positive.'),
+880:('''import sys
+seen=set();parts=[]
+for line in sys.stdin:
+ s=line.rstrip('\\r\\n')
+ if s=='0':break
+ if s not in seen:seen.add(s);parts.append(s)
+print(''.join(parts))
+''','Retain the first occurrence of each complete input line, preserve order and line contents, stop only at the exact line0, and concatenate without separators.'),
+887:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ x=next(v);y=next(v);n=next(v);out.append(str(pow(x,y,n)))
+print('\\n'.join(out))
+''','Read the explicit case count, evaluate modular powers exactly, and leave the source documented trailing sentinel0 outside the case loop. This input contract differs from EOF-separated triples.'),
+890:('''import sys
+rows=[list(map(int,line.strip().split(','))) for line in sys.stdin if line.strip()];dp=rows[0]
+for row in rows[1:]:
+ if len(row)>len(dp):dp=[x+max(dp[j-1] if j else -10**20,dp[j] if j<len(dp) else -10**20) for j,x in enumerate(row)]
+ else:dp=[x+max(dp[j],dp[j+1]) for j,x in enumerate(row)]
+print(dp[0])
+''','Parse comma-separated rows of the diamond. On widening rows, a cell receives from the two possible upper neighbors; on narrowing rows, it receives from the adjacent pair above. Dynamic programming retains the maximum sum to each cell.'),
+891:('''import sys
+v=sys.stdin.read().split();s=v[0];k=int(v[1]);x=y=0;points={(0,0)};step={'L':(-1,0),'R':(1,0),'U':(0,-1),'D':(0,1)}
+for c in s:dx,dy=step[c];x+=dx;y+=dy;points.add((x,y))
+dx,dy=x,y
+if dx==0 and dy==0:print(len(points));raise SystemExit
+if dx==0:points={(y,x) for x,y in points};dx,dy=dy,dx
+if dx<0:points={(-x,y) for x,y in points};dx=-dx
+groups={}
+for x,y in points:
+ q,r=divmod(x,dx);groups.setdefault((r,y-q*dy),[]).append(q)
+answer=0
+for values in groups.values():
+ values.sort();left=values[0];right=left+k
+ for q in values[1:]:
+  if q>right:answer+=right-left;left=q;right=q+k
+  else:right=max(right,q+k)
+ answer+=right-left
+print(answer)
+''','One traversal produces a finite visited set and displacement vector. Group points by their residue modulo this translation; K repeats turn each point into an integer interval along its group. Merge intervals exactly. Zero displacement simply repeats the same visited set.'),
+892:('''import sys,heapq
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);a=sorted((next(v),next(v)) for i in range(n));heap=[];paid=0;cost=0
+ for i in range(n-1,-1,-1):
+  threshold,price=a[i];heapq.heappush(heap,price)
+  while paid+i<threshold:cost+=heapq.heappop(heap);paid+=1
+ out.append(str(cost))
+print('\\n'.join(out))
+''','Process voter thresholds descending. The i lower-threshold voters can eventually join freely; when these plus already purchased votes do not satisfy the current threshold, buy the cheapest available vote among the processed high-threshold voters. A minheap implements the exchange-optimal choice.'),
+894:('''import sys
+v=list(map(int,sys.stdin.read().split()));n,k=v[:2];mod=1000000007;dp=[0]*(k+1);dp[0]=1
+for cap in v[2:2+n]:
+ nd=[0]*(k+1);window=0
+ for x in range(k+1):
+  window+=dp[x]
+  if x>cap:window-=dp[x-cap-1]
+  window%=mod;nd[x]=window
+ dp=nd
+print(dp[k])
+''','Bounded composition DP uses a sliding prefix-sum window of widtha_i+1 for each child, reducing the naive extra candy loop toO(NK) while preserving distinct allocations and theK=0 case.'),
+895:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ ident=next(v);base=next(v);x=next(v);y=next(v);answer=0;place=1
+ while x or y:answer+=((x%base+y%base)%base)*place;x//=base;y//=base;place*=base
+ out.append(str(ident)+' '+str(answer))
+print('\\n'.join(out))
+''','Perform addition independently at each base-B digit without carrying, reconstruct the decimal integer, and preserve the dataset identifier supplied in each input row.'),
+901:('''import sys,heapq
+v=sys.stdin.read().split();children=[{}];depth=[0];terminal=[False]
+for word in v[1:1+int(v[0])]:
+ p=0
+ for c in word:
+  if c not in children[p]:children[p][c]=len(children);children.append({});depth.append(depth[p]+1);terminal.append(False)
+  p=children[p][c]
+ terminal[p]=True
+heaps=[None]*len(children)
+for p in range(len(children)-1,-1,-1):
+ group=[heaps[c] for c in children[p].values()];heap=max(group,key=len) if group else []
+ for other in group:
+  if other is not heap:
+   for value in other:heapq.heappush(heap,value)
+ if terminal[p]:heapq.heappush(heap,-depth[p])
+ elif p and heap:heapq.heapreplace(heap,-depth[p])
+ heaps[p]=heap
+print(-sum(heaps[0]))
+''','Bottom-up trie optimization retains one selected prefix per original word. At an unused nonroot trie node, shorten the deepest selected descendant to this node; terminals already occupy it. Merge maxheaps small-to-large so choices remain globally minimal without collisions.'),
+902:('''import sys
+lines=iter(sys.stdin.read().splitlines());t=int(next(lines));out=[]
+for _ in range(t):
+ recording=next(lines).split();known=set()
+ for line in lines:
+  if line=='what does the fox say?':break
+  known.add(line.split(' goes ',1)[1])
+ out.append(' '.join(sound for sound in recording if sound not in known))
+print('\\n'.join(out))
+''','Collect the known animal sounds until the exact question delimiter, then filter the original recording while retaining its ordering and repeated unknown sounds. No inferred animal vocabulary is needed.'),
+903:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[];case=0
+for n in v:
+ if n==0:break
+ heights=[next(v) for _ in range(n)];average=sum(heights)//n;moves=sum(max(0,h-average) for h in heights);case+=1;out.append(f'Set #{case}\\nThe minimum number of moves is {moves}.')
+print('\\n\\n'.join(out))
+''','Every brick above the average must move once and can fill a deficit elsewhere, so the sum of positive deviations is both a lower bound and achievable. Preserve numbered-set output and the zero terminator.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH23.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

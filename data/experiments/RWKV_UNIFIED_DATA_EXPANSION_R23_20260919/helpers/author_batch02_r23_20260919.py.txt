@@ -1,0 +1,99 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+125:('''import sys
+v=sys.stdin.read().split();pattern=v[0];n=int(v[1]);matched=[s for s in v[2:2+n] if all(a=='*' or a==b for a,b in zip(pattern,s))]
+print(len(matched))
+if matched:print('\\n'.join(matched))
+''','Nine-position wildcard comparison preserves database order; count and outputs follow exactly the visible contract.'),
+127:('''import sys,math
+v=list(map(int,sys.stdin.buffer.read().split()));mod=1000000007;out=[]
+for i in range(v[0]):
+ a,b=sorted(v[1+2*i:3+2*i]);answer=0
+ if b==25 and 0<=a<=23:answer=math.comb(24+a,a)%mod
+ elif a>=24 and b==a+2:answer=math.comb(48,24)*pow(2,a-24,mod)%mod
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Before deuce the final point is forced and earlier points are unconstrained; after 24:24 every nonterminal pair splits points, then winner takes two.'),
+131:('''import sys
+from collections import Counter
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];g=[[] for _ in range(n)]
+for i in range(n-1):
+ a,b=v[1+2*i]-1,v[2+2*i]-1;g[a].append(b);g[b].append(a)
+parent=[-1]*n;depth=[0]*n;queue=[0]
+for a in queue:
+ for b in g[a]:
+  if b!=parent[a]:parent[b]=a;depth[b]=depth[a]+1;queue.append(b)
+x,y=v[-2]-1,v[-1]-1;dx,dy=depth[x],depth[y]
+while depth[x]>depth[y]:x=parent[x]
+while depth[y]>depth[x]:y=parent[y]
+while x!=y:x=parent[x];y=parent[y]
+print(max(depth)+1);print(max(Counter(depth).values()));print(2*(dx-depth[x])+dy-depth[x])
+''','Rooted BFS gives node-level depth and width. Ascend to LCA; upward edges cost two and downward edges cost one.'),
+132:('''import sys
+v=sys.stdin.read().split();n,m=map(int,v[:2]);special=set(map(int,v[2:2+n]));posts=[]
+for i in range(m):
+ f,p,s=v[2+n+3*i:5+n+3*i];posts.append((int(f) in special,int(p),s))
+posts.sort(reverse=True);print('\\n'.join(s for _,_,s in posts))
+''','Sort by special-friend membership first, popularity second; distinct popularities make output unique.'),
+135:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];prob=v[1:1+n];mod=998244353;inv100=pow(100,mod-2,mod);values=sorted(set(prob)-{0});index={p:i for i,p in enumerate(values)};ps=[p*inv100%mod for p in values];history=[0]*len(ps);inverses={p:pow((100-p)*inv100%mod,mod-2,mod) for p in set(prob)};answer=0
+for p in prob:
+ increment=1 if p==0 else (1+history[index[p]])*inverses[p]%mod
+ answer=(answer+increment)%mod
+ history=[(s+q*increment)*q%mod for q,s in zip(ps,history)]
+print(answer)
+''','Let D_i be time from height i-1 to i. D_i=(1+sum(D_j*p_i^(i-j+1),j<i))/(1-p_i). Maintain these sums for the at most 99 nonzero percentage values; sum increments.'),
+137:('''import sys
+v=sys.stdin.read().split();n=int(v[0]);s=v[1];runs=[];days=n;i=0
+while i<n:
+ if s[i]=='0':i+=1;continue
+ j=i
+ while j<n and s[j]=='1':j+=1
+ length=j-i;runs.append(length);days=min(days,length-1 if i==0 or j==n else (length-1)//2);i=j
+width=2*days+1;print(sum((length+width-1)//width for length in runs))
+''','Longest feasible common spread duration is limited by each infected run and its boundary position. For that duration each initial infection covers at most 2d+1 consecutive infected cows.'),
+141:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];counts=[0]*4
+for age in v[1:1+n]:counts[0 if age<=18 else 1 if age<=35 else 2 if age<=60 else 3]+=1
+for count in counts:
+ hundredths=(count*20000+n)//(2*n);print(f'{hundredths//100}.{hundredths%100:02d}%')
+''','Inclusive age boundaries are 18/35/60. Integer round-half-up computes percentage hundredths and avoids accidental binary-float rounding.'),
+142:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,c=v[:2];stairs=v[2:n+1];elevator=v[n+1:];walk=0;ride=c;out=[0]
+for a,b in zip(stairs,elevator):walk,ride=min(walk,ride)+a,min(ride,walk+c)+b;out.append(min(walk,ride))
+print(*out)
+''','Two-state DP preserves whether elevator entry has been paid; leaving elevator is free and reentry pays c. All travel costs positive so backtracking cannot improve.'),
+147:('''import sys
+from collections import Counter
+v=list(map(int,sys.stdin.buffer.read().split()));counts=Counter(v[1:1+v[0]]);mod=1000000007;answer=0
+for side,c in counts.items():
+ if c<2:continue
+ pairs=0
+ for left in range(1,(side+1)//2):pairs+=counts.get(left,0)*counts.get(side-left,0)
+ if side%2==0:
+  half=counts.get(side//2,0);pairs+=half*(half-1)//2
+ answer=(answer+c*(c-1)//2*pairs)%mod
+print(answer)
+''','Four positive sticks forming three equal sides must have two whole sides of length s and one split pair summing to s. Count unordered choices with multiplicity.'),
+149:('''import sys
+out=[];case=0
+for n in map(int,sys.stdin.buffer.read().split()):
+ if n==0:break
+ x=n;parts=[];p=2
+ while p*p<=x:
+  if x%p==0:
+   power=1
+   while x%p==0:x//=p;power*=p
+   parts.append(power)
+  p=3 if p==2 else p+2
+ if x>1:parts.append(x)
+ answer=sum(parts)+(2-len(parts) if len(parts)<2 else 0);case+=1;out.append(f'Case {case}: {answer}')
+print('\\n'.join(out))
+''','Each full prime power must occur in some factor; separating distinct prime powers minimizes sum. Add unit factors to ensure at least two, including n=1.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);author={'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False};(folder/'AUTHOR.json').write_text(json.dumps(author,ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH02.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

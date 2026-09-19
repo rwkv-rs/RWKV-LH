@@ -1,0 +1,189 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+794:('''import sys
+v=list(map(int,sys.stdin.read().split()));out=[]
+for i in range(0,len(v),3):
+ d,r,t=v[i:i+3];age=4
+ while True:
+  sister=age*(age+1)//2-6;brother=max(0,(age-d)*(age-d+1)//2-3) if age-d>=3 else 0
+  if sister+brother==r+t:out.append(str(r-sister));break
+  if sister+brother>r+t:raise ValueError('inconsistent candle totals')
+  age+=1
+print('\\n'.join(out))
+''','Transfers conserve total candles. Enumerate Rita ages from4, sum birthdays4..age and Theo birthdays3..age-D, and recover the transferred quantity from Rita current minus original count. Parse repeated D,R,T triples as the source example shows.'),
+798:('''import sys
+v=iter(map(int,sys.stdin.read().split()));n=next(v);m=next(v);count=[0]*n;nearest=[n]*n
+for _ in range(m):
+ a=next(v)-1;b=next(v)-1;count[a]+=1;nearest[a]=min(nearest[a],(b-a)%n)
+print(' '.join(str(max((j-start)%n+(count[j]-1)*n+nearest[j] for j in range(n) if count[j])) for start in range(n)))
+''','At each pickup station, all but the last candy require full additional laps. Save the shortest destination distance for the last pickup; other deliveries finish before it. Overall completion time is the maximum station completion time, adjusted for the starting station.'),
+801:('''import sys
+from collections import deque
+v=iter(map(int,sys.stdin.read().split()));m=next(v);n=next(v);supply=[next(v) for _ in range(m)];demand=[next(v) for _ in range(n)];cost=[[next(v) for _ in range(n)] for _ in range(m)];total=sum(supply)
+def solve(sign):
+ source=m+n;sink=source+1;g=[[] for _ in range(sink+1)]
+ def edge(a,b,cap,c):g[a].append([b,cap,c,len(g[b])]);g[b].append([a,0,-c,len(g[a])-1])
+ for i,x in enumerate(supply):edge(source,i,x,0)
+ for j,x in enumerate(demand):edge(m+j,sink,x,0)
+ for i in range(m):
+  for j in range(n):edge(i,m+j,total,sign*cost[i][j])
+ answer=0;sent=0;inf=10**40
+ while sent<total:
+  dist=[inf]*len(g);dist[source]=0;parent=[None]*len(g);active=[False]*len(g);active[source]=True;q=deque([source])
+  while q:
+   a=q.popleft();active[a]=False
+   for index,(b,cap,c,rev) in enumerate(g[a]):
+    if cap and dist[b]>dist[a]+c:
+     dist[b]=dist[a]+c;parent[b]=(a,index)
+     if not active[b]:active[b]=True;q.append(b)
+  amount=total-sent;b=sink
+  while b!=source:a,index=parent[b];amount=min(amount,g[a][index][1]);b=a
+  b=sink
+  while b!=source:
+   a,index=parent[b];e=g[a][index];e[1]-=amount;g[b][e[3]][1]+=amount;b=a
+  sent+=amount;answer+=amount*dist[sink]
+ return sign*answer
+print(solve(1));print(solve(-1))
+''','Use capacitated transportation min-cost flow with reverse residual arcs so earlier choices can be revised. Solve once with original costs for the minimum and once with negated costs for the maximum, as the output section explicitly requires.'),
+805:('''import sys
+n,k=map(int,sys.stdin.read().split())
+def count(y):
+ l=y;r=y+(2 if y%2==0 else 1);answer=0
+ while l<=n:answer+=max(0,min(n+1,r)-l);l*=2;r*=2
+ return answer
+answer=1
+for parity in (0,1):
+ lo=0 if parity else 1;hi=(n-parity)//2+1
+ while lo<hi:
+  mid=(lo+hi)//2;y=2*mid+parity
+  if y>=1 and count(y)>=k:lo=mid+1
+  else:hi=mid
+ candidate=2*(lo-1)+parity
+ if candidate>=1 and count(candidate)>=k:answer=max(answer,candidate)
+print(answer)
+''','Reverse the path operation into disjoint dyadic intervals. An odd target starts with its singleton; an even target also receives its following odd number before halving. Counts decrease separately along odd and even targets, permitting two binary searches.'),
+813:('''import sys,bisect
+from functools import lru_cache
+n=int(sys.stdin.read());fib=[1,2]
+while fib[-1]<=n:fib.append(fib[-1]+fib[-2])
+sums=[];total=0
+for x in fib:total+=x;sums.append(total)
+@lru_cache(None)
+def count(i,x):
+ if x==0:return 1
+ if i<0 or x<0 or x>sums[i]:return 0
+ if x>sums[i]//2:return count(i,sums[i]-x)
+ i=min(i,bisect.bisect_right(fib,x)-1)
+ return count(i-1,x)+count(i-1,x-fib[i])
+print(count(len(fib)-1,n))
+''','Count subsets of distinct Fibonacci values1,2,3,... rather than treating the repeated value1 twice. Memoized include/exclude recursion prunes impossible sums and uses complement symmetry within a prefix of Fibonacci values to reduce residual targets.'),
+815:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for first in v:
+ if first==0:break
+ cycles=[first]
+ for x in v:
+  if x==0:break
+  cycles.append(x)
+ answer=None
+ for t in range(2*min(cycles),18001):
+  if all(t%(2*c)<c-5 for c in cycles):answer=t;break
+ if answer is None:out.append('Signals fail to synchronise in 5 hours.')
+ else:out.append(f'{answer//3600:02d}:{answer//60%60:02d}:{answer%60:02d}')
+print('\\n'.join(out))
+''','After the initial shared green interval, the earliest possible resynchronization is the shortest signal full cycle. Scan integral seconds through five hours inclusive and require every phase to be strictly before its five-second yellow segment.'),
+821:('''import sys
+from fractions import Fraction
+from decimal import Decimal,localcontext,ROUND_HALF_UP
+v=iter(sys.stdin.read().split());n=int(next(v));points=[[Fraction(next(v)) for j in range(n)] for i in range(n+1)];base=points[0];base2=sum(x*x for x in base);matrix=[]
+for p in points[1:]:matrix.append([2*(p[j]-base[j]) for j in range(n)]+[sum(x*x for x in p)-base2])
+for col in range(n):
+ pivot=next(i for i in range(col,n) if matrix[i][col]);matrix[col],matrix[pivot]=matrix[pivot],matrix[col];div=matrix[col][col];matrix[col]=[x/div for x in matrix[col]]
+ for i in range(n):
+  if i!=col:
+   factor=matrix[i][col]
+   if factor:matrix[i]=[a-factor*b for a,b in zip(matrix[i],matrix[col])]
+out=[]
+with localcontext() as ctx:
+ ctx.prec=80
+ for row in matrix:
+  x=row[-1];d=(Decimal(x.numerator)/Decimal(x.denominator)).quantize(Decimal('.001'),rounding=ROUND_HALF_UP)
+  if d==0:d=abs(d)
+  out.append(f'{d:.3f}')
+print(' '.join(out))
+''','Subtract the sphere distance equation at the first point from the otherN equations to obtain a linear system in the center. Exact rational Gaussian elimination avoids cancellation from six-decimal input; round only the final coordinates to three decimals.'),
+824:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n,m=v[:2];a=v[2:2+n]
+for height in v[2+n:2+n+m]:
+ eaten=0
+ for i in range(n):
+  if a[i]>eaten:
+   top=min(a[i],height);a[i]+=top-eaten;eaten=top
+   if eaten==height:break
+print('\\n'.join(map(str,a)))
+''','Track the consumed bottom height of each suspended cane and update each cow only by the reachable remaining segment. Stop once the cane is gone. Every cane requiring later cows doubles the first cow height, bounding expensive full scans logarithmically in maximum cane height.'),
+827:('''import sys
+v=iter(sys.stdin.read().split());out=[]
+for _ in range(int(next(v))):
+ n=int(next(v));grid=[next(v) for i in range(n)];vertices=[i*n+j for i in range(n) for j in range(n) if grid[i][j]=='X'];g={x:[] for x in vertices}
+ for x in vertices:
+  i,j=divmod(x,n)
+  for a,b in ((i-1,j),(i+1,j),(i,j-1),(i,j+1)):
+   if 0<=a<n and 0<=b<n and a*n+b in g:g[x].append(a*n+b)
+ found=set()
+ def dfs(x,mask,depth):
+  if depth==8:found.add(mask);return
+  for y in g[x]:
+   if not(mask>>y&1):dfs(y,mask|1<<y,depth+1)
+ for x in vertices:dfs(x,1<<x,1)
+ out.append(str(len(found)))
+print('\\n'.join(out))
+''','Enumerate simple paths containing exactly eight emerald cells, encode each visited-cell set as a bitmask, and deduplicate by that set rather than path direction or traversal order. Restrict adjacency to four cardinal directions.'),
+830:('''import sys,math
+from collections import Counter
+v=iter(map(int,sys.stdin.read().split()));n=next(v);points=[(next(v),next(v)) for _ in range(n)];collinear=0
+for i,(x,y) in enumerate(points):
+ slopes=Counter()
+ for xx,yy in points[i+1:]:
+  dx=xx-x;dy=yy-y;g=math.gcd(dx,dy);dx//=g;dy//=g
+  if dx<0 or dx==0 and dy<0:dx=-dx;dy=-dy
+  slopes[dx,dy]+=1
+ collinear+=sum(c*(c-1)//2 for c in slopes.values())
+print(n*(n-1)*(n-2)//6-collinear)
+''','Subtract collinear triples from all triples. For each lowest-index point, group later points by exact normalized unoriented direction and count pairs. Integer gcd normalization avoids floating slopes and counts each triple once.'),
+832:('''import sys
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);intervals=[(next(v)+1,next(v)+1,next(v)) for i in range(n)];limit=max(b for a,b,c in intervals);bit=[0]*(limit+1);parent=list(range(limit+1))
+ def prefix(x):
+  result=0
+  while x:result+=bit[x];x-=x&-x
+  return result
+ def find(x):
+  while parent[x]!=x:parent[x]=parent[parent[x]];x=parent[x]
+  return x
+ answer=0
+ for a,b,c in sorted(intervals,key=lambda x:x[1]):
+  need=c-prefix(b)+prefix(a-1)
+  while need>0:
+   x=find(b);p=x
+   while p<=limit:bit[p]+=1;p+=p&-p
+   parent[x]=find(x-1);need-=1;answer+=1
+ out.append(str(answer))
+print('\\n'.join(out))
+''','Process intervals by increasing right endpoint and satisfy each deficit using the rightmost still-unselected integers. This preserves maximum usefulness for future intervals. Fenwick counts existing selections; predecessor DSU skips selected coordinates. Shift coordinates to support originalzero.'),
+835:('''import sys
+v=list(map(int,sys.stdin.read().split()));out=[]
+for k in v[1:1+v[0]]:
+ if k==0:out.append('a');continue
+ first=(k-1)%25+1;blocks=(k-1)//25
+ out.append(''.join(chr(97+i) for i in range(first,-1,-1))+'zyxwvutsrqponmlkjihgfedcba'*blocks)
+print('\\n'.join(out))
+''','At most25 strict descents fit in one descending lowercase run. A shortest string uses the minimum number of runs; lexicographic minimization puts the shortest necessary run first, ending ata, followed by complete z..a runs. HandleK=0 with the one-letter stringa.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH21.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

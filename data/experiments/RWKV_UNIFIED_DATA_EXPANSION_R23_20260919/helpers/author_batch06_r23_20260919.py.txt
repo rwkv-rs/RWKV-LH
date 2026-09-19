@@ -1,0 +1,170 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+235:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];a=v[1:];reach=[{} for _ in range(n)];dp=[0]*(n+1)
+for i in range(n-1,-1,-1):
+ value=a[i];end=i+1;reach[i][value]=end;dp[i]=1+dp[end]
+ while end<n and value in reach[end]:
+  end=reach[end][value];value+=1;reach[i][value]=end;dp[i]=min(dp[i],1+dp[end])
+print(dp[0])
+''','For a fixed starting point each merged value has a unique endpoint because the positive weights 2^a sum to that value. Chain two equal-valued adjacent reducible intervals, then minimize the number of final intervals with suffix DP.'),
+243:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);m=next(it);q=next(it);a=[[next(it) for _ in range(m)] for _ in range(n)];p=[[0]*m for _ in range(n)]
+for i in range(1,n):
+ running=0
+ for j in range(1,m):
+  running+=a[i][j]+a[i-1][j-1]!=a[i-1][j]+a[i][j-1];p[i][j]=p[i-1][j]+running
+out=[]
+for _ in range(q):
+ x=next(it)-1;y=next(it)-1;k=next(it);r=x+k-1;c=y+k-1;bad=p[r][c]-p[x][c]-p[r][y]+p[x][y];out.append('N' if bad else 'Y')
+print('\\n'.join(out))
+''','All permutation sums agree exactly when every adjacent 2x2 cross-difference is zero. A two-dimensional prefix count of violations answers each square query without inspecting permutations.'),
+244:('''import sys,math
+values=list(map(int,sys.stdin.buffer.read().split()));limit=math.isqrt(max(values,default=1));sieve=bytearray(b'\\x01')*(limit+1)
+if limit>=0:sieve[0]=0
+if limit>=1:sieve[1]=0
+for p in range(2,math.isqrt(limit)+1):
+ if sieve[p]:sieve[p*p::p]=b'\\x00'*((limit-p*p)//p+1)
+primes=[p for p in range(2,limit+1) if sieve[p]]
+def prime(x):
+ if x<2:return False
+ for p in primes:
+  if p*p>x:return True
+  if x%p==0:return x==p
+ return True
+out=[]
+for n in values:
+ pair=None
+ if n%2:
+  if n-2>2 and prime(n-2):pair=(2,n-2)
+ else:
+  p=n//2-1
+  if p>2 and p%2==0:p-=1
+  while p>=2:
+   if prime(p) and prime(n-p):pair=(p,n-p);break
+   p-=1 if p==3 else 2
+ if pair:out.append(str(n)+' is the sum of '+str(pair[0])+' and '+str(pair[1])+'.')
+ else:out.append(str(n)+' is not the sum of two primes!')
+print('\\n'.join(out))
+''','For odd totals the only possible pair contains two; for even totals search downward from the midpoint with strict inequality. Exact trial division by primes up to the square root verifies both summands.'),
+245:('''import sys,math
+from collections import defaultdict
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);budget=next(it);groups=defaultdict(list)
+for _ in range(n):
+ x=next(it);y=next(it);t=next(it);v=next(it);g=math.gcd(abs(x),y);groups[(x//g,y//g)].append((x*x+y*y,t,v))
+dp=[0]*(budget+1)
+for group in groups.values():
+ choices=[];elapsed=0;value=0
+ for dist,t,v in sorted(group):
+  elapsed+=t;value+=v
+  if elapsed<=budget:choices.append((elapsed,value))
+ old=dp;dp=old.copy()
+ for t,v in choices:
+  for b in range(t,budget+1):dp[b]=max(dp[b],old[b-t]+v)
+print(dp[budget])
+''','Collinear gold on the same ray must be collected as a distance-ordered prefix. Treat each prefix as one alternative in a grouped time-budget knapsack.'),
+246:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));m=next(it);n=next(it);board=[[-1]*m for _ in range(m)]
+for _ in range(n):x=next(it)-1;y=next(it)-1;board[x][y]=next(it)
+dist={ (0,0,board[0][0]):0 };queue=[(0,0,0,board[0][0])];answer=-1
+while queue:
+ cost,x,y,color=heapq.heappop(queue)
+ if dist[(x,y,color)]!=cost:continue
+ if x==m-1 and y==m-1:answer=cost;break
+ for dx,dy in ((1,0),(-1,0),(0,1),(0,-1)):
+  u=x+dx;v=y+dy
+  if not(0<=u<m and 0<=v<m):continue
+  nextcolor=board[u][v]
+  if nextcolor<0:
+   if board[x][y]<0:continue
+   nextcolor=color;extra=2
+  else:extra=int(nextcolor!=color)
+  new=cost+extra;state=(u,v,nextcolor)
+  if new<dist.get(state,10**18):dist[state]=new;heapq.heappush(queue,(new,u,v,nextcolor))
+print(answer)
+''','Dijkstra state retains position and carried temporary color; entering an uncolored cell costs two and is forbidden from another uncolored cell. Choosing the current color is never worse than paying an extra switch before the following move.'),
+247:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));m,k=v[:2];roads=v[2:2+m];supply=v[2+m:2+2*m];fuel=0;best=0;waits=0
+for d,s in zip(roads,supply):
+ fuel+=s;best=max(best,s)
+ if fuel<d:
+  extra=(d-fuel+best-1)//best;waits+=extra;fuel+=extra*best
+ fuel-=d
+print(sum(roads)+k*waits)
+''','All refills cost the same waiting interval. Whenever cumulative fuel becomes insufficient, take the minimum number of extra refills at the largest supply encountered so far; earlier waiting can be moved to that city without increasing elapsed time.'),
+255:('''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+while True:
+ try:m=next(it);n=next(it)
+ except StopIteration:break
+ if m==n==0:break
+ dp=[1]+[0]*n
+ for _ in range(m):
+  low=next(it);high=next(it);new=[0]*(n+1);window=0
+  for total in range(n+1):
+   if total>=low:window+=dp[total-low]
+   if total>high:window-=dp[total-high-1]
+   new[total]=window
+  dp=new
+ out.append(str(dp[n]))
+print('\\n'.join(out))
+''','Each recipient contributes an inclusive bounded count. A sliding prefix-sum window performs the exact integer convolution for each recipient; no unsupported modulus is introduced.'),
+260:('''import sys,math
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+def count(a):
+ if len(a)<2:return 1
+ root=a[0];left=[x for x in a[1:] if x<root];right=[x for x in a[1:] if x>root]
+ return math.comb(len(a)-1,len(left))*count(left)*count(right)
+for _ in range(next(it)):
+ n=next(it);out.append(str(count([next(it) for _ in range(n)])))
+print('\\n'.join(out))
+''','The root must be inserted first. Valid left and right subtree insertion sequences can be interleaved arbitrarily while preserving their internal orders, producing a binomial factor at each node.'),
+264:('''import sys,re
+sys.stdout.write(re.sub(r'\\S+',lambda match:match.group(0)[::-1],sys.stdin.read()))
+''','Reverse each maximal nonwhitespace word, including its punctuation, while preserving all separators and line boundaries exactly.'),
+265:('''import sys,heapq
+it=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(it)):
+ n=next(it);m=next(it);g=[[] for _ in range(n)]
+ for _ in range(m):
+  x=next(it)-1;y=next(it)-1;c=next(it);g[x].append((y,c));g[y].append((x,c))
+ s=next(it)-1;a=next(it)-1;h=next(it)-1
+ def distances(start):
+  d=[10**30]*n;d[start]=0;q=[(0,start)]
+  while q:
+   cost,x=heapq.heappop(q)
+   if cost!=d[x]:continue
+   for y,c in g[x]:
+    z=cost+c
+    if z<d[y]:d[y]=z;heapq.heappush(q,(z,y))
+  return d
+ ds=distances(s);da=distances(a);dh=distances(h);out.append(str(max(ds[x]+2*da[x]+dh[x] for x in range(n) if x not in {s,a,h})))
+print('\\n'.join(out))
+''','Groups move independently. For each enemy base the necessary route is start-to-base, store round trip, then town hall; three shortest-path arrays yield each duration and the helicopter waits for their maximum.'),
+266:('''import sys
+v=sys.stdin.buffer.read().split();n=int(v[0]);dp=[1];mod=1000000007
+for kind in v[1:n]:
+ if kind==b'f':dp=[0]+dp
+ else:
+  total=0
+  for j in range(len(dp)-1,-1,-1):total=(total+dp[j])%mod;dp[j]=total
+print(sum(dp)%mod)
+''','A for header forces the next line one level deeper; a simple statement permits any depth no greater than its own. Suffix sums implement all legal dedents without interpreting source code.'),
+269:('''import sys
+v=list(map(int,sys.stdin.buffer.read().split()));n=v[0];c=v[1:];answer=0
+for i in range(0,n,2):
+ balance=0;minimum=0
+ for j in range(i+1,n,2):
+  low=max(1,1-balance,-minimum);high=min(c[i],c[j]-balance)
+  if high>=low:answer+=high-low+1
+  balance-=c[j];minimum=min(minimum,balance)
+  if j+1<n:balance+=c[j+1]
+print(answer)
+''','A valid substring starts in an opening run and ends in a closing run. For each pair, intersect the allowed opening suffix lengths with the end balance and all interior prefix nonnegativity constraints; count the integer interval without expanding runs.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH06.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))

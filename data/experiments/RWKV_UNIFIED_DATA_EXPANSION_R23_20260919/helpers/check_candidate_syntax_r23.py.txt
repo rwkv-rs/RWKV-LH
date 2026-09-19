@@ -1,0 +1,8 @@
+from pathlib import Path
+import json
+D=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919');fail=[];count=0
+for p in sorted((D/'tasks').glob('*/candidate_*/solution.py')):
+ count+=1
+ try:compile(p.read_text(),str(p),'exec')
+ except SyntaxError as e:fail.append({'path':str(p),'message':str(e),'line':e.lineno})
+print(json.dumps({'checked':count,'failures':fail},indent=2));(D/'PUBLIC_SYNTAX_SCAN_20.json').write_text(json.dumps({'checked':count,'failures':fail},indent=2)+'\n')

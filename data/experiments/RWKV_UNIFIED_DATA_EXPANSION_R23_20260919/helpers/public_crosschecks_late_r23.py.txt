@@ -1,0 +1,55 @@
+from pathlib import Path
+import json,sys,io,contextlib,itertools,functools,hashlib,random,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks'];results=[]
+def execute(ordinal,data):
+ p=D/'tasks'/rows[ordinal]['id']/'candidate_01/solution.py';namespace={};old=sys.stdin;sys.stdin=io.StringIO(data);out=io.StringIO()
+ try:
+  with contextlib.redirect_stdout(out):exec(compile(p.read_text(),str(p),'exec'),namespace)
+ finally:sys.stdin=old
+ return int(out.getvalue())
+count=0
+for n in range(2,7):
+ size=(1<<n)-1;g=[[] for _ in range(size)]
+ for i in range(1,size):p=(i-1)//2;g[i].append(p);g[p].append(i)
+ counts=collections.Counter()
+ for root in range(size):
+  q=collections.deque([(root,-1,0)])
+  while q:
+   a,parent,d=q.popleft();counts[d]+=1
+   for b in g[a]:
+    if b!=parent:q.append((b,a,d+1))
+ for d in range(1,2*n+1):assert execute(940,f'{n} {d}')==counts[d];count+=1
+results.append({'ordinal':940,'cases':count,'oracle':'Explicit-tree BFS ordered-pair distances','passed':True})
+count=0
+for n in range(1,5):
+ for a in itertools.combinations_with_replacement(range(3),n):
+  for b in itertools.combinations_with_replacement(range(3),n):
+   expected=max(sum(100 if x>y else 50 if x==y else 0 for x,y in zip(a,p)) for p in itertools.permutations(b));actual=execute(945,str(n)+'\n'+' '.join(map(str,a))+'\n'+' '.join(map(str,b)));assert actual==expected,(a,b,actual,expected);count+=1
+results.append({'ordinal':945,'cases':count,'oracle':'All player matchings','passed':True})
+count=0
+for n in range(1,7):
+ for heights in itertools.product((1,2),repeat=n):
+  best=None;ways=0
+  for p in itertools.permutations(range(n)):
+   remaining=list(heights);cost=0
+   for i in p:cost+=remaining[i]+(remaining[i-1] if i else 0)+(remaining[i+1] if i+1<n else 0);remaining[i]=0
+   if best is None or cost<best:best=cost;ways=1
+   elif cost==best:ways+=1
+  actual=execute(1010,str(n)+'\n'+' '.join(map(str,heights)));assert actual==ways,(heights,actual,ways);count+=1
+results.append({'ordinal':1010,'cases':count,'oracle':'All cut permutations with actual changing-neighbor costs','passed':True})
+rng=random.Random(23);count=0
+for n in range(1,10):
+ for trial in range(20):
+  edges=[(i,rng.randrange(i)) for i in range(1,n)];weights=[rng.randrange(1,10) for _ in range(n)];k=rng.randrange(1,n+1);dist=[[n+1]*n for _ in range(n)]
+  for i in range(n):dist[i][i]=0
+  for a,b in edges:dist[a][b]=dist[b][a]=1
+  for c in range(n):
+   for a in range(n):
+    for b in range(n):dist[a][b]=min(dist[a][b],dist[a][c]+dist[c][b])
+  expected=0
+  for mask in range(1<<n):
+   chosen=[i for i in range(n) if mask>>i&1]
+   if all(dist[a][b]>k for a,b in itertools.combinations(chosen,2)):expected=max(expected,sum(weights[i] for i in chosen))
+  data=f'{n} {k}\n'+' '.join(map(str,weights))+'\n'+'\n'.join(f'{a+1} {b+1}' for a,b in edges);actual=execute(992,data);assert actual==expected,(data,actual,expected);count+=1
+results.append({'ordinal':992,'cases':count,'oracle':'All vertex subsets with Floyd-Warshall distances','passed':True})
+(D/'PUBLIC_CROSSCHECKS_LATE.json').write_text(json.dumps({'script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'not_training_rows':True,'private_cases_read':False,'results':results},indent=2)+'\n');print(results)

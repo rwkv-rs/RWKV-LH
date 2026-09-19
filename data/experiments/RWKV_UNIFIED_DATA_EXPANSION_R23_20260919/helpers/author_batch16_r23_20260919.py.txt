@@ -1,0 +1,142 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+solutions={
+643:('''import sys
+from collections import deque
+parts=sys.stdin.read().split();words=[];punct=[];ids={}
+for s in parts:
+ p=s[-1] if s[-1] in ',.' else '';w=s[:-1] if p else s
+ if w not in ids:ids[w]=len(ids)
+ words.append(w);punct.append(p)
+g=[[] for _ in range(2*len(ids))];marked=bytearray(len(g));q=deque()
+for i in range(len(words)-1):
+ if punct[i]=='.':continue
+ a=2*ids[words[i]];b=2*ids[words[i+1]]+1;g[a].append(b);g[b].append(a)
+ if punct[i]==',':
+  for x in (a,b):
+   if not marked[x]:marked[x]=1;q.append(x)
+while q:
+ x=q.popleft()
+ for y in g[x]:
+  if not marked[y]:marked[y]=1;q.append(y)
+print(' '.join(w+('.' if punct[i]=='.' else ',' if marked[2*ids[w]] else '') for i,w in enumerate(words)))
+''','Each non-sentence-boundary gap equates after(left-word) with before(right-word). Existing commas seed connected components in this bipartite implication graph. Propagation adds all and only forced commas, preserving periods.'),
+645:('''import sys
+v=list(map(int,sys.stdin.read().split()));n=v[0];a=v[1:];even=n//2-sum(x>0 and x%2==0 for x in a);odd=(n+1)//2-sum(x%2==1 for x in a);dp={(0,2):0};zeros=0
+for x in a:
+ nd={}
+ for (used,last),cost in dp.items():
+  for p in ([x%2] if x else [0,1]):
+   e=used+(not x and p==0)
+   if e>even or zeros+(x==0)-e>odd:continue
+   key=(e,p);value=cost+(last!=2 and last!=p);nd[key]=min(nd.get(key,10**9),value)
+ dp=nd;zeros+=(x==0)
+print(min(dp.values()))
+''','Dynamic programming tracks how many missing even labels are used and the last parity; missing odd usage follows from processed holes. Fixed labels preserve parity, and each adjacent parity change costs one.'),
+646:('''import sys
+v=sys.stdin.read().split();out=[]
+for i in range(int(v[0])):
+ a=int(v[1+2*i]);n=int(v[2+2*i]);win=(n%2==1) if a%2 else ((n%(a+1))%2==1 or n%(a+1)==a)
+ out.append('lsq Win' if win else 'wzt Win')
+print('\\n'.join(out))
+''','Odd bases allow only odd removals, so odd pile sizes win. For even bases, losing residues modulo a+1 are the even residues0,2,...,a-2; powers alternate residues+1 and-1, and every other residue reaches a losing one using1 or a. Python integers cover500-digit piles.'),
+654:('''import sys
+v=iter(sys.stdin.buffer.read().split());n=int(next(v));q=int(next(v));parent=list(range(n+1));count=[0]*(n+1);count[1]=1
+for _ in range(n-1):a=int(next(v));b=int(next(v));parent[b]=a
+ops=[]
+for _ in range(q):
+ op=next(v);x=int(next(v));ops.append((op,x))
+ if op==b'C':count[x]+=1
+dsu=[i if count[i] else parent[i] for i in range(n+1)]
+def find(x):
+ root=x
+ while dsu[root]!=root:root=dsu[root]
+ while dsu[x]!=x:y=dsu[x];dsu[x]=root;x=y
+ return root
+out=[]
+for op,x in reversed(ops):
+ if op==b'Q':out.append(str(find(x)))
+ else:
+  count[x]-=1
+  if count[x]==0:dsu[x]=find(parent[x])
+print('\\n'.join(reversed(out)))
+''','Process marking operations backward, starting from all final marks. Disjoint-set parent links skip unmarked ancestors; when the last occurrence of a mark is undone, link that node to its nearest marked ancestor. A separate initial count permanently preserves root1.'),
+657:('''import sys,math
+v=list(map(int,sys.stdin.read().split()));out=[]
+for k in v[1:1+v[0]]:
+ k=abs(k);n=max(1,(math.isqrt(1+8*k)-1)//2)
+ while n*(n+1)//2<k or (n*(n+1)//2-k)%2:n+=1
+ out.append(str(n))
+print('\\n'.join(out))
+''','Signed sums of1..n attain exactly the values with the triangular sum parity inside its magnitude bounds. Start near the exact quadratic root and advance until both conditions hold; n>=1 makes target0 require3.'),
+661:('''import sys
+from functools import lru_cache
+def count(n,k):
+ if n<0:return 0
+ bits=bin(n)[2:];L=len(bits)
+ @lru_cache(None)
+ def dp(i,d,tight):
+  if i==L:return int(abs(d)==k)
+  limit=int(bits[i]) if tight else 1;ans=0
+  for b in range(limit+1):ans+=dp(i+1,d+b*(1 if (L-1-i)%2==0 else -1),tight and b==limit)
+  return ans
+ return dp(0,0,True)
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ m=next(v);n=next(v);k=next(v);out.append(str(count(n,k)-count(m-1,k)))
+print('\\n'.join(out))
+''','Binary digit DP tracks alternating-position one-count difference. Counting from the least-significant side changes only the overall sign relative to the most-significant convention, leaving its absolute value invariant; leading zeroes add nothing.'),
+663:('''import sys
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);budget=next(v);a=[(next(v),next(v)) for i in range(n)];a.sort(reverse=True);base=sum(l for l,r in a)
+ def ok(x):
+  need=(n+1)//2;cost=base
+  for l,r in a:
+   if l>=x:need-=1
+  if need<=0:return True
+  for l,r in a:
+   if l<x<=r:
+    cost+=x-l;need-=1
+    if need==0:return cost<=budget
+  return False
+ lo=0;hi=max(r for l,r in a)+1
+ while hi-lo>1:
+  mid=(lo+hi)//2
+  if ok(mid):lo=mid
+  else:hi=mid
+ out.append(str(lo))
+print('\\n'.join(out))
+''','Binary-search the median. Pay all lower bounds, count salaries already at least the target, and raise the required remaining feasible employees in descending lower-bound order to minimize additional cost.'),
+665:('''import sys,math
+out=[]
+for k in map(int,sys.stdin.read().split()):
+ row=(math.isqrt(8*k+1)-1)//2
+ if row*(row+1)//2<k:row+=1
+ col=k-row*(row-1)//2;out.append(str(row-col+1)+'/'+str(col))
+print('\\n'.join(out))
+''','Follow the explicitly displayed triangular table row by row: rowr is r/1,(r-1)/2,...,1/r. Locate the containing triangular interval with exact isqrt and retain unreduced numerator and denominator.'),
+666:('''import sys
+v=sys.stdin.read().split();s=v[0];k=int(v[1]);a=[p-i for i,p in enumerate(j for j,c in enumerate(s) if c=='Y')];pre=[0]
+for x in a:pre.append(pre[-1]+x)
+left=0;best=0
+for right in range(len(a)):
+ while left<=right:
+  mid=(left+right)//2;cost=a[mid]*(mid-left)-(pre[mid]-pre[left])+(pre[right+1]-pre[mid+1])-a[mid]*(right-mid)
+  if cost<=k:break
+  left+=1
+ best=max(best,right-left+1)
+print(best)
+''','Subtract occurrence rank from eachY position so making a block consecutive becomes aligning shifted positions at their median. Prefix sums evaluate exact adjacent-swap cost, and a sliding window finds the largest affordable block.'),
+668:('''import sys,itertools
+v=iter(map(int,sys.stdin.read().split()));out=[]
+for _ in range(next(v)):
+ n=next(v);a=[next(v) for i in range(n)];groups=[x for x,g in itertools.groupby(a)];out.append('yes' if a==a[::-1] and groups==list(range(1,8))+list(range(6,0,-1)) else 'no')
+print('\\n'.join(out))
+''','Require the exact sequence of nonempty value-runs1 through7 then6 through1, and full-array symmetry to enforce equality of corresponding run lengths. This also rejects skipped levels and values outside1..7.'),
+}
+records=[]
+for i,(code,note) in solutions.items():
+ row=rows[i];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);(folder/'solution.py').write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(code.encode()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},ensure_ascii=False,indent=2)+'\n');records.append({'id':row['id'],'ordinal':i,'candidate_path':str(folder/'solution.py'),'review_note':note})
+(D/'AUTHORED_BATCH16.json').write_text(json.dumps({'candidates':records,'count':len(records)},ensure_ascii=False,indent=2)+'\n');print('authored',len(records))
