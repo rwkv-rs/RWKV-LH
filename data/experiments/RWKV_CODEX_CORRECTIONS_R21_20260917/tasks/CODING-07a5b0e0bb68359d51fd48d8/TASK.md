@@ -1,0 +1,63 @@
+Wherever there is large-scale construction, you will find cranes that do the lifting. One hardly ever thinks about what marvelous examples of engineering cranes are: a structure of (relatively) little weight that can lift much heavier loads. But even the best-built cranes may have a limit on how much weight they can lift.
+
+The Association of Crane Manufacturers (ACM) needs a program to compute the range of weights that a crane can lift. Since cranes are symmetric, ACM engineers have decided to consider only a cross section of each crane, which can be viewed as a polygon resting on the $x$-axis.
+
+Figure 1 shows a cross section of the crane in the first sample input. Assume that every $1 \times 1$ unit of crane cross section weighs 1 kilogram and that the weight to be lifted will be attached at one of the polygon vertices (indicated by the arrow in Figure 1). Write a program that determines the weight range for which the crane will not topple to the left or to the right.
+
+## Input Format
+
+The input consists of a single test case. The test case starts with a single integer $n$ ($3 \le n \le 100$), the number of points of the polygon used to describe the crane’s shape. The following $n$ pairs of integers $x_i, y_i$ ($-2\,000 \le x_i \le 2\,000, 0 \le y_i \le 2\,000$) are the coordinates of the polygon points in order. The weight is attached at the first polygon point and at least two polygon points are lying on the $x$-axis.
+
+## Output Format
+
+Display the weight range (in kilograms) that can be attached to the crane without the crane toppling over. If the range is $[a,b]$, display $\lfloor a \rfloor$ .. $\lceil b \rceil$. For example, if the range is $[1.5,13.3]$, display 1 .. 14. If the range is $[a,\infty)$, display $\lfloor a \rfloor$ .. inf. If the crane cannot carry any weight, display unstable instead.
+
+## Sample Input and Output
+
+### Input Sample #1
+
+```
+7
+50 50
+0 50
+0 0
+30 0
+30 30
+40 40
+50 40
+```
+
+### Output Sample #1
+
+```
+0 .. 1017
+```
+
+### Input Sample #2
+
+```
+7
+50 50
+0 50
+0 0
+10 0
+10 30
+20 40
+50 40
+```
+
+### Output Sample #2
+
+```
+unstable
+```
+
+## Notes/Hints
+
+Time limit: 1000 ms, Memory limit: 1048576 kB.
+
+International Collegiate Programming Contest (ACM-ICPC) World Finals 2014
+
+The input will be given via stdin and the output should be printed to stdout by your code.
+
+Now solve the problem by providing the code.
