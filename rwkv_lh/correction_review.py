@@ -140,3 +140,31 @@ def validate_review(packet, judgment):
             'candidate_sha256': packet['candidate_sha256'], 'training_admitted': False,
             'evidence_bindings': bindings,
             'validation_scope': 'Anchors and consistency only; semantic truth and completeness require review.'}
+
+
+def require_source_bound_reviews(reviews, *, input_sha256, target_sha256,
+                                 execution_backed=False):
+    """Check truthful review identity; execution validation remains a separate gate.
+
+    Single-author reviews are admitted only for labels with sealed, freshly
+    re-executed command/edit proofs. They are never called independent reviews.
+    Legacy independent final-answer admission is unchanged.
+    """
+    _require(isinstance(reviews, list) and bool(reviews)
+             and all(isinstance(r, dict) for r in reviews), 'source-bound reviews required')
+    _require(all(_text(r.get('reviewer')) and r.get('accepted') is True
+                 and r.get('visible_evidence_only') is True
+                 and r.get('input_sha256') == input_sha256
+                 and r.get('target_sha256') == target_sha256 for r in reviews),
+             'source-bound reviews differ')
+    single = any(r.get('review_mode') == 'single_author_execution' for r in reviews)
+    if single:
+        _require(execution_backed and len(reviews) == 1
+                 and reviews[0].get('independent') is False
+                 and _text(reviews[0].get('assessment')),
+                 'single-author reviews require explicit attribution and execution proof')
+    else:
+        _require(len({r['reviewer'] for r in reviews}) >= 2
+                 and all(r.get('review_mode') in (None, 'independent')
+                         and r.get('independent') is not False for r in reviews),
+                 'two source-bound independent reviews required')

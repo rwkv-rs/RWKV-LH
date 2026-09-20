@@ -241,11 +241,12 @@ def normalize_direct_row(row: Mapping, *, model_sha256: str, context_tokens: int
                          and set(row['command_validation']) == {'path', 'sha256'},
                          'command label requires sealed command proof')
             executed_arguments(command)
-        core.require(len({r.get('reviewer') for r in reviewers}) >= 2
-                     and all(isinstance(r.get('reviewer'), str) and bool(r['reviewer'].strip()) and r.get('accepted') is True and r.get('target_sha256') == target_sha
-                             and r.get('input_sha256') == hashlib.sha256(row['input_text'].encode()).hexdigest()
-                             and r.get('visible_evidence_only') is True for r in reviewers),
-                     'label lacks two source-bound independent reviews')
+        from .correction_review import require_source_bound_reviews
+        require_source_bound_reviews(reviewers,
+                                     input_sha256=hashlib.sha256(row['input_text'].encode()).hexdigest(),
+                                     target_sha256=target_sha,
+                                     execution_backed=authority in ('verified_coding', 'verified_command'))
+
     else:
         raise ValueError('unsupported direct label authority')
     return {'sample_id': row['sample_id'], 'input_token_ids': list(source), 'target_token_ids': list(target)}

@@ -63,10 +63,9 @@ def validate_command_correction(*, run_root, checkpoint_id, target_text, model_s
     normalized = executed_arguments(command)
     require(normalized.get('timeout', 30) <= 120, 'command exceeds correction execution budget')
     digest=lambda s:hashlib.sha256(s.encode()).hexdigest()
-    require(len({r.get('reviewer') for r in reviews})>=2 and all(
-        isinstance(r.get('reviewer'),str) and r['reviewer'].strip() and r.get('accepted') is True
-        and r.get('visible_evidence_only') is True and r.get('input_sha256')==digest(actual['input_text'])
-        and r.get('target_sha256')==digest(target_text) for r in reviews),'two source-bound reviews required')
+    from .correction_review import require_source_bound_reviews
+    require_source_bound_reviews(reviews, input_sha256=digest(actual['input_text']),
+                                 target_sha256=digest(target_text), execution_backed=True)
     require(type(expected_exit_code) is int and 0 <= expected_exit_code <= 255
             and isinstance(expected_output,list) and expected_output
             and all(isinstance(s,str) and s.strip() for s in expected_output),'explicit external command outcome required')

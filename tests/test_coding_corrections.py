@@ -240,3 +240,26 @@ def test_training_admission_requires_sealed_snapshot_members(candidate, tmp_path
     with pytest.raises(ValueError,match='unsealed correction snapshot'):
         revalidate_training_correction(row,run_root=candidate['run_root'],source_files=candidate['source_files'],
             model_sha256=candidate['model_sha256'],output=tmp_path/'fresh')
+
+
+def test_explicit_single_author_review_still_requires_real_red_green(candidate):
+    review = dict(candidate['reviews'][0], review_mode='single_author_execution',
+                  independent=False, assessment='The visible value must change from 1 to 2.')
+    candidate['reviews'] = [review]
+    proof = validate_coding_correction(**candidate)
+    assert proof['status'] == 'validated_candidate'
+    assert proof['reviews'] == [review]
+    assert proof['before_checks'][0]['exit_code'] != 0
+    assert proof['after_checks'][0]['exit_code'] == 0
+
+
+@pytest.mark.parametrize('field,value', [('review_mode', None), ('independent', True),
+                                        ('assessment', ''), ('input_sha256', '0' * 64)])
+def test_single_author_review_cannot_claim_independence_or_lose_binding(candidate, field, value):
+    review = dict(candidate['reviews'][0], review_mode='single_author_execution',
+                  independent=False, assessment='A concrete source-bound assessment.')
+    review[field] = value
+    candidate['reviews'] = [review]
+    with pytest.raises(ValueError, match='reviews'):
+        validate_coding_correction(**candidate)
+    assert not candidate['output'].exists()

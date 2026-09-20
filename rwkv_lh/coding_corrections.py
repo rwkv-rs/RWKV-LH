@@ -78,12 +78,9 @@ def validate_coding_correction(*, run_root, checkpoint_id, target_text, model_sh
     harness = ActionHarness()
     action = TaskAction(target.name, target.arguments)
     harness.normalize_action(action)
-    if (len({r.get('reviewer') for r in reviews}) < 2 or not all(
-            isinstance(r.get('reviewer'), str) and r['reviewer'].strip()
-            and r.get('accepted') is True and r.get('visible_evidence_only') is True
-            and r.get('target_sha256') == _sha(target_text)
-            and r.get('input_sha256') == _sha(actual['input_text']) for r in reviews)):
-        raise ValueError('two source-bound reviews required')
+    from .correction_review import require_source_bound_reviews
+    require_source_bound_reviews(reviews, input_sha256=_sha(actual['input_text']),
+                                 target_sha256=_sha(target_text), execution_backed=True)
     if not checks or not all(isinstance(argv, list) and argv and all(isinstance(v, str) for v in argv) for argv in checks):
         raise ValueError('explicit external verification commands required')
     if type(check_timeout_seconds) not in (int, float) or not math.isfinite(check_timeout_seconds) or not 0 < check_timeout_seconds <= 120:
