@@ -1,0 +1,31 @@
+from pathlib import Path
+import json,random,subprocess,time,re,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz207.json').read_text())['candidates'][0];rng=random.Random(822);checks=[]
+def brute(grid):
+ H=len(grid);W=len(grid[0]);pairs={k:[r*W+q for r in range(H) for q in range(W) if grid[r][q]==k] for k in (2,3)};adj={}
+ for r in range(H):
+  for q in range(W):
+   if grid[r][q]!=1:adj[r*W+q]=[rr*W+qq for rr,qq in ((r-1,q),(r+1,q),(r,q-1),(r,q+1)) if 0<=rr<H and 0<=qq<W and grid[rr][qq]!=1]
+ start,end=pairs[2];s,t=pairs[3];best=10**9
+ def walk(u,used,length):
+  nonlocal best
+  if length>=best:return
+  if u==end:
+   distance={s:0};todo=collections.deque([s])
+   while todo:
+    x=todo.popleft()
+    if x==t:best=min(best,length+distance[x]);break
+    for y in adj[x]:
+     if y not in used and y not in distance:distance[y]=distance[x]+1;todo.append(y)
+   return
+  for v in adj[u]:
+   if v not in used and v not in (s,t):walk(v,used|{v},length+1)
+ walk(start,{start},0);return 0 if best==10**9 else best
+def run(text,expected):
+ t=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;got=list(map(int,p.stdout.split()));assert got==expected,(text,got,expected);checks.append({'seconds':time.monotonic()-t,'cases':len(expected)})
+for _ in range(100):
+ H=rng.randint(2,4);W=rng.randint(2,4);grid=[[1 if rng.random()<.2 else 0 for c in range(W)] for r in range(H)]
+ for pos,k in zip(rng.sample(range(H*W),4),(2,2,3,3)):grid[pos//W][pos%W]=k
+ text=f'{H} {W}\n'+'\n'.join(' '.join(map(str,row)) for row in grid)+'\n0 0\n';run(text,[brute(grid)])
+task=(R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917/tasks'/c['id']/'TASK.md').read_text();sample=task.split('Example\n\nInput\n\n')[1].split('\n\nOutput\n\n');run(sample[0],list(map(int,sample[1].split('\n\nThe input')[0].split())))
+out={'passed':True,'checks':checks,'oracle':'Enumerate every simple first-pair path, then BFS second pair around it; all seven published cases including 9x9 boards.','private_cases_read':False};(D/'PUBLIC_CROSSCHECKS_BATCHz207.json').write_text(json.dumps(out,indent=2)+'\n');print(len(checks),checks[-1])

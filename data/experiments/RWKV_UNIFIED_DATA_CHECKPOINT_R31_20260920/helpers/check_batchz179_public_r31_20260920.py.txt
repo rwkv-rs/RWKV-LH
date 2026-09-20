@@ -1,0 +1,32 @@
+from pathlib import Path
+import json,subprocess,random,re
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';a=json.loads((D/'AUTHORED_BATCHz179.json').read_text())['candidates'][0];p=a['candidate_path'];rng=random.Random(20260920)
+def run(text,expected):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;assert r.stdout.strip()==expected.strip(),(text,r.stdout,expected)
+task=(R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917/tasks'/a['id']/'TASK.md').read_text();samples=re.findall(r'```\n(.*?)\n```',task,re.S)
+for i in range(0,len(samples),2):run(samples[i]+'\n',samples[i+1])
+locations=[]
+for c in [0,5,12,17]:locations.extend([[(0,c+1),(0,c+2)],[(1,c+3),(2,c+3)],[(4,c+3),(5,c+3)],[(6,c+1),(6,c+2)],[(4,c),(5,c)],[(1,c),(2,c)],[(3,c+1),(3,c+2)]])
+locations.extend([[(2,10)],[(4,10)]]);codes=[0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x6f];normal=[]
+for t in range(1440):
+ chars=f'{t//60:2d}{t%60:02d}';normal.append([int(bool((codes[int(ch)] if ch!=' ' else 0)&(1<<j))) for ch in chars for j in range(7)]+[1,1])
+for trial in range(32):
+ n=rng.randrange(1,9);start=rng.randrange(1440);faults=[rng.randrange(3) for _ in range(30)];seen=[[normal[(start+i)%1440][j] if faults[j]==2 else faults[j] for j in range(30)] for i in range(n)]
+ if trial%8==0:seen[0][-1]=0;seen[-1][-1]=1
+ possibilities=[set() for _ in range(30)];valid=False
+ for begin in range(1440):
+  options=[]
+  for j in range(30):
+   choices={state for state in range(3) if all(seen[i][j]==(normal[(begin+i)%1440][j] if state==2 else state) for i in range(n))}
+   if not choices:break
+   options.append(choices)
+  else:
+   valid=True
+   for j,choices in enumerate(options):possibilities[j]|=choices
+ def image(values):
+  grid=[['.']*21 for _ in range(7)]
+  for cells,value in zip(locations,values):
+   for r,c in cells:grid[r][c]=value
+  return '\n'.join(map(''.join,grid))
+ text=str(n)+'\n'+'\n\n'.join(image(['X' if v else '.' for v in row]) for row in seen)+'\n';expected='impossible' if not valid else image([['0','1','W'][next(iter(s))] if len(s)==1 else '?' for s in possibilities]);run(text,expected)
+out={'status':'passed','cases':{'288':34},'private_cases_read':False,'oracle':'Both published ASCII cases and literal per-minute/per-segment enumeration of three fault states, including inconsistent colon histories and midnight-capable start enumeration'};(D/'PUBLIC_CROSSCHECKS_BATCHz179.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

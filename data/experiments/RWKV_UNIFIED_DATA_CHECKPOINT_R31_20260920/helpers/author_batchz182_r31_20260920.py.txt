@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+expression=sys.stdin.buffer.read().strip();left=[-1]*4;right=[-1]*4;names={66:0,67:1,75:2,73:3};arity=[3,3,2,1]
+def application(a,b):
+ left.append(a);right.append(b);return len(left)-1
+current=None;contexts=[]
+for char in expression:
+ if char==40:contexts.append(current);current=None
+ elif char==41:
+  previous=contexts.pop()
+  if previous is not None:current=application(previous,current)
+ else:
+  leaf=names[char];current=leaf if current is None else application(current,leaf)
+work=[current];reductions=0
+while work:
+ head=work.pop();arguments=[]
+ while True:
+  while head>=4:arguments.append(right[head]);head=left[head]
+  if len(arguments)<arity[head]:work.extend(arguments);break
+  reductions+=1
+  if head==3:head=arguments.pop()
+  elif head==2:head=arguments.pop();arguments.pop()
+  else:
+   x=arguments.pop();y=arguments.pop();z=arguments.pop()
+   if head==0:arguments.append(application(y,z))
+   else:arguments.extend((y,z))
+   head=x
+print(reductions)
+'''
+note='Parse the left-associative application tree iteratively. Normalize each surviving expression by first reducing its head spine: I selects its argument, K selects its first argument and discards the second without evaluating it, B replaces three arguments by x applied to (y z), and C by x applied to z then y. Keep any additional outer arguments on the same spine. Once the head lacks sufficient arguments, it can never reduce, so independently normalize its surviving argument subtrees. In the affine BCKI basis no rule duplicates a subtree; reducing an argument that an enclosing K would discard can only add unnecessary work. Head-first reduction therefore performs every needed contraction exactly once and skips precisely such erasable work, attaining the minimum. Explicit stacks avoid recursion failure on the 30000-character input, and only the count is retained.'
+row=rows[760];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz182.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':760,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

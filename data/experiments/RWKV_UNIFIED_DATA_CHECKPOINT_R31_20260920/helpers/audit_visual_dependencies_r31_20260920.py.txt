@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,re,hashlib,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';tasks=json.loads((P/'INVENTORY.json').read_text())['tasks'];by_id={r['id']:(i,r) for i,r in enumerate(tasks)};by_sha={r['task_sha256']:(i,r) for i,r in enumerate(tasks)}
+packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected']
+for p in sorted((D/'batches').glob('*/RESULT.json')):
+ if p.parent.name>='35' and json.loads(p.read_text())['status']=='frozen_loader_accepted':packages.append(p.parent/'frozen_increment')
+markers=re.compile(r'!\[[^\]]*\]\([^\n]*?\)|<image>|<img\b[^>]*>|\b(?:figure|diagram|pictured|illustration)\b|如图|下图',re.I);records={};total=0
+for package in packages:
+ for line in (package/'train.jsonl').open():
+  row=json.loads(line);total+=1;source=row['source_id'];mapped=by_id.get(source) or by_sha.get(row['source_content_sha256']);text=(P/'tasks'/mapped[1]['id']/'TASK.md').read_text() if mapped else row['input_text'];hits=list(markers.finditer(text));key=mapped[1]['id'] if mapped else source
+  if not hits:continue
+  if key not in records:records[key]={'source_id':key,'ordinal':mapped[0] if mapped else None,'scope':'original_public_TASK' if mapped else 'actual_input_text','text_sha256':hashlib.sha256(text.encode()).hexdigest(),'text_length':len(text),'matches':[{'marker':m.group(),'context':text[max(0,m.start()-160):min(len(text),m.end()+220)]} for m in hits],'rows':[],'decision':'PENDING_SEMANTIC_REVIEW'}
+  records[key]['rows'].append({'sample_id':row['sample_id'],'authority':row['label_authority'],'package':str(package),'input_sha256':hashlib.sha256(row['input_text'].encode()).hexdigest()})
+out={'status':'screen_complete_semantic_review_pending','historically_loader_accepted_rows':total,'flagged_sources':len(records),'flagged_rows':sum(len(v['rows']) for v in records.values()),'rule':'Image-dependent labels are excluded. Incidental illustrations require explicit text-sufficiency review. Regex screening is not semantic approval. No images are inserted into model input.','records':list(records.values())};(O/'VISUAL_DEPENDENCY_SCREEN.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n');print({k:v for k,v in out.items() if k!='records'})
+for r in records.values():print(r['ordinal'],r['source_id'],len(r['rows']),'; '.join(m['marker'][:110] for m in r['matches'][:3]))

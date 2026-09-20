@@ -1,6 +1,7 @@
 """Mechanical production admission of explicitly Codex-reviewed R23 labels."""
 from pathlib import Path
 import sys,json,hashlib,concurrent.futures,traceback
+from text_eligibility_r31_20260920 import select_rows,REVIEW,frozen_review_reference
 R=Path('/home/chase/GitHub/RWKV-LH');sys.path.insert(0,str(R))
 from rwkv_lh import model_io
 from rwkv_lh.direct_trace_data import freeze_direct_dataset,audit_source_similarity,protocol_identity,ROW_SCHEMA,ROLE
@@ -22,12 +23,15 @@ def main():
  targets=read(Q/'TARGETS.json')['targets'];inventory={r['id']:r for r in read(P/'INVENTORY.json')['tasks']}
  packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected']
  packages += sorted(p for p in (D/'batches').glob('*/frozen_increment') if '35'<=p.parent.name<Q.name and (p.parent/'RESULT.json').exists() and read(p.parent/'RESULT.json')['status']=='frozen_loader_accepted' and not ((p.parent/'BATCH_DISPOSITION.json').exists() and read(p.parent/'BATCH_DISPOSITION.json').get('formal_rows')==0))
- prior=[];old_sources={}
+ prior=[];old_sources={};prior_texts={}
  old=read(packages[0]/'manifest.json');oldreg=read(old['freeze_registration']['path']);regref=oldreg['regression_registration']
  for p in packages:
   m,_=admit_dataset(ref(p/'manifest.json'),role=ROLE,expected_regression=regref['sha256'],model_sha256=old['model_sha256'],context_tokens=24576,vocab_size=65536,bos_token_id=0)
   prior += [json.loads(l) for l in (p/'train.jsonl').read_text().splitlines()]
-  for s in m['sources']:old_sources[s['source_content_sha256']]=s
+  for s in m['sources']:
+   old_sources[s['source_content_sha256']]=s
+   prior_texts[s['source_content_sha256']]=Path(s['content_reference']['path']).read_bytes().decode()
+ historical_prior_rows=len(prior);prior,prior_excluded=select_rows(prior,prior_texts)
  save(Q/'PRE_REGISTRATION.json',{'campaign':ref(D/'REGISTRATION.json'),'owner_steering':ref(D/'OWNER_STEERING_20260919.json'),'targets':ref(Q/'TARGETS.json'),'producer':ref(Path(__file__)),'prior_packages':[ref(p/'manifest.json') for p in packages],'context_tokens':24576,'similarity_threshold':0.9,'per_case_seconds':3,'workers':4,'rejection':'fixed batch stops on any invalid row; no truncation or scoring changes'})
  compared=[(s['id'],Path(s['content_reference']['path']).read_bytes().decode()) for s in old_sources.values()];nearest=[]
  for t in targets:
@@ -53,6 +57,9 @@ def main():
   print('VALIDATED',ident,len(row['input_token_ids'])+len(row['target_token_ids'])-1,flush=True);return source,row
  with concurrent.futures.ThreadPoolExecutor(4) as pool:pairs=list(pool.map(validate,targets))
  sources=[s for s,r in pairs];rows=[r for s,r in pairs]
+ admitted,excluded=select_rows(rows,{s['source_content_sha256']:Path(s['content_reference']['path']).read_bytes().decode() for s in sources})
+ assert len(admitted)==len(rows) and not excluded,'new batch contains excluded source'
+ save(Q/'TEXT_ELIGIBILITY_AUDIT.json',{'review':frozen_review_reference(),'historical_prior_rows':historical_prior_rows,'eligible_prior_rows':len(prior),'excluded_prior_rows':prior_excluded,'new_rows':len(rows),'passed':True})
  excludes=[]
  for name in ('RWKV_UNIFIED_CORRECTION_TRAIN_R5_300_20260915','RWKV_UNIFIED_CORRECTION_TRAIN_R6_ONE_EPOCH_20260915'):
   p=R/'data/experiments'/name/'evaluation/TRAINING_EXCLUSION.json';excluded={v for task in read(p)['tasks'] for v in task['files'].values()};assert not excluded&{r['source_content_sha256'] for r in rows};excludes.append(ref(p))

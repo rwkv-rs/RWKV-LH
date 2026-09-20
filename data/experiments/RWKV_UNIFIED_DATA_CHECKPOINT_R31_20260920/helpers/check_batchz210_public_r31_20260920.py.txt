@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,itertools,random,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz210.json').read_text())['candidates'][0];rng=random.Random(944);checks=[]
+def brute(A,B):
+ best=-10**9
+ for hs in itertools.product(*(range(1,a+1) for a in A)):
+  tallest=0;score=0
+  for a,b,h in zip(A,B,hs):score+=(b if h>=tallest else 0)-(a-h);tallest=max(tallest,h)
+  best=max(best,score)
+ return best
+def run(A,B,expected):
+ text=str(len(A))+'\n'+' '.join(map(str,A))+'\n'+' '.join(map(str,B))+'\n';t=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;got=int(p.stdout);assert got==expected,(A,B,got,expected);checks.append({'seconds':time.monotonic()-t,'n':len(A)})
+for _ in range(130):
+ n=rng.randint(1,7);A=[rng.randint(1,5) for _ in range(n)];B=[rng.randint(1,12) for _ in range(n)];run(A,B,brute(A,B))
+run([40,60,20,10],[25,30,80,50],95);run([112,76,50,35,22],[15,60,40,120,90],140);run([151,162,155,161,170],[4,8,23,10,15],53)
+run(list(range(1,100001)),[1]*100000,100000);run(list(range(100000,0,-1)),[10**9]*100000,100000*10**9-100000*99999//2)
+(D/'PUBLIC_CROSSCHECKS_BATCHz210.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Exhaustively enumerate final height vectors on small instances; all samples; max-N increasing and decreasing with dominant rewards.','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-2:])

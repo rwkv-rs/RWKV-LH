@@ -1,0 +1,39 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from decimal import Decimal,localcontext
+def floor_sum(n,a,b):
+ m=Decimal(1);answer=0
+ while True:
+  q=int(a//m);answer+=q*n*(n-1)//2;a-=q*m
+  q=int(b//m);answer+=q*n;b-=q*m
+  y=a*n+b
+  if y<m:return answer
+  n=int(y//m);b=y-n*m;m,a=a,m
+def large(base,prefix,precision):
+ with localcontext() as context:
+  context.prec=precision;a=Decimal(base).log10();digits=len(str(prefix));lower=Decimal(prefix).log10()-(digits-1);upper=Decimal(prefix+1).log10()-(digits-1);start=65
+  def count(n):return floor_sum(n-start,a,start*a+1-lower)-floor_sum(n-start,a,start*a+1-upper)
+  lo=start;hi=start
+  while count(hi+1)==0:hi*=2
+  while lo<hi:
+   mid=(lo+hi)//2
+   if count(mid+1)>0:hi=mid
+   else:lo=mid+1
+  return lo
+v=iter(map(int,sys.stdin.buffer.read().split()));out=[]
+for case in range(1,next(v)+1):
+ base=next(v);prefix=next(v);s=str(prefix);value=1;answer=None
+ for e in range(1,65):
+  value*=base
+  if str(value).startswith(s):answer=e;break
+ if answer is None:
+  answer=large(base,prefix,80)
+  if answer!=large(base,prefix,120):raise ArithmeticError('precision disagreement')
+ out.append(f'Case {case}: {answer}')
+print('\\n'.join(out))
+'''
+note='The source fully describes integer-base prefix powers and gives formatting samples. Check the first 64 exponents by exact integer arithmetic, which also handles all possible exact logarithmic endpoints for X,Y<=1e5: an equality X^e=Y*10^k or (Y+1)*10^k requires either a non-2/5 prime exponent in Y, or e times the nonzero difference of X\'s 2/5 valuations, bounding e far below 64 unless X is an excluded power of ten. For later exponents the fractional logarithm interval is counted by Euclidean floor sums, starting at 65; exponential bracketing and binary search find the first hit. Decimal 80/120 precision results must agree; validate with exact powers and independent direct exponent scans. Unlike the separate power-of-two task, there is no additional half-digit restriction, so small exponents must not be discarded. No sampled future information is used.'
+row=rows[856];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz205.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':856,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

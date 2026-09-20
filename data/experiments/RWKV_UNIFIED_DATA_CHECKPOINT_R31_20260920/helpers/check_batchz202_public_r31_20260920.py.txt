@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,math,subprocess,time,random
+from decimal import Decimal,localcontext
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz202.json').read_text())['candidates'][0]
+small=list(range(1,201));large=[2**32-1,10**9,2147483647,999999999,1234567890,4000000000];values=small+large+[0];t=time.monotonic();out=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input='\n'.join(map(str,values))+'\n',text=True,capture_output=True,timeout=12);assert out.returncode==0,out.stderr;answers=out.stdout.splitlines();assert len(answers)==len(values)
+for value,s in zip(small,answers):
+ k=len(str(value))+1
+ while True:
+  e=math.ceil(math.log2(value)+k*math.log2(10))
+  if e<math.log2(value+1)+k*math.log2(10):break
+  k+=1
+ assert int(s)==e,(value,s,e)
+assert answers[0]=='7' and answers[1]=='8' and answers[9]=='20' and answers[-1]=='no power of 2'
+with localcontext() as context:
+ context.prec=160
+ for value,s in zip(values[:-1],answers[:-1]):
+  e=int(s);logpower=Decimal(e)*Decimal(2).log10();digits=int(logpower)+1;tail=digits-len(str(value));assert len(str(value))*2<digits
+  assert Decimal(value).log10()+tail<=logpower<Decimal(value+1).log10()+tail
+for value,s in zip(small[:25],answers[:25]):
+ e=int(s);power=str(1<<e);assert power.startswith(str(value)) and len(power)>2*len(str(value))
+out={'passed':True,'cases':len(values),'seconds':time.monotonic()-t,'large_prefix_results':dict(zip(map(str,large),answers[200:206])),'oracle':'Independent suffix-length enumeration for N=1..200, integer powers for N=1..25, 160-digit direct bounds for all nonzero prefixes.','private_cases_read':False};(D/'PUBLIC_CROSSCHECKS_BATCHz202.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

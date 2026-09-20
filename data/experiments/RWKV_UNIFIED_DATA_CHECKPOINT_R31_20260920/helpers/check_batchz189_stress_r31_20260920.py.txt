@@ -1,0 +1,11 @@
+from pathlib import Path
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz189.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(994);n=k=q=60;A=[''.join(str(rng.randrange(2)) for _ in range(n)) for _ in range(n)];result={}
+for equal in (False,True):
+ queries=[]
+ for _ in range(q):
+  a,b,s,t=[rng.randint(1,60) for _ in range(4)]
+  if equal:b=a
+  queries.append(f'{a} {s} {b} {t}')
+ text=f'{n} {k} {q}\n'+'\n'.join(A+queries)+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=8);assert r.returncode==0,r.stderr;result[str(equal)]=time.monotonic()-start
+(D/'PUBLIC_STRESS_BATCHz189.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

@@ -1,0 +1,54 @@
+from pathlib import Path
+import json,math,random,time,subprocess,itertools,functools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';candidates={c['ordinal']:c for c in json.loads((D/'AUTHORED_BATCHz204.json').read_text())['candidates']};rng=random.Random(204);checks=[]
+def run(ordinal,text):
+ t=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),candidates[ordinal]['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;return p.stdout,time.monotonic()-t
+def graph(a,b):
+ edges=[]
+ for x in range(a,b+1):
+  for y in range(a,x):
+   z=math.isqrt(x*x-y*y)
+   if z*z==x*x-y*y and math.gcd(y,z)==1:edges.append((x,y))
+ return edges
+def brute(a,b):
+ edges=graph(a,b);vertices=sorted({x for e in edges for x in e});index={x:i for i,x in enumerate(vertices)};adj=[[] for _ in vertices]
+ for x,y in edges:adj[index[x]].append(index[y]);adj[index[y]].append(index[x])
+ @functools.lru_cache(None)
+ def search(mask):
+  if not mask:return 0,0
+  i=(mask&-mask).bit_length()-1;rest=mask^(1<<i);best=search(rest)
+  for j in adj[i]:
+   if rest>>j&1:
+    count,score=search(rest^(1<<j));best=max(best,(count+1,score+vertices[i]+vertices[j]))
+  return best
+ return search((1<<len(vertices))-1)
+for _ in range(100):
+ a=rng.randint(1,60);b=rng.randint(a,100);got,seconds=run(804,f'{a} {b}\n');assert tuple(map(int,got.split()))==brute(a,b),(a,b,got);checks.append({'ordinal':804,'seconds':seconds})
+assert run(804,'1 15\n')[0].strip()=='2 34'
+all_edges=graph(1,1000);adj={}
+for a,b in all_edges:adj.setdefault(a,[]).append(b);adj.setdefault(b,[]).append(a)
+colour={}
+for a in adj:
+ if a in colour:continue
+ colour[a]=0;todo=[a]
+ for u in todo:
+  for v in adj[u]:
+   if v not in colour:colour[v]=colour[u]^1;todo.append(v)
+   else:assert colour[u]!=colour[v]
+maximum,elapsed=run(804,'1 1000\n');checks.append({'ordinal':804,'maximum_seconds':elapsed,'result':maximum.strip()})
+for test in range(100):
+ n=rng.randint(1,4);duration=[rng.randint(1,3) for _ in range(n)];constraints=[]
+ for _ in range(rng.randrange(0,8)):
+  a=rng.randrange(n);b=rng.randrange(n);op=rng.choice(['FAS','FAF','SAF','SAS']);constraints.append((op,a,b))
+ def valid(starts):
+  for op,a,b in constraints:
+   left=starts[a]+(duration[a] if op in ('FAF','SAF') else 0);right=starts[b]+(duration[b] if op in ('FAS','FAF') else 0)
+   if left>right:return False
+  return True
+ feasible=[(0,)+s for s in itertools.product(range(3*n+1),repeat=n-1) if valid((0,)+s)];text=str(n)+'\n'+'\n'.join(map(str,duration))+'\n'+'\n'.join(f'{op} {a+1} {b+1}' for op,a,b in constraints)+'\n#\n';got,seconds=run(649,text);lines=got.strip().splitlines()
+ if not feasible:assert lines==['Case 1:','impossible'],(text,lines)
+ else:
+  actual=tuple(int(l.split()[1]) for l in lines[1:]);assert actual[0]==0 and valid(actual);assert max(actual[i]+duration[i] for i in range(n))==min(max(s[i]+duration[i] for i in range(n)) for s in feasible)
+ checks.append({'ordinal':649,'seconds':seconds})
+sample='3\n2\n3\n4\nSAF 1 2\nFAF 2 3\n#\n3\n1\n1\n1\nSAF 1 2\nSAF 2 3\nSAF 3 1\n#\n';assert run(649,sample)[0].split()==['Case','1:','1','0','2','2','3','1','Case','2:','impossible']
+out={'passed':True,'checks':checks,'bipartite_full_domain_edges':len(all_edges),'oracle':'Exhaustive weighted matching for small intervals and full 1..1000 graph bipartiteness; enumerate all bounded start-time schedules for small difference constraints.','private_cases_read':False};(D/'PUBLIC_CROSSCHECKS_BATCHz204.json').write_text(json.dumps(out,indent=2)+'\n');print(len(checks),'passed',maximum.strip(),elapsed)

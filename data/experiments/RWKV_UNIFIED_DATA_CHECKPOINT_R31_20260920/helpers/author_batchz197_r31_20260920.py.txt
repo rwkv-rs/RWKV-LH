@@ -1,0 +1,69 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from fractions import Fraction
+v=iter(map(int,sys.stdin.buffer.read().split()));output=[];case=0
+for n in v:
+ if n==0:break
+ graph=[set() for _ in range(n)];reverse=[[] for _ in range(n)]
+ while True:
+  a=next(v);b=next(v)
+  if a==b==0:break
+  graph[a-1].add(b-1)
+ for a in range(n):
+  for b in graph[a]:reverse[b].append(a)
+ reached={0};todo=[0]
+ for a in todo:
+  for b in graph[a]:
+   if b not in reached:reached.add(b);todo.append(b)
+ visited=set();order=[]
+ def dfs(a):
+  visited.add(a)
+  for b in graph[a]:
+   if b not in visited:dfs(b)
+  order.append(a)
+ for a in reached:
+  if a not in visited:dfs(a)
+ component={};groups=[]
+ for a in reversed(order):
+  if a in component:continue
+  cid=len(groups);group=[a];component[a]=cid
+  for u in group:
+   for b in reverse[u]:
+    if b in reached and b not in component:component[b]=cid;group.append(b)
+  groups.append(group)
+ infinite=set()
+ for cid,group in enumerate(groups):
+  if any(graph[a] for a in group) and all(component[b]==cid for a in group for b in graph[a]):infinite.update(group)
+ finite=sorted(reached-infinite);index={a:i for i,a in enumerate(finite)};size=len(finite);matrix=[[0]*(size+1) for _ in range(size)]
+ for a,i in index.items():
+  matrix[i][i]=max(1,len(graph[a]));matrix[i][-1]=int(a==0)
+  for b in graph[a]:
+   if b in index:matrix[index[b]][i]-=1
+ previous=1
+ for k in range(size-1):
+  if matrix[k][k]==0:
+   pivot=next(i for i in range(k+1,size) if matrix[i][k]);matrix[k],matrix[pivot]=matrix[pivot],matrix[k]
+  pivot=matrix[k][k];row=matrix[k]
+  for i in range(k+1,size):
+   target=matrix[i];factor=target[k]
+   for j in range(k+1,size+1):target[j]=(target[j]*pivot-factor*row[j])//previous
+   target[k]=0
+  previous=pivot
+ solution=[Fraction(0)]*size
+ for i in range(size-1,-1,-1):solution[i]=(matrix[i][-1]-sum(matrix[i][j]*solution[j] for j in range(i+1,size)))/matrix[i][i]
+ case+=1;output.append(f'Case #{case}:');q=next(v)
+ for _ in range(q):
+  a=next(v)-1
+  if a in infinite:output.append('infinity')
+  elif a not in index:output.append('0.000')
+  else:
+   value=solution[index[a]]*max(1,len(graph[a]));whole,remainder=divmod(value.numerator*1000,value.denominator)
+   if 2*remainder>value.denominator or (2*remainder==value.denominator and whole&1):whole+=1
+   output.append(f'{whole//1000}.{whole%1000:03d}')
+print('\\n'.join(output))
+'''
+note='The requested value is the expectation of each individual node visit count. Unreachable nodes have zero expectation; reachable closed strongly connected components with at least one outgoing transition are recurrent and have infinite visits to each of their nodes. Terminal singleton components stop execution and are not recurrent. All other reachable nodes are transient even if execution can later enter an infinite component. For finite nodes let y_i=expected_visits_i/max(outdegree_i,1); flow balance gives the integer linear system degree_i*y_i-sum_{j->i}y_j=[i=1]. Ignore transitions into recurrent components as absorbing exits. Solve this nonsingular system using fraction-free Bareiss elimination and exact rational back substitution, avoiding near-singular floating-point cancellation. Format exact expectations to three decimals and preserve per-dataset Case # numbering. Graph successors are sets as specified, not additional probabilities invented from duplicate lines.'
+row=rows[224];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz197.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':224,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

@@ -1,0 +1,31 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+def solve(n,intervals):
+ mask=(1<<(n+1))-1;dp=[(1,0)];previous=0
+ def spread(bits,length):
+  step=1
+  while length:
+   take=min(step,length);bits=(bits|(bits<<take))&mask;length-=take;step*=2
+  return bits
+ for left,right in intervals:
+  gap=left-previous;length=right-left;new=[[0,0] for _ in range(len(dp)+2)]
+  for j,(a,b) in enumerate(dp):
+   b=(b<<gap)&mask
+   new[j][0]|=a;new[j][1]|=(b<<length)&mask
+   sa=spread(a,length) if a else 0;sb=spread(b,length) if b else 0
+   new[j+1][1]|=sa;new[j+1][0]|=sb
+   new[j+2][0]|=sa;new[j+2][1]|=sb
+  dp=new;previous=right
+ gap=2*n-previous
+ for j,(a,b) in enumerate(dp):
+  if ((a|((b<<gap)&mask))>>n)&1:return j
+ return None
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);k=next(v);result=solve(n,[(next(v),next(v)) for _ in range(k)])
+if result is None:print('Hungry')
+else:print('Full');print(result)
+'''
+note='Track total time spent on second side at each permitted interval endpoint, as a bitset for each flip count and final side. In a gap no flip is possible, so second-side states shift by the gap length. Within one permitted interval, zero flips fixes duration, one flip allows every duration in [0,L] and changes side, and two flips allows every duration in [0,L] while retaining side. Any trajectory with more than two flips in that same interval is replaceable by at most two with the same duration and endpoints. Interval dilation uses logarithmic bit shifts. Integer interval endpoints and integer target imply an integer-duration witness whenever a real-time solution exists. Discard second-side duration above n, add final gap, choose least flip count reaching n. No business-path or sample special case.'
+row=rows[340];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz209.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':340,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

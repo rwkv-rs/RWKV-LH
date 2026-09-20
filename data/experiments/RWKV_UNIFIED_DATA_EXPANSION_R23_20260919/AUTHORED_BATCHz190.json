@@ -1,0 +1,10 @@
+{
+  "candidates": [
+    {
+      "id": "CODING-ef2667ab2f00e130655c1a79",
+      "ordinal": 960,
+      "candidate_path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/tasks/CODING-ef2667ab2f00e130655c1a79/candidate_03/solution.py",
+      "review_note": "A column interval is summarized by its total number of connected components and the equivalence partition of its two boundary columns. On concatenation, only equal-valued cells crossing the one shared column seam can join components. Union the two boundary partitions, subtract each successful crossing union from the component total, then restrict the partition to the new outer boundaries. Internal components remain accounted for in the total even if absent from the boundary. An ordered segment-tree query merges a contiguous left accumulator and right accumulator without changing column order. Cache boundary-partition merges by their exact canonical byte partitions and seam equality mask; component totals are intentionally not cached. The cache is bounded and exact, with no hash-collision-based semantic decisions. When neither child connects its two outer boundaries, the new outer partitions are unchanged and the component decrement depends only on the two interior seam partitions. Cache this smaller exact subproblem separately; do not key it on unrelated exterior labels. Static queries use 32-column block prefixes/suffixes and a disjoint sparse table over whole blocks, keeping column order and requiring at most four merges for a cross-block query. Same-block queries use the original exact segment tree. Input rows are parsed separately to bound memory."
+    }
+  ]
+}

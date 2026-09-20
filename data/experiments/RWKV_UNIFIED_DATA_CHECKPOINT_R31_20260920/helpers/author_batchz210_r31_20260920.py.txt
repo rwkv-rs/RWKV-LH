@@ -1,0 +1,40 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+def solve(A,B):
+ xs=sorted(set(A));N=len(xs);index={x:i for i,x in enumerate(xs)};size=4*N;mx=[0]*size;la=[0]*size;lb=[0]*size;assigned=[False]*size
+ def apply(o,r,a,b,reset):
+  if reset:mx[o]=a*xs[r]+b;la[o]=a;lb[o]=b;assigned[o]=True
+  else:mx[o]+=a*xs[r]+b;la[o]+=a;lb[o]+=b
+ def push(o,l,r):
+  if assigned[o] or la[o] or lb[o]:
+   mid=(l+r)//2;apply(o*2,mid,la[o],lb[o],assigned[o]);apply(o*2+1,r,la[o],lb[o],assigned[o]);la[o]=lb[o]=0;assigned[o]=False
+ def update(o,l,r,ql,qr,a,b,reset):
+  if ql<=l and r<=qr:apply(o,r,a,b,reset);return
+  push(o,l,r);mid=(l+r)//2
+  if ql<=mid:update(o*2,l,mid,ql,qr,a,b,reset)
+  if qr>mid:update(o*2+1,mid+1,r,ql,qr,a,b,reset)
+  mx[o]=mx[o*2+1]
+ def value(o,l,r,pos):
+  if l==r:return mx[o]
+  push(o,l,r);mid=(l+r)//2
+  if pos<=mid:return value(o*2,l,mid,pos)
+  return value(o*2+1,mid+1,r,pos)
+ def first_above(o,l,r,target):
+  if mx[o]<=target:return N
+  if l==r:return l
+  push(o,l,r);mid=(l+r)//2
+  if mx[o*2]>target:return first_above(o*2,l,mid,target)
+  return first_above(o*2+1,mid+1,r,target)
+ for a,b in zip(A,B):
+  p=index[a];constant=value(1,0,N-1,p)+b
+  update(1,0,N-1,0,p,1,b-a,False)
+  end=first_above(1,0,N-1,constant)-1
+  if end>p:update(1,0,N-1,p+1,end,0,constant,True)
+ return mx[1]
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);A=[next(v) for _ in range(n)];B=[next(v) for _ in range(n)];print(solve(A,B))
+'''
+note='F(h) is optimal happiness of processed prefix when all its final heights are capped at h. For next (a,b), if h<=a set its height h: Fnew(h)=F(h)+b-a+h. If h>a either it stays invisible with value F(h), or becomes visible at a giving F(a)+b; take max. Lowering an invisible last person cannot improve value. F is monotone; right-hand chmax replaces a contiguous prefix by one constant. Compress all original heights, maintain F on those caps in a segment tree with affine coordinate-add and constant assignment. Search first point above the new constant using monotonicity. O(N log N), no need to enumerate heights or presume everyone must see the slide.'
+row=rows[944];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz210.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':944,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

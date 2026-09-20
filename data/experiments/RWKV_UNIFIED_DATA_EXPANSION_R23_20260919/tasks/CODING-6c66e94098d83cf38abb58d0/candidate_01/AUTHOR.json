@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "75058f5c41749f0001b2aa0bc6f253a104ff6a440d78354227d36bc1a07cf121",
+  "solution_sha256": "0d5ddf179d2df1bfc50a5baefe4af7f80e6238a2e5bda092c02e980e7fffad8c",
+  "reasoning": "Root the railway tree at the capital. A subtree can be solved independently because divisions move only toward the root; its output is the exact sorted arrival stream at its parent. Merge child streams with the local division available at day zero. At each day insert all arrived divisions into a priority heap, send at most the edge capacity, and deliver them one day later. Jump across empty waiting periods, preserving simultaneous arrivals before boarding. A unary node whose edge capacity is at least the child stream maximum simultaneous load has no queue: prepend its own day-zero availability and lazily add one to all arrival times using an offset, avoiding quadratic work on a long chain. This shortcut is conditional on a proved load bound, not a task-specific path case. The root reads final streams directly and its own division takes zero days.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

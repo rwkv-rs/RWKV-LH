@@ -1,0 +1,11 @@
+from pathlib import Path
+import json,subprocess
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz188.json').read_text())['candidates'][0]['candidate_path'];cases=[];expected=[]
+for n in range(5):
+ holes={(0,0)}
+ for level in range(n):
+  side=1<<level;holes={(x+dx,y+dy) for x,y in holes for dx,dy in ((0,0),(side,0),(side,side))}
+ for x in range((1<<n)+1):
+  for y in range((1<<n)+1):cases.append((n,x,y));expected.append(len(holes & {(u+x,v+y) for u,v in holes}))
+cases.extend([(100,0,0),(100,1<<100,0)]);expected.extend([3**100,0]);text=str(len(cases))+'\n'+'\n'.join(' '.join(map(str,row)) for row in cases)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0 and list(map(int,r.stdout.split()))==expected,r.stderr
+out={'status':'passed','cases':{'279':len(cases)},'private_cases_read':False,'oracle':'Explicit recursive hole sets and translated-set intersections for every offset on n<=4, plus exact maximum-size zero-shift and disjoint boundaries'};(D/'PUBLIC_CROSSCHECKS_BATCHz188.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

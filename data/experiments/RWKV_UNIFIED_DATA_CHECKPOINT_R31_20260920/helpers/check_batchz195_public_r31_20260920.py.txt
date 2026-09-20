@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz195.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(870);count=0
+
+def run(n,m,records):
+ text=f'{n} {m} {len(records)}\n'+'\n'.join(f'{sec//3600}:{sec//60%60:02}:{sec%60:02} {chr(65+problem)} {name} {verdict}' for sec,problem,name,verdict in records)+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0,r.stderr;return r.stdout.splitlines(),time.monotonic()-start
+
+def oracle(n,records):
+ names=list(dict.fromkeys(name for _,_,name,_ in records));first={name:i for i,name in enumerate(names)};full={};visible={}
+ for name in names:
+  for problem in range(n):
+   attempts=[(sec,verdict) for sec,p,team,verdict in records if team==name and p==problem];failed=0;value=None;time_solved=None
+   for sec,verdict in attempts:
+    if verdict=='Accepted':value=sec//60+20*failed;time_solved=sec;break
+    failed+=1
+   full[name,problem]=value;visible[name,problem]=value if time_solved is not None and time_solved<=14400 else None
+ def key(name):
+  vals=[visible[name,p] for p in range(n) if visible[name,p] is not None];return (-len(vals),sum(vals),first[name])
+ active=names[:];cursor={name:0 for name in names};out=[]
+ while active:
+  board=sorted(active,key=key);name=board[-1];out.append(name);moved=False
+  while cursor[name]<n:
+   p=cursor[name];cursor[name]+=1;visible[name,p]=full[name,p]
+   if sorted(active,key=key).index(name)<len(active)-1:moved=True;break
+  if not moved:active.remove(name)
+ return out
+for _ in range(180):
+ n=rng.randint(1,6);m=rng.randint(1,9);names=[chr(97+i) for i in range(m)];records=[]
+ for j in range(rng.randint(1,90)):
+  sec=rng.choice([14400,14401,18000,rng.randrange(18001)]);records.append((sec,rng.randrange(n),rng.choice(names),rng.choice(['Accepted','Wrong Answer','Time Limit Exceeded','Runtime Error'])))
+ records.sort(key=lambda r:r[0]);expected=oracle(n,records);actual,_=run(n,m,records);assert actual==expected,(records,expected,actual);count+=1
+records=[(1,0,'abc','Wrong Answer'),(2,0,'abc','Accepted'),(1178,0,'bcd','Accepted'),(15502,1,'abc','Accepted')];assert run(2,2,records)[0]==['abc','bcd','abc'];count+=1
+records=sorted([(rng.randrange(18001),rng.randrange(20),'team'+str(rng.randrange(1000)),rng.choice(['Accepted','Wrong Answer'])) for _ in range(10000)],key=lambda x:x[0]);_,elapsed=run(20,1000,records)
+result={'status':'passed','cases':{'870':count},'maximum_case_seconds':elapsed,'private_cases_read':False,'oracle':'Recompute complete sorted board after every individual problem reveal, with first-record ties, exact freeze seconds, repeat submissions, all known published samples, and maximum record/team dimensions'};(D/'PUBLIC_CROSSCHECKS_BATCHz195.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

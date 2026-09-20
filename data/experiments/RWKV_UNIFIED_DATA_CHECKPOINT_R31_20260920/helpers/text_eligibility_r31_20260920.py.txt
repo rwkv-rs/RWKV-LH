@@ -1,0 +1,35 @@
+"""Experiment-only row eligibility overlay. Does not rewrite historical packages."""
+from pathlib import Path
+import hashlib,json,re
+R=Path('/home/chase/GitHub/RWKV-LH')
+REVIEW=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/TEXT_SUFFICIENCY_REVIEW.json'
+MARKERS=re.compile(r'!\[|<image>|<img\b|\[image\]|\b(?:figure|diagram|pictured|illustration|pictures?|drawing|illustrated|screenshot|png|jpg)\b|shown (?:below|above)|如图|下图',re.I)
+def sha(data):return hashlib.sha256(data).hexdigest()
+def frozen_review_reference():
+ data=REVIEW.read_bytes();digest=sha(data);folder=REVIEW.parent/'text_review_snapshots';folder.mkdir(exist_ok=True);path=folder/(digest+'.json')
+ if path.exists():assert path.read_bytes()==data
+ else:path.write_bytes(data)
+ return {'path':str(path),'sha256':digest}
+def select_rows(rows,source_texts,review=None):
+ review=review or json.loads(REVIEW.read_text())
+ assert review['status']=='flagged_source_semantic_review_complete'
+ decisions={}
+ for item in review['decisions']:
+  decisions[('source',item.get('source_sha256',item.get('text_sha256')))]=item
+  # Initial screen's unmapped records used actual input text; they are bound
+  # to source content separately below using row references.
+  if item.get('scope')=='actual_input_text':
+   for ref in item['rows']:decisions[('input',ref['input_sha256'])]=item
+  else:decisions[('source',item.get('source_sha256',item.get('text_sha256')))]=item
+ eligible=[];excluded=[]
+ for row in rows:
+  digest=row['source_content_sha256'];text=source_texts[digest]
+  assert sha(text.encode())==digest,'source changed'
+  decision=decisions.get(('source',digest)) or decisions.get(('input',sha(row['input_text'].encode())))
+  if MARKERS.search(text):assert decision is not None,('unreviewed image/text marker',row['sample_id'])
+  if decision is not None:
+   assert decision['decision'] in ('retain','exclude'),'pending review'
+   if decision['decision']=='exclude':
+    excluded.append({'sample_id':row['sample_id'],'source_id':row['source_id'],'source_content_sha256':digest,'input_sha256':sha(row['input_text'].encode()),'reason':decision['reason']});continue
+  eligible.append(row)
+ return eligible,excluded

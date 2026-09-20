@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "78fa6385c250c2326835d65a685c697d320bcf9c5d7dae76baac04452f384de4",
+  "solution_sha256": "bbe6f90a15223657d17e12761d402651c50c5a94c08c61d80032ced5a3620cda",
+  "reasoning": "Every anomaly maps charge x to ceil(x/2), so after h hits the charge is ceil(s/2^h), stabilizing at 1 after L=ceil(log2(s)) hits. Count only coefficients h<L of the path generating polynomial. For each sorted anomaly i, let D_i(y) count paths from the start to i with earlier anomalies weighted by y. Then D_i=unrestricted_paths(start,i)+sum_{j<i}(y-1)D_j*unrestricted_paths(j,i). Each multiplication by (y-1) converts the unmarked path contribution into the marked one; summing the same corrections at the destination gives exact hit counts, including anomalies at start/end. Compute monotone path counts by binomial coefficients. Pack the first L modular coefficients into 72-bit lanes so the O(k^2) scalar-weighted polynomial sums execute as exact big-integer operations; k<=2000 and residues<P guarantee no inter-lane carries. Reduce each lane before constructing the next correction polynomial. Expected charge is 1 plus weighted low-hit excess, divided by the total number of paths modulo P.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

@@ -1,0 +1,20 @@
+from pathlib import Path
+import json,itertools,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';candidate=json.loads((D/'AUTHORED_BATCHz203.json').read_text())['candidates'][0];W=5;positions=list(itertools.product(range(2),range(W)));states=[(a,b) for a in positions for b in positions if a!=b];cases=[];expected=[]
+for start in states:
+ reached={start}
+ for t in range(1,7):
+  ns=set()
+  for a,b in reached:
+   aa=[a,(1-a[0],a[1])]+([(a[0],a[1]+1)] if a[1]+1<W else [])
+   bb=[b,(1-b[0],b[1])]+([(b[0],b[1]+1)] if b[1]+1<W else [])
+   ns.update((x,y) for x in aa for y in bb if x!=y)
+  reached=ns
+  for end in states:
+   a,b=start;x,y=end;cases.append(f'2\n20 {a[0]+1} {a[1]+1} {b[0]+1} {b[1]+1}\n{20+t} {x[0]+1} {x[1]+1} {y[0]+1} {y[1]+1}\n');expected.append('yes' if end in reached else 'no')
+def run(text):
+ t=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),candidate['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;return p.stdout.split(),time.monotonic()-t
+got,elapsed=run(str(len(cases))+'\n'+''.join(cases));assert got==expected,next((i,a,b) for i,(a,b) in enumerate(zip(got,expected)) if a!=b)
+sample='2\n3\n1 1 1 2 2\n2 2 1 2 2\n4 2 2 2 3\n1\n1 1 3 2 2\n';assert run(sample)[0]==['yes','no']
+records='100000\n'+''.join(f'{i} 1 {i+1} 2 {i+1}\n' for i in range(1,100001));got,maximum=run('10\n'+records*10);assert got==['yes']*10
+out={'passed':True,'exhaustive_cases':len(cases),'seconds':elapsed,'million_records_seconds':maximum,'published_samples':2,'oracle':'Independent BFS of the complete joint two-car state graph; source sample and maximal input-size smoke.','private_cases_read':False};(D/'PUBLIC_CROSSCHECKS_BATCHz203.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

@@ -1,0 +1,38 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from functools import lru_cache
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);requests=[(next(v),next(v)) for _ in range(n)]
+@lru_cache(maxsize=50000)
+def transitions(position,pickup,passengers):
+ low=min(position,pickup);high=max(position,pickup);left={low};right={high}
+ for floor in passengers:
+  if floor<low:left.add(floor)
+  if floor>high:right.add(floor)
+ best={}
+ for L in left:
+  for R in right:
+   remaining=tuple(x for x in passengers if x<L or x>R)
+   if len(remaining)==4:continue
+   cost=R-L+min(position-L+R-pickup,R-position+pickup-L)
+   if cost<best.get(remaining,10**9):best[remaining]=cost
+ return tuple(best.items())
+dp={():0};position=1
+for pickup,destination in requests:
+ following={}
+ for passengers,cost in dp.items():
+  for remaining,movement in transitions(position,pickup,passengers):
+   state=tuple(sorted(remaining+(destination,)));value=cost+movement
+   if value<following.get(state,10**9):following[state]=value
+ dp=following;position=pickup
+answer=10**9
+for passengers,cost in dp.items():
+ if passengers:
+  L=passengers[0];R=passengers[-1];cost+=R-L+min(abs(position-L),abs(position-R))
+ answer=min(answer,cost)
+print(answer+2*n)
+'''
+note='Every employee boards and leaves exactly once, so 2*n seconds are fixed; optimize only travel. After each next-in-order boarding, record current pickup floor and the sorted multiset of at most four onboard destinations. Between consecutive pickups any route covers an interval [L,R] containing both endpoint floors. Drop every previous passenger in that interval: doing so cannot harm capacity or future costs, and the new pickup floor can be opened only on the final visit if necessary to preserve automatic boarding order. Minimal travel to cover that interval is R-L plus the better of visiting its endpoints in either order. Only current/pickup endpoints and existing destinations can be useful extrema. Enumerate these at most nine intervals, require a free seat, append the next destination, and retain minimum cost per multiset. Consecutive employees on the same floor automatically enter at zero travel; the DP must still respect that automatic boarding, verified separately against a literal command simulator. Finish by visiting the extreme remaining destinations. Cached transitions depend only on exact floor/multiset state.'
+row=rows[174];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz192.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':174,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

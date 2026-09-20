@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,subprocess,random,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz183.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920);cases=[];expected=[]
+for trial in range(150):
+ length=[rng.randrange(1,20) for _ in range(3)];A=[rng.choice((0,x)) for x in length];B=[rng.choice((0,x)) for x in length];different=[abs(x-y) for x,y in zip(A,B)]
+ value=min((length[i]+length[j])**2+length[3-i-j]**2 for i in range(3) for j in range(i+1,3)) if all(different) else sum(x*x for x in different);cases.append(length+A+B);expected.append(value)
+for trial in range(60):
+ length=[2*rng.randrange(1,20) for _ in range(3)];axis=rng.randrange(3);A=[x//2 for x in length];B=A[:];A[axis]=0;B[axis]=length[axis];value=(length[axis]+min(length[i] for i in range(3) if i!=axis))**2;cases.append(length+A+B);expected.append(value)
+cases.extend([[5,5,2,3,1,2,3,5,0],[300,600,900,300,550,0,0,550,900]]);expected.extend([36,970000]);text='\n'.join(' '.join(map(str,row)) for row in cases)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=8);assert r.returncode==0,r.stderr;actual=list(map(int,r.stdout.split()));assert actual==expected,[(c,a,b) for c,a,b in zip(cases,actual,expected) if a!=b][:3]
+# Reversing endpoints and independently permuting/reflection of physical axes preserves distance.
+more=[]
+for row in cases[-40:]:
+ length,A,B=row[:3],row[3:6],row[6:];order=rng.sample(range(3),3);flips=[rng.randrange(2) for _ in range(3)];aa=[length[i]-B[i] if flips[i] else B[i] for i in range(3)];bb=[length[i]-A[i] if flips[i] else A[i] for i in range(3)];more.append([length[i] for i in order]+[aa[i] for i in order]+[bb[i] for i in order])
+r=subprocess.run([str(R/'.venv/bin/python'),p],input='\n'.join(' '.join(map(str,row)) for row in more)+'\n',text=True,capture_output=True,timeout=5);assert r.returncode==0 and list(map(int,r.stdout.split()))==expected[-40:],r.stderr
+out={'status':'passed','cases':{'733':252},'private_cases_read':False,'oracle':'Exact closed forms for all box-corner pair types and opposite face centers, both published arbitrary-point examples, and axis/reflection/endpoint symmetries'};(D/'PUBLIC_CROSSCHECKS_BATCHz183.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

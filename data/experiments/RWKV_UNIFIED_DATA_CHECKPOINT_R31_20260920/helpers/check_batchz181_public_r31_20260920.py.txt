@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,subprocess,random,itertools,re
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';a=json.loads((D/'AUTHORED_BATCHz181.json').read_text())['candidates'][0];p=a['candidate_path'];rng=random.Random(20260920)
+def run(text,expected):
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0 and r.stdout.strip()==expected,(text,r.stdout,r.stderr,expected)
+task=(R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917/tasks'/a['id']/'TASK.md').read_text();samples=re.findall(r'```\n(.*?)\n```',task,re.S)
+for i in range(0,len(samples),2):run(samples[i]+'\n',samples[i+1])
+def add(a,b,scale=1):return tuple(x+scale*y for x,y in zip(a,b))
+for trial in range(240):
+ cells={(0,0,0)}
+ while len(cells)<8:
+  possibilities=set()
+  for cell in cells:
+   for axis in range(3):
+    for sign in (-1,1):
+     nxt=list(cell);nxt[axis]+=sign;nxt=tuple(nxt)
+     if nxt not in cells and sum(sum(abs(a-b) for a,b in zip(nxt,old))==1 for old in cells)==1:possibilities.add(nxt)
+  cells.add(rng.choice(sorted(possibilities)))
+ first=next(iter(cells));frames={first:((0,0,0,0),tuple(tuple(int(i==j) for j in range(4)) for i in range(3)),(0,0,0,-1))};stack=[first];cubes=[]
+ while stack:
+  cell=stack.pop();origin,basis,normal=frames[cell];corners=frozenset(tuple(origin[j]+sum(choice[i]*basis[i][j] for i in range(3)) for j in range(4)) for choice in itertools.product((0,1),repeat=3));assert all(all(x in (0,1) for x in point) for point in corners);cubes.append(corners)
+  for axis in range(3):
+   for sign in (-1,1):
+    nxt=list(cell);nxt[axis]+=sign;nxt=tuple(nxt)
+    if nxt in cells and nxt not in frames:
+     new=list(basis);new[axis]=tuple(-sign*x for x in normal);neworigin=add(origin,basis[axis]) if sign==1 else add(origin,normal,-1);newnormal=tuple(sign*x for x in basis[axis]);frames[nxt]=(neworigin,tuple(new),newnormal);stack.append(nxt)
+ expected='Yes' if len(set(cubes))==8 else 'No';mins=[min(cell[i] for cell in cells) for i in range(3)];cells={tuple(cell[i]-mins[i] for i in range(3)) for cell in cells};w,d,h=[max(cell[i] for cell in cells)+1 for i in range(3)];text=f'{w} {d} {h}\n'+'\n'.join(''.join('x' if (x,y,z) in cells else '.' for x in range(w)) for z in range(h) for y in range(d))+'\n';run(text,expected)
+out={'status':'passed','cases':{'728':242},'private_cases_read':False,'oracle':'Explicit 4D affine cube-corner folding and overlap detection on random tree polycubes, plus both published nets'};(D/'PUBLIC_CROSSCHECKS_BATCHz181.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

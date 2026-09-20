@@ -1,0 +1,33 @@
+from pathlib import Path
+from collections import deque
+import json,subprocess,random,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz182.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def neighbors(tree):
+ if isinstance(tree,str):return []
+ args=[];head=tree
+ while not isinstance(head,str):args.append(head[1]);head=head[0]
+ args=args[::-1];arity={'I':1,'K':2,'B':3,'C':3}[head];result=[]
+ if len(args)>=arity:
+  if head in 'IK':u=args[0]
+  elif head=='B':u=(args[0],(args[1],args[2]))
+  else:u=((args[0],args[2]),args[1])
+  for a in args[arity:]:u=(u,a)
+  result.append(u)
+ result.extend((a,tree[1]) for a in neighbors(tree[0]));result.extend((tree[0],b) for b in neighbors(tree[1]));return result
+
+def brute(tree):
+ queue=deque([(tree,0)]);seen={tree}
+ while queue:
+  u,d=queue.popleft();ns=neighbors(u)
+  if not ns:return d
+  for v in ns:
+   if v not in seen:seen.add(v);queue.append((v,d+1))
+def make(n):
+ if n==1:return rng.choice('BCKI')
+ k=rng.randrange(1,n);return (make(k),make(n-k))
+def text(tree):return tree if isinstance(tree,str) else '('+text(tree[0])+text(tree[1])+')'
+for trial in range(200):
+ tree=make(rng.randrange(1,12));expected=brute(tree);source=text(tree);r=subprocess.run([str(R/'.venv/bin/python'),p],input=source+'\n',text=True,capture_output=True,timeout=3);assert r.returncode==0 and int(r.stdout)==expected,(source,r.stdout,r.stderr,expected)
+for source,expected in [('C(K(II)(IC))',2),('CIBI',3),('BBBBBCCCCCKKKKKIIIII',15),('I'*30000,29999)]:
+ r=subprocess.run([str(R/'.venv/bin/python'),p],input=source+'\n',text=True,capture_output=True,timeout=3);assert r.returncode==0 and int(r.stdout)==expected,(source[:100],r.stdout,r.stderr,expected)
+out={'status':'passed','cases':{'760':204},'private_cases_read':False,'oracle':'Breadth-first search over every redex at every tree location finds the globally minimum contraction count; all published samples and maximum-length head chain'};(D/'PUBLIC_CROSSCHECKS_BATCHz182.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

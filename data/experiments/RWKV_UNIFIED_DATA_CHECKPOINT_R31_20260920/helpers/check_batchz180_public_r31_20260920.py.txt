@@ -1,0 +1,10 @@
+from pathlib import Path
+import json,subprocess,random,time,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz180.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(20260920)
+def check(words,expected):
+ text=str(len(words))+'\n'+'\n'.join(words)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=3);assert r.returncode==0 and int(r.stdout)==expected,(text,r.stdout,r.stderr,expected)
+for trial in range(180):
+ n=rng.randrange(1,6);words=[''.join(rng.choice('abc') for _ in range(rng.randrange(1,7))) for _ in range(n)];variants=[[w]+[w[:i]+w[i+1:] for i in range(len(w))] for w in words];expected=sum(all(row[i]<=row[i+1] for i in range(n-1)) for row in itertools.product(*variants));check(words,expected)
+for words,expected in [(['abcd','zaza','ataka'],4),(['dfs','bfs','sms','mms'],8),(['abc','bcd','a'],0),(['lapochka','kartyshka','bigbabytape','morgenshtern','ssshhhiiittt','queen'],2028)]:check(words,expected)
+start=time.monotonic();check(['ab'*5000]*2,10001*10002//2);elapsed=time.monotonic()-start
+out={'status':'passed','cases':{'332':184},'max_total_length_seconds':elapsed,'private_cases_read':False,'oracle':'Enumerate all deletion-position choices without deduplication, count nondecreasing outputs, and verify every published sample including the two previous failures'};(D/'PUBLIC_CROSSCHECKS_BATCHz180.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

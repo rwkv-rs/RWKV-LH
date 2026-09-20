@@ -1,0 +1,22 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+v=iter(sys.stdin.buffer.read().split());width=int(next(v));depth=int(next(v));height=int(next(v));cells=set()
+for z in range(height):
+ for y in range(depth):
+  for x,char in enumerate(next(v)):
+   if char==120:cells.add((x,y,z))
+start=next(iter(cells));frames={start:(1,2,3,4)};stack=[start];normals=set()
+while stack:
+ cell=stack.pop();frame=frames[cell];normals.add(frame[3])
+ for axis in range(3):
+  for sign in (-1,1):
+   neighbor=list(cell);neighbor[axis]+=sign;neighbor=tuple(neighbor)
+   if neighbor in cells and neighbor not in frames:
+    new=list(frame);new[3]=sign*frame[axis];new[axis]=-sign*frame[3];frames[neighbor]=tuple(new);stack.append(neighbor)
+print('Yes' if len(normals)==8 else 'No')
+'''
+note='Propagate an orthonormal signed four-axis frame along the guaranteed tree of eight cubes. The first three axes describe the unfolded local cube coordinates and the fourth its outward normal after folding. Crossing a shared face in signed local direction i rotates by 90 degrees: new normal is sign*axis_i and new axis_i is -sign*old_normal, leaving the other axes fixed. A tesseract has exactly the eight cubic boundary cells with normals +/- each of its four coordinate axes. The tree removes orientation consistency cycles; adjacent folded cubes share the correct square. Thus eight distinct resulting normals are exactly the condition that all eight boundary cells are covered once, while any repeated normal overlaps a cell and leaves another uncovered.'
+row=rows[728];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz181.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':728,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

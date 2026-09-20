@@ -1,0 +1,51 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from functools import lru_cache
+v=sys.stdin.buffer.read().split();H,W,K=map(int,v[:3]);grid=[s.decode() for s in v[3:]]
+if not H or not W:print(0);raise SystemExit
+if W>H:grid=[''.join(grid[r][c] for r in range(H)) for c in range(W)];H,W=W,H
+@lru_cache(None)
+def advance(state,closed,previous,c,colour):
+ if closed&(1 if colour==1 else 2):return None
+ up=state[c];left=state[c-1] if c else 0
+ if c and previous==colour and up*colour>0 and left*colour>0:return None
+ a=list(state)
+ if up*colour>0:
+  label=up
+  if left*colour>0 and left!=up:a=[up if x==left else x for x in a]
+ elif left*colour>0:label=left
+ else:label=colour*(max(map(abs,a),default=0)+1)
+ a[c]=label
+ if up and up not in a and up*colour<0:
+  if any(x*up>0 for x in a):return None
+  closed|=1 if up>0 else 2
+ mapping={};canon=[];pos=0;neg=0
+ for x in a:
+  if not x:canon.append(0);continue
+  if x not in mapping:
+   if x>0:pos+=1;mapping[x]=pos
+   else:neg-=1;mapping[x]=neg
+  canon.append(mapping[x])
+ return tuple(canon),closed,(1 if up>0 else -1 if up<0 else 0)
+B=72;dp={((0,)*W,0,0):1}
+for r in range(H):
+ for c in range(W):
+  choices=(1,) if grid[r][c]=='T' else (-1,) if grid[r][c]=='D' else (1,-1);new={}
+  for (state,closed,previous),poly in dp.items():
+   for colour in choices:
+    key=advance(state,closed,previous,c,colour)
+    if key is not None:new[key]=new.get(key,0)+(poly<<B if colour==1 else poly)
+  dp=new
+total=0;mask=(1<<B)-1;cells=H*W
+for (state,closed,previous),poly in dp.items():
+ positive={x for x in state if x>0};negative={x for x in state if x<0}
+ if len(positive)+bool(closed&1)!=1 or len(negative)+bool(closed&2)!=1:continue
+ for count in range(1,cells):
+  if abs(2*count-cells)<=K:total+=(poly>>(B*count))&mask
+print(total)
+'''
+note='The text fully specifies labelled T/D connected pieces, forbidden 2x2 same-colour squares and size imbalance. Scan the shorter grid dimension with a connectivity frontier: signed canonical labels track each colour component. When the last frontier occurrence of a component disappears, reject if another component of that colour remains, otherwise close that colour permanently. This prevents later disconnected pieces and permits a finished piece to leave the frontier. Preserve the previous upper-cell colour to reject monochromatic 2x2 blocks. At the end each colour must have exactly one component (active or closed), so empty pieces are not counted. Count by T population using exact packed polynomial coefficients; 72-bit lanes exceed the maximum 2^64 colourings of an 8x8 board, so no carry changes coefficients. Validate by enumeration of every full colouring on small grids, including fixed labels and both connectivity tests.'
+row=rows[604];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz200.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':604,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

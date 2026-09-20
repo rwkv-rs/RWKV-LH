@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "9e7e5f2f0d444586dcf75a020db28238caa14c219f874e6ebb29c551e5840718",
+  "solution_sha256": "34591f95178cc3d9cc4084c37d9ab71a6715075b89792a57c494926f67efa57b",
+  "reasoning": "Treat knowledge arrival as a time-dependent shortest-path problem with waiting allowed and zero communication delay. For a robot informed at time t, scan two piecewise-linear routes over their merged segment boundaries to find the earliest later contact. Relative squared distance is a quadratic; test immediate contact, otherwise solve the entering root using a numerically stable positive-root formula and clip only negligible floating boundary error under the stated event separation guarantee. Dijkstra is valid because earliest-contact time is nondecreasing in the information start time (FIFO with waiting). Relaxing every uninformed robot propagates simultaneous multi-robot contacts and later mobile relays, while already informed robots retain data forever after separation. Respect velocity-on-the-preceding-interval input semantics, include contacts at T, and output only first-robot information recipients in dictionary order.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

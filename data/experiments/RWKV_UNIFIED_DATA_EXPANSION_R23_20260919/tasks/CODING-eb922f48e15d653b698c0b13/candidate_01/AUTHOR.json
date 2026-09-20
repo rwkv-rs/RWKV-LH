@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "2ed018c59b71557ab8942ae0aa5b571104e91a16837c07b5885dd819c0536c06",
+  "solution_sha256": "6da35cc24851a6fd96467542bd353ed77255a1469c533ad16d9c6ced3c53a9a3",
+  "reasoning": "F(h) is optimal happiness of processed prefix when all its final heights are capped at h. For next (a,b), if h<=a set its height h: Fnew(h)=F(h)+b-a+h. If h>a either it stays invisible with value F(h), or becomes visible at a giving F(a)+b; take max. Lowering an invisible last person cannot improve value. F is monotone; right-hand chmax replaces a contiguous prefix by one constant. Compress all original heights, maintain F on those caps in a segment tree with affine coordinate-add and constant assignment. Search first point above the new constant using monotonicity. O(N log N), no need to enumerate heights or presume everyone must see the slide.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

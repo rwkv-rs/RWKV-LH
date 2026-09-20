@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "9fec4368885f082cea97aeaeb92d69b7769f325981095c8892386e9be46dc33d",
+  "solution_sha256": "d6ba8bab2486d894048856143009483513688dd975f120de2d8d41b75f32224c",
+  "reasoning": "The text fully specifies labelled T/D connected pieces, forbidden 2x2 same-colour squares and size imbalance. Scan the shorter grid dimension with a connectivity frontier: signed canonical labels track each colour component. When the last frontier occurrence of a component disappears, reject if another component of that colour remains, otherwise close that colour permanently. This prevents later disconnected pieces and permits a finished piece to leave the frontier. Preserve the previous upper-cell colour to reject monochromatic 2x2 blocks. At the end each colour must have exactly one component (active or closed), so empty pieces are not counted. Count by T population using exact packed polynomial coefficients; 72-bit lanes exceed the maximum 2^64 colourings of an 8x8 board, so no carry changes coefficients. Validate by enumeration of every full colouring on small grids, including fixed labels and both connectivity tests.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

@@ -1,0 +1,45 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys,math,bisect,heapq
+v=iter(sys.stdin.buffer.read().split());output=[]
+for token in v:
+ n=int(token);T=int(next(v));radius=int(next(v))
+ if n==T==radius==0:break
+ names=[];routes=[];ends=[]
+ for _ in range(n):
+  names.append(next(v).decode());start=int(next(v));x=int(next(v));y=int(next(v));segments=[]
+  while start<T:
+   end=int(next(v));vx=int(next(v));vy=int(next(v));segments.append((start,end,x,y,vx,vy));x+=(end-start)*vx;y+=(end-start)*vy;start=end
+  routes.append(segments);ends.append([row[1] for row in segments])
+ def contact(a,b,time):
+  ra=routes[a];rb=routes[b];i=min(bisect.bisect_right(ends[a],time),len(ra)-1);j=min(bisect.bisect_right(ends[b],time),len(rb)-1)
+  while i<len(ra) and j<len(rb):
+   sa,ea,xa,ya,vxa,vya=ra[i];sb,eb,xb,yb,vxb,vyb=rb[j];lo=max(time,sa,sb);hi=min(ea,eb)
+   if lo>hi:return math.inf
+   x=xa+(lo-sa)*vxa-xb-(lo-sb)*vxb;y=ya+(lo-sa)*vya-yb-(lo-sb)*vyb;vx=vxa-vxb;vy=vya-vyb;C=x*x+y*y-radius*radius
+   if C<=0:return lo
+   A=vx*vx+vy*vy;B=2*(x*vx+y*vy)
+   if A and B<0:
+    disc=B*B-4*A*C
+    if disc>=0:
+     delay=2*C/(-B+math.sqrt(disc));arrival=lo+delay
+     if arrival<=hi+1e-10:return min(arrival,hi)
+   if ea<=eb:i+=1
+   if eb<=ea:j+=1
+  return math.inf
+ distance=[math.inf]*n;distance[0]=0.;queue=[(0.,0)];done=[False]*n
+ while queue:
+  time,u=heapq.heappop(queue)
+  if done[u]:continue
+  done[u]=True
+  for w in range(n):
+   if not done[w]:
+    arrival=contact(u,w,time)
+    if arrival<distance[w]:distance[w]=arrival;heapq.heappush(queue,(arrival,w))
+ output.extend(sorted(names[i] for i in range(n) if distance[i]<=T))
+print('\\n'.join(output))
+'''
+note='Treat knowledge arrival as a time-dependent shortest-path problem with waiting allowed and zero communication delay. For a robot informed at time t, scan two piecewise-linear routes over their merged segment boundaries to find the earliest later contact. Relative squared distance is a quadratic; test immediate contact, otherwise solve the entering root using a numerically stable positive-root formula and clip only negligible floating boundary error under the stated event separation guarantee. Dijkstra is valid because earliest-contact time is nondecreasing in the information start time (FIFO with waiting). Relaxing every uninformed robot propagates simultaneous multi-robot contacts and later mobile relays, while already informed robots retain data forever after separation. Respect velocity-on-the-preceding-interval input semantics, include contacts at T, and output only first-robot information recipients in dictionary order.'
+row=rows[991];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz185.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':991,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

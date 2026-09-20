@@ -1,0 +1,33 @@
+from pathlib import Path
+import json,subprocess,random,heapq,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz192.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(174);count=0
+
+def run(req):
+ text=str(len(req))+'\n'+'\n'.join(f'{a} {b}' for a,b in req)+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=8);assert r.returncode==0,r.stderr;return int(r.stdout),time.monotonic()-start
+
+def oracle(req):
+ n=len(req);start=(0,1,());dist={start:0};heap=[(0,start)]
+ while heap:
+  time,state=heapq.heappop(heap)
+  if time!=dist[state]:continue
+  i,floor,people=state
+  if i==n and not people:return time
+  moves=[]
+  if floor>1:moves.append(((i,floor-1,people),1))
+  if floor<9:moves.append(((i,floor+1,people),1))
+  remaining=[x for x in people if x!=floor];duration=len(people)-len(remaining);j=i
+  while j<n and req[j][0]==floor and len(remaining)<4:remaining.append(req[j][1]);j+=1;duration+=1
+  moves.append(((j,floor,tuple(sorted(remaining))),duration))
+  for nxt,cost in moves:
+   value=time+cost
+   if value<dist.get(nxt,10**9):dist[nxt]=value;heapq.heappush(heap,(value,nxt))
+for _ in range(170):
+ req=[]
+ for i in range(rng.randint(1,9)):
+  a=rng.randint(1,5);b=rng.choice([x for x in range(1,6) if x!=a]);req.append((a,b))
+ expected=oracle(req);actual,_=run(req);assert actual==expected,(req,expected,actual);count+=1
+for req,want in [([(3,5),(5,3)],10),([(5,3),(3,5)],12)]:assert run(req)[0]==want;count+=1
+req=[]
+for _ in range(2000):
+ a=rng.randint(1,9);b=rng.choice([x for x in range(1,10) if x!=a]);req.append((a,b))
+_,elapsed=run(req);result={'status':'passed','cases':{'174':count},'maximum_case_seconds':elapsed,'private_cases_read':False,'oracle':'Literal Dijkstra over move-one-floor and mandatory unload/board commands, preserving queue order and four-person capacity, plus published samples and 2000-person stress'};(D/'PUBLIC_CROSSCHECKS_BATCHz192.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

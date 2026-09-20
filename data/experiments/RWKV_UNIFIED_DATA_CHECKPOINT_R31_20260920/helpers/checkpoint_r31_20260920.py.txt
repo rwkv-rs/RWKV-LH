@@ -1,5 +1,6 @@
 from pathlib import Path
 import json,hashlib,collections,subprocess,shutil,re
+from text_eligibility_r31_20260920 import select_rows,REVIEW,frozen_review_reference
 R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';O=R/'data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();read=lambda p:json.loads(p.read_text());save=lambda p,x:p.write_text(json.dumps(x,ensure_ascii=False,indent=2)+'\n')
 packages=[R/'data/experiments/RWKV_TRAINING_TARGET_FORMAT_R28_20260920/frozen_corrected'];batches=[]
 for p in sorted((D/'batches').glob('*/RESULT.json')):
@@ -9,7 +10,16 @@ rows=[];refs=[]
 for p in packages:
  new=[json.loads(l) for l in (p/'train.jsonl').read_text().splitlines()];rows+=new;refs.append({'manifest':str(p/'manifest.json'),'sha256':sha(p/'manifest.json'),'rows':len(new)})
 assert len({(r['request_id'],r['input_checkpoint_id']) for r in rows})==len(rows)
+historical_rows=len(rows);source_texts={}
+for package in packages:
+ for source in read(package/'manifest.json')['sources']:
+  source_texts[source['source_content_sha256']]=Path(source['content_reference']['path']).read_bytes().decode()
+rows,excluded=select_rows(rows,source_texts)
+save(O/'TEXT_ELIGIBILITY_INVENTORY.json',{'historically_loader_accepted_rows':historical_rows,'eligible_rows':len(rows),'excluded_rows':excluded,'review':frozen_review_reference(),'packages':refs,'training_must_use':'Only rows listed in ELIGIBLE_SAMPLE_IDS.json; historical package totals are not training eligibility.'})
+save(O/'ELIGIBLE_SAMPLE_IDS.json',{'review_sha256':sha(REVIEW),'sample_ids':[r['sample_id'] for r in rows]})
 out={'status':'checkpoint_not_goal_complete','formal_rows':len(rows),'remaining_to_1000':max(0,1000-len(rows)),'label_authorities':dict(collections.Counter(r['label_authority'] for r in rows)),'unique_source_ids':len({r['source_id'] for r in rows}),'unique_source_content_sha256':len({r['source_content_sha256'] for r in rows}),'max_sequence_tokens':max(len(r['input_token_ids'])+len(r['target_token_ids'])-1 for r in rows),'packages':refs,'reporting':'Accepted corrected training boundaries, not RWKV independent successes or project Strict.','new_agent_runs':0,'new_optimizer_steps':0,'interrupted_r29_optimizer_steps':87,'subagents':0,'teacher_api_calls':0}
+save(D/'CHECKPOINT_INVENTORY.json',out);save(O/'INVENTORY.json',out)
+out.update(historically_loader_accepted_rows=historical_rows,text_eligibility_excluded_rows=len(excluded),text_eligibility_review_sha256=sha(REVIEW))
 save(D/'CHECKPOINT_INVENTORY.json',out);save(O/'INVENTORY.json',out)
 save(D/'STATUS.json',{'status':'in_progress_not_complete','formal_rows':len(rows),'minimum_goal':1000,'remaining_to_minimum':1000-len(rows),'corrected_base':refs[0],'batches_since_formatfix':batches,'training_order':'formatfix then >=1000 then fresh zero-init one epoch then independent tests','r29_interrupted':{'steps':87,'samples':348,'full_epochs':0,'resume_allowed':False},'subagents_started':0,'model_generation_calls_this_expansion':0,'background_authorship':False})
 owner=['rwkv_lh/controller.py','rwkv_lh/model.py','rwkv_lh/supervisor_openai.py','tests/test_hybrid_supervisor.py','tests/test_supervisor_openai.py'];identity={str(p.relative_to(R)):sha(p) for folder in ('rwkv_lh','scripts','tests') for p in sorted((R/folder).rglob('*.py'))};log=O/'PYTEST_RETRY.log';assert '1910 passed, 1 warning' in log.read_text()
@@ -29,10 +39,12 @@ report=f'''# R31 数据扩量检查点（非目标完成）
 下一步继续补足1000，冻结完整包和源码，再从zero初始化训练1epoch；随后同源码运行固定独立zero两遍与candidate两遍，保留原评分，不读holdout、不以训练题验收。若未达门槛不保留候选。
 
 核验入口：INVENTORY.json（每包路径与SHA）、SOURCE_AND_TESTS.json、R23各批PRE_REGISTRATION/TARGETS/validation/RESULT。未把格式修复后的旧647计作新增收益。
+
+文本可用性整改：历史加载器接受{historical_rows}条，额外排除{len(excluded)}条来源信息不充分样本，保留原始包与验收结果。初始76条标记来源及扩大筛查26条均有逐项说明；RAID布局、天气区域编号、循环坐标公式缺失不进入训练。有效名单见ELIGIBLE_SAMPLE_IDS.json；训练不得直接拼接历史包。TEXT_ELIGIBILITY_RED_GREEN.json验证旧选择会包含不合格行，而新门槛排除、缺失审核/来源篡改/待审均拒绝。未发现标记不等于证明所有文本无缺陷；本审查不替代已有逐条语义审核。
 ''';(O/'REPORT.zh-CN.md').write_text(report)
 h=R/'docs/HANDOFF.zh-CN.md';text=h.read_text();text=re.sub(r'^# 当前 R31 进行中：.*?(?=^# Owner最新顺序：)', '', text, count=1, flags=re.S|re.M);prefix=f'''# 当前 R31 进行中：正式{len(rows)}条，满1000后训练（2026-09-20）
 
 最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式{len(rows)}条，仍差{1000-len(rows)}；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，接手时已有五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
 
-''';h.write_text(prefix+text)
+''';prefix+=f'文本可用性复核：历史{historical_rows}条中排除{len(excluded)}条关键图片/公式缺失，当前{len(rows)}为过滤后数；见R31 TEXT_SUFFICIENCY_REVIEW、TEXT_ELIGIBILITY_INVENTORY和ELIGIBLE_SAMPLE_IDS。保留历史结果，训练不得绕过有效名单。\n\n';h.write_text(prefix+text)
 print(json.dumps({k:v for k,v in out.items() if k!='packages'},indent=2));print('report_sha',sha(O/'REPORT.zh-CN.md'))

@@ -1,0 +1,44 @@
+import sys
+P=1000000007
+lines=sys.stdin.buffer.readlines();n,k,q=map(int,lines[0].split());A=[[int(c)-48 for c in row.strip()] for row in lines[1:n+1]]
+queries=[list(map(int,row.split())) for row in lines[n+1:n+q+1]]
+width=9;shift=72*(n-1);mask=(1<<72)-1
+# Every dot product is below 60*(P-1)^2 < 2^72, so lanes do not carry.
+def pack(row):return int.from_bytes(b''.join(x.to_bytes(9,'little') for x in row),'little')
+def dot(a,b):return ((a*b>>shift)&mask)%P
+stride=9*(2*n-1);offset=9*(n-1)
+def columns(matrix):
+ data=bytearray(stride*n)
+ for i in range(n):
+  start=i*stride
+  for j in range(n):data[start+j*9:start+j*9+9]=matrix[n-1-j][i].to_bytes(9,'little')
+ return int.from_bytes(data,'little')
+def right(row,cols):
+ product=pack(row)*cols;data=product.to_bytes(stride*n+9*n,'little')
+ return [int.from_bytes(data[offset+i*stride:offset+i*stride+9],'little')%P for i in range(n)]
+def left(rows,col):
+ c=pack(col[::-1]);return [dot(r,c) for r in rows]
+ac=columns(A);ar=[pack(row) for row in A];B=[row[:] for row in A]
+states=[]
+for a,s,b,t in queries:
+ r=A[s-1][:];c=[A[i][t-1] for i in range(n)]
+ states.append([a,b,r,c,0,s==t,s-1,t-1])
+for level in range(1,k+1):
+ F=[row[:] for row in B]
+ for i in range(n):F[i][i]=(F[i][i]+1)%P
+ fc=columns(F);fr=[pack(row) for row in F]
+ for state in states:
+  a,b,r,c,answer,same,s,t=state
+  if a!=b:
+   if level!=a and level!=b:state[2]=right(r,fc)
+   if level==k:state[4]=state[2][t]
+  else:
+   if level==a:answer+=same
+   elif level>a:answer+=sum(x*y for x,y in zip(r,c))
+   state[4]=answer%P
+   if level!=a and level<k:
+    state[2]=right(r,fc);state[3]=left(fr,c)
+ if level<k:
+  bc=columns(B)
+  B=[[(x+y)%P for x,y in zip(row,right(row,bc))] for row in B]
+print('\n'.join(str(state[4]) for state in states))

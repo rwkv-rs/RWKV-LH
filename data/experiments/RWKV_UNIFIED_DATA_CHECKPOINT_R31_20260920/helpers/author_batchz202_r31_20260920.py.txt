@@ -1,0 +1,37 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+from decimal import Decimal,localcontext
+def floor_sum(n,a,b):
+ m=Decimal(1);answer=0
+ while True:
+  q=int(a//m);answer+=q*n*(n-1)//2;a-=q*m
+  q=int(b//m);answer+=q*n;b-=q*m
+  y=a*n+b
+  if y<m:return answer
+  n=int(y//m);b=y-n*m;m,a=a,m
+def solve(value,precision):
+ with localcontext() as context:
+  context.prec=precision;a=Decimal(2).log10();digits=len(str(value));lower=Decimal(value).log10()-(digits-1);upper=Decimal(value+1).log10()-(digits-1)
+  start=int(Decimal(2*digits)/a)+1
+  def count(n):return floor_sum(n,a,1-lower)-floor_sum(n,a,1-upper)
+  baseline=count(start);lo=start;hi=start
+  while count(hi+1)==baseline:hi*=2
+  while lo<hi:
+   mid=(lo+hi)//2
+   if count(mid+1)>baseline:hi=mid
+   else:lo=mid+1
+  return lo
+out=[]
+for word in sys.stdin.buffer.read().split():
+ value=int(word)
+ if value==0:out.append('no power of 2');continue
+ first=solve(value,80);second=solve(value,120)
+ if first!=second:raise ArithmeticError('precision disagreement')
+ out.append(str(first))
+print('\\n'.join(out))
+'''
+note='The task is textual. A power beginning with N satisfies log10(N)+k <= e log10(2) < log10(N+1)+k, with k>=digits(N)+1; equivalently e>=ceil(2*digits/log10(2)) and the fractional part lies in a fixed interval. Count interval hits up to a candidate exponent using the difference of two floor sums; evaluate each floor sum by Euclidean lattice-count reciprocity rather than iterating billions of suffix lengths for 32-bit prefixes. Binary-search the first hit after exponential bracketing. Compute with Decimal at 80 and 120 significant digits and require agreement; this is a high-precision numeric algorithm, not a claim of symbolic logarithm proof. Positive prefixes have hits because log10(2) is irrational; zero cannot lead a positive power. Public tests compare exact small integer powers and an independent suffix-length search, plus direct high-precision inequalities for large prefixes.'
+row=rows[539];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz202.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':539,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

@@ -1,0 +1,79 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks'];candidates=[]
+code='''import sys,math
+from collections import deque
+a,b=map(int,sys.stdin.buffer.read().split());numbers=list(range(a,b+1));n=len(numbers);edges=[];adj=[[] for _ in numbers]
+for i,x in enumerate(numbers):
+ for j in range(i):
+  y=numbers[j];z=math.isqrt(x*x-y*y)
+  if z*z==x*x-y*y and math.gcd(y,z)==1:edges.append((i,j));adj[i].append(j);adj[j].append(i)
+colour=[-1]*n
+for i in range(n):
+ if colour[i]>=0:continue
+ colour[i]=0;todo=[i]
+ for u in todo:
+  for v in adj[u]:
+   if colour[v]<0:colour[v]=colour[u]^1;todo.append(v)
+source=n;sink=n+1;graph=[[] for _ in range(n+2)]
+def add(u,v,cost):
+ graph[u].append([v,1,cost,len(graph[v])]);graph[v].append([u,0,-cost,len(graph[u])-1])
+for i in range(n):
+ if colour[i]==0:add(source,i,0)
+ else:add(i,sink,0)
+for i,j in edges:
+ if colour[i]==1:i,j=j,i
+ assert colour[i]==0 and colour[j]==1
+ add(i,j,-numbers[i]-numbers[j])
+flow=0;cost=0
+while True:
+ dist=[10**18]*(n+2);dist[source]=0;parent=[None]*(n+2);queue=deque([source]);inside=[False]*(n+2);inside[source]=True
+ while queue:
+  u=queue.popleft();inside[u]=False
+  for i,e in enumerate(graph[u]):
+   v,capacity,weight,_=e
+   if capacity and dist[u]+weight<dist[v]:
+    dist[v]=dist[u]+weight;parent[v]=(u,i)
+    if not inside[v]:queue.append(v);inside[v]=True
+ if parent[sink] is None:break
+ flow+=1;cost+=dist[sink];v=sink
+ while v!=source:
+  u,i=parent[v];e=graph[u][i];e[1]-=1;graph[v][e[3]][1]+=1;v=u
+print(flow,-cost)
+'''
+note='All elimination rules and output priorities are textual. Build exactly the primitive-Pythagorean pair graph using integer square root and gcd. Exhaustive structural audit of the entire allowed universe 1..1000 confirms this graph is bipartite; every allowed interval induces a bipartite subgraph, so this is a finite-domain proof, not an unproved general number-theory assertion. Discover the partition by BFS on the input graph and assert every edge crosses it. A unit-capacity minimum-cost flow gives maximum number of disjoint pairs, then maximum sum, with negative pair cost. Continue augmenting until no path, even if a later augmenting path costs positive, to preserve cardinality-first priority. Independent exhaustive matching checks validate small intervals and full-domain resource tests validate the stated maximum.'
+def save(ordinal,code,note):
+ row=rows[ordinal];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code);(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');candidates.append({'id':row['id'],'ordinal':ordinal,'candidate_path':str(p),'review_note':note})
+save(804,code,note)
+code='''import sys
+from collections import deque
+lines=iter(sys.stdin.read().splitlines());out=[];case=0
+for line in lines:
+ if not line.strip():continue
+ n=int(line)
+ if n==0:break
+ duration=[]
+ while len(duration)<n:duration.extend(map(int,next(lines).split()))
+ graph=[[] for _ in range(n)]
+ for line in lines:
+  if line.strip()=='#':break
+  op,a,b=line.split();a=int(a)-1;b=int(b)-1
+  weight=(duration[a] if op in ('FAF','SAF') else 0)-(duration[b] if op in ('FAS','FAF') else 0)
+  graph[a].append((b,weight))
+ dist=[0]*n;length=[0]*n;inside=[True]*n;queue=deque(range(n));okay=True
+ while queue and okay:
+  u=queue.popleft();inside[u]=False
+  for v,w in graph[u]:
+   if dist[u]+w>dist[v]:
+    dist[v]=dist[u]+w;length[v]=length[u]+1
+    if length[v]>=n or (v==0 and dist[v]>0):okay=False;break
+    if not inside[v]:queue.append(v);inside[v]=True
+ case+=1;out.append(f'Case {case}:')
+ if not okay:out.append('impossible')
+ else:out.extend(f'{i+1} {t}' for i,t in enumerate(dist))
+ out.append('')
+print('\\n'.join(out))
+'''
+note='The four textual constraints convert to lower bounds start[B]>=start[A]+offset, where offsets are -duration[B], duration[A]-duration[B], duration[A], and 0 for FAS/FAF/SAF/SAS. Solve the monotone difference constraints from all-zero starts, rejecting positive cycles and any forced positive start for part 1 because the supplied text explicitly fixes it at zero. Componentwise earliest feasible starts minimize completion time. The published sample confirms equality is allowed by after. Preserve dataset numbering and the required blank separator. Do not import a different historical UVA contract; if source and fixed validator disagree, record failure rather than changing the rule after reading outcomes.'
+save(649,code,note)
+(D/'AUTHORED_BATCHz204.json').write_text(json.dumps({'candidates':candidates},indent=2)+'\n')

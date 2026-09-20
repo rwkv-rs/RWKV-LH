@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,random,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz211.json').read_text())['candidates'][0];rng=random.Random(961);checks=[]
+def run(text,expected):
+ t=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert p.stdout.split()==list(map(str,expected)),(text,p.stdout,expected);checks.append({'seconds':time.monotonic()-t,'answers':len(expected)})
+run('a := b + c\nb := 3\nc := 5\nPRINT d\nPRINT a\nb := 8\nPRINT a\nRESET\nPRINT a\n',['UNDEF',8,13,'UNDEF'])
+run('a := b\nPRINT a\nb := a\nPRINT a\nb := 2\nPRINT a\nx := -3*-2+4-2*5\nPRINT x\n',['UNDEF','UNDEF',2,0])
+for _ in range(100):
+ lines=[];defs={};expected=[]
+ for i in range(15):
+  a=rng.randint(-8,8);b=rng.randint(-8,8);x=rng.randrange(i) if i else None
+  if x is None:expr=f'{a}+{b}*2';defs[i]=lambda a=a,b=b:a+2*b
+  else:expr=f'v{x}*{a}+{b}';defs[i]=lambda x=x,a=a,b=b:defs[x]()*a+b
+  lines.append(f'v{i}:={expr}')
+ for i in range(15):lines.append(f'PRINT v{i}');expected.append(defs[i]())
+ run('\n'.join(lines)+'\n',expected)
+run('v0:=1\n'+''.join(f'v{i}:=v{i-1}+1\n' for i in range(1,10000))+'PRINT v9999\n',[10000])
+(D/'PUBLIC_CROSSCHECKS_BATCHz211.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Published live-dependency example; independent lambda-tree arithmetic on100 DAGs; missing/cyclic dependencies; chain10000.','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-1])

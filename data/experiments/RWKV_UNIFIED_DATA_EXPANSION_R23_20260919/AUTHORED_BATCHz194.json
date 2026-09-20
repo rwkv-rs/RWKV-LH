@@ -1,0 +1,10 @@
+{
+  "candidates": [
+    {
+      "id": "CODING-c3413a9aa975c5383aceb68f",
+      "ordinal": 799,
+      "candidate_path": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/tasks/CODING-c3413a9aa975c5383aceb68f/candidate_01/solution.py",
+      "review_note": "Every anomaly maps charge x to ceil(x/2), so after h hits the charge is ceil(s/2^h), stabilizing at 1 after L=ceil(log2(s)) hits. Count only coefficients h<L of the path generating polynomial. For each sorted anomaly i, let D_i(y) count paths from the start to i with earlier anomalies weighted by y. Then D_i=unrestricted_paths(start,i)+sum_{j<i}(y-1)D_j*unrestricted_paths(j,i). Each multiplication by (y-1) converts the unmarked path contribution into the marked one; summing the same corrections at the destination gives exact hit counts, including anomalies at start/end. Compute monotone path counts by binomial coefficients. Pack the first L modular coefficients into 72-bit lanes so the O(k^2) scalar-weighted polynomial sums execute as exact big-integer operations; k<=2000 and residues<P guarantee no inter-lane carries. Reduce each lane before constructing the next correction polynomial. Expected charge is 1 plus weighted low-hit excess, divided by the total number of paths modulo P."
+    }
+  ]
+}

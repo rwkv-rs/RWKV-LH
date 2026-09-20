@@ -1,0 +1,6 @@
+from pathlib import Path
+import json,subprocess,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz176.json').read_text())['candidates'][0]['candidate_path'];samples=[(['abcd','zaza','ataka'],4),(['dfs','bfs','sms','mms'],8),(['abc','bcd','a'],0),(['lapochka','kartyshka','bigbabytape','morgenshtern','ssshhhiiittt','queen'],2028)];out=[]
+for words,expected in samples:
+ text=str(len(words))+'\n'+'\n'.join(words)+'\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True);out.append({'public_words':words,'expected':expected,'actual':r.stdout.strip(),'exit':r.returncode})
+(D/'PUBLIC_SAMPLE_CHECK_BATCHz176.json').write_text(json.dumps(out,indent=2)+'\n');print(out)

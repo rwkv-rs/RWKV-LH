@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,subprocess,random,time,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz196.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(930);cases=[];expected=[]
+for _ in range(120):
+ rules=[(rng.choice('SAB'),''.join(rng.choice('SABab') for _ in range(rng.randrange(4)))) for _ in range(rng.randint(1,8))];L=rng.randint(0,5);languages={x:set() for x in 'SAB'};changed=True
+ while changed:
+  changed=False
+  for lhs,rhs in rules:
+   values={''}
+   for c in rhs:
+    options=languages[c] if c.isupper() else {c};values={a+b for a in values for b in options if len(a+b)<=L}
+   new=values-languages[lhs]
+   if new:languages[lhs].update(new);changed=True
+ strings=sorted(x for x in languages['S'] if len(x)==L);expected.append(strings[0] if strings else '-');cases.append((rules,L))
+cases.extend([([('A','a'),('A',''),('S','ASb'),('S','Ab')],3),([('S','aSb'),('S','')],5),([('S','S')],5),([('S','S')],0),([('A','')],0),([('A',''),('S','AA')],0),([('A','aB'),('A','b'),('B','SA'),('S','A')],5),([('S','AAAAAAAAAA'),('A','aA'),('A','bA'),('A','')],20)]);expected.extend(['abb','-','-','-','-','','aabbb','a'*20])
+text=''.join(f'{len(rules)} {L}\n'+''.join(f'{lhs}={rhs}\n' for lhs,rhs in rules) for rules,L in cases)+'0 0\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;assert r.stdout.splitlines()==expected;elapsed=time.monotonic()-start
+result={'status':'passed','cases':{'930':len(cases)},'seconds':elapsed,'private_cases_read':False,'oracle':'Enumerate complete finite terminal languages through bounded-length fixed points on random cyclic/nullable grammars, plus all eight published input datasets; displayed decorative leading blank is not interpreted as a ninth dataset'};(D/'PUBLIC_CROSSCHECKS_BATCHz196.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

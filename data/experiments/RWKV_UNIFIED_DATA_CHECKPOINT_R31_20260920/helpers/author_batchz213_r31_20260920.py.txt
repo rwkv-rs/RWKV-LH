@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';old=json.loads((D/'AUTHORED_BATCHz189.json').read_text())['candidates'][0];source=Path(old['candidate_path']);code=source.read_text();start=code.index('def columns(');end=code.index('ac=columns(A)');code=code[:start]+'''stride=9*(2*n-1);offset=9*(n-1)
+def columns(matrix):
+ data=bytearray(stride*n)
+ for i in range(n):
+  start=i*stride
+  for j in range(n):data[start+j*9:start+j*9+9]=matrix[n-1-j][i].to_bytes(9,'little')
+ return int.from_bytes(data,'little')
+def right(row,cols):
+ product=pack(row)*cols;data=product.to_bytes(stride*n+9*n,'little')
+ return [int.from_bytes(data[offset+i*stride:offset+i*stride+9],'little')%P for i in range(n)]
+def left(rows,col):
+ c=pack(col[::-1]);return [dot(r,c) for r in rows]
+'''+code[end:];code=code.replace("bc=columns(B);br=[pack(row) for row in B]\n  B=[[(B[i][j]+dot(br[i],bc[j]))%P for j in range(n)] for i in range(n)]","bc=columns(B)\n  B=[[(x+y)%P for x,y in zip(row,right(row,bc))] for row in B]")
+p=source.parent.parent/'candidate_04/solution.py';p.parent.mkdir(exist_ok=False);p.write_text(code);note=old['review_note']+' Performance correction: pack reversed matrix columns in disjoint blocks of 2*n-1 lanes. A single row-by-packed-matrix integer multiplication computes all column convolutions; extract each central coefficient. Guard lanes prevent cross-column overlap, and72-bit lanes still exceed60*(P-1)^2. This preserves exact arithmetic while replacing n small integer products per row by one batched product.'
+(p.parent/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','reasoning':note,'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'previous_candidate':str(source),'previous_public_performance_seconds':3.0038917409983696,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz213.json').write_text(json.dumps({'candidates':[dict(old,candidate_path=str(p),review_note=note)]},indent=2)+'\n')
+check=(R/'temp/check_batchz189_public_r31_20260920.py').read_text().replace('BATCHz189','BATCHz213');check=check.replace("result={'status':'passed'", "assert elapsed<3,elapsed\nresult={'status':'passed'");(R/'temp/check_batchz213_public_r31_20260920.py').write_text(check)

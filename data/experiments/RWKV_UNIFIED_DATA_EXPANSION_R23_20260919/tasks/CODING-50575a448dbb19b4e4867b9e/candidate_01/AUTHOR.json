@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "1a29b59061c4c34336cb1d571bfdb95fd6c91d3a5d14f6b530ac436b8a59554d",
+  "solution_sha256": "a9c1b1189d67f9608a1df78ca237aaaa2fde4efd3d20019ae25dd2d8a124a4b9",
+  "reasoning": "Different deletions within one equal-character run produce the same word, so retain only the final index of each run, plus the unchanged word. These variants have an exact linear-time lexicographic order: deletions immediately before a descent from left to right, the final-character deletion, the unchanged word, then deletions before an ascent from right to left. This follows by comparing the first position where two deletion results differ; equal runs are already deduplicated. Maintain the number of nondecreasing scroll prefixes ending in each distinct variant. Merge the sorted previous/current variants, accumulating previous counts whose word is <= the current word. Construct only the two currently compared byte strings, avoiding the quadratic memory of materializing every long variant. Empty recovered words remain valid, and identical deletion positions never inflate the count.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

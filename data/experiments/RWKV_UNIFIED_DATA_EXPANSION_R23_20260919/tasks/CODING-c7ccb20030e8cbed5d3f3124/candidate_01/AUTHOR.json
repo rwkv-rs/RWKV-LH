@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "9b88d9ae8ee13486812744349cd8b0ba31480aad9e1e2ae02e0b897d2874855d",
+  "solution_sha256": "68fe361333632a543ad057a977d250868d91e5bb88d44f2dc484c34902bbd3d6",
+  "reasoning": "All board symbols, pair matching, nonintersection and edge-length objective are textual; figure illustrates the example only. Frontier plug DP enumerates selected edges, requiring degree one at each terminal and zero or two at an empty cell, zero at obstacles. Anonymous path components have paired positive labels; a path attached to a terminal carries negative label -2 or -3. Connecting unlike terminal labels is forbidden; joining equal labels completes exactly that required path. Joining the two endpoints of an anonymous component would create a cycle and is forbidden. Canonicalize anonymous component labels so equivalent states merge; record which required paths have closed. Count each edge when its right/down endpoint is introduced, minimizing total length. End with no frontier plugs and both paths complete; return zero when unreachable. This enforces actual vertex-disjoint paths rather than merely two unrestricted shortest paths.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

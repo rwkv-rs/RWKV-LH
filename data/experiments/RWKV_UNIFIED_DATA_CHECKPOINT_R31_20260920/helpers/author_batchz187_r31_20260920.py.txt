@@ -1,0 +1,50 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys,heapq
+from collections import deque
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);books={1:{},2:{}};heaps={1:[],2:[]};output=[]
+for _ in range(n):
+ ident=next(v);kind=next(v);limit=next(v);volume=next(v);tip=next(v);opposite=3-kind;book=books[opposite];heap=heaps[opposite];trades={}
+ def trade(order,amount):
+  if amount:
+   key=(ident,order[0]) if kind==1 else (order[0],ident);old=trades.get(key);trades[key]=(order[2],amount+(old[1] if old else 0))
+ while volume and heap:
+  price=heap[0] if opposite==2 else -heap[0]
+  if price not in book:heapq.heappop(heap);continue
+  if (kind==1 and price>limit) or (kind==2 and price<limit):break
+  queue=book[price];total=sum(order[3] for order in queue)
+  if volume>=total:
+   for order in queue:trade(order,order[3])
+   volume-=total;del book[price];heapq.heappop(heap);continue
+  low=0;high=max((order[3]-order[5]+order[4]-1)//order[4]+1 for order in queue)
+  while low<high:
+   mid=(low+high+1)//2;needed=sum(min(order[3],order[5]+(mid-1)*order[4]) for order in queue)
+   if needed<=volume:low=mid
+   else:high=mid-1
+  if low:
+   remaining=deque()
+   for order in queue:
+    amount=min(order[3],order[5]+(low-1)*order[4]);trade(order,amount);volume-=amount;order[3]-=amount
+    if order[3]:order[5]=min(order[3],order[4]);remaining.append(order)
+   queue=remaining;book[price]=queue
+  while volume:
+   order=queue.popleft();amount=min(volume,order[5]);trade(order,amount);volume-=amount;order[3]-=amount;order[5]-=amount
+   if order[3]:
+    if order[5]:queue.appendleft(order)
+    else:order[5]=min(order[3],order[4]);queue.append(order)
+  if not queue:del book[price];heapq.heappop(heap)
+ for (buy,sell),(price,amount) in sorted(trades.items()):output.append(f'{buy} {sell} {price} {amount}')
+ if volume:
+  book=books[kind]
+  if limit not in book:book[limit]=deque();heapq.heappush(heaps[kind],limit if kind==2 else -limit)
+  book[limit].append([ident,kind,limit,volume,tip,min(volume,tip)])
+output.append('')
+for price in sorted(set(books[1])|set(books[2])):
+ for kind in (1,2):
+  for order in books[kind].get(price,()):output.append(' '.join(map(str,order)))
+print('\\n'.join(output))
+'''
+note='Maintain each price level as a priority deque and choose the best opposite price using a heap. A depleted tip moves its still-live order to the deque tail; a partially consumed tip stays at the head. To handle billion-volume orders without a billion iterations, consume complete queue rounds in bulk: after q>=1 rounds an order contributes min(V,CV+(q-1)*TV). This sum is monotone in q, so binary search the largest fully affordable round count. Remove completed orders, preserve survivor order, replenish their next tips, then simulate only the remaining partial round. If incoming volume covers the entire price level, consume it directly. These transformations preserve per-price priority exactly; prices separate priority comparisons, so numeric global priorities are unnecessary. Aggregate trades per incoming/book-order pair, sort their IDs, and output the surviving price/deque order with exact remaining volume and current tip.'
+row=rows[438];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz187.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':438,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

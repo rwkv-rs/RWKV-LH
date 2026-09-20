@@ -1,0 +1,30 @@
+from pathlib import Path
+import json,subprocess,random,time
+from fractions import Fraction as F
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz197.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(224);cases=[];expected=[]
+
+def render(x):return f'{float(x):.3f}'
+for _ in range(100):
+ n=rng.randint(1,8);edges={(a,b) for a in range(n) for b in range(n) if rng.random()<.23};graph=[{b for a,b in edges if a==u} for u in range(n)];reach=[{i}|graph[i] for i in range(n)]
+ for k in range(n):
+  for i in range(n):
+   if k in reach[i]:reach[i]|=reach[k]
+ recurrent={i for i in reach[0] if graph[i] and all(i in reach[j] for j in reach[i])};finite=sorted(reach[0]-recurrent);index={a:i for i,a in enumerate(finite)};s=len(finite);A=[[F(int(i==j)) for j in range(s)]+[F(int(a==0))] for i,a in enumerate(finite)]
+ for a in finite:
+  for b in graph[a]:
+   if b in index:A[index[b]][index[a]]-=F(1,len(graph[a]))
+ for k in range(s):
+  pivot=next(i for i in range(k,s) if A[i][k]);A[k],A[pivot]=A[pivot],A[k];d=A[k][k];A[k]=[x/d for x in A[k]]
+  for i in range(s):
+   if i!=k:
+    d=A[i][k];A[i]=[x-d*y for x,y in zip(A[i],A[k])]
+ values=['infinity' if i in recurrent else render(A[index[i]][-1]) if i in index else '0.000' for i in range(n)];cases.append((n,edges));expected.append(values)
+cases.extend([(3,{(0,1),(1,2),(1,0)}),(3,{(0,1),(1,2),(2,0)})]);expected.extend([['2.000','2.000','1.000'],['infinity']*3])
+text='';want=[]
+for no,((n,edges),values) in enumerate(zip(cases,expected),1):text+=str(n)+'\n'+''.join(f'{a+1} {b+1}\n' for a,b in sorted(edges))+'0 0\n'+str(n)+'\n'+''.join(f'{i+1}\n' for i in range(n));want.append(f'Case #{no}:');want.extend(values)
+text+='0\n';r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5)
+if r.returncode:
+ (D/'PUBLIC_RUNTIME_RED_BATCHz197.json').write_text(json.dumps({'returncode':r.returncode,'stderr':r.stderr,'private_cases_read':False},indent=2)+'\n')
+assert r.returncode==0,r.stderr;assert r.stdout.splitlines()==want
+n=100;edges=[(i,0) for i in range(99)]+[(i,i+1) for i in range(99)];text='100\n'+''.join(f'{a+1} {b+1}\n' for a,b in edges)+'0 0\n2\n1\n100\n0\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;assert r.stdout.splitlines()==['Case #1:',str(2**99)+'.000','1.000'];elapsed=time.monotonic()-start
+result={'status':'passed','cases':{'224':len(cases)+1},'maximum_case_seconds':elapsed,'private_cases_read':False,'oracle':'Independent exact probability-matrix Gauss-Jordan and transitive reachability recurrence classification, published examples, and 100-node reset chain with analytically exponential expected visits'};(D/'PUBLIC_CROSSCHECKS_BATCHz197.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

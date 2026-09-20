@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,subprocess,random,time,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';p=json.loads((D/'AUTHORED_BATCHz194.json').read_text())['candidates'][0]['candidate_path'];rng=random.Random(799);count=0;P=1000000007
+
+def run(n,m,s,points):
+ text=f'{n} {m} {len(points)} {s}\n'+'\n'.join(f'{a+1} {b+1}' for a,b in points)+'\n';start=time.monotonic();r=subprocess.run([str(R/'.venv/bin/python'),p],input=text,text=True,capture_output=True,timeout=5);assert r.returncode==0,r.stderr;return int(r.stdout),time.monotonic()-start
+for _ in range(200):
+ n=rng.randint(1,5);m=rng.randint(1,5);s=rng.randint(1,100);points={(i,j) for i in range(n) for j in range(m) if rng.random()<.4};answers=[]
+ for downs in itertools.combinations(range(n+m-2),n-1):
+  downs=set(downs);x=y=0;charge=(s+1)//2 if (0,0) in points else s
+  for step in range(n+m-2):
+   if step in downs:x+=1
+   else:y+=1
+   if (x,y) in points:charge=(charge+1)//2
+  answers.append(charge)
+ expected=sum(answers)*pow(len(answers),P-2,P)%P;assert run(n,m,s,points)[0]==expected;count+=1
+for n,m,s,points,want in [(3,3,11,{(1,0),(1,2)},333333342),(4,5,17,{(0,1),(2,2),(3,0)},514285727),(1,6,15,{(0,0),(0,4)},4)]:assert run(n,m,s,points)[0]==want;count+=1
+stress={}
+for label,points in [('chain',[(i*49,i*49) for i in range(2000)]),('random',list({(rng.randrange(100000),rng.randrange(100000)) for _ in range(2000)}))]:
+ _,elapsed=run(100000,100000,1000000,points);stress[label]=elapsed
+result={'status':'passed','cases':{'799':count},'maximum_case_seconds':stress,'private_cases_read':False,'oracle':'Enumerate every shortest path and apply integer charge changes, including start/end anomalies, all published samples, and 2000-anomaly maximal polynomial stress'};(D/'PUBLIC_CROSSCHECKS_BATCHz194.json').write_text(json.dumps(result,indent=2)+'\n');print(result)

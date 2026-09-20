@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';b=json.loads((D/'AUTHORED_BATCHz190.json').read_text());item=b['candidates'][0];p=Path(item['candidate_path']);(D/'PUBLIC_PERFORMANCE_RED_BATCHz190.json').write_bytes((D/'PUBLIC_CROSSCHECKS_BATCHz190.json').read_bytes());code=p.read_text();pos=code.index('def join(a,b):');code=code[:pos]+'''@lru_cache(maxsize=65536)
+def split_partition(labels):
+ return (labels[:n],labels[n:]) if min(labels[n:])>=n else None
+@lru_cache(maxsize=65536)
+def seam_count(a,b,mask):
+ parent=[x-n for x in a]+[x+n for x in b];merged=0
+ while mask:
+  bit=mask&-mask;i=bit.bit_length()-1;mask-=bit;x=i;y=n+i
+  while parent[x]!=x:x=parent[x]
+  while parent[y]!=y:y=parent[y]
+  if x!=y:parent[y]=x;merged+=1
+ return merged
+'''+code[pos:];code=code.replace('labels,merged=boundary(a[1],b[1],seams[b[2]])','''aa=split_partition(a[1]);bb=split_partition(b[1]);mask=seams[b[2]]
+ if aa is not None and bb is not None:
+  labels=aa[0]+bb[1];merged=seam_count(aa[1],bb[0],mask)
+ else:labels,merged=boundary(a[1],b[1],mask)''')
+folder=p.parent.parent/'candidate_02';folder.mkdir(exist_ok=False);out=folder/'solution.py';out.write_text(code);author=json.loads((p.parent/'AUTHOR.json').read_text());author['solution_sha256']=hashlib.sha256(out.read_bytes()).hexdigest();author['reasoning']+=' When neither child connects its two outer boundaries, the new outer partitions are unchanged and the component decrement depends only on the two interior seam partitions. Cache this smaller exact subproblem separately; do not key it on unrelated exterior labels.';(folder/'AUTHOR.json').write_text(json.dumps(author,indent=2)+'\n');item['candidate_path']=str(out);item['review_note']=author['reasoning'];(D/'AUTHORED_BATCHz190.json').write_text(json.dumps(b,indent=2)+'\n')

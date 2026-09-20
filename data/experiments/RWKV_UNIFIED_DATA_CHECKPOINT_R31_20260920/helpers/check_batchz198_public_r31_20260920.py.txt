@@ -1,0 +1,26 @@
+from pathlib import Path
+import json,subprocess,random,time,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz198.json').read_text())['candidates'][0];p=Path(c['candidate_path']);rng=random.Random(20260920);checks=[]
+def run(points,expected,label):
+ data=str(len(points))+'\n'+''.join(f'{x} {y}\n' for x,y in points);t=time.monotonic();out=subprocess.run([str(R/'.venv/bin/python'),str(p)],input=data,text=True,capture_output=True,timeout=3);assert out.returncode==0,(label,out.stderr);assert out.stdout.strip()==str(expected),(label,expected,out.stdout);checks.append({'label':label,'lamps':len(points),'seconds':time.monotonic()-t})
+run([(-2,1),(-2,2),(0,1),(1,0)],-1,'published_sample')
+for test in range(90):
+ X=rng.randrange(-10**16,10**16);points={(X,0)}
+ for _ in range(rng.randrange(0,100)):
+  x,y=rng.choice(tuple(points));step=1<<rng.randrange(0,45)
+  for q in ((x,y),(x+step,y),(x,y+step)):
+   if q in points:points.remove(q)
+   else:points.add(q)
+ run(points,X,f'known_initial_lamp_{test}')
+for x in [-10**17,0,10**17]:run([(x,0)],x,'coordinate_boundary')
+points={(0,0)}
+for i in range(33333):
+ for q in ((3*i+1,-100000),(3*i+2,-100000),(3*i+1,-99999)):points.add(q)
+run(points,0,'100000_lamps')
+for degree,poly in ((7,0x83),(8,0x11d),(9,0x211),(11,0x805),(13,0x201b),(17,0x20009)):
+ a=1;seen=set()
+ for i in range((1<<degree)-1):
+  assert a not in seen;seen.add(a);a<<=1
+  if a&(1<<degree):a^=poly
+ assert a==1 and len(seen)==(1<<degree)-1
+out={'passed':True,'candidate_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'public_checks':checks,'oracle':'Known initial lamp and actual legal toggles; large triangle toggle is Frobenius power of the elementary toggle; no hidden cases read.','field_periods_verified':True};(D/'PUBLIC_CROSSCHECKS_BATCHz198.json').write_text(json.dumps(out,indent=2)+'\n');print(len(checks),checks[-1])
