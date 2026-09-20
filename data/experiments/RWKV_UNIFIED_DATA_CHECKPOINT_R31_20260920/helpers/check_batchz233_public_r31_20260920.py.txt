@@ -1,0 +1,40 @@
+from pathlib import Path
+import json,itertools,random,subprocess,time,sys
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=998244353;rng=random.Random(339);tag=sys.argv[1];c=json.loads((D/('AUTHORED_BATCH'+tag+'.json')).read_text())['candidates'][0];checks=[]
+def run(inp,expected):
+ start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;actual=list(map(int,p.stdout.split()));assert actual==expected,(inp[:200],actual[:20],expected[:20]);checks.append({'input_bytes':len(inp),'seconds':time.monotonic()-start})
+if tag=='z233':
+ def path(a):
+  n=len(a);dp=[[0]*(n+1) for _ in range(n+1)];dp[0][0]=1
+  for x in range(n):
+   for y in range(x+1):
+    for dx in range(1,n-x+1):
+     if a[dx-1]:
+      for dy in range(1,min(n-y,x+dx-y)+1):dp[x+dx][y+dy]+=dp[x][y]
+  return dp[n][n]%P
+ for n in range(1,7):
+  for a in itertools.product((0,1),repeat=n):run(str(n)+'\n'+' '.join(map(str,a))+'\n',[path(a)])
+ a=[1,0,1,1,0,0,0,0,1,0,0,1,0,1,1,1,0,0,1,0,0,0,1,0,0];run('25\n'+' '.join(map(str,a))+'\n',[934946952])
+ n=200000;fac=1;den=1
+ for i in range(1,2*n+1):
+  fac=fac*i%P
+  if i==n:den=fac
+ catalan=fac*pow(den*den%P*(n+1)%P,P-2,P)%P;run(str(n)+'\n'+'1 '*n+'\n',[catalan])
+else:
+ for _ in range(65):
+  n=rng.randrange(1,101);a=[rng.randrange(P) for _ in range(n+1)];b=[rng.randrange(P) for _ in range(n+1)];f=[1];e=[1]
+  for k in range(n):
+   f.append((sum(a[j]*e[k-j] for j in range(k+1))+b[k])*pow(k+1,P-2,P)%P)
+   e.append(sum(j*f[j]*e[k+1-j] for j in range(1,k+2))*pow(k+1,P-2,P)%P)
+  run(str(n)+'\n'+' '.join(map(str,a))+'\n'+' '.join(map(str,b))+'\n',f)
+ run('9\n2 9 8 7 3 6 5 4 1 12\n23 9 8 7 4 6 1 3 2 5\n',[1,25,34,332748429,124783260,22560,624092696,904826719,284383572,50973515])
+ # A=1, B=0 => F=1-log(1-x), exercising100k full formal arithmetic.
+ n=100000;expected=[1]+[pow(i,P-2,P) for i in range(1,n+1)];run(str(n)+'\n1 '+'0 '*n+'\n'+'0 '*(n+1)+'\n',expected)
+ # A=0, denseB => F=1+integral B, exercising dense exponential/inverse.
+ b=[rng.randrange(P) for _ in range(n+1)];expected=[1]+[b[i-1]*pow(i,P-2,P)%P for i in range(1,n+1)];run(str(n)+'\n'+'0 '*(n+1)+'\n'+' '.join(map(str,b))+'\n',expected)
+if tag=='z232':
+ # Dense A and B with known F=1-log(1-x); A*exp(F-1) is prefix sums of A.
+ n=100000;a=[rng.randrange(P) for _ in range(n+1)];b=[];prefix=0
+ for value in a:prefix=(prefix+value)%P;b.append((1-prefix)%P)
+ run(str(n)+'\n'+' '.join(map(str,a))+'\n'+' '.join(map(str,b))+'\n',[1]+[pow(i,P-2,P) for i in range(1,n+1)])
+(D/('PUBLIC_CROSSCHECKS_BATCH'+tag+'.json')).write_text(json.dumps({'passed':True,'checks':checks,'oracle':'literal2D paths andCatalan' if tag=='z233' else 'independent originalODE coefficientrecurrence and analyticfamilies','private_cases_read':False},indent=2)+'\n');print(tag,'PASS',len(checks),checks[-2:])

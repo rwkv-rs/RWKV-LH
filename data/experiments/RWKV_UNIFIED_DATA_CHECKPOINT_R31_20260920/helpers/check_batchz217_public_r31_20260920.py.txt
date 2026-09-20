@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,random,subprocess,time,re,collections
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz217.json').read_text())['candidates'][0];rng=random.Random(463);checks=[]
+def reachable(n,m,rects,start,goal):
+ def signature(x,y):return frozenset(r for r in rects if r[0]<=x<=r[2] and r[1]<=y<=r[3])
+ todo=collections.deque([start]);seen={start}
+ while todo:
+  x,y=todo.popleft()
+  if (x,y)==goal:return True
+  s=signature(x,y)
+  for xx,yy in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
+   if 1<=xx<=n and 1<=yy<=m and (xx,yy) not in seen and signature(xx,yy)==s:seen.add((xx,yy));todo.append((xx,yy))
+ return False
+def run(n,m,ops,expected):
+ text=f'{n} {m} {len(ops)}\n'+'\n'.join(' '.join(map(str,op)) for op in ops)+'\n';start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert p.stdout.split()==expected,(p.stdout,expected);checks.append({'seconds':time.monotonic()-start,'n':n,'m':m,'q':len(ops)})
+for _ in range(60):
+ n=m=12;choices=[(2,2,10,10),(4,4,8,8),(6,6,6,6)];active=set();ops=[];expected=[]
+ for j in range(80):
+  if rng.random()<.5:
+   r=rng.choice(choices);kind=2 if r in active else 1
+   if kind==2:active.remove(r)
+   else:active.add(r)
+   ops.append((kind,*r))
+  else:
+   s=(rng.randint(1,n),rng.randint(1,m));t=(rng.randint(1,n),rng.randint(1,m));ops.append((3,*s,*t));expected.append('Yes' if reachable(n,m,active,s,t) else 'No')
+ run(n,m,ops,expected)
+task=(R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917/tasks'/c['id']/'TASK.md').read_text();blocks=re.findall(r'### Input #\d+\n(.*?)\n\n### Output #\d+\n(.*?)(?=\n\n###|\n\n## Note)',task,re.S)
+for inp,out in blocks:
+ vals=list(map(int,inp.split()));n,m,q=vals[:3];run(n,m,[tuple(vals[i:i+5]) for i in range(3,len(vals),5)],out.split())
+ops=[];expected=[]
+for i in range(25000):
+ x=2+2*(i//100);y=2+2*(i%100);r=(x,y,x,y);ops.extend([(1,*r),(3,x,y,1,1),(2,*r),(3,x,y,1,1)]);expected.extend(['No','Yes'])
+run(2500,2500,ops,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz217.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Literal blocked-edge BFS on nested rectangle insertion/removal streams, published samples, maxq/n/m disjoint singleton barriers.','limitation':'128-bit set fingerprint has theoretical collision risk; not claimed collision-free.','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-1])

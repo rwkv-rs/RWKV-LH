@@ -1,0 +1,42 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);m=next(it);q=next(it);edges=[None]+[(next(it)-1,next(it)-1) for _ in range(m)];queries=[(next(it),next(it)) for _ in range(q)]
+parent=[-1]*n;parity=[0]*n;history=[]
+def add(index):
+ a,b=edges[index];pa=pb=0
+ while parent[a]>=0:pa^=parity[a];a=parent[a]
+ while parent[b]>=0:pb^=parity[b];b=parent[b]
+ if a==b:return pa!=pb
+ if parent[a]>parent[b]:a,b=b,a
+ history.append((a,parent[a],b,parent[b]));parent[a]+=parent[b];parent[b]=a;parity[b]=pa^pb^1;return True
+def rollback(mark):
+ while len(history)>mark:
+  a,sa,b,sb=history.pop();parent[a]=sa;parent[b]=sb;parity[b]=0
+first=m+1
+for i in range(1,m+1):
+ if not add(i):first=i;break
+rollback(0)
+if first==m+1:print('\\n'.join(['NO']*q));raise SystemExit
+threshold=[m+1]*(m+1)
+def solve(lo,hi,lower,upper):
+ if lo>hi:return
+ mid=(lo+hi)//2;mark=len(history)
+ for i in range(lo,mid):add(i)
+ found=lower
+ for i in range(upper,lower,-1):
+  if not add(i):found=i;break
+ threshold[mid]=found;rollback(mark)
+ if lo<mid:
+  for i in range(found+1,upper+1):add(i)
+  solve(lo,mid-1,lower,found);rollback(mark)
+ if mid<hi:
+  for i in range(lo,mid+1):add(i)
+  solve(mid+1,hi,found,upper);rollback(mark)
+solve(1,first,0,m)
+print('\\n'.join('YES' if r<threshold[l] else 'NO' for l,r in queries))
+'''
+note='Odd cycle exists iff the retained graph is not bipartite. For each left deletion endpointl, the minimum right endf(l) making prefix<l plus suffix>r bipartite is monotone nondecreasing. Beyond the first odd prefix, no suffix deletion suffices. Rollback parity DSU computes f by divide-and-conquer: inherited state contains prefix<lo and suffix>upper; add to midpoint prefix, grow suffix backward until first contradiction. Recurse left with shorter suffix boundary and right with longer prefix, undoing all unions. No path compression, union by size. O((n+m)logm logn+q); globally bipartite shortcut is a proved condition. Original roads/cycle rules fully textual, image illustrates only sample.'
+row=rows[1016];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz230.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':1016,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

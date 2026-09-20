@@ -1,0 +1,9 @@
+{
+  "author": "current Codex assistant",
+  "reasoning": "BFS distance layers allow edges within one layer or adjacent layers only. Every nonroot vertex requires a nonempty subset of previous-layer neighbors, giving factor((1+x)^p-1) for p previous-layer vertices. Factor out mandatory x^(n-1); remaining polynomial is product(((1+x)^p-1)/x)^count, times(1+x)^K where K sums within-layer possible edges. Aggregate equal p and exponentiate/truncate to remaining edge count; p=1 contributes1. The source bound sum adjacent-layer products<=200000 bounds total factor degree. Compute binomial coefficients modulo prime via recurrence, valid even K>P since queried degree<P. Exact polynomial convolution handles products; no floating approximations. Brute enumerate small labeled graphs with exact BFS distances/edge counts to verify source-derived combinatorics. Dependency correction: original NumPy version is NOT admitted because actual sandbox does not expose NumPy. Replacement uses only Python decimal exact integer multiplication with fixed-width coefficient packing. Lane width exceeds min(lengths)*(P-1)^2, preventing carries; Decimal precision exceeds full product digits and Emax exceeds result exponent, so no rounding or floating FFT. Extract coefficients and reduce moduloP. Public sandbox must pass as well as independent mathematical tests.",
+  "solution_sha256": "9bb97806755acfc5a214fa5041bcd178663d3e75fd99b5185ac873c5346fd9c4",
+  "previous_candidate": "/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919/tasks/CODING-27dbf9331f5be2828e40a0d7/candidate_01/solution.py",
+  "hidden_cases_read": false,
+  "training_admitted": false,
+  "runtime_dependency": "Python standard library only"
+}

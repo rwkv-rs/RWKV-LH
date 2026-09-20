@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "de4c5cc2bf1ad7c845fe680b315fc3fd75a09000c833a9634d255085b308b1bc",
+  "solution_sha256": "56b1065483a74d6d8ed7710551d9cff1dc88b9aaa14eb7fddd62bed33fb1742e",
+  "reasoning": "Let A(s) count cells burned by second s, the area of union of half-open squares of side2s+1 centered at initial cells. Destruction is t*A(t)-sum_{s=0}^{t-1}A(s). As s varies, only edge-order crossings at2s+1=absolute x/y coordinate difference change the union-area polynomial; split integer times at floor(difference/2). Within each block A is quadratic; sum it exactly from up to three values using finite differences. Evaluate union area by x sweep. Active equal-length y intervals have union length w+sum min(adjacent center gap,w); sorted multiset insertion/deletion updates it from neighboring gaps, including duplicate y values. O(n^3 log n) event-bound evaluations for n<=50, independent of huge t. Figure illustrates explicit8-neighbor propagation only.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

@@ -1,0 +1,21 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+lines=sys.stdin.buffer.read().split();s,t=lines[:2];q=int(lines[2]);data=list(map(int,lines[3:]))
+def prepare(s):
+ p=[0];last=[0]
+ for i,c in enumerate(s,1):p.append(p[-1]+(c!=65));last.append(i if c!=65 else last[-1])
+ return p,last
+sp,sl=prepare(s);tp,tl=prepare(t);out=[]
+for i in range(0,4*q,4):
+ a,b,c,d=data[i:i+4];x=sp[b]-sp[a-1];y=tp[d]-tp[c-1];u=b-max(a-1,sl[b]);v=d-max(c-1,tl[d]);gap=u-v
+ ok=x<=y and (y-x)%2==0 and gap>=0
+ if x==y:ok=ok and gap%3==0
+ elif x==0:ok=ok and gap>0
+ out.append('1' if ok else '0')
+print(''.join(out))
+'''
+note='Interpret listed transitions as directed A->BC, B->AC, C->AB and AAA->empty, not reversible. Number of non-A letters can only grow by two; trailing A suffix can only shrink. With no extra non-A letters introduced, suffix shrink is a multiple of3. If source has only A and target has non-A, at least one trailing A must be consumed. These conditions are sufficient: a non-A anchor can produce arbitrary intervening A lengths and switch B/C through three expansions then deleting AAA; consuming an A introduces two anchors. Prefix counts and last non-A positions give constant-time substring checks. Verify the sufficiency/invariants against exhaustive directed rewriting reachability, not a copied reference. Missing mathematical arrows in rendered prose are resolved by the explicit words transitions and example; all transition operands and empty string are present.'
+row=rows[168];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz229.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':168,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

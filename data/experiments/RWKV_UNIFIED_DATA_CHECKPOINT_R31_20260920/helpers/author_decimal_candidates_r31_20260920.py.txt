@@ -1,0 +1,29 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919'
+lib='''import sys
+from decimal import Decimal,localcontext
+P=998244353
+def multiply(a,b,limit):
+ need=min(limit,len(a)+len(b)-1)
+ if min(len(a),len(b))<24:
+  out=[0]*need
+  for i,x in enumerate(a):
+   if i>=need:break
+   for j,y in enumerate(b[:need-i]):out[i+j]=(out[i+j]+x*y)%P
+  return out
+ width=len(str(min(len(a),len(b))*(P-1)**2));fmt='0'+str(width)+'d'
+ aa=Decimal(''.join(format(x,fmt) for x in reversed(a)));bb=aa if a is b else Decimal(''.join(format(x,fmt) for x in reversed(b)))
+ with localcontext() as context:
+  context.prec=width*(len(a)+len(b))+1;context.Emax=999999999;product=format(aa*bb,'f')
+ product=product.zfill(width*need);end=len(product);return [int(product[end-width*(i+1):end-width*i])%P for i in range(need)]
+'''
+for oldtag,newtag in [('z221','z226'),('z225','z227'),('z224','z228')]:
+ old=json.loads((D/('AUTHORED_BATCH'+oldtag+'.json')).read_text())['candidates'][0];source=Path(old['candidate_path']);code=source.read_text();suffix=code[code.index('def inverse('):] if oldtag=='z221' else code[code.index('from collections import Counter'): ] if oldtag=='z225' else code[code.index('n,k,f='):]
+ if oldtag=='z224':
+  suffix=suffix.replace(';indices=np.arange(limit,dtype=np.int64)','')
+  suffix=suffix.replace('conv=np.array(multiply(distribution,distribution,limit),dtype=np.int64);prefix=(np.cumsum(conv)-conv)%P;distribution=((total*total%P-prefix+(k-indices)*conv)%P).tolist();total=total*total*(k+1)%P','conv=multiply(distribution,distribution,limit);prefix=0;new=[];square=total*total%P\n  for i,x in enumerate(conv):new.append((square-prefix+(k-i)*x)%P);prefix=(prefix+x)%P\n  distribution=new;total=square*(k+1)%P')
+ p=source.parent.parent/'candidate_02/solution.py';p.parent.mkdir(exist_ok=False);p.write_text(lib+suffix);note=old['review_note'].replace('NumPy exact NTT','Exact polynomial convolution').replace('NumPy int64 NTT','polynomial convolution').replace('NumPy exact','Exact');note+=' Dependency correction: original NumPy version is NOT admitted because actual sandbox does not expose NumPy. Replacement uses only Python decimal exact integer multiplication with fixed-width coefficient packing. Lane width exceeds min(lengths)*(P-1)^2, preventing carries; Decimal precision exceeds full product digits and Emax exceeds result exponent, so no rounding or floating FFT. Extract coefficients and reduce moduloP. Public sandbox must pass as well as independent mathematical tests.'
+ (p.parent/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','reasoning':note,'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'previous_candidate':str(source),'hidden_cases_read':False,'training_admitted':False,'runtime_dependency':'Python standard library only'},indent=2)+'\n');(D/('AUTHORED_BATCH'+newtag+'.json')).write_text(json.dumps({'candidates':[dict(old,candidate_path=str(p),review_note=note)]},indent=2)+'\n')
+ if oldtag=='z221':
+  script=(R/'temp/check_batchz221_public_r31_20260920.py').read_text().replace('BATCHz221','BATCHz226').replace("'dependency':'numpy; BLAS1 for public subprocess, modular transforms do not use BLAS'","'dependency':'stdlib decimal exact packed convolution'");(R/'temp/check_batchz226_public_r31_20260920.py').write_text(script)

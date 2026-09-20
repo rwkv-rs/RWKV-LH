@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,random,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz234.json').read_text())['candidates'][0];rng=random.Random(493);checks=[]
+def run(parents,queries,answers):
+ inp=str(len(parents))+'\n'+''.join(f'{p} {k}\n' for p,k in parents)+str(len(queries))+'\n'+''.join(f'{k} {u} {v}\n' for k,u,v in queries);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert p.stdout.split()==answers,(parents[:30],[(q,a,b) for q,a,b in zip(queries,p.stdout.split(),answers) if a!=b][:5]);checks.append({'n':len(parents),'q':len(queries),'seconds':time.monotonic()-start})
+for _ in range(110):
+ n=rng.randrange(1,24);parents=[(-1,-1) if i==1 or rng.randrange(5)==0 else (rng.randrange(1,i),rng.randrange(2)) for i in range(1,n+1)];special=set();parts=set()
+ for i,(p,k) in enumerate(parents,1):
+  if p!=-1:(special if k==0 else parts).add((p,i))
+ while True:
+  ss=special|{(a,c) for a,b in special for bb,c in special if b==bb};pp=parts|{(a,c) for a,b in parts for bb,c in parts if b==bb}|{(c,b) for a,b in parts for aa,c in special if a==aa}
+  if ss==special and pp==parts:break
+  special,parts=ss,pp
+ queries=[(k,u,v) for k in (1,2) for u in range(1,n+1) for v in range(1,n+1)];answers=['YES' if u!=v and (u,v) in (special if k==1 else parts) else 'NO' for k,u,v in queries];run(parents,queries,answers)
+run([(-1,-1),(1,0),(2,0)],[(1,1,3),(2,1,3)],['YES','NO']);run([(-1,-1),(1,0),(1,1)],[(2,2,3),(2,3,2)],['YES','NO'])
+n=100000;parents=[(-1,-1)]+[(i,0 if i<50000 else 1) for i in range(1,n)];queries=[(2,25000,100000),(2,50000,100000)]*50000;run(parents,queries,['NO','YES']*50000)
+(D/'PUBLIC_CROSSCHECKS_BATCHz234.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Independent fixed-point closure of three stated inference rules over110randomforests; all orderedpairs; both samples;100kchain andqueries.','private_cases_read':False},indent=2)+'\n');print('PASS',len(checks),checks[-1])

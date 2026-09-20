@@ -1,0 +1,15 @@
+from pathlib import Path
+import json,random,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz215.json').read_text())['candidates'][0];rng=random.Random(435);checks=[]
+def brute(points,t):
+ x0=min(x for x,y in points)-t;x1=max(x for x,y in points)+t;y0=min(y for x,y in points)-t;y1=max(y for x,y in points)+t
+ return sum(d for x in range(x0,x1+1) for y in range(y0,y1+1) if (d:=min(max(abs(x-a),abs(y-b)) for a,b in points))<=t)%998244353
+def run(points,t,expected):
+ text=f'{len(points)} {t}\n'+''.join(f'{x} {y}\n' for x,y in points);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;got=int(p.stdout);assert got==expected,(points,t,got,expected);checks.append({'seconds':time.monotonic()-start,'n':len(points),'t':t})
+for _ in range(120):
+ points=rng.sample([(x,y) for x in range(-5,6) for y in range(-5,6)],rng.randint(1,8));t=rng.randint(0,10);run(points,t,brute(points,t))
+run([(10,11)],2,40);run([(2,2),(1,3),(0,2),(2,4)],1,18);run([(0,0),(-2,1),(1,1)],0,0)
+t=10**8;run([(0,0)],t,(8*t*(t+1)*(2*t+1)//6)%998244353)
+points=[(i*4000000,rng.randrange(-10**8,10**8)) for i in range(50)];t=100000;run(points,t,50*8*t*(t+1)*(2*t+1)//6%998244353)
+points=rng.sample([(rng.randrange(-10**8,10**8),rng.randrange(-10**8,10**8)) for _ in range(100)],50);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=f'50 {10**8}\n'+''.join(f'{x} {y}\n' for x,y in points),text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;value=int(p.stdout);seconds=time.monotonic()-start;checks.append({'seconds':seconds,'n':50,'t':10**8,'performance_only':True})
+(D/'PUBLIC_CROSSCHECKS_BATCHz215.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Enumerated minimum Chebyshev arrival per cell on120 small cases, every sample, exact single/disjoint sources formula, worst-size event performance.','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-1])

@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "1dd2a56ae1f9ebad67ec5f8a8ef9ebe746e72916b4893386478062db522a7fe9",
+  "solution_sha256": "d8babee4d03d5915a86c91928c17903ab4f7c0235bd37fe206026f3098780053",
+  "reasoning": "Minimum total depth requires every level before the final level full. For a height-h template, both child templates have height h-1 with full preceding levels and optional last-level nodes. State stores size and root rank parity relative to interval offset. Parent root rank=left_size+1. A nonempty left child must have opposite parity to that rank; right child root local rank must be even (offset starts at parent rank). Combine states exactly, beginning with an optional leaf or empty at h1. Induction leaves two possible neighboring sizes, each with one shape: the right child must be the even-root one, while either valid left child works. Implementation retains the explicit combinatorial state recurrence instead of hardcoding a numeric pattern. Enumerating all small BST shapes and an independent larger minimum-depth DP verifies the surprising0/1 counts. Diagram not needed for parity or depth definitions.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

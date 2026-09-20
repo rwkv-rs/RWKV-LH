@@ -1,0 +1,14 @@
+import itertools,random
+rng=random.Random(20260920)
+for trial in range(130):
+ heights=[rng.randrange(1,8) for _ in range(rng.randrange(2,9))];actual=set()
+ for order in set(itertools.permutations(heights)):
+  actual.add(sum(max(0,min(max(order[:i+1]),max(order[i:]))-h) for i,h in enumerate(order)))
+ remaining=sorted(heights)[:-1];levels=set(remaining);bits=1
+ for h in remaining:
+  new=0
+  for level in levels:
+   if level>=h:new|=bits<<(level-h)
+  bits=new
+ expected={i for i in range(bits.bit_length()) if bits>>i&1};assert actual==expected,(heights,actual,expected)
+print('rainfall hypothesis passed',trial+1)

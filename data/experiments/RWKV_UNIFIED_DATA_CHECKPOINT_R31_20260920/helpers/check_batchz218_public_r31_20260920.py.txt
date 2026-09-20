@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,random,subprocess,time,math,itertools
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz218.json').read_text())['candidates'][0];rng=random.Random(324);checks=[]
+def sub(a,b):return tuple(x-y for x,y in zip(a,b))
+def dot(a,b):return sum(x*y for x,y in zip(a,b))
+def cross(a,b):return (a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
+def angle(a,b):return math.acos(max(-1,min(1,dot(a,b)/math.sqrt(dot(a,a)*dot(b,b)))))
+def sphere(a,b,c):
+ total=0
+ for x,y,z in ((a,b,c),(b,c,a),(c,a,b)):total+=angle(cross(x,y),cross(x,z))
+ return total-math.pi
+def run(points,faces,center):
+ expected=[]
+ for face in faces:
+  ps=[sub(points[i],center) for i in face];expected.append(sum(sphere(ps[0],ps[j],ps[j+1]) for j in range(1,len(ps)-1))/(4*math.pi))
+ text=f'{len(points)} {len(faces)}\n'+''.join(' '.join(map(str,p))+'\n' for p in points)+''.join(str(len(f))+' '+' '.join(str(i+1) for i in f)+'\n' for f in faces);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;actual=list(map(float,p.stdout.split()));assert len(actual)==len(expected) and all(abs(a-b)<5.1e-8 for a,b in zip(actual,expected)),(text,actual,expected);assert abs(sum(actual)-1)<len(faces)*5.1e-8;checks.append({'seconds':time.monotonic()-start,'faces':len(faces)})
+for _ in range(100):
+ # A skew tetrahedron still has exact arithmetic-mean volume centroid.
+ points=[(0.,0.,0.),(rng.uniform(1,10),0.,0.),(rng.uniform(-2,2),rng.uniform(1,10),0.),(rng.uniform(-2,2),rng.uniform(-2,2),rng.uniform(1,10))];offset=[rng.uniform(-100,100) for _ in range(3)];points=[tuple(x+y for x,y in zip(p,offset)) for p in points];center=tuple(sum(p[d] for p in points)/4 for d in range(3));faces=[]
+ for face in itertools.combinations(range(4),3):
+  a,b,cq=face
+  if dot(cross(sub(points[b],points[a]),sub(points[cq],points[a])),sub(center,points[a]))>0:face=(a,cq,b)
+  faces.append(face)
+ run(points,faces,center)
+points=[(1,0,0),(1,1,0),(1,0,1),(1,1,1),(0,0,0),(0,1,0),(0,0,1),(0,1,1)];faces=[[x-1 for x in f] for f in [(1,2,4,3),(2,6,8,4),(6,5,7,8),(5,1,3,7),(3,4,8,7),(1,5,6,2)]];run(points,faces,(.5,.5,.5))
+for scale in ((1,2,3),(100,1,10),(10,10,10)):
+ ps=[tuple(p[d]*scale[d] for d in range(3)) for p in points];run(ps,faces,tuple(s/2 for s in scale))
+(D/'PUBLIC_CROSSCHECKS_BATCHz218.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Independent spherical-excess acos formula with analytical tetrahedron/box volume centroids; translated skew tetrahedra, published cube, anisotropic boxes and sum-to-one.','private_cases_read':False},indent=2)+'\n');print(len(checks))

@@ -1,0 +1,24 @@
+from pathlib import Path
+import json,itertools,subprocess,collections,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz229.json').read_text())['candidates'][0]
+strings=[''.join(x) for n in range(1,4) for x in itertools.product('ABC',repeat=n)]
+s='A'.join(strings);positions=[];at=1
+for w in strings:positions.append((at,at+len(w)-1));at+=len(w)+1
+answers=[];rules={'A':'BC','B':'AC','C':'AB'}
+for source in strings:
+ seen={source};queue=collections.deque([source])
+ while queue:
+  w=queue.popleft()
+  targets=[]
+  if len(w)<9:targets.extend(w[:i]+rules[x]+w[i+1:] for i,x in enumerate(w))
+  targets.extend(w[:i]+w[i+3:] for i in range(len(w)-2) if w[i:i+3]=='AAA')
+  for v in targets:
+   if v not in seen:seen.add(v);queue.append(v)
+ answers.extend('1' if target in seen else '0' for target in strings)
+queries=[f'{a} {b} {c} {d}' for a,b in positions for c,d in positions];inp=s+'\n'+s+'\n'+str(len(queries))+'\n'+'\n'.join(queries)+'\n';p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr
+for i,(a,b) in enumerate(zip(p.stdout.strip(),answers)):
+ assert a==b,(strings[i//len(strings)],strings[i%len(strings)],a,b)
+assert len(p.stdout.strip())==len(answers)
+p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input='AABCCBAAB\nABCB\n5\n1 3 1 2\n2 2 2 4\n7 9 1 1\n3 4 2 3\n4 5 1 3\n',text=True,capture_output=True,timeout=3);assert p.stdout.strip()=='10011',p.stdout
+s='ABC'*33333+'A';inp=s+'\n'+s+'\n100000\n'+('1 100000 1 100000\n'*100000);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.stdout.strip()=='1'*100000
+(D/'PUBLIC_CROSSCHECKS_BATCHz229.json').write_text(json.dumps({'passed':True,'literal_rewriting_pairs':len(answers),'max_intermediate_length':9,'published_sample':True,'max_queries_seconds':time.monotonic()-start,'private_cases_read':False},indent=2)+'\n');print('PASS',len(answers))

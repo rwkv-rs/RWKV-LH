@@ -1,0 +1,30 @@
+from pathlib import Path
+import json,random,itertools,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz230.json').read_text())['candidates'][0];rng=random.Random(1016);checks=[]
+def odd(n,edges):
+ adj=[[] for _ in range(n)]
+ for a,b in edges:adj[a].append(b);adj[b].append(a)
+ colors=[-1]*n
+ for s in range(n):
+  if colors[s]>=0:continue
+  colors[s]=0;queue=[s]
+  for a in queue:
+   for b in adj[a]:
+    if colors[b]<0:colors[b]=colors[a]^1;queue.append(b)
+    elif colors[b]==colors[a]:return 'YES'
+ return 'NO'
+def run(n,edges,queries,expected):
+ inp=f'{n} {len(edges)} {len(queries)}\n'+''.join(f'{a+1} {b+1}\n' for a,b in edges)+''.join(f'{l} {r}\n' for l,r in queries);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert p.stdout.split()==expected,(n,edges,queries,p.stdout,expected);checks.append({'n':n,'m':len(edges),'q':len(queries),'seconds':time.monotonic()-start})
+for _ in range(120):
+ n=rng.randrange(2,13);all_edges=list(itertools.combinations(range(n),2));rng.shuffle(all_edges);edges=all_edges[:rng.randrange(1,len(all_edges)+1)];qs=[(l,r) for l in range(1,len(edges)+1) for r in range(l,len(edges)+1)];expected=[odd(n,edges[:l-1]+edges[r:]) for l,r in qs];run(n,edges,qs,expected)
+run(6,[(0,2),(0,4),(0,5),(1,4),(1,5),(2,3),(2,4),(4,5)],[(4,8),(4,7)],['NO','YES'])
+# One long odd cycle: any nonempty deletion removes the only cycle.
+n=199999;edges=[(i,i+1) for i in range(n-1)]+[(0,n-1)];qs=[(rng.randrange(1,n+1),n) for _ in range(200000)];run(n,edges,qs,['NO']*len(qs))
+# Many disjoint triangles, arbitrary edge order; a deletion must intersect every triangle.
+n=199998;triangles=[[(3*i,3*i+1),(3*i+1,3*i+2),(3*i,3*i+2)] for i in range(n//3)];tagged=[(i,e) for i,t in enumerate(triangles) for e in t];rng.shuffle(tagged);edges=[e for _,e in tagged];locations=[[] for _ in triangles]
+for i,(t,e) in enumerate(tagged,1):locations[t].append(i)
+qs=[];expected=[]
+for _ in range(200):
+ l=rng.randrange(1,n+1);r=rng.randrange(l,n+1);qs.append((l,r));expected.append('NO' if all(any(l<=p<=r for p in loc) for loc in locations) else 'YES')
+run(n,edges,qs,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz230.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Independent BFS bipartiteness for every deletion interval in120 graphs; publishedsample; 199999-cycle and shuffled disjointtriangles near200k bound.','private_cases_read':False},indent=2)+'\n');print('PASS',len(checks),checks[-2:])

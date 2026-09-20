@@ -1,0 +1,8 @@
+{
+  "author": "current Codex assistant",
+  "task_sha256": "f01e050ca71d41d5b375d01e04a32a4c870fdd21f602fded5b1388ce9f16e97c",
+  "solution_sha256": "e286989c328ce453504753d27a2f61d22f8d9dfa0d92fa6667e68ccb5f031c0c",
+  "reasoning": "Exact planar arrangement: split every segment at rational intersections, sort outgoing halfedges by integer direction crossproducts, and walk left faces. Positive-area cycles bound finite faces; negative or zero-area boundary walks belong to the smallest enclosing positivecycle (or exterior), located at an exact infinitesimal left offset. This handles disjoint/nested components and dangling segments, not just connected arrangements. Build unit-cost dual edges for crossedwirepieces and BFS between locatedstart/endfaces. Fraction coordinates avoid floating topology errors; offset1e-60 is below separation bounds from integer coordinates<1e5 and intersection determinants<8e10. Text explicitly permits curvedwire and forbids crossingsatwireintersections; illustrative image adds no missingrule. Verify grid-embedded wire arrangements with independent discrete0/1BFS plus nested polygons and publishedsamples.",
+  "hidden_cases_read": false,
+  "training_admitted": false
+}

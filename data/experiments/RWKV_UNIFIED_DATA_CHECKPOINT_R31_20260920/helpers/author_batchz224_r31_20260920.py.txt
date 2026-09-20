@@ -1,0 +1,14 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';Pth=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((Pth/'INVENTORY.json').read_text())['tasks'];lib=Path(json.loads((D/'AUTHORED_BATCHz221.json').read_text())['candidates'][0]['candidate_path']).read_text().split('def inverse(')[0]
+code=lib+'''n,k,f=map(int,sys.stdin.buffer.read().split())
+if f>2*k:print(0)
+else:
+ limit=min(k,f)+1;distribution=[1]*limit;total=(k+1)%P;indices=np.arange(limit,dtype=np.int64)
+ for depth in range(2,n+1):
+  conv=np.array(multiply(distribution,distribution,limit),dtype=np.int64);prefix=(np.cumsum(conv)-conv)%P;distribution=((total*total%P-prefix+(k-indices)*conv)%P).tolist();total=total*total*(k+1)%P
+ answer=sum(distribution[i]*distribution[f-i] for i in range(max(0,f-k),min(k,f)+1))%P;print(answer)
+'''
+note='Maximum multiset capacity of a trie node is min(c_node,left_capacity+right_capacity). Leaves have one assignment for each capacity0..k. If S is convolution of child capacity counts and total is child total assignments, count for capacity i is total^2-sum_{j<i}S[j]+(k-i)*S[i]: c=i allows childsum>=i, while c>i requires childsum=i. Root has no capacity and combines its two depth-n child distributions, so final coefficient f is a dot product. Truncate distributions above min(k,f), retaining exact full assignment total separately so discarded high capacities still contribute to min saturation. Exact NumPy int64 NTT, prefix sums below2e14, and explicit f>2k zero. Check exhaustive small capacity assignments and all published samples including largest one.'
+row=rows[204];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False,'runtime_dependency':'numpy'},indent=2)+'\n');(D/'AUTHORED_BATCHz224.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':204,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

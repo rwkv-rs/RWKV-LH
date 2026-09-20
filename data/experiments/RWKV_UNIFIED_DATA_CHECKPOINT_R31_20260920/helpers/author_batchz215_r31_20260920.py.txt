@@ -1,0 +1,41 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys,bisect
+def solve(points,t):
+ points=sorted(points);n=len(points)
+ def area(s):
+  w=2*s+1;events=sorted([(x,1,y) for x,y in points]+[(x+w,-1,y) for x,y in points]);active=[];covered=0;total=0;previous=events[0][0]
+  for x,kind,y in events:
+   total+=(x-previous)*covered;previous=x;pos=bisect.bisect_left(active,y)
+   if kind==1:
+    if not active:covered=w
+    elif pos==0:covered+=min(active[0]-y,w)
+    elif pos==len(active):covered+=min(y-active[-1],w)
+    else:covered+=min(y-active[pos-1],w)+min(active[pos]-y,w)-min(active[pos]-active[pos-1],w)
+    active.insert(pos,y)
+   else:
+    if len(active)==1:covered=0
+    elif pos==0:covered-=min(active[1]-y,w)
+    elif pos==len(active)-1:covered-=min(y-active[pos-1],w)
+    else:covered-=min(y-active[pos-1],w)+min(active[pos+1]-y,w)-min(active[pos+1]-active[pos-1],w)
+    active.pop(pos)
+  return total
+ boundaries={0,t}
+ for i,(x,y) in enumerate(points):
+  for a,b in points[:i]:
+   for difference in (abs(x-a),abs(y-b)):
+    cut=difference//2
+    if 0<cut<t:boundaries.add(cut)
+ bounds=sorted(boundaries);summed=0
+ for start,end in zip(bounds,bounds[1:]):
+  length=end-start;a=area(start);summed+=length*a
+  if length>=2:
+   b=area(start+1);summed+=(b-a)*length*(length-1)//2
+   if length>=3:summed+=(area(start+2)-2*b+a)*length*(length-1)*(length-2)//6
+ return (t*area(t)-summed)%998244353
+v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);t=next(v);print(solve([(next(v),next(v)) for _ in range(n)],t))
+'''
+note='Let A(s) count cells burned by second s, the area of union of half-open squares of side2s+1 centered at initial cells. Destruction is t*A(t)-sum_{s=0}^{t-1}A(s). As s varies, only edge-order crossings at2s+1=absolute x/y coordinate difference change the union-area polynomial; split integer times at floor(difference/2). Within each block A is quadratic; sum it exactly from up to three values using finite differences. Evaluate union area by x sweep. Active equal-length y intervals have union length w+sum min(adjacent center gap,w); sorted multiset insertion/deletion updates it from neighboring gaps, including duplicate y values. O(n^3 log n) event-bound evaluations for n<=50, independent of huge t. Figure illustrates explicit8-neighbor propagation only.'
+row=rows[435];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz215.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':435,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

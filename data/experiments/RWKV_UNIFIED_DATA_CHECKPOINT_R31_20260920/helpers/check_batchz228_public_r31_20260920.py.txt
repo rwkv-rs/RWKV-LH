@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,subprocess,time,itertools,random
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz228.json').read_text())['candidates'][0];P=998244353;checks=[]
+def brute(n,k):
+ totals=[0]*(2*k+1)
+ for caps in itertools.product(range(k+1),repeat=(1<<(n+1))-2):
+  values=list(caps)
+  for i in range((1<<n)-3,-1,-1):values[i]=min(values[i],values[2*i+2]+values[2*i+3])
+  totals[values[0]+values[1]]+=1
+ return totals
+def run(n,k,f,expected):
+ start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=f'{n} {k} {f}\n',text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;actual=int(p.stdout);assert actual==expected%P,(n,k,f,actual,expected);checks.append({'n':n,'k':k,'f':f,'seconds':time.monotonic()-start})
+for n,k in [(1,1),(1,5),(2,2),(3,1)]:
+ values=brute(n,k)
+ for f in range(1,2*k+2):run(n,k,f,values[f] if f<len(values) else 0)
+for args in [(1,42,2,3),(2,37,13,36871576),(4,1252,325,861735572),(6,153,23699,0),(15,200000,198756,612404746)]:run(*args)
+(D/'PUBLIC_CROSSCHECKS_BATCHz228.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Enumerate all node capacities on small binary tries; all5 published examples including fullmax n/k.','dependency':'stdlib decimal','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-1])

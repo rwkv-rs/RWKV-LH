@@ -1,0 +1,29 @@
+from pathlib import Path
+import json,random,subprocess,time,itertools
+from fractions import Fraction
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz235.json').read_text())['candidates'][0];rng=random.Random(456);checks=[]
+def oracle(mana,ops):
+ spells=[(0,0)];out=[];last=0
+ for index,(kind,a,b) in enumerate(ops,1):
+  x=(a+last)%1000000+1;y=(b+last)%1000000+1
+  if kind==1:spells.append((y,x));continue
+  t=x;h=y;best=Fraction(0)
+  for cost,damage in spells:
+   if cost:best=max(best,damage*min(Fraction(mana,cost),t))
+  for (ca,da),(cb,db) in itertools.combinations(spells,2):
+   if ca==cb:continue
+   ta=Fraction(mana-cb*t,ca-cb);tb=t-ta
+   if ta>=0 and tb>=0:best=max(best,ta*da+tb*db)
+  win=best>=h;out.append('YES' if win else 'NO')
+  if win:last=index
+ return out
+def run(mana,ops,expected):
+ inp=f'{len(ops)} {mana}\n'+''.join(f'{k} {a} {b}\n' for k,a,b in ops);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert p.stdout.split()==expected,(mana,ops[:80],p.stdout[:100],expected[:40]);checks.append({'q':len(ops),'seconds':time.monotonic()-start})
+for _ in range(70):
+ mana=rng.randrange(1,500);ops=[(rng.randrange(1,3),rng.choice([rng.randrange(1,100),rng.randrange(999900,1000001)]),rng.choice([rng.randrange(1,100),rng.randrange(999900,1000001)])) for _ in range(60)];run(mana,ops,oracle(mana,ops))
+run(100,[(1,4,9),(2,19,49),(2,19,49)],['YES','NO'])
+# Strictly increasing damage and cost; a straightline hull retains only endpoints. Last fight cannot win under one mana.
+ops=[(1,i,i) for i in range(1,100000)]+[(2,1,2)];run(1,ops,['NO'])
+# Decreasing inputcost exercises predecessor and dominated-tail deletions.
+ops=[(1,100000-i,i) for i in range(99999,0,-1)]+[(2,1,2)];run(1000000000000,ops,['YES'])
+(D/'PUBLIC_CROSSCHECKS_BATCHz235.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Every one/two-spell exact Fraction LP extreme point over70decodedrandomstreams; sample; two100kupdateorders.','private_cases_read':False},indent=2)+'\n');print('PASS',len(checks),checks[-2:])

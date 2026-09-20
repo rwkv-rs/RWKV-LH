@@ -1,0 +1,37 @@
+from pathlib import Path
+import json,subprocess,time,itertools,random,collections,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz227.json').read_text())['candidates'][0];P=998244353;checks=[];rng=random.Random(173)
+def enumerate_graphs(n):
+ edges=list(itertools.combinations(range(n),2));counts=collections.Counter()
+ for mask in range(1<<len(edges)):
+  adj=[[] for _ in range(n)]
+  for i,(a,b) in enumerate(edges):
+   if mask>>i&1:adj[a].append(b);adj[b].append(a)
+  distances=[-1]*n;distances[0]=0;queue=[0]
+  for a in queue:
+   for b in adj[a]:
+    if distances[b]<0:distances[b]=distances[a]+1;queue.append(b)
+  if len(queue)==n:counts[(mask.bit_count(),tuple(distances))]+=1
+ return counts
+def run(ds,m,expected):
+ text=f'{len(ds)} {m}\n'+' '.join(map(str,ds))+'\n';start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;value=int(p.stdout);assert value==expected%P,(ds[:30],m,value,expected);checks.append({'n':len(ds),'m':m,'seconds':time.monotonic()-start})
+counts=enumerate_graphs(5)
+for (m,ds),expected in rng.sample(list(counts.items()),min(90,len(counts))):run(ds,m,expected)
+run([0,1,1,2],3,2);run([0,1,1,2,2],5,12);run([0,2,2,2,2,1,1,1],12,128601)
+# star layer: only freely chosen within-layer edges.
+n=100000;m=200000;extra=m-(n-1);top=(n-1)*(n-2)//2;value=1
+for i in range(1,extra+1):value=value*((top-i+1)%P)*pow(i,P-2,P)%P
+run([0]+[1]*(n-1),m,value)
+# Two vertices per nonzero layer: all nontrivial factors equal(2+x).
+n=99999;ds=[0]+[d for d in range(1,50000) for _ in range(2)];m=n-1;run(ds,m,pow(2,n-3,P))
+# Nontrivial maximum-degree product: (2+x)^(n-3)*(1+x)^49999.
+m=200000;extra=m-(n-1);a=n-3;b=49999
+invs=[0,1]+[0]*(max(a,b)-1)
+for i in range(2,len(invs)):invs[i]=P-(P//i)*invs[P%i]%P
+ca=[1]*(a+1);cb=[1]*(b+1)
+for i in range(1,a+1):ca[i]=ca[i-1]*(a-i+1)%P*invs[i]%P
+for i in range(1,b+1):cb[i]=cb[i-1]*(b-i+1)%P*invs[i]%P
+lo=max(0,extra-b);hi=min(a,extra);power=pow(2,a-lo,P);half=(P+1)//2;expected=0
+for i in range(lo,hi+1):expected=(expected+ca[i]*power*cb[extra-i])%P;power=power*half%P
+run(ds,m,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz227.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Exhaustive all1024 labeled5-node graphs grouped by exact BFS distance sequence and edge count; all published cases; large star/binomial and long2-vertex layers.','dependency':'stdlib decimal','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-2:])

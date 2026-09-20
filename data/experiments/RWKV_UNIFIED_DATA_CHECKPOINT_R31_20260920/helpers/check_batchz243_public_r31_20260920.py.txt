@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,random,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz243.json').read_text())['candidates'][0];rng=random.Random(325);checks=[]
+def brute(grid,k):
+ n=len(grid);m=len(grid[0]);best=0
+ for i in range(n):
+  for j in range(m):
+   for h in range(1,min(i+1,j+1,n-i,m-j)+1):
+    cost=0;ok=True
+    for x in range(i-h+1,i+h):
+     for y in range(j-h+1,j+h):
+      want=h-max(abs(x-i),abs(y-j))
+      if grid[x][y]>want:ok=False
+      cost+=want-grid[x][y]
+    if ok and cost<=k:best=max(best,h)
+ return best
+def run(cases,expected):
+ inp=str(len(cases))+'\n'+''.join(f'{len(g)} {len(g[0])} {k}\n'+''.join(' '.join(map(str,row))+'\n' for row in g) for g,k in cases);start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert list(map(int,p.stdout.split()))==expected,(cases if len(inp)<3000 else 'large',p.stdout,expected);checks.append({'shapes':[(len(g),len(g[0]),k) for g,k in cases],'seconds':time.monotonic()-start})
+for _ in range(60):
+ cases=[]
+ for __ in range(5):
+  n=rng.randrange(1,16);m=rng.randrange(1,16);g=[[rng.randrange(rng.choice([2,3,5])) for _ in range(m)] for _ in range(n)];k=rng.randrange(1,500);cases.append((g,k))
+ run(cases,[brute(g,k) for g,k in cases])
+g=[[1]*5 for _ in range(5)];g[1][1]=g[3][3]=2;run([(g,10),(g,5),([[2]],10**9)],[3,2,0])
+# Exactlargescale budgetthreshold and highringobstruction.
+zero=[[0]*350 for _ in range(350)];one=[[1]*350 for _ in range(350)];two=[[2]*350 for _ in range(350)];mixed=[[rng.randrange(2) for _ in range(350)] for _ in range(350)];h=123;cost=h*(4*h*h-1)//3
+run([(zero,10**8),(one,10**8),(two,10**8),(zero,cost-1),(mixed,10**8)],[175,175,0,122,175])
+(D/'PUBLIC_CROSSCHECKS_BATCHz243.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Scalar enumerateeverycenter,height,cell300randomgrids; publishedsample;five350x350caseswithanalyticbudget/obstruction.','private_cases_read':False},indent=2)+'\n');print('PASS',len(checks),checks[-1])

@@ -1,8 +1,8 @@
-# 当前 R31 进行中：正式984条，满1000后训练（2026-09-20）
+# 当前 R31 已补足：有效1000条，正在完整冻结后训练（2026-09-20）
 
-最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式984条，仍差16；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，接手时已有五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
+最新owner要求不中断完成“真实格式1000→StateTune→独立测试→缺陷总结”。当前正式有效1000条，888个source_id、851份不同来源内容；尚未启动新训练，不恢复R29中断State。R28 corrected647为基座，仅累加35以后已通过加载器批次。公开验证候选不计数。1910工程回归全绿、0跳过；无子代理、教师API、未push，接手时已有五处修改保持。准确库存与SHA见 `data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/INVENTORY.json`；R23 STATUS已同步。此为工作中检查点，任务尚未完成；下方旧数量为历史。
 
-文本可用性复核：历史987条中排除3条关键图片/公式缺失，当前984为过滤后数；见R31 TEXT_SUFFICIENCY_REVIEW、TEXT_ELIGIBILITY_INVENTORY和ELIGIBLE_SAMPLE_IDS。保留历史结果，训练不得绕过有效名单。
+文本可用性复核：历史1003条中排除3条关键图片/公式缺失，当前1000为过滤后数；见R31 TEXT_SUFFICIENCY_REVIEW、TEXT_ELIGIBILITY_INVENTORY和ELIGIBLE_SAMPLE_IDS。保留历史结果，训练不得绕过有效名单。
 
 # Owner最新顺序：先满1000，再训练（2026-09-20）
 

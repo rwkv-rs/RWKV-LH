@@ -1,0 +1,30 @@
+from pathlib import Path
+import json,subprocess,time,math,itertools,os
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz226.json').read_text())['candidates'][0];P=998244353;checks=[]
+def exact(n):
+ dag=[1];connected=[0]
+ for i in range(1,n+1):
+  value=sum((-1)**(j+1)*math.comb(i,j)*2**(j*(i-j))*dag[i-j] for j in range(1,i+1));dag.append(value);connected.append(value-sum(math.comb(i-1,j-1)*connected[j]*dag[i-j] for j in range(1,i)))
+ return [x%P for x in connected[1:]]
+def brute(n):
+ edges=[(i,j) for i in range(n) for j in range(n) if i!=j];answer=0
+ for mask in range(1<<len(edges)):
+  adj=[[] for _ in range(n)];degrees=[0]*n;und=[set() for _ in range(n)]
+  for k,(a,b) in enumerate(edges):
+   if mask>>k&1:adj[a].append(b);degrees[b]+=1;und[a].add(b);und[b].add(a)
+  todo=[i for i in range(n) if not degrees[i]]
+  for a in todo:
+   for b in adj[a]:
+    degrees[b]-=1
+    if degrees[b]==0:todo.append(b)
+  if len(todo)!=n:continue
+  seen={0};todo=[0]
+  for a in todo:
+   for b in und[a]:
+    if b not in seen:seen.add(b);todo.append(b)
+  answer+=len(seen)==n
+ return answer
+assert exact(4)==[brute(n) for n in range(1,5)]
+for n in (1,5,25,100,100000):
+ start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=str(n)+'\n',text=True,capture_output=True,timeout=3,env={**os.environ,'OPENBLAS_NUM_THREADS':'1'});assert p.returncode==0,p.stderr;actual=list(map(int,p.stdout.split()));assert len(actual)==n;expected=exact(min(n,100));assert actual[:len(expected)]==expected,(n,actual[:10],expected[:10]);checks.append({'n':n,'seconds':time.monotonic()-start,'independent_exact_prefix':len(expected)})
+(D/'PUBLIC_CROSSCHECKS_BATCHz226.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Enumerate all directed graphs through n4, exact arbitrary-integer source inclusion-exclusion and component recurrence through100, full100000 performance.','dependency':'stdlib decimal exact packed convolution','private_cases_read':False},indent=2)+'\n');print(checks)

@@ -1,0 +1,22 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+data=list(map(int,sys.stdin.buffer.read().split()));a=data[1:];total=sum(a);place=1;answer=0
+while place<=total:
+ modulus=10*place;minimum=[None]*10;maximum=[None]*10;minimum[0]=maximum[0]=0;best=0
+ for value in a:
+  residue=value%modulus;states=[x for pair in zip(minimum,maximum) for x in pair if x is not None];oldmin=minimum[:];oldmax=maximum[:]
+  for x in states:
+   y=(x+residue)%modulus;bucket=y//place
+   if oldmin[bucket] is None or y<oldmin[bucket]:oldmin[bucket]=y
+   if oldmax[bucket] is None or y>oldmax[bucket]:oldmax[bucket]=y
+  minimum,maximum=oldmin,oldmax
+  if minimum[9] is not None:best=9;break
+ else:best=max(i for i in range(10) if minimum[i] is not None)
+ answer+=best;place*=10
+print(answer)
+'''
+note='Optimal wallet can be normalized digitbydigit: let r be maximum unitsdigit of any requiredsubsettotal. Any wallet needs atleastr unitcoins. Replace surplusc-r units byceil((c-r)/10)tens; this costs no more and preserves payments by reducing usedunits to targetresidue. Repeat on flooredtargets, so optimum is sum of maximum reachable decimaldigit at eachposition. Compute eachdigit without enumerating2^N sums: residues modulo10*place have10buckets ofwidthplace. Keep minimum andmaximum reachable residue perbucket. This pruning is exact for any eventual digitquery: under any fixed futureaddend, the preimage of a targetbucket is a cyclicinterval ofwidthplace; a set withinonebucket has span<place, so if any member lies in thatinterval at leastone extreme does. Union over futuresubsets preservesexistence. Update20extremes peritem; stop oncebucket9 reached. Test fullsubsetenumeration and exhaustive smallwalletsearch, bothpublishedexamples and20klargevalues.'
+row=rows[124];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz242.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':124,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

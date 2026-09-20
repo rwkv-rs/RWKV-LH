@@ -1,0 +1,12 @@
+from pathlib import Path
+import json,random,math,itertools,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz244.json').read_text())['candidates'][0];rng=random.Random(165);checks=[]
+def run(a,expected):
+ inp=str(len(a))+'\n'+' '.join(map(str,a))+'\n';start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=inp,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;assert int(p.stdout)==expected,(a[:30],p.stdout,expected);checks.append({'n':len(a),'max':max(a),'seconds':time.monotonic()-start})
+for _ in range(120):
+ a=[rng.randrange(1,rng.choice([30,100000])) for _ in range(rng.randrange(2,150))];run(a,max(math.lcm(x,y) for x,y in itertools.combinations(a,2)))
+run([13,35,77],1001);run([1,2,4,8,16,32],32);run([1]*100000,1);run([100000]*100000,100000);run(list(range(1,100001)),100000*99999)
+# Allpairsgcd>=2. Independent oracle checks largest500values, then uses product/2 bound to certify skippedvalues cannot improve.
+a=[x for x in range(1,100001) if x%6==0 or x%10==0 or x%15==0];tail=a[-500:];expected=max(math.lcm(x,y) for x,y in itertools.combinations(tail,2));assert a[-501]*a[-1]//2<=expected;run(a,expected)
+a=[x for x in range(1,100001) if x%210==0 or x%330==0 or x%462==0 or x%770==0 or x%1155==0];expected=max(math.lcm(x,y) for x,y in itertools.combinations(a,2));run(a,expected)
+(D/'PUBLIC_CROSSCHECKS_BATCHz244.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Literalallpairs120randomsets andadversarialprime-supportfamily; certifiedupperbound tailoracle; bothsamples;100kfullrange/duplicates.','private_cases_read':False},indent=2)+'\n');print('PASS',len(checks),checks[-2:])

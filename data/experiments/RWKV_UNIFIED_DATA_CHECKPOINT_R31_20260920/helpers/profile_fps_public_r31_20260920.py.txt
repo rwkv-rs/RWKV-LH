@@ -1,0 +1,6 @@
+from pathlib import Path
+import json,subprocess,time
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz233.json').read_text())['candidates'][0];inp=R/'temp/fps_public_max_r31_20260920.in';inp.write_text('200000\n'+'1 '*200000+'\n');profile=D/'BATCHz233_PUBLIC_PROFILE.pstats'
+with inp.open() as f:p=subprocess.run([str(R/'.venv/bin/python'),'-m','cProfile','-o',str(profile),c['candidate_path']],stdin=f,capture_output=True,text=True,timeout=30)
+import pstats
+stats=pstats.Stats(str(profile));stats.sort_stats('tottime').print_stats(12)

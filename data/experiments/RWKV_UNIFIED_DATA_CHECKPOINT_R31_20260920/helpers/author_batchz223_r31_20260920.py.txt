@@ -1,0 +1,18 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';Pth=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((Pth/'INVENTORY.json').read_text())['tasks'];lib=Path(json.loads((D/'AUTHORED_BATCHz221.json').read_text())['candidates'][0]['candidate_path']).read_text().split('def multiply(')[0]
+code=lib+'''v=iter(map(int,sys.stdin.buffer.read().split()));n=next(v);c=next(v);m=next(v);coeff=[next(v) for _ in range(n)]
+if c==0:out=[sum(coeff)%P]+[coeff[0]]*(m-1)
+elif c==1:out=[sum(coeff)%P]*m
+else:
+ length=1<<(n+m-2).bit_length();a=np.zeros(length,dtype=np.int64);b=np.zeros(length,dtype=np.int64);inverse_c=pow(c,P-2,P);weight=step=1
+ for i in range(n):a[n-1-i]=coeff[i]*weight%P;weight=weight*step%P;step=step*inverse_c%P
+ weight=step=1
+ for i in range(n+m-1):b[i]=weight;weight=weight*step%P;step=step*c%P
+ transform(a);transform(b);a[:]=a*b%P;transform(a,True);weight=step=1;out=[]
+ for j in range(m):out.append(int(a[n-1+j])*weight%P);weight=weight*step%P;step=step*inverse_c%P
+print(' '.join(map(str,out)))
+'''
+note='Chirp identity i*j=tri(i+j)-tri(i)-tri(j), tri(t)=t(t-1)/2, reduces geometric-point polynomial evaluation to a convolution of reversed a_i*c^-tri(i) with c^tri(k), then scale by c^-tri(j). Use cyclic NTT length>=n+m-1: coefficients wrapping from degree>=length land strictly below n-1, outside extracted range[n-1,n+m-2], so no padding to full3n is needed. Handles c=0 (0^0 evaluation point1) and c=1 directly, with no task-path special handling. Exact int64 modular NumPy NTT, no floating FFT. Runtime dependency NumPy is present in verification environment; record requirement. Validate small random Horner evaluations and full million-point cases.'
+row=rows[200];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False,'runtime_dependency':'numpy'},indent=2)+'\n');(D/'AUTHORED_BATCHz223.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':200,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+n=int(sys.stdin.buffer.read());states={(0,None):1,(1,1):1};mod=998244353
+for height in range(2,n.bit_length()+1):
+ new={}
+ for (left,lp),lc in states.items():
+  root=(left+1)%2
+  if left and lp==root:continue
+  for (right,rp),rc in states.items():
+   if right and rp!=0:continue
+   key=(left+right+1,root);new[key]=(new.get(key,0)+lc*rc)%mod
+ states=new
+print(sum(count for (size,parity),count in states.items() if size==n)%mod)
+'''
+note='Minimum total depth requires every level before the final level full. For a height-h template, both child templates have height h-1 with full preceding levels and optional last-level nodes. State stores size and root rank parity relative to interval offset. Parent root rank=left_size+1. A nonempty left child must have opposite parity to that rank; right child root local rank must be even (offset starts at parent rank). Combine states exactly, beginning with an optional leaf or empty at h1. Induction leaves two possible neighboring sizes, each with one shape: the right child must be the even-root one, while either valid left child works. Implementation retains the explicit combinatorial state recurrence instead of hardcoding a numeric pattern. Enumerating all small BST shapes and an independent larger minimum-depth DP verifies the surprising0/1 counts. Diagram not needed for parity or depth definitions.'
+row=rows[432];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz222.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':432,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')

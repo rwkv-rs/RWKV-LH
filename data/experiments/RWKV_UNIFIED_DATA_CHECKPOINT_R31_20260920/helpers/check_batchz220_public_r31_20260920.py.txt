@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,random,subprocess,time,math
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';c=json.loads((D/'AUTHORED_BATCHz220.json').read_text())['candidates'][0];rng=random.Random(193);checks=[];days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+def brute(s,n,t,day,zone,p,m):
+ windows=[]
+ for d in range(7):
+  if day!='All' and day!=days[d]:continue
+  if zone=='All':windows.append((d*1440,(d+1)*1440))
+  elif zone=='Day':windows.append((d*1440+360,d*1440+1080))
+  else:windows.extend([(d*1440,d*1440+360),(d*1440+1080,(d+1)*1440)])
+ # Union adjacent valid intervals, including across week boundary.
+ expanded=sorted((a+shift,b+shift) for a,b in windows for shift in (-10080,0,10080));merged=[]
+ for a,b in expanded:
+  if merged and merged[-1][1]==a:merged[-1]=(merged[-1][0],b)
+  else:merged.append((a,b))
+ valid=[any(a<=start and start+s<b for a,b in merged) for start in range(10080)]
+ best=max(sum(valid[(start+j*t)%10080] for j in range(m)) for start in range(10080));trials=best*n
+ return 0 if trials==0 else 1 if p==1 else -math.expm1(trials*math.log1p(-1/p))
+def run(cases,expected):
+ text='\n'.join(' '.join(map(str,row)) for row in cases)+'\n0 0 0 None None 0 0\n';start=time.monotonic();p=subprocess.run([str(R/'.venv/bin/python'),c['candidate_path']],input=text,text=True,capture_output=True,timeout=3);assert p.returncode==0,p.stderr;actual=list(map(float,p.stdout.split()));assert len(actual)==len(expected) and all(abs(a-b)<1e-8 for a,b in zip(actual,expected)),(cases,actual,expected);checks.append({'seconds':time.monotonic()-start,'cases':len(cases)})
+run([(1,1,3,'All','All',1,1),(2,37,5,'All','Night',150,1),(16,2,20,'All','Day',5,10),(1,14,15,'Mon','All',20000,100)],[1,.2192439716,.9884707850,.0649933899])
+for _ in range(45):
+ s=rng.randint(1,500);row=(s,rng.randint(1,100),rng.randint(s+1,1000),rng.choice(['All']+days),rng.choice(['All','Day','Night']),rng.randint(1,99999),rng.randint(1,100));run([row],[brute(*row)])
+row=(500,100,840,'Mon','Night',99999,100);run([row]*100,[brute(*row)]*100)
+(D/'PUBLIC_CROSSCHECKS_BATCHz220.json').write_text(json.dumps({'passed':True,'checks':checks,'oracle':'Explicit merged allowed time intervals and exhaustive10080 start times for45 random weekly schedules; published samples; repeated max-cycle workload.','private_cases_read':False},indent=2)+'\n');print(len(checks),checks[-1])

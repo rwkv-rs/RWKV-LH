@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';old=json.loads((D/'AUTHORED_BATCHz238.json').read_text())['candidates'][0];p0=Path(old['candidate_path']);s=p0.read_text();begin=s.index('while len(heap)>1:');end=s.index('_,_,f,g=heap[0]',begin)
+s=s[:begin]+'''def merge(a,ga,b,gb):
+ size=len(a)+len(b)-1
+ if min(len(a),len(b))<24:
+  f=[0]*size;g=[0]*size
+  for i,(x,gx) in enumerate(zip(a,ga)):
+   for j,(y,gy) in enumerate(zip(b,gb)):f[i+j]+=x*y;g[i+j]+=gx*y+x*gy
+  return [x%P for x in f],[x%P for x in g]
+ width=len(str(2*min(len(a),len(b))*(P-1)**2));zero='0'*width
+ def pack(f,g):return Decimal(''.join(zero+str(y).zfill(width)+str(x).zfill(width) for x,y in zip(reversed(f),reversed(g))))
+ aa=pack(a,ga);bb=pack(b,gb)
+ with localcontext() as context:
+  context.prec=3*width*(len(a)+len(b))+1;context.Emax=999999999;product=format(aa*bb,'f')
+ product=product.zfill(3*width*size);end=len(product);f=[];g=[]
+ for i in range(size):
+  j=end-3*width*i;f.append(int(product[j-width:j])%P);g.append(int(product[j-2*width:j-width])%P)
+ return f,g
+while len(heap)>1:
+ _,_,a,ga=heapq.heappop(heap);_,_,b,gb=heapq.heappop(heap);f,g=merge(a,ga,b,gb);heapq.heappush(heap,(len(f),serial,f,g));serial+=1
+''' +s[end:]
+p=p0.parent.parent/'candidate_02/solution.py';p.parent.mkdir(exist_ok=False);p.write_text(s);note=old['review_note']+' First candidate exceeded3s at100k singleton groups. Candidate02 fuses dual-number convolution: three coefficient lanes F,G,0 make product lanes F1F2,F1G2+G1F2,G1G2, preventing cross-degree contamination; width bounds2*minlength*(P-1)^2. Small products accumulate exactintegers and reduce once per coefficient. Same math, standardlibrary, threshold unchanged.';(p.parent/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','reasoning':note,'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'previous_candidate':str(p0),'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz240.json').write_text(json.dumps({'candidates':[dict(old,candidate_path=str(p),review_note=note)]},indent=2)+'\n');(R/'temp/check_batchz240_public_r31_20260920.py').write_text((R/'temp/check_batchz238_public_r31_20260920.py').read_text().replace('BATCHz238','BATCHz240'))

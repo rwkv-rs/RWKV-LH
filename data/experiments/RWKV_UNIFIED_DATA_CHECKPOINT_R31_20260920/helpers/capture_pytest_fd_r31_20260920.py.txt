@@ -1,0 +1,14 @@
+from pathlib import Path
+import os,time
+pid=443897
+out=Path('/home/chase/GitHub/RWKV-LH/data/experiments/RWKV_UNIFIED_DATA_CHECKPOINT_R31_20260920/PYTEST.log')
+assert not out.exists()
+with open(f'/proc/{pid}/fd/1','rb') as src, out.open('wb') as dst:
+ while True:
+  block=src.read()
+  if block:dst.write(block);dst.flush()
+  try:os.kill(pid,0)
+  except ProcessLookupError:
+   dst.write(src.read());break
+  time.sleep(1)
+print(out.read_text()[-1500:])

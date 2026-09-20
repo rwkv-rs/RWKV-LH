@@ -1,0 +1,36 @@
+from pathlib import Path
+import json,hashlib
+R=Path('/home/chase/GitHub/RWKV-LH');D=R/'data/experiments/RWKV_UNIFIED_DATA_EXPANSION_R23_20260919';P=R/'data/experiments/RWKV_CODEX_CORRECTIONS_R21_20260917';rows=json.loads((P/'INVENTORY.json').read_text())['tasks']
+code='''import sys
+it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);parents=[0]*(n+1);depth=[0]*(n+1);zeros=list(range(n+1));ones=list(range(n+1));roots=[0]*(n+1)
+for i in range(1,n+1):
+ p=next(it);kind=next(it)
+ if p==-1:roots[i]=i;continue
+ parents[i]=p;depth[i]=depth[p]+1;roots[i]=roots[p]
+ if kind==0:zeros[i]=zeros[p]
+ else:ones[i]=ones[p]
+up=[parents]
+for k in range(1,n.bit_length()):
+ last=up[-1];up.append([last[last[i]] for i in range(n+1)])
+def lca(a,b):
+ if depth[a]<depth[b]:a,b=b,a
+ difference=depth[a]-depth[b]
+ while difference:
+  bit=difference&-difference;a=up[bit.bit_length()-1][a];difference-=bit
+ if a==b:return a
+ for level in reversed(up):
+  if level[a]!=level[b]:a=level[a];b=level[b]
+ return parents[a]
+out=[]
+for _ in range(next(it)):
+ kind=next(it);u=next(it);v=next(it);ok=False
+ if u!=v and roots[u]==roots[v]:
+  ancestor=lca(u,v)
+  if kind==1:ok=ancestor==u and zeros[u]==zeros[v]
+  else:ok=ancestor!=v and zeros[u]==zeros[ancestor] and ones[v]==ones[ancestor]
+ out.append('YES' if ok else 'NO')
+print('\\n'.join(out))
+'''
+note='Special-case relation is exactly a strictly downward all-type0 path. Part relation follows a possibly empty upward type0 path fromu to LCA(u,v), then a nonempty downward all-type1 path tov. It does not infer that a special case of a part must itself be present as a part: that inference is absent from stated rules. In the parent forest there is a unique undirected path, so these languages exactly close under given transitivity and inheritance rules. Binarylifting LCA plus monochromatic componentroot labels answer queries; disconnected/self relations false. Validate using independent fixed-point logical relation closure for random forests and all orderedpairs, not path formula.'
+row=rows[493];folder=D/'tasks'/row['id']/'candidate_01';folder.mkdir(parents=True,exist_ok=False);p=folder/'solution.py';p.write_text(code)
+(folder/'AUTHOR.json').write_text(json.dumps({'author':'current Codex assistant','task_sha256':row['task_sha256'],'solution_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'reasoning':note,'hidden_cases_read':False,'training_admitted':False},indent=2)+'\n');(D/'AUTHORED_BATCHz234.json').write_text(json.dumps({'candidates':[{'id':row['id'],'ordinal':493,'candidate_path':str(p),'review_note':note}]},indent=2)+'\n')
